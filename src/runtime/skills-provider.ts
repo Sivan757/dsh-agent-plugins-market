@@ -194,6 +194,7 @@ export class SuiteSkillProvider implements SkillProvider {
       for (const skill of suite.skills) {
         located.push({ rank: PROJECT_RANK, source: SUITE_PROJECT_SOURCE, suite, skill })
       }
+      located.push(...(await this.agentsOf(suite)))
     }
     return located
   }
