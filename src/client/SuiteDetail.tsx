@@ -97,6 +97,20 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
     }
   }
 
+  /** Save or clear one server's MCP override, then refresh the detail. */
+  const saveMcpOverride = async (serverKey: string, patch: Record<string, unknown> | null): Promise<void> => {
+    setSurfaceBusy(true)
+    try {
+      await postAction('set-mcp-override', { sourceId, suiteId, serverKey, override: patch })
+      const next = await fetchSuiteDetail(sourceId, suiteId)
+      setDetail(next)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setSurfaceBusy(false)
+    }
+  }
+
   const layoutLabel =
     detail === undefined
       ? ''
@@ -239,8 +253,11 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                     : h('div', { className: css.warnLine, style: { margin: '0 0 6px' } }, `⚠ ${detail.mcpErrors.join(t('sourceErrorSeparator'))}`),
                   detail.mcpServers.length === 0
                     ? h('div', { className: css.sidebarEmpty }, '—')
-                    : detail.mcpServers.map(server =>
-                        h(
+                    : detail.mcpServers.map(server => {
+                        const override = detail.mcpOverrides?.[server.key]
+                        const overridden = override !== undefined && Object.keys(override).length > 0
+                        const disabled = override?.enabled === false
+                        return h(
                           'div',
                           { key: server.key, className: css.detailItem },
                           h(
@@ -251,12 +268,33 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                               onClick: () => toggleMcp(server.key)
                             },
                             h('span', { className: css.detailItemName }, server.key),
-                            h('span', { className: css.detailItemDesc }, mcpSummary(server)),
+                            h(
+                              'span',
+                              { className: css.detailItemDesc },
+                              `${mcpSummary(server)}${disabled ? ` · ${t('mcpOverrideDisabledBadge')}` : overridden ? ` · ${t('mcpOverriddenBadge')}` : ''}`
+                            ),
                             h('span', { className: css.detailChevron }, openMcp === server.key ? '▾' : '▸')
                           ),
-                          openMcp !== server.key ? null : h('pre', { className: css.mono }, JSON.stringify(server, null, 2))
+                          openMcp === server.key
+                            ? h(
+                                'div',
+                                { className: css.skillContent },
+                                detail.installed && detail.surfaceToggles?.mcp !== false
+                                  ? h(McpOverrideEditor, {
+                                      t,
+                                      serverKey: server.key,
+                                      transport: server.type,
+                                      override: override ?? {},
+                                      busy: surfaceBusy,
+                                      onSave: patch => saveMcpOverride(server.key, patch),
+                                      onReset: () => saveMcpOverride(server.key, null)
+                                    })
+                                  : null,
+                                h('pre', { className: css.mono }, JSON.stringify(server, null, 2))
+                              )
+                            : null
                         )
-                      )
+                      })
                 ),
                 h(
                   'section',
@@ -345,6 +383,131 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
 function mcpSummary(server: McpServerDetail): string {
   if (server.type === 'stdio') return server.command ?? server.type
   return server.url ?? server.type
+}
+
+/** Parse `KEY=VALUE` lines into a record; blank and comment lines are skipped. */
+function parseKvLines(text: string): Record<string, string> | undefined {
+  const result: Record<string, string> = {}
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed === '' || trimmed.startsWith('#')) continue
+    const eq = trimmed.indexOf('=')
+    if (eq <= 0) continue
+    result[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
+/** Format a record back into sorted `KEY=VALUE` lines for editing. */
+function formatKvLines(map: Record<string, string> | undefined): string {
+  if (map === undefined) return ''
+  return Object.keys(map)
+    .sort()
+    .map(key => `${key}=${map[key]}`)
+    .join('\n')
+}
+
+type OverridePatch = Record<string, unknown>
+
+/**
+ * Per-server MCP override editor: enable/disable plus connection-input
+ * replacement (url/headers for http servers, args/env for stdio). The
+ * suite's own mcp.json stays source-owned; everything here persists as a
+ * user override layered on top at mount time.
+ */
+function McpOverrideEditor(props: {
+  t: Translate
+  serverKey: string
+  transport: string
+  override: Record<string, unknown>
+  busy: boolean
+  onSave: (patch: OverridePatch) => Promise<void>
+  onReset: () => Promise<void>
+}): ReactNode {
+  const { t, transport, override, busy } = props
+  const [draft, setDraft] = useState<OverridePatch>(override)
+  const kvHint = t('mcpOverrideKvHint')
+  const isHttp = transport !== 'stdio'
+  /** Gather the draft fields into one sanitized override patch and save it. */
+  const submit = (): void => {
+    const patch: OverridePatch = {}
+    patch['enabled'] = draft['enabled'] !== false
+    if (isHttp && typeof draft['url'] === 'string' && draft['url'] !== '') patch['url'] = draft['url']
+    const headerText = isHttp ? String(draft['__headers'] ?? '') : ''
+    const headers = parseKvLines(headerText)
+    if (headers !== undefined) patch['headers'] = headers
+    const envText = !isHttp ? String(draft['__env'] ?? '') : ''
+    const env = parseKvLines(envText)
+    if (env !== undefined) patch['env'] = env
+    const argsText = !isHttp ? String(draft['__args'] ?? '') : ''
+    const args = argsText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line !== '')
+    if (args.length > 0) patch['args'] = args
+    void props.onSave(patch)
+  }
+  return h(
+    'div',
+    { className: css.mcpOverrideForm },
+    h(
+      'label',
+      { className: css.mcpOverrideCheck },
+      h('input', {
+        type: 'checkbox',
+        checked: draft['enabled'] !== false,
+        disabled: busy,
+        onChange: event => setDraft({ ...draft, enabled: (event.target as HTMLInputElement).checked })
+      }),
+      t('mcpOverrideEnabled')
+    ),
+    isHttp
+      ? h('input', {
+          className: css.mcpOverrideInput,
+          value: typeof draft['url'] === 'string' ? draft['url'] : '',
+          placeholder: t('mcpOverrideUrlLabel'),
+          disabled: busy,
+          onChange: event => setDraft({ ...draft, url: (event.target as HTMLInputElement).value })
+        })
+      : null,
+    isHttp
+      ? h('textarea', {
+          className: css.mcpOverrideArea,
+          rows: 3,
+          placeholder: t('mcpOverrideHeadersLabel'),
+          title: kvHint,
+          value: typeof draft['__headers'] === 'string' ? draft['__headers'] : formatKvLines(override['headers'] as Record<string, string> | undefined),
+          disabled: busy,
+          onChange: (event: { target: EventTarget | null }) => setDraft({ ...draft, __headers: (event.target as HTMLTextAreaElement).value })
+        })
+      : null,
+    !isHttp
+      ? h('textarea', {
+          className: css.mcpOverrideArea,
+          rows: 3,
+          placeholder: t('mcpOverrideEnvLabel'),
+          title: kvHint,
+          value: typeof draft['__env'] === 'string' ? draft['__env'] : formatKvLines(override['env'] as Record<string, string> | undefined),
+          disabled: busy,
+          onChange: (event: { target: EventTarget | null }) => setDraft({ ...draft, __env: (event.target as HTMLTextAreaElement).value })
+        })
+      : null,
+    !isHttp
+      ? h('textarea', {
+          className: css.mcpOverrideArea,
+          rows: 3,
+          placeholder: t('mcpOverrideArgsLabel'),
+          value: typeof draft['__args'] === 'string' ? draft['__args'] : Array.isArray(override['args']) ? (override['args'] as string[]).join('\n') : '',
+          disabled: busy,
+          onChange: (event: { target: EventTarget | null }) => setDraft({ ...draft, __args: (event.target as HTMLTextAreaElement).value })
+        })
+      : null,
+    h('div', { className: css.mcpOverrideActions },
+      h(Button, { variant: 'primary', size: 'sm', disabled: busy, onClick: submit }, t('mcpOverrideSave')),
+      h(Button, { variant: 'ghost', size: 'sm', disabled: busy, onClick: () => void props.onReset() }, t('mcpOverrideReset'))
+    ),
+    h('div', { className: css.detailItemDesc }, kvHint)
+  )
 }
 
 function PreviewRow(props: { t: Translate; name: string; description?: string; open: boolean; onToggle: () => void; children: ReactNode }): ReactNode {

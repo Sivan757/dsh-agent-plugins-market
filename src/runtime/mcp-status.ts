@@ -1,6 +1,7 @@
 import { deriveServerName } from './mcp-config.js'
 import type { McpStatusEntry, McpStatusPayload, McpStatusState } from '../contracts/mcp-status.js'
 import { inspectToolRegistry, type McpToolSnapshot } from './tool-registry-observer.js'
+import type { McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, Suite } from '../model/types.js'
 
 export type { McpStatusEntry, McpStatusPayload, McpStatusKind, McpStatusState } from '../contracts/mcp-status.js'
@@ -14,7 +15,12 @@ interface McpDiagnostic {
 }
 
 /** Build status rows from discovered plugin MCP definitions and observed tool names. */
-export function buildMcpStatus(suites: Suite[], diagnostics: McpDiagnostic[], observed: readonly McpToolSnapshot[]): McpStatusPayload {
+export function buildMcpStatus(
+  suites: Suite[],
+  diagnostics: McpDiagnostic[],
+  observed: readonly McpToolSnapshot[],
+  overrides: Map<string, McpSuiteOverrides> = new Map()
+): McpStatusPayload {
   const entries: McpStatusEntry[] = []
   const claimedServers = new Set<string>()
   const knownServerNames = new Set<string>()
@@ -29,12 +35,16 @@ export function buildMcpStatus(suites: Suite[], diagnostics: McpDiagnostic[], ob
     // This is an operational inventory, not a configuration audit: suite MCP
     // definitions only appear after their suite is both installed and enabled.
     if (suite.mcp === undefined || suite.installedAt === undefined || !suite.enabled) continue
+    const suiteOverrides = overrides.get(suite.id)
     for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
+      const override = suiteOverrides?.[serverKey]
       const serverName = deriveServerName(suite.id, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
       const diagnostic = diagnosticsByKey.get(`${suite.id}\u0000${serverKey}`)
-      const state: McpStatusState = diagnostic !== undefined ? 'failed' : tools.length > 0 ? 'connected' : 'degraded'
+      const disabled = override?.enabled === false
+      const state: McpStatusState = diagnostic !== undefined ? 'failed' : disabled ? 'disabled' : tools.length > 0 ? 'connected' : 'degraded'
+      const reason = diagnostic?.reason ?? (override === undefined ? undefined : disabled ? 'disabled by override' : 'modified by override')
       entries.push({
         id: `plugin:${suite.sourceId}/${suite.id}/${serverKey}`,
         name: serverName,
@@ -46,8 +56,8 @@ export function buildMcpStatus(suites: Suite[], diagnostics: McpDiagnostic[], ob
         transport: server.type,
         endpoint: endpointOf(server),
         config: redactConfig(server),
-        tools: tools.map(tool => ({ name: tool.name, ...(tool.description === undefined ? {} : { description: tool.description }) })),
-        ...(diagnostic === undefined ? {} : { reason: diagnostic.reason })
+        tools: disabled ? [] : tools.map(tool => ({ name: tool.name, ...(tool.description === undefined ? {} : { description: tool.description }) })),
+        ...(reason === undefined ? {} : { reason })
       })
     }
   }

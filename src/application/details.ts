@@ -12,7 +12,12 @@ interface McpDiagnostic {
 }
 
 /** Build the detail response for one normalized suite. */
-export async function buildSuiteDetail(suite: Suite, installed: InstalledEntry | undefined, diagnostics: readonly McpDiagnostic[]): Promise<SuiteDetail> {
+export async function buildSuiteDetail(
+  suite: Suite,
+  installed: InstalledEntry | undefined,
+  diagnostics: readonly McpDiagnostic[],
+  mcpOverrides: Record<string, Record<string, unknown>> = {}
+): Promise<SuiteDetail> {
   const remoteUrl = suite.remote?.url
   return {
     sourceId: suite.sourceId,
@@ -29,6 +34,7 @@ export async function buildSuiteDetail(suite: Suite, installed: InstalledEntry |
     installed: installed !== undefined,
     enabled: installed?.enabled === true,
     surfaceToggles: effectiveSurfaces(installed?.surfaces),
+    mcpOverrides,
     skills: suite.skills.map(skill => ({
       name: skill.name,
       description: skill.description,

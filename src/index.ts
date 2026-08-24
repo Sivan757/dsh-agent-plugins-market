@@ -78,6 +78,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
 
   const catalog = new Catalog({ userRoot, dataRoot, onChanged })
+  runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
   ctx.inject(['tools'], toolsCtx => {
     catalog.setMcpToolSnapshotProvider(() => inspectToolRegistry((toolsCtx as { tools: unknown }).tools))
   })

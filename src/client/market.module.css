@@ -855,3 +855,43 @@
   accent-color: var(--dsw-alias-accent, #4b6bfb);
   margin: 0;
 }
+
+.mcpOverrideForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 10px;
+  border: 1px solid var(--dsw-alias-border, #d8dbe2);
+  border-radius: 8px;
+}
+
+.mcpOverrideCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mcpOverrideInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.mcpOverrideArea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+
+.mcpOverrideActions {
+  display: flex;
+  gap: 8px;
+}

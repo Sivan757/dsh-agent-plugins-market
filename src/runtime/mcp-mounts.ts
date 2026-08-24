@@ -11,7 +11,8 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type * as McpClient from '@deepseek-ai/dsh-mcp-client'
-import { toMcpMounts } from './mcp-config.js'
+import { toMcpMounts, type McpMountRequest } from './mcp-config.js'
+import type { McpSuiteOverrides } from './mcp-overrides.js'
 import type { Suite } from '../model/types.js'
 
 export interface McpMountDiagnostic {
@@ -40,24 +41,31 @@ interface PluginMountContext {
 export class McpMountRegistry {
   private readonly live = new Map<string, LiveMount>()
   private readonly names = new Map<string, string>()
+  private overridesProvider: () => Promise<Map<string, McpSuiteOverrides>> = async () => new Map()
 
   constructor(
     private readonly ctx: Context,
     private readonly pluginDataRoot: string
   ) {}
 
+  /** Install the per-suite overrides provider (suiteId -> overrides). */
+  setOverridesProvider(provider: () => Promise<Map<string, McpSuiteOverrides>>): void {
+    this.overridesProvider = provider
+  }
+
   /** Mount/unmount MCP servers to match the enabled suites exactly. */
   async reconcile(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
     const active = enabledSuites.filter(suite => suite.activeSurfaces?.mcp !== false)
-    const wanted = new Map<string, { suite: Suite; serverKey: string }>()
+    const overrides = await this.overridesProvider()
+    const wanted = new Map<string, { suite: Suite; serverKey: string; request: McpMountRequest }>()
     const diagnostics: McpMountDiagnostic[] = []
     for (const suite of active) {
-      const { mounts, failures } = toMcpMounts(suite, this.pluginDataRoot)
+      const { mounts, failures } = toMcpMounts(suite, this.pluginDataRoot, overrides.get(suite.id))
       for (const failure of failures) {
         diagnostics.push({ suiteId: suite.id, serverKey: failure.serverKey, reason: failure.reason })
       }
       for (const mount of mounts) {
-        wanted.set(mountKey(mount.suiteId, mount.serverKey), { suite, serverKey: mount.serverKey })
+        wanted.set(mountKey(mount.suiteId, mount.serverKey), { suite, serverKey: mount.serverKey, request: mount })
       }
     }
     for (const [key, live] of [...this.live]) {
@@ -68,7 +76,7 @@ export class McpMountRegistry {
     }
     for (const [key, entry] of wanted) {
       if (this.live.has(key)) continue
-      const reason = await this.mount(entry.suite, entry.serverKey)
+      const reason = await this.mountWith(entry.request)
       if (reason !== undefined) diagnostics.push({ suiteId: entry.suite.id, serverKey: entry.serverKey, reason })
     }
     return diagnostics.filter(diagnostic => diagnostic.reason !== 'unmounted')
@@ -81,10 +89,8 @@ export class McpMountRegistry {
     }
   }
 
-  private async mount(suite: Suite, serverKey: string): Promise<string | undefined> {
-    const { mounts } = toMcpMounts(suite, this.pluginDataRoot)
-    const request = mounts.find(mount => mount.serverKey === serverKey)
-    if (request === undefined) return 'server no longer present in mcp.json'
+  /** Mount one precomputed request (source config merged with overrides). */
+  private async mountWith(request: McpMountRequest): Promise<string | undefined> {
     const owner = this.names.get(request.config.serverName)
     if (owner !== undefined) return `derived serverName "${request.config.serverName}" already mounted by ${owner}`
     let mcpClient: typeof McpClient | undefined
@@ -98,9 +104,9 @@ export class McpMountRegistry {
     try {
       const handle = mountCtx.plugin(mcpClient, request.config)
       await handle.await()
-      const key = mountKey(suite.id, serverKey)
-      this.live.set(key, { suiteId: suite.id, serverKey, serverName: request.config.serverName, disposer: () => handle.dispose() })
-      this.names.set(request.config.serverName, `${suite.id}/${serverKey}`)
+      const key = mountKey(request.suiteId, request.serverKey)
+      this.live.set(key, { suiteId: request.suiteId, serverKey: request.serverKey, serverName: request.config.serverName, disposer: () => handle.dispose() })
+      this.names.set(request.config.serverName, `${request.suiteId}/${request.serverKey}`)
       return undefined
     } catch (error) {
       return `mount failed: ${error instanceof Error ? error.message : String(error)}`

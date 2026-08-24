@@ -18,7 +18,9 @@ export const MARKET_ROUTES = {
   install: `${MARKET_API_PREFIX}install`,
   uninstall: `${MARKET_API_PREFIX}uninstall`,
   setEnabled: `${MARKET_API_PREFIX}set-enabled`,
-  setSurface: `${MARKET_API_PREFIX}set-surface`
+  setSurface: `${MARKET_API_PREFIX}set-surface`,
+  mcpOverrides: `${MARKET_API_PREFIX}mcp-overrides`,
+  setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`
 } as const
 
 /** A configured source row returned to the market client. */
@@ -51,6 +53,18 @@ export interface SuiteSurfaceToggles {
   commands: boolean
   agents: boolean
 }
+
+/** One server's persisted MCP override (wire shape mirrors runtime types). */
+export type McpServerOverrideWire = {
+  enabled?: boolean
+  url?: string
+  headers?: Record<string, string>
+  env?: Record<string, string>
+  args?: string[]
+}
+
+/** Overrides for one suite keyed by mcp.json server key. */
+export type McpSuiteOverridesWire = Record<string, McpServerOverrideWire>
 
 /** A normalized suite card returned by the overview route. */
 export interface SuiteOverviewCard {
@@ -148,6 +162,8 @@ export interface SuiteDetail {
   installed: boolean
   enabled: boolean
   surfaceToggles: SuiteSurfaceToggles | null
+  /** Persisted per-server MCP overrides (suite's mcp.json stays source-owned). */
+  mcpOverrides?: McpSuiteOverridesWire
   skills: SuiteSkillMeta[]
   mcpServers: McpServerDetail[]
   hooks: { count: number; entries: HookPreview[] }

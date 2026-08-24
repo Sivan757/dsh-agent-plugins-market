@@ -32,6 +32,11 @@ export class RuntimeReconciler {
     this.hooks = new HooksMountRegistry(ctx)
   }
 
+  /** Install the per-suite MCP overrides provider used at mount time. */
+  setMcpOverridesProvider(provider: () => Promise<Map<string, import('./mcp-overrides.js').McpSuiteOverrides>>): void {
+    this.mcp.setOverridesProvider(provider)
+  }
+
   /** Reconcile all runtime surfaces against one enabled-suite snapshot. */
   async reconcile(enabledSuites: readonly Suite[]): Promise<RuntimeDiagnostics> {
     const suites = [...enabledSuites]

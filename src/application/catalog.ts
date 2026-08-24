@@ -14,6 +14,7 @@ import { discoverSourceList } from '../catalog/source-catalog.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import { gitClone, gitHead, gitPull, gitRemove } from '../catalog/git.js'
 import { buildMcpStatus, type McpToolSnapshot } from '../runtime/mcp-status.js'
+import { loadSuiteOverrides, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { OverviewPayload, SkillContent, SourceOverview, SuiteDetail } from '../contracts/market.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
@@ -90,7 +91,51 @@ export class Catalog {
   /** Build the flat MCP service inventory for the status surface. */
   async mcpStatus(): Promise<McpStatusPayload> {
     const snapshot = await this.readUserCatalog()
-    return buildMcpStatus(snapshot.suites, this.mcpDiagnostics, this.toolSnapshotProvider())
+    return buildMcpStatus(snapshot.suites, this.mcpDiagnostics, this.toolSnapshotProvider(), await this.allMcpOverrides())
+  }
+
+  /** One suite's persisted MCP overrides. */
+  async mcpOverrides(suiteId: string): Promise<McpSuiteOverrides> {
+    const snapshot = await this.readUserCatalog()
+    if (!snapshot.suites.some(suite => suite.id === suiteId)) throw new Error(`suite "${suiteId}" not found`)
+    return loadSuiteOverrides(this.options.dataRoot, suiteId)
+  }
+
+  /**
+   * Set or clear one server's MCP override and remount it. `override === null`
+   * clears the override (back to the source config). The serverKey must exist
+   * in the suite's parsed mcp.json.
+   */
+  async setMcpOverride(sourceId: string, suiteId: string, serverKey: string, override: McpServerOverride | null): Promise<void> {
+    return this.enqueue(async () => {
+      const source = this.state.sources.find(entry => entry.id === sourceId)
+      if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
+      const checkout = this.sourceCheckoutPath(source)
+      if (!(await isDirectory(checkout))) await this.ensureClone(source)
+      const suites = await discoverSuitesInSource(checkout, sourceId, 'user')
+      const suite = suites.find(entry => entry.id === suiteId)
+      if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
+      if (suite.mcp?.servers[serverKey] === undefined) throw new Error(`server "${serverKey}" is not defined by suite "${suiteId}"`)
+      const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteId)
+      if (override === null) {
+        delete overrides[serverKey]
+      } else {
+        overrides[serverKey] = override
+      }
+      await saveSuiteOverrides(this.options.dataRoot, suiteId, overrides)
+      this.notifyChanged()
+    })
+  }
+
+  /** All persisted MCP overrides keyed by suite id (mount-time provider). */
+  async allMcpOverrides(): Promise<Map<string, McpSuiteOverrides>> {
+    const snapshot = await this.readUserCatalog()
+    const map = new Map<string, McpSuiteOverrides>()
+    for (const suite of snapshot.suites) {
+      const overrides = await loadSuiteOverrides(this.options.dataRoot, suite.id)
+      if (Object.keys(overrides).length > 0) map.set(suite.id, overrides)
+    }
+    return map
   }
 
   /** Load persisted user state once at plugin activation. */
@@ -152,7 +197,7 @@ export class Catalog {
     const snapshot = await this.readUserCatalog()
     const suite = snapshot.suites.find(entry => entry.sourceId === sourceId && entry.id === suiteId)
     if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
-    return buildSuiteDetail(suite, this.state.installed[installKey(sourceId, suiteId)], this.mcpDiagnostics)
+    return buildSuiteDetail(suite, this.state.installed[installKey(sourceId, suiteId)], this.mcpDiagnostics, await loadSuiteOverrides(this.options.dataRoot, suiteId))
   }
 
   /** One skill's full SKILL.md text for the market detail modal. */

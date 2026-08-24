@@ -10,6 +10,7 @@ import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES } from './contracts/market.js'
 import { expandHome } from './catalog/paths.js'
+import { sanitizeOverridePatch } from './runtime/mcp-overrides.js'
 import type { MarketService } from './application/queries.js'
 import type { SuiteSurfaceKey } from './model/types.js'
 
@@ -177,6 +178,30 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
     if (typeof surface !== 'string' || surface === '') throw new Error('missing surface')
     if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
     await manager.setSurface(sourceId, suiteId, surface as SuiteSurfaceKey, enabled)
+    return {}
+  })
+
+  get(MARKET_ROUTES.mcpOverrides, async (request, response) => {
+    const suiteId = queryOf(request).get('suiteId')
+    if (suiteId === null) {
+      sendJson(response, 400, { ok: false, error: 'missing suiteId' })
+      return
+    }
+    try {
+      sendJson(response, 200, { ok: true, overrides: await manager.mcpOverrides(suiteId) })
+    } catch (error) {
+      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  post(MARKET_ROUTES.setMcpOverride, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    const serverKey = body['serverKey']
+    if (typeof serverKey !== 'string' || serverKey === '') throw new Error('missing serverKey')
+    const override = body['override']
+    const sanitized = sanitizeOverridePatch(override)
+    if (override !== null && sanitized === undefined) throw new Error('invalid override payload')
+    await manager.setMcpOverride(sourceId, suiteId, serverKey, sanitized ?? null)
     return {}
   })
 

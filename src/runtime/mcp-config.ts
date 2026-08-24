@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto'
 import type { StdioConfig, StreamableHttpConfig } from '@deepseek-ai/dsh-mcp-client'
 import { expandPlaceholders, resolveCwd } from '../catalog/validate.js'
+import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 
 /** The max length `dsh-mcp-client` accepts for a serverName. */
@@ -30,18 +31,23 @@ export interface McpMountFailure {
 
 /**
  * Build one mount request per supported mcp.json server.
+ * @param overrides user-owned per-server overrides (url/headers/env/args
+ *   replacement plus enable/disable); applied after source expansion, before
+ *   mount. Disabled servers are omitted from the result entirely.
  * @returns mount requests plus per-server failures (unsupported transport,
  *   invalid server key, or derived serverName collision candidates are
  *   checked by the mount registry, not here).
  */
-export function toMcpMounts(suite: Suite, pluginDataRoot: string): { mounts: McpMountRequest[]; failures: McpMountFailure[] } {
+export function toMcpMounts(suite: Suite, pluginDataRoot: string, overrides: McpSuiteOverrides = {}): { mounts: McpMountRequest[]; failures: McpMountFailure[] } {
   if (suite.mcp === undefined) return { mounts: [], failures: [] }
   const mounts: McpMountRequest[] = []
   const failures: McpMountFailure[] = []
-  for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
-    const request = toMount(suite, serverKey, server, pluginDataRoot)
+  for (const [serverKey, source] of Object.entries(suite.mcp.servers)) {
+    const override = overrides[serverKey]
+    if (override?.enabled === false) continue
+    const request = toMount(suite, serverKey, applyOverride(source as McpServerStdio | McpServerStreamableHttp, override), pluginDataRoot)
     if (request === undefined) {
-      failures.push({ serverKey, reason: transportReason(server) })
+      failures.push({ serverKey, reason: transportReason(source) })
     } else {
       mounts.push(request)
     }
