@@ -30,7 +30,7 @@ The question to ask before choosing a commit type: **does a user of the installe
 
 ## Release trigger
 
-- A release PR is opened only by release-please, only when the push touched bump-relevant paths (`src/`, `schemas/`, `package.json` deps) — enforced by `paths-ignore` in `.github/workflows/release-please.yml`.
+- A release PR is opened only by release-please, only when the push touched bump-relevant paths (`src/`, `schemas/`, `package.json` deps) — enforced by `paths-ignore` in `.github/workflows/npm-publish.yml`.
 - Merging a release PR is the release action. Before merging, the maintainer reviews the PR:
   1. Version is the expected semver bump (check the diff vs the previous release).
   2. CHANGELOG entries are the real user-visible changes — no internal noise.
