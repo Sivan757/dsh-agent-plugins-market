@@ -68,6 +68,7 @@ Build artifacts (`lib/`, `client/`) are not committed; npm publishes them via `p
   - **Commands / subagents** — `commands/*.md` register as dsh slash commands; `agents/*.md` register as `agent-<name>` skills.
   - **Context** — the enabled-plugin catalog (user + project sections) is injected at session start; the `agent_plugins` tool queries it.
 - **Runtime discovery** — installed plugins are discovered from configured source ids under `~/.dsh/agent-plugins/.sources/<sourceId>/` (user dimension) and `<project>/.dsh/agent-plugins/.sources/<sourceId>/` (project dimension). Stale unmanaged user checkouts are ignored, while project checkouts remain state-authorized. Local sources read the working tree directly, including uncommitted changes.
+- **Native project layouts (zero-copy migration)** — a repository's own `.claude/` and `.agents/` directories (skills, agents) are discovered in place as read-only `project-native` suites: no install, no copying, no state file. Repositories migrating from Claude Code or agent-plugins.org conventions work as-is; a project skill shadows an installed suite skill of the same name (project wins).
 
 ## Supported plugin layouts
 
@@ -171,8 +172,9 @@ Yes — MIT licensed, published on [npm](https://www.npmjs.com/package/dsh-agent
 ## Known limitations
 
 - Project-dimension MCP servers are not mounted (dsh has no per-session tool scope); the project dimension covers skills and context.
-- Skill discovery has no file watcher: catalog changes apply after a manager action or a host restart.
+- Skill discovery has no file watcher: catalog changes apply after a manager action or a host restart (project-dimension snapshots are cached for 5 seconds on the skill-list hot path).
 - Claude Code hooks support the mapped bridge subset; LSP is counted and previewed but not executed.
+- Native project layouts (`.claude/`, `.agents/`) inject skills and subagents; their `commands/*.md` are not registered as slash commands because the harness command registry is process-scoped, not session-cwd-scoped.
 
 ## Development
 

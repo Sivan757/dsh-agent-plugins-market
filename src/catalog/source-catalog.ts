@@ -3,13 +3,16 @@
  *
  * User catalogs include only configured sources. Project catalogs additionally
  * retain unmanaged checkout ids because project install state can authorize
- * them without duplicating source configuration.
+ * them without duplicating source configuration, and discover the project's
+ * native agent directories (`.claude/`, `.agents/`) in place so repositories
+ * migrating from other coding agents need no file copying.
  */
 import { readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { expandHome, isDirectory, sourcesDir } from './paths.js'
 import type { SourceRef, Suite, SuiteDimension } from '../model/types.js'
 import { discoverSuitesInSource } from './suite-scanner.js'
+import { discoverNativeProjectSuites } from './native-project.js'
 
 /** Discover suites from the selected configured or project checkouts. */
 export async function discoverSourceList(sources: SourceRef[], dimension: SuiteDimension, dimensionRoot: string): Promise<Suite[]> {
@@ -35,5 +38,11 @@ export async function discoverSourceList(sources: SourceRef[], dimension: SuiteD
       return discoverSuitesInSource(checkout, sourceId, dimension)
     })
   )
-  return discovered.flat()
+  const suites = discovered.flat()
+  if (dimension === 'project') {
+    // Native project directories live two levels above the dimension root
+    // (`<projectRoot>/.dsh/agent-plugins`); read them in place.
+    suites.push(...(await discoverNativeProjectSuites(dirname(dirname(dimensionRoot)), dimension)))
+  }
+  return suites
 }

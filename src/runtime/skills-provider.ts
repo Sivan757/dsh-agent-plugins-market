@@ -47,7 +47,17 @@ export class SuiteSkillProvider implements SkillProvider {
   async list(options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const located = await this.locate(options.cwd)
     located.sort((a, b) => a.rank - b.rank || a.suite.id.localeCompare(b.suite.id) || a.skill.name.localeCompare(b.skill.name))
-    return located.map(entry => this.candidateFor(entry))
+    // Dedupe by skill name across dimensions: the sort above puts project
+    // suites (250) ahead of user suites (450), so a project's own skill
+    // always wins over an installed suite shipping a skill of the same name.
+    const seen = new Set<string>()
+    const unique: LocatedSkill[] = []
+    for (const entry of located) {
+      if (seen.has(entry.skill.name)) continue
+      seen.add(entry.skill.name)
+      unique.push(entry)
+    }
+    return unique.map(entry => this.candidateFor(entry))
   }
 
   /** Parse `agents/*.md` of one suite into agent-definition candidates. */

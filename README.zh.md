@@ -68,6 +68,7 @@ dsh plugin --profile <名字> add github:Sivan757/dsh-agent-plugins-market
   - **命令 / 子代理**：`commands/*.md` 注册为 dsh 斜杠命令；`agents/*.md` 注册为 `agent-<name>` 技能；
   - **上下文**：会话启动注入启用套件清单（用户级 + 项目级），`agent_plugins` 工具可查询。
 - **运行时发现**——已安装套件只从已配置的源 ID 对应目录发现：`~/.dsh/agent-plugins/.sources/<源id>/`（用户维度）与 `<项目>/.dsh/agent-plugins/.sources/<源id>/`（项目维度）。用户维度的过期未登记 checkout 会被忽略，项目维度仍按 state 中的安装记录授权；本地源直接读取工作树（含未提交改动）。
+- **项目原生布局（零拷贝迁移）**——项目自己的 `.claude/`、`.agents/` 目录（skills、agents）就地发现为只读「项目原生」套件：无需安装、无需拷贝、无状态文件。从 Claude Code 或 agent-plugins.org 约定迁移过来的仓库开箱即用；同名技能发生冲突时项目侧优先（覆盖已安装套件中的同名技能）。
 
 ## 兼容的套件布局
 
@@ -171,8 +172,9 @@ dsh plugin --profile <名字> add dsh-agent-plugins-market
 ## 已知限制
 
 - 项目维度 MCP server 不挂载（dsh 无按会话的 tool scope）；项目维度覆盖技能 + 上下文。
-- 技能发现无文件监听：目录变化在管理动作或重启后生效。
+- 技能发现无文件监听：目录变化在管理动作或重启后生效（项目维度快照在技能枚举热路径上有 5 秒缓存）。
 - Claude Code hooks 仅支持 bridge 映射的子集；LSP 只计数与预览，不执行。
+- 项目原生布局（`.claude/`、`.agents/`）注入技能与子代理；其中 `commands/*.md` 不注册为斜杠命令——宿主命令注册表是进程级作用域，无法按会话 cwd 隔离。
 
 ## 开发
 

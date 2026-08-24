@@ -21,7 +21,7 @@ export interface SourceRef {
 }
 
 /** The manifest layout a suite root was discovered under. */
-export type SuiteLayoutKind = 'agent-plugin-v1' | 'universal' | 'claude-code' | 'cursor' | 'kimi' | 'codex' | 'skill-collection' | 'remote'
+export type SuiteLayoutKind = 'agent-plugin-v1' | 'universal' | 'claude-code' | 'cursor' | 'kimi' | 'codex' | 'skill-collection' | 'remote' | 'project-native'
 
 /** Normalized suite manifest fields. */
 export interface SuiteManifest {

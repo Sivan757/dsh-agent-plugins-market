@@ -91,7 +91,9 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   ? t('layoutKimi')
                   : detail.layout === 'remote'
                     ? t('layoutRemote')
-                    : t('layoutSkills')
+                    : detail.layout === 'project-native'
+                      ? t('layoutProjectNative')
+                      : t('layoutSkills')
 
   return h(Modal, {
     open: true,

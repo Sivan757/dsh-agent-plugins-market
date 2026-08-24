@@ -45,7 +45,9 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
                 ? t('layoutKimi')
                 : suite.layout === 'remote'
                   ? t('layoutRemote')
-                  : t('layoutSkills')
+                  : suite.layout === 'project-native'
+                    ? t('layoutProjectNative')
+                    : t('layoutSkills')
   const isRemote = suite.remoteUrl !== undefined
   const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
     event.stopPropagation()

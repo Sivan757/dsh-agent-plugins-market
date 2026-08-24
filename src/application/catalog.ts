@@ -26,6 +26,14 @@ export interface CatalogOptions {
   userRoot: string
   dataRoot: string
   onChanged: () => void
+  /**
+   * Freshness window for cached project-dimension snapshots. The project
+   * catalog sits on the skill-list hot path (every provider `list()` call),
+   * and its inputs — the project's own files — change only through editor
+   * saves; a short window keeps listing cheap without going stale. Defaults
+   * to 5 seconds; 0 disables caching.
+   */
+  projectSnapshotTtlMs?: number
 }
 
 /** A coherent discovered-and-installed view for one catalog dimension. */
@@ -45,12 +53,17 @@ export class Catalog {
   private revision = 0
   private userSnapshot: CatalogSnapshot | undefined
   private userSnapshotPromise: Promise<CatalogSnapshot> | undefined
+  /** Project-dimension snapshots keyed by project root, with TTL freshness. */
+  private readonly projectSnapshots = new Map<string, { snapshot: CatalogSnapshot; expiresAt: number }>()
+  private readonly projectSnapshotPromises = new Map<string, Promise<CatalogSnapshot>>()
+  private readonly projectSnapshotTtlMs: number
   /** Latest MCP mount diagnostics (suiteId -> reasons), fed by host reconcile. */
   mcpDiagnostics: Array<{ suiteId: string; serverKey: string; reason: string }> = []
   private toolSnapshotProvider: () => readonly McpToolSnapshot[] = () => []
 
   constructor(private readonly options: CatalogOptions) {
     this.statePath = join(options.userRoot, STATE_FILE_NAME)
+    this.projectSnapshotTtlMs = options.projectSnapshotTtlMs ?? 5_000
   }
 
   /** Install the host tool snapshot provider used by the MCP status surface. */
@@ -102,6 +115,24 @@ export class Catalog {
   /** Read one coherent project-dimension snapshot for a workspace cwd. */
   async readProjectCatalog(cwd: string): Promise<CatalogSnapshot> {
     const projectRoot = await resolveProjectRoot(cwd)
+    if (this.projectSnapshotTtlMs <= 0) return this.buildProjectSnapshot(projectRoot)
+    const cached = this.projectSnapshots.get(projectRoot)
+    if (cached !== undefined && cached.expiresAt > Date.now()) return cached.snapshot
+    const inFlight = this.projectSnapshotPromises.get(projectRoot)
+    if (inFlight !== undefined) return inFlight
+    const promise = this.buildProjectSnapshot(projectRoot)
+      .then(snapshot => {
+        this.projectSnapshots.set(projectRoot, { snapshot, expiresAt: Date.now() + this.projectSnapshotTtlMs })
+        return snapshot
+      })
+      .finally(() => {
+        this.projectSnapshotPromises.delete(projectRoot)
+      })
+    this.projectSnapshotPromises.set(projectRoot, promise)
+    return promise
+  }
+
+  private async buildProjectSnapshot(projectRoot: string): Promise<CatalogSnapshot> {
     const state = await loadState(join(projectRoot, STATE_FILE_NAME))
     return this.buildSnapshot(state, 'project', projectRoot)
   }
@@ -422,9 +453,12 @@ export class Catalog {
     const discovered = await discoverSourceList(state.sources, dimension, dimensionRoot)
     const suites = discovered.map(suite => {
       const installed = state.installed[installKey(suite.sourceId, suite.id)]
+      // Native project layouts (`.claude/`, `.agents/`) are the repository's
+      // own files read in place: they carry no install state and stay enabled.
+      const enabled = suite.manifest.layout === 'project-native' || installed?.enabled === true
       return {
         ...suite,
-        enabled: installed?.enabled === true,
+        enabled,
         ...(installed?.lockCommit === undefined ? {} : { lockCommit: installed.lockCommit }),
         ...(installed?.installedAt === undefined ? {} : { installedAt: installed.installedAt })
       }
@@ -441,6 +475,7 @@ export class Catalog {
     if (increment) this.revision++
     this.userSnapshot = undefined
     this.userSnapshotPromise = undefined
+    this.projectSnapshots.clear()
   }
 
   private notifyChanged(): void {
