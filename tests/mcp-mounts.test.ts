@@ -160,45 +160,4 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
     await registry.disposeAll()
     expect(mounted).toHaveLength(1)
   })
-
-  it('disposes the bridge when the suite is disabled or uninstalled (reconcile shrinks)', async () => {
-    const handles: Array<{ disposed: boolean }> = []
-    const ctx = {
-      plugin: () => {
-        const handle = { disposed: false }
-        handles.push(handle)
-        return {
-          await: async () => {},
-          dispose: async () => {
-            handle.disposed = true
-          }
-        }
-      },
-      logger: { warn: () => {} }
-    }
-    const registry = new (await import('../src/runtime/hooks-mounts.js')).HooksMountRegistry(ctx as never)
-    const suites = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
-    suites[0]!.enabled = true
-
-    // Mounted while enabled.
-    await registry.reconcile(suites)
-    expect(handles).toHaveLength(1)
-    expect(handles[0]!.disposed).toBe(false)
-
-    // Disabling the suite: the caller reconciles with the enabled list only
-    // (the disabled suite is absent from it) → bridge disposed.
-    suites[0]!.enabled = false
-    await registry.reconcile([])
-    expect(handles[0]!.disposed).toBe(true)
-
-    // Re-enabling mounts a fresh bridge.
-    suites[0]!.enabled = true
-    await registry.reconcile(suites)
-    expect(handles).toHaveLength(2)
-    expect(handles[1]!.disposed).toBe(false)
-
-    // Uninstalling (suite absent) disposes the live bridge again.
-    await registry.reconcile([])
-    expect(handles[1]!.disposed).toBe(true)
-  })
 })

@@ -53,11 +53,12 @@ describe('full install pipeline: addSource → install → setEnabled → enable
     // 3. Before install, enabledUserSuites is empty.
     expect(await catalog.enabledUserSuites()).toEqual([])
 
-    // 4. Install the suite (install == enable; the pre-install dialog is the confirmation gate).
+    // 4. Install the suite.
     await catalog.install(source.id, discoveredSuite!.id)
     snapshot = await catalog.readUserCatalog()
     const installed = snapshot.suites.find(s => s.sourceId === source.id && s.id === discoveredSuite!.id)
     expect(installed).toBeDefined()
+    // freshly installed suites are enabled by default
     expect(snapshot.enabledSuites.find(s => s.sourceId === source.id && s.id === discoveredSuite!.id)).toBeDefined()
 
     // 5. enabledUserSuites now contains the suite.
