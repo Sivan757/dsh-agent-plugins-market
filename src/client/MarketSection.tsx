@@ -13,6 +13,7 @@ import { loadOverview, invalidateOverview, startSourceProgressPolling, type Sour
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from './features/market/market-view-model.js'
 import { SourceTab } from './features/market/SourceTab.js'
 import { SourceEditorModal, type EditorState } from './features/market/SourceEditorModal.js'
+import { InstallConfirmModal, type InstallConfirmState } from './features/market/InstallConfirmModal.js'
 import { SuiteCard } from './features/market/SuiteCard.js'
 import { StatusIcon } from './ui/StatusIcon.js'
 import type { Translate } from './index.js'
@@ -68,6 +69,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const [busy, setBusy] = useState<string | undefined>(undefined)
   const [toast, setToast] = useState<ToastState | undefined>(undefined)
   const [confirm, setConfirm] = useState<ConfirmState | undefined>(undefined)
+  const [installConfirm, setInstallConfirm] = useState<InstallConfirmState | undefined>(undefined)
   const [editor, setEditor] = useState<EditorState>(undefined)
   const [detail, setDetail] = useState<{ sourceId: string; suiteId: string } | undefined>(undefined)
   const [progress, setProgress] = useState<SourceProgressState>({ step: undefined, error: undefined })
@@ -234,7 +236,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   busy: busy !== undefined,
                   onOpen: () => setDetail({ sourceId: suite.sourceId, suiteId: suite.suiteId }),
                   onInstall: () => {
-                    void action(`i:${suite.suiteId}`, 'install', { sourceId: suite.sourceId, suiteId: suite.suiteId })
+                    setInstallConfirm({ suite })
                   },
                   onAddSource: () => {
                     if (suite.remoteUrl !== undefined) void action(`a:${suite.suiteId}`, 'sources/add', { url: suite.remoteUrl })
@@ -250,6 +252,22 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
               )
       ),
       toast === undefined ? null : h(Toast, { key: toast.key, text: toast.message, onDone: () => setToast(undefined) }),
+      installConfirm === undefined
+        ? null
+        : h(InstallConfirmModal, {
+            t,
+            state: installConfirm,
+            busy: busy !== undefined,
+            onClose: () => setInstallConfirm(undefined),
+            onConfirm: async () => {
+              const ok = await action(`i:${installConfirm.suite.suiteId}`, 'install', {
+                sourceId: installConfirm.suite.sourceId,
+                suiteId: installConfirm.suite.suiteId
+              })
+              if (ok) setInstallConfirm(undefined)
+              return ok
+            }
+          }),
       confirm === undefined
         ? null
         : h(Modal, {

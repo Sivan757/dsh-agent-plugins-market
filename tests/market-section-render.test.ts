@@ -74,38 +74,64 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+/** Mount the section and flush the initial async refresh. */
+async function mountSection(): Promise<HTMLDivElement> {
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  await act(async () => {
+    root!.render(h(MarketSection, { t, mode: 'settings' }))
+  })
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  return host
+}
+
 describe('MarketSection rendering', () => {
   it('renders the section title, source tabs, and suite cards after load', async () => {
-    host = document.createElement('div')
-    document.body.appendChild(host)
-    root = createRoot(host)
-    await act(async () => {
-      root!.render(h(MarketSection, { t, mode: 'settings' }))
-    })
-    // Allow the async refresh() to resolve.
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-
-    const text = host.textContent ?? ''
+    const el = await mountSection()
+    const text = el.textContent ?? ''
     expect(text).toContain('nav')
     expect(text).toContain('Demo Suite')
     expect(text).toContain('demo')
-    expect(host.querySelector('article')).not.toBeNull()
+    expect(el.querySelector('article')).not.toBeNull()
   })
 
   it('renders the add-source and refresh controls in the header', async () => {
-    host = document.createElement('div')
-    document.body.appendChild(host)
-    root = createRoot(host)
-    await act(async () => {
-      root!.render(h(MarketSection, { t, mode: 'page' }))
+    await mountSection()
+    const buttons = host!.querySelectorAll('header button')
+    expect(buttons.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('opens the install confirmation dialog and does NOT install on cancel', async () => {
+    await mountSection()
+
+    // The suite card's install button (primary action in the card actions row).
+    const installButtons = [...host!.querySelectorAll('button')].filter(button => (button.textContent ?? '').includes('install'))
+    expect(installButtons.length).toBe(1)
+    const probe = vi.fn()
+    installButtons[0]!.addEventListener('click', probe)
+    act(() => {
+      installButtons[0]!.click()
     })
+    expect(probe).toHaveBeenCalledTimes(1)
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
 
-    const buttons = host.querySelectorAll('header button')
-    expect(buttons.length).toBeGreaterThanOrEqual(2)
+    // The confirmation dialog appears with the surface tags and risk notice.
+    const bodyText = document.body.textContent ?? ''
+    expect(bodyText).toContain('installConfirmTitle')
+    expect(bodyText).toContain('surfaceMcp 1')
+
+    // Click 取消 (the ghost cancel button) — no install action may fire.
+    const cancelButton = [...document.body.querySelectorAll('button')].find(button => (button.textContent ?? '').includes('cancel'))
+    expect(cancelButton).toBeDefined()
+    act(() => {
+      cancelButton!.click()
+    })
+    const postAction = (await import('../src/client/api.js')).postAction as ReturnType<typeof vi.fn>
+    expect(postAction).not.toHaveBeenCalledWith('install', expect.anything())
   })
 })

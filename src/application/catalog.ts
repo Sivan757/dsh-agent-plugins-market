@@ -436,7 +436,9 @@ export class Catalog {
     })
   }
 
-  /** Install a suite from a source and enable it. */
+  /** Install a suite from a source and enable it. The client confirms the
+   * injected surfaces (skills / MCP / hooks / commands) in a pre-install
+   * dialog before this runs; disabling afterwards is always available. */
   async install(sourceId: string, suiteId: string): Promise<void> {
     return this.enqueue(async () => {
       const source = this.state.sources.find(entry => entry.id === sourceId)

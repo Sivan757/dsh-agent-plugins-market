@@ -518,6 +518,39 @@
   width: min(500px, 92vw);
 }
 
+/* --- install confirmation modal --------------------------------------------------- */
+
+.installConfirmBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.installConfirmSuite {
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #111827);
+}
+
+.installConfirmMeta {
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font-size: 12px;
+}
+
+.installConfirmTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.installConfirmWarn {
+  color: var(--dsw-alias-danger, #b45309);
+  font-size: 12px;
+  border: 1px solid var(--dsw-alias-danger, #b45309);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
 .editorForm {
   display: flex;
   flex-direction: column;
