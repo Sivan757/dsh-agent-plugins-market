@@ -1,7 +1,6 @@
 name: release-please
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
     # CI/tooling/docs changes must not open a release PR.
