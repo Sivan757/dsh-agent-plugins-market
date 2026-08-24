@@ -1,7 +1,6 @@
 # 向 dsh-web-ui 社区插件索引申请收录 dsh-agent-plugins-market
 
-收录渠道：https://github.com/zhu1090093659/dsh-web-ui —— `docs/plugins.md`「社区插件索引登记」。
-数据源：`packages/dsh-community-plugins/community.json`（创意工坊商店 + dsh-market.com 的唯一来源，只收录链接不搬代码，维护者审核合并）。
+收录渠道：https://github.com/zhu1090093659/dsh-web-ui —— `docs/plugins.md`「社区插件索引登记」。数据源：`packages/dsh-community-plugins/community.json`（创意工坊商店 + dsh-market.com 的唯一来源，只收录链接不搬代码，维护者审核合并）。
 
 ## 1. 追加到 community.json 的条目（建议追加到列表末尾，与其他条目格式一致）
 
@@ -20,6 +19,7 @@
 ```
 
 说明：
+
 - `category` 选 `tools`（与已有的 dsh-plugin-hub 等插件管理类条目一致；现有分类为 agent / integration / knowledge / security / tools / ui / utility）。
 - `repo` 用仓库根 URL；`npm` 填 npm 发布名，创意工坊会展示一键安装命令。
 - 提交前在 dsh-web-ui 仓库内跑 `node scripts/community-index`（CI 门禁同款校验）。
@@ -32,7 +32,7 @@ docs(community): register dsh-agent-plugins-market in the community plugin index
 
 ## 3. PR 描述（可直接使用）
 
-````markdown
+```markdown
 ### 注册插件
 
 - **id**: `dsh-agent-plugins-market`
@@ -57,7 +57,7 @@ dsh-agent-plugins-market 把 Claude Code / Codex / Cursor / Kimi 的插件市场
 
 - 索引只收录链接与元数据，不搬运代码，版权归原作者 ✅
 - 仓库为本人维护的活跃上游，MIT License ✅
-````
+```
 
 ## 4. 操作步骤
 

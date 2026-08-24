@@ -62,6 +62,7 @@ export class SuiteSkillProvider implements SkillProvider {
 
   /** Parse `agents/*.md` of one suite into agent-definition candidates. */
   private async agentsOf(suite: Suite): Promise<LocatedSkill[]> {
+    if (suite.activeSurfaces?.agents === false) return []
     const dir = join(suite.root, 'agents')
     let entries: string[]
     try {
@@ -176,7 +177,7 @@ export class SuiteSkillProvider implements SkillProvider {
     const located: LocatedSkill[] = []
     const userSuites = await this.manager.enabledUserSuites()
     for (const suite of userSuites) {
-      for (const skill of suite.skills) {
+      for (const skill of suite.activeSurfaces?.skills === false ? [] : suite.skills) {
         located.push({ rank: USER_RANK, source: SUITE_USER_SOURCE, suite, skill })
       }
       located.push(...(await this.agentsOf(suite)))
@@ -191,7 +192,7 @@ export class SuiteSkillProvider implements SkillProvider {
     const snapshot = await this.manager.readProjectCatalog(cwd)
     const located: LocatedSkill[] = []
     for (const suite of snapshot.enabledSuites) {
-      for (const skill of suite.skills) {
+      for (const skill of suite.activeSurfaces?.skills === false ? [] : suite.skills) {
         located.push({ rank: PROJECT_RANK, source: SUITE_PROJECT_SOURCE, suite, skill })
       }
       located.push(...(await this.agentsOf(suite)))

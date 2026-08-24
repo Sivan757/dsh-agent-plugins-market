@@ -833,3 +833,25 @@
     transition: none;
   }
 }
+
+.surfaceToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: center;
+}
+
+.surfaceToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--dsw-alias-text-2, #5a6070);
+  cursor: pointer;
+  user-select: none;
+}
+
+.surfaceToggle input[type='checkbox'] {
+  accent-color: var(--dsw-alias-accent, #4b6bfb);
+  margin: 0;
+}

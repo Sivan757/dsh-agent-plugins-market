@@ -1,7 +1,7 @@
 /** Narrow application interfaces consumed by the HTTP transport adapter. */
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from '../contracts/market.js'
-import type { SourceRef } from '../model/types.js'
+import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 
 /** Read-only market operations required by HTTP routes. */
 export interface MarketQueries {
@@ -22,6 +22,7 @@ export interface MarketMutations {
   install(sourceId: string, suiteId: string): Promise<void>
   uninstall(sourceId: string, suiteId: string): Promise<void>
   setEnabled(sourceId: string, suiteId: string, enabled: boolean): Promise<void>
+  setSurface(sourceId: string, suiteId: string, surface: SuiteSurfaceKey, enabled: boolean): Promise<void>
 }
 
 /** Complete application surface required by the HTTP routes. */

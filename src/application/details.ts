@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { parse as parseYaml } from 'yaml'
 import { discoverLspEntries, listMdFiles } from '../catalog/surfaces.js'
 import type { SkillContent, SuiteDetail } from '../contracts/market.js'
-import type { InstalledEntry, Suite } from '../model/types.js'
+import { effectiveSurfaces, type InstalledEntry, type Suite } from '../model/types.js'
 
 interface McpDiagnostic {
   suiteId: string
@@ -28,6 +28,7 @@ export async function buildSuiteDetail(suite: Suite, installed: InstalledEntry |
     remoteUrl: remoteUrl ?? null,
     installed: installed !== undefined,
     enabled: installed?.enabled === true,
+    surfaceToggles: effectiveSurfaces(installed?.surfaces),
     skills: suite.skills.map(skill => ({
       name: skill.name,
       description: skill.description,

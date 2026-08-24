@@ -19,7 +19,17 @@ import type { OverviewPayload, SkillContent, SourceOverview, SuiteDetail } from 
 import { buildSuiteDetail, readSkillContent } from './details.js'
 import { deriveSourceId, expandHome, isDirectory, resolveProjectRoot, sanitizeId, sourceCheckoutDir, sourcesDir, STATE_FILE_NAME } from '../catalog/paths.js'
 import { loadState, saveState, EMPTY_STATE } from '../model/state.js'
-import type { InstalledEntry, SourceRef, Suite, SuiteDimension, SuiteState } from '../model/types.js'
+import {
+  effectiveSurfaces,
+  SUITE_SURFACE_KEYS,
+  type InstalledEntry,
+  type SourceRef,
+  type Suite,
+  type SuiteDimension,
+  type SuiteState,
+  type SuiteSurfaceKey,
+  type SurfaceOverrides
+} from '../model/types.js'
 
 /** Dependencies and host callback used by the catalog application module. */
 export interface CatalogOptions {
@@ -208,6 +218,7 @@ export class Catalog {
       surfaces: suite.surfaces,
       enabled: suite.enabled,
       installed: installed.has(installKey(suite.sourceId, suite.id)),
+      ...(installed.has(installKey(suite.sourceId, suite.id)) ? { surfaceToggles: suite.activeSurfaces } : {}),
       ...(suite.remote === undefined ? {} : { remoteUrl: suite.remote.url }),
       dimension: suite.dimension,
       layout: suite.manifest.layout,
@@ -419,6 +430,19 @@ export class Catalog {
     })
   }
 
+  /** Enable or disable one runtime surface of an installed suite. */
+  async setSurface(sourceId: string, suiteId: string, surface: SuiteSurfaceKey, enabled: boolean): Promise<void> {
+    return this.enqueue(async () => {
+      const key = installKey(sourceId, suiteId)
+      const entry = this.state.installed[key]
+      if (entry === undefined) throw new Error(`suite "${suiteId}" is not installed`)
+      if (!SUITE_SURFACE_KEYS.includes(surface as SuiteSurfaceKey)) throw new Error(`surface "${surface}" is not toggleable`)
+      const surfaces: SurfaceOverrides = { ...(entry.surfaces ?? {}), [surface]: enabled }
+      await this.setInstalled(sourceId, suiteId, { ...entry, surfaces })
+      this.notifyChanged()
+    })
+  }
+
   /** Append config-seeded sources missing from user state and persist them. */
   async mergeSources(sources: SourceRef[]): Promise<void> {
     const existing = new Set(this.state.sources.map(source => source.id))
@@ -459,6 +483,7 @@ export class Catalog {
       return {
         ...suite,
         enabled,
+        activeSurfaces: effectiveSurfaces(installed?.surfaces),
         ...(installed?.lockCommit === undefined ? {} : { lockCommit: installed.lockCommit }),
         ...(installed?.installedAt === undefined ? {} : { installedAt: installed.installedAt })
       }

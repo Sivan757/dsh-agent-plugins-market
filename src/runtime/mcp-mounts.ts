@@ -48,9 +48,10 @@ export class McpMountRegistry {
 
   /** Mount/unmount MCP servers to match the enabled suites exactly. */
   async reconcile(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
+    const active = enabledSuites.filter(suite => suite.activeSurfaces?.mcp !== false)
     const wanted = new Map<string, { suite: Suite; serverKey: string }>()
     const diagnostics: McpMountDiagnostic[] = []
-    for (const suite of enabledSuites) {
+    for (const suite of active) {
       const { mounts, failures } = toMcpMounts(suite, this.pluginDataRoot)
       for (const failure of failures) {
         diagnostics.push({ suiteId: suite.id, serverKey: failure.serverKey, reason: failure.reason })

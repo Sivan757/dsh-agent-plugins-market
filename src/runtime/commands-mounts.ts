@@ -57,7 +57,11 @@ export class CommandMountRegistry {
     const diagnostics: CommandMountDiagnostic[] = []
     const wanted = new Map<string, CommandSpec & { suiteId: string; suiteName: string }>()
     for (const suite of enabledSuites) {
-      for (const spec of [...(await readCommands(suite.root)), ...(await readAgents(suite.root))]) {
+      const specs =
+        suite.activeSurfaces?.commands === false && suite.activeSurfaces?.agents === false
+          ? []
+          : [...(suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root)), ...(suite.activeSurfaces?.agents === false ? [] : await readAgents(suite.root))]
+      for (const spec of specs) {
         const key = `${suite.id}/${spec.name}`
         wanted.set(key, { ...spec, suiteId: suite.id, suiteName: suite.manifest.name })
       }

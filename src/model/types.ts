@@ -109,6 +109,8 @@ export interface Suite {
   surfaces: SuiteSurfaceCounts
   dimension: SuiteDimension
   enabled: boolean
+  /** Effective per-surface enablement (overrides merged over enabled defaults). */
+  activeSurfaces?: Record<SuiteSurfaceKey, boolean>
   lockCommit?: string
   installedAt?: string
   /** Remote marketplace reference (not cloned): the source URL plus the
@@ -119,11 +121,33 @@ export interface Suite {
   errors: string[]
 }
 
+/** Runtime surfaces that can be selectively enabled per installed suite. */
+export type SuiteSurfaceKey = 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents'
+
+/** Per-surface user overrides; absent keys default to enabled. */
+export type SurfaceOverrides = Partial<Record<SuiteSurfaceKey, boolean>>
+
+/** The full set of toggleable surfaces, in display order. */
+export const SUITE_SURFACE_KEYS: readonly SuiteSurfaceKey[] = ['skills', 'mcp', 'hooks', 'commands', 'agents']
+
+/** Merge user overrides over the enabled default into the effective surface set. */
+export function effectiveSurfaces(overrides: SurfaceOverrides | undefined): Record<SuiteSurfaceKey, boolean> {
+  return {
+    skills: overrides?.skills !== false,
+    mcp: overrides?.mcp !== false,
+    hooks: overrides?.hooks !== false,
+    commands: overrides?.commands !== false,
+    agents: overrides?.agents !== false
+  }
+}
+
 /** Persisted install entry, keyed `${sourceId}/${suiteId}`. */
 export interface InstalledEntry {
   enabled: boolean
   lockCommit?: string
   installedAt: string
+  /** Per-surface enable overrides; absent keys default to enabled. */
+  surfaces?: SurfaceOverrides
 }
 
 /** The persisted suite state file (`<dimensionRoot>/state.json`). */

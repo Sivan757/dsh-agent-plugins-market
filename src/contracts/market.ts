@@ -17,7 +17,8 @@ export const MARKET_ROUTES = {
   refreshSource: `${MARKET_API_PREFIX}sources/refresh`,
   install: `${MARKET_API_PREFIX}install`,
   uninstall: `${MARKET_API_PREFIX}uninstall`,
-  setEnabled: `${MARKET_API_PREFIX}set-enabled`
+  setEnabled: `${MARKET_API_PREFIX}set-enabled`,
+  setSurface: `${MARKET_API_PREFIX}set-surface`
 } as const
 
 /** A configured source row returned to the market client. */
@@ -42,6 +43,15 @@ export interface SuiteSurfaceCounts {
   lsp: number
 }
 
+/** Effective per-surface enablement of an installed suite. */
+export interface SuiteSurfaceToggles {
+  skills: boolean
+  mcp: boolean
+  hooks: boolean
+  commands: boolean
+  agents: boolean
+}
+
 /** A normalized suite card returned by the overview route. */
 export interface SuiteOverviewCard {
   sourceId: string
@@ -53,6 +63,8 @@ export interface SuiteOverviewCard {
   surfaces: SuiteSurfaceCounts
   enabled: boolean
   installed: boolean
+  /** Per-surface toggles; present on installed suites only. */
+  surfaceToggles?: SuiteSurfaceToggles
   dimension: string
   layout: string
   remoteUrl?: string
@@ -135,6 +147,7 @@ export interface SuiteDetail {
   remoteUrl: string | null
   installed: boolean
   enabled: boolean
+  surfaceToggles: SuiteSurfaceToggles | null
   skills: SuiteSkillMeta[]
   mcpServers: McpServerDetail[]
   hooks: { count: number; entries: HookPreview[] }

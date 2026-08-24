@@ -8,11 +8,20 @@
  */
 import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, Modal, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
-import { fetchSkillContent, fetchSuiteDetail, type McpServerDetail, type SuiteDetail } from './api.js'
+import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, type SuiteDetail } from './api.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import type { Translate } from './index.js'
 import { createLatestRequestGuard } from './features/suite-detail/suite-detail-resource.js'
 import css from './market.module.css'
+
+/** Toggleable surface keys paired with their translation keys. */
+const SURFACE_TOGGLE_ROWS = [
+  ['skills', 'surfaceSkills'],
+  ['mcp', 'surfaceMcp'],
+  ['hooks', 'surfaceHooks'],
+  ['commands', 'surfaceCommands'],
+  ['agents', 'surfaceAgents']
+] as const
 
 export interface SuiteDetailModalProps {
   t: Translate
@@ -72,6 +81,20 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
 
   const toggleMcp = (key: string): void => {
     setOpenMcp(openMcp === key ? undefined : key)
+  }
+
+  const [surfaceBusy, setSurfaceBusy] = useState(false)
+  const toggleSurface = async (surface: string, enabled: boolean): Promise<void> => {
+    setSurfaceBusy(true)
+    try {
+      await postAction('set-surface', { sourceId, suiteId, surface, enabled })
+      const next = await fetchSuiteDetail(sourceId, suiteId)
+      setDetail(next)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setSurfaceBusy(false)
+    }
   }
 
   const layoutLabel =
@@ -157,7 +180,28 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                         )
                   ),
                   detail.description === null ? null : h('p', { className: css.detailDesc }, detail.description),
-                  h('div', { className: css.detailCell }, h('span', { className: css.detailKey }, t('rootLabel')), h('span', { className: css.mono }, detail.root))
+                  h('div', { className: css.detailCell }, h('span', { className: css.detailKey }, t('rootLabel')), h('span', { className: css.mono }, detail.root)),
+                  detail.installed === false || detail.surfaceToggles === null
+                    ? null
+                    : h(
+                        'div',
+                        { className: css.detailCell },
+                        h('span', { className: css.detailKey }, t('surfaceTogglesSection')),
+                        h(
+                          'div',
+                          { className: css.surfaceToggles, title: t('surfaceTogglesHint') },
+                          ...SURFACE_TOGGLE_ROWS.map(([key, labelKey]) =>
+                            h('label', { key, className: css.surfaceToggle }, h('input', {
+                              type: 'checkbox',
+                              checked: detail.surfaceToggles![key],
+                              disabled: surfaceBusy,
+                              onChange: event => {
+                                void toggleSurface(key, (event.target as HTMLInputElement).checked)
+                              }
+                            }), t(labelKey))
+                          )
+                        )
+                      )
                 ),
                 h(
                   'section',

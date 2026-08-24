@@ -22,9 +22,9 @@ describe('live-like native discovery through a real project tree', () => {
     const { SuiteSkillProvider } = await import('../src/runtime/skills-provider.js')
     const repo = await mkdtemp(join(tmpdir(), 'dsh-live-'))
     await mkdir(join(repo, '.git'), { recursive: true })
-    await mkdir(join(repo, '.claude', 'skills', 'deploy'), { recursive: true });
+    await mkdir(join(repo, '.claude', 'skills', 'deploy'), { recursive: true })
     await mkdir(join(repo, '.claude', 'agents'), { recursive: true })
-        await writeFile(join(repo, '.claude', 'skills', 'deploy', 'SKILL.md'), `---\nname: deploy\ndescription: Deploy the app.\n---\n\nDeploy.\n`, 'utf8')
+    await writeFile(join(repo, '.claude', 'skills', 'deploy', 'SKILL.md'), `---\nname: deploy\ndescription: Deploy the app.\n---\n\nDeploy.\n`, 'utf8')
     await writeFile(join(repo, '.claude', 'agents', 'reviewer.md'), `---\nname: reviewer\ndescription: Code reviewer agent.\n---\n\nReview code.\n`, 'utf8')
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-live-user-'))
     const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })

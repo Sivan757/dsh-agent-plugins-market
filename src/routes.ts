@@ -11,6 +11,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES } from './contracts/market.js'
 import { expandHome } from './catalog/paths.js'
 import type { MarketService } from './application/queries.js'
+import type { SuiteSurfaceKey } from './model/types.js'
 
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -166,6 +167,16 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
     const enabled = body['enabled']
     if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
     await manager.setEnabled(sourceId, suiteId, enabled)
+    return {}
+  })
+
+  post(MARKET_ROUTES.setSurface, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    const surface = body['surface']
+    const enabled = body['enabled']
+    if (typeof surface !== 'string' || surface === '') throw new Error('missing surface')
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setSurface(sourceId, suiteId, surface as SuiteSurfaceKey, enabled)
     return {}
   })
 

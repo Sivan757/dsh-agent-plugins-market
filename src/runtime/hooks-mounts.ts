@@ -38,13 +38,14 @@ export class HooksMountRegistry {
   /** Mount/unmount one bridge per suite to match the enabled suites exactly. */
   async reconcile(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
     const diagnostics: HooksMountDiagnostic[] = []
-    const wanted = new Set(enabledSuites.map(suite => suite.id))
+    const active = enabledSuites.filter(suite => suite.activeSurfaces?.hooks !== false)
+    const wanted = new Set(active.map(suite => suite.id))
     for (const [suiteId, handle] of [...this.live]) {
       if (!wanted.has(suiteId)) {
         await this.unmount(suiteId, handle)
       }
     }
-    for (const suite of enabledSuites) {
+    for (const suite of active) {
       if (this.live.has(suite.id)) continue
       const reason = await this.mount(suite)
       if (reason !== undefined) diagnostics.push({ suiteId: suite.id, reason })

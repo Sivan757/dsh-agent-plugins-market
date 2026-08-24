@@ -8,7 +8,7 @@
  */
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { InstalledEntry, SourceRef, SuiteState } from './types.js'
+import { SUITE_SURFACE_KEYS, type InstalledEntry, type SourceRef, type SuiteState, type SurfaceOverrides } from './types.js'
 
 export const EMPTY_STATE: SuiteState = { version: 1, sources: [], installed: {} }
 
@@ -47,11 +47,28 @@ function normalizeState(record: Record<string, unknown>): SuiteState {
       installed[key] = {
         enabled: entry['enabled'] === true,
         lockCommit: typeof entry['lockCommit'] === 'string' ? entry['lockCommit'] : undefined,
-        installedAt: typeof entry['installedAt'] === 'string' ? entry['installedAt'] : new Date(0).toISOString()
+        installedAt: typeof entry['installedAt'] === 'string' ? entry['installedAt'] : new Date(0).toISOString(),
+        ...parseSurfaceOverrides(entry['surfaces'])
       }
     }
   }
   return { version: 1, sources, installed }
+}
+
+/** Parse a persisted `surfaces` override record, keeping only valid boolean keys. */
+function parseSurfaceOverrides(raw: unknown): { surfaces?: SurfaceOverrides } {
+  if (typeof raw !== 'object' || raw === null) return {}
+  const record = raw as Record<string, unknown>
+  const overrides: SurfaceOverrides = {}
+  let hasAny = false
+  for (const key of SUITE_SURFACE_KEYS) {
+    const value = record[key]
+    if (typeof value === 'boolean') {
+      overrides[key] = value
+      hasAny = true
+    }
+  }
+  return hasAny ? { surfaces: overrides } : {}
 }
 
 /** Persist state atomically through a sibling-temp rename. */
