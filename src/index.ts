@@ -20,6 +20,7 @@ import { inspectToolRegistry } from './runtime/tool-registry-observer.js'
 import { resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
+import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
 import type { SourceRef } from './model/types.js'
 
 export const name = 'dsh-agent-plugins-market'
@@ -39,7 +40,15 @@ export function apply(ctx: Context, config: Config = {}): void {
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot)
   let providerControl: SkillProviderControl | undefined
-  const runtime = new RuntimeReconciler(ctx, dataRoot)
+  // Host runtime copy resolves from the harness `locale.preference` setting;
+  // the async settings read lands before the first session starts in practice.
+  const t = bindHostLocale(undefined)
+  void loadHostLocale().then(locale => {
+    hostLocale.t = locale.t
+    providerControl?.invalidate()
+  })
+  const hostLocale: { t: HostTranslate } = { t }
+  const runtime = new RuntimeReconciler(ctx, dataRoot, key => hostLocale.t(key))
 
   const reconcileMounts = (): void => {
     void (async () => {
@@ -79,10 +88,10 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   ctx.skills.registerProvider(control => {
     providerControl = control
-    return new SuiteSkillProvider(catalog)
+    return new SuiteSkillProvider(catalog, key => hostLocale.t(key))
   })
 
-  const disposeContext = mountSuiteContext(ctx, catalog)
+  const disposeContext = mountSuiteContext(ctx, catalog, key => hostLocale.t(key))
 
   ctx.inject(['webServer', 'loader'], hostCtx => {
     hostCtx.effect(() => mountSuiteRoutes(hostCtx, catalog), 'dsh-agent-plugins-market: http routes')

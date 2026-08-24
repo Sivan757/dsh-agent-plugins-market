@@ -11,6 +11,7 @@ import { CommandMountRegistry, type CommandMountDiagnostic } from './commands-mo
 import { HooksMountRegistry, type HooksMountDiagnostic } from './hooks-mounts.js'
 import { McpMountRegistry, type McpMountDiagnostic } from './mcp-mounts.js'
 import type { Suite } from '../model/types.js'
+import { bindHostLocale, type HostTranslate } from './host-locale.js'
 
 /** Diagnostics returned by one runtime reconciliation pass. */
 export interface RuntimeDiagnostics {
@@ -25,9 +26,9 @@ export class RuntimeReconciler {
   private readonly commands: CommandMountRegistry
   private readonly hooks: HooksMountRegistry
 
-  constructor(ctx: Context, dataRoot: string) {
+  constructor(ctx: Context, dataRoot: string, t: HostTranslate = bindHostLocale(undefined)) {
     this.mcp = new McpMountRegistry(ctx, dataRoot)
-    this.commands = new CommandMountRegistry(ctx)
+    this.commands = new CommandMountRegistry(ctx, t)
     this.hooks = new HooksMountRegistry(ctx)
   }
 

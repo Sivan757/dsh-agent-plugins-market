@@ -16,6 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { parse as parseYaml } from 'yaml'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 import type { Suite } from '../model/types.js'
+import { bindHostLocale, type HostTranslate } from './host-locale.js'
 
 export interface CommandMountDiagnostic {
   suiteId: string
@@ -50,7 +51,10 @@ const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/
 export class CommandMountRegistry {
   private readonly live = new Map<string, () => void>()
 
-  constructor(private readonly ctx: Context) {}
+  constructor(
+    private readonly ctx: Context,
+    private readonly t: HostTranslate = bindHostLocale(undefined)
+  ) {}
 
   /** Register/unregister suite commands and agent-commands to match the enabled suites exactly. */
   async reconcile(enabledSuites: Suite[]): Promise<CommandMountDiagnostic[]> {
@@ -60,7 +64,10 @@ export class CommandMountRegistry {
       const specs =
         suite.activeSurfaces?.commands === false && suite.activeSurfaces?.agents === false
           ? []
-          : [...(suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root)), ...(suite.activeSurfaces?.agents === false ? [] : await readAgents(suite.root))]
+          : [
+              ...(suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root)),
+              ...(suite.activeSurfaces?.agents === false ? [] : await readAgents(suite.root, this.t))
+            ]
       for (const spec of specs) {
         const key = `${suite.id}/${spec.name}`
         wanted.set(key, { ...spec, suiteId: suite.id, suiteName: suite.manifest.name })
@@ -86,9 +93,9 @@ export class CommandMountRegistry {
           ...(spec.hint === undefined ? {} : { input: { hint: spec.hint } }),
           handler: invocation => {
             const agent = invocation.agent as InboxAgent
-            const text = [`[Agent Plugins 命令 /${spec.name}（来自 ${spec.suiteId}）]`, '', spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())].join('\n')
+            const text = [this.t('commandForwardTitle', { command: spec.name, suite: spec.suiteId }), '', spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())].join('\n')
             agent.followup({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } })
-            return { kind: 'success', text: `/${spec.name} 已转交模型执行（${spec.suiteId}）` }
+            return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name, suite: spec.suiteId }) }
           }
         })
         this.live.set(key, disposer)
@@ -136,7 +143,7 @@ export async function readCommands(root: string): Promise<CommandSpec[]> {
 /** Parse `agents/*.md` of one suite root into `agent-<name>` commands so
  *  subagents are selectable from the slash-command menu, grouped by the
  *  `agent-` prefix (the harness command UI has no group headers). */
-export async function readAgents(root: string): Promise<CommandSpec[]> {
+export async function readAgents(root: string, t: HostTranslate): Promise<CommandSpec[]> {
   let entries: string[]
   try {
     entries = await readdir(join(root, 'agents'))
@@ -157,7 +164,7 @@ export async function readAgents(root: string): Promise<CommandSpec[]> {
     const parsed = parseSkillFrontmatter(text, name)
     const description = typeof parsed === 'string' ? parsed : parsed.description
     if (description === undefined) continue
-    specs.push({ name, description, hint: '子代理', body: stripFrontmatter(text) })
+    specs.push({ name, description, hint: t('agentCommandHint'), body: stripFrontmatter(text) })
   }
   return specs
 }

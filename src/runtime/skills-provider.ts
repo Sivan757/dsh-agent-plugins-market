@@ -18,6 +18,7 @@ import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider
 import type { Catalog } from '../application/catalog.js'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 import type { Suite, SuiteSkill } from '../model/types.js'
+import { bindHostLocale, type HostTranslate } from './host-locale.js'
 
 export const SUITE_PROJECT_SOURCE = 'agent-plugin-project' satisfies SkillSource
 export const SUITE_USER_SOURCE = 'agent-plugin-user' satisfies SkillSource
@@ -42,7 +43,10 @@ interface LocatedSkill {
 export class SuiteSkillProvider implements SkillProvider {
   readonly name = 'agent-plugin'
 
-  constructor(private readonly manager: Catalog) {}
+  constructor(
+    private readonly manager: Catalog,
+    private readonly t: HostTranslate = bindHostLocale(undefined)
+  ) {}
 
   async list(options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const located = await this.locate(options.cwd)
@@ -117,15 +121,7 @@ export class SuiteSkillProvider implements SkillProvider {
     }
     if (locator.kind === 'agent') {
       const suiteName = locator.suiteRoot.split(/[\\/]/).at(-1) ?? 'suite'
-      const content = [
-        `## 子代理定义（来自 Agent Plugins ${suiteName}，Claude Code agents 格式）`,
-        '',
-        '当任务匹配下方描述时，通过 subagent 工具创建子代理并将「定义正文」原样作为指令执行。',
-        '',
-        '```markdown',
-        text,
-        '```'
-      ].join('\n')
+      const content = [this.t('agentDefinitionTitle', { suite: suiteName }), '', this.t('agentDefinitionIntro'), '', '```markdown', text, '```'].join('\n')
       return {
         name: candidate.name,
         description: candidate.description,
