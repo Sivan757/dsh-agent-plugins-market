@@ -9,6 +9,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.6.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.5.0...dsh-agent-plugins-market-v0.6.0) (2026-08-24)
+
+
+### Features
+
+* discover native project layouts (.claude/.agents) in place with project-first skill dedup ([7348a30](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7348a30c7c7187d7f6f2818fa3dd801d02f4ce1d))
+* graphical MCP override layer over source-owned mcp.json ([01480f9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/01480f9b59d868ffe564d2f6ce4978839590519b))
+* per-surface enable toggles for installed suites ([df63243](https://github.com/Sivan757/dsh-agent-plugins-market/commit/df632433cdde3572557d33fc1c3387c31c16c5f6))
+* resolve host-side injected copy from the harness locale preference ([35b843f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/35b843f9c0c99c7dd170e365cbe431282528ec0e))
+
+
+### Bug Fixes
+
+* inject project-dimension agents as agent-* skills ([f7bff1f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f7bff1f4a030812eb045459909e6cba75823a157))
+* **market:** confirm injected surfaces before install; prove process teardown on disable/uninstall ([1509f67](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1509f6708d6e9beaffa54b84502d323c8f042584))
+
 ## [0.5.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.4.6...dsh-agent-plugins-market-v0.5.0) (2026-08-22)
 
 
