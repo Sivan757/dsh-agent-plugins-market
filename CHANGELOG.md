@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.5.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.5.1...dsh-agent-plugins-market-v0.5.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **market:** serialize MCP teardown and align install confirmation copy ([cd9effe](https://github.com/Sivan757/dsh-agent-plugins-market/commit/cd9effea72bc61f9e6ef64c350ecd55750b9436d))
+* **runtime:** remove redundant agent_plugins tool ([f0e9fdf](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f0e9fdf066c11c60c94ff996d5897106855fe1c7))
+
 ## [0.5.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.5.0...dsh-agent-plugins-market-v0.5.1) (2026-08-25)
 
 
