@@ -52,7 +52,7 @@ export function InstallConfirmModal(props: InstallConfirmModalProps): ReactNode 
             void props.onConfirm()
           }
         },
-        t('installAndEnable')
+        t('installConfirmAction')
       )
     ),
     children: h(

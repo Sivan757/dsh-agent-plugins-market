@@ -65,6 +65,48 @@ describe('McpMountRegistry', () => {
     await registry.disposeAll()
   })
 
+  it('serializes overlapping reconcile calls so disable cannot race an in-flight mount', async () => {
+    let releaseReady!: () => void
+    const ready = new Promise<void>(resolve => {
+      releaseReady = resolve
+    })
+    let mountStarted!: () => void
+    const started = new Promise<void>(resolve => {
+      mountStarted = resolve
+    })
+    const mounted = { disposed: false }
+    const ctx = {
+      plugin: () => {
+        mountStarted()
+        return {
+          await: async () => ready,
+          dispose: async () => {
+            mounted.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const enabling = registry.reconcile([suite('race', 'db')])
+    await started
+    const disabling = registry.reconcile([])
+    let disableSettled = false
+    void disabling.then(() => {
+      disableSettled = true
+    })
+    await Promise.resolve()
+    expect(disableSettled).toBe(false)
+    expect(mounted.disposed).toBe(false)
+
+    releaseReady()
+    await enabling
+    await disabling
+    expect(mounted.disposed).toBe(true)
+    await registry.disposeAll()
+  })
+
   it('reports duplicate derived serverNames instead of double-mounting', async () => {
     const { ctx, mounts } = fakeContext()
     const registry = new McpMountRegistry(ctx as never, '/tmp/data')

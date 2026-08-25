@@ -42,6 +42,8 @@ export class McpMountRegistry {
   private readonly live = new Map<string, LiveMount>()
   private readonly names = new Map<string, string>()
   private overridesProvider: () => Promise<Map<string, McpSuiteOverrides>> = async () => new Map()
+  /** Serialize mount and unmount passes so a disable cannot race an in-flight spawn. */
+  private reconcileQueue: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly ctx: Context,
@@ -53,8 +55,18 @@ export class McpMountRegistry {
     this.overridesProvider = provider
   }
 
-  /** Mount/unmount MCP servers to match the enabled suites exactly. */
+  /** Queue one reconciliation behind any in-flight mount/unmount pass. */
   async reconcile(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
+    const run = this.reconcileQueue.then(() => this.reconcileNow(enabledSuites))
+    this.reconcileQueue = run.then(
+      () => undefined,
+      () => undefined
+    )
+    return run
+  }
+
+  /** Mount/unmount MCP servers to match the enabled suites exactly. */
+  private async reconcileNow(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
     const active = enabledSuites.filter(suite => suite.activeSurfaces?.mcp !== false)
     const overrides = await this.overridesProvider()
     const wanted = new Map<string, { suite: Suite; serverKey: string; request: McpMountRequest }>()
@@ -82,11 +94,18 @@ export class McpMountRegistry {
     return diagnostics.filter(diagnostic => diagnostic.reason !== 'unmounted')
   }
 
-  /** Dispose every live mount; used at plugin teardown. */
+  /** Dispose every live mount after queued reconciliation passes settle. */
   async disposeAll(): Promise<void> {
-    for (const [key, live] of [...this.live]) {
-      await this.unmount(key, live)
-    }
+    const run = this.reconcileQueue.then(async () => {
+      for (const [key, live] of [...this.live]) {
+        await this.unmount(key, live)
+      }
+    })
+    this.reconcileQueue = run.then(
+      () => undefined,
+      () => undefined
+    )
+    await run
   }
 
   /** Mount one precomputed request (source config merged with overrides). */
