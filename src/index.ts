@@ -3,9 +3,10 @@
  *
  * Function plugin (named exports, no default export). It registers one skill
  * provider feeding enabled suites into `ctx.skills`, reconciles enabled
- * suites' `mcp.json` servers into live `dsh-mcp-client` mounts, injects the
- * enabled-suite catalog at session start, registers the `agent_plugins`
- * tool, and mounts the market page's HTTP routes on the web server.
+ * suites' `mcp.json` servers into live `dsh-mcp-client` mounts, and mounts the
+ * market page's HTTP routes on the web server. Skills and MCP tools are
+ * exposed through the host's native model surfaces; this plugin does not
+ * register a redundant suite-inventory model tool.
  *
  * Requires `ctx.skills` (the dsh skill registry). The MCP client package is
  * optional at runtime: without it, suites still load their skills and the
@@ -13,7 +14,6 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
-import { mountSuiteContext } from './context.js'
 import { Catalog } from './application/catalog.js'
 import { RuntimeReconciler } from './runtime/reconciler.js'
 import { inspectToolRegistry } from './runtime/tool-registry-observer.js'
@@ -92,8 +92,6 @@ export function apply(ctx: Context, config: Config = {}): void {
     return new SuiteSkillProvider(catalog, key => hostLocale.t(key))
   })
 
-  const disposeContext = mountSuiteContext(ctx, catalog, key => hostLocale.t(key))
-
   ctx.inject(['webServer', 'loader'], hostCtx => {
     hostCtx.effect(() => mountSuiteRoutes(hostCtx, catalog), 'dsh-agent-plugins-market: http routes')
   })
@@ -101,7 +99,6 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.effect(
     () => () => {
       void runtime.dispose()
-      disposeContext()
     },
     'dsh-agent-plugins-market: lifecycle'
   )

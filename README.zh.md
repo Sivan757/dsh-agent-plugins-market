@@ -66,7 +66,7 @@ dsh plugin --profile <名字> add github:Sivan757/dsh-agent-plugins-market
   - **MCP 服务器**：启用套件的 `mcp.json` 每个合法 server 动态挂载 `dsh-mcp-client` 子插件，工具名 `mcp__<套件>__<server>__<工具>`；
   - **Hooks**：套件 `hooks/hooks.json` 挂载 `dsh-hooks-claude-code` 桥，映射到宿主拦截点（SessionStart、UserPromptSubmit、PreToolUse、PostToolUse、Stop、SubagentStart、SubagentStop）；
   - **命令 / 子代理**：`commands/*.md` 注册为 dsh 斜杠命令；`agents/*.md` 注册为 `agent-<name>` 技能；
-  - **上下文**：会话启动注入启用套件清单（用户级 + 项目级），`agent_plugins` 工具可查询。
+  - **模型上下文**：技能通过宿主原生 skill catalog 注入，MCP 工具通过 `dsh-mcp-client` 直接注册；套件清单与来源信息通过 Web 市场页查询，不注册冗余的模型侧 inventory 工具。
 - **运行时发现**——已安装套件只从已配置的源 ID 对应目录发现：`~/.dsh/agent-plugins/.sources/<源id>/`（用户维度）与 `<项目>/.dsh/agent-plugins/.sources/<源id>/`（项目维度）。用户维度的过期未登记 checkout 会被忽略，项目维度仍按 state 中的安装记录授权；本地源直接读取工作树（含未提交改动）。
 - **项目原生布局（零拷贝迁移）**——项目自己的 `.claude/`、`.agents/` 目录（skills、agents）就地发现为只读「项目原生」套件：无需安装、无需拷贝、无状态文件。从 Claude Code 或 agent-plugins.org 约定迁移过来的仓库开箱即用；同名技能发生冲突时项目侧优先（覆盖已安装套件中的同名技能）。
 
