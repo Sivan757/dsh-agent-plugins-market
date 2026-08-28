@@ -1,7 +1,7 @@
 {
   "name": "dsh-agent-plugins-market",
   "description": "The standard way to install Claude Code / Codex / Cursor / Kimi plugin marketplace suites in DeepSeek Harness (DSH) — zero conversion, zero file copying. Skills, MCP servers, hooks and slash commands are injected into your dsh sessions at runtime.",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",

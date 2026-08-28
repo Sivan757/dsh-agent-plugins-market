@@ -7,6 +7,10 @@ import css from '../../market.module.css'
 
 export interface InstallConfirmState {
   suite: SuiteCardData
+  /** Locked source commit shown in the confirm dialog; undefined for local sources. */
+  lockCommit?: string
+  /** True when the source is a local working tree (no immutable commit). */
+  localSource?: boolean
 }
 
 export interface InstallConfirmModalProps {
@@ -60,6 +64,12 @@ export function InstallConfirmModal(props: InstallConfirmModalProps): ReactNode 
       { className: css.installConfirmBody },
       h('div', { className: css.installConfirmSuite }, `${state.suite.sourceId} / ${state.suite.name}`),
       state.suite.version === undefined ? null : h('div', { className: css.installConfirmMeta }, `${t('version')}: v${state.suite.version}`),
+      state.lockCommit === undefined
+        ? null
+        : h('div', { className: css.installConfirmCommit }, `${t('installConfirmSource')}: ${state.lockCommit.slice(0, 12)}`),
+      state.lockCommit === undefined && state.localSource === true
+        ? h('div', { className: css.installConfirmCommit }, `${t('installConfirmSource')}: ${t('installConfirmLocalTree')}`)
+        : null,
       tags.length === 0
         ? h('div', { className: css.installConfirmMeta }, t('installConfirmNoSurfaces'))
         : h(

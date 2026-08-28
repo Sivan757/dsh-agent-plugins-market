@@ -13,6 +13,7 @@ const overviewPayload = vi.hoisted(() => ({
       branch: null,
       local: false,
       cloned: true,
+      lockCommit: 'f0e9fdf066c1',
       suiteIds: ['demo-suite']
     }
   ],
@@ -124,6 +125,8 @@ describe('MarketSection rendering', () => {
     const bodyText = document.body.textContent ?? ''
     expect(bodyText).toContain('installConfirmTitle')
     expect(bodyText).toContain('surfaceMcp 1')
+    // The locked source commit is shown before confirming.
+    expect(bodyText).toContain('f0e9fdf066c1')
 
     // Click 取消 (the ghost cancel button) — no install action may fire.
     const cancelButton = [...document.body.querySelectorAll('button')].find(button => (button.textContent ?? '').includes('cancel'))
@@ -133,5 +136,26 @@ describe('MarketSection rendering', () => {
     })
     const postAction = (await import('../src/client/api.js')).postAction as ReturnType<typeof vi.fn>
     expect(postAction).not.toHaveBeenCalledWith('install', expect.anything())
+  })
+
+  it('shows the local-working-tree note when the source has no locked commit', async () => {
+    const payload = {
+      ...overviewPayload,
+      sources: [{ ...overviewPayload.sources[0]!, lockCommit: undefined, local: true }]
+    }
+    const resource = await import('../src/client/features/market/market-resource.js')
+    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    await mountSection()
+    const installButtons = [...host!.querySelectorAll('button')].filter(button => (button.textContent ?? '').includes('install'))
+    expect(installButtons.length).toBe(1)
+    act(() => {
+      installButtons[0]!.click()
+    })
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    const bodyText = document.body.textContent ?? ''
+    expect(bodyText).toContain('installConfirmLocalTree')
+    expect(bodyText).not.toContain('f0e9fdf066c1')
   })
 })

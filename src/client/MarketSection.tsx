@@ -236,7 +236,12 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   busy: busy !== undefined,
                   onOpen: () => setDetail({ sourceId: suite.sourceId, suiteId: suite.suiteId }),
                   onInstall: () => {
-                    setInstallConfirm({ suite })
+                    const source = overview.sources.find(entry => entry.id === suite.sourceId)
+                    setInstallConfirm({
+                      suite,
+                      ...(source?.lockCommit === undefined ? {} : { lockCommit: source.lockCommit }),
+                      ...(source?.local === true ? { localSource: true } : {})
+                    })
                   },
                   onAddSource: () => {
                     if (suite.remoteUrl !== undefined) void action(`a:${suite.suiteId}`, 'sources/add', { url: suite.remoteUrl })
