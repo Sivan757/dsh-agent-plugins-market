@@ -67,6 +67,14 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
     sendJson(response, 200, await manager.mcpStatus())
   })
 
+  get(MARKET_ROUTES.lspStatus, async (_request, response) => {
+    sendJson(response, 200, await manager.lspStatus())
+  })
+
+  get(MARKET_ROUTES.lspServers, async (_request, response) => {
+    sendJson(response, 200, { lspServers: await manager.lspServers() })
+  })
+
   get(MARKET_ROUTES.progress, async (_request, response) => {
     sendJson(response, 200, manager.sourceProgress())
   })
@@ -203,6 +211,20 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
     if (override !== null && sanitized === undefined) throw new Error('invalid override payload')
     await manager.setMcpOverride(sourceId, suiteId, serverKey, sanitized ?? null)
     return {}
+  })
+
+  // Manual MCP reconcile: retries failed mounts and clears residual tools
+  // without touching any catalog state.
+  post(MARKET_ROUTES.mcpRetry, async () => {
+    await manager.retryMounts()
+    return {}
+  })
+
+  // Validate and persist the user's direct LSP server table; the reconcile
+  // pass picks it up and mounts it alongside the suite declarations.
+  post(MARKET_ROUTES.lspServers, async body => {
+    const servers = await manager.setLspServers(body['lspServers'])
+    return { lspServers: servers }
   })
 
   return () => {
