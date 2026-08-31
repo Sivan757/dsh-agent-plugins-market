@@ -4,19 +4,27 @@
  * The portable format is translated, not executed directly: stdio commands
  * resolve against the suite root (spec §7.2.1), `${PLUGIN_ROOT}` /
  * `${PLUGIN_DATA}` expand against the suite root and its data directory, and
- * `${NAME}` expands from the process environment (documented extension over
- * the portable format, matching how hook commands already consume ambient
- * env). Legacy HTTP+SSE servers have no transport in the dsh MCP client and
- * are skipped with a per-server reason.
+ * every `${NAME}` — including ones inside a streamable-http `url` — expands
+ * through the optional DSH credentials seam at mount time. Legacy HTTP+SSE
+ * servers have no transport in the dsh MCP client and are skipped with a
+ * per-server reason.
  */
 import { createHash } from 'node:crypto'
 import type { StdioConfig, StreamableHttpConfig } from '@deepseek-ai/dsh-mcp-client'
-import { expandPlaceholders, resolveCwd } from '../catalog/validate.js'
+import { resolveCwd } from '../catalog/validate.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 
 /** The max length `dsh-mcp-client` accepts for a serverName. */
 const SERVER_NAME_MAX = 32
+const PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g
+const BUILTIN_PLACEHOLDERS = new Set(['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'PLUGIN_DATA', 'CLAUDE_PLUGIN_DATA'])
+/**
+ * Per-call timeout budget for one MCP tool invocation. Startup failures are
+ * surfaced rather than swallowed so a broken third-party server shows as
+ * `failed` with its real error instead of a silent `degraded` row.
+ */
+const TOOL_CALL_TIMEOUT_MS = 60_000
 
 export interface McpMountRequest {
   suiteId: string
@@ -24,73 +32,204 @@ export interface McpMountRequest {
   config: StdioConfig | StreamableHttpConfig
 }
 
+export type McpMountFailureCode = 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed'
+
 export interface McpMountFailure {
   serverKey: string
   reason: string
+  code?: McpMountFailureCode
+  credentialRefs?: string[]
+}
+
+/** Optional DSH credential resolver used while building an in-memory mount. */
+export interface McpCredentialResolver {
+  resolve(ref: string): Promise<{ value: string; source?: string } | undefined>
 }
 
 /**
- * Build one mount request per supported mcp.json server.
+ * Build one mount request per supported mcp.json server, resolving every
+ * `${NAME}` through the credential resolver before a child process or HTTP
+ * request is created. Missing references fail closed per server instead of
+ * becoming empty strings.
+ *
  * @param overrides user-owned per-server overrides (url/headers/env/args
- *   replacement plus enable/disable); applied after source expansion, before
- *   mount. Disabled servers are omitted from the result entirely.
- * @returns mount requests plus per-server failures (unsupported transport,
- *   invalid server key, or derived serverName collision candidates are
- *   checked by the mount registry, not here).
+ *   replacement plus enable/disable); applied before mount. Disabled servers
+ *   are omitted entirely.
+ * @returns mount requests plus per-server failures. serverName collisions are
+ *   reported by the mount registry, not here.
  */
-export function toMcpMounts(suite: Suite, pluginDataRoot: string, overrides: McpSuiteOverrides = {}): { mounts: McpMountRequest[]; failures: McpMountFailure[] } {
+export async function toMcpMounts(
+  suite: Suite,
+  pluginDataRoot: string,
+  overrides: McpSuiteOverrides = {},
+  resolver: McpCredentialResolver = { resolve: async () => undefined }
+): Promise<{ mounts: McpMountRequest[]; failures: McpMountFailure[] }> {
   if (suite.mcp === undefined) return { mounts: [], failures: [] }
   const mounts: McpMountRequest[] = []
   const failures: McpMountFailure[] = []
   for (const [serverKey, source] of Object.entries(suite.mcp.servers)) {
     const override = overrides[serverKey]
     if (override?.enabled === false) continue
-    const request = toMount(suite, serverKey, applyOverride(source as McpServerStdio | McpServerStreamableHttp, override), pluginDataRoot)
-    if (request === undefined) {
-      failures.push({ serverKey, reason: transportReason(source) })
-    } else {
-      mounts.push(request)
+    const server = applyOverride(source as McpServerStdio | McpServerStreamableHttp, override)
+    try {
+      const result = await toResolvedMount(suite, serverKey, server, pluginDataRoot, resolver)
+      if (result.failure !== undefined) failures.push(result.failure)
+      if (result.request !== undefined) mounts.push(result.request)
+    } catch {
+      failures.push({ serverKey, code: 'credential-error', credentialRefs: credentialRefsInServer(server), reason: 'credential lookup failed' })
     }
   }
   return { mounts, failures }
 }
 
-function toMount(suite: Suite, serverKey: string, server: McpServer, pluginDataRoot: string): McpMountRequest | undefined {
+/** Find external credential references used by one MCP server definition. */
+export function credentialRefsInServer(server: McpServer): string[] {
+  const values: string[] = []
+  if (server.type === 'stdio') {
+    values.push(...(server.args ?? []), ...(server.cwd === undefined ? [] : [server.cwd]), ...Object.values(server.env ?? {}))
+  } else {
+    // A remote endpoint may carry the token in the URL query as well as in a
+    // header, so both are scanned and both are resolved at mount time.
+    values.push(server.url ?? '', ...Object.values(server.headers ?? {}))
+  }
+  const refs = new Set<string>()
+  for (const value of values) {
+    for (const match of value.matchAll(PLACEHOLDER)) {
+      const name = match[1]
+      if (name !== undefined && !BUILTIN_PLACEHOLDERS.has(name)) refs.add(name)
+    }
+  }
+  return [...refs].sort()
+}
+
+async function toResolvedMount(
+  suite: Suite,
+  serverKey: string,
+  server: McpServer,
+  pluginDataRoot: string,
+  resolver: McpCredentialResolver
+): Promise<{ request?: McpMountRequest; failure?: McpMountFailure }> {
+  if (server.type === 'sse') return { failure: { serverKey, code: 'unsupported-transport', reason: transportReason(server) } }
+  const expand = expander(suite, joinInside(pluginDataRoot, suite.id), resolver)
   const serverName = deriveServerName(suite.id, serverKey)
-  if (server.type === 'stdio') return { suiteId: suite.id, serverKey, config: toStdio(serverName, suite, server, pluginDataRoot) }
-  if (server.type === 'streamable-http') return { suiteId: suite.id, serverKey, config: toHttp(serverName, suite, server, pluginDataRoot) }
-  return undefined
-}
-
-function toStdio(serverName: string, suite: Suite, server: McpServerStdio, pluginDataRoot: string): StdioConfig {
-  const command = server.command.startsWith('./') ? joinInside(suite.root, server.command.slice(2)) : server.command
-  const pluginData = joinInside(pluginDataRoot, suite.id)
-  const args = (server.args ?? []).map(arg => expandPlaceholders(arg, suite.root, pluginData))
-  const env = Object.fromEntries(Object.entries(server.env ?? {}).map(([key, value]) => [key, expandPlaceholders(value, suite.root, pluginData)]))
-  const cwd = server.cwd === undefined ? suite.root : resolveCwd(expandPlaceholders(server.cwd, suite.root, pluginData), suite.root, pluginData)
+  if (server.type === 'stdio') {
+    const args = await expand.all(server.args ?? [])
+    const env = await expand.map(server.env ?? {})
+    const cwd = server.cwd === undefined ? { value: suite.root, missing: [] as string[] } : await expand.one(server.cwd)
+    const missing = unique([...args.missing, ...env.missing, ...cwd.missing])
+    if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
+    return {
+      request: {
+        suiteId: suite.id,
+        serverKey,
+        config: {
+          transport: 'stdio',
+          serverName,
+          command: server.command.startsWith('./') ? joinInside(suite.root, server.command.slice(2)) : server.command,
+          args: args.values,
+          env: env.values,
+          cwd: resolveCwd(cwd.value, suite.root, joinInside(pluginDataRoot, suite.id)),
+          toolCallTimeoutMs: TOOL_CALL_TIMEOUT_MS,
+          failOnStartupError: true
+        }
+      }
+    }
+  }
+  const url = await expand.one(server.url)
+  const headers = await expand.map(server.headers ?? {})
+  const missing = unique([...url.missing, ...headers.missing])
+  if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
   return {
-    transport: 'stdio',
-    serverName,
-    command,
-    args,
-    env,
-    cwd,
-    toolCallTimeoutMs: 60_000,
-    failOnStartupError: false
+    request: {
+      suiteId: suite.id,
+      serverKey,
+      config: {
+        transport: 'streamable-http',
+        serverName,
+        url: url.value,
+        headers: headers.values,
+        ...(server.auth?.enabled === true
+          ? {
+              auth: {
+                enabled: true,
+                ...(server.auth.scope === undefined ? {} : { scope: server.auth.scope })
+              }
+            }
+          : {}),
+        toolCallTimeoutMs: TOOL_CALL_TIMEOUT_MS,
+        failOnStartupError: true
+      }
+    }
   }
 }
 
-function toHttp(serverName: string, suite: Suite, server: McpServerStreamableHttp, pluginDataRoot: string): StreamableHttpConfig {
-  const pluginData = joinInside(pluginDataRoot, suite.id)
-  const headers = Object.fromEntries(Object.entries(server.headers ?? {}).map(([key, value]) => [key, expandPlaceholders(value, suite.root, pluginData)]))
-  return {
-    transport: 'streamable-http',
-    serverName,
-    url: server.url,
-    headers,
-    toolCallTimeoutMs: 60_000,
-    failOnStartupError: false
+/** Per-mount expansion context; credential lookups are memoized per call. */
+function expander(suite: Suite, pluginData: string, resolver: McpCredentialResolver) {
+  // Promise-valued cache: concurrent expansions of the same reference share
+  // one in-flight lookup, so a config using a token twice resolves it once.
+  const inflight = new Map<string, Promise<{ value: string; source?: string } | undefined>>()
+  const lookup = (name: string): Promise<{ value: string; source?: string } | undefined> => {
+    const pending = inflight.get(name)
+    if (pending !== undefined) return pending
+    const created = Promise.resolve(resolver.resolve(name))
+    inflight.set(name, created)
+    return created
   }
+  const one = async (value: string): Promise<{ value: string; missing: string[] }> => {
+    let cursor = 0
+    let output = ''
+    const missing: string[] = []
+    for (const match of value.matchAll(PLACEHOLDER)) {
+      const index = match.index ?? 0
+      const name = match[1]
+      if (name === undefined) continue
+      output += value.slice(cursor, index)
+      const fallback = match[2]
+      let replacement: string | undefined
+      if (name === 'PLUGIN_ROOT' || name === 'CLAUDE_PLUGIN_ROOT') replacement = suite.root
+      else if (name === 'PLUGIN_DATA' || name === 'CLAUDE_PLUGIN_DATA') replacement = pluginData
+      else replacement = (await lookup(name))?.value
+      if (replacement === undefined || replacement === '') {
+        if (fallback !== undefined && fallback !== '') replacement = fallback
+        else {
+          missing.push(name)
+          replacement = ''
+        }
+      }
+      output += replacement
+      cursor = index + match[0].length
+    }
+    output += value.slice(cursor)
+    return { value: output, missing }
+  }
+  return {
+    one,
+    async all(values: string[]): Promise<{ values: string[]; missing: string[] }> {
+      const expanded = await Promise.all(values.map(one))
+      return { values: expanded.map(item => item.value), missing: expanded.flatMap(item => item.missing) }
+    },
+    async map(values: Record<string, string>): Promise<{ values: Record<string, string>; missing: string[] }> {
+      const entries = await Promise.all(Object.entries(values).map(async ([key, value]) => [key, await one(value)] as const))
+      return {
+        values: Object.fromEntries(entries.map(([key, result]) => [key, result.value])),
+        missing: entries.flatMap(([, result]) => result.missing)
+      }
+    }
+  }
+}
+
+function missingFailure(serverKey: string, refs: string[]): McpMountFailure {
+  const uniqueRefs = unique(refs)
+  return {
+    serverKey,
+    code: 'missing-credential',
+    credentialRefs: uniqueRefs,
+    reason: uniqueRefs.map(ref => `missing credential reference ${ref}`).join('; ')
+  }
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)].sort()
 }
 
 function transportReason(server: McpServer): string {

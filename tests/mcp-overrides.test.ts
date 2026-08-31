@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
-import { applyOverride, loadSuiteOverrides, sanitizeOverrides, saveSuiteOverrides } from '../src/runtime/mcp-overrides.js'
+import { applyOverride, loadSuiteOverrides, mergeOverridePatch, sanitizeOverridePatch, sanitizeOverrides, saveSuiteOverrides } from '../src/runtime/mcp-overrides.js'
 import type { McpServerStreamableHttp, Suite } from '../src/model/types.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -45,6 +45,13 @@ describe('mcp-overrides sanitize + persist', () => {
   })
 })
 
+describe('sanitizeOverridePatch credential safety', () => {
+  it('rejects literal sensitive values but accepts credential references', () => {
+    expect(sanitizeOverridePatch({ headers: { Authorization: 'Bearer literal-secret' } })).toBeUndefined()
+    expect(sanitizeOverridePatch({ headers: { Authorization: 'Bearer ${MCP_TOKEN}' } })).toEqual({ headers: { Authorization: 'Bearer ${MCP_TOKEN}' } })
+  })
+})
+
 describe('applyOverride', () => {
   it('replaces whole fields without merging keys', () => {
     const merged = applyOverride(httpServer, { headers: { 'x-other': '1' } }) as McpServerStreamableHttp
@@ -54,21 +61,45 @@ describe('applyOverride', () => {
   it('passes the server through untouched without an override', () => {
     expect(applyOverride(httpServer, undefined)).toBe(httpServer)
   })
+
+  it('carries an auth block onto the streamable-http server', () => {
+    const merged = applyOverride(httpServer, { auth: { enabled: true, scope: 'repo' } }) as McpServerStreamableHttp
+    expect(merged.auth).toEqual({ enabled: true, scope: 'repo' })
+  })
+
+  it('lets an override disable a source-declared auth flow', () => {
+    const source: McpServerStreamableHttp = { ...httpServer, auth: { enabled: true } }
+    const merged = applyOverride(source, { auth: { enabled: false } }) as McpServerStreamableHttp
+    expect(merged.auth).toEqual({ enabled: false })
+  })
 })
 
 describe('toMcpMounts with overrides', () => {
-  it('omits disabled servers entirely', () => {
+  it('omits disabled servers entirely', async () => {
     const suite = httpSuite()
-    const result = toMcpMounts(suite, '/data', { docs: { enabled: false } })
+    const result = await toMcpMounts(suite, '/data', { docs: { enabled: false } })
     expect(result.mounts).toEqual([])
     expect(result.failures).toEqual([])
   })
 
-  it('applies url/header overrides; ${ENV} refs resolve at mount time', () => {
+  it('applies url/header overrides; ${ENV} refs resolve at mount time', async () => {
     const suite = httpSuite()
     process.env.DSH_MCP_OVERRIDE_TEST_TOKEN = 'secret-value'
     try {
-      const result = toMcpMounts(suite, '/data', { docs: { url: 'https://override.example/mcp', headers: { authorization: 'Bearer ${DSH_MCP_OVERRIDE_TEST_TOKEN}' } } })
+      // Mirrors the host fallback resolver, which reads the ambient env when
+      // the profile has no credentials service.
+      const resolver = {
+        resolve: async (ref: string) => {
+          const value = process.env[ref]
+          return value === undefined || value === '' ? undefined : { value, source: 'env' }
+        }
+      }
+      const result = await toMcpMounts(
+        suite,
+        '/data',
+        { docs: { url: 'https://override.example/mcp', headers: { authorization: 'Bearer ${DSH_MCP_OVERRIDE_TEST_TOKEN}' } } },
+        resolver
+      )
       expect(result.mounts).toHaveLength(1)
       const config = result.mounts[0]!.config as McpServerStreamableHttp
       expect(config.url).toBe('https://override.example/mcp')
@@ -78,6 +109,50 @@ describe('toMcpMounts with overrides', () => {
     } finally {
       delete process.env.DSH_MCP_OVERRIDE_TEST_TOKEN
     }
+  })
+})
+
+describe('sanitizeOverrides auth', () => {
+  it('keeps a well-formed auth block and drops malformed ones', () => {
+    expect(sanitizeOverrides({ docs: { auth: { enabled: true, scope: 'a' } } })).toEqual({ docs: { auth: { enabled: true, scope: 'a' } } })
+    expect(sanitizeOverrides({ docs: { auth: { enabled: true } } })).toEqual({ docs: { auth: { enabled: true } } })
+    expect(sanitizeOverrides({ docs: { auth: { scope: 'a' } } })).toEqual({})
+    expect(sanitizeOverrides({ docs: { auth: 'yes' } })).toEqual({})
+  })
+})
+
+describe('toMcpMounts with source-declared auth', () => {
+  it('forwards auth into the dsh-mcp-client mount config', async () => {
+    const suite = httpSuite()
+    suite.mcp!.servers.docs = { ...httpServer, auth: { enabled: true, scope: 'user' } }
+    const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-auth-'))
+    const { mounts } = await toMcpMounts(suite, dataRoot, new Map(), async () => ({ value: '', missing: [] }))
+    expect(mounts).toHaveLength(1)
+    expect(mounts[0]!.config).toMatchObject({ transport: 'streamable-http', auth: { enabled: true, scope: 'user' } })
+  })
+
+  it('forwards auth from a disk override through to the mount config', async () => {
+    // Regression: redaction erased the whole `auth` object as secret-shaped,
+    // so an override-enabled OAuth flow never reached the mount.
+    const suite = httpSuite()
+    const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-auth-override-'))
+    await saveSuiteOverrides(dataRoot, suite.id, { docs: { auth: { enabled: true } } })
+    const overrides = await loadSuiteOverrides(dataRoot, suite.id)
+    const { mounts } = await toMcpMounts(suite, dataRoot, overrides, async () => ({ value: '', missing: [] }))
+    expect(mounts).toHaveLength(1)
+    expect(mounts[0]!.config).toMatchObject({ auth: { enabled: true } })
+  })
+})
+
+describe('mergeOverridePatch', () => {
+  it('keeps stored sensitive values the client patch could not see', () => {
+    const merged = mergeOverridePatch({ headers: { authorization: 'Bearer ${TOKEN}' } }, { url: 'https://override.example/mcp' })
+    expect(merged).toMatchObject({ url: 'https://override.example/mcp', headers: { authorization: 'Bearer ${TOKEN}' } })
+  })
+
+  it('lets an explicit patch value replace a stored one', () => {
+    const merged = mergeOverridePatch({ headers: { authorization: 'Bearer ${OLD}' } }, { headers: { authorization: 'Bearer ${NEW}' } })
+    expect(merged.headers).toEqual({ authorization: 'Bearer ${NEW}' })
   })
 })
 
@@ -104,10 +179,10 @@ describe('Catalog.setMcpOverride', () => {
 
     await manager.setMcpOverride('demo', 'v1-suite', serverKey, { url: 'http://127.0.0.1:9/mcp' })
     const after = await manager.suiteDetail('demo', 'v1-suite')
-    expect(after.mcpOverrides?.[serverKey]).toEqual({ url: 'http://127.0.0.1:9/mcp' })
+    expect(after.mcpOverrides?.[serverKey]).toEqual({ enabled: true, url: 'http://127.0.0.1:9/mcp' })
 
     // mcpOverrides query returns the same record.
-    expect(await manager.mcpOverrides('v1-suite')).toEqual({ [serverKey]: { url: 'http://127.0.0.1:9/mcp' } })
+    expect(await manager.mcpOverrides('v1-suite')).toEqual({ [serverKey]: { enabled: true, url: 'http://127.0.0.1:9/mcp' } })
   })
 
   it('clears an override with null and rejects unknown servers', async () => {

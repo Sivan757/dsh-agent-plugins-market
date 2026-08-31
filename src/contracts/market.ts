@@ -165,6 +165,8 @@ export interface McpServerDetail {
   env?: Record<string, string>
   cwd?: string
   headers?: Record<string, string>
+  /** External credential references used by env/header/argument placeholders. */
+  credentialRefs: string[]
 }
 
 /** Full suite detail response served by the detail modal. */

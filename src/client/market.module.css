@@ -6,17 +6,20 @@
  */
 
 .market {
-  height: 100%;
-  min-height: 0;
   display: flex;
-  flex-direction: column;
   min-width: 0;
+  flex-direction: column;
   gap: 24px;
   color: var(--dsw-alias-label-primary, #1f2328);
 }
 
-/* Page mode owns the outer padding; settings mode receives it from the host shell. */
+/* Page mode owns the outer padding; settings mode receives it from the host shell.
+   Page mode is a fixed inset-0 shell, so it owns the height and its lists scroll
+   inside it; settings mode lets the host `.options` container be the only scroller
+   (nested scrollers double-scroll and can paint text outside card bounds). */
 .pageMode {
+  height: 100%;
+  min-height: 0;
   width: 100%;
   min-width: 0;
 }
@@ -296,6 +299,8 @@
 
 /* --- card grid ----------------------------------------------------------------- */
 
+/* Lists scroll only in page mode (fixed shell); in settings mode the host
+   `.options` container is the single scroller. */
 .grid {
   flex: 1;
   min-height: 0;
@@ -304,6 +309,9 @@
   gap: 12px;
   min-width: 0;
   align-content: start;
+}
+
+.pageMode .grid {
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-right: 4px;
@@ -316,6 +324,9 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+
+.pageMode .list {
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-right: 4px;
@@ -336,7 +347,8 @@
   flex: 1;
   min-width: 200px;
   min-height: 0;
-  -webkit-line-clamp: 1;
+  max-height: 18px;
+  overflow: hidden;
 }
 
 .list .cardActions {
@@ -452,12 +464,12 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
-  min-height: 36px;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /* Two-line cap without legacy -webkit-box clamping: the nested-scroll
+     compositor can paint -webkit-box text outside its box, so bound the
+     block height instead. */
+  max-height: 36px;
   overflow: hidden;
+  margin: 0;
 }
 
 .meta {
@@ -903,6 +915,34 @@
   padding: 10px;
   border: 1px solid var(--dsw-alias-border, #d8dbe2);
   border-radius: 8px;
+}
+
+.mcpCredentialForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 10px;
+  border: 1px solid var(--dsw-alias-border, #d8dbe2);
+  border-radius: 8px;
+}
+
+.mcpCredentialRow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mcpCredentialControls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcpCredentialEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .mcpOverrideCheck {

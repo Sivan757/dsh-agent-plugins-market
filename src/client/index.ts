@@ -10,6 +10,8 @@ import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { en, zh, type LocaleKey } from './locales.js'
 import { MarketSection } from './MarketSection.js'
 import { McpStatusPanel } from './McpStatusPanel.js'
+import { LspStatusPanel } from './LspStatusPanel.js'
+import type { CredentialApi } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './page-mode.js'
 
 const NS = 'dsh-agent-plugins-market'
@@ -34,10 +36,11 @@ interface SuiteClientContext {
   effect(callback: () => unknown, label?: string): void
   locale: LocaleService
   slots: SlotsService
+  connection: { api: { credentials: CredentialApi } }
 }
 
 export const name = 'dsh-agent-plugins-market'
-export const inject = ['slots', 'locale']
+export const inject = ['slots', 'locale', 'connection']
 
 /** Primitives this section renders with; absent exports degrade the whole section. */
 export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
@@ -50,6 +53,7 @@ export function missingPrimitives(module: Record<string, unknown>, required: rea
 export function apply(ctx: SuiteClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-agent-plugins: dictionaries')
   const t = ctx.locale.bind(NS)
+  const credentials = ctx.connection.api.credentials
 
   const gaps = missingPrimitives(primitives as unknown as Record<string, unknown>)
   if (gaps.length > 0) {
@@ -60,6 +64,7 @@ export function apply(ctx: SuiteClientContext): void {
   let settingsSurfaceAvailable = false
   ctx.effect(() => mountLegacyPageMode({
     t,
+    credentials,
     isSettingsSurfaceAvailable: () => settingsSurfaceAvailable,
     subscribeLocale: ctx.locale.subscribe === undefined ? undefined : (listener) => ctx.locale.subscribe!(listener),
   }), 'dsh-agent-plugins-market: legacy page mode')
@@ -76,6 +81,7 @@ export function apply(ctx: SuiteClientContext): void {
       inject: () => ({ t }),
     }, () => h(MarketSection, {
       t,
+      credentials,
       mode: 'settings',
     }))
     const mcpDispose = ctx.slots.register({
@@ -85,11 +91,20 @@ export function apply(ctx: SuiteClientContext): void {
       label: () => t('mcpStatusNav'),
       locale: NS,
       inject: () => ({ t }),
-    }, () => h(McpStatusPanel, { t }))
+    }, () => h(McpStatusPanel, { t, credentials }))
+    const lspDispose = ctx.slots.register({
+      name: 'settings.section',
+      id: 'lsp-status',
+      order: 47,
+      label: () => t('lspStatusNav'),
+      locale: NS,
+      inject: () => ({ t }),
+    }, () => h(LspStatusPanel, { t }))
     return () => {
       settingsSurfaceAvailable = false
       notifyPageModeSurfaceChange()
       if (typeof mcpDispose === 'function') mcpDispose()
+      if (typeof lspDispose === 'function') lspDispose()
       if (typeof marketDispose === 'function') marketDispose()
     }
   })

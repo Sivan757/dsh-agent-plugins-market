@@ -71,25 +71,61 @@ export function apply(ctx: Context, config: Config = {}): void {
       for (const error of diagnostics.errors) {
         ctx.logger?.warn(`[dsh-agent-plugins-market] ${error.surface} reconcile failed: ${error.reason}`)
       }
-    })().catch(error => {
+    } catch (error) {
       ctx.logger?.warn(`[dsh-agent-plugins-market] runtime reconcile failed: ${error instanceof Error ? error.message : String(error)}`)
-    })
+      throw error
+    }
   }
 
-  const onChanged = (): void => {
+  /**
+   * Coalesce credential updates.
+   *
+   * `runtime.usesCredential(ref)` reflects the last completed pass, so an event
+   * arriving while the first reconcile is still running would be filtered out
+   * and the remount lost. Pending refs are therefore kept until the next pass
+   * observes them, and bursts are collapsed into one reconcile.
+   */
+  const pendingCredentialRefs = new Set<string>()
+  let credentialFlush: ReturnType<typeof setTimeout> | undefined
+  const flushCredentialUpdates = (): void => {
+    credentialFlush = undefined
+    const refs = [...pendingCredentialRefs]
+    pendingCredentialRefs.clear()
+    // Re-read the catalog first: an unknown ref means the snapshot predates
+    // this change, so reconcile anyway to refresh the known reference set.
+    void reconcileMounts().catch(() => {})
+    if (refs.length > 0) {
+      ctx.logger?.info?.(`[dsh-agent-plugins-market] reconciling after credential update: ${refs.join(', ')}`)
+    }
+  }
+
+  const onChanged = async (): Promise<void> => {
     providerControl?.invalidate()
-    reconcileMounts()
+    await reconcileMounts()
   }
 
   const catalog = new Catalog({ userRoot, dataRoot, onChanged })
   runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
+  catalog.setLspStatusSource(runtime.lsp)
+  runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)
+  const eventHost = ctx as unknown as { on?: (event: string, listener: (ref: string) => void) => () => void }
+  const disposeCredentialUpdates =
+    eventHost.on?.('credentials/reference-updated', ref => {
+      pendingCredentialRefs.add(ref)
+      if (credentialFlush !== undefined) clearTimeout(credentialFlush)
+      credentialFlush = setTimeout(flushCredentialUpdates, 150)
+      credentialFlush.unref?.()
+    }) ?? (() => {})
   ctx.inject(['tools'], toolsCtx => {
     catalog.setMcpToolSnapshotProvider(() => inspectToolRegistry((toolsCtx as { tools: unknown }).tools))
   })
-  void catalog.load().then(async () => {
-    await catalog.mergeSources(config.sources ?? [])
-    reconcileMounts()
-  })
+  void catalog
+    .load()
+    .then(async () => {
+      await catalog.mergeSources(config.sources ?? [])
+      await reconcileMounts()
+    })
+    .catch(() => {})
 
   ctx.skills.registerProvider(control => {
     providerControl = control
@@ -102,6 +138,10 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   ctx.effect(
     () => () => {
+      disposeCredentialUpdates()
+      if (credentialFlush !== undefined) clearTimeout(credentialFlush)
+      credentialFlush = undefined
+      pendingCredentialRefs.clear()
       void runtime.dispose()
     },
     'dsh-agent-plugins-market: lifecycle'

@@ -12,12 +12,15 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MarketSection } from './MarketSection.js'
 import { shouldUseLegacyPageMode } from './page-mode-selection.js'
 import type { Translate } from './index.js'
+import type { CredentialApi } from './credentials.js'
 import css from './market.module.css'
 
 /** Browser-side inputs required by the legacy page-mode adapter. */
 export interface LegacyPageModeOptions {
   /** Current namespace-bound translator. */
   t: Translate
+  /** Host credentials wire used for write-only MCP env configuration. */
+  credentials?: CredentialApi
   /** Whether the host has mounted a live `settings.section` declaration. */
   isSettingsSurfaceAvailable: () => boolean
   /** Optional locale revision subscription supplied by newer hosts. */
@@ -79,7 +82,7 @@ export function mountLegacyPageMode(options: LegacyPageModeOptions): () => void 
 
   const renderView = (): void => {
     if (root === undefined) return
-    root.render(h(MarketSection, { t: options.t, mode: 'page' }))
+    root.render(h(MarketSection, { t: options.t, credentials: options.credentials, mode: 'page' }))
   }
 
   const updateEntryCopy = (): void => {

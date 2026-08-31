@@ -116,6 +116,117 @@ describe('McpMountRegistry', () => {
     expect(mounts.size).toBe(1)
     await registry.disposeAll()
   })
+
+  it('surfaces a failed startup as `failed` and leaves no orphan child behind', async () => {
+    const disposed: string[] = []
+    const ctx = {
+      plugin: () => ({
+        // `dsh-mcp-client` rejects on startup failure because mounts are
+        // created with failOnStartupError, so the real error reaches us.
+        await: async () => {
+          throw new Error('connection refused')
+        },
+        dispose: async () => {
+          disposed.push('disposed')
+        }
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const broken = suite('broken', 'service')
+
+    const diagnostics = await registry.reconcile([broken])
+
+    // The connection error is reported with its real message, not swallowed
+    // into a silent "degraded" row.
+    expect(diagnostics).toContainEqual({
+      suiteId: 'broken',
+      serverKey: 'service',
+      code: 'mount-failed',
+      reason: 'mount failed: connection refused'
+    })
+    // The half-mounted handle is disposed so no child process survives.
+    expect(disposed).toEqual(['disposed'])
+    await registry.disposeAll()
+  })
+
+  it('retains a mount after failed disposal so a later reconcile can retry cleanup', async () => {
+    let disposeAttempts = 0
+    const ctx = {
+      plugin: () => ({
+        await: async () => {},
+        dispose: async () => {
+          disposeAttempts++
+          if (disposeAttempts === 1) throw new Error('busy')
+        }
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const mountedSuite = suite('retry', 'service')
+
+    await registry.reconcile([mountedSuite])
+    const first = await registry.reconcile([])
+    const second = await registry.reconcile([])
+
+    expect(first).toContainEqual({ suiteId: 'retry', serverKey: 'service', code: 'unmount-failed', reason: 'unmount failed: busy' })
+    expect(second).toEqual([])
+    expect(disposeAttempts).toBe(2)
+  })
+
+  it('does not spawn a server when an environment credential is missing', async () => {
+    const mounted: Array<Record<string, unknown>> = []
+    const ctx = {
+      get: (name: string) => (name === 'credentials' ? { resolve: async () => undefined } : undefined),
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const authSuite = suite('auth', 'service')
+    authSuite.mcp!.servers.service = { type: 'stdio', command: 'tool', env: { API_TOKEN: '${API_TOKEN}' } }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const diagnostics = await registry.reconcile([authSuite])
+
+    expect(mounted).toHaveLength(0)
+    expect(diagnostics).toContainEqual({
+      suiteId: 'auth',
+      serverKey: 'service',
+      code: 'missing-credential',
+      credentialRefs: ['API_TOKEN'],
+      reason: 'missing credential reference API_TOKEN'
+    })
+  })
+
+  it('mounts with a credential supplied by the host resolver', async () => {
+    const mounted: Array<{ config: Record<string, unknown>; disposed: boolean }> = []
+    const ctx = {
+      get: (name: string) => (name === 'credentials' ? { resolve: async (ref: string) => (ref === 'API_TOKEN' ? { value: 'secret', source: 'file' } : undefined) } : undefined),
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const row = { config, disposed: false }
+        mounted.push(row)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            row.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const authSuite = suite('auth', 'service')
+    authSuite.mcp!.servers.service = { type: 'stdio', command: 'tool', env: { API_TOKEN: '${API_TOKEN}' } }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    await expect(registry.reconcile([authSuite])).resolves.toEqual([])
+
+    expect(mounted).toHaveLength(1)
+    expect((mounted[0]!.config['env'] as Record<string, string>).API_TOKEN).toBe('secret')
+    await registry.disposeAll()
+    expect(mounted[0]!.disposed).toBe(true)
+  })
 })
 
 describe('CommandMountRegistry (CC commands compat)', () => {

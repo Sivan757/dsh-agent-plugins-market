@@ -45,6 +45,60 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+/* Summary bar: one chip per non-healthy state, plus the observation time. */
+.summaryBar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 10px;
+}
+.summaryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.chiporphaned, .chipfailed {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, 0.08));
+}
+.chipneedsCredentials, .chipdegraded {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  background: var(--dsw-alias-bg-warn, rgba(180, 83, 9, 0.09));
+}
+.chipdisabled {
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+}
+.summaryAllGood {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dsw-alias-state-success-primary, #16a34a);
+  font-size: 12px;
+}
+.summaryCount {
+  font-weight: 700;
+}
+.summaryLabel {
+  color: inherit;
+}
+.observedAt {
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 11px;
+  white-space: nowrap;
+}
 .summaryDotGreen, .summaryDotRed {
   width: 7px;
   height: 7px;
@@ -52,6 +106,7 @@
 }
 .summaryDotGreen { background: var(--dsw-alias-state-success-primary, #16a34a); }
 .summaryDotRed { background: var(--dsw-alias-state-error-primary, #dc2626); }
+.summaryDotWarn { background: var(--dsw-alias-state-warn-primary, #b45309); }
 .toolbar {
   flex: none;
   margin-bottom: 24px;
@@ -132,6 +187,8 @@
 .statusconnected { background: var(--dsw-alias-state-success-primary, #16a34a); }
 .statusdegraded { background: var(--dsw-alias-state-warn-primary, #b45309); }
 .statusfailed { background: var(--dsw-alias-state-error-primary, #dc2626); }
+.statusneeds-credentials { background: var(--dsw-alias-state-warn-primary, #b45309); }
+.statusorphaned { background: var(--dsw-alias-state-error-primary, #dc2626); }
 .statusdisabled { background: var(--dsw-alias-label-tertiary, #98a2b3); }
 .service {
   flex: 1;
@@ -190,13 +247,51 @@
   color: var(--dsw-alias-label-primary, #1f2328);
   font-weight: 600;
 }
-.cardReason {
-  margin: 0;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
+.reasonLabel {
+  flex: none;
+  font-weight: 600;
+  opacity: 0.85;
 }
+/* State pill: the card's one-line verdict, color-coded by severity. */
+.statePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 17px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.statePill::before {
+  width: 6px;
+  height: 6px;
+  content: '';
+  background: currentColor;
+  border-radius: 50%;
+}
+.stateconnected {
+  color: var(--dsw-alias-state-success-primary, #16a34a);
+  background: var(--dsw-alias-bg-success, rgba(22, 163, 74, 0.09));
+}
+.statedegraded, .stateneeds-credentials {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  background: var(--dsw-alias-bg-warn, rgba(180, 83, 9, 0.1));
+}
+.statefailed, .stateorphaned {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, 0.08));
+}
+.statedisabled {
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
+}
+/* Card left accent follows the state so scanning the grid is instant. */
+.cardConnected { border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a); }
+.cardDegraded, .cardNeedsCredentials { border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309); }
+.cardFailed, .cardOrphaned { border-left: 3px solid var(--dsw-alias-state-error-primary, #dc2626); }
+.cardDisabled { border-left: 3px solid var(--dsw-alias-label-tertiary, #98a2b3); }
 .state, .detailState {
   display: inline-flex;
   align-items: center;
@@ -215,6 +310,8 @@
 .stateconnected, .detailStateconnected { color: var(--dsw-alias-state-success-primary, #16a34a); }
 .statedegraded, .detailStatedegraded { color: var(--dsw-alias-state-warn-primary, #b45309); }
 .statefailed, .detailStatefailed { color: var(--dsw-alias-state-error-primary, #dc2626); }
+.stateneeds-credentials, .detailStateneeds-credentials { color: var(--dsw-alias-state-warn-primary, #b45309); }
+.stateorphaned, .detailStateorphaned { color: var(--dsw-alias-state-error-primary, #dc2626); }
 .statedisabled, .detailStatedisabled { color: var(--dsw-alias-label-tertiary, #98a2b3); }
 .chevron { color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 18px; }
 .empty, .detailEmpty {

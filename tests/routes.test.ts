@@ -7,7 +7,12 @@ function service(): MarketService {
   return {
     sources: [],
     overview: async () => ({ sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '/user', data: '/data' } }),
-    mcpStatus: async () => ({ entries: [], observedAt: '', totals: { all: 0, connected: 0, degraded: 0, failed: 0, disabled: 0 }, directObservationOnly: true }),
+    mcpStatus: async () => ({
+      entries: [],
+      observedAt: '',
+      totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0 },
+      directObservationOnly: true
+    }),
     sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
     suiteDetail: async () => {
       throw new Error('not found')
@@ -21,7 +26,10 @@ function service(): MarketService {
     refreshSource: async () => {},
     install: async () => {},
     uninstall: async () => {},
-    setEnabled: async () => {}
+    setEnabled: async () => {},
+    setSurface: async () => {},
+    setMcpOverride: async () => {},
+    retryMounts: async () => {}
   }
 }
 
@@ -51,6 +59,23 @@ describe('market HTTP routes', () => {
     const overviewResponse = response()
     await routes.get(MARKET_ROUTES.overview)?.({ url: '/api/agent-plugins/overview', headers: {} }, overviewResponse)
     expect(overviewResponse.value()).toMatchObject({ totals: { all: 0 } })
+
+    // Manual MCP retry: same-origin POST re-runs the reconcile pass.
+    const retryResponse = response()
+    const retryRequest = {
+      method: 'POST',
+      url: MARKET_ROUTES.mcpRetry,
+      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+      on: (event: string, listener: (chunk?: unknown) => void) => {
+        if (event === 'data') listener(Buffer.from('{}', 'utf8'))
+        if (event === 'end') listener()
+      },
+      destroy: () => {}
+    }
+    await routes.get(MARKET_ROUTES.mcpRetry)?.(retryRequest, retryResponse)
+    // The POST handler writes asynchronously after the body promise settles.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(retryResponse.value()).toMatchObject({ ok: true })
 
     dispose()
     expect(routes.size).toBe(0)

@@ -80,6 +80,16 @@ export async function isDirectory(path: string): Promise<boolean> {
   }
 }
 
+/** Async existence probe for any entry (file, directory, symlink). */
+export async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Sanitize a plugin or server id into `[a-z0-9-]` (lowercased). */
 export function sanitizeId(raw: string): string {
   const cleaned = raw
@@ -96,4 +106,29 @@ export function deriveSourceId(url: string): string {
   let base = trimmed.split(/[/\\]/).at(-1) ?? ''
   if (base.endsWith('.git')) base = base.slice(0, -4)
   return sanitizeId(base)
+}
+
+/**
+ * Derive candidate source ids from a git URL or local path, most preferred
+ * first: the sanitized basename, then an owner-prefixed variant (`owner-repo`)
+ * for remote URLs so same-named repositories from different owners
+ * (`cloudflare/skills`, `mattpocock/skills`) degrade to readable ids instead
+ * of numeric suffixes. Local paths yield the basename only.
+ */
+export function deriveSourceIdCandidates(url: string): string[] {
+  const trimmed = url.trim().replace(/\/+$/, '')
+  let base = trimmed.split(/[/\\]/).at(-1) ?? ''
+  if (base.endsWith('.git')) base = base.slice(0, -4)
+  const primary = sanitizeId(base)
+  const isRemote = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || /^[\w.-]+@[\w.-]+:/.test(trimmed)
+  const candidates = [primary]
+  if (isRemote) {
+    const hostPath = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^[\w.-]+@([\w.-]+):/, '$1/')
+    const segments = hostPath.split(/[/\\]/).filter(Boolean)
+    if (segments.length >= 2) {
+      const owner = sanitizeId(segments[segments.length - 2]!)
+      if (owner !== '' && owner !== primary) candidates.push(`${owner}-${primary}`)
+    }
+  }
+  return [...new Set(candidates)]
 }
