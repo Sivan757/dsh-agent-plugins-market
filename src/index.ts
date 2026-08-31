@@ -20,6 +20,7 @@ import { inspectToolRegistry } from './runtime/tool-registry-observer.js'
 import { resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
+import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
 import type { SourceRef } from './model/types.js'
 
@@ -50,13 +51,16 @@ export function apply(ctx: Context, config: Config = {}): void {
   const hostLocale: { t: HostTranslate } = { t }
   const runtime = new RuntimeReconciler(ctx, dataRoot, key => hostLocale.t(key))
 
-  const reconcileMounts = (): void => {
-    void (async () => {
+  const reconcileMounts = async (): Promise<void> => {
+    try {
       const snapshot = await catalog.readUserCatalog()
       const diagnostics = await runtime.reconcile(snapshot.enabledSuites)
       catalog.mcpDiagnostics = diagnostics.mcp
       for (const diagnostic of diagnostics.mcp) {
         ctx.logger?.warn(`[dsh-agent-plugins-market] suite "${diagnostic.suiteId}" mcp server "${diagnostic.serverKey}": ${diagnostic.reason}`)
+      }
+      for (const diagnostic of diagnostics.lsp) {
+        ctx.logger?.warn(`[dsh-agent-plugins-market] suite "${diagnostic.suiteId}" lsp server "${diagnostic.serverKey}": ${diagnostic.reason}`)
       }
       for (const diagnostic of diagnostics.commands) {
         if (diagnostic.reason !== '') ctx.logger?.warn(`[dsh-agent-plugins-market] suite "${diagnostic.suiteId}" command "${diagnostic.command}": ${diagnostic.reason}`)

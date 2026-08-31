@@ -7,18 +7,23 @@
  * project snapshots use their own persisted state files and share the same
  * source-selection and suite-scanning rules.
  */
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { repoName } from '../catalog/manifests.js'
 import { discoverSourceList } from '../catalog/source-catalog.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import { gitClone, gitHead, gitPull, gitRemove } from '../catalog/git.js'
 import { buildMcpStatus, type McpToolSnapshot } from '../runtime/mcp-status.js'
-import { loadSuiteOverrides, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
+import { buildLspStatus, type LspMountStatusSource } from '../runtime/lsp-status.js'
+import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
+import { loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import { redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
+import type { LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, SkillContent, SourceOverview, SuiteDetail } from '../contracts/market.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
-import { deriveSourceId, expandHome, isDirectory, resolveProjectRoot, sanitizeId, sourceCheckoutDir, sourcesDir, STATE_FILE_NAME } from '../catalog/paths.js'
+import { deriveSourceIdCandidates, expandHome, isDirectory, pathExists, resolveProjectRoot, sanitizeId, sourceCheckoutDir, sourcesDir, STATE_FILE_NAME } from '../catalog/paths.js'
 import { loadState, saveState, EMPTY_STATE } from '../model/state.js'
 import {
   effectiveSurfaces,
@@ -36,7 +41,7 @@ import {
 export interface CatalogOptions {
   userRoot: string
   dataRoot: string
-  onChanged: () => void
+  onChanged: () => void | Promise<void>
   /**
    * Freshness window for cached project-dimension snapshots. The project
    * catalog sits on the skill-list hot path (every provider `list()` call),
@@ -69,7 +74,9 @@ export class Catalog {
   private readonly projectSnapshotPromises = new Map<string, Promise<CatalogSnapshot>>()
   private readonly projectSnapshotTtlMs: number
   /** Latest MCP mount diagnostics (suiteId -> reasons), fed by host reconcile. */
-  mcpDiagnostics: Array<{ suiteId: string; serverKey: string; reason: string }> = []
+  mcpDiagnostics: McpMountDiagnostic[] = []
+  /** Latest LSP mount diagnostics source, wired by the host entry. */
+  private lspStatusSource: LspMountStatusSource | undefined
   private toolSnapshotProvider: () => readonly McpToolSnapshot[] = () => []
 
   constructor(private readonly options: CatalogOptions) {
@@ -80,6 +87,11 @@ export class Catalog {
   /** Install the host tool snapshot provider used by the MCP status surface. */
   setMcpToolSnapshotProvider(provider: () => readonly McpToolSnapshot[]): void {
     this.toolSnapshotProvider = provider
+  }
+
+  /** Install the LSP mount status source used by the LSP status surface. */
+  setLspStatusSource(source: LspMountStatusSource): void {
+    this.lspStatusSource = source
   }
 
   /** Subscribe to completed catalog mutations; returns an unsubscribe function. */
@@ -94,11 +106,32 @@ export class Catalog {
     return buildMcpStatus(snapshot.suites, this.mcpDiagnostics, this.toolSnapshotProvider(), await this.allMcpOverrides())
   }
 
+  /** The LSP status surface: declared servers merged with mount diagnostics. */
+  async lspStatus(): Promise<LspStatusPayload> {
+    const snapshot = await this.readUserCatalog()
+    const direct = await loadLspServers(this.options.dataRoot)
+    return buildLspStatus(snapshot.suites, this.lspStatusSource ?? { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false }, direct)
+  }
+
+  /** The user's direct LSP server table (normalized specs). */
+  async lspServers(): Promise<Record<string, import('../model/types.js').LspServerSpec>> {
+    return (await loadLspServers(this.options.dataRoot)).servers
+  }
+
+  /** Validate and persist the user's direct LSP server table. */
+  async setLspServers(raw: unknown): Promise<Record<string, import('../model/types.js').LspServerSpec>> {
+    return this.enqueue(async () => {
+      const { servers } = await saveLspServers(this.options.dataRoot, raw)
+      await this.notifyChanged()
+      return servers
+    })
+  }
+
   /** One suite's persisted MCP overrides. */
   async mcpOverrides(suiteId: string): Promise<McpSuiteOverrides> {
     const snapshot = await this.readUserCatalog()
     if (!snapshot.suites.some(suite => suite.id === suiteId)) throw new Error(`suite "${suiteId}" not found`)
-    return loadSuiteOverrides(this.options.dataRoot, suiteId)
+    return redactMcpOverrides(await loadSuiteOverrides(this.options.dataRoot, suiteId))
   }
 
   /**
@@ -120,11 +153,21 @@ export class Catalog {
       if (override === null) {
         delete overrides[serverKey]
       } else {
-        overrides[serverKey] = override
+        // Merge onto the stored record: the UI never receives literal secret
+        // values, so a verbatim write would drop keys it simply redacted.
+        overrides[serverKey] = mergeOverridePatch(overrides[serverKey] ?? {}, override)
       }
       await saveSuiteOverrides(this.options.dataRoot, suiteId, overrides)
-      this.notifyChanged()
+      await this.notifyChanged()
     })
+  }
+
+  /**
+   * Re-run the MCP reconcile pass: retries failed mounts and clears residual
+   * tools, without changing any catalog state.
+   */
+  async retryMounts(): Promise<void> {
+    await this.notifyChanged()
   }
 
   /** All persisted MCP overrides keyed by suite id (mount-time provider). */
@@ -302,14 +345,14 @@ export class Catalog {
   /** Add a source and clone it immediately. */
   async addSource(input: { url: string; branch?: string; local?: boolean }): Promise<SourceRef> {
     return this.enqueue(async () => {
-      const baseId = this.uniqueSourceId(deriveSourceId(input.url))
+      const baseId = await this.pickSourceId(deriveSourceIdCandidates(input.url), input.local === true)
       const source: SourceRef = {
         id: baseId,
         url: input.url,
         ...(input.branch === undefined ? {} : { branch: input.branch }),
         ...(input.local === true ? { local: true } : {})
       }
-      const checkout = this.sourceCheckoutPath(source)
+      let checkout = this.sourceCheckoutPath(source)
       if (input.local === true) {
         if (!(await isDirectory(checkout))) throw new Error(`local source directory ${checkout} is missing`)
       } else {
@@ -322,13 +365,23 @@ export class Catalog {
         }
         this.updateSourceStep('reading')
       }
-      source.id = this.uniqueSourceId(sanitizeId(await repoName(checkout)))
+      // The repo's own manifest names the source; move the checkout along so
+      // the registered id and its `.sources/` directory stay coherent. URL
+      // derived candidates stay as readable fallbacks before numeric suffixes.
+      const named = [...new Set([sanitizeId(await repoName(checkout)), ...deriveSourceIdCandidates(input.url)])]
+      const finalId = await this.pickSourceId(named, input.local === true, input.local === true ? undefined : checkout)
+      if (input.local !== true && finalId !== baseId) {
+        const targetDir = sourceCheckoutDir(this.options.userRoot, finalId)
+        await rename(checkout, targetDir)
+        checkout = targetDir
+      }
+      source.id = finalId
       const head = await tryHead(checkout)
       if (head !== undefined) this.headCache.set(source.id, head)
       this.endSourceState()
       this.state = { ...this.state, sources: [...this.state.sources, source] }
       await saveState(this.statePath, this.state)
-      this.notifyChanged()
+      await this.notifyChanged()
       return source
     })
   }
@@ -357,11 +410,28 @@ export class Catalog {
     return state === undefined ? { active: false, sourceId: '', step: '' } : { active: true, sourceId: state.sourceId, step: state.step }
   }
 
-  private uniqueSourceId(derived: string): string {
-    if (!this.state.sources.some(source => source.id === derived)) return derived
+  /**
+   * First candidate id not claimed by a registered source; for git candidates
+   * the checkout directory must also be free, so a stale or foreign directory
+   * under `.sources/` is never cloned over (it would fail `git clone` with a
+   * confusing "destination exists" error). `ownedCheckout` marks the directory
+   * the in-flight mutation already controls, keeping a rename onto it legal.
+   * Local sources skip the disk check: they read their own path in place and
+   * never occupy `.sources/`.
+   */
+  private async pickSourceId(candidates: string[], skipDisk: boolean, ownedCheckout?: string): Promise<string> {
+    const free = async (id: string): Promise<boolean> => {
+      if (this.state.sources.some(source => source.id === id)) return false
+      if (skipDisk) return true
+      const dir = sourceCheckoutDir(this.options.userRoot, id)
+      return dir === ownedCheckout || !(await pathExists(dir))
+    }
+    for (const candidate of candidates) {
+      if (await free(candidate)) return candidate
+    }
     for (let suffix = 2; ; suffix++) {
-      const candidate = `${derived}-${suffix}`
-      if (!this.state.sources.some(source => source.id === candidate)) return candidate
+      const candidate = `${candidates[0]}-${suffix}`
+      if (await free(candidate)) return candidate
     }
   }
 
@@ -383,7 +453,7 @@ export class Catalog {
       }
       this.state = { ...this.state, sources: this.state.sources.map((source, i) => (i === index ? next : source)) }
       await saveState(this.statePath, this.state)
-      this.notifyChanged()
+      await this.notifyChanged()
     })
   }
 
@@ -399,7 +469,7 @@ export class Catalog {
       await saveState(this.statePath, this.state)
       this.headCache.delete(sourceId)
       if (source === undefined || source.local !== true) await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
-      this.notifyChanged()
+      await this.notifyChanged()
     })
   }
 
@@ -432,7 +502,7 @@ export class Catalog {
           // A failed HEAD read means the next overview re-probes.
         }
       }
-      this.notifyChanged()
+      await this.notifyChanged()
     })
   }
 
@@ -450,7 +520,7 @@ export class Catalog {
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.remote !== undefined) throw new Error(`suite "${suiteId}" is a remote reference (${suite.remote.url}); add its repository as a source before installing`)
       await this.setInstalled(sourceId, suiteId, { enabled: true, installedAt: new Date().toISOString(), lockCommit: await tryHead(checkout) })
-      this.notifyChanged()
+      await this.notifyChanged()
     })
   }
 
@@ -462,7 +532,7 @@ export class Catalog {
       const rest = Object.fromEntries(Object.entries(this.state.installed).filter(([entryKey]) => entryKey !== key))
       this.state = { ...this.state, installed: rest }
       await saveState(this.statePath, this.state)
-      this.notifyChanged()
+      await this.notifyChanged()
     })
   }
 
@@ -473,7 +543,7 @@ export class Catalog {
       const entry = this.state.installed[key]
       if (entry === undefined) throw new Error(`suite "${suiteId}" is not installed`)
       await this.setInstalled(sourceId, suiteId, { ...entry, enabled })
-      this.notifyChanged()
+      await this.notifyChanged()
     })
   }
 
@@ -486,7 +556,7 @@ export class Catalog {
       if (!SUITE_SURFACE_KEYS.includes(surface as SuiteSurfaceKey)) throw new Error(`surface "${surface}" is not toggleable`)
       const surfaces: SurfaceOverrides = { ...(entry.surfaces ?? {}), [surface]: enabled }
       await this.setInstalled(sourceId, suiteId, { ...entry, surfaces })
-      this.notifyChanged()
+      await this.notifyChanged()
     })
   }
 
@@ -550,9 +620,9 @@ export class Catalog {
     this.projectSnapshots.clear()
   }
 
-  private notifyChanged(): void {
+  private async notifyChanged(): Promise<void> {
     this.invalidateSnapshot(true)
-    this.options.onChanged()
+    await this.options.onChanged()
     for (const listener of this.listeners) listener()
   }
 
