@@ -104,10 +104,11 @@ export function apply(ctx: Context, config: Config = {}): void {
     await reconcileMounts()
   }
 
-  // Optional strict get: the credential store powers the MCP re-authorize
-  // action (dropping a grant record forces the next mount through a fresh
-  // browser authorization); without the service the action is unavailable.
-  const credentialsStore = (ctx as unknown as { get?: (name: string) => unknown }).get?.('credentials') as { deleteRecord?: (key: string) => Promise<void> } | undefined
+  // The credential store powers the MCP re-authorize action (dropping a grant
+  // record forces the next mount through a fresh browser authorization).
+  // Resolved lazily at call time: this plugin's apply may run before the
+  // credentials plugin provisions, and a snapshot taken here would be
+  // permanently undefined even after the service is live.
   const catalog = new Catalog({ userRoot, dataRoot, onChanged })
   // Mirror oauth.ts's `credentialIdFor`: the record is stored under the folded
   // serverName, so the delete must fold the same way or it misses the record.
@@ -118,8 +119,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       .replace(/^-+|-+$/g, '') || 'server'
   catalog.setCredentialsStore({
     deleteGrantRecord: async serverName => {
-      if (credentialsStore?.deleteRecord === undefined) throw new Error('credentials service is not mounted')
-      await credentialsStore.deleteRecord(`mcp-auth/${credentialIdFor(serverName)}` as never)
+      const store = (ctx as unknown as { get?: (name: string) => unknown }).get?.('credentials') as { deleteRecord?: (key: string) => Promise<void> } | undefined
+      if (store?.deleteRecord === undefined) throw new Error('credentials service is not mounted')
+      await store.deleteRecord(`mcp-auth/${credentialIdFor(serverName)}` as never)
     }
   })
   runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
