@@ -9,8 +9,9 @@ import { readdir, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { isDirectory, sanitizeId } from './paths.js'
 import type { Suite, SuiteDimension, SuiteManifest } from '../model/types.js'
-import { declaredSkillsPath, detectManifest, marketplaceEntryDir, readManifest, readMarketplace, repoName, syntheticManifestName } from './manifests.js'
+import { declaredSkillsPath, detectManifest, marketplaceEntryDir, readManifest, readMarketplace, repoName, syntheticManifestName, declaredLspServers } from './manifests.js'
 import { countSurfaces, discoverLspEntries, discoverMcp, discoverSkills, listMdFiles, type LspEntry } from './surfaces.js'
+import { parseLspServers } from './lsp-spec.js'
 
 export { repoName, listMdFiles, discoverLspEntries }
 export type { LspEntry }
@@ -29,6 +30,8 @@ interface SuiteHint {
   name?: string
   version?: string
   description?: string
+  /** Inline `lspServers` declared on the marketplace entry itself (Claude Code). */
+  lspServers?: unknown
 }
 
 interface SuiteRoot {
@@ -44,7 +47,14 @@ async function suiteRoots(checkoutDir: string): Promise<SuiteRoot[]> {
     const roots: SuiteRoot[] = []
     const seen = new Set<string>()
     for (const entry of marketplace.entries) {
-      const hint = { name: entry.name, version: entry.version, description: entry.description }
+      const hint = {
+        name: entry.name,
+        version: entry.version,
+        description: entry.description,
+        // Claude Code declares LSP servers inline on the marketplace entry
+        // (typescript-lsp & co. ship no manifest at all).
+        ...(entry.lspServers !== undefined ? { lspServers: entry.lspServers } : {})
+      }
       const dir = marketplaceEntryDir(checkoutDir, entry)
       if (dir === undefined) {
         const remoteUrl = typeof entry.source === 'object' ? entry.source?.url : undefined
@@ -83,7 +93,10 @@ async function suiteRoots(checkoutDir: string): Promise<SuiteRoot[]> {
 /** Collect nested plugin roots up to four levels deep. */
 async function collectRoot(dir: string, hint: SuiteHint | undefined, out: SuiteRoot[], seen: Set<string>, depth = 0): Promise<void> {
   if (depth > 4 || seen.has(dir)) return
-  if ((await hasSuiteManifest(dir)) || (await hasSkillFiles(dir))) {
+  // An entry carrying inline LSP declarations is a suite by declaration alone
+  // (official CC lsp plugins ship only a README), but only at the marketplace
+  // entry root — never deeper, so containers cannot self-declare.
+  if ((await hasSuiteManifest(dir)) || (await hasSkillFiles(dir)) || (hint?.lspServers !== undefined && depth === 0)) {
     out.push({ dir, hint })
     seen.add(dir)
     return
@@ -122,12 +135,30 @@ async function listChildDirs(dir: string): Promise<string[]> {
 /** Read one suite root into the normalized shape, or undefined when no manifest parses. */
 async function readSuite(root: string, sourceId: string, dimension: SuiteDimension, hint: SuiteHint | undefined): Promise<Suite | undefined> {
   const errors: string[] = []
-  const manifest = (await readManifest(root, errors, hint)) ?? (await syntheticManifest(root))
+  let manifest = (await readManifest(root, errors, hint)) ?? (await syntheticManifest(root))
+  // A declaration-only suite (official CC lsp plugins ship just a README):
+  // the marketplace entry's inline lspServers are its manifest.
+  if (manifest === undefined && hint?.lspServers !== undefined) {
+    const name = hint.name ?? syntheticManifestName(root)
+    manifest = {
+      layout: 'claude-code',
+      path: '',
+      id: sanitizeId(name),
+      name,
+      ...(hint.version === undefined ? {} : { version: hint.version }),
+      ...(hint.description === undefined ? {} : { description: hint.description })
+    }
+  }
   if (manifest === undefined) return undefined
   const declared = await declaredSkillsPath(root)
   const skills = await discoverSkills(root, errors, declared)
   const mcp = await discoverMcp(root, errors)
-  const surfaces = await countSurfaces(root, skills, mcp)
+  // Inline LSP declarations: the marketplace entry wins over the manifest
+  // (Claude Code ships lspServers on the entry), and either is optional.
+  const lspRaw = hint?.lspServers ?? (await declaredLspServers(root))
+  const lspServers = parseLspServers(lspRaw, errors)
+  const lsp = Object.keys(lspServers).length > 0 ? { servers: lspServers } : undefined
+  const surfaces = await countSurfaces(root, skills, mcp, lsp)
   return {
     sourceId,
     id: manifest.id,
@@ -135,6 +166,7 @@ async function readSuite(root: string, sourceId: string, dimension: SuiteDimensi
     manifest,
     skills,
     ...(mcp === undefined ? {} : { mcp }),
+    ...(lsp === undefined ? {} : { lsp }),
     surfaces,
     dimension,
     enabled: false,

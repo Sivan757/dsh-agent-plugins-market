@@ -15,7 +15,7 @@ import { parseSkillFrontmatter } from './skills-parse.js'
 import { isDirectory } from './paths.js'
 import { validateMcpJson } from './validate.js'
 import { declaredMcpServers } from './manifests.js'
-import type { McpSuiteConfig, SuiteSkill, SuiteSurfaceCounts } from '../model/types.js'
+import type { LspSuiteConfig, McpSuiteConfig, SuiteSkill, SuiteSurfaceCounts } from '../model/types.js'
 
 const DOT_DIRS = new Set(['.git', '.github', '.claude', '.cursor', '.kimi', '.plugin', '.sources', 'node_modules'])
 
@@ -124,22 +124,22 @@ export async function discoverMcp(root: string, errors: string[]): Promise<McpSu
   return result.config
 }
 
-/** Count surfaces for a suite; mcp counts only validated servers. */
-export async function countSurfaces(root: string, skills: SuiteSkill[], mcp: McpSuiteConfig | undefined): Promise<SuiteSurfaceCounts> {
+/** Count surfaces for a suite; mcp counts only validated servers, lsp counts inline servers plus directory entries. */
+export async function countSurfaces(root: string, skills: SuiteSkill[], mcp: McpSuiteConfig | undefined, lsp?: LspSuiteConfig): Promise<SuiteSurfaceCounts> {
   let hooks = 0
   for (const relative of [join('hooks', 'hooks.json'), 'hooks.json']) {
     hooks += await countHookEntries(join(root, relative))
   }
   const commands = (await listMdFiles(join(root, 'commands'))).length
   const agents = (await listMdFiles(join(root, 'agents'))).length
-  const lsp = (await discoverLspEntries(root)).length
+  const lspCount = Object.keys(lsp?.servers ?? {}).length + (await discoverLspEntries(root)).length
   return {
     skills: skills.length,
     mcp: mcp === undefined ? 0 : Object.keys(mcp.servers).length,
     hooks,
     commands,
     agents,
-    lsp
+    lsp: lspCount
   }
 }
 

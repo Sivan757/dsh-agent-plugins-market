@@ -94,6 +94,29 @@ export interface McpSuiteConfig {
   servers: Record<string, McpServer>
 }
 
+/** One normalized inline LSP server declaration (`lspServers` table entry). */
+export interface LspServerSpec {
+  /** Server key from the declaring table (e.g. `typescript`). */
+  key: string
+  /** Executable to spawn (resolved on PATH by the LSP host). */
+  command: string
+  /** Arguments passed to the executable. Default `[]`. */
+  args: string[]
+  /** Lowercase leading-dot extension → LSP language id. */
+  extensionToLanguage: Record<string, string>
+  /** Extra env vars merged over the ambient env. */
+  env?: Record<string, string>
+  /** Static `initialize` options forwarded to the server. */
+  initializationOptions?: unknown
+  /** Static answer to every `workspace/configuration` item. */
+  configuration?: unknown
+}
+
+/** Parsed inline `lspServers` declarations of one suite. */
+export interface LspSuiteConfig {
+  servers: Record<string, LspServerSpec>
+}
+
 /** Install dimension of a suite. */
 export type SuiteDimension = 'user' | 'project'
 
@@ -106,6 +129,8 @@ export interface Suite {
   skills: SuiteSkill[]
   /** Validated mcp.json content; absent when the file is missing or invalid. */
   mcp?: McpSuiteConfig
+  /** Parsed inline `lspServers` declarations; absent when the suite declares none. */
+  lsp?: LspSuiteConfig
   surfaces: SuiteSurfaceCounts
   dimension: SuiteDimension
   enabled: boolean
@@ -122,13 +147,13 @@ export interface Suite {
 }
 
 /** Runtime surfaces that can be selectively enabled per installed suite. */
-export type SuiteSurfaceKey = 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents'
+export type SuiteSurfaceKey = 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents' | 'lsp'
 
 /** Per-surface user overrides; absent keys default to enabled. */
 export type SurfaceOverrides = Partial<Record<SuiteSurfaceKey, boolean>>
 
 /** The full set of toggleable surfaces, in display order. */
-export const SUITE_SURFACE_KEYS: readonly SuiteSurfaceKey[] = ['skills', 'mcp', 'hooks', 'commands', 'agents']
+export const SUITE_SURFACE_KEYS: readonly SuiteSurfaceKey[] = ['skills', 'mcp', 'hooks', 'commands', 'agents', 'lsp']
 
 /** Merge user overrides over the enabled default into the effective surface set. */
 export function effectiveSurfaces(overrides: SurfaceOverrides | undefined): Record<SuiteSurfaceKey, boolean> {
@@ -137,7 +162,8 @@ export function effectiveSurfaces(overrides: SurfaceOverrides | undefined): Reco
     mcp: overrides?.mcp !== false,
     hooks: overrides?.hooks !== false,
     commands: overrides?.commands !== false,
-    agents: overrides?.agents !== false
+    agents: overrides?.agents !== false,
+    lsp: overrides?.lsp !== false
   }
 }
 

@@ -136,6 +136,8 @@ export interface MarketplaceEntry {
   name?: string
   version?: string
   description?: string
+  /** Claude Code: inline `lspServers` table declared on the entry itself. */
+  lspServers?: unknown
   /** Claude Code: a relative path string or `{ source: 'url', url }`.
    *  Codex: `{ source: 'local', path }` or `{ source: 'remote', url }`. */
   source: string | { source?: string; url?: string; path?: string }
@@ -244,6 +246,22 @@ export async function declaredMcpServers(root: string): Promise<Record<string, u
     const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
     if (typeof raw === 'object' && raw !== null) {
       const servers = (raw as Record<string, unknown>)['mcpServers']
+      if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
+/** The winning manifest's inline `lspServers`, or undefined. */
+export async function declaredLspServers(root: string): Promise<Record<string, unknown> | undefined> {
+  const candidate = await detectManifest(root)
+  if (candidate === undefined) return undefined
+  try {
+    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
+    if (typeof raw === 'object' && raw !== null) {
+      const servers = (raw as Record<string, unknown>)['lspServers']
       if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
     }
   } catch {
