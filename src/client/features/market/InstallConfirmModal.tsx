@@ -22,12 +22,13 @@ export interface InstallConfirmModalProps {
 }
 
 /** Surface count tags shown on the card; keys mirror SuiteCard's tag list. */
-const SURFACE_TAGS: Array<{ key: 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents'; labelKey: 'surfaceSkills' | 'surfaceMcp' | 'surfaceHooks' | 'surfaceCommands' | 'surfaceAgents' }> = [
+const SURFACE_TAGS: Array<{ key: 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents' | 'lsp'; labelKey: 'surfaceSkills' | 'surfaceMcp' | 'surfaceHooks' | 'surfaceCommands' | 'surfaceAgents' | 'surfaceLsp' }> = [
   { key: 'skills', labelKey: 'surfaceSkills' },
   { key: 'mcp', labelKey: 'surfaceMcp' },
   { key: 'hooks', labelKey: 'surfaceHooks' },
   { key: 'commands', labelKey: 'surfaceCommands' },
-  { key: 'agents', labelKey: 'surfaceAgents' }
+  { key: 'agents', labelKey: 'surfaceAgents' },
+  { key: 'lsp', labelKey: 'surfaceLsp' }
 ]
 
 export function InstallConfirmModal(props: InstallConfirmModalProps): ReactNode {

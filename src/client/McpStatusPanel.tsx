@@ -2,13 +2,16 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Translate } from './index.js'
-import { fetchMcpStatus, type McpStatusEntry, type McpStatusPayload } from './api.js'
+import { fetchMcpStatus, retryMcpMounts, type McpStatusEntry, type McpStatusPayload } from './api.js'
+import type { CredentialApi } from './credentials.js'
+import { McpCredentialEditor } from './McpCredentialEditor.js'
 import { SearchFilterToolbar, type SearchFilterToolbarView } from './SearchFilterToolbar.js'
 import { deriveMcpStatusViewModel, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
 import css from './mcp-status.module.css'
 
 interface McpStatusPanelProps {
   t: Translate
+  credentials?: CredentialApi
 }
 
 type Filter = McpStatusFilter
@@ -17,12 +20,12 @@ type ViewMode = SearchFilterToolbarView
 const EMPTY_STATUS: McpStatusPayload = {
   entries: [],
   observedAt: '',
-  totals: { all: 0, connected: 0, degraded: 0, failed: 0, disabled: 0 },
+  totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0 },
   directObservationOnly: true
 }
 
-/** DSH-native MCP inventory: click a service card for a standard Modal detail. */
-export function McpStatusPanel({ t }: McpStatusPanelProps): ReactNode {
+/** DSH-native MCP inventory with a per-state overview and per-service detail. */
+export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNode {
   const [payload, setPayload] = useState<McpStatusPayload>(EMPTY_STATUS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -31,6 +34,26 @@ export function McpStatusPanel({ t }: McpStatusPanelProps): ReactNode {
   const [view, setView] = useState<ViewMode>('grid')
   const [selected, setSelected] = useState<McpStatusEntry | undefined>(undefined)
 
+  const retry = (entryId: string): Promise<boolean> => {
+    return retryMcpMounts()
+      .then(async () => {
+        // The POST only acknowledges that a reconcile ran; the mount's real
+        // verdict arrives in the refreshed status, so the outcome echo reads
+        // the state instead of trusting the request.
+        const refreshed = await fetchMcpStatus().catch(() => undefined)
+        if (refreshed !== undefined) setPayload(refreshed)
+        return refreshed?.entries.some(entry => entry.id === entryId && entry.state === 'connected') === true
+      })
+      .catch(async caught => {
+        setError(caught instanceof Error ? caught.message : String(caught))
+        // Still re-read: the failure may be transport-level while the mount
+        // actually settled; the echo follows the observed state.
+        const refreshed = await fetchMcpStatus().catch(() => undefined)
+        if (refreshed !== undefined) setPayload(refreshed)
+        return refreshed?.entries.some(entry => entry.id === entryId && entry.state === 'connected') === true
+      })
+      .finally(() => setLoading(false))
+  }
   const refresh = (): void => {
     setLoading(true)
     setError(undefined)
@@ -48,6 +71,9 @@ export function McpStatusPanel({ t }: McpStatusPanelProps): ReactNode {
 
   const viewModel = deriveMcpStatusViewModel(payload, filter, search)
   const { activeEntries, filtered, filterCounts, visibleTotals } = viewModel
+  // Hide the summary bar entirely while every active row is connected: the
+  // green confirmation above an all-green list is noise, not information.
+  const allHealthy = activeEntries.length > 0 && visibleTotals.connected === activeEntries.length
 
   return h(
     'div',
@@ -55,16 +81,21 @@ export function McpStatusPanel({ t }: McpStatusPanelProps): ReactNode {
     h(
       'header',
       { className: css.header },
-      h('div', {}, h('h2', { className: css.title }, t('mcpStatusTitle'))),
+      h(
+        'div',
+        { className: css.headerText },
+        h('h2', { className: css.title }, t('mcpStatusTitle')),
+        h('p', { className: css.subtitle }, t('mcpStatusSubtitle'))
+      ),
       h(
         'div',
         { className: css.headerActions },
-        visibleTotals.failed > 0
-          ? h('span', { className: css.errorSummary, title: `${visibleTotals.failed} ${t('mcpFailed')}` }, h('span', { className: css.summaryDotRed }), visibleTotals.failed)
-          : null,
-        h(Button, { variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh') }, '↻')
+        h(Button, { variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh') }, `↻ ${t('refresh')}`)
       )
     ),
+    activeEntries.length === 0 || allHealthy || loading
+      ? null
+      : h(StatusSummaryBar, { t, totals: visibleTotals, observedAt: payload.observedAt }),
     h(SearchFilterToolbar, {
       className: css.toolbar,
       search,
@@ -77,7 +108,8 @@ export function McpStatusPanel({ t }: McpStatusPanelProps): ReactNode {
         count: filterCounts[kind],
         icon: h(McpFilterIcon, { kind }),
         active: filter === kind,
-        onSelect: () => setFilter(kind)
+        onSelect: () => setFilter(kind),
+        hint: mcpFilterHint(t, kind)
       })),
       view,
       gridLabel: t('grid'),
@@ -95,42 +127,93 @@ export function McpStatusPanel({ t }: McpStatusPanelProps): ReactNode {
               { className: view === 'grid' ? css.grid : css.list },
               filtered.map(entry => h(McpCard, { key: entry.id, entry, t, onClick: () => setSelected(entry) }))
             ),
-    selected === undefined ? null : h(McpDetailModal, { entry: selected, t, onClose: () => setSelected(undefined) })
+    selected === undefined ? null : h(McpDetailModal, { entry: selected, t, credentials, onClose: () => setSelected(undefined), onRetry: retry })
   )
+}
+
+/**
+ * One chip per non-healthy state, shown only when that state is non-zero.
+ *
+ * The chips are ordered by severity so the first one the eye lands on is the
+ * state that most needs attention, and the whole bar collapses to a single
+ * "all connected" confirmation when nothing is wrong.
+ */
+function StatusSummaryBar({ t, totals, observedAt }: { t: Translate; totals: McpStatusPayload['totals']; observedAt: string }): ReactNode {
+  const chips: Array<{ key: string; count: number; label: string }> = [
+    { key: 'orphaned', count: totals.orphaned, label: t('mcpOrphaned') },
+    { key: 'failed', count: totals.failed, label: t('mcpFailed') },
+    { key: 'needsCredentials', count: totals.needsCredentials, label: t('mcpNeedsCredentials') },
+    { key: 'degraded', count: totals.degraded, label: t('mcpDegraded') },
+    { key: 'disabled', count: totals.disabled, label: t('mcpDisabled') }
+  ].filter(chip => chip.count > 0)
+
+  return h(
+    'div',
+    { className: css.summaryBar },
+    chips.length === 0
+      ? h('span', { className: css.summaryAllGood }, h('span', { className: css.summaryDotGreen }), t('mcpAllConnected'))
+      : chips.map(chip =>
+          h(
+            'span',
+            { key: chip.key, className: `${css.summaryChip} ${css[`chip${chip.key}`]}`, title: `${chip.count} ${chip.label}` },
+            h('span', { className: css[`summaryDot${dotTone(chip.key)}`] }),
+            h('span', { className: css.summaryCount }, chip.count),
+            h('span', { className: css.summaryLabel }, chip.label)
+          )
+        ),
+    h('span', { className: css.observedAt }, observedAt === '' ? '' : formatObservedAt(observedAt))
+  )
+}
+
+function dotTone(key: string): string {
+  if (key === 'degraded' || key === 'needsCredentials') return 'Warn'
+  return 'Red'
+}
+
+function formatObservedAt(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString()
 }
 
 function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; onClick: () => void }): ReactNode {
+  const interactive = { role: 'button' as const, tabIndex: 0, onClick, onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+    // Enter and Space activate a role="button" the same way a native one does.
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onClick()
+  } }
   return h(
-    'button',
-    { type: 'button', className: css.card, onClick },
+    'div',
+    { className: `${css.card} ${css[`card${stateClass(entry.state)}`]}`, ...interactive },
     h(
       'div',
-      { className: css.cardTop },
-      h('span', {
-        className: `${css.statusDot} ${css[`status${entry.state}`]}`,
-        title: stateLabel(t, entry.state),
-        'aria-label': stateLabel(t, entry.state)
-      }),
-      h('span', { className: css.service }, h('span', { className: css.name }, entry.name)),
-      h('span', { className: css.toolCount }, `${t('mcpTools')} ${entry.tools.length}`)
-    ),
-    h('p', { className: css.endpoint }, entry.endpoint ?? t('mcpObservedEndpoint')),
-    h(
-      'div',
-      { className: css.meta },
-      h(McpSourceBadge, { kind: entry.kind, label: entry.kind === 'plugin' ? (entry.source ?? '—') : t('mcpDirect'), t }),
-      h('span', { className: css.transport }, entry.transport)
-    ),
-    entry.reason === undefined ? null : h('p', { className: css.cardReason }, entry.reason)
+      { className: css.cardBody },
+      h(
+        'div',
+        { className: css.cardTop },
+        h('span', { className: `${css.statusDot} ${css[`status${entry.state}`]}`, 'aria-hidden': true }),
+        h('span', { className: css.service }, h('span', { className: css.name }, entry.name)),
+        h('span', { className: css.toolCount }, entry.tools.length === 1 ? `${entry.tools.length} ${t('mcpTool')}` : `${entry.tools.length} ${t('mcpTools')}`)
+      ),
+      h('p', { className: css.endpoint }, entry.endpoint ?? t('mcpObservedEndpoint'))
+      // Reason text, the state pill, and every action (retry, configure,
+      // details) live in the detail dialog: the card keeps only the identity
+      // line and the endpoint, so a wall of red cards stays scannable.
+    )
   )
 }
 
-function McpSourceBadge({ kind, label, t }: { kind: 'plugin' | 'direct'; label: string; t: Translate }): ReactNode {
-  return h('span', { className: kind === 'plugin' ? css.sourcePlugin : css.sourceDirect }, h(McpSourceIcon, { kind }), h('span', {}, kind === 'plugin' ? label : t('mcpDirect')))
+function stateClass(state: string): string {
+  return state
+    .split('-')
+    .map((part, index) => (index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join('')
+    .replace(/^./, char => char.toUpperCase())
 }
 
 function McpSourceIcon({ kind }: { kind: 'plugin' | 'direct' }): ReactNode {
-  const common = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
+  const common = { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
   return kind === 'plugin'
     ? h(
         'svg',
@@ -152,7 +235,29 @@ function McpFilterIcon({ kind }: { kind: Filter }): ReactNode {
   )
 }
 
-function McpDetailModal({ entry, t, onClose }: { entry: McpStatusEntry; t: Translate; onClose: () => void }): ReactNode {
+/**
+ * The detail dialog owns every action and every long text: state, reason,
+ * credentials, config, tools, and the retry control with its in-place result
+ * echo. The state pill is dropped entirely — the dot and the reason box carry
+ * that information without a second red stamp.
+ */
+function McpDetailModal({ entry, t, credentials, onClose, onRetry }: {
+  entry: McpStatusEntry
+  t: Translate
+  credentials?: CredentialApi
+  onClose: () => void
+  onRetry: (entryId: string) => Promise<boolean>
+}): ReactNode {
+  const [retrying, setRetrying] = useState(false)
+  const [retryOutcome, setRetryOutcome] = useState<'success' | 'failure' | undefined>(undefined)
+  const retry = (): void => {
+    setRetrying(true)
+    setRetryOutcome(undefined)
+    onRetry(entry.id)
+      .then(success => setRetryOutcome(success ? 'success' : 'failure'))
+      .catch(() => setRetryOutcome('failure'))
+      .finally(() => setRetrying(false))
+  }
   return h(Modal, {
     open: true,
     onClose,
@@ -161,18 +266,56 @@ function McpDetailModal({ entry, t, onClose }: { entry: McpStatusEntry; t: Trans
     closeLabel: t('cancel'),
     className: css.detailDialog,
     contentClassName: css.detailBody,
-    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))),
+    footer: h(
+      'div',
+      { className: css.modalFooter },
+      entry.kind === 'direct' || entry.state === 'connected' || entry.state === 'disabled'
+        ? null
+        : h(
+            'span',
+            { className: css.retryStack },
+            retryOutcome === 'success'
+              ? h('span', { className: css.retryEchoSuccess, role: 'status' }, `✓ ${t('mcpRetrySuccess')}`)
+              : retryOutcome === 'failure'
+                ? h('span', { className: css.retryEchoFailure, role: 'alert' }, `✕ ${t('mcpRetryFailure')}`)
+                : null,
+            h(
+              Button,
+              { variant: 'ghost', size: 'sm', disabled: retrying, onClick: retry },
+              h('span', { className: retrying ? `${css.retrySpinner} ${css.spinning}` : css.retrySpinner, 'aria-hidden': true }, '↻'),
+              retrying ? t('mcpRetrying') : t('mcpRetry')
+            )
+          ),
+      h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))
+    ),
     children: h(
       'div',
       { className: css.detail },
       h(
         'div',
-        { className: css.detailMeta },
-        h(McpSourceBadge, { kind: entry.kind, label: entry.kind === 'plugin' ? (entry.source ?? '—') : t('mcpDirect'), t }),
-        h('span', { className: css.transport }, entry.transport),
-        h('span', { className: `${css.state} ${css[`state${entry.state}`]}` }, stateLabel(t, entry.state))
+        { className: css.detailHero },
+        h('span', { className: `${css.statusDot} ${css[`status${entry.state}`]}`, 'aria-hidden': true }),
+        h(
+          'div',
+          { className: css.detailHeroText },
+          entry.endpoint === undefined ? null : h('p', { className: css.detailEndpoint }, entry.endpoint),
+          // Source and transport moved here from the card meta row.
+          h('p', { className: css.detailEndpoint }, [
+            entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.source ?? '—'}` : t('mcpDirect'),
+            entry.transport
+          ].join(' · '))
+        )
       ),
-      entry.reason === undefined ? null : h('div', { className: css.reason }, entry.reason),
+      entry.reason === undefined
+        ? null
+        : h(
+            'div',
+            { className: css.reasonBox },
+            h('span', { className: css.reasonLabel }, t('mcpReasonLabel')),
+            h('p', { className: css.reasonText }, entry.reason)
+          ),
+      entry.kind === 'direct' ? h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, t('mcpDirectBoundary'))) : null,
+      entry.credentialRefs?.length === 0 || entry.credentialRefs === undefined ? null : h(McpCredentialEditor, { t, api: credentials, refs: entry.credentialRefs }),
       h(
         'section',
         { className: css.detailSection },
@@ -186,17 +329,16 @@ function McpDetailModal({ entry, t, onClose }: { entry: McpStatusEntry; t: Trans
         { className: css.detailSection },
         h('h4', { className: css.detailHead }, `${t('mcpTools')} (${entry.tools.length})`),
         entry.tools.length === 0
-          ? h('div', { className: css.detailEmpty }, t('mcpNoTools'))
+          ? h('div', { className: css.detailEmpty }, entry.advertisedTools === false && entry.state === 'degraded' ? t('mcpZeroTools') : t('mcpNoTools'))
           : h(
               'div',
               { className: css.toolList },
-              entry.tools.map((tool, index) =>
+              entry.tools.map(tool =>
                 h(
                   'div',
                   { key: tool.name, className: css.tool },
-                  h('span', { className: css.toolIndex }, String(index + 1).padStart(2, '0')),
                   h('span', { className: css.toolName }, tool.name),
-                  h('span', { className: css.toolDescription }, tool.description ?? '')
+                  tool.description === undefined || tool.description === '' ? null : h('span', { className: css.toolDescription }, tool.description)
                 )
               )
             )
@@ -211,9 +353,10 @@ function filterLabel(t: Translate, kind: Filter): string {
   return t('mcpAll')
 }
 
-function stateLabel(t: Translate, state: McpStatusEntry['state']): string {
-  if (state === 'connected') return t('mcpConnected')
-  if (state === 'degraded') return t('mcpDegraded')
-  if (state === 'failed') return t('mcpFailed')
-  return t('mcpDisabled')
+/** Hover/aria explanation for each MCP filter tab. */
+function mcpFilterHint(t: Translate, kind: Filter): string {
+  if (kind === 'plugin') return t('mcpFilterPluginHint')
+  if (kind === 'direct') return t('mcpFilterDirectHint')
+  return t('mcpFilterAllHint')
 }
+
