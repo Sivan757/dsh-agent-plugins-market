@@ -30,7 +30,7 @@ describe('discovery: agent-plugins.org v1 layout', () => {
 describe('discovery: Claude Code marketplace layout', () => {
   it('uses the marketplace manifest, keeps local entries and remote references', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'cc-marketplace'), 'cc', 'user')
-    expect(suites.map(suite => suite.id)).toEqual(['demo-one', 'demo-two', 'demo-three', 'external-one', 'extra-plugin'])
+    expect(suites.map(suite => suite.id)).toEqual(['demo-one', 'demo-two', 'demo-three', 'external-one', 'typescript-lsp', 'extra-plugin'])
     expect(suites[0]!.manifest.layout).toBe('claude-code')
     expect(suites[0]!.skills[0]!.name).toBe('demo-one')
     // A manifest-less marketplace entry still surfaces as a skill collection.
@@ -41,8 +41,25 @@ describe('discovery: Claude Code marketplace layout', () => {
     expect(suites[3]!.remote).toEqual({ url: 'https://github.com/example/external.git' })
     expect(suites[3]!.root).toBe('')
     // A manifest-bearing container dir the marketplace did not list is supplemented.
-    expect(suites[4]!.manifest.layout).toBe('claude-code')
-    expect(suites[4]!.manifest.name).toBe('extra-plugin')
+    expect(suites[5]!.manifest.layout).toBe('claude-code')
+    expect(suites[5]!.manifest.name).toBe('extra-plugin')
+  })
+
+  it('surfaces inline lspServers declared on a marketplace entry', async () => {
+    const suites = await discoverSuitesInSource(join(fixtures, 'cc-marketplace'), 'cc', 'user')
+    const lsp = suites.find(suite => suite.id === 'typescript-lsp')!
+    expect(lsp).toBeDefined()
+    // A declaration-only suite: the entry's inline lspServers are its manifest.
+    expect(lsp.manifest.layout).toBe('claude-code')
+    expect(lsp.lsp).toBeDefined()
+    const spec = lsp.lsp!.servers['typescript']!
+    expect(spec).toMatchObject({ key: 'typescript', command: 'typescript-language-server', args: ['--stdio'] })
+    expect(spec.extensionToLanguage).toEqual({ '.ts': 'typescript', '.tsx': 'typescriptreact', '.js': 'javascript', '.jsx': 'javascriptreact' })
+    expect(lsp.surfaces.lsp).toBe(1)
+    expect(lsp.errors).toEqual([])
+    // Suites without declarations carry no lsp field.
+    expect(suites[0]!.lsp).toBeUndefined()
+    expect(suites[0]!.surfaces.lsp).toBe(0)
   })
 })
 

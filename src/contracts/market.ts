@@ -7,6 +7,8 @@ export const MARKET_API_PREFIX = '/api/agent-plugins/' as const
 export const MARKET_ROUTES = {
   overview: `${MARKET_API_PREFIX}overview`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
+  lspStatus: `${MARKET_API_PREFIX}lsp-status`,
+  lspServers: `${MARKET_API_PREFIX}lsp-servers`,
   progress: `${MARKET_API_PREFIX}progress`,
   config: `${MARKET_API_PREFIX}config`,
   suite: `${MARKET_API_PREFIX}suite`,
@@ -20,7 +22,8 @@ export const MARKET_ROUTES = {
   setEnabled: `${MARKET_API_PREFIX}set-enabled`,
   setSurface: `${MARKET_API_PREFIX}set-surface`,
   mcpOverrides: `${MARKET_API_PREFIX}mcp-overrides`,
-  setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`
+  setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`,
+  mcpRetry: `${MARKET_API_PREFIX}mcp-retry`
 } as const
 
 /** A configured source row returned to the market client. */
@@ -52,6 +55,7 @@ export interface SuiteSurfaceToggles {
   hooks: boolean
   commands: boolean
   agents: boolean
+  lsp: boolean
 }
 
 /** One server's persisted MCP override (wire shape mirrors runtime types). */
@@ -127,6 +131,23 @@ export interface LspPreview {
   content: string
 }
 
+/** One inline-declared LSP server in a suite detail response. */
+export interface LspServerPreview {
+  /** Server key from the declaring `lspServers` table. */
+  key: string
+  command: string
+  args: string[]
+  /** Lowercase leading-dot extension → LSP language id. */
+  extensions: Record<string, string>
+  env?: Record<string, string>
+}
+
+/** The suite's LSP surface: inline-declared servers plus directory definition files. */
+export interface LspSurfaceDetail {
+  servers: LspServerPreview[]
+  raw: LspPreview[]
+}
+
 /** One flattened hook entry in a suite detail response. */
 export interface HookPreview {
   event: string
@@ -169,7 +190,7 @@ export interface SuiteDetail {
   hooks: { count: number; entries: HookPreview[] }
   commands: MarkdownPreview[]
   agents: MarkdownPreview[]
-  lsp: LspPreview[]
+  lsp: LspSurfaceDetail
   errors: string[]
   mcpErrors: string[]
 }

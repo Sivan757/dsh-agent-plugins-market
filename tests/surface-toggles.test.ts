@@ -22,11 +22,11 @@ async function installFixture(manager: Catalog, sourceId = 'demo', suiteId = 'v1
 
 describe('effectiveSurfaces', () => {
   it('defaults every surface to enabled without overrides', () => {
-    expect(effectiveSurfaces(undefined)).toEqual({ skills: true, mcp: true, hooks: true, commands: true, agents: true })
+    expect(effectiveSurfaces(undefined)).toEqual({ skills: true, mcp: true, hooks: true, commands: true, agents: true, lsp: true })
   })
 
   it('merges overrides over the enabled default', () => {
-    expect(effectiveSurfaces({ mcp: false, hooks: false })).toEqual({ skills: true, mcp: false, hooks: false, commands: true, agents: true })
+    expect(effectiveSurfaces({ mcp: false, hooks: false })).toEqual({ skills: true, mcp: false, hooks: false, commands: true, agents: true, lsp: true })
   })
 })
 
@@ -39,7 +39,7 @@ describe('Catalog.setSurface', () => {
 
     await manager.setSurface('demo', 'v1-suite', 'mcp', false)
     const suites = (await manager.readUserCatalog()).suites
-    expect(suites.find(suite => suite.id === 'v1-suite')!.activeSurfaces).toEqual({ skills: true, mcp: false, hooks: true, commands: true, agents: true })
+    expect(suites.find(suite => suite.id === 'v1-suite')!.activeSurfaces).toEqual({ skills: true, mcp: false, hooks: true, commands: true, agents: true, lsp: true })
 
     await manager.setSurface('demo', 'v1-suite', 'mcp', true)
     expect((await manager.readUserCatalog()).suites.find(suite => suite.id === 'v1-suite')!.activeSurfaces.mcp).toBe(true)
@@ -51,7 +51,7 @@ describe('Catalog.setSurface', () => {
     await manager.load()
     await installFixture(manager)
 
-    await expect(manager.setSurface('demo', 'v1-suite', 'lsp', false)).rejects.toThrow('not toggleable')
+    await expect(manager.setSurface('demo', 'v1-suite', 'nope' as never, false)).rejects.toThrow('not toggleable')
     await expect(manager.setSurface('demo', 'missing', 'mcp', false)).rejects.toThrow('not installed')
   })
 
@@ -65,7 +65,7 @@ describe('Catalog.setSurface', () => {
     const overview = await manager.overview()
     const card = overview.suites.find(suite => suite.suiteId === 'v1-suite')!
     expect(card.installed).toBe(true)
-    expect(card.surfaceToggles).toEqual({ skills: true, mcp: true, hooks: false, commands: true, agents: true })
+    expect(card.surfaceToggles).toEqual({ skills: true, mcp: true, hooks: false, commands: true, agents: true, lsp: true })
   })
 
   it('survives state reload (persisted overrides)', async () => {
