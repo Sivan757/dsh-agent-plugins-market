@@ -91,6 +91,11 @@ export async function retryMcpMounts(): Promise<void> {
   await postAction('mcp-retry', {})
 }
 
+/** Drop one server's OAuth grant so its next mount re-runs browser authorization. */
+export async function reauthorizeMcpServer(serverName: string): Promise<void> {
+  await postAction('mcp-reauthorize', { serverName })
+}
+
 export async function postAction(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const response = await fetch(`${MARKET_API_PREFIX}${path}`, {
     method: 'POST',

@@ -77,6 +77,8 @@ export class Catalog {
   mcpDiagnostics: McpMountDiagnostic[] = []
   /** Latest LSP mount diagnostics source, wired by the host entry. */
   private lspStatusSource: LspMountStatusSource | undefined
+  /** Credential-store seam for dropping a grant record (MCP re-authorize). */
+  private credentialsStore: { deleteGrantRecord(serverName: string): Promise<void> } | undefined
   private toolSnapshotProvider: () => readonly McpToolSnapshot[] = () => []
 
   constructor(private readonly options: CatalogOptions) {
@@ -87,6 +89,31 @@ export class Catalog {
   /** Install the host tool snapshot provider used by the MCP status surface. */
   setMcpToolSnapshotProvider(provider: () => readonly McpToolSnapshot[]): void {
     this.toolSnapshotProvider = provider
+  }
+
+  /** Install the credential-store seam backing the MCP re-authorize action. */
+  setCredentialsStore(store: { deleteGrantRecord(serverName: string): Promise<void> }): void {
+    this.credentialsStore = store
+  }
+
+  /**
+   * Drop one MCP server's OAuth grant record so the next mount re-runs the
+   * browser authorization — the path for "I picked too narrow a scope".
+   * @param suiteId - the owning suite.
+   * @param serverKey - the suite's server key.
+   * @param serverName - the derived `dsh-mcp-client` serverName whose folded form keys the record.
+   * @throws when the credentials service is not mounted.
+   */
+  async reauthorizeMcpServer(serverName: string): Promise<void> {
+    await this.enqueue(async () => {
+      await this.credentialsStore?.deleteGrantRecord(serverName)
+      await this.notifyChanged()
+    })
+  }
+
+  /** Whether the re-authorize action can run in this composition. */
+  mcpReauthorizeAvailable(): boolean {
+    return this.credentialsStore !== undefined
   }
 
   /** Install the LSP mount status source used by the LSP status surface. */

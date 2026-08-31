@@ -104,7 +104,24 @@ export function apply(ctx: Context, config: Config = {}): void {
     await reconcileMounts()
   }
 
+  // Optional strict get: the credential store powers the MCP re-authorize
+  // action (dropping a grant record forces the next mount through a fresh
+  // browser authorization); without the service the action is unavailable.
+  const credentialsStore = (ctx as unknown as { get?: (name: string) => unknown }).get?.('credentials') as { deleteRecord?: (key: string) => Promise<void> } | undefined
   const catalog = new Catalog({ userRoot, dataRoot, onChanged })
+  // Mirror oauth.ts's `credentialIdFor`: the record is stored under the folded
+  // serverName, so the delete must fold the same way or it misses the record.
+  const credentialIdFor = (serverName: string): string =>
+    serverName
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'server'
+  catalog.setCredentialsStore({
+    deleteGrantRecord: async serverName => {
+      if (credentialsStore?.deleteRecord === undefined) throw new Error('credentials service is not mounted')
+      await credentialsStore.deleteRecord(`mcp-auth/${credentialIdFor(serverName)}` as never)
+    }
+  })
   runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
   catalog.setLspStatusSource(runtime.lsp)
   runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)

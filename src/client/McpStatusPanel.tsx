@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Translate } from './index.js'
-import { fetchMcpStatus, retryMcpMounts, type McpStatusEntry, type McpStatusPayload } from './api.js'
+import { fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, type McpStatusEntry, type McpStatusPayload } from './api.js'
 import type { CredentialApi } from './credentials.js'
 import { McpCredentialEditor } from './McpCredentialEditor.js'
 import { SearchFilterToolbar, type SearchFilterToolbarView } from './SearchFilterToolbar.js'
@@ -54,6 +54,16 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       })
       .finally(() => setLoading(false))
   }
+  const reauthorize = (serverName: string): Promise<void> => {
+    return reauthorizeMcpServer(serverName)
+      .then(() => retryMcpMounts())
+      .then(async () => {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        const refreshed = await fetchMcpStatus().catch(() => undefined)
+        if (refreshed !== undefined) setPayload(refreshed)
+      })
+  }
+
   const refresh = (): void => {
     setLoading(true)
     setError(undefined)
@@ -127,7 +137,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
               { className: view === 'grid' ? css.grid : css.list },
               filtered.map(entry => h(McpCard, { key: entry.id, entry, t, onClick: () => setSelected(entry) }))
             ),
-    selected === undefined ? null : h(McpDetailModal, { entry: selected, t, credentials, onClose: () => setSelected(undefined), onRetry: retry })
+    selected === undefined ? null : h(McpDetailModal, { entry: selected, t, credentials, onClose: () => setSelected(undefined), onRetry: retry, onReauthorize: reauthorize })
   )
 }
 
@@ -241,15 +251,18 @@ function McpFilterIcon({ kind }: { kind: Filter }): ReactNode {
  * echo. The state pill is dropped entirely — the dot and the reason box carry
  * that information without a second red stamp.
  */
-function McpDetailModal({ entry, t, credentials, onClose, onRetry }: {
+function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize }: {
   entry: McpStatusEntry
   t: Translate
   credentials?: CredentialApi
   onClose: () => void
   onRetry: (entryId: string) => Promise<boolean>
+  onReauthorize: (serverName: string) => Promise<void>
 }): ReactNode {
   const [retrying, setRetrying] = useState(false)
   const [retryOutcome, setRetryOutcome] = useState<'success' | 'failure' | undefined>(undefined)
+  const [reauthorizing, setReauthorizing] = useState(false)
+  const [reauthOutcome, setReauthOutcome] = useState<'success' | 'failure' | undefined>(undefined)
   const retry = (): void => {
     setRetrying(true)
     setRetryOutcome(undefined)
@@ -257,6 +270,14 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry }: {
       .then(success => setRetryOutcome(success ? 'success' : 'failure'))
       .catch(() => setRetryOutcome('failure'))
       .finally(() => setRetrying(false))
+  }
+  const reauthorize = (): void => {
+    setReauthorizing(true)
+    setReauthOutcome(undefined)
+    onReauthorize(entry.name)
+      .then(() => setReauthOutcome('success'))
+      .catch(() => setReauthOutcome('failure'))
+      .finally(() => setReauthorizing(false))
   }
   return h(Modal, {
     open: true,
@@ -286,6 +307,22 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry }: {
               retrying ? t('mcpRetrying') : t('mcpRetry')
             )
           ),
+      entry.kind === 'plugin'
+        ? h(
+            'span',
+            { className: css.retryStack },
+            reauthOutcome === 'success'
+              ? h('span', { className: css.retryEchoSuccess, role: 'status' }, `✓ ${t('mcpReauthSuccess')}`)
+              : reauthOutcome === 'failure'
+                ? h('span', { className: css.retryEchoFailure, role: 'alert' }, `✕ ${t('mcpReauthFailure')}`)
+                : null,
+            h(
+              Button,
+              { variant: 'ghost', size: 'sm', disabled: reauthorizing, title: t('mcpReauthHint'), onClick: reauthorize },
+              reauthorizing ? t('mcpReauthorizing') : t('mcpReauthorize')
+            )
+          )
+        : null,
       h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))
     ),
     children: h(

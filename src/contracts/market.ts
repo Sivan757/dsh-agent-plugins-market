@@ -23,7 +23,8 @@ export const MARKET_ROUTES = {
   setSurface: `${MARKET_API_PREFIX}set-surface`,
   mcpOverrides: `${MARKET_API_PREFIX}mcp-overrides`,
   setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`,
-  mcpRetry: `${MARKET_API_PREFIX}mcp-retry`
+  mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
+  mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`
 } as const
 
 /** A configured source row returned to the market client. */

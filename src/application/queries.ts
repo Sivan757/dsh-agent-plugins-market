@@ -33,6 +33,8 @@ export interface MarketMutations {
   setLspServers(raw: unknown): Promise<Record<string, import('../model/types.js').LspServerSpec>>
   /** Re-run the MCP reconcile pass: retries failed mounts and clears residual tools. */
   retryMounts(): Promise<void>
+  reauthorizeMcpServer(serverName: string): Promise<void>
+  mcpReauthorizeAvailable(): boolean
 }
 
 /** Complete application surface required by the HTTP routes. */

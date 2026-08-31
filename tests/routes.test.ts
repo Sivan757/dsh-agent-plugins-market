@@ -29,7 +29,9 @@ function service(): MarketService {
     setEnabled: async () => {},
     setSurface: async () => {},
     setMcpOverride: async () => {},
-    retryMounts: async () => {}
+    retryMounts: async () => {},
+    reauthorizeMcpServer: async () => {},
+    mcpReauthorizeAvailable: () => true
   }
 }
 
@@ -77,6 +79,46 @@ describe('market HTTP routes', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(retryResponse.value()).toMatchObject({ ok: true })
 
+    // Re-authorize: drops the grant record for the named server.
+    const reauthCalls: Array<string> = []
+    const reauthService = {
+      ...service(),
+      reauthorizeMcpServer: async (serverName: string) => {
+        reauthCalls.push(serverName)
+      }
+    }
+    const disposeReauth = mountSuiteRoutes({ webServer }, reauthService)
+    const reauthResponse = response()
+    const reauthRequest = {
+      method: 'POST',
+      url: MARKET_ROUTES.mcpReauthorize,
+      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+      on: (event: string, listener: (chunk?: unknown) => void) => {
+        if (event === 'data') listener(Buffer.from(JSON.stringify({ serverName: 'cloudflare__cloudflare-api' }), 'utf8'))
+        if (event === 'end') listener()
+      },
+      destroy: () => {}
+    }
+    await routes.get(MARKET_ROUTES.mcpReauthorize)?.(reauthRequest, reauthResponse)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(reauthResponse.value()).toMatchObject({ ok: true })
+    expect(reauthCalls).toEqual(['cloudflare__cloudflare-api'])
+
+    // Missing serverName is rejected.
+    const badRequest = {
+      method: 'POST',
+      url: MARKET_ROUTES.mcpReauthorize,
+      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+      on: (event: string, listener: (chunk?: unknown) => void) => {
+        if (event === 'data') listener(Buffer.from('{}', 'utf8'))
+        if (event === 'end') listener()
+      },
+      destroy: () => {}
+    }
+    await routes.get(MARKET_ROUTES.mcpReauthorize)?.(badRequest, response())
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    disposeReauth()
     dispose()
     expect(routes.size).toBe(0)
   })

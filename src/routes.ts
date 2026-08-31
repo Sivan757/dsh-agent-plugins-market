@@ -220,6 +220,15 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
     return {}
   })
 
+  // Drop one server's OAuth grant record: the next mount re-runs the browser
+  // authorization, which is how a user widens a too-narrow scope.
+  post(MARKET_ROUTES.mcpReauthorize, async body => {
+    const serverName = body['serverName']
+    if (typeof serverName !== 'string' || serverName === '') throw new Error('serverName is required')
+    await manager.reauthorizeMcpServer(serverName)
+    return {}
+  })
+
   // Validate and persist the user's direct LSP server table; the reconcile
   // pass picks it up and mounts it alongside the suite declarations.
   post(MARKET_ROUTES.lspServers, async body => {
