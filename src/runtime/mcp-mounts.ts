@@ -1,16 +1,15 @@
 /**
- * Runtime MCP mounts: one live `dsh-mcp-client` child plugin per enabled
+ * Runtime MCP mounts: one live self-built bridge child plugin per enabled
  * suite's mcp.json server, mounted through `ctx.plugin`.
  *
  * Mounts reconcile against the enabled-suite set: reconcile() unmounts rows
  * whose suite was disabled or removed and mounts rows that appeared. A
- * missing `@deepseek-ai/dsh-mcp-client` install, a duplicate derived
- * serverName, or a load failure is contained per server — a broken third-party
- * suite must not take the host down — and reported through the manager's
- * diagnostic list.
+ * duplicate derived serverName or a load failure is contained per server — a
+ * broken third-party suite must not take the host down — and reported through
+ * the manager's diagnostic list.
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type * as McpClient from '@deepseek-ai/dsh-mcp-client'
+import * as mcpBridge from './mcp-client/bridge.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
@@ -195,22 +194,20 @@ export class McpMountRegistry {
   private async mountWith(request: McpMountRequest): Promise<string | undefined> {
     const owner = this.names.get(request.config.serverName)
     if (owner !== undefined) return `derived serverName "${request.config.serverName}" already mounted by ${owner}`
-    let mcpClient: typeof McpClient | undefined
-    try {
-      mcpClient = await import('@deepseek-ai/dsh-mcp-client')
-    } catch {
-      return 'the @deepseek-ai/dsh-mcp-client package is not installed in this profile'
-    }
+    // The market's own bridge connects stdio, Streamable HTTP (with OAuth),
+    // and legacy SSE servers in-process — no host `dsh-mcp-client` install
+    // is consulted.
     const mountCtx = this.ctx as unknown as PluginMountContext
     if (typeof mountCtx.plugin !== 'function') return 'the host context does not support dynamic plugin mounting'
     let handle: MountPluginHandle | undefined
     try {
-      handle = mountCtx.plugin(mcpClient, request.config)
+      handle = mountCtx.plugin(mcpBridge, request.config)
       await handle.await()
     } catch (error) {
-      // `dsh-mcp-client` mounts with failOnStartupError, so a connection or
-      // initialization failure rejects here. Drop the half-mounted handle
-      // before reporting so no orphan child survives a failed startup.
+      // The bridge mounts with failOnStartupError for suite servers, so a
+      // connection or initialization failure rejects here. Drop the
+      // half-mounted handle before reporting so no orphan child survives a
+      // failed startup.
       if (handle !== undefined) {
         try {
           await handle.dispose()

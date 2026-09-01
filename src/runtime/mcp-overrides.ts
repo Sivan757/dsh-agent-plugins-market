@@ -15,7 +15,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { isSensitiveKey } from './mcp-redaction.js'
-import type { McpServerStreamableHttp, McpServerStdio } from '../model/types.js'
+import type { McpServerSse, McpServerStreamableHttp, McpServerStdio } from '../model/types.js'
+
+/** HTTP-shaped server sources (url + headers carriers) overrides can edit. */
+type McpServerHttp = McpServerStreamableHttp | McpServerSse
 
 /** Per-server override record; absent fields pass through from the source. */
 export type McpServerOverride = {
@@ -162,7 +165,7 @@ function stringMap(value: unknown): Record<string, string> | undefined {
  * Host credentials service or launch environment in memory) instead of
  * persisting them here.
  */
-export function applyOverride(server: McpServerStdio | McpServerStreamableHttp, override: McpServerOverride | undefined): McpServerStdio | McpServerStreamableHttp {
+export function applyOverride(server: McpServerStdio | McpServerHttp, override: McpServerOverride | undefined): McpServerStdio | McpServerHttp {
   if (override === undefined) return server
   if (server.type === 'stdio') {
     return {

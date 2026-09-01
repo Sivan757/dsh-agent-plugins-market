@@ -1,35 +1,31 @@
 /**
- * Maps one validated suite `mcp.json` onto `dsh-mcp-client` config rows.
+ * Maps one validated suite `mcp.json` onto self-built bridge config rows.
  *
  * The portable format is translated, not executed directly: stdio commands
  * resolve against the suite root (spec §7.2.1), `${PLUGIN_ROOT}` /
  * `${PLUGIN_DATA}` expand against the suite root and its data directory, and
  * every `${NAME}` — including ones inside a streamable-http `url` — expands
  * through the optional DSH credentials seam at mount time. Legacy HTTP+SSE
- * servers have no transport in the dsh MCP client and are skipped with a
- * per-server reason.
+ * servers are supported by the market's own bridge (the host client had no
+ * such transport); unrecognized shapes are still skipped with a per-server
+ * reason.
  */
 import { createHash } from 'node:crypto'
-import type { StdioConfig, StreamableHttpConfig } from '@deepseek-ai/dsh-mcp-client'
+import type { Config, SseConfig } from './mcp-client/config.js'
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-client/config.js'
 import { resolveCwd } from '../catalog/validate.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 
-/** The max length `dsh-mcp-client` accepts for a serverName. */
+/** The max length the bridge accepts for a serverName. */
 const SERVER_NAME_MAX = 32
 const PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g
 const BUILTIN_PLACEHOLDERS = new Set(['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'PLUGIN_DATA', 'CLAUDE_PLUGIN_DATA'])
-/**
- * Per-call timeout budget for one MCP tool invocation. Startup failures are
- * surfaced rather than swallowed so a broken third-party server shows as
- * `failed` with its real error instead of a silent `degraded` row.
- */
-const TOOL_CALL_TIMEOUT_MS = 60_000
 
 export interface McpMountRequest {
   suiteId: string
   serverKey: string
-  config: StdioConfig | StreamableHttpConfig
+  config: Config
 }
 
 export type McpMountFailureCode = 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed'
@@ -70,7 +66,7 @@ export async function toMcpMounts(
   for (const [serverKey, source] of Object.entries(suite.mcp.servers)) {
     const override = overrides[serverKey]
     if (override?.enabled === false) continue
-    const server = applyOverride(source as McpServerStdio | McpServerStreamableHttp, override)
+    const server = applyOverride(source as McpServerStdio | McpServerStreamableHttp | McpServerSse, override)
     try {
       const result = await toResolvedMount(suite, serverKey, server, pluginDataRoot, resolver)
       if (result.failure !== undefined) failures.push(result.failure)
@@ -109,7 +105,24 @@ async function toResolvedMount(
   pluginDataRoot: string,
   resolver: McpCredentialResolver
 ): Promise<{ request?: McpMountRequest; failure?: McpMountFailure }> {
-  if (server.type === 'sse') return { failure: { serverKey, code: 'unsupported-transport', reason: transportReason(server) } }
+  if (server.type === 'sse') {
+    // The market bridge supports the legacy HTTP+SSE transport natively.
+    const expand = expander(suite, joinInside(pluginDataRoot, suite.id), resolver)
+    const url = await expand.one(server.url)
+    const headers = await expand.map(server.headers ?? {})
+    const missing = unique([...url.missing, ...headers.missing])
+    if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
+    const sseConfig: SseConfig = {
+      transport: 'sse',
+      serverName: deriveServerName(suite.id, serverKey),
+      url: url.value,
+      headers: headers.values,
+      ...(server.auth === undefined ? {} : { auth: mapAuth(server.auth) }),
+      toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+      failOnStartupError: true
+    }
+    return { request: { suiteId: suite.id, serverKey, config: sseConfig } }
+  }
   const expand = expander(suite, joinInside(pluginDataRoot, suite.id), resolver)
   const serverName = deriveServerName(suite.id, serverKey)
   if (server.type === 'stdio') {
@@ -129,7 +142,7 @@ async function toResolvedMount(
           args: args.values,
           env: env.values,
           cwd: resolveCwd(cwd.value, suite.root, joinInside(pluginDataRoot, suite.id)),
-          toolCallTimeoutMs: TOOL_CALL_TIMEOUT_MS,
+          toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
           failOnStartupError: true
         }
       }
@@ -148,18 +161,24 @@ async function toResolvedMount(
         serverName,
         url: url.value,
         headers: headers.values,
-        ...(server.auth?.enabled === true
-          ? {
-              auth: {
-                enabled: true,
-                ...(server.auth.scope === undefined ? {} : { scope: server.auth.scope })
-              }
-            }
-          : {}),
-        toolCallTimeoutMs: TOOL_CALL_TIMEOUT_MS,
+        ...(server.auth === undefined ? {} : { auth: mapAuth(server.auth) }),
+        toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
         failOnStartupError: true
       }
     }
+  }
+}
+
+/**
+ * Map the suite format's auth declaration onto the bridge's OAuth config.
+ * `enabled: false` must survive the mapping — it is the explicit opt-out —
+ * while `enabled: true` (or a bare declaration) requests the default-on
+ * flow, optionally with a scope.
+ */
+function mapAuth(auth: { enabled: boolean; scope?: string }): { enabled: boolean; scope?: string } {
+  return {
+    enabled: auth.enabled !== false,
+    ...(auth.scope === undefined ? {} : { scope: auth.scope })
   }
 }
 
@@ -232,11 +251,6 @@ function unique(values: string[]): string[] {
   return [...new Set(values)].sort()
 }
 
-function transportReason(server: McpServer): string {
-  if ((server as McpServerSse).type === 'sse') return 'legacy HTTP+SSE transport is not supported by the dsh MCP client'
-  return 'unsupported mcp.json server shape'
-}
-
 function joinInside(root: string, segment: string): string {
   return `${root.replace(/[\\/]$/, '')}/${segment}`
 }
@@ -251,7 +265,7 @@ function sanitizeToken(raw: string): string {
 }
 
 /**
- * Derive a stable, unique-ish `dsh-mcp-client` serverName from the suite and
+ * Derive a stable, unique-ish bridge serverName from the suite and
  * server ids: `${suiteId}__${serverKey}` sanitized, truncated to 32 chars
  * with a deterministic 12-hex suffix when the join exceeds the budget (the
  * same deterministic-hash policy the MCP client uses for long tool names).

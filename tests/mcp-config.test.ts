@@ -28,11 +28,11 @@ function suite(overrides: Partial<Suite> = {}): Suite {
 /** A resolver that satisfies every reference, for tests of the mapping itself. */
 const alwaysResolves = { resolve: async () => ({ value: 'resolved' }) } as const
 
-describe('mcp-config: suite mcp.json → dsh-mcp-client rows', () => {
-  it('maps stdio and streamable-http, skipping legacy SSE with a reason', async () => {
+describe('mcp-config: suite mcp.json → bridge rows', () => {
+  it('maps stdio, streamable-http, and legacy SSE servers', async () => {
     const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
-    expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web'])
-    expect(failures).toEqual([{ serverKey: 'legacy', code: 'unsupported-transport', reason: expect.stringContaining('HTTP+SSE') }])
+    expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web', 'my-suite__legacy'])
+    expect(failures).toEqual([])
     const db = mounts[0]!.config as Record<string, unknown>
     expect(db['transport']).toBe('stdio')
     expect(db['command']).toBe('/tmp/my-suite/bin/db')
@@ -42,6 +42,9 @@ describe('mcp-config: suite mcp.json → dsh-mcp-client rows', () => {
     const web = mounts[1]!.config as Record<string, unknown>
     expect(web['transport']).toBe('streamable-http')
     expect(web['headers']).toEqual({ Authorization: 'Bearer resolved' })
+    const legacy = mounts[2]!.config as Record<string, unknown>
+    expect(legacy['transport']).toBe('sse')
+    expect(legacy['url']).toBe('https://example.com/sse')
   })
 })
 
@@ -57,7 +60,7 @@ describe('mcp-config: credential references', () => {
     )
     const web = result.mounts.find(mount => mount.serverKey === 'web')!.config as Record<string, unknown>
     expect((web['headers'] as Record<string, string>)['Authorization']).toBe('Bearer resolved-secret')
-    expect(result.failures).toEqual([{ serverKey: 'legacy', code: 'unsupported-transport', reason: expect.stringContaining('HTTP+SSE') }])
+    expect(result.failures).toEqual([])
   })
 
   it('reports missing credential references before a mount can start', async () => {

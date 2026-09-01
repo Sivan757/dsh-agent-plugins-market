@@ -3,14 +3,15 @@
  *
  * Function plugin (named exports, no default export). It registers one skill
  * provider feeding enabled suites into `ctx.skills`, reconciles enabled
- * suites' `mcp.json` servers into live `dsh-mcp-client` mounts, and mounts the
- * market page's HTTP routes on the web server. Skills and MCP tools are
- * exposed through the host's native model surfaces; this plugin does not
- * register a redundant suite-inventory model tool.
+ * suites' `mcp.json` servers into live self-built bridge mounts (stdio,
+ * Streamable HTTP with OAuth, and legacy SSE — no host MCP client needed),
+ * and mounts the market page's HTTP routes on the web server. Skills and MCP
+ * tools are exposed through the host's native model surfaces; this plugin
+ * does not register a redundant suite-inventory model tool.
  *
- * Requires `ctx.skills` (the dsh skill registry). The MCP client package is
- * optional at runtime: without it, suites still load their skills and the
- * manager reports a per-server mount failure.
+ * Requires `ctx.skills` (the dsh skill registry). MCP mounting is
+ * self-contained: suites' MCP servers mount through the market's own bridge
+ * plugin on the host `tools` registry.
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
@@ -142,7 +143,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       credentialFlush.unref?.()
     }) ?? (() => {})
   ctx.inject(['tools'], toolsCtx => {
-    catalog.setMcpToolSnapshotProvider(() => inspectToolRegistry((toolsCtx as { tools: unknown }).tools))
+    catalog.setMcpToolSnapshotProvider(() => inspectToolRegistry((toolsCtx as unknown as { tools: unknown }).tools))
   })
   void catalog
     .load()

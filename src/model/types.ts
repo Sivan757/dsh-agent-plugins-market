@@ -78,7 +78,7 @@ export interface McpServerStreamableHttp {
   type: 'streamable-http'
   url: string
   headers?: Record<string, string>
-  /** Opt in to OAuth 2.1 authorization for servers that answer `401` with a challenge (dsh-mcp-client 0.1.1-rc.2+). */
+  /** Opt in to OAuth 2.1 authorization for servers that answer `401` with a challenge (on by default; `enabled: false` opts out). */
   auth?: { enabled: boolean; scope?: string }
 }
 
@@ -86,6 +86,8 @@ export interface McpServerSse {
   type: 'sse'
   url: string
   headers?: Record<string, string>
+  /** OAuth 2.1 authorization, mirroring the streamable-http semantics. */
+  auth?: { enabled: boolean; scope?: string }
 }
 
 export type McpServer = McpServerStdio | McpServerStreamableHttp | McpServerSse
