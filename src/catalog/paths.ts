@@ -4,6 +4,11 @@
  * User dimension: `~/.dsh/agent-plugins/` (or `$DSH_HOME/agent-plugins`).
  * Project dimension: `<projectRoot>/.dsh/agent-plugins/`, where the project
  * root is the nearest ancestor containing `.git`.
+ *
+ * Everything the plugin persists lives under one root per dimension —
+ * `.sources/` (checkouts) and `state.json` (install state) alongside `data/`
+ * (suite `${PLUGIN_DATA}` directories) and `overrides/` (MCP configuration
+ * rewrites) — so no sibling `agent-plugins-data` root exists.
  */
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
@@ -34,9 +39,13 @@ export function resolveUserRoot(configUserRoot?: string): string {
   return resolve(expandHome(configUserRoot ?? join(resolveDshHome(), 'agent-plugins')))
 }
 
-/** Resolve the suite data root hosting `${PLUGIN_DATA}` directories. */
-export function resolveDataRoot(configDataRoot?: string): string {
-  return resolve(expandHome(configDataRoot ?? join(resolveDshHome(), 'agent-plugins-data')))
+/**
+ * Resolve the suite data root hosting `${PLUGIN_DATA}` directories and the
+ * MCP overrides. Defaults under the user root so the whole plugin persists
+ * into one directory; an explicit `dataRoot` config still wins.
+ */
+export function resolveDataRoot(configDataRoot?: string, configUserRoot?: string): string {
+  return resolve(expandHome(configDataRoot ?? join(configUserRoot ?? resolveUserRoot(), 'data')))
 }
 
 /** Resolve a project root from a workspace cwd: nearest ancestor with `.git`. */

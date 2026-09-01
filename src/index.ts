@@ -17,7 +17,9 @@ import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import { Catalog } from './application/catalog.js'
 import { RuntimeReconciler } from './runtime/reconciler.js'
 import { inspectToolRegistry } from './runtime/tool-registry-observer.js'
-import { resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
+import { migrateLegacyDataRoot } from './catalog/legacy-root-migration.js'
+import { resolveDataRoot, resolveDshHome, resolveUserRoot } from './catalog/paths.js'
+import { join } from 'node:path'
 import { mountSuiteRoutes } from './routes.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
@@ -31,7 +33,7 @@ export const inject = ['skills', 'commands']
 export interface Config {
   /** User-dimension suite root; defaults to `~/.dsh/agent-plugins` (`$DSH_HOME/agent-plugins`). */
   userRoot?: string
-  /** Per-suite data root backing `${PLUGIN_DATA}`; defaults to `~/.dsh/agent-plugins-data`. */
+  /** Per-suite data root backing `${PLUGIN_DATA}` and MCP overrides; defaults to `<userRoot>/data`. */
   dataRoot?: string
   /** Initial repository sources, merged into the persisted state on first load. */
   sources?: SourceRef[]
@@ -39,7 +41,11 @@ export interface Config {
 
 export function apply(ctx: Context, config: Config = {}): void {
   const userRoot = resolveUserRoot(config.userRoot)
-  const dataRoot = resolveDataRoot(config.dataRoot)
+  const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
+  // The pre-0.5.4 layout kept a sibling `agent-plugins-data` root; fold it in.
+  void migrateLegacyDataRoot(join(resolveDshHome(), 'agent-plugins-data'), userRoot).catch(error => {
+    ctx.logger?.warn?.(`[dsh-agent-plugins-market] legacy data-root migration failed: ${String(error)}`)
+  })
   let providerControl: SkillProviderControl | undefined
   // Host runtime copy resolves from the harness `locale.preference` setting;
   // the async settings read lands before the first session starts in practice.
