@@ -1,0 +1,1567 @@
+From 7a62f20452fb9cf85f762eb961d17c63a7a4a903 Mon Sep 17 00:00:00 2001
+From: sivan <zifanuu@gmail.com>
+Date: Tue, 1 Sep 2026 00:18:13 +0800
+Subject: [PATCH 1/2] feat(mcp): hold the connection generation open during an
+ OAuth browser leg
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The initialize request's 60-second timeout fired while the user was
+still approving access in the browser: the supervisor closed the
+generation — destroying the pending redirectToAuthorization and the
+loopback listener — and respawned, restarting the flow from scratch.
+The user's approval then landed on a dead callback port, the grant
+record kept only the dynamic-registration client information, and every
+retry looped through the same race.
+
+The provider now exposes the pending leg (awaitingBrowser / browserLeg),
+and the supervisor's failure path holds the generation until the leg
+settles: a successful exchange finishes the tool sync in-place inside
+the same generation; a failed leg re-enters the existing reconnect
+budget. The browser-opener is injected so tests never spawn a real
+browser, and the record key folds serverNames like
+cloudflare__cloudflare-api into the credential-key grammar instead of
+throwing in the provider constructor.
+---
+ ...26-08-30-mcp-oauth-authorization.i18n.yaml |   6 +
+ .../2026-08-30-mcp-oauth-authorization.md     | 105 +++++
+ .../2026-08-30-mcp-oauth-authorization.zh.md  |  40 ++
+ packages/mcp/mcp-client/README.i18n.yaml      |   4 +-
+ packages/mcp/mcp-client/README.md             |  17 +
+ packages/mcp/mcp-client/README.zh.md          |  17 +
+ packages/mcp/mcp-client/package.json          |   1 +
+ packages/mcp/mcp-client/src/connection.ts     |  56 ++-
+ packages/mcp/mcp-client/src/index.ts          |  49 +-
+ packages/mcp/mcp-client/src/oauth.ts          | 432 ++++++++++++++++++
+ packages/mcp/mcp-client/src/transport.ts      |  68 ++-
+ .../mcp/mcp-client/tests/auth-config.spec.ts  | 150 ++++++
+ .../mcp/mcp-client/tests/mcp-client.spec.ts   |   6 +-
+ packages/mcp/mcp-client/tests/oauth.spec.ts   | 273 +++++++++++
+ packages/mcp/mcp-client/tsconfig.json         |   3 +
+ pnpm-lock.yaml                                |   3 +
+ 16 files changed, 1208 insertions(+), 22 deletions(-)
+ create mode 100644 .agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml
+ create mode 100644 .agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
+ create mode 100644 .agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md
+ create mode 100644 packages/mcp/mcp-client/src/oauth.ts
+ create mode 100644 packages/mcp/mcp-client/tests/auth-config.spec.ts
+ create mode 100644 packages/mcp/mcp-client/tests/oauth.spec.ts
+
+diff --git a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml
+new file mode 100644
+index 0000000000..49bbd663e1
+--- /dev/null
++++ b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml
+@@ -0,0 +1,6 @@
++# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
++# side as of the last confirmed-consistent state. Both languages carry equal authority;
++# after editing either side, bring the other along and re-record with:
++#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
++2026-08-30-mcp-oauth-authorization.md: 5e34e218cc7ac51e991c418872d13c3e6ea03809
++2026-08-30-mcp-oauth-authorization.zh.md: 307e5aaa0936c9da35b57af33a2a29304d0b6563
+diff --git a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
+new file mode 100644
+index 0000000000..5e34e218cc
+--- /dev/null
++++ b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
+@@ -0,0 +1,105 @@
++# Agent Note: OAuth authorization for Streamable HTTP MCP servers
++
++Status: implemented
++
++English | [中文](2026-08-30-mcp-oauth-authorization.zh.md)
++
++## Problem
++
++Remote MCP servers that sit behind an OAuth 2.1 identity provider — Cloudflare's
++`mcp.cloudflare.com/*`, GitHub's, and every other MCP authorization-spec
++deployment — answer an unauthenticated Streamable HTTP connect with `401` and a
++`WWW-Authenticate: Bearer resource_metadata="…"` challenge. `dsh-mcp-client`
++constructed `StreamableHTTPClientTransport` with headers only, so such servers
++were permanently unusable: the mount failed with a generic "initial connection or
++tool synchronization failed", the log carried no hint that authorization was the
++cause, and the only workaround was obtaining a bearer token out-of-band (many of
++these servers do not offer static tokens at all — they require the full
++discovery → dynamic registration → PKCE browser flow). Servers without a
++challenge, like Cloudflare's docs server, worked fine, which made the failures
++look arbitrary.
++
++## Decision
++
++`streamable-http` servers accept an opt-in `auth` config block
++(`auth.enabled`, `auth.scope`, `auth.storage.callbackPort`). With it enabled,
++the transport carries an MCP SDK `OAuthClientProvider`; the SDK performs the
++whole protocol on the first `401` — RFC 9728 protected-resource discovery,
++authorization-server metadata lookup, RFC 7591 dynamic client registration,
++PKCE, token exchange, and refresh. Two application-owned parts live in the new
++`oauth.ts`:
++
++- **State**: client information and tokens persist as a `mcp-auth/<serverName>`
++  grant record through the harness credentials seam. When `ctx.credentials` is
++  mounted, that lands in the managed `.credentials.yaml` (`0600`, file-locked,
++  refresh-safe across processes, visible to the surfaces that already manage
++  credentials); the provider re-reads on every access, so an external edit or a
++  second process's refresh is picked up immediately, and a foreign overwrite of
++  the record reads as absent rather than stale. Without the service, tokens live
++  in process memory only. The PKCE verifier never persists — it is consumed
++  within one browser leg.
++- **The human leg**: `redirectToAuthorization` binds a one-use loopback listener
++  on `127.0.0.1` (ephemeral port by default; RFC 8252 §7.3 permits per-request
++  ports), opens the system browser, and answers the landing request. The code
++  flows to the *same transport generation* through its `finishAuth`, per the
++  SDK's session model. A leg not completed within five minutes, a callback
++  carrying an OAuth `error`, or an unopenable browser (logged, with the URL, so
++  a manual paste is possible) fails the attempt; the supervisor's existing
++  reconnect loop retries it, reopening the browser.
++
++`createTransport` resolves the credentials store through the plugin `apply`
++(`ctx.get('credentials')` — optional per the packages convention) and hands it
++to each generation's provider; transport lifetime rules are unchanged.
++
++## Alternatives considered
++
++- **Static `Authorization` header via overrides** — the market plugin already
++  supports `headers` overrides, and servers that mint personal-access tokens
++  work that way today. It loses for the growing set of MCP servers that only
++  speak the authorization spec (no static token exists), and it teaches users
++  to paste secrets into config instead of the browser.
++- **A separate `mcp-oauth` plugin the market mounts per server** — rejected:
++  authorization is a transport concern of one connection, the SDK's provider
++  interface hangs off the transport options, and a second plugin would need its
++  own lifecycle, config surface, and a way to share the code exchange with a
++  transport it does not own.
++- **Device-code flow instead of loopback redirect** — some authorization
++  servers support it, but the MCP authorization spec standardizes the
++  authorization-code + PKCE shape via the challenge's `resource_metadata`, and
++  the SDK's `auth()` implements exactly that. A device flow would be a second
++  protocol path with its own polling and cross-device copy burden.
++- **Storing state in a plugin-private JSON file** — the first draft did this;
++  it duplicates what the credentials seam already provides (atomic writes, mode
++  `0600`, cross-process locking, UI visibility) and creates a second secret
++  location for users to audit. The credentials seam lost nothing by being used
++  and is optional anyway.
++
++## Consequences
++
++- OAuth-protected MCP servers now mount in the harness, opening the ecosystem
++  that previously failed with an opaque error; `mcp-auth/*` records appear in
++  the credentials surfaces alongside API keys.
++- Authorization is opt-in per server (`auth.enabled`), so behavior of existing
++  configs is unchanged, and a server that never challenges never touches the
++  browser.
++- The browser leg requires a desktop session; headless hosts cannot complete an
++  interactive authorization, and each timed-out leg costs one reconnect cycle.
++  The loopback listener answers only its own landing request and closes
++  immediately after.
++- One redirect leg at a time per provider instance: a second
++  `redirectToAuthorization` before the first resolves races on the single
++  listener; in practice the supervisor serializes connection attempts, and the
++  generation guard makes a stale leg's late code harmless to the current one.
++
++## Testing
++
++- `tests/oauth.spec.ts` pins the provider half: grant-record persistence and
++  read-through (including external edits and foreign overwrites), PKCE verifier
++  process-locality, `invalidateCredentials` scoping, redirect/client metadata,
++  and the callback leg (success, OAuth error, missing transport, late callback).
++- `tests/mcp-client.spec.ts` pins that a failed initialize with a pending browser leg holds the generation until the leg settles (success re-syncs in place; failure re-enters the reconnect loop).
++- The browser leg never reaches the OS in tests: the provider takes an optional opener injection and the suite passes a no-op, so a full test run cannot spawn `open`/`xdg-open`.
++- `tests/auth-config.spec.ts` pins the config surface: schema acceptance and
++  rejection, transport wiring with and without `auth`, and credentials-store
++  pass-through.
++- The SDK's `auth()` protocol itself is SDK-owned and covered upstream.
+diff --git a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md
+new file mode 100644
+index 0000000000..307e5aaa09
+--- /dev/null
++++ b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md
+@@ -0,0 +1,40 @@
++# Agent Note: Streamable HTTP MCP 服务器的 OAuth 授权
++
++Status: implemented
++
++[English](2026-08-30-mcp-oauth-authorization.md) | 中文
++
++## Problem
++
++位于 OAuth 2.1 身份提供方之后的远程 MCP 服务器——Cloudflare 的 `mcp.cloudflare.com/*`、GitHub 的，以及所有遵循 MCP 授权规范的部署——会对未认证的 Streamable HTTP 连接应答 `401` 和 `WWW-Authenticate: Bearer resource_metadata="…"` 质询。`dsh-mcp-client` 构造 `StreamableHTTPClientTransport` 时只传 headers，这类服务器因此完全不可用：挂载以笼统的 "initial connection or tool synchronization failed" 失败，日志毫无"是授权问题"的线索，唯一的绕行办法是带外获取 bearer 令牌（而这类服务器很多根本不提供静态令牌——它们要求完整的发现 → 动态注册 → PKCE 浏览器流程）。无质询的服务器（如 Cloudflare 的 docs 服务器）一直正常，这让失败显得毫无规律。
++
++## Decision
++
++`streamable-http` 服务器接受可选的 `auth` 配置块（`auth.enabled`、`auth.scope`、`auth.storage.callbackPort`）。启用后，传输层携带一个 MCP SDK 的 `OAuthClientProvider`；SDK 在首个 `401` 时执行整套协议——RFC 9728 受保护资源发现、授权服务器元数据查询、RFC 7591 动态客户端注册、PKCE、令牌交换与刷新。两个应用侧负责的部分位于新模块 `oauth.ts`：
++
++- **状态**：客户端信息与令牌作为 `mcp-auth/<serverName>` grant 记录经 harness 凭证 seam 持久化。挂载 `ctx.credentials` 时落入托管 `.credentials.yaml`（`0600`、文件锁、跨进程刷新安全、对已有凭证管理界面可见）；提供方每次访问都重新读取，外部编辑或第二进程的刷新立即生效，整条记录被外来覆写时按"不存在"读取而非读到旧值。未挂载该服务时，令牌仅存活于进程内存。PKCE verifier 永不持久化——它在单次浏览器环节内被消费。
++- **人工环节**：`redirectToAuthorization` 在 `127.0.0.1` 上绑定一次性回环监听（默认临时端口；RFC 8252 §7.3 允许每次请求变更端口）、打开系统浏览器并应答回跳请求。授权码经同一传输代的 `finishAuth` 交回，符合 SDK 的会话模型。五分钟内未完成的环节、回调携带 OAuth `error`、或浏览器无法打开（记日志并附 URL，便于手工粘贴）都会使该次尝试失败；监督器既有的重连循环会重试并重新打开浏览器。
++
++`createTransport` 在插件 `apply` 中解析凭证存储（`ctx.get('credentials')`——按 packages 约定为可选），交给每一代的提供方；传输层生命周期规则不变。
++
++## Alternatives considered
++
++- **经 overrides 写静态 `Authorization` 头**——market 插件已支持 `headers` 覆盖，能铸个人访问令牌的服务器今天就能这样用。它输在越来越多的 MCP 服务器只讲授权规范（没有静态令牌可拿），而且它教用户把秘密贴进配置而不是浏览器。
++- **另立一个 market 按服务器挂载的 `mcp-oauth` 插件**——否决：授权是单条连接的传输层关注点，SDK 的 provider 接口就挂在传输层选项上；第二个插件需要自己的生命周期、配置面，以及一条与它并不拥有的传输层共享授权码交换的通路。
++- **用设备码流程代替回环重定向**——部分授权服务器支持它，但 MCP 授权规范经质询里的 `resource_metadata` 标准化的是授权码 + PKCE 形态，SDK 的 `auth()` 实现的正是它。设备码流程会是第二条协议路径，带来自己的轮询与跨设备抄写负担。
++- **状态存进插件私有的 JSON 文件**——初稿如此；它复制了凭证 seam 已有的能力（原子写、`0600`、跨进程锁、界面可见性），还制造了第二个需要用户审计的秘密存放地。使用凭证 seam 毫无损失，而且它本来就是可选的。
++
++## Consequences
++
++- 受 OAuth 保护的 MCP 服务器现在能在 harness 中挂载，打开了此前以不明错误失败的生态；`mcp-auth/*` 记录与 API key 并列出现在凭证界面中。
++- 授权按服务器可选（`auth.enabled`），既有配置行为不变；从不质询的服务器永不触碰浏览器。
++- 浏览器环节需要桌面会话；无头宿主无法完成交互式授权，每次超时环节消耗一次重连周期。回环监听只应答自己的那次回跳，随后立即关闭。
++- 每个提供方实例同时只有一个重定向环节：第一次未决时发起第二次会在唯一监听器上竞争；实践中监督器本就串行化连接尝试，代际守卫也让陈旧环节迟到的授权码对当前代无害。
++
++## Testing
++
++- `tests/oauth.spec.ts` 钉住提供方一半：grant 记录持久化与读穿（含外部编辑与外来覆写）、PKCE verifier 的进程局部性、`invalidateCredentials` 的作用域、重定向/客户端元数据，以及回调环节（成功、OAuth 错误、缺传输代、迟到回调）。
++- `tests/mcp-client.spec.ts` 钉住"initialize 失败但浏览器环节挂起时，监督器保持连接代直到环节落定（成功则在原代内补同步；失败则重回重连循环）"。
++- 浏览器环节在测试中永不触达操作系统：提供方接受可选的 opener 注入，套件传入 no-op，因此完整测试跑不 spawned `open`/`xdg-open`。
++- `tests/auth-config.spec.ts` 钉住配置面：schema 接受与拒绝、有无 `auth` 的传输层接线、凭证存储的传递。
++- SDK 的 `auth()` 协议本身归 SDK 所有，上游已覆盖。
+diff --git a/packages/mcp/mcp-client/README.i18n.yaml b/packages/mcp/mcp-client/README.i18n.yaml
+index cf715b23da..3a80dba9a7 100644
+--- a/packages/mcp/mcp-client/README.i18n.yaml
++++ b/packages/mcp/mcp-client/README.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write packages/mcp/mcp-client/README.md
+-README.md: f3bf65d90d72f9eb3271cbbbb8ae8c586a7fd082
+-README.zh.md: 1596ec72c28c4811eabb9f5cafe41cd7bdf1cf5e
++README.md: 4d03fe672bd931d1245400e4d321670083f70be6
++README.zh.md: cb767e14440c490201d452b1ebc1a57da62f8fb7
+diff --git a/packages/mcp/mcp-client/README.md b/packages/mcp/mcp-client/README.md
+index f3bf65d90d..4d03fe672b 100644
+--- a/packages/mcp/mcp-client/README.md
++++ b/packages/mcp/mcp-client/README.md
+@@ -27,6 +27,17 @@ One plugin instance per MCP server in `cordis.yml`:
+     url: http://localhost:3000/mcp
+     headers:
+       Authorization: !!js '`Bearer ${process.env.MCP_TOKEN}`'
++
++# OAuth-protected remote server: the first `401` opens a browser sign-in;
++# granted tokens persist through the credentials service.
++- id: mcp-cloudflare
++  name: '@deepseek-ai/dsh-mcp-client'
++  config:
++    serverName: cloudflare
++    transport: streamable-http
++    url: https://docs.mcp.cloudflare.com/mcp
++    auth:
++      enabled: true
+ ```
+ 
+ The model sees `mcp__github__create_issue`, `mcp__web__search`, … — the same server-qualified shape Claude Code and Codex use. HMR hot-swaps: editing the entry triggers disconnect + reconnect without process restart; an unchanged `serverName` reproduces identical tool names.
+@@ -43,6 +54,9 @@ The model sees `mcp__github__create_issue`, `mcp__web__search`, … — the same
+ | `cwd` | stdio | no | Working directory for the child process |
+ | `url` | http | yes | MCP server URL |
+ | `headers` | http | no | Extra headers (e.g. auth tokens) |
++| `auth.enabled` | http | no | Opt in to OAuth 2.1 authorization for servers that answer `401` with an OAuth challenge |
++| `auth.scope` | http | no | Space-separated scope string requested during authorization |
++| `auth.storage.callbackPort` | http | no | Fixed loopback port for the authorization redirect; `0` picks one ephemally (default) |
+ | `toolCallTimeoutMs` | both | no | Timeout per `callTool` invocation (default 60000) |
+ | `failOnStartupError` | both | no | Reject plugin activation when initial connection or tool synchronization fails (default `false`) |
+ | `reconnect.enabled` | both | no | Reconnect automatically after a lost connection (default `true`) |
+@@ -62,6 +76,7 @@ Every MCP tool has two names: the raw MCP name (sent on the wire in `tools/call`
+ ## Behavior
+ 
+ - On connect: plugin activation awaits `listTools()` and registers each tool via `ctx.tools.register()` under its public name before the composition starts its first turn. Initial connection, discovery, or registration failure is always logged; it rejects activation when `failOnStartupError` is true and otherwise activates with no tools.
++- OAuth (`auth.enabled`): when the server answers with `401` and an OAuth challenge, the transport performs MCP authorization — RFC 9728 protected-resource and authorization-server discovery, RFC 7591 dynamic client registration, PKCE, and token refresh — through the MCP SDK. The human leg binds a one-use `127.0.0.1` callback, opens the system browser (a log line carries the URL when no browser can open), and the page the user approves hands the code to the same transport generation. Granted client information and tokens persist as a `mcp-auth/<serverName>` grant record through `ctx.credentials` when that service is mounted (managed `.credentials.yaml`, `0600`, file-locked, refresh-safe across processes); without it, tokens last for the process only. A timed-out or declined browser leg fails the attempt and is retried by the supervisor's reconnect loop, which reopens the browser.
+ - Listens for `notifications/tools/list_changed` → re-syncs; a fetch-phase failure keeps the previous generation registered, while a registration conflict rolls back the attempted generation and leaves no tools from that server.
+ - Tool execute: `client.callTool({ name: rawName, arguments }, { signal })` with timeout + abort support—the public name is never sent to the server.
+ - Canonical success is `{ content: JsonValue[], structuredContent? }`; complete JSON MCP blocks survive for programmatic callers. A supported advertised `outputSchema` validates `structuredContent`; unsupported schema vocabulary falls back to unconstrained `JsonValue`.
+@@ -77,6 +92,7 @@ Every MCP tool has two names: the raw MCP name (sent on the wire in `tools/call`
+ | `ctx.tools` | Register/unregister MCP tools |
+ | `ctx.attachments` | Optionally validate and persist image result batches before model projection |
+ | `ctx.llm` | Optionally prove the exact calling route explicitly supports image input |
++| `ctx.credentials` | Optionally persist OAuth client information and tokens as `mcp-auth/<serverName>` grant records |
+ 
+ ## Model Experience
+ 
+@@ -110,6 +126,7 @@ Append-only; newly visible content follows the reusable request prefix and does
+ 
+ ## Known Limitations and Deferred Work
+ 
++- **OAuth browser leg needs a desktop session** — the loopback redirect opens the system browser; headless hosts cannot complete an interactive authorization, and a leg not finished within five minutes fails and retries on the next mount attempt.
+ - **Tools are the only bridged MCP capability** — Resources and Prompts have no harness consumer and are deferred.
+ - **Startup timeout is inherited from the MCP SDK** — DSH does not yet expose a connection/discovery timeout. Each initialize or paginated `tools/list` request uses the SDK's 60-second default, so an unresponsive server or cursor chain can delay both activation and teardown while the initial synchronization settles.
+ - **Reconnect triggers on transport close** — a crashed stdio child fires it; Streamable HTTP failures surface per request and through the SDK transport's own SSE-stream recovery, so an unreachable HTTP server is retried per call rather than respawned by the supervisor.
+diff --git a/packages/mcp/mcp-client/README.zh.md b/packages/mcp/mcp-client/README.zh.md
+index 1596ec72c2..cb767e1444 100644
+--- a/packages/mcp/mcp-client/README.zh.md
++++ b/packages/mcp/mcp-client/README.zh.md
+@@ -27,6 +27,17 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
+     url: http://localhost:3000/mcp
+     headers:
+       Authorization: !!js '`Bearer ${process.env.MCP_TOKEN}`'
++
++# OAuth-protected remote server: the first `401` opens a browser sign-in;
++# granted tokens persist through the credentials service.
++- id: mcp-cloudflare
++  name: '@deepseek-ai/dsh-mcp-client'
++  config:
++    serverName: cloudflare
++    transport: streamable-http
++    url: https://docs.mcp.cloudflare.com/mcp
++    auth:
++      enabled: true
+ ```
+ 
+ 模型会看到 `mcp__github__create_issue`、`mcp__web__search` 等工具，这与 Claude Code 和 Codex 使用的服务器限定形状相同。HMR（热模块替换）支持热替换：编辑配置项会触发断开 + 重新连接，无需重启进程；`serverName` 不变时会生成完全相同的工具名称。
+@@ -43,6 +54,9 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
+ | `cwd` | stdio | 否 | 子进程工作目录 |
+ | `url` | http | 是 | MCP 服务器 URL |
+ | `headers` | http | 否 | 额外标头（例如认证 token） |
++| `auth.enabled` | http | 否 | 为以 OAuth 质询响应 `401` 的服务器启用 OAuth 2.1 授权 |
++| `auth.scope` | http | 否 | 授权时请求的空格分隔 scope 字符串 |
++| `auth.storage.callbackPort` | http | 否 | 授权重定向的固定回环端口；`0` 表示临时选取（默认） |
+ | `toolCallTimeoutMs` | 两者 | 否 | 每次 `callTool` 调用的超时（默认 60000） |
+ | `failOnStartupError` | 两者 | 否 | 初始连接或工具同步失败时拒绝插件激活（默认 `false`） |
+ | `reconnect.enabled` | 两者 | 否 | 连接丢失后自动重新连接（默认 `true`） |
+@@ -62,6 +76,7 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
+ ## 行为
+ 
+ - 连接时：插件激活会等待 `listTools()`，并在组合开始首个轮次前通过 `ctx.tools.register()` 以公开名称注册每个工具。初始连接、发现或注册失败始终会记录日志；`failOnStartupError` 为 true 时拒绝激活，否则插件仍会激活但不注册工具。
++- OAuth（`auth.enabled`）：当服务器以 `401` 和 OAuth 质询应答时，传输层执行 MCP 授权——RFC 9728 受保护资源与授权服务器发现、RFC 7591 动态客户端注册、PKCE 与令牌刷新——均由 MCP SDK 完成。人工环节绑定一次性 `127.0.0.1` 回调、打开系统浏览器（无法打开浏览器时日志行会携带 URL），用户批准的页面将授权码交回同一传输代。获取的客户端信息与令牌在 `ctx.credentials` 挂载时作为 `mcp-auth/<serverName>` grant 记录持久化（托管 `.credentials.yaml`，`0600`，文件锁，跨进程刷新安全）；未挂载时令牌仅存活于本进程。超时或被拒绝的浏览器环节会使该次尝试失败，由监督器的重连循环重试并重新打开浏览器。
+ - 监听 `notifications/tools/list_changed` → 重新同步；获取阶段失败时保留上一世代的注册，注册冲突则会回滚本次尝试的世代，并且不保留该服务器的任何工具。
+ - 工具执行：`client.callTool({ name: rawName, arguments }, { signal })`，支持超时 + 中止；公开名称绝不会发给服务器。
+ - 规范成功值是 `{ content: JsonValue[], structuredContent? }`；完整的 JSON MCP 块会保留给编程调用方。受支持且已声明的 `outputSchema` 会验证 `structuredContent`；不受支持的 schema 词汇会回退为不受约束的 `JsonValue`。
+@@ -77,6 +92,7 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
+ | `ctx.tools` | 注册／注销 MCP 工具 |
+ | `ctx.attachments` | 可选；在模型投影前校验并持久保存图片结果批次 |
+ | `ctx.llm` | 可选；证明确切调用路由明确支持图片输入 |
++| `ctx.credentials` | 可选；将 OAuth 客户端信息与令牌作为 `mcp-auth/<serverName>` grant 记录持久化 |
+ 
+ ## 模型体验
+ 
+@@ -110,6 +126,7 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
+ 
+ ## 已知限制与暂缓事项
+ 
++- **OAuth 浏览器环节需要桌面会话**：回环重定向会打开系统浏览器；无头宿主无法完成交互式授权，五分钟内未完成的环节将失败并在下一次挂载尝试时重试。
+ - **只桥接 MCP 的工具能力**：资源和提示词没有 harness 消费接口，暂缓实现。
+ - **启动超时继承自 MCP SDK**：DSH 尚未公开连接／发现超时。每次 initialize 请求或分页 `tools/list` 请求都使用 SDK 默认的 60 秒，因此在初始同步完成期间，无响应的 server 或 cursor chain 可能同时延迟激活与 teardown。
+ - **重连在传输关闭时触发**：崩溃的 stdio 子进程会触发重连；Streamable HTTP 失败通过每次请求以及 SDK 传输自身的 SSE（Server-Sent Events）流恢复机制暴露，因此不可达的 HTTP 服务器会按调用重试，而非由 supervisor 重新 spawn。
+diff --git a/packages/mcp/mcp-client/package.json b/packages/mcp/mcp-client/package.json
+index e7d218161f..c07a6c6085 100644
+--- a/packages/mcp/mcp-client/package.json
++++ b/packages/mcp/mcp-client/package.json
+@@ -42,6 +42,7 @@
+   },
+   "dependencies": {
+     "@modelcontextprotocol/sdk": "^1.12.0",
++    "@deepseek-ai/dsh-credentials": "workspace:^",
+     "@deepseek-ai/schemastery": "workspace:^",
+     "zod": "^4.4.3"
+   },
+diff --git a/packages/mcp/mcp-client/src/connection.ts b/packages/mcp/mcp-client/src/connection.ts
+index f452e3a81d..8f5c255920 100644
+--- a/packages/mcp/mcp-client/src/connection.ts
++++ b/packages/mcp/mcp-client/src/connection.ts
+@@ -120,7 +120,12 @@ export interface ConnectionHandle {
+  * @param policy - Resolved reconnect policy from {@link resolveReconnectPolicy}.
+  * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
+  */
+-export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy): ConnectionHandle {
++export function startConnection(
++  ctx: Context,
++  config: Config,
++  policy: ResolvedReconnectPolicy,
++  credentials?: unknown,
++): ConnectionHandle {
+   const label = `mcp-client(${config.serverName})`
+   const opts: ToolBridgeOptions = {
+     registrationFailure: 'contain',
+@@ -268,8 +273,11 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+         }
+       },
+     )
++    const { transport, oauthProvider } = createTransport(config, credentials, (message: string) => { ctx.logger.info(message) })
++    /** OAuth provider for this generation, when `auth` is enabled. */
++    const provider = oauthProvider
+     try {
+-      await generation.connect(createTransport(config))
++      await generation.connect(transport)
+       if (hasClosed()) {
+         attemptSettled = true
+         generationDown(generation)
+@@ -281,6 +289,50 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+       // Disposal clears current ownership before it closes the generation, so
+       // only a live supervisor reports an attempt failure.
+       if (isCurrent(generation)) ctx.logger.warn(`${label}: connection attempt failed: ${String(error)}`)
++      // A pending browser leg outlives the initialize timeout: the human is
++      // mid-approval. Hold this generation open — transport and loopback
++      // listener stay alive — until the leg settles; abandoning it would
++      // discard the very authorization the user is completing.
++      const leg = provider?.browserLeg
++      if (leg !== undefined) {
++        ctx.logger.warn(`${label}: waiting for browser authorization (up to 5 minutes) — approve access in the page that opened`)
++        const legSettled = await leg
++        attemptSettled = true
++        if (!isCurrent(generation)) return
++        if (hasClosed()) {
++          generationDown(generation)
++          return
++        }
++        if (!legSettled) {
++          generationDown(generation)
++          return
++        }
++        // The exchange succeeded inside this generation: finish establishing
++        // it (tool sync + connected bookkeeping) instead of respawning.
++        try {
++          await enqueueSync(generation, startup ? startupOpts : opts)
++        } catch (syncError) {
++          if (isCurrent(generation)) ctx.logger.warn(`${label}: tool sync after authorization failed: ${String(syncError)}`)
++          try { await generation.close() } catch { /* transport already gone */ }
++          const quiescedSync = hasClosed() || await waitForClose(closed.promise)
++          if (!quiescedSync) {
++            client = undefined
++            clientClosed = undefined
++            ctx.logger.error(`${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes`)
++            return
++          }
++          generationDown(generation)
++          return
++        }
++        if (hasClosed()) {
++          generationDown(generation)
++          return
++        }
++        if (!isCurrent(generation)) return
++        connectedAt = Date.now()
++        if (failedAttempts > 0) ctx.logger.info(`${label}: authorized and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
++        return
++      }
+       try { await generation.close() } catch { /* transport already gone */ }
+       const quiesced = hasClosed() || await waitForClose(closed.promise)
+       attemptSettled = true
+diff --git a/packages/mcp/mcp-client/src/index.ts b/packages/mcp/mcp-client/src/index.ts
+index 5a2a52f55d..fd2e5f9645 100644
+--- a/packages/mcp/mcp-client/src/index.ts
++++ b/packages/mcp/mcp-client/src/index.ts
+@@ -29,6 +29,11 @@ export const name = 'mcp-client'
+ 
+ /** Services required by this plugin. */
+ export const inject = ['tools']
++/**
++ * Optional services resolved through `ctx.get`: the credential store receives
++ * OAuth tokens when mounted; without it OAuth state lasts only for the process.
++ */
++const CREDENTIALS_SERVICE = 'credentials' as const
+ 
+ /** Default timeout for individual MCP tool calls (ms). */
+ const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
+@@ -46,6 +51,16 @@ const activeServerNames = new WeakMap<Context, Set<string>>()
+ 
+ // ---- Config ----
+ 
++/**
++ * Loopback callback tuning for the OAuth browser leg. The redirect listener
++ * binds `127.0.0.1`; port `0` (the default) picks an ephemeral port, which
++ * RFC 8252 §7.3 loopback redirects permit.
++ */
++export interface OAuthStorageConfig {
++  /** Fixed loopback port for the authorization redirect; `0` picks one ephemally. */
++  callbackPort?: number
++}
++
+ /** Config for connecting to an MCP server via a spawned child process over stdio. */
+ export interface StdioConfig {
+   /** Selects child-process stdio transport. */
+@@ -72,6 +87,22 @@ export interface StdioConfig {
+   reconnect?: ReconnectConfig
+ }
+ 
++/**
++ * OAuth 2.1 authorization config for a Streamable HTTP server. The MCP
++ * authorization flow (RFC 9728 discovery, dynamic client registration, PKCE,
++ * refresh) is performed by the SDK; enabling this makes the transport answer
++ * the server's `401` challenge with a loopback browser authorization, and
++ * granted tokens persist through the credentials service when one is mounted.
++ */
++export interface OAuthConfig {
++  /** Enable the OAuth flow (no default: authorization is opt-in per server). */
++  enabled: boolean
++  /** Space-separated scope string requested during authorization, when the server needs one. */
++  scope?: string
++  /** Loopback callback tuning; omission uses an ephemeral port and the defaults. */
++  storage?: OAuthStorageConfig
++}
++
+ /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
+ export interface StreamableHttpConfig {
+   /** Selects Streamable HTTP transport. */
+@@ -86,6 +117,8 @@ export interface StreamableHttpConfig {
+   url: string
+   /** Additional headers attached to MCP requests. */
+   headers: Record<string, string>
++  /** OAuth 2.1 authorization for servers that answer `401` with a challenge; omission means no auth. */
++  auth?: OAuthConfig
+   /** Per-tool-call timeout in milliseconds. */
+   toolCallTimeoutMs: number
+   /** Fail plugin activation when the initial connection or tool synchronization fails. */
+@@ -121,6 +154,16 @@ export const Config = z.union([
+     serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
+     url: z.string().required(),
+     headers: z.dict(String).default({}),
++    auth: z.union([
++      z.const(false),
++      z.object({
++        enabled: z.boolean().required(),
++        scope: z.string(),
++        storage: z.object({
++          callbackPort: z.number().step(1).min(0).max(65_535),
++        }),
++      }),
++    ]),
+     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+     failOnStartupError: z.boolean().default(false),
+     reconnect: Reconnect,
+@@ -163,7 +206,11 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
+   // The supervisor owns the client/transport generations, the reconnect
+   // loop, and the live tool registrations; disposal stops reconnection,
+   // quiesces in-flight work, and unregisters the current generation.
+-  const connection = startConnection(ctx, config, reconnect)
++  // Optional service: strict `ctx.get` reads the global store regardless of
++  // declared injections; absence (no credentials plugin mounted) is the
++  // supported no-persistence configuration.
++  const credentials = ctx.get(CREDENTIALS_SERVICE)
++  const connection = startConnection(ctx, config, reconnect, credentials)
+ 
+   ctx.effect(() => {
+     return () => connection.dispose()
+diff --git a/packages/mcp/mcp-client/src/oauth.ts b/packages/mcp/mcp-client/src/oauth.ts
+new file mode 100644
+index 0000000000..b600341bb0
+--- /dev/null
++++ b/packages/mcp/mcp-client/src/oauth.ts
+@@ -0,0 +1,432 @@
++/**
++ * OAuth 2.1 authorization-code support for Streamable HTTP MCP servers that
++ * answer `401` with an OAuth challenge (`WWW-Authenticate: Bearer
++ * resource_metadata="…"` — the MCP authorization spec's discovery anchor).
++ *
++ * The SDK owns the protocol: its `auth()` helper performs RFC 9728 protected-
++ * resource discovery, authorization-server metadata lookup, RFC 7591 dynamic
++ * client registration, PKCE, token exchange, and refresh, and the Streamable
++ * HTTP transport invokes it on the first `401` through the
++ * {@link OAuthClientProvider} this module implements. This module owns the two
++ * parts the SDK leaves to the application: durable storage of client and token
++ * state, and the human leg of the flow — a loopback redirect that captures
++ * the authorization code without caller-side wiring.
++ *
++ * Tokens and registered client information persist as a `grant` credential
++ * record under `mcp-auth/<serverName>` through the harness credentials seam
++ * when one is mounted, so they land in the managed `.credentials.yaml`
++ * document (mode `0600`, file-locked, refresh-safe across processes) and are
++ * visible to the same surface that manages every other credential. Without a
++ * credentials service the provider still completes flows in memory; tokens
++ * then last exactly as long as the process.
++ *
++ * `redirectToAuthorization` binds a one-use loopback listener, opens the
++ * user's browser, and resolves once the transport generation has exchanged
++ * the redirected code for tokens, so no caller-side wiring joins the flow.
++ *
++ * @module @deepseek-ai/dsh-mcp-client/oauth
++ */
++
++import { createServer, type IncomingMessage, type Server } from 'node:http'
++import { type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
++import type {
++  OAuthClientInformation,
++  OAuthClientInformationMixed,
++  OAuthClientMetadata,
++  OAuthTokens,
++} from '@modelcontextprotocol/sdk/shared/auth.js'
++import type { CredentialKey, CredentialProvider } from '@deepseek-ai/dsh-credentials'
++import { credentialKey } from '@deepseek-ai/dsh-credentials'
++import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
++import type { OAuthStorageConfig } from './index.ts'
++
++/** OAuth client identity presented during dynamic registration. */
++const CLIENT_NAME = 'DeepSeek Harness (dsh-mcp-client)'
++/** Software id/version advertised in RFC 7591 registration metadata. */
++const CLIENT_SOFTWARE_ID = 'deepseek-harness'
++const CLIENT_SOFTWARE_VERSION = '0.1.0'
++/** Credential-record scope for MCP OAuth state; per-server ids follow it. */
++export const MCP_AUTH_RECORD_SCOPE = 'mcp-auth'
++/** Loopback callback budget: the browser must land within five minutes. */
++const CALLBACK_TIMEOUT_MS = 5 * 60_000
++
++/**
++ * Fold a `serverName` into a credential-key id segment. Server names carry
++ * `__` separators (e.g. `cloudflare__cloudflare-api`), and the key grammar
++ * admits only `[a-z0-9-]`, so non-conforming characters collapse to `-` —
++ * deterministic, so the same server always reads and writes one record. Two
++ * servers colliding after the fold is impossible in practice (the separator
++ * plus an existing `-` would have to differ); a collision would surface as
++ * two servers sharing one token store, not as a crash.
++ */
++function credentialIdFor(serverName: string): string {
++  const folded = serverName.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
++  return folded === '' ? 'server' : folded
++}
++
++/** Credential record this module persists, when the store is available. */
++interface McpAuthRecord {
++  kind: 'grant'
++  payload: {
++    clientInformation?: OAuthClientInformation
++    tokens?: OAuthTokens
++  }
++}
++
++/** Full provider state: the durable payload plus the process-local PKCE verifier. */
++interface ProviderState {
++  clientInformation?: OAuthClientInformation
++  tokens?: OAuthTokens
++  /** PKCE verifier saved between the redirect and the callback; never persisted. */
++  codeVerifier?: string
++}
++
++/** Narrow a stored record payload into this module's shape; anything else reads as absent. */
++function asMcpAuthRecord(record: unknown): McpAuthRecord['payload'] | undefined {
++  if (typeof record !== 'object' || record === null) return undefined
++  const candidate = record as { kind?: unknown; payload?: unknown }
++  if (candidate.kind !== 'grant' || typeof candidate.payload !== 'object' || candidate.payload === null) return undefined
++  const payload = candidate.payload as { clientInformation?: unknown; tokens?: unknown }
++  return {
++    ...(payload.clientInformation === undefined ? {} : { clientInformation: payload.clientInformation as OAuthClientInformation }),
++    ...(payload.tokens === undefined ? {} : { tokens: payload.tokens as OAuthTokens }),
++  }
++}
++
++/**
++ * Error thrown when the human leg fails or is abandoned: the browser never
++ * returned, the callback carried an OAuth error, or no browser could open.
++ * The transport surfaces it from `connect`; the supervisor's reconnect loop
++ * re-enters the flow — which reopens the browser — on a later attempt.
++ */
++export class AuthorizationAbortedError extends Error {
++  constructor(message: string, options?: ErrorOptions) {
++    super(message, options)
++    this.name = 'AuthorizationAbortedError'
++  }
++}
++
++/** Opens the platform browser; injected in tests to record the URL instead. */
++export type BrowserOpener = (authorizationUrl: URL, serverName: string, log: (message: string) => void) => Promise<void>
++
++/** The real opener: platform browser or default URL handler. */
++export const platformBrowserOpener: BrowserOpener = async (authorizationUrl, serverName, log) => {
++  const platform = process.platform
++  const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open'
++  const args = platform === 'win32' ? ['/c', 'start', '', authorizationUrl.toString()] : [authorizationUrl.toString()]
++  const { spawn } = await import('node:child_process')
++  const child = spawn(command, args, {
++    stdio: 'ignore',
++    env: scrubbedParentEnv(),
++    detached: platform !== 'win32',
++  })
++  child.once('error', (error) => {
++    log(`${serverName}: could not open a browser automatically (${String(error)}); open this URL manually: ${authorizationUrl.toString()}`)
++  })
++  child.once('spawn', () => { child.unref() })
++}
++
++/**
++ * {@link OAuthClientProvider} over the harness credentials seam (or process
++ * memory when the seam is absent), with a loopback redirect that opens the
++ * system browser.
++ */
++export class LoopbackOAuthClientProvider implements OAuthClientProvider {
++  private readonly recordKey: CredentialKey
++  /** Credential store mounted in this composition; absence means memory-only. */
++  private readonly store: CredentialProvider | undefined
++  /** In-memory fallback and cache over the store's durable state. */
++  private providerState: ProviderState = {}
++  /** The transport generation whose `finishAuth` completes the browser leg. */
++  private activeTransport: { finishAuth(code: string): Promise<void> } | undefined
++  /** Resolves `true` when the leg saved tokens, `false` when it failed; undefined while no leg is open. */
++  private browserLegSettled: PromiseWithResolvers<boolean> | undefined
++  private callbackServer: Server | undefined
++  private callbackTimer: NodeJS.Timeout | undefined
++  private boundPort: number | undefined
++  /** Serializes store writes so a rapid refresh cannot interleave read-modify-writes. */
++  private writeChain: Promise<void> = Promise.resolve()
++
++  constructor(
++    private readonly serverName: string,
++    private readonly storage: OAuthStorageConfig,
++    private readonly scope: string | undefined,
++    private readonly log: (message: string) => void,
++    store: unknown,
++    private readonly opener: BrowserOpener = platformBrowserOpener,
++  ) {
++    this.recordKey = credentialKey(MCP_AUTH_RECORD_SCOPE, credentialIdFor(serverName))
++    this.store = typeof (store as Partial<CredentialProvider> | undefined)?.modifyRecord === 'function'
++      ? store as CredentialProvider
++      : undefined
++  }
++
++  get redirectUrl(): string {
++    // RFC 8252 §7.3: loopback redirects may vary the port per request, so the
++    // bound port is filled in when the listener starts and registration
++    // metadata always reflects the current attempt's URL.
++    return `http://127.0.0.1:${this.boundPort ?? this.storage.callbackPort ?? 0}/callback`
++  }
++
++  get clientMetadata(): OAuthClientMetadata {
++    return {
++      client_name: CLIENT_NAME,
++      redirect_uris: [this.redirectUrl],
++      grant_types: ['authorization_code', 'refresh_token'],
++      response_types: ['code'],
++      // Public client: PKCE carries the proof; no client secret exists.
++      token_endpoint_auth_method: 'none',
++      ...(this.scope === undefined ? {} : { scope: this.scope }),
++      software_id: CLIENT_SOFTWARE_ID,
++      software_version: CLIENT_SOFTWARE_VERSION,
++    }
++  }
++
++  async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
++    return (await this.load()).clientInformation
++  }
++
++  async saveClientInformation(clientInformation: OAuthClientInformationMixed): Promise<void> {
++    await this.mutate((state) => { state.clientInformation = clientInformation })
++  }
++
++  async tokens(): Promise<OAuthTokens | undefined> {
++    return (await this.load()).tokens
++  }
++
++  async saveTokens(tokens: OAuthTokens): Promise<void> {
++    await this.mutate((state) => {
++      state.tokens = tokens
++      // The verifier is single-use by spec; the exchange consumed it.
++      delete state.codeVerifier
++    })
++  }
++
++  /**
++   * Bind the loopback server, open the browser, and complete the code
++   * exchange into the bound transport generation. Resolves only after tokens
++   * are saved; an OAuth `error` redirect, a timeout, or a listener failure
++   * rejects with {@link AuthorizationAbortedError}.
++   */
++  /** Whether a browser leg is open and the code exchange is still pending. */
++  get awaitingBrowser(): boolean {
++    return this.browserLegSettled !== undefined
++  }
++
++  /**
++   * Resolves once the pending browser leg finishes (tokens saved or the leg
++   * failed); undefined while no leg is open. The supervisor holds the
++   * connection generation — instead of timing out and respawning, which would
++   * abandon the leg the user is mid-way through approving — until this
++   * settles.
++   */
++  get browserLeg(): Promise<boolean> | undefined {
++    return this.browserLegSettled?.promise
++  }
++
++  async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
++    const transport = this.activeTransport
++    if (transport === undefined) {
++      throw new AuthorizationAbortedError(`${this.serverName}: no active transport to complete authorization into`)
++    }
++    this.browserLegSettled = Promise.withResolvers()
++    let succeeded = false
++    try {
++      const code = await this.awaitCallback(authorizationUrl)
++      await transport.finishAuth(code)
++      succeeded = true
++      return
++    } finally {
++      this.browserLegSettled?.resolve(succeeded)
++      this.browserLegSettled = undefined
++    }
++  }
++
++  /**
++   * Register the transport generation whose `finishAuth` completes the flow.
++   * The transport calls `redirectToAuthorization` during `connect`; binding
++   * it here keeps the code exchange inside the generation that owns the
++   * connection, per the SDK's per-connection session model.
++   */
++  bindTransport(transport: { finishAuth(code: string): Promise<void> }): void {
++    this.activeTransport = transport
++  }
++
++  /** Abandon any previously bound browser leg before a new one starts. */
++  resetCallback(): void {
++    if (this.callbackTimer !== undefined) {
++      clearTimeout(this.callbackTimer)
++      this.callbackTimer = undefined
++    }
++    this.callbackServer?.close(() => undefined)
++    this.callbackServer = undefined
++    this.boundPort = undefined
++  }
++
++  saveCodeVerifier(codeVerifier: string): Promise<void> {
++    // The verifier only needs to survive the browser leg; keeping it out of
++    // the durable record removes a secret that has no value after the exchange.
++    this.providerState.codeVerifier = codeVerifier
++    return Promise.resolve()
++  }
++
++  codeVerifier(): Promise<string> {
++    const verifier = this.providerState.codeVerifier
++    if (verifier === undefined) {
++      return Promise.reject(new AuthorizationAbortedError(`${this.serverName}: no PKCE verifier is stored for this authorization attempt`))
++    }
++    return Promise.resolve(verifier)
++  }
++
++  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
++    // The SDK invalidates selectively on refresh failures; dropping the whole
++    // record is always safe because discovery and registration re-run cheaply.
++    if (scope === 'tokens') {
++      await this.mutate((state) => { delete state.tokens })
++      return
++    }
++    if (scope === 'verifier') {
++      delete this.providerState.codeVerifier
++      return
++    }
++    await this.mutate((state) => {
++      if (scope === 'client') delete state.clientInformation
++      if (scope === 'all') {
++        delete state.tokens
++        delete state.clientInformation
++      }
++      // `discovery` is not persisted by this provider; nothing to drop.
++    })
++  }
++
++  // ---- Durable state through the credentials seam ----
++
++  private async load(): Promise<ProviderState> {
++    if (this.store === undefined) return this.providerState
++    // `describeRecord` reads the store; the record payload itself comes from
++    // the same store's read path, re-narrowed on every access so an external
++    // edit (or a second process's refresh) is picked up immediately.
++    const described = await this.store.describeRecord(this.recordKey)
++    if (!described.configured) return this.providerState
++    const record = await this.store.readRecord(this.recordKey)
++    const payload = asMcpAuthRecord(record)
++    if (payload === undefined) {
++      // The record exists but is not ours anymore (a foreign overwrite): the
++      // durable fields drop from the view rather than reading stale.
++      this.providerState = { ...(this.providerState.codeVerifier === undefined ? {} : { codeVerifier: this.providerState.codeVerifier }) }
++      return this.providerState
++    }
++    // The durable record is authoritative: the view is rebuilt from it, so an
++    // external edit that replaced or dropped a field drops it from the view
++    // too; the process-local PKCE verifier is the only non-durable field.
++    const verifier = this.providerState.codeVerifier
++    this.providerState = { ...payload, ...(verifier === undefined ? {} : { codeVerifier: verifier }) }
++    return this.providerState
++  }
++
++  private async mutate(mutator: (state: ProviderState) => void): Promise<void> {
++    const run = this.writeChain.then(async () => {
++      await this.load()
++      mutator(this.providerState)
++      if (this.store === undefined) return
++      const record: McpAuthRecord = {
++        kind: 'grant',
++        payload: {
++          ...(this.providerState.clientInformation === undefined ? {} : { clientInformation: this.providerState.clientInformation }),
++          ...(this.providerState.tokens === undefined ? {} : { tokens: this.providerState.tokens }),
++        },
++      }
++      await this.store.modifyRecord(this.recordKey, () => Promise.resolve(record))
++    })
++    // A failed write must not poison the chain; the caller's rejection is the
++    // signal, and the next write re-reads whatever is durable now.
++    this.writeChain = run.catch(() => {})
++    return run
++  }
++
++  // ---- Loopback callback leg ----
++
++  /**
++   * Bind a loopback listener, open the browser at `authorizationUrl` (its
++   * `redirect_uri` is rewritten to the bound port), and resolve with the code
++   * the user agent lands back with.
++   */
++  private awaitCallback(authorizationUrl: URL): Promise<string> {
++    return new Promise<string>((resolve, reject) => {
++      const server = createServer((request) => {
++        this.handleCallbackRequest(request, server, resolve, reject)
++      })
++      server.on('error', (error) => {
++        this.clearCallbackTimer()
++        reject(new AuthorizationAbortedError(`${this.serverName}: loopback callback server failed: ${String(error)}`))
++      })
++      server.listen(this.storage.callbackPort ?? 0, '127.0.0.1', () => {
++        const address = server.address()
++        if (address === null || typeof address === 'string') {
++          server.close(() => undefined)
++          reject(new AuthorizationAbortedError(`${this.serverName}: loopback callback server did not bind a TCP port`))
++          return
++        }
++        this.boundPort = address.port
++        this.callbackServer = server
++        authorizationUrl.searchParams.set('redirect_uri', this.redirectUrl)
++        this.log(`${this.serverName}: opening the browser for MCP authorization — approve access in the page that opens`)
++        void this.opener(authorizationUrl, this.serverName, this.log)
++        this.callbackTimer = setTimeout(() => {
++          this.resetCallback()
++          reject(new AuthorizationAbortedError(
++            `${this.serverName}: authorization was not completed within ${CALLBACK_TIMEOUT_MS / 60_000} minutes — open the server's page again or retry the mount`,
++          ))
++        }, CALLBACK_TIMEOUT_MS)
++        this.callbackTimer.unref()
++      })
++    })
++  }
++
++  private handleCallbackRequest(
++    request: IncomingMessage,
++    server: Server,
++    resolve: (code: string) => void,
++    reject: (error: Error) => void,
++  ): void {
++    const url = new URL(request.url ?? '/', 'http://127.0.0.1')
++    const oauthError = url.searchParams.get('error')
++    const code = url.searchParams.get('code')
++    const respond = (status: number, message: string): void => {
++      // Drain the request, then answer with a plain page the user can close.
++      request.resume()
++      request.socket.end(
++        `HTTP/1.1 ${status} ${status === 200 ? 'OK' : 'Bad Request'}\r\n`
++        + 'content-type: text/plain; charset=utf-8\r\nconnection: close\r\n\r\n'
++        + `${message}\n`,
++      )
++      request.on('close', () => { server.close(() => undefined) })
++    }
++    this.clearCallbackTimer()
++    this.callbackServer = undefined
++    this.boundPort = undefined
++    if (oauthError !== null) {
++      const description = url.searchParams.get('error_description') ?? ''
++      respond(400, `Authorization failed: ${oauthError}${description === '' ? '' : ` — ${description}`}`)
++      reject(new AuthorizationAbortedError(
++        `${this.serverName}: the authorization server returned "${oauthError}"${description === '' ? '' : ` (${description})`}`,
++      ))
++      return
++    }
++    if (code === null || code === '') {
++      respond(400, 'Authorization callback arrived without a code.')
++      reject(new AuthorizationAbortedError(`${this.serverName}: the authorization callback carried no code`))
++      return
++    }
++    respond(200, 'Authorization received. You can close this page and return to DeepSeek Harness.')
++    resolve(code)
++  }
++
++  private clearCallbackTimer(): void {
++    if (this.callbackTimer !== undefined) {
++      clearTimeout(this.callbackTimer)
++      this.callbackTimer = undefined
++    }
++  }
++
++}
+diff --git a/packages/mcp/mcp-client/src/transport.ts b/packages/mcp/mcp-client/src/transport.ts
+index bc7fd1cc08..cf1a0f2ad4 100644
+--- a/packages/mcp/mcp-client/src/transport.ts
++++ b/packages/mcp/mcp-client/src/transport.ts
+@@ -1,7 +1,8 @@
+ /**
+  * Transport factory: creates the appropriate MCP transport based on the
+  * plugin's resolved config. Stdio spawns a child process (with credential
+- * scrubbing); Streamable HTTP connects to a URL.
++ * scrubbing); Streamable HTTP connects to a URL, optionally with OAuth 2.1
++ * authorization when the config enables it.
+  *
+  * @module
+  */
+@@ -10,6 +11,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+ import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
++import { LoopbackOAuthClientProvider } from './oauth.ts'
+ import type { Config } from './index.ts'
+ 
+ /**
+@@ -25,26 +27,64 @@ function buildChildEnv(extra: Record<string, string>): Record<string, string> {
+ /**
+  * Create an MCP transport from the resolved plugin config.
+  *
++ * With `auth.enabled`, the Streamable HTTP transport carries an OAuth 2.1
++ * provider: the first `401` from the server starts discovery, dynamic
++ * registration, and a loopback browser authorization, and granted tokens
++ * persist through the credentials service for later processes. Transport
++ * generation identity stays with the caller — the provider binds whichever
++ * transport it hands out, so a reconnect builds a fresh generation on the
++ * same durable state.
++ *
+  * @param config - Resolved plugin config discriminated on `transport`.
+- * @returns A connected-ready MCP Transport (stdio or Streamable HTTP).
++ * @param credentials - The composition's credential store, when mounted; OAuth
++ *   state persists only when it is.
++ * @param log - Diagnostic sink for the human leg of the flow.
++ * @returns The transport plus its OAuth provider, when `auth` is enabled —
++ *   the supervisor queries the provider to hold the generation open while a
++ *   browser leg is pending.
+  */
+-export function createTransport(config: Config): Transport {
++export function createTransport(
++  config: Config,
++  credentials?: unknown,
++  log: (message: string) => void = () => {},
++): { transport: Transport; oauthProvider: LoopbackOAuthClientProvider | undefined } {
+   switch (config.transport) {
+     case 'stdio':
+-      return new StdioClientTransport({
+-        command: config.command,
+-        args: config.args,
+-        env: buildChildEnv(config.env),
+-        cwd: config.cwd,
+-      })
+-    case 'streamable-http':
++      return {
++        transport: new StdioClientTransport({
++          command: config.command,
++          args: config.args,
++          env: buildChildEnv(config.env),
++          cwd: config.cwd,
++        }),
++        oauthProvider: undefined,
++      }
++    case 'streamable-http': {
++      const oauthProvider = config.auth?.enabled === true
++        ? new LoopbackOAuthClientProvider(
++          config.serverName,
++          config.auth.storage ?? {},
++          config.auth.scope,
++          log,
++          credentials,
++        )
++        : undefined
++      const authProvider = oauthProvider
+       // The MCP SDK's StreamableHTTPClientTransport has optional callback
+       // properties typed without `| undefined` (exactOptionalPropertyTypes
+       // mismatch with the Transport interface); the SDK constructed the
+-      // object, so the cast records only that widening.
+-      return new StreamableHTTPClientTransport(
++      // object, so the cast records only that widening. `finishAuth` is
++      // public on the SDK class and completes the browser leg's code
++      // exchange inside this transport generation.
++      const transport = new StreamableHTTPClientTransport(
+         new URL(config.url),
+-        { requestInit: { headers: config.headers } },
+-      ) as Transport
++        {
++          requestInit: { headers: config.headers },
++          ...(authProvider === undefined ? {} : { authProvider }),
++        },
++      ) as Transport & { finishAuth(code: string): Promise<void> }
++      authProvider?.bindTransport(transport)
++      return { transport, oauthProvider }
++    }
+   }
+ }
+diff --git a/packages/mcp/mcp-client/tests/auth-config.spec.ts b/packages/mcp/mcp-client/tests/auth-config.spec.ts
+new file mode 100644
+index 0000000000..7425c4175c
+--- /dev/null
++++ b/packages/mcp/mcp-client/tests/auth-config.spec.ts
+@@ -0,0 +1,150 @@
++/**
++ * Tests for the `auth` config block on streamable-http servers: schema
++ * acceptance, transport construction with an OAuth provider wired to the
++ * credentials service, and config-shape passthrough. The OAuth protocol
++ * itself is covered by `oauth.spec.ts` and the SDK's own suite.
++ */
++import { describe, expect, it, vi, beforeEach } from 'vitest'
++import { Context } from '@deepseek-ai/cordis'
++import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
++import ToolRuntime from '@deepseek-ai/dsh-tools'
++
++// vi.mock factories are hoisted above every import/const.
++const { MockClient, MockStreamableTransport, constructedOptions, constructedUrls } = vi.hoisted(() => {
++  const mockRequest = vi.fn(async (request: { method: string }) => {
++    if (request.method === 'tools/list') return { tools: [], nextCursor: undefined }
++    if (request.method === 'tools/call') return { content: [] }
++    throw new Error(`unexpected MCP request: ${request.method}`)
++  })
++  class MockClient {
++    onclose: (() => void) | undefined = undefined
++    request = mockRequest
++    setNotificationHandler = vi.fn()
++    connect = vi.fn(async () => {})
++    close = vi.fn(async function (this: { onclose?: () => void }) { this.onclose?.() })
++  }
++  const constructedOptions: Array<Record<string, unknown>> = []
++  const constructedUrls: Array<URL> = []
++  class MockStreamableTransport {
++    url: URL
++    options: Record<string, unknown>
++    onclose: (() => void) | undefined = undefined
++    onerror: ((error: Error) => void) | undefined = undefined
++    onmessage: ((message: unknown) => void) | undefined = undefined
++    start = vi.fn(async () => {})
++    send = vi.fn(async () => {})
++    close = vi.fn(async () => { this.onclose?.() })
++    finishAuth = vi.fn(async () => {})
++    constructor(url: URL, options?: Record<string, unknown>) {
++      this.url = url
++      this.options = options ?? {}
++      constructedUrls.push(url)
++      constructedOptions.push(this.options)
++    }
++  }
++  return { MockClient, MockStreamableTransport, constructedOptions, constructedUrls }
++})
++
++vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
++  Client: MockClient,
++}))
++
++vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
++  StreamableHTTPClientTransport: MockStreamableTransport,
++}))
++
++import { apply, Config as ConfigSchema } from '@deepseek-ai/dsh-mcp-client/src/index.ts'
++import { createTransport } from '@deepseek-ai/dsh-mcp-client/src/transport.ts'
++
++async function mountRegistry(): Promise<Context> {
++  const ctx = new Context()
++  await ctx.plugin(SystemPrompt)
++  await ctx.plugin(ToolRuntime)
++  return ctx
++}
++
++/** A credential store double exposing only the record surface the provider probes. */
++function createRecordStore() {
++  return {
++    describeRecord: async () => ({ configured: false, writable: true }),
++    readRecord: async () => undefined,
++    modifyRecord: async (_key: string, mutate: (current: unknown) => Promise<unknown>) => mutate(undefined),
++  }
++}
++
++function httpConfig(auth?: { enabled: boolean; scope?: string }): Parameters<typeof apply>[1] {
++  return {
++    transport: 'streamable-http',
++    serverName: 'srv',
++    url: 'https://mcp.example/mcp',
++    headers: {},
++    ...(auth === undefined ? {} : { auth }),
++    toolCallTimeoutMs: 60_000,
++    failOnStartupError: false,
++  }
++}
++
++beforeEach(() => {
++  constructedOptions.length = 0
++  constructedUrls.length = 0
++})
++
++describe('auth config schema', () => {
++  it('accepts an auth block with scope and storage and materializes nothing extra', () => {
++    const parsed = ConfigSchema({
++      transport: 'streamable-http', serverName: 'srv', url: 'https://x/mcp',
++      auth: { enabled: true, scope: 'a b', storage: { callbackPort: 0 } },
++    } as never) as unknown as Record<string, unknown>
++    expect(parsed.auth).toEqual({ enabled: true, scope: 'a b', storage: { callbackPort: 0 } })
++  })
++
++  it('leaves auth absent when omitted', () => {
++    const parsed = ConfigSchema({ transport: 'streamable-http', serverName: 'srv', url: 'https://x/mcp' } as never) as unknown as Record<string, unknown>
++    expect(parsed).not.toHaveProperty('auth')
++  })
++
++  it('rejects an auth block without enabled', () => {
++    // Raw input bypasses the TypeScript shape on purpose: the schema is the gate.
++    const raw = { transport: 'streamable-http', serverName: 'srv', url: 'https://x/mcp', auth: { scope: 'a' } } as unknown as Parameters<typeof ConfigSchema>[0]
++    expect(() => ConfigSchema(raw)).toThrow()
++  })
++})
++
++describe('transport construction with auth', () => {
++  it('returns no provider when auth is absent', () => {
++    const result = createTransport(httpConfig())
++    expect(result.oauthProvider).toBeUndefined()
++    expect(result.transport).toBeDefined()
++  })
++
++  it('wires a provider when auth is enabled', () => {
++    const { oauthProvider: provider } = createTransport(httpConfig({ enabled: true }), undefined)
++    expect(provider).toBeDefined()
++    expect(provider!.clientMetadata.client_name).toBe('DeepSeek Harness (dsh-mcp-client)')
++    // Default loopback: ephemeral port placeholder until the listener binds.
++    expect(provider!.redirectUrl).toBe('http://127.0.0.1:0/callback')
++  })
++
++  it('carries scope and a fixed callback port through the provider', () => {
++    const { oauthProvider: provider } = createTransport(httpConfig({ enabled: true, scope: 'repo' }), undefined, () => {})
++    expect(provider!.clientMetadata.scope).toBe('repo')
++  })
++
++  it('uses the mounted credentials service so state can persist', () => {
++    const store = createRecordStore()
++    const { oauthProvider: provider } = createTransport(httpConfig({ enabled: true }), store)
++    expect((provider as unknown as { store: unknown }).store).toBe(store)
++  })
++})
++
++describe('apply with an auth-enabled streamable-http server', () => {
++  it('activates against a mock transport and registers namespaced tools', async () => {
++    const ctx = await mountRegistry()
++    // The mocked transport answers connect immediately; the real tool sync is
++    // exercised in mcp-client.spec.ts — here the transport wiring is the point.
++    await apply(ctx, httpConfig({ enabled: true }))
++    expect(constructedUrls[0]?.toString()).toBe('https://mcp.example/mcp')
++    expect(constructedOptions[0]).toHaveProperty('authProvider')
++    await ctx.fiber.dispose()
++  })
++})
+diff --git a/packages/mcp/mcp-client/tests/mcp-client.spec.ts b/packages/mcp/mcp-client/tests/mcp-client.spec.ts
+index b72b8faad4..da63dd6edc 100644
+--- a/packages/mcp/mcp-client/tests/mcp-client.spec.ts
++++ b/packages/mcp/mcp-client/tests/mcp-client.spec.ts
+@@ -1129,7 +1129,7 @@ describe('createTransport', () => {
+       toolCallTimeoutMs: 60_000,
+       failOnStartupError: false,
+     }
+-    const transport = createTransport(config)
++    const { transport } = createTransport(config)
+     expect(transport).toBeDefined()
+     expect(transport).toHaveProperty('start')
+     expect(transport).toHaveProperty('close')
+@@ -1144,7 +1144,7 @@ describe('createTransport', () => {
+       toolCallTimeoutMs: 60_000,
+       failOnStartupError: false,
+     }
+-    const transport = createTransport(config)
++    const { transport } = createTransport(config)
+     expect(transport).toBeDefined()
+     expect(transport).toHaveProperty('start')
+     expect(transport).toHaveProperty('close')
+@@ -1159,7 +1159,7 @@ describe('createTransport', () => {
+       toolCallTimeoutMs: 60_000,
+       failOnStartupError: false,
+     }
+-    const transport = createTransport(config)
++    const { transport } = createTransport(config)
+     expect(transport).toBeDefined()
+     expect(transport).toHaveProperty('start')
+     expect(transport).toHaveProperty('close')
+diff --git a/packages/mcp/mcp-client/tests/oauth.spec.ts b/packages/mcp/mcp-client/tests/oauth.spec.ts
+new file mode 100644
+index 0000000000..bb88ac0ffd
+--- /dev/null
++++ b/packages/mcp/mcp-client/tests/oauth.spec.ts
+@@ -0,0 +1,273 @@
++/**
++ * Tests for the OAuth loopback provider: the durable-state contract over the
++ * credentials seam (and its memory fallback), the redirect metadata the SDK
++ * reads, and the loopback callback leg. The SDK's `auth()` protocol itself is
++ * SDK-owned and covered upstream; these tests pin the provider half.
++ */
++import { afterEach, describe, expect, it, vi } from 'vitest'
++import { createServer, type Server } from 'node:http'
++import { LoopbackOAuthClientProvider, type BrowserOpener } from '@deepseek-ai/dsh-mcp-client/src/oauth.ts'
++import { credentialKey } from '@deepseek-ai/dsh-credentials'
++
++/** No-op opener: tests never open a browser; callback-leg tests drive the loopback endpoint themselves. */
++/** No-op opener: tests never open a browser; callback-leg tests drive the loopback endpoint themselves. */
++const openerStub: BrowserOpener = async () => {}
++
++// ---- Credential store fake: mirrors CredentialProvider's record surface ----
++
++interface StoreCalls {
++  modified: Array<{ key: string; kind: string }>
++}
++
++function createRecordStore(initial: Map<string, unknown> = new Map()): {
++  describeRecord: (key: string) => Promise<{ configured: boolean; writable: boolean }>
++  readRecord: (key: string) => Promise<unknown>
++  modifyRecord: (key: string, mutate: (current: unknown) => Promise<unknown>) => Promise<unknown>
++  calls: StoreCalls
++} {
++  const records = initial
++  const calls: StoreCalls = { modified: [] }
++  return {
++    describeRecord: async key => ({
++      configured: records.has(key),
++      writable: true,
++    }),
++    readRecord: async key => records.get(key),
++    modifyRecord: async (key, mutate) => {
++      const next = await mutate(records.get(key))
++      records.set(key, next)
++      calls.modified.push({ key, kind: (next as { kind?: string } | undefined)?.kind ?? 'none' })
++      return next
++    },
++    calls,
++  }
++}
++
++const TOKENS = {
++  access_token: 'at-1',
++  token_type: 'Bearer',
++  refresh_token: 'rt-1',
++}
++
++afterEach(async () => {
++  vi.restoreAllMocks()
++})
++
++describe('LoopbackOAuthClientProvider record addressing', () => {
++  it('folds a __-separated serverName into a valid credential key segment', async () => {
++    // Regression: `credentialKey` threw on `cloudflare__cloudflare-api`
++    // (double underscore fails the key grammar), which crashed the provider
++    // constructor before any auth flow could start.
++    const store = createRecordStore()
++    const provider = new LoopbackOAuthClientProvider('cloudflare__cloudflare-api', {}, undefined, () => {}, store, openerStub)
++    await provider.saveTokens({ ...TOKENS })
++    const key = String(credentialKey('mcp-auth', 'cloudflare-cloudflare-api'))
++    expect((await store.readRecord(key)) as { payload: { tokens?: unknown } }).toMatchObject({
++      kind: 'grant',
++      payload: { tokens: { access_token: 'at-1' } },
++    })
++  })
++})
++
++describe('LoopbackOAuthClientProvider state', () => {
++  it('persists tokens as a grant record under mcp-auth/<serverName>', async () => {
++    const store = createRecordStore()
++    const provider = new LoopbackOAuthClientProvider('cloudflare-api', {}, 'scope-a', () => {}, store, openerStub)
++    await provider.saveTokens({ ...TOKENS })
++
++    const key = String(credentialKey('mcp-auth', 'cloudflare-api'))
++    expect(store.calls.modified).toEqual([{ key, kind: 'grant' }])
++    const stored = (await store.readRecord(key)) as { kind: string; payload: { tokens?: unknown } }
++    expect(stored.kind).toBe('grant')
++    expect(stored.payload.tokens).toMatchObject({ access_token: 'at-1' })
++    // A fresh provider over the same store reads the tokens back.
++    const second = new LoopbackOAuthClientProvider('cloudflare-api', {}, undefined, () => {}, store, openerStub)
++    await expect(second.tokens()).resolves.toMatchObject({ access_token: 'at-1' })
++  })
++
++  it('keeps the PKCE verifier process-local and clears it on saveTokens', async () => {
++    const store = createRecordStore()
++    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, store, openerStub)
++    await provider.saveCodeVerifier('verifier-1')
++    await expect(provider.codeVerifier()).resolves.toBe('verifier-1')
++    await provider.saveTokens({ ...TOKENS })
++    await expect(provider.codeVerifier()).rejects.toThrow(/no PKCE verifier/)
++    // The verifier never reaches the durable record.
++    const key = String(credentialKey('mcp-auth', 'srv'))
++    const stored = (await store.readRecord(key)) as { payload: Record<string, unknown> }
++    expect(stored.payload).not.toHaveProperty('codeVerifier')
++  })
++
++  it('round-trips client information through the record store', async () => {
++    const store = createRecordStore()
++    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, store, openerStub)
++    await provider.saveClientInformation({ client_id: 'cid-1' })
++    await expect(provider.clientInformation()).resolves.toMatchObject({ client_id: 'cid-1' })
++  })
++
++  it('falls back to process memory when no store is mounted', async () => {
++    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, undefined, openerStub)
++    await provider.saveTokens({ ...TOKENS })
++    await expect(provider.tokens()).resolves.toMatchObject({ access_token: 'at-1' })
++  })
++
++  it('invalidateCredentials("all") drops the whole record; "tokens" keeps the client', async () => {
++    const store = createRecordStore()
++    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, store, openerStub)
++    await provider.saveClientInformation({ client_id: 'cid-1' })
++    await provider.saveTokens({ ...TOKENS })
++
++    await provider.invalidateCredentials('tokens')
++    await expect(provider.tokens()).resolves.toBeUndefined()
++    await expect(provider.clientInformation()).resolves.toMatchObject({ client_id: 'cid-1' })
++
++    await provider.invalidateCredentials('all')
++    await expect(provider.clientInformation()).resolves.toBeUndefined()
++  })
++
++  it('reads through to the store on every access so external edits are visible', async () => {
++    const key = String(credentialKey('mcp-auth', 'srv'))
++    const records = new Map<string, unknown>()
++    const store = createRecordStore(records)
++    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, store, openerStub)
++    await expect(provider.tokens()).resolves.toBeUndefined()
++
++    // Another process refreshes the record behind our back.
++    records.set(key, { kind: 'grant', payload: { tokens: { ...TOKENS } } })
++    await expect(provider.tokens()).resolves.toMatchObject({ access_token: 'at-1' })
++
++    // A foreign overwrite of the whole record (kind no longer ours) reads as
++    // absent, never as a crash.
++    records.set(key, { kind: 'api-key', key: 'x' })
++    await expect(provider.tokens()).resolves.toBeUndefined()
++    await expect(provider.clientInformation()).resolves.toBeUndefined()
++  })
++
++  it('treats a store without the record surface as absent', async () => {
++    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, { nope: true }, openerStub)
++    await provider.saveTokens({ ...TOKENS })
++    await expect(provider.tokens()).resolves.toMatchObject({ access_token: 'at-1' })
++  })
++})
++
++describe('LoopbackOAuthClientProvider redirect metadata', () => {
++  it('advertises loopback redirect and public-client metadata with the scope', () => {
++    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: 49_152 }, 'read:files', () => {}, undefined, openerStub)
++    expect(provider.redirectUrl).toBe('http://127.0.0.1:49152/callback')
++    expect(provider.clientMetadata).toMatchObject({
++      client_name: 'DeepSeek Harness (dsh-mcp-client)',
++      redirect_uris: ['http://127.0.0.1:49152/callback'],
++      token_endpoint_auth_method: 'none',
++      grant_types: ['authorization_code', 'refresh_token'],
++      response_types: ['code'],
++      scope: 'read:files',
++    })
++  })
++
++  it('omits scope metadata when none is configured', () => {
++    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, undefined, openerStub)
++    expect(provider.clientMetadata).not.toHaveProperty('scope')
++  })
++})
++
++describe('LoopbackOAuthClientProvider callback leg', () => {
++  /** Bind a throwaway HTTP listener to learn a free port before the provider takes one. */
++  function freePort(): Promise<number> {
++    return new Promise((resolve, reject) => {
++      const probe: Server = createServer()
++      probe.listen(0, '127.0.0.1', () => {
++        const address = probe.address()
++        if (address === null || typeof address === 'string') {
++          probe.close(() => { reject(new Error('no port')) })
++          return
++        }
++        probe.close(() => { resolve(address.port) })
++      })
++      probe.on('error', reject)
++    })
++  }
++
++  it('opens the gate while the leg pends, resolves true on success, false on leg failure', async () => {
++    const port = await freePort()
++    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined)
++    provider.bindTransport({ finishAuth: async () => {} })
++    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
++    // While waiting for the user agent the supervisor must hold the generation.
++    expect(provider.awaitingBrowser).toBe(true)
++    const response = await fetch(`http://127.0.0.1:${port}/callback?code=abc`)
++    expect(response.status).toBe(200)
++    await expect(redirect).resolves.toBeUndefined()
++    expect(provider.awaitingBrowser).toBe(false)
++  }, 15_000)
++
++  it('resolves the gate false when the authorization server returns an error', async () => {
++    const port = await freePort()
++    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined)
++    provider.bindTransport({ finishAuth: async () => {} })
++    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
++    await vi.waitFor(() => { expect(provider.awaitingBrowser).toBe(true) })
++    await fetch(`http://127.0.0.1:${port}/callback?error=access_denied`)
++    await expect(redirect).rejects.toThrow(/access_denied/)
++    expect(provider.awaitingBrowser).toBe(false)
++  }, 15_000)
++
++
++  it('completes the flow when the browser returns a code, then rejects a second leg', async () => {
++    const port = await freePort()
++    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
++    const finished: Array<string> = []
++    provider.bindTransport({ finishAuth: async (code) => { finished.push(code) } })
++
++    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
++    // While the leg is open, the getter reports the bound loopback URL the
++    // SDK embedded into the authorization request.
++    await vi.waitFor(() => {
++      expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`)
++    })
++
++    // Simulate the user agent landing back with a code.
++    const response = await fetch(`http://127.0.0.1:${port}/callback?code=abc&state=s1`)
++    expect(response.status).toBe(200)
++    await expect(redirect).resolves.toBeUndefined()
++    expect(finished).toEqual(['abc'])
++
++    // The listener is one-use: the socket no longer answers.
++    await expect(fetch(`http://127.0.0.1:${port}/callback?code=abc`)).rejects.toThrow()
++  }, 15_000)
++
++  it('rejects when the authorization server redirects with an OAuth error', async () => {
++    const port = await freePort()
++    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
++    provider.bindTransport({ finishAuth: async () => {} })
++    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
++    await vi.waitFor(() => { expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`) })
++
++    const response = await fetch(`http://127.0.0.1:${port}/callback?error=access_denied&error_description=nope`)
++    expect(response.status).toBe(400)
++    await expect(redirect).rejects.toThrow(/access_denied/)
++  }, 15_000)
++
++  it('rejects when no transport generation is bound', async () => {
++    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: await freePort() }, undefined, () => {}, undefined, openerStub)
++    await expect(provider.redirectToAuthorization(new URL('https://auth.example/authorize'))).rejects.toThrow(/no active transport/)
++  })
++
++
++  it('keeps the leg open for a late callback regardless of the browser helper', async () => {
++    const port = await freePort()
++    const logs: Array<string> = []
++    const finished: Array<string> = []
++    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, (message) => { logs.push(message) }, undefined, openerStub)
++    provider.bindTransport({ finishAuth: async (code) => { finished.push(code) } })
++    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
++    // The announce line fires in the listen callback; the leg does not depend
++    // on whether the platform helper managed to open a browser.
++    await vi.waitFor(() => { expect(logs.some(line => /opening the browser/.test(line))).toBe(true) })
++    // A late user agent (slower than the helper's fate) still completes it.
++    await new Promise(resolve => setTimeout(resolve, 100))
++    const response = await fetch(`http://127.0.0.1:${port}/callback?code=late`)
++    expect(response.status).toBe(200)
++    await expect(redirect).resolves.toBeUndefined()
++    expect(finished).toEqual(['late'])
++  }, 15_000)
++})
+diff --git a/packages/mcp/mcp-client/tsconfig.json b/packages/mcp/mcp-client/tsconfig.json
+index 7dbe351b30..7791e30b0b 100644
+--- a/packages/mcp/mcp-client/tsconfig.json
++++ b/packages/mcp/mcp-client/tsconfig.json
+@@ -29,6 +29,9 @@
+     },
+     {
+       "path": "../../util/timeout"
++    },
++    {
++      "path": "../../credentials/credentials"
+     }
+   ]
+ }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 737a21eea6..438e4e26b8 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -5764,6 +5764,9 @@ importers:
+ 
+   packages/mcp/mcp-client:
+     dependencies:
++      '@deepseek-ai/dsh-credentials':
++        specifier: workspace:^
++        version: link:../../credentials/credentials
+       '@deepseek-ai/schemastery':
+         specifier: link:../../../vendor/schemastery
+         version: link:../../../vendor/schemastery
+-- 
+2.55.0
+

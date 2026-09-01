@@ -1,0 +1,263 @@
+From a6df20cbc4ab56aa2932215fc9ce1d925de5bbe3 Mon Sep 17 00:00:00 2001
+From: sivan <zifanuu@gmail.com>
+Date: Tue, 1 Sep 2026 12:41:17 +0800
+Subject: [PATCH 2/2] feat(mcp): attempt streamable-http OAuth silently by
+ default
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Requiring an explicit auth declaration stranded every suite whose
+author never added one — a freshly installed Figma MCP had no path to
+the browser flow and no user-facing way to know an override existed.
+The provider now attaches by default: it only activates on the server's
+401 challenge, so servers without auth are untouched, and a static
+Authorization header (a token flow) or auth.enabled: false opts out.
+Schema default flipped to enabled; READMEs, gate tests, and the agent
+note record the semantics.
+---
+ ...26-08-30-mcp-oauth-authorization.i18n.yaml |  4 +--
+ .../2026-08-30-mcp-oauth-authorization.md     |  8 +++--
+ .../2026-08-30-mcp-oauth-authorization.zh.md  |  2 +-
+ packages/mcp/mcp-client/README.i18n.yaml      |  4 +--
+ packages/mcp/mcp-client/README.md             |  4 +--
+ packages/mcp/mcp-client/README.zh.md          |  4 +--
+ packages/mcp/mcp-client/src/index.ts          | 18 +++++++----
+ packages/mcp/mcp-client/src/transport.ts      | 15 ++++++---
+ .../mcp/mcp-client/tests/auth-config.spec.ts  | 32 +++++++++++++++----
+ 9 files changed, 61 insertions(+), 30 deletions(-)
+
+diff --git a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml
+index 49bbd663e1..a223a26c45 100644
+--- a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml
++++ b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
+-2026-08-30-mcp-oauth-authorization.md: 5e34e218cc7ac51e991c418872d13c3e6ea03809
+-2026-08-30-mcp-oauth-authorization.zh.md: 307e5aaa0936c9da35b57af33a2a29304d0b6563
++2026-08-30-mcp-oauth-authorization.md: e1737af66d0872534f189f39175039fa39452f27
++2026-08-30-mcp-oauth-authorization.zh.md: 76eb29570918533bf72868c7a949036ee508bd54
+diff --git a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
+index 5e34e218cc..e1737af66d 100644
+--- a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
++++ b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.md
+@@ -79,9 +79,11 @@ to each generation's provider; transport lifetime rules are unchanged.
+ - OAuth-protected MCP servers now mount in the harness, opening the ecosystem
+   that previously failed with an opaque error; `mcp-auth/*` records appear in
+   the credentials surfaces alongside API keys.
+-- Authorization is opt-in per server (`auth.enabled`), so behavior of existing
+-  configs is unchanged, and a server that never challenges never touches the
+-  browser.
++- Authorization is on by default for streamable-http servers: the provider
++  only activates on the server's `401` challenge, so servers without auth are
++  unaffected and a suite needs no OAuth declaration for the flow to work.
++  `auth.enabled: false` opts out explicitly, as does a static `Authorization`
++  header (a token flow, not an OAuth flow).
+ - The browser leg requires a desktop session; headless hosts cannot complete an
+   interactive authorization, and each timed-out leg costs one reconnect cycle.
+   The loopback listener answers only its own landing request and closes
+diff --git a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md
+index 307e5aaa09..76eb295709 100644
+--- a/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md
++++ b/.agents/notes/implemented/feature/2026-08-30-mcp-oauth-authorization.zh.md
+@@ -27,7 +27,7 @@ Status: implemented
+ ## Consequences
+ 
+ - 受 OAuth 保护的 MCP 服务器现在能在 harness 中挂载，打开了此前以不明错误失败的生态；`mcp-auth/*` 记录与 API key 并列出现在凭证界面中。
+-- 授权按服务器可选（`auth.enabled`），既有配置行为不变；从不质询的服务器永不触碰浏览器。
++- streamable-http 服务器默认启用授权：provider 仅在服务器 `401` 质询时激活，无授权的服务器不受影响，套件无需任何 OAuth 声明即可走通流程。`auth.enabled: false` 显式退出，静态 `Authorization` 头（token 流程而非 OAuth 流程）同样跳过。
+ - 浏览器环节需要桌面会话；无头宿主无法完成交互式授权，每次超时环节消耗一次重连周期。回环监听只应答自己的那次回跳，随后立即关闭。
+ - 每个提供方实例同时只有一个重定向环节：第一次未决时发起第二次会在唯一监听器上竞争；实践中监督器本就串行化连接尝试，代际守卫也让陈旧环节迟到的授权码对当前代无害。
+ 
+diff --git a/packages/mcp/mcp-client/README.i18n.yaml b/packages/mcp/mcp-client/README.i18n.yaml
+index 3a80dba9a7..5cf9c9fd54 100644
+--- a/packages/mcp/mcp-client/README.i18n.yaml
++++ b/packages/mcp/mcp-client/README.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write packages/mcp/mcp-client/README.md
+-README.md: 4d03fe672bd931d1245400e4d321670083f70be6
+-README.zh.md: cb767e14440c490201d452b1ebc1a57da62f8fb7
++README.md: 7c45ddf503a12ae4181760faba2a757f6d54be59
++README.zh.md: 21fa1ab51e58d8d8ba31b47a26da0513b988e5a0
+diff --git a/packages/mcp/mcp-client/README.md b/packages/mcp/mcp-client/README.md
+index 4d03fe672b..7c45ddf503 100644
+--- a/packages/mcp/mcp-client/README.md
++++ b/packages/mcp/mcp-client/README.md
+@@ -54,7 +54,7 @@ The model sees `mcp__github__create_issue`, `mcp__web__search`, … — the same
+ | `cwd` | stdio | no | Working directory for the child process |
+ | `url` | http | yes | MCP server URL |
+ | `headers` | http | no | Extra headers (e.g. auth tokens) |
+-| `auth.enabled` | http | no | Opt in to OAuth 2.1 authorization for servers that answer `401` with an OAuth challenge |
++| `auth.enabled` | http | no | OAuth 2.1 authorization (default `true`): the flow only activates on the server's `401` challenge, so servers without auth are unaffected |
+ | `auth.scope` | http | no | Space-separated scope string requested during authorization |
+ | `auth.storage.callbackPort` | http | no | Fixed loopback port for the authorization redirect; `0` picks one ephemally (default) |
+ | `toolCallTimeoutMs` | both | no | Timeout per `callTool` invocation (default 60000) |
+@@ -76,7 +76,7 @@ Every MCP tool has two names: the raw MCP name (sent on the wire in `tools/call`
+ ## Behavior
+ 
+ - On connect: plugin activation awaits `listTools()` and registers each tool via `ctx.tools.register()` under its public name before the composition starts its first turn. Initial connection, discovery, or registration failure is always logged; it rejects activation when `failOnStartupError` is true and otherwise activates with no tools.
+-- OAuth (`auth.enabled`): when the server answers with `401` and an OAuth challenge, the transport performs MCP authorization — RFC 9728 protected-resource and authorization-server discovery, RFC 7591 dynamic client registration, PKCE, and token refresh — through the MCP SDK. The human leg binds a one-use `127.0.0.1` callback, opens the system browser (a log line carries the URL when no browser can open), and the page the user approves hands the code to the same transport generation. Granted client information and tokens persist as a `mcp-auth/<serverName>` grant record through `ctx.credentials` when that service is mounted (managed `.credentials.yaml`, `0600`, file-locked, refresh-safe across processes); without it, tokens last for the process only. A timed-out or declined browser leg fails the attempt and is retried by the supervisor's reconnect loop, which reopens the browser.
++- OAuth (default on): when the server answers with `401` and an OAuth challenge, the transport performs MCP authorization — RFC 9728 protected-resource and authorization-server discovery, RFC 7591 dynamic client registration, PKCE, and token refresh — through the MCP SDK. The human leg binds a one-use `127.0.0.1` callback, opens the system browser (a log line carries the URL when no browser can open), and the page the user approves hands the code to the same transport generation. Granted client information and tokens persist as a `mcp-auth/<serverName>` grant record through `ctx.credentials` when that service is mounted (managed `.credentials.yaml`, `0600`, file-locked, refresh-safe across processes); without it, tokens last for the process only. A timed-out or declined browser leg fails the attempt and is retried by the supervisor's reconnect loop, which reopens the browser. While a leg is pending the supervisor holds the connection generation open — the initialize timeout does not respawn it mid-approval.
+ - Listens for `notifications/tools/list_changed` → re-syncs; a fetch-phase failure keeps the previous generation registered, while a registration conflict rolls back the attempted generation and leaves no tools from that server.
+ - Tool execute: `client.callTool({ name: rawName, arguments }, { signal })` with timeout + abort support—the public name is never sent to the server.
+ - Canonical success is `{ content: JsonValue[], structuredContent? }`; complete JSON MCP blocks survive for programmatic callers. A supported advertised `outputSchema` validates `structuredContent`; unsupported schema vocabulary falls back to unconstrained `JsonValue`.
+diff --git a/packages/mcp/mcp-client/README.zh.md b/packages/mcp/mcp-client/README.zh.md
+index cb767e1444..21fa1ab51e 100644
+--- a/packages/mcp/mcp-client/README.zh.md
++++ b/packages/mcp/mcp-client/README.zh.md
+@@ -54,7 +54,7 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
+ | `cwd` | stdio | 否 | 子进程工作目录 |
+ | `url` | http | 是 | MCP 服务器 URL |
+ | `headers` | http | 否 | 额外标头（例如认证 token） |
+-| `auth.enabled` | http | 否 | 为以 OAuth 质询响应 `401` 的服务器启用 OAuth 2.1 授权 |
++| `auth.enabled` | http | 否 | OAuth 2.1 授权（默认 `true`）：仅在服务器以 `401` 质询时激活，无授权的服务器不受影响 |
+ | `auth.scope` | http | 否 | 授权时请求的空格分隔 scope 字符串 |
+ | `auth.storage.callbackPort` | http | 否 | 授权重定向的固定回环端口；`0` 表示临时选取（默认） |
+ | `toolCallTimeoutMs` | 两者 | 否 | 每次 `callTool` 调用的超时（默认 60000） |
+@@ -76,7 +76,7 @@ MCP 客户端桥接插件：连接外部 [Model Context Protocol](https://modelc
+ ## 行为
+ 
+ - 连接时：插件激活会等待 `listTools()`，并在组合开始首个轮次前通过 `ctx.tools.register()` 以公开名称注册每个工具。初始连接、发现或注册失败始终会记录日志；`failOnStartupError` 为 true 时拒绝激活，否则插件仍会激活但不注册工具。
+-- OAuth（`auth.enabled`）：当服务器以 `401` 和 OAuth 质询应答时，传输层执行 MCP 授权——RFC 9728 受保护资源与授权服务器发现、RFC 7591 动态客户端注册、PKCE 与令牌刷新——均由 MCP SDK 完成。人工环节绑定一次性 `127.0.0.1` 回调、打开系统浏览器（无法打开浏览器时日志行会携带 URL），用户批准的页面将授权码交回同一传输代。获取的客户端信息与令牌在 `ctx.credentials` 挂载时作为 `mcp-auth/<serverName>` grant 记录持久化（托管 `.credentials.yaml`，`0600`，文件锁，跨进程刷新安全）；未挂载时令牌仅存活于本进程。超时或被拒绝的浏览器环节会使该次尝试失败，由监督器的重连循环重试并重新打开浏览器。
++- OAuth（默认开启）：当服务器以 `401` 和 OAuth 质询应答时，传输层执行 MCP 授权——RFC 9728 受保护资源与授权服务器发现、RFC 7591 动态客户端注册、PKCE 与令牌刷新——均由 MCP SDK 完成。人工环节绑定一次性 `127.0.0.1` 回调、打开系统浏览器（无法打开浏览器时日志行会携带 URL），用户批准的页面将授权码交回同一传输代。获取的客户端信息与令牌在 `ctx.credentials` 挂载时作为 `mcp-auth/<serverName>` grant 记录持久化（托管 `.credentials.yaml`，`0600`，文件锁，跨进程刷新安全）；未挂载时令牌仅存活于本进程。超时或被拒绝的浏览器环节会使该次尝试失败，由监督器的重连循环重试并重新打开浏览器。浏览器环节等待期间，监督器会保持连接代开放——initialize 超时不会在用户批准途中把连接代换掉。
+ - 监听 `notifications/tools/list_changed` → 重新同步；获取阶段失败时保留上一世代的注册，注册冲突则会回滚本次尝试的世代，并且不保留该服务器的任何工具。
+ - 工具执行：`client.callTool({ name: rawName, arguments }, { signal })`，支持超时 + 中止；公开名称绝不会发给服务器。
+ - 规范成功值是 `{ content: JsonValue[], structuredContent? }`；完整的 JSON MCP 块会保留给编程调用方。受支持且已声明的 `outputSchema` 会验证 `structuredContent`；不受支持的 schema 词汇会回退为不受约束的 `JsonValue`。
+diff --git a/packages/mcp/mcp-client/src/index.ts b/packages/mcp/mcp-client/src/index.ts
+index fd2e5f9645..13f1d495e1 100644
+--- a/packages/mcp/mcp-client/src/index.ts
++++ b/packages/mcp/mcp-client/src/index.ts
+@@ -90,13 +90,17 @@ export interface StdioConfig {
+ /**
+  * OAuth 2.1 authorization config for a Streamable HTTP server. The MCP
+  * authorization flow (RFC 9728 discovery, dynamic client registration, PKCE,
+- * refresh) is performed by the SDK; enabling this makes the transport answer
+- * the server's `401` challenge with a loopback browser authorization, and
+- * granted tokens persist through the credentials service when one is mounted.
++ * refresh) is performed by the SDK: on the server's `401` challenge the
++ * transport opens a loopback browser authorization, and granted tokens
++ * persist through the credentials service when one is mounted.
++ *
++ * Defaults to enabled — servers that never challenge are unaffected (the
++ * provider only activates on a `401`), so a suite needs no OAuth declaration
++ * for the flow to work.
+  */
+ export interface OAuthConfig {
+-  /** Enable the OAuth flow (no default: authorization is opt-in per server). */
+-  enabled: boolean
++  /** Enable the OAuth flow (default `true`; set `false` to opt out explicitly). */
++  enabled?: boolean
+   /** Space-separated scope string requested during authorization, when the server needs one. */
+   scope?: string
+   /** Loopback callback tuning; omission uses an ephemeral port and the defaults. */
+@@ -117,7 +121,7 @@ export interface StreamableHttpConfig {
+   url: string
+   /** Additional headers attached to MCP requests. */
+   headers: Record<string, string>
+-  /** OAuth 2.1 authorization for servers that answer `401` with a challenge; omission means no auth. */
++  /** OAuth 2.1 authorization (default enabled — see {@link OAuthConfig}); set `enabled: false` to opt out. */
+   auth?: OAuthConfig
+   /** Per-tool-call timeout in milliseconds. */
+   toolCallTimeoutMs: number
+@@ -157,7 +161,7 @@ export const Config = z.union([
+     auth: z.union([
+       z.const(false),
+       z.object({
+-        enabled: z.boolean().required(),
++        enabled: z.boolean().default(true),
+         scope: z.string(),
+         storage: z.object({
+           callbackPort: z.number().step(1).min(0).max(65_535),
+diff --git a/packages/mcp/mcp-client/src/transport.ts b/packages/mcp/mcp-client/src/transport.ts
+index cf1a0f2ad4..13003cd65a 100644
+--- a/packages/mcp/mcp-client/src/transport.ts
++++ b/packages/mcp/mcp-client/src/transport.ts
+@@ -60,15 +60,20 @@ export function createTransport(
+         oauthProvider: undefined,
+       }
+     case 'streamable-http': {
+-      const oauthProvider = config.auth?.enabled === true
+-        ? new LoopbackOAuthClientProvider(
++      // OAuth attempts silently by default: the provider only activates on
++      // the server's 401 challenge, so servers without auth are unaffected.
++      // Skipped when the config opts out or the headers already carry a
++      // static Authorization (a token flow, not an OAuth flow).
++      const staticAuth = Object.keys(config.headers).some(key => key.toLowerCase() === 'authorization')
++      const oauthProvider = config.auth?.enabled === false || staticAuth
++        ? undefined
++        : new LoopbackOAuthClientProvider(
+           config.serverName,
+-          config.auth.storage ?? {},
+-          config.auth.scope,
++          config.auth?.storage ?? {},
++          config.auth?.scope,
+           log,
+           credentials,
+         )
+-        : undefined
+       const authProvider = oauthProvider
+       // The MCP SDK's StreamableHTTPClientTransport has optional callback
+       // properties typed without `| undefined` (exactOptionalPropertyTypes
+diff --git a/packages/mcp/mcp-client/tests/auth-config.spec.ts b/packages/mcp/mcp-client/tests/auth-config.spec.ts
+index 7425c4175c..c31d647d7f 100644
+--- a/packages/mcp/mcp-client/tests/auth-config.spec.ts
++++ b/packages/mcp/mcp-client/tests/auth-config.spec.ts
+@@ -103,18 +103,22 @@ describe('auth config schema', () => {
+     expect(parsed).not.toHaveProperty('auth')
+   })
+ 
+-  it('rejects an auth block without enabled', () => {
+-    // Raw input bypasses the TypeScript shape on purpose: the schema is the gate.
+-    const raw = { transport: 'streamable-http', serverName: 'srv', url: 'https://x/mcp', auth: { scope: 'a' } } as unknown as Parameters<typeof ConfigSchema>[0]
+-    expect(() => ConfigSchema(raw)).toThrow()
++  it('defaults an auth block without enabled to enabled', () => {
++    const parsed = ConfigSchema({ transport: 'streamable-http', serverName: 'srv', url: 'https://x/mcp', auth: { scope: 'a' } } as never) as unknown as Record<string, unknown>
++    expect(parsed.auth).toMatchObject({ enabled: true, scope: 'a' })
++  })
++
++  it('accepts an explicit opt-out (enabled: false)', () => {
++    const parsed = ConfigSchema({ transport: 'streamable-http', serverName: 'srv', url: 'https://x/mcp', auth: { enabled: false } } as never) as unknown as Record<string, unknown>
++    expect(parsed.auth).toMatchObject({ enabled: false })
+   })
+ })
+ 
+ describe('transport construction with auth', () => {
+-  it('returns no provider when auth is absent', () => {
++  it('returns a transport when auth is absent', () => {
+     const result = createTransport(httpConfig())
+-    expect(result.oauthProvider).toBeUndefined()
+     expect(result.transport).toBeDefined()
++    expect(result.oauthProvider).toBeDefined()
+   })
+ 
+   it('wires a provider when auth is enabled', () => {
+@@ -130,6 +134,22 @@ describe('transport construction with auth', () => {
+     expect(provider!.clientMetadata.scope).toBe('repo')
+   })
+ 
++  it('attempts OAuth silently without any auth declaration', () => {
++    const { oauthProvider: provider } = createTransport(httpConfig())
++    expect(provider).toBeDefined()
++  })
++
++  it('skips the provider when the headers already carry a static Authorization', () => {
++    const config = { ...httpConfig(), headers: { Authorization: 'Bearer static-token' } } as Parameters<typeof createTransport>[0]
++    const { oauthProvider } = createTransport(config)
++    expect(oauthProvider).toBeUndefined()
++  })
++
++  it('skips the provider on an explicit opt-out', () => {
++    const { oauthProvider } = createTransport({ ...httpConfig(), auth: { enabled: false } } as Parameters<typeof createTransport>[0])
++    expect(oauthProvider).toBeUndefined()
++  })
++
+   it('uses the mounted credentials service so state can persist', () => {
+     const store = createRecordStore()
+     const { oauthProvider: provider } = createTransport(httpConfig({ enabled: true }), store)
+-- 
+2.55.0
+
