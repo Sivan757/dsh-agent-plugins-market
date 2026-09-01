@@ -318,8 +318,8 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
                 : null,
             h(
               Button,
-              { variant: 'ghost', size: 'sm', disabled: reauthorizing, title: t('mcpReauthHint'), onClick: reauthorize },
-              reauthorizing ? t('mcpReauthorizing') : t('mcpReauthorize')
+              { variant: 'ghost', size: 'sm', disabled: reauthorizing, title: entry.state === 'failed' ? t('mcpConnectHint') : t('mcpReauthHint'), onClick: reauthorize },
+              reauthorizing ? t('mcpReauthorizing') : entry.state === 'failed' ? t('mcpConnect') : t('mcpReauthorize')
             )
           )
         : null,

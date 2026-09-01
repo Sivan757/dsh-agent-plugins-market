@@ -43,7 +43,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
   // The pre-0.5.4 layout kept a sibling `agent-plugins-data` root; fold it in.
-  void migrateLegacyDataRoot(join(resolveDshHome(), 'agent-plugins-data'), userRoot).catch(error => {
+  void migrateLegacyDataRoot(join(resolveDshHome(), 'agent-plugins-data'), dataRoot).catch(error => {
     ctx.logger?.warn?.(`[dsh-agent-plugins-market] legacy data-root migration failed: ${String(error)}`)
   })
   let providerControl: SkillProviderControl | undefined

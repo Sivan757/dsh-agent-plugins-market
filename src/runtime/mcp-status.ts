@@ -67,7 +67,7 @@ export function buildMcpStatus(
                 : 'degraded'
       const reason = orphaned
         ? 'MCP tools remain after this plugin surface was disabled'
-        : (diagnostic?.reason ?? (override === undefined ? undefined : disabled ? 'disabled by override' : 'modified by override'))
+        : (diagnostic?.reason ?? (override === undefined || (state !== 'disabled' && tools.length > 0) ? undefined : disabled ? 'disabled by override' : 'modified by override'))
       entries.push({
         id: `plugin:${suite.sourceId}/${suite.id}/${serverKey}`,
         name: serverName,

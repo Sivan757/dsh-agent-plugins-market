@@ -1,11 +1,12 @@
 /**
  * One-time migration from the pre-0.5.4 split layout, where suite data and
  * MCP overrides lived under a sibling `~/.dsh/agent-plugins-data` root: if
- * that root exists, its `data/` and `overrides/` subtrees move under the
- * user root and the emptied sibling is removed. Idempotent — a missing,
- * empty, or already-migrated legacy root is a no-op — and best-effort: a
- * filesystem failure leaves both trees in place for a manual move rather
- * than deleting user data.
+ * that root exists, its `data/` and `overrides/` subtrees move to their
+ * consolidated homes (`<dataRoot>/data` and `<dataRoot>/overrides`, matching
+ * the live resolution) and the emptied sibling is removed. Idempotent — a
+ * missing, empty, or already-migrated legacy root is a no-op — and
+ * best-effort: a filesystem failure leaves both trees in place for a manual
+ * move rather than deleting user data.
  *
  * @module
  */
@@ -15,7 +16,7 @@ import { cp, mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /** Migrate `data/` and `overrides/` from the legacy sibling root, if present. */
-export async function migrateLegacyDataRoot(legacyRoot: string, userRoot: string): Promise<void> {
+export async function migrateLegacyDataRoot(legacyRoot: string, dataRoot: string): Promise<void> {
   if (!existsSync(legacyRoot)) return
   let entries: string[] = []
   try {
@@ -27,7 +28,7 @@ export async function migrateLegacyDataRoot(legacyRoot: string, userRoot: string
   for (const subtree of ['data', 'overrides']) {
     const from = join(legacyRoot, subtree)
     if (!entries.includes(subtree) || !existsSync(from)) continue
-    const to = join(userRoot, subtree)
+    const to = join(dataRoot, subtree)
     if (existsSync(to)) {
       // Merge into an existing target: copy contents, then drop the source.
       await mkdir(to, { recursive: true })
@@ -36,7 +37,7 @@ export async function migrateLegacyDataRoot(legacyRoot: string, userRoot: string
       }
       await rm(from, { recursive: true, force: true })
     } else {
-      await mkdir(join(userRoot), { recursive: true })
+      await mkdir(dataRoot, { recursive: true })
       await cp(from, to, { recursive: true })
       await rm(from, { recursive: true, force: true })
     }
