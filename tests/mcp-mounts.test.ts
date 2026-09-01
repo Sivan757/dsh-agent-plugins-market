@@ -227,6 +227,38 @@ describe('McpMountRegistry', () => {
     await registry.disposeAll()
     expect(mounted[0]!.disposed).toBe(true)
   })
+
+  it('skips mounting when a foreign MCP client already owns the derived serverName namespace', async () => {
+    const mounted: Array<Record<string, unknown>> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    // A native host MCP client (or another plugin) already registered tools
+    // under this suite's derived namespace.
+    registry.setToolNamesProvider(() => ['mcp__alpha__db__query', 'other_tool'])
+
+    const diagnostics = await registry.reconcile([suite('alpha', 'db')])
+
+    expect(mounted).toHaveLength(0)
+    expect(diagnostics).toContainEqual({
+      suiteId: 'alpha',
+      serverKey: 'db',
+      code: 'mount-failed',
+      reason: expect.stringContaining('already mounted by another MCP client')
+    })
+
+    // Once the foreign owner goes away, a later reconcile mounts normally.
+    registry.setToolNamesProvider(() => [])
+    await expect(registry.reconcile([suite('alpha', 'db')])).resolves.toEqual([])
+    expect(mounted).toHaveLength(1)
+    expect(mounted[0]!['serverName']).toBe('alpha__db')
+    await registry.disposeAll()
+  })
 })
 
 describe('CommandMountRegistry (CC commands compat)', () => {

@@ -143,7 +143,12 @@ export function apply(ctx: Context, config: Config = {}): void {
       credentialFlush.unref?.()
     }) ?? (() => {})
   ctx.inject(['tools'], toolsCtx => {
-    catalog.setMcpToolSnapshotProvider(() => inspectToolRegistry((toolsCtx as unknown as { tools: unknown }).tools))
+    const registry = (toolsCtx as unknown as { tools: unknown }).tools
+    catalog.setMcpToolSnapshotProvider(() => inspectToolRegistry(registry))
+    // Foreign-namespace guard: a native host MCP client (or another plugin)
+    // owning `mcp__<serverName>__` names makes the mount registry skip its
+    // own server with a clear diagnostic instead of failing mid-registration.
+    runtime.setMcpToolNamesProvider(() => inspectToolRegistry(registry).map(tool => tool.name))
   })
   void catalog
     .load()

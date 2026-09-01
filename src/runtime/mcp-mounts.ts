@@ -53,6 +53,8 @@ export class McpMountRegistry {
   private readonly names = new Map<string, string>()
   private readonly credentialRefs = new Set<string>()
   private overridesProvider: () => Promise<Map<string, McpSuiteOverrides>> = async () => new Map()
+  /** Live model-facing tool names, for foreign-namespace detection before a mount. */
+  private toolNamesProvider: () => string[] = () => []
   /** Serialize mount and unmount passes so a disable cannot race an in-flight spawn. */
   private reconcileQueue: Promise<void> = Promise.resolve()
   /** Pending retry timers keyed by mount key, so a teardown can cancel them. */
@@ -70,6 +72,15 @@ export class McpMountRegistry {
   /** Install the per-suite overrides provider (suiteId -> overrides). */
   setOverridesProvider(provider: () => Promise<Map<string, McpSuiteOverrides>>): void {
     this.overridesProvider = provider
+  }
+
+  /**
+   * Install the live model-facing tool-name provider (the host registry
+   * snapshot) used to detect foreign `mcp__<serverName>__` namespaces before
+   * a mount is attempted.
+   */
+  setToolNamesProvider(provider: () => string[]): void {
+    this.toolNamesProvider = provider
   }
 
   /** Whether the last catalog snapshot uses one credential reference. */
@@ -194,6 +205,15 @@ export class McpMountRegistry {
   private async mountWith(request: McpMountRequest): Promise<string | undefined> {
     const owner = this.names.get(request.config.serverName)
     if (owner !== undefined) return `derived serverName "${request.config.serverName}" already mounted by ${owner}`
+    // Foreign-namespace guard: a native host MCP client (or another plugin's
+    // mount) may already own this `mcp__<serverName>__` namespace. Registering
+    // into it would fail loudly mid-mount; skipping here reports the conflict
+    // as a clear per-server diagnostic instead, and a later reconcile mounts
+    // this server if the foreign owner goes away.
+    const prefix = `mcp__${request.config.serverName}__`
+    if (this.toolNamesProvider().some(name => name.startsWith(prefix))) {
+      return `serverName "${request.config.serverName}" is already mounted by another MCP client (native config or another plugin) — skipped to avoid a duplicate mount`
+    }
     // The market's own bridge connects stdio, Streamable HTTP (with OAuth),
     // and legacy SSE servers in-process — no host `dsh-mcp-client` install
     // is consulted.

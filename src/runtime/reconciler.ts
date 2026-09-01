@@ -46,6 +46,11 @@ export class RuntimeReconciler {
     this.mcp.setOverridesProvider(provider)
   }
 
+  /** Install the live tool-name provider used for foreign-namespace mount guards. */
+  setMcpToolNamesProvider(provider: () => string[]): void {
+    this.mcp.setToolNamesProvider(provider)
+  }
+
   /** Whether the current MCP snapshot uses one credential reference. */
   usesCredential(ref: string): boolean {
     return this.mcp.usesCredential(ref)
