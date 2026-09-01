@@ -56,8 +56,9 @@ function severity(entry: LspStatusEntry): number {
   if (entry.state === 'failed') return 0
   if (entry.state === 'conflict') return 1
   if (entry.state === 'host-missing') return 2
-  if (entry.state === 'disabled') return 3
-  return 4
+  if (entry.state === 'starting') return 3
+  if (entry.state === 'disabled') return 4
+  return 5
 }
 
 /** Language-server inventory with per-state overview and per-server detail. */
@@ -86,6 +87,33 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     refresh()
   }, [])
 
+  // Startup follows a race: the reconciler mounts LSP servers in the host
+  // process after discovery, so an early read can observe `starting` rows.
+  // Poll quietly until every row settles (or the window closes) instead of
+  // freezing a stale verdict on screen.
+  const anyStarting = payload.entries.some(entry => entry.state === 'starting')
+  useEffect(() => {
+    if (!anyStarting) return
+    let cancelled = false
+    let attempts = 0
+    const timer = setInterval(() => {
+      attempts += 1
+      if (cancelled || attempts > 20) {
+        clearInterval(timer)
+        return
+      }
+      fetchLspStatus()
+        .then(value => {
+          if (!cancelled) setPayload(value)
+        })
+        .catch(() => {})
+    }, 1_000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [anyStarting])
+
   const needle = search.trim().toLowerCase()
   const counts = FILTER_KEYS.reduce<Record<string, number>>((acc, key) => {
     acc[key] = payload.entries.filter(entry => matches(entry, key)).length
@@ -94,8 +122,8 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const visible = payload.entries
     .filter(entry => matches(entry, filter))
     .filter(entry => needle === '' || `${entry.serverKey} ${entry.suiteName} ${entry.command}`.toLowerCase().includes(needle))
-  const mountedCount = payload.entries.filter(entry => entry.state === 'mounted').length
-  const allHealthy = payload.entries.length > 0 && mountedCount === payload.entries.length
+  const settled = payload.entries.filter(entry => entry.state !== 'starting')
+  const allHealthy = settled.length > 0 && settled.every(entry => entry.state === 'mounted')
 
   return h(
     'div',
@@ -387,13 +415,17 @@ function dotClass(state: LspStatusState): string {
   return state === 'host-missing' ? 'host-missing' : state
 }
 
-/** The state-pill CSS suffix; conflict borrows the failed palette. */
+/** The state-pill CSS suffix; conflict borrows the failed palette and
+ *  starting borrows the warn palette. */
 function pillClass(state: LspStatusState): string {
-  return state === 'conflict' ? 'failed' : state
+  if (state === 'conflict') return 'failed'
+  if (state === 'starting') return 'host-missing'
+  return state
 }
 
 function stateLabel(t: Translate, state: LspStatusState): string {
   if (state === 'mounted') return t('lspMounted')
+  if (state === 'starting') return t('lspStarting')
   if (state === 'host-missing') return t('lspHostMissingShort')
   if (state === 'failed') return t('lspFailed')
   if (state === 'conflict') return t('lspConflict')

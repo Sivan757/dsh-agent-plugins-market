@@ -43,7 +43,12 @@ function deriveState(disabled: boolean, diagnostic: LspMountDiagnostic | undefin
   }
   if (diagnostic !== undefined) return { state: 'failed', reason: diagnostic.reason }
   if (anyLive) return { state: 'mounted' }
-  return { state: 'host-missing', reason: 'no live LSP mounts in this runtime' }
+  // A declaration with neither a diagnostic nor a live mount is mid-flight:
+  // the reconciler runs after the host finishes discovery, so the first
+  // panel reads during startup land here. Report `starting` — the panel
+  // polls while any row is starting — instead of the misleading
+  // host-missing verdict, which is reserved for an actual import failure.
+  return { state: 'starting' }
 }
 
 /** Build the status payload from declarations, direct configuration, and mount diagnostics. */

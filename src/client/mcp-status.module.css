@@ -546,3 +546,10 @@
 }
 .retryEchoSuccess { color: var(--dsw-alias-state-success-primary, #16a34a); }
 .retryEchoFailure { color: var(--dsw-alias-state-error-primary, #dc2626); }
+.statusstarting {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  animation: lspStartingPulse 1.2s ease-in-out infinite;
+}
+@keyframes lspStartingPulse {
+  50% { opacity: 0.35; }
+}
