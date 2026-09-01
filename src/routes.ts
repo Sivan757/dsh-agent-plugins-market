@@ -229,6 +229,19 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
     return {}
   })
 
+  // The MCP backend block: which client mounts suite servers, and whether the
+  // host's dsh-mcp-client is resolvable as the compatibility option.
+  get(MARKET_ROUTES.mcpBackend, async (_request, response) => {
+    sendJson(response, 200, await manager.mcpBackendInfo())
+  })
+
+  post(MARKET_ROUTES.setMcpBackend, async body => {
+    const backend = body['backend']
+    if (backend !== 'builtin' && backend !== 'host') throw new Error('backend must be "builtin" or "host"')
+    await manager.setMcpBackend(backend)
+    return await manager.mcpBackendInfo()
+  })
+
   // Validate and persist the user's direct LSP server table; the reconcile
   // pass picks it up and mounts it alongside the suite declarations.
   post(MARKET_ROUTES.lspServers, async body => {

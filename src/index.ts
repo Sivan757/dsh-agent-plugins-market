@@ -134,6 +134,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
   catalog.setLspStatusSource(runtime.lsp)
   runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)
+  // The MCP backend choice persists under the data root; every reconcile pass
+  // re-reads it, so a settings-page switch remounts servers through the new
+  // client on the next pass.
+  runtime.setMcpBackendProvider(() => catalog.mcpBackend())
   const eventHost = ctx as unknown as { on?: (event: string, listener: (ref: string) => void) => () => void }
   const disposeCredentialUpdates =
     eventHost.on?.('credentials/reference-updated', ref => {

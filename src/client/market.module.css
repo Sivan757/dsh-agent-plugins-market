@@ -974,3 +974,50 @@
   display: flex;
   gap: 8px;
 }
+
+.backendBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border, rgba(128, 128, 128, 0.25));
+  border-radius: 10px;
+  opacity: 1;
+}
+
+.backendBlock[data-busy='true'] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.backendRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.backendTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.backendCurrent {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.backendHint {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.backendVersion {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

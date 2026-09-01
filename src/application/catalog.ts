@@ -18,6 +18,7 @@ import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import { buildLspStatus, type LspMountStatusSource } from '../runtime/lsp-status.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
 import { loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import { probeHostMcpClient, readMcpBackend, writeMcpBackend, type HostMcpClientProbe, type McpBackend } from '../runtime/mcp-backend.js'
 import { redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
@@ -197,6 +198,35 @@ export class Catalog {
    */
   async retryMounts(): Promise<void> {
     await this.notifyChanged()
+  }
+
+  /** The persisted backend choice without the host-client probe (mount-time provider). */
+  async mcpBackend(): Promise<McpBackend> {
+    return readMcpBackend(this.options.dataRoot)
+  }
+
+  /**
+   * The active MCP mount backend plus a live probe of the host client, for
+   * the settings-page backend block.
+   */
+  async mcpBackendInfo(): Promise<{ backend: McpBackend; hostClient: HostMcpClientProbe }> {
+    const [backend, hostClient] = await Promise.all([
+      readMcpBackend(this.options.dataRoot),
+      probeHostMcpClient(),
+    ])
+    return { backend, hostClient }
+  }
+
+  /**
+   * Switch the MCP mount backend and remount every suite server through it.
+   * A host-client switch takes effect only where the host package resolves;
+   * unresolvable or unsupported transports surface as per-server diagnostics.
+   */
+  async setMcpBackend(backend: McpBackend): Promise<void> {
+    return this.enqueue(async () => {
+      await writeMcpBackend(this.options.dataRoot, backend)
+      await this.notifyChanged()
+    })
   }
 
   /** All persisted MCP overrides keyed by suite id (mount-time provider). */

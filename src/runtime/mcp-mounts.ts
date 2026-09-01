@@ -10,6 +10,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import * as mcpBridge from './mcp-client/bridge.js'
+import type { McpBackend } from './mcp-backend.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
@@ -55,6 +56,8 @@ export class McpMountRegistry {
   private overridesProvider: () => Promise<Map<string, McpSuiteOverrides>> = async () => new Map()
   /** Live model-facing tool names, for foreign-namespace detection before a mount. */
   private toolNamesProvider: () => string[] = () => []
+  /** The active MCP mount backend ('builtin' bridge or host client compat mode). */
+  private backendProvider: () => Promise<McpBackend> = async () => 'builtin'
   /** Serialize mount and unmount passes so a disable cannot race an in-flight spawn. */
   private reconcileQueue: Promise<void> = Promise.resolve()
   /** Pending retry timers keyed by mount key, so a teardown can cancel them. */
@@ -81,6 +84,11 @@ export class McpMountRegistry {
    */
   setToolNamesProvider(provider: () => string[]): void {
     this.toolNamesProvider = provider
+  }
+
+  /** Install the backend provider deciding which client mounts each server. */
+  setBackendProvider(provider: () => Promise<McpBackend>): void {
+    this.backendProvider = provider
   }
 
   /** Whether the last catalog snapshot uses one credential reference. */
@@ -214,14 +222,26 @@ export class McpMountRegistry {
     if (this.toolNamesProvider().some(name => name.startsWith(prefix))) {
       return `serverName "${request.config.serverName}" is already mounted by another MCP client (native config or another plugin) — skipped to avoid a duplicate mount`
     }
-    // The market's own bridge connects stdio, Streamable HTTP (with OAuth),
-    // and legacy SSE servers in-process — no host `dsh-mcp-client` install
-    // is consulted.
+    // Backend dispatch: the built-in bridge connects stdio, Streamable HTTP
+    // (with OAuth), and legacy SSE servers in-process; the host backend
+    // mounts the host's own `dsh-mcp-client` for compatibility, at the cost
+    // of OAuth and SSE support.
     const mountCtx = this.ctx as unknown as PluginMountContext
     if (typeof mountCtx.plugin !== 'function') return 'the host context does not support dynamic plugin mounting'
+    let pluginModule: unknown = mcpBridge
+    if (await this.backendProvider() === 'host') {
+      if (request.config.transport === 'sse') {
+        return 'the host dsh-mcp-client does not support the legacy SSE transport — switch the MCP backend back to the built-in client for this server'
+      }
+      try {
+        pluginModule = await import('@deepseek-ai/dsh-mcp-client')
+      } catch {
+        return 'the @deepseek-ai/dsh-mcp-client package is not installed in this profile — switch the MCP backend back to the built-in client'
+      }
+    }
     let handle: MountPluginHandle | undefined
     try {
-      handle = mountCtx.plugin(mcpBridge, request.config)
+      handle = mountCtx.plugin(pluginModule, request.config)
       await handle.await()
     } catch (error) {
       // The bridge mounts with failOnStartupError for suite servers, so a

@@ -4,6 +4,7 @@ import type { LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from '../contracts/market.js'
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import type { HostMcpClientProbe, McpBackend } from '../runtime/mcp-backend.js'
 
 /** Read-only market operations required by HTTP routes. */
 export interface MarketQueries {
@@ -35,6 +36,10 @@ export interface MarketMutations {
   retryMounts(): Promise<void>
   reauthorizeMcpServer(serverName: string): Promise<void>
   mcpReauthorizeAvailable(): boolean
+  /** The active MCP backend plus a live probe of the host client. */
+  mcpBackendInfo(): Promise<{ backend: McpBackend; hostClient: HostMcpClientProbe }>
+  /** Switch the MCP mount backend and remount every suite server through it. */
+  setMcpBackend(backend: McpBackend): Promise<void>
 }
 
 /** Complete application surface required by the HTTP routes. */

@@ -24,8 +24,17 @@ export const MARKET_ROUTES = {
   mcpOverrides: `${MARKET_API_PREFIX}mcp-overrides`,
   setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`,
   mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
-  mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`
+  mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
+  mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
+  setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`
 } as const
+
+/** The MCP mount backend state reported to the settings page. */
+export interface McpBackendPayload {
+  backend: 'builtin' | 'host'
+  /** Whether the host `dsh-mcp-client` resolves from the plugin context. */
+  hostClient: { available: boolean; version?: string }
+}
 
 /** A configured source row returned to the market client. */
 export interface SourceOverview {

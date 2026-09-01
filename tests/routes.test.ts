@@ -31,7 +31,9 @@ function service(): MarketService {
     setMcpOverride: async () => {},
     retryMounts: async () => {},
     reauthorizeMcpServer: async () => {},
-    mcpReauthorizeAvailable: () => true
+    mcpReauthorizeAvailable: () => true,
+    mcpBackendInfo: async () => ({ backend: 'builtin' as const, hostClient: { available: true, version: '0.1.1-rc.2' } }),
+    setMcpBackend: async () => {}
   }
 }
 
@@ -119,6 +121,55 @@ describe('market HTTP routes', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     disposeReauth()
+    dispose()
+    expect(routes.size).toBe(0)
+  })
+
+  it('serves the MCP backend block and validates backend switches', async () => {
+    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const webServer: WebServerService = {
+      register: route => {
+        routes.set(route.path, route.handler as (request: unknown, response: unknown) => void | Promise<void>)
+        return () => routes.delete(route.path)
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer }, service())
+
+    const getResponse = response()
+    await routes.get(MARKET_ROUTES.mcpBackend)?.({ url: MARKET_ROUTES.mcpBackend, headers: {} }, getResponse)
+    expect(getResponse.value()).toMatchObject({ backend: 'builtin', hostClient: { available: true, version: '0.1.1-rc.2' } })
+
+    const postRequest = {
+      method: 'POST',
+      url: MARKET_ROUTES.setMcpBackend,
+      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+      on: (event: string, listener: (chunk?: unknown) => void) => {
+        if (event === 'data') listener(Buffer.from(JSON.stringify({ backend: 'host' }), 'utf8'))
+        if (event === 'end') listener()
+      },
+      destroy: () => {}
+    }
+    const postResponse = response()
+    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest, postResponse)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(postResponse.value()).toMatchObject({ ok: true, backend: 'builtin' })
+
+    // An unknown backend value is rejected with a 400 payload.
+    const badRequest = {
+      method: 'POST',
+      url: MARKET_ROUTES.setMcpBackend,
+      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+      on: (event: string, listener: (chunk?: unknown) => void) => {
+        if (event === 'data') listener(Buffer.from(JSON.stringify({ backend: 'nope' }), 'utf8'))
+        if (event === 'end') listener()
+      },
+      destroy: () => {}
+    }
+    const badResponse = response()
+    await routes.get(MARKET_ROUTES.setMcpBackend)?.(badRequest, badResponse)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(badResponse.value()).toMatchObject({ ok: false })
+
     dispose()
     expect(routes.size).toBe(0)
   })

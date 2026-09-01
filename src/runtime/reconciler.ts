@@ -51,6 +51,11 @@ export class RuntimeReconciler {
     this.mcp.setToolNamesProvider(provider)
   }
 
+  /** Install the backend provider deciding which MCP client mounts each server. */
+  setMcpBackendProvider(provider: () => Promise<import('./mcp-backend.js').McpBackend>): void {
+    this.mcp.setBackendProvider(provider)
+  }
+
   /** Whether the current MCP snapshot uses one credential reference. */
   usesCredential(ref: string): boolean {
     return this.mcp.usesCredential(ref)

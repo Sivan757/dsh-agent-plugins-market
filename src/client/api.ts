@@ -96,6 +96,27 @@ export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   await postAction('mcp-reauthorize', { serverName })
 }
 
+/** The MCP backend block state: active client plus host availability. */
+export interface McpBackendInfo {
+  backend: 'builtin' | 'host'
+  hostClient: { available: boolean; version?: string }
+}
+
+export async function fetchMcpBackend(): Promise<McpBackendInfo> {
+  const response = await fetch(MARKET_ROUTES.mcpBackend, { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`mcp backend failed: ${response.status}`)
+  return response.json() as Promise<McpBackendInfo>
+}
+
+/** Switch the MCP mount backend; returns the refreshed block state. */
+export async function setMcpBackend(backend: 'builtin' | 'host'): Promise<McpBackendInfo> {
+  const payload = await postAction('set-mcp-backend', { backend })
+  return {
+    backend: payload['backend'] as 'builtin' | 'host',
+    hostClient: payload['hostClient'] as McpBackendInfo['hostClient']
+  }
+}
+
 export async function postAction(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const response = await fetch(`${MARKET_API_PREFIX}${path}`, {
     method: 'POST',
