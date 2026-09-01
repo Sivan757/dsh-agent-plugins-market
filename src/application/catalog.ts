@@ -10,7 +10,7 @@
 import { mkdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { repoName } from '../catalog/manifests.js'
-import { discoverSourceList } from '../catalog/source-catalog.js'
+import { discoverSourceListWithNotes } from '../catalog/source-catalog.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import { gitClone, gitHead, gitPull, gitRemove } from '../catalog/git.js'
 import { buildMcpStatus, type McpToolSnapshot } from '../runtime/mcp-status.js'
@@ -58,6 +58,8 @@ export interface CatalogSnapshot {
   sources: SourceRef[]
   suites: Suite[]
   enabledSuites: Suite[]
+  /** Per-source scan diagnostics (sourceId → notes), absent when clean. */
+  scanNotes?: Record<string, string[]>
 }
 
 export class Catalog {
@@ -172,7 +174,7 @@ export class Catalog {
       if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
       const checkout = this.sourceCheckoutPath(source)
       if (!(await isDirectory(checkout))) await this.ensureClone(source)
-      const suites = await discoverSuitesInSource(checkout, sourceId, 'user')
+      const suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.mcp?.servers[serverKey] === undefined) throw new Error(`server "${serverKey}" is not defined by suite "${suiteId}"`)
@@ -311,6 +313,7 @@ export class Catalog {
         }
       }
       const sourceSuites = snapshot.suites.filter(suite => suite.sourceId === source.id)
+      const scanNotes = snapshot.scanNotes?.[source.id]
       sourceRows.push({
         id: source.id,
         url: source.url,
@@ -319,6 +322,7 @@ export class Catalog {
         cloned,
         ...(lockCommit === undefined ? {} : { lockCommit }),
         ...(error === undefined ? {} : { error }),
+        ...(scanNotes === undefined ? {} : { scanNotes }),
         suiteIds: sourceSuites.map(suite => suite.id)
       })
     }
@@ -542,7 +546,7 @@ export class Catalog {
       if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
       const checkout = this.sourceCheckoutPath(source)
       if (!(await isDirectory(checkout))) await this.ensureClone(source)
-      const suites = await discoverSuitesInSource(checkout, sourceId, 'user')
+      const suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.remote !== undefined) throw new Error(`suite "${suiteId}" is a remote reference (${suite.remote.url}); add its repository as a source before installing`)
@@ -618,7 +622,7 @@ export class Catalog {
   }
 
   private async buildSnapshot(state: SuiteState, dimension: SuiteDimension, dimensionRoot: string): Promise<CatalogSnapshot> {
-    const discovered = await discoverSourceList(state.sources, dimension, dimensionRoot)
+    const { suites: discovered, scanNotes } = await discoverSourceListWithNotes(state.sources, dimension, dimensionRoot)
     const suites = discovered.map(suite => {
       const installed = state.installed[installKey(suite.sourceId, suite.id)]
       // Native project layouts (`.claude/`, `.agents/`) are the repository's
@@ -636,7 +640,8 @@ export class Catalog {
       revision: this.revision,
       sources: [...state.sources],
       suites,
-      enabledSuites: suites.filter(suite => suite.enabled)
+      enabledSuites: suites.filter(suite => suite.enabled),
+      ...(Object.keys(scanNotes).length > 0 ? { scanNotes } : {})
     }
   }
 

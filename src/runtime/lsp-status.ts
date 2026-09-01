@@ -34,11 +34,7 @@ export interface LspDirectServersSource {
  * Derive one row's state from its suite's diagnostic and the live-mount flag.
  * Shared by suite rows and direct rows so both kinds report identically.
  */
-function deriveState(
-  disabled: boolean,
-  diagnostic: LspMountDiagnostic | undefined,
-  anyLive: boolean
-): { state: LspStatusState; reason?: string; retryable?: boolean } {
+function deriveState(disabled: boolean, diagnostic: LspMountDiagnostic | undefined, anyLive: boolean): { state: LspStatusState; reason?: string; retryable?: boolean } {
   if (disabled) return { state: 'disabled' }
   if (diagnostic?.code === 'host-missing') return { state: 'host-missing', reason: diagnostic.reason }
   if (diagnostic?.code === 'seam-conflict') return { state: 'conflict', reason: diagnostic.reason }
@@ -51,11 +47,7 @@ function deriveState(
 }
 
 /** Build the status payload from declarations, direct configuration, and mount diagnostics. */
-export function buildLspStatus(
-  suites: readonly Suite[],
-  registry: LspMountStatusSource,
-  direct: LspDirectServersSource = { servers: {}, errors: [] }
-): LspStatusPayload {
+export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatusSource, direct: LspDirectServersSource = { servers: {}, errors: [] }): LspStatusPayload {
   const diagnostics = registry.diagnosticsSnapshot()
   const anyLive = registry.hasLiveMounts()
   const entries: LspStatusEntry[] = []

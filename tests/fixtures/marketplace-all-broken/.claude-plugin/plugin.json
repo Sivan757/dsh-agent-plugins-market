@@ -1,0 +1,5 @@
+{
+  "name": "broken-root",
+  "version": "0.9.0",
+  "description": "Root manifest reached only via fallback"
+}

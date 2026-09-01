@@ -1,0 +1,6 @@
+{
+  "name": "gh-remote-market",
+  "plugins": [
+    { "name": "external-gh", "source": { "source": "github", "repo": "example/external-gh" } }
+  ]
+}

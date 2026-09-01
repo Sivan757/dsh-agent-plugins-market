@@ -1,0 +1,11 @@
+{
+  "name": "dual-selfref-market",
+  "plugins": [
+    {
+      "name": "dual-selfref",
+      "version": "1.0.0",
+      "description": "Self-referencing github entry pointing back at this source",
+      "source": { "source": "github", "repo": "example/dual-selfref" }
+    }
+  ]
+}

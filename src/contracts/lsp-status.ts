@@ -4,13 +4,7 @@
 export type LspStatusKind = 'plugin' | 'direct'
 
 /** Operational state rendered for an LSP server row. */
-export type LspStatusState =
-  | 'mounted'
-  | 'starting'
-  | 'host-missing'
-  | 'failed'
-  | 'conflict'
-  | 'disabled'
+export type LspStatusState = 'mounted' | 'starting' | 'host-missing' | 'failed' | 'conflict' | 'disabled'
 
 /**
  * One declared language-server row for the status surface.

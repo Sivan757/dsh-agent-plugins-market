@@ -40,7 +40,7 @@ describe('lsp-direct-config', () => {
   it('normalizes extensions on save (leading dot, lowercase)', async () => {
     const root = await tempRoot()
     const { servers } = await saveLspServers(root, {
-      lspServers: { clangd: { command: 'clangd', extensionToLanguage: { 'C': 'c' } } }
+      lspServers: { clangd: { command: 'clangd', extensionToLanguage: { C: 'c' } } }
     })
     expect(servers['clangd']!.extensionToLanguage).toEqual({ '.c': 'c' })
   })

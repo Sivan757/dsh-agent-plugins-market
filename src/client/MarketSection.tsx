@@ -180,17 +180,20 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
               }),
               ...[...overview.sources]
                 .sort((a, b) => a.id.localeCompare(b.id))
-                .map(source =>
-                  h(SourceTab, {
+                .map(source => {
+                  const notes = source.scanNotes ?? []
+                  const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
+                  return h(SourceTab, {
                     key: source.id,
                     t,
                     active: category === source.id,
-                    label: `${source.id}${source.local === true ? ` · ${t('sourceLocal')}` : ''} ${source.suiteIds.length}${source.cloned === false ? ' ⚠' : ''}`,
+                    label: `${source.id}${source.local === true ? ` · ${t('sourceLocal')}` : ''} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
+                    title: noteHint,
                     onSelect: () => setCategory(source.id),
                     onDelete: () => setConfirm({ kind: 'removeSource', sourceId: source.id }),
                     onEdit: selectedSource?.id === source.id ? () => setEditor({ mode: 'edit', source: source }) : undefined
                   })
-                )
+                })
             )
           ),
           h(SearchFilterToolbar, {

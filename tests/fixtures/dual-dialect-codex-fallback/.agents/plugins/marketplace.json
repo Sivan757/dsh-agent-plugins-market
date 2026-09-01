@@ -1,0 +1,6 @@
+{
+  "name": "codex-market",
+  "plugins": [
+    { "name": "x-plugin", "source": { "source": "local", "path": "./plugins/x" } }
+  ]
+}

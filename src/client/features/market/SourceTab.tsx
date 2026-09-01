@@ -7,6 +7,8 @@ export interface SourceTabProps {
   t: Translate
   active?: boolean
   label: string
+  /** Hover hint for the tab (e.g. scan diagnostics); undefined hides it. */
+  title?: string
   onSelect: () => void
   onDelete?: () => void
   onEdit?: () => void
@@ -14,10 +16,10 @@ export interface SourceTabProps {
 
 /** A source chip with a trailing delete control (deletion confirms at the section level). */
 export function SourceTab(props: SourceTabProps): ReactNode {
-  const { t, active = false, label, onSelect, onDelete, onEdit } = props
+  const { t, active = false, label, title, onSelect, onDelete, onEdit } = props
   return h(
     'div',
-    { className: active ? css.srcTabOn : css.srcTab },
+    { className: active ? css.srcTabOn : css.srcTab, title },
     h('button', { type: 'button', className: css.srcTabMain, onClick: onSelect }, label),
     onEdit === undefined
       ? null

@@ -36,6 +36,9 @@ export interface SourceOverview {
   cloned: boolean
   lockCommit?: string
   error?: string
+  /** Scanner diagnostics for this source (dropped entries, fallbacks taken);
+   *  absent when the scan completed with no notes. */
+  scanNotes?: string[]
   suiteIds: string[]
 }
 

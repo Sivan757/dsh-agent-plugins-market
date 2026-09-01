@@ -1,0 +1,6 @@
+{
+  "name": "ghost-market",
+  "plugins": [
+    { "name": "nowhere", "source": { "source": "unknown" } }
+  ]
+}

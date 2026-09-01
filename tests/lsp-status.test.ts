@@ -41,10 +41,7 @@ describe('buildLspStatus', () => {
   })
 
   it('reports host-missing from the stored diagnostic', () => {
-    const payload = buildLspStatus(
-      [lspSuite('ts')],
-      registry([{ suiteId: 'ts', serverKey: 'ts/typescript', reason: 'not installed', code: 'host-missing' }])
-    )
+    const payload = buildLspStatus([lspSuite('ts')], registry([{ suiteId: 'ts', serverKey: 'ts/typescript', reason: 'not installed', code: 'host-missing' }]))
     expect(payload.entries[0]!.state).toBe('host-missing')
     expect(payload.entries[0]!.reason).toBe('not installed')
     expect(payload.hostMissing).toBe(true)
