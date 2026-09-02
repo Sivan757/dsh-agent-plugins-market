@@ -13,7 +13,7 @@ export interface McpDiagnostic {
   suiteId: string
   serverKey: string
   reason: string
-  code?: 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed'
+  code?: 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed' | 'foreign-mount'
   credentialRefs?: string[]
 }
 
@@ -58,13 +58,15 @@ export function buildMcpStatus(
         ? 'orphaned'
         : diagnostic?.code === 'missing-credential'
           ? 'needs-credentials'
-          : diagnostic !== undefined
-            ? 'failed'
-            : disabled
-              ? 'disabled'
-              : tools.length > 0
-                ? 'connected'
-                : 'degraded'
+          : diagnostic?.code === 'foreign-mount'
+            ? 'foreign'
+            : diagnostic !== undefined
+              ? 'failed'
+              : disabled
+                ? 'disabled'
+                : tools.length > 0
+                  ? 'connected'
+                  : 'degraded'
       const reason = orphaned
         ? 'MCP tools remain after this plugin surface was disabled'
         : (diagnostic?.reason ?? (override === undefined || (state !== 'disabled' && tools.length > 0) ? undefined : disabled ? 'disabled by override' : 'modified by override'))
@@ -82,6 +84,7 @@ export function buildMcpStatus(
         tools: disabled && !orphaned ? [] : tools.map(tool => ({ name: tool.name, ...(tool.description === undefined ? {} : { description: tool.description }) })),
         advertisedTools: tools.length > 0,
         retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',
+        ...(diagnostic?.code === undefined ? {} : { code: diagnostic.code }),
         ...(reason === undefined ? {} : { reason }),
         ...(credentialRefs.length === 0 ? {} : { credentialRefs })
       })
@@ -127,7 +130,8 @@ export function buildMcpStatus(
     failed: entries.filter(entry => entry.state === 'failed').length,
     needsCredentials: entries.filter(entry => entry.state === 'needs-credentials').length,
     orphaned: entries.filter(entry => entry.state === 'orphaned').length,
-    disabled: entries.filter(entry => entry.state === 'disabled').length
+    disabled: entries.filter(entry => entry.state === 'disabled').length,
+    foreign: entries.filter(entry => entry.state === 'foreign').length
   }
   return { entries, observedAt: new Date().toISOString(), totals, directObservationOnly: true }
 }

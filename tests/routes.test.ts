@@ -10,7 +10,7 @@ function service(): MarketService {
     mcpStatus: async () => ({
       entries: [],
       observedAt: '',
-      totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0 },
+      totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
       directObservationOnly: true
     }),
     sourceProgress: () => ({ active: false, sourceId: '', step: '' }),

@@ -107,6 +107,7 @@
 .summaryDotGreen { background: var(--dsw-alias-state-success-primary, #16a34a); }
 .summaryDotRed { background: var(--dsw-alias-state-error-primary, #dc2626); }
 .summaryDotWarn { background: var(--dsw-alias-state-warn-primary, #b45309); }
+.summaryDotInfo { background: var(--dsw-alias-brand-primary, #4f6ef7); }
 .toolbar {
   flex: none;
   margin-bottom: 24px;
@@ -552,4 +553,17 @@
 }
 @keyframes lspStartingPulse {
   50% { opacity: 0.35; }
+}
+
+.statusforeign { background: var(--dsw-alias-brand-primary, #4f6ef7); }
+
+.cardForeign { border-left: 3px solid var(--dsw-alias-brand-primary, #4f6ef7); }
+
+.reasonRaw {
+  margin: 6px 0 0;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
 }

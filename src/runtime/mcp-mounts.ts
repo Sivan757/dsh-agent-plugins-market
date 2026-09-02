@@ -152,9 +152,14 @@ export class McpMountRegistry {
       if (this.live.has(key)) continue
       // A retry attempt runs the same mount path; only the last failure is
       // reported so a transient error does not shadow the final state.
-      const reason = await this.mountWith(entry.request)
-      if (reason !== undefined) diagnostics.push({ suiteId: entry.suite.id, serverKey: entry.serverKey, reason, code: 'mount-failed' })
-      this.scheduleRetry(key, entry.suite.id, entry.serverKey, reason)
+      const failure = await this.mountWith(entry.request)
+      if (failure !== undefined) {
+        diagnostics.push({ suiteId: entry.suite.id, serverKey: entry.serverKey, reason: failure.reason, code: failure.code })
+        // A foreign-namespace skip is deterministic, not transient: retrying
+        // it just burns the attempt budget and log lines. The next full
+        // reconcile re-checks it anyway, so the self-heal path is intact.
+        this.scheduleRetry(key, entry.suite.id, entry.serverKey, failure.code === 'foreign-mount' ? undefined : failure.reason)
+      }
     }
     return diagnostics.filter(diagnostic => diagnostic.reason !== 'unmounted')
   }
@@ -210,9 +215,11 @@ export class McpMountRegistry {
   }
 
   /** Mount one precomputed request (source config merged with overrides). */
-  private async mountWith(request: McpMountRequest): Promise<string | undefined> {
+  private async mountWith(request: McpMountRequest): Promise<{ reason: string; code: McpMountFailureCode } | undefined> {
     const owner = this.names.get(request.config.serverName)
-    if (owner !== undefined) return `derived serverName "${request.config.serverName}" already mounted by ${owner}`
+    if (owner !== undefined) {
+      return { reason: `derived serverName "${request.config.serverName}" already mounted by ${owner}`, code: 'mount-failed' }
+    }
     // Foreign-namespace guard: a native host MCP client (or another plugin's
     // mount) may already own this `mcp__<serverName>__` namespace. Registering
     // into it would fail loudly mid-mount; skipping here reports the conflict
@@ -224,23 +231,34 @@ export class McpMountRegistry {
     const prefix = `mcp__${request.config.serverName}__`
     const foreign = this.toolNamesProvider().filter(name => name.startsWith(prefix))
     if (foreign.length > 0) {
-      return `serverName "${request.config.serverName}" is already mounted by another MCP client (native config or another plugin; matching tools: ${foreign.slice(0, 3).join(', ')}${foreign.length > 3 ? `, +${foreign.length - 3} more` : ''}) — skipped to avoid a duplicate mount; restart the Host if these tools are a leftover`
+      return {
+        reason: `serverName "${request.config.serverName}" is already mounted by another MCP client (native config or another plugin; matching tools: ${foreign.slice(0, 3).join(', ')}${foreign.length > 3 ? `, +${foreign.length - 3} more` : ''}) — skipped to avoid a duplicate mount; restart the Host if these tools are a leftover`,
+        code: 'foreign-mount'
+      }
     }
     // Backend dispatch: the built-in bridge connects stdio, Streamable HTTP
     // (with OAuth), and legacy SSE servers in-process; the host backend
     // mounts the host's own `dsh-mcp-client` for compatibility, at the cost
     // of OAuth and SSE support.
     const mountCtx = this.ctx as unknown as PluginMountContext
-    if (typeof mountCtx.plugin !== 'function') return 'the host context does not support dynamic plugin mounting'
+    if (typeof mountCtx.plugin !== 'function') {
+      return { reason: 'the host context does not support dynamic plugin mounting', code: 'mount-failed' }
+    }
     let pluginModule: unknown = mcpBridge
     if ((await this.backendProvider()) === 'host') {
       if (request.config.transport === 'sse') {
-        return 'the host dsh-mcp-client does not support the legacy SSE transport — switch the MCP backend back to the built-in client for this server'
+        return {
+          reason: 'the host dsh-mcp-client does not support the legacy SSE transport — switch the MCP backend back to the built-in client for this server',
+          code: 'mount-failed'
+        }
       }
       try {
         pluginModule = await import('@deepseek-ai/dsh-mcp-client')
       } catch {
-        return 'the @deepseek-ai/dsh-mcp-client package is not installed in this profile — switch the MCP backend back to the built-in client'
+        return {
+          reason: 'the @deepseek-ai/dsh-mcp-client package is not installed in this profile — switch the MCP backend back to the built-in client',
+          code: 'mount-failed'
+        }
       }
     }
     let handle: MountPluginHandle | undefined
@@ -259,7 +277,7 @@ export class McpMountRegistry {
           // Ignore teardown errors: the startup failure is the real signal.
         }
       }
-      return `mount failed: ${error instanceof Error ? error.message : String(error)}`
+      return { reason: `mount failed: ${error instanceof Error ? error.message : String(error)}`, code: 'mount-failed' }
     }
     this.live.set(mountKey(request.suiteId, request.serverKey), {
       suiteId: request.suiteId,

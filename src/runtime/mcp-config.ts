@@ -28,7 +28,14 @@ export interface McpMountRequest {
   config: Config
 }
 
-export type McpMountFailureCode = 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed'
+export type McpMountFailureCode =
+  | 'unsupported-transport'
+  | 'missing-credential'
+  | 'credential-error'
+  | 'unmount-failed'
+  | 'mount-failed'
+  /** The derived serverName's namespace is already mounted by another MCP client — informational, not a failure. */
+  | 'foreign-mount'
 
 export interface McpMountFailure {
   serverKey: string

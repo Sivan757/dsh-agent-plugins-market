@@ -20,7 +20,7 @@ type ViewMode = SearchFilterToolbarView
 const EMPTY_STATUS: McpStatusPayload = {
   entries: [],
   observedAt: '',
-  totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0 },
+  totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
   directObservationOnly: true
 }
 
@@ -154,6 +154,7 @@ function StatusSummaryBar({ t, totals, observedAt }: { t: Translate; totals: Mcp
     { key: 'failed', count: totals.failed, label: t('mcpFailed') },
     { key: 'needsCredentials', count: totals.needsCredentials, label: t('mcpNeedsCredentials') },
     { key: 'degraded', count: totals.degraded, label: t('mcpDegraded') },
+    { key: 'foreign', count: totals.foreign, label: t('mcpForeign') },
     { key: 'disabled', count: totals.disabled, label: t('mcpDisabled') }
   ].filter(chip => chip.count > 0)
 
@@ -176,6 +177,7 @@ function StatusSummaryBar({ t, totals, observedAt }: { t: Translate; totals: Mcp
 }
 
 function dotTone(key: string): string {
+  if (key === 'foreign') return 'Info'
   if (key === 'degraded' || key === 'needsCredentials') return 'Warn'
   return 'Red'
 }
@@ -290,7 +292,7 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
     footer: h(
       'div',
       { className: css.modalFooter },
-      entry.kind === 'direct' || entry.state === 'connected' || entry.state === 'disabled'
+      entry.kind === 'direct' || entry.state === 'connected' || entry.state === 'disabled' || entry.state === 'foreign'
         ? null
         : h(
             'span',
@@ -343,14 +345,24 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
           ].join(' · '))
         )
       ),
-      entry.reason === undefined
-        ? null
-        : h(
+      // A foreign mount is informational: the localized hint replaces the raw
+      // English reason, which drops to a dim secondary line for its tool names.
+      entry.state === 'foreign'
+        ? h(
             'div',
             { className: css.reasonBox },
             h('span', { className: css.reasonLabel }, t('mcpReasonLabel')),
-            h('p', { className: css.reasonText }, entry.reason)
-          ),
+            h('p', { className: css.reasonText }, t('mcpForeignHint')),
+            entry.reason === undefined ? null : h('p', { className: css.reasonRaw }, entry.reason)
+          )
+        : entry.reason === undefined
+          ? null
+          : h(
+              'div',
+              { className: css.reasonBox },
+              h('span', { className: css.reasonLabel }, t('mcpReasonLabel')),
+              h('p', { className: css.reasonText }, entry.reason)
+            ),
       entry.kind === 'direct' ? h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, t('mcpDirectBoundary'))) : null,
       entry.credentialRefs?.length === 0 || entry.credentialRefs === undefined ? null : h(McpCredentialEditor, { t, api: credentials, refs: entry.credentialRefs }),
       h(

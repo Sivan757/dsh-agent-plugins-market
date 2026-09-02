@@ -248,7 +248,7 @@ describe('McpMountRegistry', () => {
     expect(diagnostics).toContainEqual({
       suiteId: 'alpha',
       serverKey: 'db',
-      code: 'mount-failed',
+      code: 'foreign-mount',
       reason: expect.stringContaining('already mounted by another MCP client')
     })
 
