@@ -217,10 +217,14 @@ export class McpMountRegistry {
     // mount) may already own this `mcp__<serverName>__` namespace. Registering
     // into it would fail loudly mid-mount; skipping here reports the conflict
     // as a clear per-server diagnostic instead, and a later reconcile mounts
-    // this server if the foreign owner goes away.
+    // this server if the foreign owner goes away. The matching names ride the
+    // diagnostic — a leftover of this plugin's own earlier mount (registry
+    // record lost without a teardown) reads as an orphan here, and a Host
+    // restart clears it; a genuinely foreign owner keeps the skip sticky.
     const prefix = `mcp__${request.config.serverName}__`
-    if (this.toolNamesProvider().some(name => name.startsWith(prefix))) {
-      return `serverName "${request.config.serverName}" is already mounted by another MCP client (native config or another plugin) — skipped to avoid a duplicate mount`
+    const foreign = this.toolNamesProvider().filter(name => name.startsWith(prefix))
+    if (foreign.length > 0) {
+      return `serverName "${request.config.serverName}" is already mounted by another MCP client (native config or another plugin; matching tools: ${foreign.slice(0, 3).join(', ')}${foreign.length > 3 ? `, +${foreign.length - 3} more` : ''}) — skipped to avoid a duplicate mount; restart the Host if these tools are a leftover`
     }
     // Backend dispatch: the built-in bridge connects stdio, Streamable HTTP
     // (with OAuth), and legacy SSE servers in-process; the host backend
