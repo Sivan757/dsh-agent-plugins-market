@@ -20,7 +20,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         # Version is pinned via packageManager field in package.json.
       - name: Set up Node.js
         uses: actions/setup-node@v7
