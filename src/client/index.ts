@@ -49,8 +49,6 @@ interface SuiteClientContext {
 
 export const name = 'dsh-agent-plugins-market'
 export const inject = ['slots', 'locale', 'connection']
-/** Extra, optional services: without settingsScope the 插件配置 card is skipped. */
-export const optionalInject = ['settingsScope']/** Primitives this section renders with; absent exports degrade the whole section. */
 export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
 
 /**

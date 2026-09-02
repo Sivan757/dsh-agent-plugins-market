@@ -1117,3 +1117,46 @@
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+.pluginCardHeader {
+  appearance: none;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+}
+
+.pluginCardBody {
+  border-top: 1px solid var(--dsw-alias-border, rgba(128, 128, 128, 0.25));
+  margin-top: 12px;
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pluginChevron {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary, rgba(128, 128, 128, 0.8));
+  font-size: 12px;
+  transition: transform 0.16s;
+  display: inline-flex;
+}
+
+.pluginChevronOpen {
+  transform: rotate(180deg);
+}
+
+.pluginCardRowLabel {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
