@@ -9,7 +9,6 @@
 import { createElement as h, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Button, Modal, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from './api.js'
-import { McpBackendPanel } from './McpBackendPanel.js'
 import { loadOverview, invalidateOverview, startSourceProgressPolling, type SourceProgressState } from './features/market/market-resource.js'
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from './features/market/market-view-model.js'
 import { SourceTab } from './features/market/SourceTab.js'
@@ -197,12 +196,6 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
                 })
             )
           ),
-          mode === 'settings'
-            ? h(McpBackendPanel, {
-                t,
-                onToast: message => setToast({ key: Date.now(), message })
-              })
-            : null,
           h(SearchFilterToolbar, {
             search,
             searchLabel: t('searchPh'),

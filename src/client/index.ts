@@ -11,6 +11,7 @@ import { en, zh, type LocaleKey } from './locales.js'
 import { MarketSection } from './MarketSection.js'
 import { McpStatusPanel } from './McpStatusPanel.js'
 import { LspStatusPanel } from './LspStatusPanel.js'
+import { McpPluginCard } from './McpPluginCard.js'
 import type { CredentialApi } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './page-mode.js'
 
@@ -31,9 +32,16 @@ interface SlotsService {
   register(meta: Record<string, unknown>, component: () => unknown): unknown
 }
 
+/** The subset of the host settings-scope service this plugin touches. */
+interface SettingsScopeService {
+  bind(options: { namespace: string }): { slots: SlotsService }
+}
+
 /** The client cordis context this plugin relies on (structural subset). */
 interface SuiteClientContext {
   effect(callback: () => unknown, label?: string): void
+  /** Late service resolution; absent on hosts predating cross-plugin inject. */
+  inject?(services: string[], callback: (resolved: Record<string, unknown>) => void): void
   locale: LocaleService
   slots: SlotsService
   connection: { api: { credentials: CredentialApi } }
@@ -41,9 +49,16 @@ interface SuiteClientContext {
 
 export const name = 'dsh-agent-plugins-market'
 export const inject = ['slots', 'locale', 'connection']
-
-/** Primitives this section renders with; absent exports degrade the whole section. */
+/** Extra, optional services: without settingsScope the 插件配置 card is skipped. */
+export const optionalInject = ['settingsScope']/** Primitives this section renders with; absent exports degrade the whole section. */
 export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
+
+/**
+ * Register the MCP enhancement card into the host's shared 插件配置 tab
+ * (`settings.plugin.item`), the same seat dshmarket uses. Called through
+ * `ctx.inject(['settingsScope'])` at apply time; a host without the
+ * settingsScope service simply skips the card.
+ */
 
 /** Detect host primitives that predate the exports this UI relies on. */
 export function missingPrimitives(module: Record<string, unknown>, required: readonly string[] = REQUIRED_PRIMITIVES): string[] {
@@ -68,6 +83,22 @@ export function apply(ctx: SuiteClientContext): void {
     isSettingsSurfaceAvailable: () => settingsSurfaceAvailable,
     subscribeLocale: ctx.locale.subscribe === undefined ? undefined : (listener) => ctx.locale.subscribe!(listener),
   }), 'dsh-agent-plugins-market: legacy page mode')
+
+  // The host 插件配置 tab card (optional service; silently skipped when the
+  // host predates settingsScope).
+  ctx.inject?.(['settingsScope'], (scoped: { settingsScope?: SettingsScopeService }) => {
+    const service = scoped.settingsScope
+    if (service === undefined) return
+    const tCard = ctx.locale.bind(NS)
+    service.bind({ namespace: NS }).slots.inject('settings.plugin.item', () =>
+      service.bind({ namespace: NS }).slots.register({
+        name: 'settings.plugin.item',
+        key: NS,
+        locale: NS,
+        inject: () => ({ t: tCard }),
+      }, () => h(McpPluginCard, { t: key => tCard(key as LocaleKey) })),
+    )
+  })
 
   ctx.slots.inject('settings.section', () => {
     settingsSurfaceAvailable = true
