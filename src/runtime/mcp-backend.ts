@@ -4,54 +4,48 @@
  * and legacy SSE) or through the host's `@deepseek-ai/dsh-mcp-client`
  * (compatibility mode: no OAuth, no SSE, but the host-native implementation).
  *
- * The choice persists as `mcpBackend` in `<dataRoot>/settings.json`; the
- * mount registry reads it through a provider so a switch takes effect at the
- * next reconcile pass.
+ * The choice is a host settings namespace (`dsh-agent-plugins-market`,
+ * `mcpEnhanced: boolean`, default true) registered by the plugin's node half:
+ * the registration is what makes the host 插件配置 tab serve our card, the
+ * client card binds it for state, and the node half watches it to remount
+ * servers when the switch flips. `readMcpBackend` remains only as the
+ * one-time migration from the earlier data-root `settings.json` choice.
  *
  * @module runtime/mcp-backend
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
+import z from '@deepseek-ai/schemastery'
 
 /** The MCP mount backend the market uses for suite servers. */
 export type McpBackend = 'builtin' | 'host'
 
 export const MCP_BACKENDS: readonly McpBackend[] = ['builtin', 'host']
 
-/** The persisted market settings document (deliberately small and additive). */
-interface MarketSettings {
-  mcpBackend?: McpBackend
-}
+/** Settings namespace this plugin registers; the key the plugin-config tab pairs our card by. */
+export const MCP_SETTINGS_NAMESPACE = 'dsh-agent-plugins-market'
 
-/** Path of the persisted settings file under the plugin data root. */
+/** Schema of the market settings namespace: the MCP enhancement switch. */
+export const McpEnhancedSettingsSchema = z.object({
+  /** ON (default) = the built-in bridge with OAuth and SSE; OFF = host client compat mode. */
+  mcpEnhanced: z.boolean().default(true)
+})
+
+/** Path of the legacy persisted settings file under the plugin data root. */
 export function marketSettingsPath(dataRoot: string): string {
   return join(dataRoot, 'settings.json')
 }
 
-/** Read the configured backend; absent or invalid values read as the default. */
+/** Read the legacy persisted backend; absent or invalid values read as the default. */
 export async function readMcpBackend(dataRoot: string): Promise<McpBackend> {
   try {
-    const parsed = JSON.parse(await readFile(marketSettingsPath(dataRoot), 'utf8')) as MarketSettings
+    const parsed = JSON.parse(await readFile(marketSettingsPath(dataRoot), 'utf8')) as { mcpBackend?: string }
     return parsed.mcpBackend === 'host' ? 'host' : 'builtin'
   } catch {
     return 'builtin'
   }
-}
-
-/** Persist the backend choice; the next reconcile pass mounts through it. */
-export async function writeMcpBackend(dataRoot: string, backend: McpBackend): Promise<void> {
-  let settings: MarketSettings = {}
-  try {
-    settings = JSON.parse(await readFile(marketSettingsPath(dataRoot), 'utf8')) as MarketSettings
-  } catch {
-    // No settings yet (or unreadable): start from a fresh document.
-  }
-  settings.mcpBackend = backend
-  const path = marketSettingsPath(dataRoot)
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, `${JSON.stringify(settings, null, 2)}\n`, 'utf8')
 }
 
 /** What the host client probe reports: resolvability plus its version. */

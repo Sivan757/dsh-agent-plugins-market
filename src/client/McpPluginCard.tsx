@@ -6,64 +6,75 @@
  * authorization, SSE, browser-leg hold); OFF falls back to the host's
  * `dsh-mcp-client` compatibility client.
  *
- * The card lives in the host card list via the `settings.plugin.item` slot
- * (the same seat dshmarket uses), while the state stays on the market's own
- * backend API — the host settings document is not touched, so no settings
- * schema or host restart is involved.
+ * The switch state is the market's host settings namespace (bound by the
+ * client entry), so a flip persists through the host settings document and
+ * the node half's namespace watcher remounts the servers. The host client
+ * version probe rides the market's own API.
  */
 import { createElement as h, useCallback, useEffect, useState, type ReactNode } from 'react'
-import { fetchMcpBackend, setMcpBackend, type McpBackendInfo } from './api.js'
+import type { McpBackendInfo } from './api.js'
 import css from './market.module.css'
 
 /** Locale subset the card needs (structural — the host binds the real one). */
 type CardTranslate = (key: string, params?: Record<string, unknown>) => string
 
-export interface McpPluginCardProps {
-  t: CardTranslate
+/** The bound settings-namespace face the client entry hands the card. */
+export interface McpEnhanceScopeFace {
+  /** Whether the enhancement is on; defaults to true before the first answer. */
+  enhanced(): boolean
+  /** Whether the host settings document accepts writes. */
+  writable(): boolean
+  subscribe(listener: () => void): () => void
+  setEnhanced(next: boolean): Promise<void>
 }
 
-export function McpPluginCard({ t }: McpPluginCardProps): ReactNode {
+export interface McpPluginCardProps {
+  t: CardTranslate
+  scope: McpEnhanceScopeFace
+  /** Live host-client probe (availability + version) from the market API. */
+  probe: () => Promise<McpBackendInfo>
+}
+
+export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNode {
   const [open, setOpen] = useState(false)
-  const [info, setInfo] = useState<McpBackendInfo | undefined>(undefined)
+  const [, setTick] = useState(0)
+  const [probeInfo, setProbeInfo] = useState<McpBackendInfo | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
 
-  const refresh = useCallback(async () => {
+  useEffect(() => scope.subscribe(() => setTick(tick => tick + 1)), [scope])
+
+  const refreshProbe = useCallback(async () => {
     try {
-      setInfo(await fetchMcpBackend())
-      setError(undefined)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setProbeInfo(await probe())
+    } catch {
+      // The version line degrades silently; the switch still works.
     }
-  }, [])
+  }, [probe])
 
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => { void refreshProbe() }, [refreshProbe])
 
-  // While the first answer is in flight the switch renders ON-but-disabled:
-  // the built-in client is the default, so on is the honest resting state.
-  const enhanced = info === undefined ? true : info.backend === 'builtin'
+  const enhanced = scope.enhanced()
+  const writable = scope.writable()
   // Compat mode requires the host client to resolve; the enhanced (built-in)
   // client is always available because it ships inside this plugin.
-  const hostUsable = info?.hostClient.available === true
+  const hostUsable = probeInfo?.hostClient.available === true
 
   const onToggle = (): void => {
-    if (info === undefined || busy) return
-    const next = enhanced ? 'host' : 'builtin'
-    if (next === 'host' && !hostUsable) {
+    if (busy || !writable) return
+    const next = !enhanced
+    if (!next && !hostUsable) {
       setError(t('mcpBackendHostMissing'))
       return
     }
     setBusy(true)
     setError(undefined)
-    void (async () => {
-      try {
-        setInfo(await setMcpBackend(next))
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause))
-      } finally {
-        setBusy(false)
-      }
-    })()
+    void scope.setEnhanced(next).then(() => {
+      setBusy(false)
+    }).catch((cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      setBusy(false)
+    })
   }
 
   return h(
@@ -76,8 +87,7 @@ export function McpPluginCard({ t }: McpPluginCardProps): ReactNode {
         className: css.pluginCardHeader,
         'aria-expanded': open,
         onClick: () => { setOpen(current => !current) },
-      },
-      h(
+      },      h(
         'div',
         { className: css.pluginCardText },
         h('div', { className: css.pluginCardTitle }, t('nav')),
@@ -103,7 +113,8 @@ export function McpPluginCard({ t }: McpPluginCardProps): ReactNode {
               role: 'switch',
               'aria-checked': enhanced,
               'aria-label': t('mcpCardTitle'),
-              disabled: busy || info === undefined,
+              disabled: busy || !writable,
+              title: writable ? undefined : t('mcpCardReadonly'),
               className: enhanced ? css.pluginSwitchOn : css.pluginSwitchOff,
               onClick: onToggle,
             }, h('span', { className: css.pluginSwitchThumb }))
@@ -111,8 +122,8 @@ export function McpPluginCard({ t }: McpPluginCardProps): ReactNode {
           error !== undefined
             ? h('div', { className: css.pluginCardError }, error)
             : null,
-          info?.hostClient.available === true && info.hostClient.version !== undefined
-            ? h('div', { className: css.pluginCardMeta }, `dsh-mcp-client ${info.hostClient.version}`)
+          probeInfo?.hostClient.available === true && probeInfo.hostClient.version !== undefined
+            ? h('div', { className: css.pluginCardMeta }, `dsh-mcp-client ${probeInfo.hostClient.version}`)
             : null
         )
       : null

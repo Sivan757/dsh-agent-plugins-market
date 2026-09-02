@@ -108,15 +108,6 @@ export async function fetchMcpBackend(): Promise<McpBackendInfo> {
   return response.json() as Promise<McpBackendInfo>
 }
 
-/** Switch the MCP mount backend; returns the refreshed block state. */
-export async function setMcpBackend(backend: 'builtin' | 'host'): Promise<McpBackendInfo> {
-  const payload = await postAction('set-mcp-backend', { backend })
-  return {
-    backend: payload['backend'] as 'builtin' | 'host',
-    hostClient: payload['hostClient'] as McpBackendInfo['hostClient']
-  }
-}
-
 export async function postAction(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const response = await fetch(`${MARKET_API_PREFIX}${path}`, {
     method: 'POST',

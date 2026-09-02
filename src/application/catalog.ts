@@ -18,7 +18,7 @@ import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import { buildLspStatus, type LspMountStatusSource } from '../runtime/lsp-status.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
 import { loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
-import { probeHostMcpClient, readMcpBackend, writeMcpBackend, type HostMcpClientProbe, type McpBackend } from '../runtime/mcp-backend.js'
+import { probeHostMcpClient, type HostMcpClientProbe, type McpBackend } from '../runtime/mcp-backend.js'
 import { redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
@@ -83,6 +83,12 @@ export class Catalog {
   /** Credential-store seam for dropping a grant record (MCP re-authorize). */
   private credentialsStore: { deleteGrantRecord(serverName: string): Promise<void> } | undefined
   private toolSnapshotProvider: () => readonly McpToolSnapshot[] = () => []
+  /** Backend source (the host settings namespace scope); default is the built-in client. */
+  private mcpBackendProvider: () => Promise<McpBackend> = async () => 'builtin'
+  /** Backend writer (a scope update); absent until the settings service resolves. */
+  private mcpBackendWriter: (backend: McpBackend) => Promise<void> = async () => {
+    throw new Error('the settings service is not mounted')
+  }
 
   constructor(private readonly options: CatalogOptions) {
     this.statePath = join(options.userRoot, STATE_FILE_NAME)
@@ -202,7 +208,7 @@ export class Catalog {
 
   /** The persisted backend choice without the host-client probe (mount-time provider). */
   async mcpBackend(): Promise<McpBackend> {
-    return readMcpBackend(this.options.dataRoot)
+    return this.mcpBackendProvider()
   }
 
   /**
@@ -210,7 +216,7 @@ export class Catalog {
    * the settings-page backend block.
    */
   async mcpBackendInfo(): Promise<{ backend: McpBackend; hostClient: HostMcpClientProbe }> {
-    const [backend, hostClient] = await Promise.all([readMcpBackend(this.options.dataRoot), probeHostMcpClient()])
+    const [backend, hostClient] = await Promise.all([this.mcpBackendProvider(), probeHostMcpClient()])
     return { backend, hostClient }
   }
 
@@ -221,9 +227,19 @@ export class Catalog {
    */
   async setMcpBackend(backend: McpBackend): Promise<void> {
     return this.enqueue(async () => {
-      await writeMcpBackend(this.options.dataRoot, backend)
+      await this.mcpBackendWriter(backend)
       await this.notifyChanged()
     })
+  }
+
+  /** Install the backend source (the host settings namespace's scope). */
+  setMcpBackendProvider(provider: () => Promise<McpBackend>): void {
+    this.mcpBackendProvider = provider
+  }
+
+  /** Install the backend writer (a scope update on the same namespace). */
+  setMcpBackendWriter(writer: (backend: McpBackend) => Promise<void>): void {
+    this.mcpBackendWriter = writer
   }
 
   /** All persisted MCP overrides keyed by suite id (mount-time provider). */

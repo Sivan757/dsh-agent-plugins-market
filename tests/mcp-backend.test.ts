@@ -5,10 +5,10 @@
  * selected but unusable (package missing, legacy SSE transport).
  */
 import { describe, expect, it, vi } from 'vitest'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { marketSettingsPath, probeHostMcpClient, readMcpBackend, writeMcpBackend } from '../src/runtime/mcp-backend.js'
+import { marketSettingsPath, MCP_SETTINGS_NAMESPACE, McpEnhancedSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
 import type { Suite } from '../src/model/types.js'
 
@@ -57,20 +57,29 @@ function fakeContext(): { ctx: Record<string, unknown>; mounted: Array<{ module:
 }
 
 describe('MCP backend persistence', () => {
-  it('round-trips the backend choice through settings.json and defaults to builtin', async () => {
+  it('reads the legacy settings.json choice and defaults to builtin', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-backend-'))
     try {
+      // No settings file: the default.
       expect(await readMcpBackend(dataRoot)).toBe('builtin')
-      await writeMcpBackend(dataRoot, 'host')
+      // The one-time migration source: a legacy host choice reads back.
+      await writeFile(marketSettingsPath(dataRoot), JSON.stringify({ mcpBackend: 'host' }), 'utf8')
       expect(await readMcpBackend(dataRoot)).toBe('host')
-      const persisted = JSON.parse(await readFile(marketSettingsPath(dataRoot), 'utf8')) as { mcpBackend?: string }
-      expect(persisted.mcpBackend).toBe('host')
       // An invalid persisted value reads as the default, never throws.
       await writeFile(marketSettingsPath(dataRoot), JSON.stringify({ mcpBackend: 'bogus' }), 'utf8')
       expect(await readMcpBackend(dataRoot)).toBe('builtin')
     } finally {
       await rm(dataRoot, { recursive: true, force: true })
     }
+  })
+
+  it('exposes the settings namespace and schema the plugin-config tab pairs by', async () => {
+    expect(MCP_SETTINGS_NAMESPACE).toBe('dsh-agent-plugins-market')
+    // The schemastery schema resolves a missing section to the ON default.
+    const resolved = McpEnhancedSettingsSchema(undefined) as { mcpEnhanced?: boolean }
+    expect(resolved.mcpEnhanced).toBe(true)
+    const off = McpEnhancedSettingsSchema({ mcpEnhanced: false }) as { mcpEnhanced?: boolean }
+    expect(off.mcpEnhanced).toBe(false)
   })
 
   it('probes the host client with a boolean availability and optional version', async () => {

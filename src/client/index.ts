@@ -7,6 +7,7 @@
  */
 import { createElement as h } from 'react'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
+import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
 import { MarketSection } from './MarketSection.js'
 import { McpStatusPanel } from './McpStatusPanel.js'
@@ -34,7 +35,11 @@ interface SlotsService {
 
 /** The subset of the host settings-scope service this plugin touches. */
 interface SettingsScopeService {
-  bind(options: { namespace: string }): { slots: SlotsService }
+  bind(options: { namespace: string }): {
+    getSnapshot(): { value?: { mcpEnhanced?: boolean }; writable: boolean }
+    subscribe(listener: () => void): () => void
+    set(field: string, value: unknown): Promise<void>
+  }
 }
 
 /** The client cordis context this plugin relies on (structural subset). */
@@ -82,19 +87,32 @@ export function apply(ctx: SuiteClientContext): void {
     subscribeLocale: ctx.locale.subscribe === undefined ? undefined : (listener) => ctx.locale.subscribe!(listener),
   }), 'dsh-agent-plugins-market: legacy page mode')
 
-  // The host 插件配置 tab card (optional service; silently skipped when the
-  // host predates settingsScope).
-  ctx.inject?.(['settingsScope'], (scoped: { settingsScope?: SettingsScopeService }) => {
+  // The host 插件配置 tab card. Registration rides the injected scope's slots
+  // (the dshmarket / dsh-rewind pattern), and the card state binds the
+  // market's settings namespace — the namespace the node half registers,
+  // which is also what makes the tab serve our card at all.
+  ctx.inject?.(['settingsScope'], (scoped: { settingsScope?: SettingsScopeService; slots?: SlotsService }) => {
     const service = scoped.settingsScope
-    if (service === undefined) return
+    const slots = scoped.slots
+    if (service === undefined || slots === undefined) return
     const tCard = ctx.locale.bind(NS)
-    service.bind({ namespace: NS }).slots.inject('settings.plugin.item', () =>
-      service.bind({ namespace: NS }).slots.register({
+    const scope = service.bind({ namespace: NS })
+    slots.inject('settings.plugin.item', () =>
+      slots.register({
         name: 'settings.plugin.item',
         key: NS,
         locale: NS,
         inject: () => ({ t: tCard }),
-      }, () => h(McpPluginCard, { t: key => tCard(key as LocaleKey) })),
+      }, () => h(McpPluginCard, {
+        t: key => tCard(key as LocaleKey),
+        scope: {
+          enhanced: () => scope.getSnapshot().value?.mcpEnhanced !== false,
+          writable: () => scope.getSnapshot().writable,
+          subscribe: listener => scope.subscribe(listener),
+          setEnhanced: next => scope.set('mcpEnhanced', next),
+        },
+        probe: () => fetchMcpBackend(),
+      })),
     )
   })
 

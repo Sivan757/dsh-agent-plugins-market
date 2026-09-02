@@ -22,6 +22,7 @@ import { migrateLegacyDataRoot } from './catalog/legacy-root-migration.js'
 import { resolveDataRoot, resolveDshHome, resolveUserRoot } from './catalog/paths.js'
 import { join } from 'node:path'
 import { mountSuiteRoutes } from './routes.js'
+import { MCP_SETTINGS_NAMESPACE, McpEnhancedSettingsSchema, readMcpBackend } from './runtime/mcp-backend.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
@@ -134,9 +135,39 @@ export function apply(ctx: Context, config: Config = {}): void {
   runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
   catalog.setLspStatusSource(runtime.lsp)
   runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)
-  // The MCP backend choice persists under the data root; every reconcile pass
-  // re-reads it, so a settings-page switch remounts servers through the new
-  // client on the next pass.
+  // The MCP backend choice is a host settings namespace (the registration is
+  // also what makes the plugin-config tab serve our card). The node half owns
+  // it: the provider derives the mount backend from the scope, the writer
+  // flips the switch, and the watcher remounts servers when it flips.
+  ctx.inject(['settings'], settingsCtx => {
+    const settings = (
+      settingsCtx as unknown as {
+        settings: {
+          register<T>(
+            ns: string,
+            schema: unknown,
+            options?: { base?: T }
+          ): {
+            get(): T
+            watch(callback: () => void): () => void
+            update(patch: Partial<T>): Promise<void>
+          }
+        }
+      }
+    ).settings
+    const scope = settings.register(MCP_SETTINGS_NAMESPACE, McpEnhancedSettingsSchema, { base: { mcpEnhanced: true } })
+    catalog.setMcpBackendProvider(async () => (scope.get().mcpEnhanced === false ? 'host' : 'builtin'))
+    catalog.setMcpBackendWriter(async backend => {
+      await scope.update({ mcpEnhanced: backend !== 'host' })
+    })
+    // One-time migration from the earlier data-root settings.json choice.
+    void readMcpBackend(dataRoot).then(backend => {
+      if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})
+    })
+    scope.watch(() => {
+      void reconcileMounts().catch(() => {})
+    })
+  })
   runtime.setMcpBackendProvider(() => catalog.mcpBackend())
   const eventHost = ctx as unknown as { on?: (event: string, listener: (ref: string) => void) => () => void }
   const disposeCredentialUpdates =
