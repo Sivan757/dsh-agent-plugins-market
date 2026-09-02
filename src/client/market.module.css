@@ -206,6 +206,59 @@
   gap: 4px;
 }
 
+/* --- unmanaged checkout adoption row ---------------------------------------------- */
+
+.unmanagedRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #57606a);
+}
+
+.unmanagedLabel {
+  flex-shrink: 0;
+}
+
+.unmanagedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  border: 1px dashed var(--dsw-alias-border-l3, #d9dde3);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  max-width: 220px;
+}
+
+.unmanagedChipName {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unmanagedAdopt {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-brand-primary, #4f6ef7);
+  padding: 0 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.unmanagedAdopt:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+
 .srcTabEdit {
   border: none;
   background: none;
@@ -429,8 +482,11 @@
   transition: background-color 0.15s ease;
 }
 
+/* ON rides the primary button fill (brand → dark in the platform theme),
+   the same track color every other plugin toggle and native control uses —
+   not state-success green, which reads as off-convention beside them. */
 .switchOn {
-  background: var(--dsw-alias-state-success-primary, #22c55e);
+  background: var(--dsw-alias-button-primary-fill, var(--dsw-alias-brand-primary, #4f6ef7));
 }
 
 .switchOff {
