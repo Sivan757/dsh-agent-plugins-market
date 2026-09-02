@@ -14,6 +14,7 @@
 import { createElement as h, useCallback, useEffect, useState, type ReactNode } from 'react'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import type { McpBackendInfo } from './api.js'
+import { ToggleSwitch } from './ui/ToggleSwitch.js'
 import css from './market.module.css'
 
 /** Locale subset the card needs (structural — the host binds the real one). */
@@ -121,16 +122,12 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
               h('div', { className: css.pluginCardRowLabel }, t('mcpCardTitle')),
               h('div', { className: css.pluginCardDesc }, enhanced ? t('mcpCardDescOn') : t('mcpCardDescOff'))
             ),
-            h('button', {
-              type: 'button',
-              role: 'switch',
-              'aria-checked': enhanced,
-              'aria-label': t('mcpCardTitle'),
+            h(ToggleSwitch, {
+              on: enhanced,
               disabled: busy || !writable,
               title: writable ? undefined : t('mcpCardReadonly'),
-              className: enhanced ? css.pluginSwitchOn : css.pluginSwitchOff,
-              onClick: onToggle,
-            }, h('span', { className: css.pluginSwitchThumb }))
+              onChange: onToggle
+            })
           ),
           error !== undefined
             ? h('div', { className: css.pluginCardError }, error)
