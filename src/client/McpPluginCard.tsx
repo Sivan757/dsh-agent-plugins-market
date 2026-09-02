@@ -12,11 +12,17 @@
  * version probe rides the market's own API.
  */
 import { createElement as h, useCallback, useEffect, useState, type ReactNode } from 'react'
+import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import type { McpBackendInfo } from './api.js'
 import css from './market.module.css'
 
 /** Locale subset the card needs (structural — the host binds the real one). */
 type CardTranslate = (key: string, params?: Record<string, unknown>) => string
+
+/** The host's disclosure chevron, matching the native cards' glyph exactly. */
+const chevronIcon = (primitives as unknown as Record<string, unknown>)['IconChevronDownOutline14'] as
+  | ((props: { size?: number }) => ReactNode)
+  | undefined
 
 /** The bound settings-namespace face the client entry hands the card. */
 export interface McpEnhanceScopeFace {
@@ -79,7 +85,10 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
 
   return h(
     'div',
-    { className: css.pluginCard, 'data-busy': busy ? 'true' : undefined },
+    {
+      className: open ? `${css.pluginCard} ${css.pluginCardOpen}` : css.pluginCard,
+      'data-busy': busy ? 'true' : undefined
+    },
     h(
       'button',
       {
@@ -93,7 +102,11 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
         h('div', { className: css.pluginCardTitle }, t('nav')),
         h('div', { className: css.pluginCardDesc }, t('marketCardDesc'))
       ),
-      h('span', { className: open ? `${css.pluginChevron} ${css.pluginChevronOpen}` : css.pluginChevron }, '▾')
+      h(
+        'span',
+        { className: open ? `${css.pluginChevron} ${css.pluginChevronOpen}` : css.pluginChevron },
+        chevronIcon !== undefined ? h(chevronIcon, { size: 14 }) : '▾'
+      )
     ),
     open
       ? h(
