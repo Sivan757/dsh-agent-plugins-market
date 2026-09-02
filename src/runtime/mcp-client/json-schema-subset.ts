@@ -54,16 +54,7 @@ export interface JsonSchemaNode {
 }
 
 /** Constraint keywords the subset enforces; anything else rejects. */
-const CONSTRAINT_KEYWORDS = new Set([
-  'type',
-  'oneOf',
-  'properties',
-  'required',
-  'additionalProperties',
-  'items',
-  'enum',
-  'const',
-])
+const CONSTRAINT_KEYWORDS = new Set(['type', 'oneOf', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'const'])
 /** Annotation keywords accepted but never enforced. */
 const ANNOTATION_KEYWORDS = new Set(['description', 'title', 'default', 'examples'])
 const SCHEMA_TYPES: readonly JsonSchemaType[] = ['object', 'array', 'string', 'number', 'integer', 'boolean', 'null']
@@ -92,13 +83,20 @@ function isLosslessJson(value: unknown): boolean {
 function scalarMatches(schemaType: JsonSchemaType | undefined, value: JsonSchemaScalar): boolean {
   if (schemaType === undefined) return true
   switch (schemaType) {
-    case 'string': return typeof value === 'string'
-    case 'number': return typeof value === 'number'
-    case 'integer': return typeof value === 'number' && Number.isInteger(value)
-    case 'boolean': return typeof value === 'boolean'
-    case 'null': return value === null
+    case 'string':
+      return typeof value === 'string'
+    case 'number':
+      return typeof value === 'number'
+    case 'integer':
+      return typeof value === 'number' && Number.isInteger(value)
+    case 'boolean':
+      return typeof value === 'boolean'
+    case 'null':
+      return value === null
     /* v8 ignore next -- scalar values never satisfy the container types */
-    case 'object': case 'array': return false
+    case 'object':
+    case 'array':
+      return false
   }
 }
 

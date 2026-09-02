@@ -229,7 +229,7 @@ export class McpMountRegistry {
     const mountCtx = this.ctx as unknown as PluginMountContext
     if (typeof mountCtx.plugin !== 'function') return 'the host context does not support dynamic plugin mounting'
     let pluginModule: unknown = mcpBridge
-    if (await this.backendProvider() === 'host') {
+    if ((await this.backendProvider()) === 'host') {
       if (request.config.transport === 'sse') {
         return 'the host dsh-mcp-client does not support the legacy SSE transport — switch the MCP backend back to the built-in client for this server'
       }

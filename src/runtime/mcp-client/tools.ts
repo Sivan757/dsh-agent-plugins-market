@@ -40,7 +40,7 @@ export type McpResult<Structured extends JsonValue = JsonValue> = {
 interface ToolExecutionAgent {
   session?: { requestHeader?: () => { config?: { provider?: string; model?: string } } | undefined }
   options?: { provider?: string; model?: string }
-}/** Execution identity handed to a tool body (structural mirror). */
+} /** Execution identity handed to a tool body (structural mirror). */
 export interface ToolExecution {
   /** Caller-owned cancellation for this invocation. */
   readonly signal: AbortSignal
@@ -104,12 +104,7 @@ const INVALID_NAME_CHARS = /[^A-Za-z0-9_-]/g
 const HASH_LENGTH = 12
 
 /** Raster formats supported by the durable attachment vocabulary. */
-const IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = [
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/gif',
-]
+const IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 
 /** Canonical RFC 4648 base64, excluding whitespace and URL-safe aliases. */
 const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
@@ -119,28 +114,15 @@ const RawCallToolResultSchema = z.record(z.string(), z.unknown())
 
 /** List without mutating the SDK's per-page output-validator cache. */
 function listToolsUncached(client: Client, cursor?: string) {
-  return client.request(
-    { method: 'tools/list', ...cursor === undefined ? {} : { params: { cursor } } },
-    ListToolsResultSchema,
-  )
+  return client.request({ method: 'tools/list', ...(cursor === undefined ? {} : { params: { cursor } }) }, ListToolsResultSchema)
 }
 
 /** Call without the SDK pre-validating an output schema the bridge may not support. */
-function callToolUncached(
-  client: Client,
-  rawName: string,
-  args: Record<string, unknown>,
-  exec: ToolExecution,
-  opts: ToolBridgeOptions,
-) {
-  return client.request(
-    { method: 'tools/call', params: { name: rawName, arguments: args } },
-    RawCallToolResultSchema,
-    {
-      signal: exec.signal,
-      timeout: opts.toolCallTimeoutMs,
-    },
-  )
+function callToolUncached(client: Client, rawName: string, args: Record<string, unknown>, exec: ToolExecution, opts: ToolBridgeOptions) {
+  return client.request({ method: 'tools/call', params: { name: rawName, arguments: args } }, RawCallToolResultSchema, {
+    signal: exec.signal,
+    timeout: opts.toolCallTimeoutMs
+  })
 }
 
 /**
@@ -189,12 +171,7 @@ export function publicToolName(serverName: string, rawName: string): string {
  * @returns A map of registered public tool names to their unregister
  *   disposers — the exact set of live registrations owned by this server.
  */
-export async function syncTools(
-  client: Client,
-  host: ToolHost,
-  opts: ToolBridgeOptions,
-  previous: ToolDisposers,
-): Promise<ToolDisposers> {
+export async function syncTools(client: Client, host: ToolHost, opts: ToolBridgeOptions, previous: ToolDisposers): Promise<ToolDisposers> {
   // Phase 1: fetch and build the next generation without touching the registry.
   const definitions = new Map<string, ToolDefinition>()
   let cursor: string | undefined
@@ -203,21 +180,22 @@ export async function syncTools(
     for (const tool of response.tools) {
       const publicName = publicToolName(opts.serverName, tool.name)
       if (definitions.has(publicName)) {
-        throw new Error(
-          `mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`,
-        )
+        throw new Error(`mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`)
       }
-      definitions.set(publicName, createDefinition(
-        client,
-        host,
+      definitions.set(
         publicName,
-        tool.name,
-        tool.description ?? '',
-        tool.inputSchema,
-        supportedOutputSchema(tool.outputSchema),
-        tool.execution?.taskSupport === 'required',
-        opts,
-      ))
+        createDefinition(
+          client,
+          host,
+          publicName,
+          tool.name,
+          tool.description ?? '',
+          tool.inputSchema,
+          supportedOutputSchema(tool.outputSchema),
+          tool.execution?.taskSupport === 'required',
+          opts
+        )
+      )
     }
     cursor = response.nextCursor
   } while (cursor)
@@ -299,7 +277,7 @@ function createDefinition(
   parameters: Record<string, unknown>,
   structuredSchema: JsonSchemaNode | undefined,
   taskRequired: boolean,
-  opts: ToolBridgeOptions,
+  opts: ToolBridgeOptions
 ): ToolDefinition {
   const projections = new WeakMap<ToolExecution, PreparedProjection>()
   return {
@@ -316,7 +294,7 @@ function createDefinition(
       if (!isDeepStrictEqual(result.value, projection.value)) return undefined
       if (!isDeepStrictEqual(result.content, projection.fallback)) return undefined
       return projection.content
-    },
+    }
   }
 }
 
@@ -327,15 +305,15 @@ function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefi
       type: 'object',
       properties: {
         content: { type: 'array', items: {} },
-        structuredContent: structuredSchema ?? {},
+        structuredContent: structuredSchema ?? {}
       },
       required: structuredSchema === undefined ? ['content'] : ['content', 'structuredContent'],
-      additionalProperties: false,
+      additionalProperties: false
     },
     render(_args: unknown, value: JsonValue) {
       const result = value as unknown as McpResult
       return [{ type: 'text', text: extractText(result.content, rawName) }]
-    },
+    }
   }
 }
 
@@ -355,7 +333,7 @@ function createExecutor(
   rawName: string,
   taskRequired: boolean,
   opts: ToolBridgeOptions,
-  projections: WeakMap<ToolExecution, PreparedProjection>,
+  projections: WeakMap<ToolExecution, PreparedProjection>
 ): ToolDefinition['execute'] {
   return async (args: unknown, exec: ToolExecution) => {
     if (taskRequired) {
@@ -370,16 +348,12 @@ function createExecutor(
 
     // The SDK may return a legacy `toolResult` shape; normalize to content array.
     if (!Array.isArray(result.content)) {
-      const rendered: unknown = 'toolResult' in result
-        ? JSON.stringify(result.toolResult)
-        : '(no output)'
+      const rendered: unknown = 'toolResult' in result ? JSON.stringify(result.toolResult) : '(no output)'
       const text = typeof rendered === 'string' ? rendered : '(no output)'
       if (result.isError === true) throw new Error(text)
       return {
         content: [{ type: 'text', text }],
-        ...result.structuredContent !== undefined
-          ? { structuredContent: result.structuredContent as JsonValue }
-          : {},
+        ...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent as JsonValue } : {})
       }
     }
 
@@ -396,9 +370,7 @@ function createExecutor(
 
     const value: McpResult = {
       content,
-      ...result.structuredContent !== undefined
-        ? { structuredContent: result.structuredContent as JsonValue }
-        : {},
+      ...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent as JsonValue } : {})
     }
     if (containsImage(content)) {
       const fallback: ContentBlock[] = [{ type: 'text', text: extractText(content, rawName) }]
@@ -485,12 +457,7 @@ function imageDiagnostic(block: McpContentBlock, reason: string): string {
  * Any refusal projects every image as text while retaining the canonical raw
  * value for programmatic callers.
  */
-async function prepareImageProjection(
-  host: ToolHost,
-  exec: ToolExecution,
-  content: JsonValue[],
-  toolName: string,
-): Promise<ContentBlock[]> {
+async function prepareImageProjection(host: ToolHost, exec: ToolExecution, content: JsonValue[], toolName: string): Promise<ContentBlock[]> {
   const decoded: SaveImageAttachment[] = []
   const validationErrors = new Map<number, string>()
   const imageIndexes: number[] = []
@@ -507,10 +474,7 @@ async function prepareImageProjection(
   if (validationErrors.size > 0) {
     return projectContent(content, toolName, (block, index) => ({
       type: 'text',
-      text: imageDiagnostic(
-        block,
-        validationErrors.get(index) ?? 'another image in the same result was invalid',
-      ),
+      text: imageDiagnostic(block, validationErrors.get(index) ?? 'another image in the same result was invalid')
     }))
   }
 
@@ -526,17 +490,20 @@ async function prepareImageProjection(
   try {
     const refs = await attachments.saveImages(decoded)
     const byIndex = new Map(imageIndexes.map((index, offset) => [index, refs[offset]] as const))
-    return projectContent(content, toolName, (_block, index) => ({
-      type: 'image',
-      attachment: byIndex.get(index),
-    }) as ContentBlock)
+    return projectContent(
+      content,
+      toolName,
+      (_block, index) =>
+        ({
+          type: 'image',
+          attachment: byIndex.get(index)
+        }) as ContentBlock
+    )
   } catch (error: unknown) {
-    const reason = isImageAdmissionError(error)
-      ? `image admission rejected the result: ${(error as Error).message}`
-      : 'durable image storage rejected the result'
+    const reason = isImageAdmissionError(error) ? `image admission rejected the result: ${(error as Error).message}` : 'durable image storage rejected the result'
     return projectContent(content, toolName, block => ({
       type: 'text',
-      text: imageDiagnostic(block, reason),
+      text: imageDiagnostic(block, reason)
     }))
   }
 }
@@ -566,8 +533,8 @@ function projectContent(
   toolName: string,
   image: (block: McpContentBlock, index: number) => ContentBlock = block => ({
     type: 'text',
-    text: imageDiagnostic(block, 'this result was not admitted to durable model context'),
-  }),
+    text: imageDiagnostic(block, 'this result was not admitted to durable model context')
+  })
 ): ContentBlock[] {
   const projected: ContentBlock[] = []
   const text: string[] = []
@@ -608,7 +575,5 @@ function projectContent(
     }
   }
   flushText()
-  return projected.length > 0
-    ? projected
-    : [{ type: 'text', text: `(${toolName} returned no model-visible content)` }]
+  return projected.length > 0 ? projected : [{ type: 'text', text: `(${toolName} returned no model-visible content)` }]
 }

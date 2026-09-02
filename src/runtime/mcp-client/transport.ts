@@ -42,20 +42,10 @@ function hasStaticAuthorization(headers: Record<string, string>): boolean {
  * when the config opts out or the headers already carry a static
  * Authorization.
  */
-function buildOAuthProvider(
-  config: StreamableHttpConfig | SseConfig,
-  credentials: unknown,
-  log: (message: string) => void,
-): LoopbackOAuthClientProvider | undefined {
+function buildOAuthProvider(config: StreamableHttpConfig | SseConfig, credentials: unknown, log: (message: string) => void): LoopbackOAuthClientProvider | undefined {
   const auth = config.auth
   if (auth?.enabled === false || hasStaticAuthorization(config.headers)) return undefined
-  return new LoopbackOAuthClientProvider(
-    config.serverName,
-    auth?.storage ?? {},
-    auth?.scope,
-    log,
-    credentials,
-  )
+  return new LoopbackOAuthClientProvider(config.serverName, auth?.storage ?? {}, auth?.scope, log, credentials)
 }
 
 /**
@@ -80,7 +70,7 @@ function buildOAuthProvider(
 export function createTransport(
   config: Config,
   credentials?: unknown,
-  log: (message: string) => void = () => {},
+  log: (message: string) => void = () => {}
 ): { transport: Transport; oauthProvider: LoopbackOAuthClientProvider | undefined } {
   switch (config.transport) {
     case 'stdio':
@@ -89,9 +79,9 @@ export function createTransport(
           command: config.command,
           args: config.args,
           env: buildChildEnv(config.env),
-          cwd: config.cwd,
+          cwd: config.cwd
         }),
-        oauthProvider: undefined,
+        oauthProvider: undefined
       }
     case 'streamable-http': {
       const oauthProvider = buildOAuthProvider(config, credentials, log)
@@ -101,13 +91,10 @@ export function createTransport(
       // object, so the cast records only that widening. `finishAuth` is
       // public on the SDK class and completes the browser leg's code
       // exchange inside this transport generation.
-      const transport = new StreamableHTTPClientTransport(
-        new URL(config.url),
-        {
-          requestInit: { headers: config.headers },
-          ...(oauthProvider === undefined ? {} : { authProvider: oauthProvider }),
-        },
-      ) as AuthCapableTransport
+      const transport = new StreamableHTTPClientTransport(new URL(config.url), {
+        requestInit: { headers: config.headers },
+        ...(oauthProvider === undefined ? {} : { authProvider: oauthProvider })
+      }) as AuthCapableTransport
       oauthProvider?.bindTransport(transport)
       return { transport, oauthProvider }
     }
@@ -118,13 +105,10 @@ export function createTransport(
       // every endpoint POST (its `_commonHeaders` merge), so no separate
       // `eventSourceInit` headers wiring is needed — and omitting it keeps
       // the SDK's automatic Authorization injection on 401 retries intact.
-      const transport = new SSEClientTransport(
-        new URL(config.url),
-        {
-          requestInit: { headers: config.headers },
-          ...(oauthProvider === undefined ? {} : { authProvider: oauthProvider }),
-        },
-      ) as AuthCapableTransport
+      const transport = new SSEClientTransport(new URL(config.url), {
+        requestInit: { headers: config.headers },
+        ...(oauthProvider === undefined ? {} : { authProvider: oauthProvider })
+      }) as AuthCapableTransport
       oauthProvider?.bindTransport(transport)
       return { transport, oauthProvider }
     }

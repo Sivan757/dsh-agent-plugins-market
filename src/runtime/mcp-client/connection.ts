@@ -46,7 +46,7 @@ export const RECONNECT_DEFAULTS: Required<ReconnectConfig> = Object.freeze({
   enabled: true,
   initialDelayMs: 500,
   maxDelayMs: 30_000,
-  maxAttempts: 10,
+  maxAttempts: 10
 })
 
 // The SDK's stdio transport owns two two-second termination grace periods.
@@ -125,24 +125,17 @@ export interface ConnectionHandle {
  *   state persists only when it is.
  * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
  */
-export function startConnection(
-  host: ToolHost,
-  config: Config,
-  policy: ResolvedReconnectPolicy,
-  credentials?: unknown,
-): ConnectionHandle {
+export function startConnection(host: ToolHost, config: Config, policy: ResolvedReconnectPolicy, credentials?: unknown): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
   const opts: ToolBridgeOptions = {
     registrationFailure: 'contain',
     serverName: config.serverName,
-    toolCallTimeoutMs: config.toolCallTimeoutMs,
+    toolCallTimeoutMs: config.toolCallTimeoutMs
   }
   // The initial sync uses 'throw' when failOnStartupError is configured, so
   // a registration conflict propagates to the startup-await path. Re-syncs
   // and reconnect syncs always contain conflicts.
-  const startupOpts: ToolBridgeOptions = config.failOnStartupError
-    ? { ...opts, registrationFailure: 'throw' }
-    : opts
+  const startupOpts: ToolBridgeOptions = config.failOnStartupError ? { ...opts, registrationFailure: 'throw' } : opts
 
   let disposed = false
   /** Current generation: the connecting or connected client; undefined during backoff waits and after final failure. */
@@ -189,8 +182,10 @@ export function startConnection(
 
   /** Wait for the transport-owned close signal without letting a broken transport wedge teardown forever. */
   function waitForClose(closed: Promise<void>): Promise<boolean> {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => { resolve(false) }, GENERATION_CLOSE_TIMEOUT_MS)
+    return new Promise(resolve => {
+      const timeout = setTimeout(() => {
+        resolve(false)
+      }, GENERATION_CLOSE_TIMEOUT_MS)
       timeout.unref()
       void closed.then(() => {
         clearTimeout(timeout)
@@ -220,7 +215,9 @@ export function startConnection(
         for (const dispose of disposers.values()) dispose()
         disposers = new Map()
       })
-      host.logger.error(`${label}: giving up after ${policy.maxAttempts} consecutive failed reconnect attempts — tools unregistered; reload the plugin or restart the Host to reconnect`)
+      host.logger.error(
+        `${label}: giving up after ${policy.maxAttempts} consecutive failed reconnect attempts — tools unregistered; reload the plugin or restart the Host to reconnect`
+      )
       return
     }
     const delayMs = Math.min(policy.maxDelayMs, policy.initialDelayMs * 2 ** (failedAttempts - 1))
@@ -245,10 +242,7 @@ export function startConnection(
    * @param startup - Whether this is the bridge's activation attempt.
    */
   async function connectGeneration(startup: boolean): Promise<void> {
-    const generation = new Client(
-      { name: 'dsh-agent-plugins-market', version: '0.1.0' },
-      { capabilities: {} },
-    )
+    const generation = new Client({ name: 'dsh-agent-plugins-market', version: '0.1.0' }, { capabilities: {} })
     const closed: PromiseWithResolvers<void> = Promise.withResolvers()
     let attemptSettled = false
     let closeObserved = false
@@ -264,21 +258,20 @@ export function startConnection(
     }
     // Registered before connect so a list change during the initial sync is
     // queued behind it rather than dropped.
-    generation.setNotificationHandler(
-      ToolListChangedNotificationSchema,
-      async () => {
-        if (!isCurrent(generation)) return
-        host.logger.info(`${label}: tool list changed, re-syncing`)
-        try {
-          await enqueueSync(generation)
-        } catch (error) {
-          // Fetch-phase failure: the previous generation is still registered
-          // and `disposers` still owns it — keep serving the last good list.
-          if (!disposed) host.logger.error(`${label}: tool re-sync failed: ${String(error)}`)
-        }
-      },
-    )
-    const { transport, oauthProvider } = createTransport(config, credentials, (message: string) => { host.logger.info(message) })
+    generation.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      if (!isCurrent(generation)) return
+      host.logger.info(`${label}: tool list changed, re-syncing`)
+      try {
+        await enqueueSync(generation)
+      } catch (error) {
+        // Fetch-phase failure: the previous generation is still registered
+        // and `disposers` still owns it — keep serving the last good list.
+        if (!disposed) host.logger.error(`${label}: tool re-sync failed: ${String(error)}`)
+      }
+    })
+    const { transport, oauthProvider } = createTransport(config, credentials, (message: string) => {
+      host.logger.info(message)
+    })
     try {
       await generation.connect(transport)
       if (hasClosed()) {
@@ -316,8 +309,12 @@ export function startConnection(
           await enqueueSync(generation, startup ? startupOpts : opts)
         } catch (syncError) {
           if (isCurrent(generation)) host.logger.warn(`${label}: tool sync after authorization failed: ${String(syncError)}`)
-          try { await generation.close() } catch { /* transport already gone */ }
-          const quiescedSync = hasClosed() || await waitForClose(closed.promise)
+          try {
+            await generation.close()
+          } catch {
+            /* transport already gone */
+          }
+          const quiescedSync = hasClosed() || (await waitForClose(closed.promise))
           if (!quiescedSync) {
             client = undefined
             clientClosed = undefined
@@ -336,14 +333,20 @@ export function startConnection(
         if (failedAttempts > 0) host.logger.info(`${label}: authorized and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
         return
       }
-      try { await generation.close() } catch { /* transport already gone */ }
-      const quiesced = hasClosed() || await waitForClose(closed.promise)
+      try {
+        await generation.close()
+      } catch {
+        /* transport already gone */
+      }
+      const quiesced = hasClosed() || (await waitForClose(closed.promise))
       attemptSettled = true
       if (!isCurrent(generation)) return
       if (!quiesced) {
         client = undefined
         clientClosed = undefined
-        host.logger.error(`${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`)
+        host.logger.error(
+          `${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`
+        )
         return
       }
       generationDown(generation)
@@ -390,8 +393,12 @@ export function startConnection(
       client = undefined
       clientClosed = undefined
       if (current !== undefined) {
-        try { await current.close() } catch { /* transport already gone */ }
-        if (currentClosed !== undefined && !await waitForClose(currentClosed)) {
+        try {
+          await current.close()
+        } catch {
+          /* transport already gone */
+        }
+        if (currentClosed !== undefined && !(await waitForClose(currentClosed))) {
           host.logger.error(`${label}: generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms during disposal — server shutdown may be incomplete`)
         }
       }
@@ -401,6 +408,6 @@ export function startConnection(
       await syncChain
       for (const dispose of disposers.values()) dispose()
       disposers = new Map()
-    },
+    }
   }
 }

@@ -30,12 +30,7 @@
 
 import { createServer, type IncomingMessage, type Server } from 'node:http'
 import { type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
-import type {
-  OAuthClientInformation,
-  OAuthClientInformationMixed,
-  OAuthClientMetadata,
-  OAuthTokens,
-} from '@modelcontextprotocol/sdk/shared/auth.js'
+import type { OAuthClientInformation, OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { credentialKey, scrubbedParentEnv, type CredentialKey, type CredentialRecordStore } from './host-seams.js'
 import type { OAuthStorageConfig } from './config.js'
 
@@ -59,7 +54,10 @@ const CALLBACK_TIMEOUT_MS = 5 * 60_000
  * two servers sharing one token store, not as a crash.
  */
 function credentialIdFor(serverName: string): string {
-  const folded = serverName.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
+  const folded = serverName
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
   return folded === '' ? 'server' : folded
 }
 
@@ -88,7 +86,7 @@ function asMcpAuthRecord(record: unknown): McpAuthRecord['payload'] | undefined 
   const payload = candidate.payload as { clientInformation?: unknown; tokens?: unknown }
   return {
     ...(payload.clientInformation === undefined ? {} : { clientInformation: payload.clientInformation as OAuthClientInformation }),
-    ...(payload.tokens === undefined ? {} : { tokens: payload.tokens as OAuthTokens }),
+    ...(payload.tokens === undefined ? {} : { tokens: payload.tokens as OAuthTokens })
   }
 }
 
@@ -117,12 +115,14 @@ export const platformBrowserOpener: BrowserOpener = async (authorizationUrl, ser
   const child = spawn(command, args, {
     stdio: 'ignore',
     env: scrubbedParentEnv(),
-    detached: platform !== 'win32',
+    detached: platform !== 'win32'
   })
-  child.once('error', (error) => {
+  child.once('error', error => {
     log(`${serverName}: could not open a browser automatically (${String(error)}); open this URL manually: ${authorizationUrl.toString()}`)
   })
-  child.once('spawn', () => { child.unref() })
+  child.once('spawn', () => {
+    child.unref()
+  })
 }
 
 /**
@@ -152,12 +152,10 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     private readonly scope: string | undefined,
     private readonly log: (message: string) => void,
     store: unknown,
-    private readonly opener: BrowserOpener = platformBrowserOpener,
+    private readonly opener: BrowserOpener = platformBrowserOpener
   ) {
     this.recordKey = credentialKey(MCP_AUTH_RECORD_SCOPE, credentialIdFor(serverName))
-    this.store = typeof (store as Partial<CredentialRecordStore> | undefined)?.modifyRecord === 'function'
-      ? store as CredentialRecordStore
-      : undefined
+    this.store = typeof (store as Partial<CredentialRecordStore> | undefined)?.modifyRecord === 'function' ? (store as CredentialRecordStore) : undefined
   }
 
   get redirectUrl(): string {
@@ -177,7 +175,7 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
       token_endpoint_auth_method: 'none',
       ...(this.scope === undefined ? {} : { scope: this.scope }),
       software_id: CLIENT_SOFTWARE_ID,
-      software_version: CLIENT_SOFTWARE_VERSION,
+      software_version: CLIENT_SOFTWARE_VERSION
     }
   }
 
@@ -186,7 +184,9 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
   }
 
   async saveClientInformation(clientInformation: OAuthClientInformationMixed): Promise<void> {
-    await this.mutate((state) => { state.clientInformation = clientInformation })
+    await this.mutate(state => {
+      state.clientInformation = clientInformation
+    })
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
@@ -194,7 +194,7 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
-    await this.mutate((state) => {
+    await this.mutate(state => {
       state.tokens = tokens
       // The verifier is single-use by spec; the exchange consumed it.
       delete state.codeVerifier
@@ -281,14 +281,16 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     // The SDK invalidates selectively on refresh failures; dropping the whole
     // record is always safe because discovery and registration re-run cheaply.
     if (scope === 'tokens') {
-      await this.mutate((state) => { delete state.tokens })
+      await this.mutate(state => {
+        delete state.tokens
+      })
       return
     }
     if (scope === 'verifier') {
       delete this.providerState.codeVerifier
       return
     }
-    await this.mutate((state) => {
+    await this.mutate(state => {
       if (scope === 'client') delete state.clientInformation
       if (scope === 'all') {
         delete state.tokens
@@ -332,8 +334,8 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
         kind: 'grant',
         payload: {
           ...(this.providerState.clientInformation === undefined ? {} : { clientInformation: this.providerState.clientInformation }),
-          ...(this.providerState.tokens === undefined ? {} : { tokens: this.providerState.tokens }),
-        },
+          ...(this.providerState.tokens === undefined ? {} : { tokens: this.providerState.tokens })
+        }
       }
       await this.store.modifyRecord(this.recordKey, () => Promise.resolve(record))
     })
@@ -352,10 +354,10 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
    */
   private awaitCallback(authorizationUrl: URL): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      const server = createServer((request) => {
+      const server = createServer(request => {
         this.handleCallbackRequest(request, server, resolve, reject)
       })
-      server.on('error', (error) => {
+      server.on('error', error => {
         this.clearCallbackTimer()
         reject(new AuthorizationAbortedError(`${this.serverName}: loopback callback server failed: ${String(error)}`))
       })
@@ -373,21 +375,18 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
         void this.opener(authorizationUrl, this.serverName, this.log)
         this.callbackTimer = setTimeout(() => {
           this.resetCallback()
-          reject(new AuthorizationAbortedError(
-            `${this.serverName}: authorization was not completed within ${CALLBACK_TIMEOUT_MS / 60_000} minutes — open the server's page again or retry the mount`,
-          ))
+          reject(
+            new AuthorizationAbortedError(
+              `${this.serverName}: authorization was not completed within ${CALLBACK_TIMEOUT_MS / 60_000} minutes — open the server's page again or retry the mount`
+            )
+          )
         }, CALLBACK_TIMEOUT_MS)
         this.callbackTimer.unref()
       })
     })
   }
 
-  private handleCallbackRequest(
-    request: IncomingMessage,
-    server: Server,
-    resolve: (code: string) => void,
-    reject: (error: Error) => void,
-  ): void {
+  private handleCallbackRequest(request: IncomingMessage, server: Server, resolve: (code: string) => void, reject: (error: Error) => void): void {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     const oauthError = url.searchParams.get('error')
     const code = url.searchParams.get('code')
@@ -395,11 +394,11 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
       // Drain the request, then answer with a plain page the user can close.
       request.resume()
       request.socket.end(
-        `HTTP/1.1 ${status} ${status === 200 ? 'OK' : 'Bad Request'}\r\n`
-        + 'content-type: text/plain; charset=utf-8\r\nconnection: close\r\n\r\n'
-        + `${message}\n`,
+        `HTTP/1.1 ${status} ${status === 200 ? 'OK' : 'Bad Request'}\r\n` + 'content-type: text/plain; charset=utf-8\r\nconnection: close\r\n\r\n' + `${message}\n`
       )
-      request.on('close', () => { server.close(() => undefined) })
+      request.on('close', () => {
+        server.close(() => undefined)
+      })
     }
     this.clearCallbackTimer()
     this.callbackServer = undefined
@@ -407,9 +406,7 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     if (oauthError !== null) {
       const description = url.searchParams.get('error_description') ?? ''
       respond(400, `Authorization failed: ${oauthError}${description === '' ? '' : ` — ${description}`}`)
-      reject(new AuthorizationAbortedError(
-        `${this.serverName}: the authorization server returned "${oauthError}"${description === '' ? '' : ` (${description})`}`,
-      ))
+      reject(new AuthorizationAbortedError(`${this.serverName}: the authorization server returned "${oauthError}"${description === '' ? '' : ` (${description})`}`))
       return
     }
     if (code === null || code === '') {
@@ -427,5 +424,4 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
       this.callbackTimer = undefined
     }
   }
-
 }

@@ -210,10 +210,7 @@ export class Catalog {
    * the settings-page backend block.
    */
   async mcpBackendInfo(): Promise<{ backend: McpBackend; hostClient: HostMcpClientProbe }> {
-    const [backend, hostClient] = await Promise.all([
-      readMcpBackend(this.options.dataRoot),
-      probeHostMcpClient(),
-    ])
+    const [backend, hostClient] = await Promise.all([readMcpBackend(this.options.dataRoot), probeHostMcpClient()])
     return { backend, hostClient }
   }
 

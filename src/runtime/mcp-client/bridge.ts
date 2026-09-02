@@ -57,9 +57,15 @@ function optionalService(ctx: Context, serviceName: 'credentials' | 'attachments
 /** Adapt the cordis context onto the structural host the bridge modules use. */
 function toToolHost(ctx: Context): ToolHost {
   const logger = {
-    error: (message: string): void => { ctx.logger?.error?.(message) },
-    warn: (message: string): void => { ctx.logger?.warn?.(message) },
-    info: (message: string): void => { ctx.logger?.info?.(message) },
+    error: (message: string): void => {
+      ctx.logger?.error?.(message)
+    },
+    warn: (message: string): void => {
+      ctx.logger?.warn?.(message)
+    },
+    info: (message: string): void => {
+      ctx.logger?.info?.(message)
+    }
   }
   const registry = ctx as unknown as { tools?: { register?: (definition: unknown) => () => void } }
   return {
@@ -71,9 +77,9 @@ function toToolHost(ctx: Context): ToolHost {
           throw new Error('the host context does not expose a tool registry — the "tools" service is required')
         }
         return register.call(registry.tools, definition)
-      },
+      }
     },
-    getService: serviceName => optionalService(ctx, serviceName),
+    getService: serviceName => optionalService(ctx, serviceName)
   }
 }
 
@@ -101,9 +107,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       activeServerNames.set(ctx.root, names)
     }
     if (names.has(config.serverName)) {
-      throw new Error(
-        `market-mcp-client: serverName "${config.serverName}" is already in use by another bridge instance — pick a unique serverName`,
-      )
+      throw new Error(`market-mcp-client: serverName "${config.serverName}" is already in use by another bridge instance — pick a unique serverName`)
     }
     names.add(config.serverName)
     return () => void names.delete(config.serverName)

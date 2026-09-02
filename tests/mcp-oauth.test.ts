@@ -33,7 +33,7 @@ function createRecordStore(initial: Map<string, unknown> = new Map()): {
   return {
     describeRecord: async key => ({
       configured: records.has(key),
-      writable: true,
+      writable: true
     }),
     readRecord: async key => records.get(key),
     modifyRecord: async (key, mutate) => {
@@ -42,14 +42,14 @@ function createRecordStore(initial: Map<string, unknown> = new Map()): {
       calls.modified.push({ key, kind: (next as { kind?: string } | undefined)?.kind ?? 'none' })
       return next
     },
-    calls,
+    calls
   }
 }
 
 const TOKENS = {
   access_token: 'at-1',
   token_type: 'Bearer',
-  refresh_token: 'rt-1',
+  refresh_token: 'rt-1'
 }
 
 afterEach(async () => {
@@ -67,7 +67,7 @@ describe('LoopbackOAuthClientProvider record addressing', () => {
     const key = String(credentialKey('mcp-auth', 'cloudflare-cloudflare-api'))
     expect((await store.readRecord(key)) as { payload: { tokens?: unknown } }).toMatchObject({
       kind: 'grant',
-      payload: { tokens: { access_token: 'at-1' } },
+      payload: { tokens: { access_token: 'at-1' } }
     })
   })
 })
@@ -163,7 +163,7 @@ describe('LoopbackOAuthClientProvider redirect metadata', () => {
       token_endpoint_auth_method: 'none',
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      scope: 'read:files',
+      scope: 'read:files'
     })
   })
 
@@ -181,10 +181,14 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
       probe.listen(0, '127.0.0.1', () => {
         const address = probe.address()
         if (address === null || typeof address === 'string') {
-          probe.close(() => { reject(new Error('no port')) })
+          probe.close(() => {
+            reject(new Error('no port'))
+          })
           return
         }
-        probe.close(() => { resolve(address.port) })
+        probe.close(() => {
+          resolve(address.port)
+        })
       })
       probe.on('error', reject)
     })
@@ -211,7 +215,9 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
     // Attach the rejection assertion before the callback lands, so the
     // rejection is never observably unhandled.
     const rejection = expect(redirect).rejects.toThrow(/access_denied/)
-    await vi.waitFor(() => { expect(provider.awaitingBrowser).toBe(true) })
+    await vi.waitFor(() => {
+      expect(provider.awaitingBrowser).toBe(true)
+    })
     await fetch(`http://127.0.0.1:${port}/callback?error=access_denied`)
     await rejection
     expect(provider.awaitingBrowser).toBe(false)
@@ -221,7 +227,11 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
     const port = await freePort()
     const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
     const finished: Array<string> = []
-    provider.bindTransport({ finishAuth: async (code) => { finished.push(code) } })
+    provider.bindTransport({
+      finishAuth: async code => {
+        finished.push(code)
+      }
+    })
 
     const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
     // While the leg is open, the getter reports the bound loopback URL the
@@ -246,7 +256,9 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
     provider.bindTransport({ finishAuth: async () => {} })
     const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
     const rejection = expect(redirect).rejects.toThrow(/access_denied/)
-    await vi.waitFor(() => { expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`) })
+    await vi.waitFor(() => {
+      expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`)
+    })
 
     const response = await fetch(`http://127.0.0.1:${port}/callback?error=access_denied&error_description=nope`)
     expect(response.status).toBe(400)
@@ -262,12 +274,27 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
     const port = await freePort()
     const logs: Array<string> = []
     const finished: Array<string> = []
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, (message) => { logs.push(message) }, undefined, openerStub)
-    provider.bindTransport({ finishAuth: async (code) => { finished.push(code) } })
+    const provider = new LoopbackOAuthClientProvider(
+      'srv',
+      { callbackPort: port },
+      undefined,
+      message => {
+        logs.push(message)
+      },
+      undefined,
+      openerStub
+    )
+    provider.bindTransport({
+      finishAuth: async code => {
+        finished.push(code)
+      }
+    })
     const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
     // The announce line fires in the listen callback; the leg does not depend
     // on whether the platform helper managed to open a browser.
-    await vi.waitFor(() => { expect(logs.some(line => /opening the browser/.test(line))).toBe(true) })
+    await vi.waitFor(() => {
+      expect(logs.some(line => /opening the browser/.test(line))).toBe(true)
+    })
     // A late user agent (slower than the helper's fate) still completes it.
     await new Promise(resolve => setTimeout(resolve, 100))
     const response = await fetch(`http://127.0.0.1:${port}/callback?code=late`)

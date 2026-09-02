@@ -25,8 +25,7 @@
 
 **本机验证**（2026-09-01）：`~/.dsh/agent-plugins/.sources/` 下有 20 个目录，`state.json` 只登记 12 个 source。未登记的手动克隆包括：`browser-use`、`claude-code-config`、`claude-code-plugins-plus-skills`、`claude-plugins-community`、`context7`、`mcp-memory-service`、`skills`、`taste-skill` 共 8 个。
 
-**连带坑：重新添加同一 URL 会导致二次克隆而非收编。**
-`src/application/catalog.ts:377-418` 的 `addSource()` 先经 `pickSourceId()`（`catalog.ts:453-467`）选 id——若 `.sources/<id>` 已被手动克隆占用，会退避到 `<id>-2` 后缀，然后**克隆一份新的**，而不是直接登记现有目录。
+**连带坑：重新添加同一 URL 会导致二次克隆而非收编。** `src/application/catalog.ts:377-418` 的 `addSource()` 先经 `pickSourceId()`（`catalog.ts:453-467`）选 id——若 `.sources/<id>` 已被手动克隆占用，会退避到 `<id>-2` 后缀，然后**克隆一份新的**，而不是直接登记现有目录。
 
 **当前可用的 workaround**：`local: true` 源（UI「local dir」模式，`src/routes.ts:120-124`、`SourceEditorModal.tsx:57-76`）。把手动克隆的路径（绝对路径或 `~/…`）以本地目录形式登记即可立刻显示，且 `local` 源永不触发克隆/删除。
 
@@ -38,16 +37,16 @@
 
 ### 1.3 对标：Claude Code / Codex 支持的来源类型（调研结论）
 
-| 能力 | Claude Code | Codex |
-| --- | --- | --- |
-| GitHub `owner/repo`（可钉 ref） | ✅ | ✅ |
-| Git URL（HTTPS / SSH，可 `#ref`） | ✅ | ✅ |
-| 指向 marketplace.json 的远程 HTTPS URL | ✅ | ❌ 未找到依据 |
-| 本地路径 | ✅ | ✅ |
-| monorepo 子目录（`git-subdir`） | ✅ | ❌ |
-| npm 包 | ✅ | ❌ |
+| 能力                                                   | Claude Code                                               | Codex         |
+| ------------------------------------------------------ | --------------------------------------------------------- | ------------- |
+| GitHub `owner/repo`（可钉 ref）                        | ✅                                                        | ✅            |
+| Git URL（HTTPS / SSH，可 `#ref`）                      | ✅                                                        | ✅            |
+| 指向 marketplace.json 的远程 HTTPS URL                 | ✅                                                        | ❌ 未找到依据 |
+| 本地路径                                               | ✅                                                        | ✅            |
+| monorepo 子目录（`git-subdir`）                        | ✅                                                        | ❌            |
+| npm 包                                                 | ✅                                                        | ❌            |
 | **HTTPS 压缩包**（`{source:"archive", url, sha256?}`） | ✅ 仅 zip、强制 HTTPS、≤256 MiB、可选 sha256（v2.1.224+） | ❌ 未找到依据 |
-| 本地命令产出（`command`） | ✅（v2.1.229+） | ❌ |
+| 本地命令产出（`command`）                              | ✅（v2.1.229+）                                           | ❌            |
 
 来源：[Claude Code 官方文档 · plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)、[openai/codex PR #17087](https://github.com/openai/codex/pull/17087)、[PR #21396](https://github.com/openai/codex/pull/21396)。注：本仓库 `scan-resolvers.ts:98` 对 `github-release` 的识别是对第三方方言的宽容，并非官方 schema。
 
@@ -90,11 +89,11 @@
 ```ts
 interface SourceRef {
   id: string
-  url: string                 // git URL / 本地路径 / 压缩包 URL
-  branch?: string             // git only
-  local?: boolean             // 现有：本地目录
-  kind?: 'git' | 'local' | 'archive'   // 新增，可选；缺省按 url 形态推断（.zip/.tar.gz/.tgz → archive）
-  sha256?: string             // archive 完整性校验（对齐 CC 官方 schema）
+  url: string // git URL / 本地路径 / 压缩包 URL
+  branch?: string // git only
+  local?: boolean // 现有：本地目录
+  kind?: 'git' | 'local' | 'archive' // 新增，可选；缺省按 url 形态推断（.zip/.tar.gz/.tgz → archive）
+  sha256?: string // archive 完整性校验（对齐 CC 官方 schema）
 }
 ```
 
@@ -125,13 +124,13 @@ interface SourceRef {
 
 ## 3. 实施分期
 
-| 阶段 | 内容 | 量级 |
-| --- | --- | --- |
-| P0（文档） | 2.1-A：local 源登记手动克隆的用法写进 README | 极小 |
-| P1 收编 | `git remote get-url` helper；overview 未登记检测 + adopt 路由（`sources/adopt`）；`addSource` origin 匹配幂等收编 | 小 |
-| P2 提速 | 代理/镜像/超时/重试配置；`GIT_HTTP_LOW_SPEED_*`；fetch+reset 更新策略；codeload 回退（依赖 P3 下载器，可对调） | 中 |
-| P3 archive | `archive.ts`（下载/校验/解压/防穿越）；SourceRef.kind；refresh/install/lock 语义；UI 三态编辑器 | 中 |
-| P4（可选） | `scanUnmanagedSources` 自动发现；npm/git-subdir；entry→archive 一键收编 | 小 |
+| 阶段       | 内容                                                                                                              | 量级 |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | ---- |
+| P0（文档） | 2.1-A：local 源登记手动克隆的用法写进 README                                                                      | 极小 |
+| P1 收编    | `git remote get-url` helper；overview 未登记检测 + adopt 路由（`sources/adopt`）；`addSource` origin 匹配幂等收编 | 小   |
+| P2 提速    | 代理/镜像/超时/重试配置；`GIT_HTTP_LOW_SPEED_*`；fetch+reset 更新策略；codeload 回退（依赖 P3 下载器，可对调）    | 中   |
+| P3 archive | `archive.ts`（下载/校验/解压/防穿越）；SourceRef.kind；refresh/install/lock 语义；UI 三态编辑器                   | 中   |
+| P4（可选） | `scanUnmanagedSources` 自动发现；npm/git-subdir；entry→archive 一键收编                                           | 小   |
 
 依赖关系：P1 独立；P3 的下载器被 P2 的 tarball 回退复用，若 P2 优先实施可先落下载器最小集。
 

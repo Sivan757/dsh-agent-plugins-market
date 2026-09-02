@@ -101,7 +101,7 @@ const IMAGE_ADMISSION_ERROR_CODES = [
   'IMAGE_TYPE_MISMATCH',
   'IMAGE_TOO_LARGE',
   'IMAGE_TOO_MANY_PIXELS',
-  'IMAGE_DIMENSION_TOO_LARGE',
+  'IMAGE_DIMENSION_TOO_LARGE'
 ] as const
 
 /** Runtime membership for structurally compatible errors crossing package boundaries. */
@@ -113,10 +113,7 @@ const IMAGE_ADMISSION_ERROR_CODE_SET: ReadonlySet<string> = new Set(IMAGE_ADMISS
  * reported as such.
  */
 export function isImageAdmissionError(error: unknown): boolean {
-  return error instanceof Error
-    && 'code' in error
-    && typeof (error as { code?: unknown }).code === 'string'
-    && IMAGE_ADMISSION_ERROR_CODE_SET.has((error as { code: string }).code)
+  return error instanceof Error && 'code' in error && typeof (error as { code?: unknown }).code === 'string' && IMAGE_ADMISSION_ERROR_CODE_SET.has((error as { code: string }).code)
 }
 
 // ---- dsh-attachment: durable image vocabulary (structural mirror) ----

@@ -33,16 +33,14 @@ function createMockClient(tools: MockTool[], callResult: Record<string, unknown>
   return {
     listTools,
     callTool,
-    request: vi.fn(async (
-      request: { method: string; params?: Record<string, unknown> },
-    ): Promise<unknown> => {
+    request: vi.fn(async (request: { method: string; params?: Record<string, unknown> }): Promise<unknown> => {
       if (request.method === 'tools/list') return listTools()
       if (request.method === 'tools/call') return callTool()
       throw new Error(`unexpected MCP request: ${request.method}`)
     }),
     setNotificationHandler: vi.fn(),
     connect: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined)
   }
 }
 
@@ -56,9 +54,11 @@ function createFakeHost(): ToolHost & { registered: Map<string, ToolDefinition> 
     tools: {
       register: (definition: ToolDefinition) => {
         registered.set(definition.name, definition)
-        return () => { registered.delete(definition.name) }
-      },
-    },
+        return () => {
+          registered.delete(definition.name)
+        }
+      }
+    }
   }
 }
 
@@ -102,7 +102,7 @@ describe('syncTools', () => {
     const host = createFakeHost()
     const client = createMockClient([
       { name: 'greet', description: 'Say hello', inputSchema: { type: 'object', properties: { name: { type: 'string' } } } },
-      { name: 'add', description: 'Add numbers', inputSchema: { type: 'object', properties: {} } },
+      { name: 'add', description: 'Add numbers', inputSchema: { type: 'object', properties: {} } }
     ])
 
     const disposers = await syncTools(client as never, host, defaultOpts, new Map())
@@ -131,7 +131,7 @@ describe('syncTools', () => {
 
     const badClient = createMockClient([
       { name: 'dup', inputSchema: { type: 'object' } },
-      { name: 'dup', inputSchema: { type: 'object' } },
+      { name: 'dup', inputSchema: { type: 'object' } }
     ])
     await expect(syncTools(badClient as never, host, defaultOpts, previous)).rejects.toThrow(/more than once/)
     // The failed fetch leaves the previous generation registered untouched.
@@ -151,9 +151,7 @@ describe('syncTools', () => {
 
   it('falls back to untyped output when the advertised schema leaves the supported subset', async () => {
     const host = createFakeHost()
-    const client = createMockClient([
-      { name: 'weird', inputSchema: { type: 'object' }, outputSchema: { type: 'object', properties: { a: { type: 'bogus' } } } },
-    ])
+    const client = createMockClient([{ name: 'weird', inputSchema: { type: 'object' }, outputSchema: { type: 'object', properties: { a: { type: 'bogus' } } } }])
 
     await syncTools(client as never, host, defaultOpts, new Map())
 
@@ -166,7 +164,13 @@ describe('syncTools', () => {
   it('contains a registry conflict for ordinary syncs and rolls back to zero tools', async () => {
     const host = createFakeHost()
     // Squatting registration on the server's namespace.
-    host.registered.set('mcp__srv__squatted', { name: 'mcp__srv__squatted', description: '', parameters: {}, output: { schema: { type: 'object' }, render: () => [] }, execute: async () => ({}) })
+    host.registered.set('mcp__srv__squatted', {
+      name: 'mcp__srv__squatted',
+      description: '',
+      parameters: {},
+      output: { schema: { type: 'object' }, render: () => [] },
+      execute: async () => ({})
+    })
     const register = host.tools.register
     host.tools.register = definition => {
       if (definition.name === 'mcp__srv__squatted') throw new Error('name already registered')
@@ -174,7 +178,7 @@ describe('syncTools', () => {
     }
     const client = createMockClient([
       { name: 'squatted', inputSchema: { type: 'object' } },
-      { name: 'other', inputSchema: { type: 'object' } },
+      { name: 'other', inputSchema: { type: 'object' } }
     ])
 
     const disposers = await syncTools(client as never, host, { ...defaultOpts, registrationFailure: 'contain' }, new Map())
@@ -189,14 +193,11 @@ describe('syncTools', () => {
 describe('tool execution', () => {
   it('sends the raw name on the wire and returns the canonical MCP result', async () => {
     const host = createFakeHost()
-    const client = createMockClient(
-      [{ name: 'greet', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'text', text: 'hello' }], structuredContent: { greeting: 'hello' } },
-    )
+    const client = createMockClient([{ name: 'greet', inputSchema: { type: 'object' } }], { content: [{ type: 'text', text: 'hello' }], structuredContent: { greeting: 'hello' } })
     await syncTools(client as never, host, defaultOpts, new Map())
 
     const definition = host.registered.get('mcp__srv__greet')!
-    const value = await definition.execute({ name: 'x' }, { signal: testToolSignal }) as { content: unknown[]; structuredContent?: unknown }
+    const value = (await definition.execute({ name: 'x' }, { signal: testToolSignal })) as { content: unknown[]; structuredContent?: unknown }
 
     expect(client.callTool).toHaveBeenCalled()
     expect(value.content).toEqual([{ type: 'text', text: 'hello' }])
@@ -205,10 +206,7 @@ describe('tool execution', () => {
 
   it('throws on an isError result so the registry produces an error outcome', async () => {
     const host = createFakeHost()
-    const client = createMockClient(
-      [{ name: 'bad', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'text', text: 'boom' }], isError: true },
-    )
+    const client = createMockClient([{ name: 'bad', inputSchema: { type: 'object' } }], { content: [{ type: 'text', text: 'boom' }], isError: true })
     await syncTools(client as never, host, defaultOpts, new Map())
 
     const definition = host.registered.get('mcp__srv__bad')!
@@ -217,9 +215,7 @@ describe('tool execution', () => {
 
   it('rejects tools that require task-based execution', async () => {
     const host = createFakeHost()
-    const client = createMockClient([
-      { name: 'tasky', inputSchema: { type: 'object' }, execution: { taskSupport: 'required' } },
-    ])
+    const client = createMockClient([{ name: 'tasky', inputSchema: { type: 'object' }, execution: { taskSupport: 'required' } }])
     await syncTools(client as never, host, defaultOpts, new Map())
 
     const definition = host.registered.get('mcp__srv__tasky')!
@@ -250,12 +246,18 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
       const failure = clientConnectFailures.shift()
       if (failure !== undefined) throw failure
     })
-    close = vi.fn(async () => { this.onclose?.() })
-  },
+    close = vi.fn(async () => {
+      this.onclose?.()
+    })
+  }
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
-  StdioClientTransport: class { start = vi.fn(async () => {}); send = vi.fn(); close = vi.fn(async () => {}) },
+  StdioClientTransport: class {
+    start = vi.fn(async () => {})
+    send = vi.fn()
+    close = vi.fn(async () => {})
+  }
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
@@ -269,7 +271,7 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
       constructedUrls.push(url.toString())
       constructedOptions.push(this.options)
     }
-  },
+  }
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
@@ -283,7 +285,7 @@ vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
       constructedUrls.push(url.toString())
       constructedOptions.push(this.options)
     }
-  },
+  }
 }))
 
 function httpConfig(auth?: { enabled: boolean; scope?: string }): Config {
@@ -294,7 +296,7 @@ function httpConfig(auth?: { enabled: boolean; scope?: string }): Config {
     headers: {},
     ...(auth === undefined ? {} : { auth }),
     toolCallTimeoutMs: 60_000,
-    failOnStartupError: false,
+    failOnStartupError: false
   }
 }
 
@@ -342,7 +344,7 @@ describe('transport construction with auth', () => {
     const store = {
       describeRecord: async () => ({ configured: false, writable: true }),
       readRecord: async () => undefined,
-      modifyRecord: async (_key: string, mutate: (current: unknown) => Promise<unknown>) => mutate(undefined),
+      modifyRecord: async (_key: string, mutate: (current: unknown) => Promise<unknown>) => mutate(undefined)
     }
     const { oauthProvider: provider } = createTransport(httpConfig({ enabled: true }), store)
     expect((provider as unknown as { store: unknown }).store).toBe(store)
@@ -356,7 +358,7 @@ describe('transport construction with auth', () => {
       headers: { 'x-custom': 'yes' },
       auth: { enabled: true },
       toolCallTimeoutMs: 60_000,
-      failOnStartupError: true,
+      failOnStartupError: true
     }
     const { transport, oauthProvider } = createTransport(config, undefined)
     expect(constructedUrls[0]).toBe('https://mcp.example/sse')
@@ -375,7 +377,7 @@ describe('transport construction with auth', () => {
       env: {},
       cwd: '',
       toolCallTimeoutMs: 60_000,
-      failOnStartupError: true,
+      failOnStartupError: true
     }
     const { oauthProvider } = createTransport(config, undefined)
     expect(oauthProvider).toBeUndefined()
@@ -396,7 +398,7 @@ function fakeContext(options: { credentials?: unknown } = {}): Context & { effec
       if (typeof teardown === 'function') effects.push(teardown)
     },
     tools,
-    ...(options.credentials === undefined ? {} : { get: (name: string) => (name === 'credentials' ? options.credentials : undefined) }),
+    ...(options.credentials === undefined ? {} : { get: (name: string) => (name === 'credentials' ? options.credentials : undefined) })
   }
   return Object.assign(ctx, { effects }) as Context & { effects: Array<() => void> }
 }
