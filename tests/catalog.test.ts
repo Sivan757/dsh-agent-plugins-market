@@ -35,20 +35,21 @@ describe('Catalog application module', () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-catalog-ttl-'))
     await mkdir(join(userRoot, '.sources', 'demo'), { recursive: true })
     await cp(fixture, join(userRoot, '.sources', 'demo'), { recursive: true })
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, userSnapshotTtlMs: 10 })
     await catalog.load()
     await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
     const before = await catalog.readUserCatalog()
     expect(before.suites[0]!.skills.map(skill => skill.name)).not.toContain('late-skill')
-    // Drop a new skill into the working tree out of band, then wait out the TTL.
+    // Drop a new skill into the working tree out of band, then let the tiny
+    // TTL lapse (a macrotask gap suffices for a 10ms window).
     await mkdir(join(userRoot, '.sources', 'demo', 'skills', 'late'), { recursive: true })
     await writeFile(join(userRoot, '.sources', 'demo', 'skills', 'late', 'SKILL.md'), '---\nname: late-skill\ndescription: late\n---\n')
-    await new Promise(resolve => setTimeout(resolve, 30_200))
+    await new Promise(resolve => setTimeout(resolve, 20))
     const after = await catalog.readUserCatalog()
     expect(after).not.toBe(before)
     expect(after.suites[0]!.skills.map(skill => skill.name)).toContain('late-skill')
     await rm(userRoot, { recursive: true, force: true })
-  }, 45_000)
+  })
 
   it('waits for the runtime change callback before a mutation resolves', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-catalog-await-'))
