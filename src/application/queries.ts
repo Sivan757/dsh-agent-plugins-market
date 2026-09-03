@@ -21,9 +21,11 @@ export interface MarketQueries {
 
 /** Mutating market operations required by HTTP routes. */
 export interface MarketMutations {
-  addSource(input: { url: string; branch?: string; local?: boolean }): Promise<SourceRef>
-  updateSource(sourceId: string, patch: { url?: string; branch?: string; local?: boolean }): Promise<void>
+  addSource(input: { url: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<SourceRef>
+  updateSource(sourceId: string, patch: { url?: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<void>
   removeSource(sourceId: string): Promise<void>
+  /** Register an unmanaged `.sources/` checkout in place (manual-clone repair). */
+  adoptSource(id: string): Promise<SourceRef>
   refreshSource(sourceId?: string): Promise<void>
   install(sourceId: string, suiteId: string): Promise<void>
   uninstall(sourceId: string, suiteId: string): Promise<void>
@@ -36,8 +38,12 @@ export interface MarketMutations {
   retryMounts(): Promise<void>
   reauthorizeMcpServer(serverName: string): Promise<void>
   mcpReauthorizeAvailable(): boolean
-  /** The active MCP backend plus a live probe of the host client. */
-  mcpBackendInfo(): Promise<{ backend: McpBackend; hostClient: HostMcpClientProbe }>
+  /** The active MCP backend, host-client probe, and download region. */
+  mcpBackendInfo(): Promise<{
+    backend: McpBackend
+    hostClient: HostMcpClientProbe
+    downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
+  }>
   /** Switch the MCP mount backend and remount every suite server through it. */
   setMcpBackend(backend: McpBackend): Promise<void>
 }

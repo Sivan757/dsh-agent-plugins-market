@@ -22,7 +22,8 @@ import { migrateLegacyDataRoot } from './catalog/legacy-root-migration.js'
 import { resolveDataRoot, resolveDshHome, resolveUserRoot } from './catalog/paths.js'
 import { join } from 'node:path'
 import { mountSuiteRoutes } from './routes.js'
-import { MCP_SETTINGS_NAMESPACE, McpEnhancedSettingsSchema, readMcpBackend } from './runtime/mcp-backend.js'
+import { MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, readMcpBackend } from './runtime/mcp-backend.js'
+import { narrowDownloadRegion } from './runtime/regions.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
@@ -39,6 +40,21 @@ export interface Config {
   dataRoot?: string
   /** Initial repository sources, merged into the persisted state on first load. */
   sources?: SourceRef[]
+  /**
+   * Git/archive acquisition tuning: `proxy` (http/https proxy URL),
+   * `insteadOf` URL-prefix rewrites (mirror acceleration), `timeoutMs` per
+   * git invocation, `cloneRetry` (default true), `fallbackTarball` (retry a
+   * failed GitHub clone as a codeload tarball download; default false), and
+   * `allowHttpArchives` (permit plain-http archive URLs; default false).
+   */
+  git?: {
+    proxy?: string
+    insteadOf?: Record<string, string>
+    timeoutMs?: number
+    cloneRetry?: boolean
+    fallbackTarball?: boolean
+    allowHttpArchives?: boolean
+  }
 }
 
 export function apply(ctx: Context, config: Config = {}): void {
@@ -117,7 +133,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   // Resolved lazily at call time: this plugin's apply may run before the
   // credentials plugin provisions, and a snapshot taken here would be
   // permanently undefined even after the service is live.
-  const catalog = new Catalog({ userRoot, dataRoot, onChanged })
+  const catalog = new Catalog({ userRoot, dataRoot, onChanged, ...(config.git === undefined ? {} : { git: config.git }) })
   // Mirror oauth.ts's `credentialIdFor`: the record is stored under the folded
   // serverName, so the delete must fold the same way or it misses the record.
   const credentialIdFor = (serverName: string): string =>
@@ -155,11 +171,14 @@ export function apply(ctx: Context, config: Config = {}): void {
         }
       }
     ).settings
-    const scope = settings.register(MCP_SETTINGS_NAMESPACE, McpEnhancedSettingsSchema, { base: { mcpEnhanced: true } })
+    const scope = settings.register(MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, {
+      base: { mcpEnhanced: true, downloadRegion: 'auto' }
+    })
     catalog.setMcpBackendProvider(async () => (scope.get().mcpEnhanced === false ? 'host' : 'builtin'))
     catalog.setMcpBackendWriter(async backend => {
       await scope.update({ mcpEnhanced: backend !== 'host' })
     })
+    catalog.setDownloadRegionProvider(async () => narrowDownloadRegion(scope.get().downloadRegion))
     // One-time migration from the earlier data-root settings.json choice.
     void readMcpBackend(dataRoot).then(backend => {
       if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})

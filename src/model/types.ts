@@ -8,16 +8,44 @@
  * internal shape; runtime injection consumes only the internal shape.
  */
 
+/** How a source's content is acquired. */
+export type SourceKind = 'git' | 'local' | 'archive'
+
 /** One configured repository source. */
 export interface SourceRef {
   /** Stable local id; `[a-z0-9][a-z0-9-]*`, unique across sources. */
   id: string
-  /** Git URL to clone, or a local directory path when `local` is set. */
+  /** Git URL, archive (zip / tar.gz) URL, or a local directory path. */
   url: string
   /** Optional branch to pin (git sources only). */
   branch?: string
-  /** Read the source directory directly instead of cloning it. */
+  /** Read the source directory directly instead of cloning it (legacy flag; `kind: 'local'`). */
   local?: boolean
+  /** Acquisition kind; inferred from the URL shape when omitted. */
+  kind?: SourceKind
+  /** Expected SHA-256 of an archive download (archive sources only). */
+  sha256?: string
+  /** The checkout pre-existed (manually cloned or adopted); never deleted on source removal. */
+  adopted?: boolean
+}
+
+/** Archive URL extensions the archive acquisition path understands. */
+const ARCHIVE_URL_PATTERN = /\.(zip|tgz|tar\.gz|tar)$/i
+
+/** Whether a URL points at a downloadable archive. */
+export function isArchiveUrl(url: string): boolean {
+  return ARCHIVE_URL_PATTERN.test(url.trim())
+}
+
+/**
+ * Effective acquisition kind of a source: the explicit `kind` wins, the
+ * legacy `local` flag maps to `'local'`, archive-shaped URLs infer
+ * `'archive'`, and everything else stays `'git'`.
+ */
+export function resolveSourceKind(source: Pick<SourceRef, 'url' | 'local' | 'kind'>): SourceKind {
+  if (source.local === true || source.kind === 'local') return 'local'
+  if (source.kind === 'git' || source.kind === 'archive') return source.kind
+  return isArchiveUrl(source.url) ? 'archive' : 'git'
 }
 
 /** The manifest layout a suite root was discovered under. */
