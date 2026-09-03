@@ -78,8 +78,8 @@ describe('LspMountRegistry', () => {
     const diagnostics = await registry.reconcile([lspSuite('ts'), lspSuite('plain', false), lspSuite('off', true, false)])
     expect(diagnostics).toEqual([])
     expect(mounted).toHaveLength(1)
-    expect(Object.keys(mounted[0]!.servers)).toEqual(['ts/typescript'])
-    expect(mounted[0]!.servers['ts/typescript']).toMatchObject({ command: 'typescript-language-server', args: ['--stdio'], extensionToLanguage: { '.ts': 'typescript' } })
+    expect(Object.keys(mounted[0]!.servers)).toEqual(['src/ts/typescript'])
+    expect(mounted[0]!.servers['src/ts/typescript']).toMatchObject({ command: 'typescript-language-server', args: ['--stdio'], extensionToLanguage: { '.ts': 'typescript' } })
     // Unmounts when the suite disappears between passes.
     await registry.reconcile([])
     await expect(registry.disposeAll()).resolves.toBeUndefined()

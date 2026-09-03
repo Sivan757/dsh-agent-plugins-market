@@ -9,11 +9,13 @@
  * the manager's diagnostic list.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { createHash } from 'node:crypto'
 import * as mcpBridge from './mcp-client/bridge.js'
 import type { McpBackend } from './mcp-backend.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
+import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 
 export interface McpMountDiagnostic {
@@ -28,6 +30,8 @@ interface LiveMount {
   suiteId: string
   serverKey: string
   serverName: string
+  /** Fingerprint of the request config this mount was built from. */
+  configFingerprint: string
   disposer: () => void | Promise<void>
 }
 
@@ -116,7 +120,7 @@ export class McpMountRegistry {
     const diagnostics: McpMountDiagnostic[] = []
     this.credentialRefs.clear()
     for (const suite of active) {
-      const suiteOverrides = overrides.get(suite.id)
+      const suiteOverrides = overrides.get(qualifiedSuiteId(suite.sourceId, suite.id))
       for (const [serverKey, source] of Object.entries(suite.mcp?.servers ?? {})) {
         const override = suiteOverrides?.[serverKey]
         if (override?.enabled === false) continue
@@ -149,7 +153,19 @@ export class McpMountRegistry {
       }
     }
     for (const [key, entry] of wanted) {
-      if (this.live.has(key)) continue
+      const live = this.live.get(key)
+      if (live !== undefined && live.configFingerprint === fingerprintOf(entry.request)) continue
+      // Either a fresh mount, or a remount because the resolved config moved
+      // (a credential rotation rewrites the env/header/url values while the
+      // suite stays enabled) — keeping the old mount would keep serving the
+      // old token until disable or restart.
+      if (live !== undefined) {
+        const reason = await this.unmount(key, live)
+        if (reason !== undefined) {
+          diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKey, reason, code: 'unmount-failed' })
+          continue
+        }
+      }
       // A retry attempt runs the same mount path; only the last failure is
       // reported so a transient error does not shadow the final state.
       const failure = await this.mountWith(entry.request)
@@ -283,6 +299,7 @@ export class McpMountRegistry {
       suiteId: request.suiteId,
       serverKey: request.serverKey,
       serverName: request.config.serverName,
+      configFingerprint: fingerprintOf(request),
       disposer: () => handle.dispose()
     })
     this.names.set(request.config.serverName, `${request.suiteId}/${request.serverKey}`)
@@ -305,4 +322,13 @@ export class McpMountRegistry {
 
 function mountKey(suiteId: string, serverKey: string): string {
   return `${suiteId}\u0000${serverKey}`
+}
+
+/**
+ * Stable fingerprint of one resolved mount request: any change to the
+ * transport, url, headers, env, args, or auth shape produces a different
+ * fingerprint and forces a remount on the next reconcile pass.
+ */
+function fingerprintOf(request: McpMountRequest): string {
+  return createHash('sha256').update(JSON.stringify(request.config)).digest('hex')
 }

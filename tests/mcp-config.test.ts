@@ -31,13 +31,13 @@ const alwaysResolves = { resolve: async () => ({ value: 'resolved' }) } as const
 describe('mcp-config: suite mcp.json → bridge rows', () => {
   it('maps stdio, streamable-http, and legacy SSE servers', async () => {
     const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
-    expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web', 'my-suite__legacy'])
+    expect(mounts.map(mount => mount.config.serverName)).toEqual(['demo_my-suite__db', 'demo_my-suite__web', 'demo_my-suite__legacy'])
     expect(failures).toEqual([])
     const db = mounts[0]!.config as Record<string, unknown>
     expect(db['transport']).toBe('stdio')
     expect(db['command']).toBe('/tmp/my-suite/bin/db')
     expect(db['args']).toEqual(['--root', '/tmp/my-suite'])
-    expect(db['env']).toEqual({ CACHE: '/tmp/data/my-suite/cache' })
+    expect(db['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
     expect(db['cwd']).toBe('/tmp/my-suite/data')
     const web = mounts[1]!.config as Record<string, unknown>
     expect(web['transport']).toBe('streamable-http')

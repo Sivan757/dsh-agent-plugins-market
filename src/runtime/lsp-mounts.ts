@@ -18,6 +18,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { DIRECT_LSP_SUITE_ID } from './lsp-status.js'
+import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { Suite } from '../model/types.js'
 
 export interface LspMountDiagnostic {
@@ -139,9 +140,13 @@ export class LspMountRegistry {
     for (const suite of active) {
       const servers = Object.values(suite.lsp?.servers ?? {})
       if (servers.length === 0) continue
+      // The wanted key is the qualified suite id: bare suite ids are unique
+      // per source only, so two sources shipping the same suite name would
+      // otherwise shadow each other's mount and diagnostics.
+      const key = qualifiedSuiteId(suite.sourceId, suite.id)
       const config: Record<string, LspStdioServerConfig> = {}
-      for (const spec of servers) config[`${suite.id}/${spec.key}`] = toLspServerConfig(spec)
-      wanted.set(suite.id, { suite, config })
+      for (const spec of servers) config[`${key}/${spec.key}`] = toLspServerConfig(spec)
+      wanted.set(key, { suite, config })
     }
     // Direct user-configured servers ride the same mount path under the
     // sentinel suite id, so their lifecycle (retries, diagnostics, disposal)
@@ -175,16 +180,16 @@ export class LspMountRegistry {
     }
     for (const [key, entry] of wanted) {
       if (this.live.has(key)) {
-        this.lastDiagnostics.delete(entry.suite.id)
+        this.lastDiagnostics.delete(key)
         continue
       }
       const failure = await this.mountWith(key, entry.suite, entry.config)
       if (failure !== undefined) {
         diagnostics.push(failure)
-        this.lastDiagnostics.set(entry.suite.id, failure)
+        this.lastDiagnostics.set(key, failure)
         this.scheduleRetry(key, failure.code === 'host-missing' ? undefined : failure)
       } else {
-        this.lastDiagnostics.delete(entry.suite.id)
+        this.lastDiagnostics.delete(key)
       }
     }
     return diagnostics

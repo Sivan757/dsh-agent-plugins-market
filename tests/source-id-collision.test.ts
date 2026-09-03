@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
@@ -21,6 +21,9 @@ async function makeGitRepo(repoPath: string, marketplaceName?: string): Promise<
     await writeFile(join(repoPath, '.claude-plugin', 'marketplace.json'), JSON.stringify(manifest))
   }
   await writeFile(join(repoPath, 'README.md'), '# fixture\n')
+  await writeFile(join(repoPath, 'plugin.json'), JSON.stringify({ name: marketplaceName ?? basename(repoPath), description: 'fixture suite' }))
+  await mkdir(join(repoPath, 'skills', 'demo'), { recursive: true })
+  await writeFile(join(repoPath, 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: demo skill\n---\n')
   await run('git', ['-C', repoPath, 'init'])
   await run('git', ['-C', repoPath, 'add', '-A'])
   await run('git', ['-C', repoPath, '-c', 'user.email=fixture@test', '-c', 'user.name=fixture', 'commit', '--no-gpg-sign', '-m', 'init'])
@@ -98,5 +101,43 @@ describe('source id collision handling', () => {
     const overview = await catalog.readUserCatalog()
     expect(overview.sources.filter(entry => entry.id === 'skills')).toHaveLength(1)
     expect(basename(second.url)).toBe('skills')
+  })
+
+  it('scopes suite identity by source so same-named suites from two sources coexist', async () => {
+    // Regression: mount and override keys used the bare suite id, so two
+    // sources shipping the same suite name shadowed each other silently.
+    const root = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-suite-scope-'))
+    const aliceUrl = await makeGitRepo(join(root, 'repos', 'alice', 'skills'), 'skills')
+    const bobUrl = await makeGitRepo(join(root, 'repos', 'bob', 'skills'), 'skills')
+
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    await catalog.load()
+    await catalog.addSource({ url: aliceUrl })
+    await catalog.addSource({ url: bobUrl })
+    const overview = await catalog.readUserCatalog()
+    // Both sources' suites stay visible as distinct rows.
+    const skillsSuites = overview.suites.filter(suite => suite.id === 'skills')
+    expect(skillsSuites.map(suite => suite.sourceId).sort()).toEqual(['bob-skills', 'skills'])
+    // Installing in one source leaves the other source's suite uninstalled.
+    await catalog.install('skills', 'skills')
+    const afterInstall = await catalog.readUserCatalog()
+    const aliceSuite = afterInstall.suites.find(suite => suite.sourceId === 'skills' && suite.id === 'skills')
+    const bobSuite = afterInstall.suites.find(suite => suite.sourceId === 'bob-skills' && suite.id === 'skills')
+    expect(aliceSuite?.enabled).toBe(true)
+    expect(bobSuite?.enabled).toBe(false)
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('rejects adopting a checkout id that traverses outside .sources', async () => {
+    // Regression: adoptSource only rejected empty and dot-prefixed ids, so
+    // `x/../../outside` could register a directory outside the checkouts root.
+    const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-traversal-'))
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    await catalog.load()
+    await expect(catalog.adoptSource('x/../../outside')).rejects.toThrow(/invalid checkout id/)
+    await expect(catalog.adoptSource('../outside')).rejects.toThrow(/invalid checkout id/)
+    await expect(catalog.adoptSource('nested/path')).rejects.toThrow(/invalid checkout id/)
+    expect(catalog.sources).toEqual([])
+    await rm(root, { recursive: true, force: true })
   })
 })

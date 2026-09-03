@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import type { Config, SseConfig } from './mcp-client/config.js'
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-client/config.js'
 import { resolveCwd } from '../catalog/validate.js'
+import { qualifiedSuiteId } from '../catalog/paths.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 
@@ -114,24 +115,24 @@ async function toResolvedMount(
 ): Promise<{ request?: McpMountRequest; failure?: McpMountFailure }> {
   if (server.type === 'sse') {
     // The market bridge supports the legacy HTTP+SSE transport natively.
-    const expand = expander(suite, joinInside(pluginDataRoot, suite.id), resolver)
+    const expand = expander(suite, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id)), resolver)
     const url = await expand.one(server.url)
     const headers = await expand.map(server.headers ?? {})
     const missing = unique([...url.missing, ...headers.missing])
     if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
     const sseConfig: SseConfig = {
       transport: 'sse',
-      serverName: deriveServerName(suite.id, serverKey),
+      serverName: deriveServerName(qualifiedSuiteId(suite.sourceId, suite.id), serverKey),
       url: url.value,
       headers: headers.values,
       ...(server.auth === undefined ? {} : { auth: mapAuth(server.auth) }),
       toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
       failOnStartupError: true
     }
-    return { request: { suiteId: suite.id, serverKey, config: sseConfig } }
+    return { request: { suiteId: qualifiedSuiteId(suite.sourceId, suite.id), serverKey, config: sseConfig } }
   }
-  const expand = expander(suite, joinInside(pluginDataRoot, suite.id), resolver)
-  const serverName = deriveServerName(suite.id, serverKey)
+  const expand = expander(suite, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id)), resolver)
+  const serverName = deriveServerName(qualifiedSuiteId(suite.sourceId, suite.id), serverKey)
   if (server.type === 'stdio') {
     const args = await expand.all(server.args ?? [])
     const env = await expand.map(server.env ?? {})
@@ -148,7 +149,7 @@ async function toResolvedMount(
           command: server.command.startsWith('./') ? joinInside(suite.root, server.command.slice(2)) : server.command,
           args: args.values,
           env: env.values,
-          cwd: resolveCwd(cwd.value, suite.root, joinInside(pluginDataRoot, suite.id)),
+          cwd: resolveCwd(cwd.value, suite.root, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id))),
           toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
           failOnStartupError: true
         }
@@ -161,7 +162,7 @@ async function toResolvedMount(
   if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
   return {
     request: {
-      suiteId: suite.id,
+      suiteId: qualifiedSuiteId(suite.sourceId, suite.id),
       serverKey,
       config: {
         transport: 'streamable-http',
