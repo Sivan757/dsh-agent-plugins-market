@@ -10,7 +10,7 @@
  * thrown discovery.
  */
 import { readFile, readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { parseSkillFrontmatter } from './skills-parse.js'
 import { isDirectory } from './paths.js'
 import { validateMcpJson } from './validate.js'
@@ -26,14 +26,21 @@ function declaredSkillDirs(root: string, declared: unknown): string[] {
   for (const value of values) {
     if (typeof value !== 'string' || value === '') continue
     const cleaned = value.replace(/^\.\//, '')
-    const path = join(root, cleaned)
-    if (isAbsoluteWithin(root, path)) dirs.push(path)
+    const path = resolve(root, cleaned)
+    if (isWithin(root, path)) dirs.push(path)
   }
   return dirs
 }
 
-function isAbsoluteWithin(root: string, candidate: string): boolean {
-  return candidate.startsWith(`${root}${candidate.includes('/') ? '/' : '\\'}`) || candidate.startsWith(root)
+/**
+ * Whether `candidate` stays inside `root` once both are resolved. Callers pass
+ * resolved paths: a sibling directory (`<root>-evil`) and any `../` escape
+ * must be rejected — a bare string-prefix test admits both.
+ */
+function isWithin(root: string, candidate: string): boolean {
+  if (candidate === root) return true
+  const separator = candidate.includes('\\') && !candidate.includes('/') ? '\\' : '/'
+  return candidate.startsWith(`${root}${separator}`)
 }
 
 /** Discover SKILL.md files under the suite's skills directory, up to 3 levels deep. */
@@ -77,28 +84,58 @@ export async function discoverSkills(root: string, errors: string[], declared?: 
   return skills
 }
 
+/**
+ * Parse cache for SKILL.md files, keyed by path and stamped by mtime+size —
+ * a rescan of an unchanged tree re-stats files but skips re-reading and
+ * re-parsing thousands of frontmatters (CPU dominates large marketplaces).
+ * Results are immutable parse verdicts; rejections are re-reported to each
+ * scan's `errors` on hit. Bounded: over the cap the cache resets wholesale
+ * (a marketplace-scale tree holds thousands of entries, not millions).
+ */
+const SKILL_PARSE_CACHE_CAP = 20_000
+const skillParseCache = new Map<string, { mtimeMs: number; size: number; verdict: SuiteSkill | string }>()
+
 async function parseOneSkill(file: string, directory: string, fallbackName: string, errors: string[]): Promise<SuiteSkill | undefined> {
-  if (!(await isFile(file))) return undefined
-  let text: string
+  let info: import('node:fs').Stats | undefined
   try {
-    text = await readFile(file, 'utf8')
-  } catch (error) {
-    errors.push(`skill "${fallbackName}": unreadable SKILL.md (${error instanceof Error ? error.message : String(error)})`)
+    info = await stat(file)
+  } catch {
     return undefined
   }
-  const parsed = parseSkillFrontmatter(text, undefined)
-  if (typeof parsed === 'string') {
-    errors.push(`skill "${fallbackName}": ${parsed}`)
+  if (!info.isFile()) return undefined
+  const stamp = { mtimeMs: info.mtimeMs, size: info.size }
+  const cached = skillParseCache.get(file)
+  let verdict: SuiteSkill | string
+  if (cached !== undefined && cached.mtimeMs === stamp.mtimeMs && cached.size === stamp.size) {
+    verdict = cached.verdict
+  } else {
+    let text: string
+    try {
+      text = await readFile(file, 'utf8')
+    } catch (error) {
+      errors.push(`skill "${fallbackName}": unreadable SKILL.md (${error instanceof Error ? error.message : String(error)})`)
+      return undefined
+    }
+    const parsed = parseSkillFrontmatter(text, undefined)
+    verdict =
+      typeof parsed === 'string'
+        ? parsed
+        : {
+            name: parsed.name,
+            directory,
+            file,
+            description: parsed.description,
+            ...(parsed.whenToUse === undefined ? {} : { whenToUse: parsed.whenToUse }),
+            invocation: parsed.invocation
+          }
+    if (skillParseCache.size >= SKILL_PARSE_CACHE_CAP) skillParseCache.clear()
+    skillParseCache.set(file, { ...stamp, verdict })
+  }
+  if (typeof verdict === 'string') {
+    errors.push(`skill "${fallbackName}": ${verdict}`)
     return undefined
   }
-  return {
-    name: parsed.name,
-    directory,
-    file,
-    description: parsed.description,
-    ...(parsed.whenToUse === undefined ? {} : { whenToUse: parsed.whenToUse }),
-    invocation: parsed.invocation
-  }
+  return { ...verdict, directory }
 }
 
 /** Read the suite's MCP config: `mcp.json` or `.mcp.json`, else the winning manifest's inline `mcpServers`. */

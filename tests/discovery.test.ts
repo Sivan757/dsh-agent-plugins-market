@@ -122,6 +122,34 @@ describe('discovery: containment of broken content', () => {
     expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['presentations'])
     expect(suites[0]!.errors).toEqual([])
   })
+
+  it('rejects manifest-declared skills paths that escape the suite root', async () => {
+    // Regression: containment used a bare string-prefix test, so a declared
+    // path resolving to a sibling directory (`<root>-evil`) passed the check
+    // and SKILL.md files outside the suite were scanned.
+    const { mkdir, writeFile, rm } = await import('node:fs/promises')
+    const stage = await mkdtemp(join(tmpdir(), 'dsh-escape-'))
+    const suiteRoot = join(stage, 'suite')
+    const evil = `${stage}-evil`
+    await mkdir(join(suiteRoot, '.claude-plugin'), { recursive: true })
+    await mkdir(evil, { recursive: true })
+    await writeFile(join(evil, 'SKILL.md'), '---\nname: evil\ndescription: outside\n---\n')
+    await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: '../suite-evil' }))
+    const suites = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
+    expect(suites[0]!.skills).toEqual([])
+    // A `../` escape is rejected the same way.
+    await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: '../../out' }))
+    const suites2 = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
+    expect(suites2[0]!.skills).toEqual([])
+    // A legitimate declared subdirectory still scans.
+    await mkdir(join(suiteRoot, 'skills', 'real'), { recursive: true })
+    await writeFile(join(suiteRoot, 'skills', 'real', 'SKILL.md'), '---\nname: real\ndescription: r\n---\n')
+    await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: 'skills' }))
+    const suites3 = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
+    expect(suites3[0]!.skills.map(skill => skill.name)).toEqual(['real'])
+    await rm(stage, { recursive: true, force: true })
+    await rm(evil, { recursive: true, force: true })
+  })
 })
 
 describe('validate: manifest and mcp.json', () => {
