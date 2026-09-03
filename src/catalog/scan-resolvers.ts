@@ -251,7 +251,7 @@ export class MarketplaceStrategy implements ScanFilter {
         }
         continue
       }
-      await collectRoot(resolution.dir, hint, roots, seen)
+      roots.push(...(await collectRoots(resolution.dir, hint, seen)))
     }
     return roots
   }
@@ -270,8 +270,7 @@ export class RootedStrategy implements ScanFilter {
       const suite = await readSuite(context.checkout, context.sourceId, context.dimension, undefined)
       return suite === undefined ? chain.next(context) : { kind: 'resolved', suites: [suite] }
     }
-    const found: SuiteRoot[] = []
-    await collectRoot(context.checkout, undefined, found, new Set())
+    const found = await collectRoots(context.checkout, undefined, new Set())
     if (found.length === 0) return chain.next(context)
     const suites = await Promise.all(
       found.map(async root =>
@@ -329,20 +328,24 @@ export async function scanSource(checkoutDir: string, sourceId: string, dimensio
 // Shared root/manifest plumbing
 // ---------------------------------------------------------------------------
 
-/** Collect nested plugin roots up to four levels deep. */
-async function collectRoot(dir: string, hint: SuiteHint | undefined, out: SuiteRoot[], seen: Set<string>, depth = 0): Promise<void> {
-  if (depth > 4 || seen.has(dir)) return
+/**
+ * Collect nested plugin roots up to four levels deep. Sibling subtrees are
+ * traversed concurrently (readdir/stat are I/O-bound); results concat in
+ * deterministic lexicographic order because each level maps children in
+ * order before flattening.
+ */
+async function collectRoots(dir: string, hint: SuiteHint | undefined, seen: Set<string>, depth = 0): Promise<SuiteRoot[]> {
+  if (depth > 4 || seen.has(dir)) return []
   // An entry carrying inline LSP declarations is a suite by declaration alone
   // (official CC lsp plugins ship only a README), but only at the marketplace
   // entry root — never deeper, so containers cannot self-declare.
   if ((await hasSuiteManifest(dir)) || (await hasSkillFiles(dir)) || (hint?.lspServers !== undefined && depth === 0)) {
-    out.push({ dir, hint })
     seen.add(dir)
-    return
+    return [{ dir, hint }]
   }
-  for (const child of await listChildDirs(dir)) {
-    await collectRoot(child, hint, out, seen, depth + 1)
-  }
+  const children = await listChildDirs(dir)
+  const nested = await Promise.all(children.map(child => collectRoots(child, hint, seen, depth + 1)))
+  return nested.flat()
 }
 
 /** Whether a directory carries any known suite manifest. */

@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { marketSettingsPath, MCP_SETTINGS_NAMESPACE, McpEnhancedSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
+import { marketSettingsPath, MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
 import type { Suite } from '../src/model/types.js'
 
@@ -75,11 +75,13 @@ describe('MCP backend persistence', () => {
 
   it('exposes the settings namespace and schema the plugin-config tab pairs by', async () => {
     expect(MCP_SETTINGS_NAMESPACE).toBe('dsh-agent-plugins-market')
-    // The schemastery schema resolves a missing section to the ON default.
-    const resolved = McpEnhancedSettingsSchema(undefined) as { mcpEnhanced?: boolean }
+    // The schemastery schema resolves a missing section to both defaults.
+    const resolved = MarketSettingsSchema(undefined) as { mcpEnhanced?: boolean; downloadRegion?: string }
     expect(resolved.mcpEnhanced).toBe(true)
-    const off = McpEnhancedSettingsSchema({ mcpEnhanced: false }) as { mcpEnhanced?: boolean }
+    expect(resolved.downloadRegion).toBe('auto')
+    const off = MarketSettingsSchema({ mcpEnhanced: false, downloadRegion: 'china' }) as { mcpEnhanced?: boolean; downloadRegion?: string }
     expect(off.mcpEnhanced).toBe(false)
+    expect(off.downloadRegion).toBe('china')
   })
 
   it('probes the host client with a boolean availability and optional version', async () => {

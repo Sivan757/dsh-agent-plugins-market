@@ -13,7 +13,12 @@ import { createServer, type Server } from 'node:http'
 import { LoopbackOAuthClientProvider, type BrowserOpener } from '../src/runtime/mcp-client/oauth.js'
 import { credentialKey } from '../src/runtime/mcp-client/host-seams.js'
 
-/** No-op opener: tests never open a browser; callback-leg tests drive the loopback endpoint themselves. */
+/**
+ * No-op opener: tests must NEVER open a real browser — every provider in this
+ * file passes this stub, because the default is the platform opener and would
+ * launch the developer's browser at the fake auth URL. Callback-leg tests
+ * drive the loopback endpoint themselves.
+ */
 const openerStub: BrowserOpener = async () => {}
 
 // ---- Credential store fake: mirrors CredentialProvider's record surface ----
@@ -196,7 +201,7 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
 
   it('opens the gate while the leg pends, resolves true on success, false on leg failure', async () => {
     const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined)
+    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
     provider.bindTransport({ finishAuth: async () => {} })
     const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
     // While waiting for the user agent the supervisor must hold the generation.
@@ -209,7 +214,7 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
 
   it('resolves the gate false when the authorization server returns an error', async () => {
     const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined)
+    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
     provider.bindTransport({ finishAuth: async () => {} })
     const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
     // Attach the rejection assertion before the callback lands, so the

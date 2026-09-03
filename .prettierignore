@@ -8,3 +8,5 @@ pnpm-lock.yaml
 # release-please maintains this file in its own format
 CHANGELOG.md
 .release-please-manifest.json
+# untracked tool state
+.mnemon/
