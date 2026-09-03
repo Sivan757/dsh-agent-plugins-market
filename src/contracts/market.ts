@@ -15,6 +15,7 @@ export const MARKET_ROUTES = {
   skill: `${MARKET_API_PREFIX}skill`,
   addSource: `${MARKET_API_PREFIX}sources/add`,
   updateSource: `${MARKET_API_PREFIX}sources/update`,
+  adoptSource: `${MARKET_API_PREFIX}sources/adopt`,
   removeSource: `${MARKET_API_PREFIX}sources/remove`,
   refreshSource: `${MARKET_API_PREFIX}sources/refresh`,
   install: `${MARKET_API_PREFIX}install`,
@@ -34,6 +35,15 @@ export interface McpBackendPayload {
   backend: 'builtin' | 'host'
   /** Whether the host `dsh-mcp-client` resolves from the plugin context. */
   hostClient: { available: boolean; version?: string }
+  /** Download region: the persisted setting and its locale-resolved route. */
+  downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
+}
+
+/** One unmanaged `.sources/` checkout the user can adopt as a source. */
+export interface UnmanagedSource {
+  id: string
+  /** The checkout's `origin` remote URL; absent for non-git directories. */
+  url?: string
 }
 
 /** A configured source row returned to the market client. */
@@ -42,6 +52,10 @@ export interface SourceOverview {
   url: string
   branch?: string
   local?: boolean
+  /** Acquisition kind (`git` / `local` / `archive`); `local` mirrors the legacy flag. */
+  kind: string
+  /** The checkout pre-existed (manually cloned or adopted); never deleted on removal. */
+  adopted?: boolean
   cloned: boolean
   lockCommit?: string
   error?: string
@@ -109,6 +123,8 @@ export interface OverviewPayload {
   suites: SuiteOverviewCard[]
   totals: { all: number; installed: number; enabled: number }
   roots: { user: string; data: string }
+  /** Unmanaged `.sources/` checkouts (manual clones) available for adoption. */
+  unmanaged?: UnmanagedSource[]
 }
 
 /** Host-side progress of the source mutation currently in flight. */

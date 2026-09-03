@@ -23,6 +23,7 @@ function service(): MarketService {
     addSource: async input => ({ id: 'source', ...input }),
     updateSource: async () => {},
     removeSource: async () => {},
+    adoptSource: async id => ({ id, url: `https://github.com/example/${id}`, kind: 'git' as const, adopted: true as const }),
     refreshSource: async () => {},
     install: async () => {},
     uninstall: async () => {},
@@ -32,7 +33,11 @@ function service(): MarketService {
     retryMounts: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
-    mcpBackendInfo: async () => ({ backend: 'builtin' as const, hostClient: { available: true, version: '0.1.1-rc.2' } }),
+    mcpBackendInfo: async () => ({
+      backend: 'builtin' as const,
+      hostClient: { available: true, version: '0.1.1-rc.2' },
+      downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
+    }),
     setMcpBackend: async () => {}
   }
 }
