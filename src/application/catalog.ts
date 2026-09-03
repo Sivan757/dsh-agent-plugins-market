@@ -7,42 +7,74 @@
  * project snapshots use their own persisted state files and share the same
  * source-selection and suite-scanning rules.
  */
-import { mkdir, rename } from 'node:fs/promises'
+import { mkdir, readdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { repoName } from '../catalog/manifests.js'
+import { canonicalGitUrl } from '../catalog/scan-resolvers.js'
 import { discoverSourceListWithNotes } from '../catalog/source-catalog.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
-import { gitClone, gitHead, gitPull, gitRemove } from '../catalog/git.js'
+import { archiveInstall } from '../catalog/archive.js'
+import { gitClone, gitCurrentBranch, gitHead, gitRemoteUrl, gitRemove, gitSync, type GitOptions } from '../catalog/git.js'
 import { buildMcpStatus, type McpToolSnapshot } from '../runtime/mcp-status.js'
 import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import { buildLspStatus, type LspMountStatusSource } from '../runtime/lsp-status.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
 import { loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
 import { probeHostMcpClient, type HostMcpClientProbe, type McpBackend } from '../runtime/mcp-backend.js'
+import { githubCloneUrl, resolveRegion, type DownloadRegionSetting, type EffectiveRegion } from '../runtime/regions.js'
+import { readLocalePreference } from '../runtime/host-locale.js'
 import { redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, SkillContent, SourceOverview, SuiteDetail } from '../contracts/market.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
-import { deriveSourceIdCandidates, expandHome, isDirectory, pathExists, resolveProjectRoot, sanitizeId, sourceCheckoutDir, sourcesDir, STATE_FILE_NAME } from '../catalog/paths.js'
+import {
+  deriveSourceIdCandidates,
+  expandHome,
+  isDirectory,
+  pathExists,
+  qualifiedSuiteId,
+  resolveProjectRoot,
+  sanitizeId,
+  sourceCheckoutDir,
+  sourcesDir,
+  STATE_FILE_NAME
+} from '../catalog/paths.js'
 import { loadState, saveState, EMPTY_STATE } from '../model/state.js'
 import {
   effectiveSurfaces,
   SUITE_SURFACE_KEYS,
   type InstalledEntry,
+  type SourceKind,
   type SourceRef,
   type Suite,
   type SuiteDimension,
   type SuiteState,
   type SuiteSurfaceKey,
-  type SurfaceOverrides
+  type SurfaceOverrides,
+  resolveSourceKind
 } from '../model/types.js'
+
+/**
+ * Git network tuning, plumbed from the host config to every remote-touching
+ * invocation (proxy, `insteadOf` mirrors, timeout, retry). `fallbackTarball`
+ * additionally lets a failed GitHub clone fall back to a codeload tarball
+ * download through the archive pipeline.
+ */
+export interface CatalogGitOptions extends GitOptions {
+  /** Retry a failed GitHub clone as a codeload tarball download; default false. */
+  fallbackTarball?: boolean
+  /** Allow plain-http archive downloads (intranet mirrors); default false. */
+  allowHttpArchives?: boolean
+}
 
 /** Dependencies and host callback used by the catalog application module. */
 export interface CatalogOptions {
   userRoot: string
   dataRoot: string
   onChanged: () => void | Promise<void>
+  /** Git/archive acquisition tuning. */
+  git?: CatalogGitOptions
   /**
    * Freshness window for cached project-dimension snapshots. The project
    * catalog sits on the skill-list hot path (every provider `list()` call),
@@ -71,7 +103,31 @@ export class Catalog {
   private readonly listeners = new Set<() => void>()
   private revision = 0
   private userSnapshot: CatalogSnapshot | undefined
+  private userSnapshotExpiresAt = 0
   private userSnapshotPromise: Promise<CatalogSnapshot> | undefined
+  /**
+   * Discovery scan cache: per-sources-fingerprint scan results with a TTL.
+   * Install / enable / surface toggles re-derive the snapshot from cached
+   * discovery (cheap mapping) instead of re-walking every checkout — a full
+   * rescan of a 2,500-suite catalog costs ~1s and UI mutations happen in
+   * bursts. Content-changing mutations (add / update / remove / adopt /
+   * refresh / acquire) set {@link scanCacheDirty}, which bypasses the cache
+   * until the next scan; the TTL bounds staleness for in-place working-tree
+   * edits of local sources.
+   */
+  private readonly scanCache = new Map<string, { at: number; discovered: Suite[]; scanNotes: Record<string, string[]> }>()
+  private scanCacheDirty = true
+  private static readonly SCAN_CACHE_TTL_MS = 30_000
+  private static readonly SCAN_CACHE_MAX_ENTRIES = 8
+  /**
+   * User-dimension snapshot TTL: bounded staleness for edits made outside the
+   * plugin (a new skill dropped into a local source's working tree, a hand
+   * edit in a project layout) becomes visible on the next read past the TTL
+   * instead of living until the next mutation. It bounds the *snapshot*
+   * freshness; the scan cache TTL below bounds the reuse of a full scan, so
+   * this must stay at or below the scan TTL to actually force a rescan.
+   */
+  private static readonly USER_SNAPSHOT_TTL_MS = Catalog.SCAN_CACHE_TTL_MS
   /** Project-dimension snapshots keyed by project root, with TTL freshness. */
   private readonly projectSnapshots = new Map<string, { snapshot: CatalogSnapshot; expiresAt: number }>()
   private readonly projectSnapshotPromises = new Map<string, Promise<CatalogSnapshot>>()
@@ -89,6 +145,8 @@ export class Catalog {
   private mcpBackendWriter: (backend: McpBackend) => Promise<void> = async () => {
     throw new Error('the settings service is not mounted')
   }
+  /** Download-region source (the host settings namespace scope). */
+  private downloadRegionProvider: () => Promise<DownloadRegionSetting> = async () => 'auto'
 
   constructor(private readonly options: CatalogOptions) {
     this.statePath = join(options.userRoot, STATE_FILE_NAME)
@@ -116,7 +174,7 @@ export class Catalog {
   async reauthorizeMcpServer(serverName: string): Promise<void> {
     await this.enqueue(async () => {
       await this.credentialsStore?.deleteGrantRecord(serverName)
-      await this.notifyChanged()
+      await this.notifyChanged(true)
     })
   }
 
@@ -158,7 +216,7 @@ export class Catalog {
   async setLspServers(raw: unknown): Promise<Record<string, import('../model/types.js').LspServerSpec>> {
     return this.enqueue(async () => {
       const { servers } = await saveLspServers(this.options.dataRoot, raw)
-      await this.notifyChanged()
+      await this.notifyChanged(true)
       return servers
     })
   }
@@ -180,7 +238,7 @@ export class Catalog {
       const source = this.state.sources.find(entry => entry.id === sourceId)
       if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
       const checkout = this.sourceCheckoutPath(source)
-      if (!(await isDirectory(checkout))) await this.ensureClone(source)
+      if (!(await isDirectory(checkout))) await this.acquire(source)
       const suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
@@ -194,7 +252,7 @@ export class Catalog {
         overrides[serverKey] = mergeOverridePatch(overrides[serverKey] ?? {}, override)
       }
       await saveSuiteOverrides(this.options.dataRoot, suiteId, overrides)
-      await this.notifyChanged()
+      await this.notifyChanged(true)
     })
   }
 
@@ -203,7 +261,7 @@ export class Catalog {
    * tools, without changing any catalog state.
    */
   async retryMounts(): Promise<void> {
-    await this.notifyChanged()
+    await this.notifyChanged(true)
   }
 
   /** The persisted backend choice without the host-client probe (mount-time provider). */
@@ -212,12 +270,17 @@ export class Catalog {
   }
 
   /**
-   * The active MCP mount backend plus a live probe of the host client, for
-   * the settings-page backend block.
+   * The active MCP mount backend plus a live probe of the host client, and
+   * the download-region setting with its locale-resolved effective route —
+   * everything the plugin-config card renders.
    */
-  async mcpBackendInfo(): Promise<{ backend: McpBackend; hostClient: HostMcpClientProbe }> {
-    const [backend, hostClient] = await Promise.all([this.mcpBackendProvider(), probeHostMcpClient()])
-    return { backend, hostClient }
+  async mcpBackendInfo(): Promise<{
+    backend: McpBackend
+    hostClient: HostMcpClientProbe
+    downloadRegion: { setting: DownloadRegionSetting; effective: EffectiveRegion }
+  }> {
+    const [backend, hostClient, regionSetting, locale] = await Promise.all([this.mcpBackendProvider(), probeHostMcpClient(), this.downloadRegionProvider(), readLocalePreference()])
+    return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, locale) } }
   }
 
   /**
@@ -228,7 +291,7 @@ export class Catalog {
   async setMcpBackend(backend: McpBackend): Promise<void> {
     return this.enqueue(async () => {
       await this.mcpBackendWriter(backend)
-      await this.notifyChanged()
+      await this.notifyChanged(true)
     })
   }
 
@@ -242,13 +305,18 @@ export class Catalog {
     this.mcpBackendWriter = writer
   }
 
-  /** All persisted MCP overrides keyed by suite id (mount-time provider). */
+  /** Install the download-region source (the host settings namespace scope). */
+  setDownloadRegionProvider(provider: () => Promise<DownloadRegionSetting>): void {
+    this.downloadRegionProvider = provider
+  }
+
+  /** All persisted MCP overrides keyed by qualified suite id (mount-time provider). */
   async allMcpOverrides(): Promise<Map<string, McpSuiteOverrides>> {
     const snapshot = await this.readUserCatalog()
     const map = new Map<string, McpSuiteOverrides>()
     for (const suite of snapshot.suites) {
       const overrides = await loadSuiteOverrides(this.options.dataRoot, suite.id)
-      if (Object.keys(overrides).length > 0) map.set(suite.id, overrides)
+      if (Object.keys(overrides).length > 0) map.set(qualifiedSuiteId(suite.sourceId, suite.id), overrides)
     }
     return map
   }
@@ -256,6 +324,7 @@ export class Catalog {
   /** Load persisted user state once at plugin activation. */
   async load(): Promise<void> {
     this.state = await loadState(this.statePath)
+    this.scanCacheDirty = true
     this.invalidateSnapshot(false)
   }
 
@@ -270,10 +339,11 @@ export class Catalog {
 
   /** Read one coherent user-dimension snapshot, reusing in-flight discovery. */
   async readUserCatalog(): Promise<CatalogSnapshot> {
-    if (this.userSnapshot !== undefined) return this.userSnapshot
+    if (this.userSnapshot !== undefined && Date.now() < this.userSnapshotExpiresAt) return this.userSnapshot
     this.userSnapshotPromise ??= this.buildSnapshot(this.state, 'user', this.options.userRoot)
       .then(snapshot => {
         this.userSnapshot = snapshot
+        this.userSnapshotExpiresAt = Date.now() + Catalog.USER_SNAPSHOT_TTL_MS
         return snapshot
       })
       .finally(() => {
@@ -304,7 +374,9 @@ export class Catalog {
 
   private async buildProjectSnapshot(projectRoot: string): Promise<CatalogSnapshot> {
     const state = await loadState(join(projectRoot, STATE_FILE_NAME))
-    return this.buildSnapshot(state, 'project', projectRoot)
+    // TTL 0 means caching is disabled for this dimension: bypass the scan
+    // cache so every read observes the working tree as it stands.
+    return this.buildSnapshot(state, 'project', projectRoot, this.projectSnapshotTtlMs <= 0)
   }
 
   /** One suite's full detail for the market detail modal. */
@@ -330,12 +402,16 @@ export class Catalog {
     for (const source of snapshot.sources) {
       const inFlight = this.currentSourceState?.sourceId === source.id ? this.currentSourceState : undefined
       const checkout = this.sourceCheckoutPath(source)
+      const kind = resolveSourceKind(source)
       let cloned = false
       let lockCommit: string | undefined
       let error: string | undefined
-      if (source.local === true) {
+      if (kind === 'local') {
         cloned = await isDirectory(checkout)
         if (!cloned) error = `local source directory ${checkout} is missing`
+      } else if (kind === 'archive') {
+        cloned = await isDirectory(checkout)
+        lockCommit = this.headCache.get(source.id)
       } else if (inFlight !== undefined) {
         // A mutation owns this source right now: do not race git against its checkout.
         cloned = inFlight.cloned || (await isDirectory(checkout))
@@ -362,6 +438,8 @@ export class Catalog {
         url: source.url,
         ...(source.branch === undefined ? {} : { branch: source.branch }),
         ...(source.local === true ? { local: true } : {}),
+        kind,
+        ...(source.adopted === true ? { adopted: true } : {}),
         cloned,
         ...(lockCommit === undefined ? {} : { lockCommit }),
         ...(error === undefined ? {} : { error }),
@@ -395,7 +473,8 @@ export class Catalog {
         installed: cards.filter(card => card.installed).length,
         enabled: cards.filter(card => card.enabled).length
       },
-      roots: { user: this.options.userRoot, data: this.options.dataRoot }
+      roots: { user: this.options.userRoot, data: this.options.dataRoot },
+      unmanaged: await this.unmanagedSources()
     }
   }
 
@@ -416,23 +495,53 @@ export class Catalog {
     return (await this.buildSnapshot(state, dimension, dimensionRoot)).suites
   }
 
-  /** Add a source and clone it immediately. */
-  async addSource(input: { url: string; branch?: string; local?: boolean }): Promise<SourceRef> {
+  /**
+   * Add a source and acquire it immediately (clone, download, or in-place).
+   *
+   * Git sources with an already-present checkout whose `origin` matches the
+   * input URL are adopted in place — the manual-clone repair path — so no
+   * second clone is made and no `-2` suffixed id is invented. Adopted
+   * checkouts are never deleted on source removal.
+   */
+  async addSource(input: { url: string; branch?: string; local?: boolean; kind?: SourceKind; sha256?: string }): Promise<SourceRef> {
     return this.enqueue(async () => {
-      const baseId = await this.pickSourceId(deriveSourceIdCandidates(input.url), input.local === true)
+      const kind = input.local === true ? ('local' as const) : resolveSourceKind({ url: input.url, kind: input.kind })
+      if (kind === 'git') {
+        // Adoption first: a pre-existing checkout with a matching origin URL
+        // is registered as-is, skipping the clone entirely.
+        const adoptable = await this.findAdoptableCheckout(input.url, deriveSourceIdCandidates(input.url))
+        if (adoptable !== undefined) {
+          const source: SourceRef = {
+            id: adoptable,
+            url: input.url,
+            ...(input.branch === undefined ? {} : { branch: input.branch }),
+            kind: 'git',
+            adopted: true
+          }
+          const head = await tryHead(sourceCheckoutDir(this.options.userRoot, adoptable))
+          if (head !== undefined) this.headCache.set(source.id, head)
+          this.state = { ...this.state, sources: [...this.state.sources, source] }
+          await saveState(this.statePath, this.state)
+          await this.notifyChanged()
+          return source
+        }
+      }
+      const baseId = await this.pickSourceId(deriveSourceIdCandidates(input.url), kind === 'local')
       const source: SourceRef = {
         id: baseId,
         url: input.url,
         ...(input.branch === undefined ? {} : { branch: input.branch }),
-        ...(input.local === true ? { local: true } : {})
+        ...(kind === 'local' ? { local: true as const } : { kind }),
+        ...(input.kind === 'archive' && input.sha256 !== undefined && input.sha256 !== '' ? { sha256: input.sha256 } : {})
       }
       let checkout = this.sourceCheckoutPath(source)
-      if (input.local === true) {
+      if (kind === 'local') {
         if (!(await isDirectory(checkout))) throw new Error(`local source directory ${checkout} is missing`)
       } else {
-        this.beginSourceState(baseId, 'cloning', false)
+        this.beginSourceState(baseId, kind === 'archive' ? 'downloading' : 'cloning', false)
         try {
-          await this.ensureClone(source)
+          const lock = await this.acquire(source)
+          if (lock !== undefined) this.headCache.set(source.id, lock)
         } catch (error) {
           this.endSourceState()
           throw error
@@ -443,21 +552,98 @@ export class Catalog {
       // the registered id and its `.sources/` directory stay coherent. URL
       // derived candidates stay as readable fallbacks before numeric suffixes.
       const named = [...new Set([sanitizeId(await repoName(checkout)), ...deriveSourceIdCandidates(input.url)])]
-      const finalId = await this.pickSourceId(named, input.local === true, input.local === true ? undefined : checkout)
-      if (input.local !== true && finalId !== baseId) {
+      const finalId = await this.pickSourceId(named, kind === 'local', kind === 'local' ? undefined : checkout)
+      if (kind !== 'local' && finalId !== baseId) {
         const targetDir = sourceCheckoutDir(this.options.userRoot, finalId)
         await rename(checkout, targetDir)
         checkout = targetDir
       }
       source.id = finalId
-      const head = await tryHead(checkout)
-      if (head !== undefined) this.headCache.set(source.id, head)
+      if (resolveSourceKind(source) === 'git') {
+        const head = await tryHead(checkout)
+        if (head !== undefined) this.headCache.set(source.id, head)
+      }
       this.endSourceState()
       this.state = { ...this.state, sources: [...this.state.sources, source] }
       await saveState(this.statePath, this.state)
       await this.notifyChanged()
       return source
     })
+  }
+
+  /**
+   * First candidate id whose `.sources/` checkout already exists and whose
+   * `origin` remote matches the input URL (canonical-form equality) — the
+   * signature of a manual clone of the very same repository. Registered ids
+   * and checkouts of differently-origined directories never adopt.
+   */
+  private async findAdoptableCheckout(url: string, candidates: string[]): Promise<string | undefined> {
+    const registered = new Set(this.state.sources.map(source => source.id))
+    for (const candidate of candidates) {
+      if (registered.has(candidate)) continue
+      const dir = sourceCheckoutDir(this.options.userRoot, candidate)
+      if (!(await isDirectory(dir))) continue
+      let origin: string | undefined
+      try {
+        origin = await gitRemoteUrl(dir)
+      } catch {
+        continue
+      }
+      if (origin !== '' && canonicalGitUrl(origin) === canonicalGitUrl(url)) return candidate
+    }
+    return undefined
+  }
+
+  /** Register one unmanaged `.sources/` checkout as a source without touching its files. */
+  async adoptSource(id: string): Promise<SourceRef> {
+    return this.enqueue(async () => {
+      if (this.state.sources.some(source => source.id === id)) throw new Error(`source "${id}" is already registered`)
+      // The id becomes one path segment under `.sources/`: only flat safe
+      // names qualify. Anything else (separators, `..`, leading dots) could
+      // traverse out of the checkouts root and register an outside directory.
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(id) || id.includes('..')) {
+        throw new Error(`invalid checkout id "${id}" — use letters, digits, dots, dashes, or underscores`)
+      }
+      const dir = sourceCheckoutDir(this.options.userRoot, id)
+      if (!(await isDirectory(dir))) throw new Error(`no checkout directory at ${dir}`)
+      let source: SourceRef
+      try {
+        const origin = await gitRemoteUrl(dir)
+        source = { id, url: origin, kind: 'git', adopted: true }
+        const head = await tryHead(dir)
+        if (head !== undefined) this.headCache.set(id, head)
+      } catch {
+        // Not a git checkout: read it in place, like a local source.
+        source = { id, url: dir, local: true, adopted: true }
+      }
+      this.state = { ...this.state, sources: [...this.state.sources, source] }
+      await saveState(this.statePath, this.state)
+      await this.notifyChanged()
+      return source
+    })
+  }
+
+  /** Unmanaged `.sources/` checkouts: present on disk, absent from state. */
+  async unmanagedSources(): Promise<Array<{ id: string; url?: string }>> {
+    const checkoutRoot = sourcesDir(this.options.userRoot)
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await readdir(checkoutRoot, { withFileTypes: true })
+    } catch {
+      return []
+    }
+    const registered = new Set(this.state.sources.map(source => source.id))
+    const unmanaged: Array<{ id: string; url?: string }> = []
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || registered.has(entry.name)) continue
+      const dir = join(checkoutRoot, entry.name)
+      try {
+        unmanaged.push({ id: entry.name, url: await gitRemoteUrl(dir) })
+      } catch {
+        unmanaged.push({ id: entry.name })
+      }
+    }
+    return unmanaged
   }
 
   /** Progress snapshot of the source mutation currently in flight. */
@@ -509,19 +695,29 @@ export class Catalog {
     }
   }
 
-  /** Update one source's URL, branch, or local flag. */
-  async updateSource(sourceId: string, patch: { url?: string; branch?: string; local?: boolean }): Promise<void> {
+  /** Update one source's URL, branch, kind, or archive digest. */
+  async updateSource(sourceId: string, patch: { url?: string; branch?: string; local?: boolean; kind?: SourceKind; sha256?: string }): Promise<void> {
     return this.enqueue(async () => {
       const index = this.state.sources.findIndex(source => source.id === sourceId)
       if (index === -1) throw new Error(`unknown source "${sourceId}"`)
       const current = this.state.sources[index]!
+      const nextLocal = patch.local !== undefined ? patch.local : current.local === true
+      // A local source carries the legacy flag only; `kind` stays unwritten
+      // so the persisted shape matches the pre-kind records.
+      const nextKind: SourceKind | undefined = nextLocal ? undefined : (patch.kind ?? current.kind)
       const next: SourceRef = {
         id: sourceId,
         url: patch.url ?? current.url,
         ...(patch.branch !== undefined ? { branch: patch.branch } : current.branch === undefined ? {} : { branch: current.branch }),
-        ...(patch.local !== undefined ? { local: patch.local } : current.local === undefined ? {} : { local: current.local })
+        ...(nextLocal ? { local: true } : {}),
+        ...(nextKind === undefined ? {} : { kind: nextKind }),
+        ...(patch.sha256 !== undefined ? (patch.sha256 === '' ? {} : { sha256: patch.sha256 }) : current.sha256 === undefined ? {} : { sha256: current.sha256 }),
+        ...(current.adopted === true ? { adopted: true } : {})
       }
-      if (current.local !== true && patch.url !== undefined && patch.url !== current.url) {
+      const urlChanged = patch.url !== undefined && patch.url !== current.url
+      // A URL change invalidates the old checkout — except for adopted (user
+      // cloned) and local sources, whose directories we never own.
+      if (urlChanged && current.local !== true && current.adopted !== true) {
         this.headCache.delete(sourceId)
         await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
       }
@@ -542,7 +738,10 @@ export class Catalog {
       }
       await saveState(this.statePath, this.state)
       this.headCache.delete(sourceId)
-      if (source === undefined || source.local !== true) await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
+      // Adopted checkouts (manual clones) and local paths are user-owned
+      // directories; only self-acquired checkouts are deleted.
+      const userOwned = source !== undefined && (source.local === true || source.adopted === true)
+      if (!userOwned) await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
       await this.notifyChanged()
     })
   }
@@ -552,16 +751,38 @@ export class Catalog {
     return this.enqueue(async () => {
       const targets = sourceId === undefined ? this.state.sources : this.state.sources.filter(source => source.id === sourceId)
       for (const source of targets) {
-        if (source.local === true) {
+        const kind = resolveSourceKind(source)
+        if (kind === 'local') {
           if (!(await isDirectory(expandHome(source.url)))) throw new Error(`local source directory ${expandHome(source.url)} is missing`)
           continue
         }
         const checkout = sourceCheckoutDir(this.options.userRoot, source.id)
         this.headCache.delete(source.id)
+        if (kind === 'archive') {
+          // Re-download and swap; the fresh digest becomes the lock value.
+          const lock = await this.acquire(source)
+          if (lock !== undefined) this.headCache.set(source.id, lock)
+          continue
+        }
         try {
           await gitHead(checkout)
         } catch {
-          await this.ensureClone(source)
+          const lock = await this.acquire(source)
+          if (lock !== undefined) {
+            this.headCache.set(source.id, lock)
+          } else {
+            try {
+              this.headCache.set(source.id, await gitHead(checkout))
+            } catch {
+              // A failed HEAD read means the next overview re-probes.
+            }
+          }
+          continue
+        }
+        // Adopted checkouts are user-owned working trees: a `reset --hard`
+        // would destroy uncommitted work, so they are left untouched (the
+        // scan reads whatever state the user's checkout is in).
+        if (source.adopted === true) {
           try {
             this.headCache.set(source.id, await gitHead(checkout))
           } catch {
@@ -569,7 +790,9 @@ export class Catalog {
           }
           continue
         }
-        await gitPull(checkout)
+        // Shallow-friendly sync: fetch depth 1 into FETCH_HEAD, hard reset.
+        const branch = source.branch ?? (await gitCurrentBranch(checkout).catch(() => undefined))
+        await gitSync(checkout, branch, this.options.git ?? {})
         try {
           this.headCache.set(source.id, await gitHead(checkout))
         } catch {
@@ -588,13 +811,17 @@ export class Catalog {
       const source = this.state.sources.find(entry => entry.id === sourceId)
       if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
       const checkout = this.sourceCheckoutPath(source)
-      if (!(await isDirectory(checkout))) await this.ensureClone(source)
+      let freshLock: string | undefined
+      if (!(await isDirectory(checkout))) freshLock = await this.acquire(source)
       const suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.remote !== undefined) throw new Error(`suite "${suiteId}" is a remote reference (${suite.remote.url}); add its repository as a source before installing`)
-      await this.setInstalled(sourceId, suiteId, { enabled: true, installedAt: new Date().toISOString(), lockCommit: await tryHead(checkout) })
-      await this.notifyChanged()
+      // Archive (or tarball-fallback) sources have no git HEAD; their digest
+      // is the lock value.
+      const lockCommit = (await tryHead(checkout)) ?? freshLock ?? this.headCache.get(sourceId)
+      await this.setInstalled(sourceId, suiteId, { enabled: true, installedAt: new Date().toISOString(), lockCommit })
+      await this.notifyChanged(true)
     })
   }
 
@@ -606,7 +833,7 @@ export class Catalog {
       const rest = Object.fromEntries(Object.entries(this.state.installed).filter(([entryKey]) => entryKey !== key))
       this.state = { ...this.state, installed: rest }
       await saveState(this.statePath, this.state)
-      await this.notifyChanged()
+      await this.notifyChanged(true)
     })
   }
 
@@ -617,7 +844,7 @@ export class Catalog {
       const entry = this.state.installed[key]
       if (entry === undefined) throw new Error(`suite "${suiteId}" is not installed`)
       await this.setInstalled(sourceId, suiteId, { ...entry, enabled })
-      await this.notifyChanged()
+      await this.notifyChanged(true)
     })
   }
 
@@ -630,7 +857,7 @@ export class Catalog {
       if (!SUITE_SURFACE_KEYS.includes(surface as SuiteSurfaceKey)) throw new Error(`surface "${surface}" is not toggleable`)
       const surfaces: SurfaceOverrides = { ...(entry.surfaces ?? {}), [surface]: enabled }
       await this.setInstalled(sourceId, suiteId, { ...entry, surfaces })
-      await this.notifyChanged()
+      await this.notifyChanged(true)
     })
   }
 
@@ -641,6 +868,9 @@ export class Catalog {
     if (additions.length === 0) return
     this.state = { ...this.state, sources: [...this.state.sources, ...additions] }
     await saveState(this.statePath, this.state)
+    // New sources change the fingerprint, but their content arrives through
+    // an acquire, so mark the scan cache dirty conservatively.
+    this.scanCacheDirty = true
     this.invalidateSnapshot(true)
   }
 
@@ -649,14 +879,46 @@ export class Catalog {
     await saveState(this.statePath, this.state)
   }
 
-  private async ensureClone(source: SourceRef): Promise<void> {
-    if (source.local === true) {
+  /**
+   * Acquire one source's content by kind: clone (git), download+extract
+   * (archive), or an in-place existence check (local). Returns a lock value
+   * when the acquisition yields one (archive SHA-256, tarball fallback
+   * digest); git HEAD is read separately by the callers.
+   */
+  private async acquire(source: SourceRef): Promise<string | undefined> {
+    const kind = resolveSourceKind(source)
+    if (kind === 'local') {
       if (!(await isDirectory(expandHome(source.url)))) throw new Error(`local source directory ${expandHome(source.url)} is missing`)
-      return
+      return undefined
     }
     const checkout = sourceCheckoutDir(this.options.userRoot, source.id)
     await mkdir(sourcesDir(this.options.userRoot), { recursive: true })
-    await gitClone(source.url, source.branch, checkout)
+    if (kind === 'archive') {
+      const { sha256 } = await archiveInstall(source.url, checkout, {
+        ...(source.sha256 === undefined ? {} : { sha256: source.sha256 }),
+        ...(this.options.git?.timeoutMs === undefined ? {} : { timeoutMs: this.options.git.timeoutMs }),
+        ...(this.options.git?.allowHttpArchives === true ? { allowHttp: true } : {})
+      })
+      return sha256
+    }
+    try {
+      // The region routes github.com clones through the China mirror prefix;
+      // the proxied URL becomes `origin`, so refreshes follow the same route.
+      const region = resolveRegion(await this.downloadRegionProvider(), await readLocalePreference())
+      await gitClone(githubCloneUrl(region, source.url), source.branch, checkout, this.options.git ?? {})
+      return undefined
+    } catch (error) {
+      if (this.options.git?.fallbackTarball !== true) throw error
+      const tarballUrl = codeloadTarballUrl(source.url, source.branch)
+      if (tarballUrl === undefined) throw error
+      // The codeload URL ends in a branch path, not `.tar.gz`, so the format
+      // must be stated explicitly — extension detection cannot see it.
+      const { sha256 } = await archiveInstall(tarballUrl, checkout, {
+        ...(this.options.git?.timeoutMs === undefined ? {} : { timeoutMs: this.options.git.timeoutMs }),
+        format: 'targz'
+      })
+      return sha256
+    }
   }
 
   /** The filesystem location of one source. */
@@ -664,8 +926,25 @@ export class Catalog {
     return source.local === true ? expandHome(source.url) : sourceCheckoutDir(this.options.userRoot, source.id)
   }
 
-  private async buildSnapshot(state: SuiteState, dimension: SuiteDimension, dimensionRoot: string): Promise<CatalogSnapshot> {
-    const { suites: discovered, scanNotes } = await discoverSourceListWithNotes(state.sources, dimension, dimensionRoot)
+  private async buildSnapshot(state: SuiteState, dimension: SuiteDimension, dimensionRoot: string, skipScanCache = false): Promise<CatalogSnapshot> {
+    const fingerprint = JSON.stringify([dimension, dimensionRoot, state.sources])
+    const cached = this.scanCache.get(fingerprint)
+    const cacheFresh = !skipScanCache && !this.scanCacheDirty && cached !== undefined && Date.now() - cached.at < Catalog.SCAN_CACHE_TTL_MS
+    let discovered: Suite[]
+    let scanNotes: Record<string, string[]>
+    if (cacheFresh && cached !== undefined) {
+      discovered = cached.discovered
+      scanNotes = cached.scanNotes
+    } else {
+      const result = await discoverSourceListWithNotes(state.sources, dimension, dimensionRoot)
+      discovered = result.suites
+      scanNotes = result.scanNotes
+      // The fresh scan satisfies the invalidation: content mutations mark the
+      // cache dirty, and the next scan (this one) makes it clean again.
+      this.scanCacheDirty = false
+      if (this.scanCache.size >= Catalog.SCAN_CACHE_MAX_ENTRIES) this.scanCache.clear()
+      this.scanCache.set(fingerprint, { at: Date.now(), discovered, scanNotes })
+    }
     const suites = discovered.map(suite => {
       const installed = state.installed[installKey(suite.sourceId, suite.id)]
       // Native project layouts (`.claude/`, `.agents/`) are the repository's
@@ -691,11 +970,19 @@ export class Catalog {
   private invalidateSnapshot(increment: boolean): void {
     if (increment) this.revision++
     this.userSnapshot = undefined
+    this.userSnapshotExpiresAt = 0
     this.userSnapshotPromise = undefined
     this.projectSnapshots.clear()
   }
 
-  private async notifyChanged(): Promise<void> {
+  /**
+   * Invalidate snapshots and run the change pipeline. `keepScanCache` marks
+   * state-only mutations (install, enable, surface toggles, MCP overrides)
+   * whose inputs leave every checkout untouched, so the next snapshot
+   * re-derives from cached discovery instead of rescanning the filesystem.
+   */
+  private async notifyChanged(keepScanCache = false): Promise<void> {
+    if (!keepScanCache) this.scanCacheDirty = true
     this.invalidateSnapshot(true)
     await this.options.onChanged()
     for (const listener of this.listeners) listener()
@@ -719,4 +1006,18 @@ async function tryHead(dir: string): Promise<string | undefined> {
   } catch {
     return undefined
   }
+}
+
+/**
+ * The codeload tarball URL of a GitHub repository, or undefined for any
+ * other host. `https://github.com/<owner>/<repo>` maps to
+ * `https://codeload.github.com/<owner>/<repo>/tar.gz/refs/heads/<branch>`
+ * (or `/tar.gz/HEAD` for the default branch) — the git-protocol fallback
+ * when a clone cannot get through but plain HTTPS file download can.
+ */
+export function codeloadTarballUrl(url: string, branch: string | undefined): string | undefined {
+  const match = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(url.trim())
+  if (match === null) return undefined
+  const [, owner, repo] = match
+  return `https://codeload.github.com/${owner}/${repo}/tar.gz/${branch === undefined ? 'HEAD' : `refs/heads/${branch}`}`
 }
