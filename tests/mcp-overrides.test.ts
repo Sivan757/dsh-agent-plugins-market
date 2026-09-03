@@ -182,7 +182,7 @@ describe('Catalog.setMcpOverride', () => {
     expect(after.mcpOverrides?.[serverKey]).toEqual({ enabled: true, url: 'http://127.0.0.1:9/mcp' })
 
     // mcpOverrides query returns the same record.
-    expect(await manager.mcpOverrides('v1-suite')).toEqual({ [serverKey]: { enabled: true, url: 'http://127.0.0.1:9/mcp' } })
+    expect(await manager.mcpOverrides('demo', 'v1-suite')).toEqual({ [serverKey]: { enabled: true, url: 'http://127.0.0.1:9/mcp' } })
   })
 
   it('clears an override with null and rejects unknown servers', async () => {
@@ -193,7 +193,7 @@ describe('Catalog.setMcpOverride', () => {
 
     await manager.setMcpOverride('demo', 'v1-suite', serverKey, { enabled: false })
     await manager.setMcpOverride('demo', 'v1-suite', serverKey, null)
-    expect(await manager.mcpOverrides('v1-suite')).toEqual({})
+    expect(await manager.mcpOverrides('demo', 'v1-suite')).toEqual({})
 
     await expect(manager.setMcpOverride('demo', 'v1-suite', 'nope', { enabled: false })).rejects.toThrow('is not defined by suite')
     await expect(manager.setMcpOverride('demo', 'ghost-suite', serverKey, null)).rejects.toThrow('not found in source')

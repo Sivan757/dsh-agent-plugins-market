@@ -68,6 +68,12 @@ export class McpMountRegistry {
   private readonly retries = new Map<string, ReturnType<typeof setTimeout>>()
   /** Attempt count per mount key; reset whenever a retry succeeds. */
   private readonly attempts = new Map<string, number>()
+  /**
+   * Mount keys flagged for an explicit rebuild (re-authorize): the next
+   * reconcile must tear down and remount them even when the resolved config
+   * fingerprint is unchanged — dropping a grant changes no config field.
+   */
+  private readonly forcedRemounts = new Set<string>()
   /** Snapshot of the last reconciled suite set, replayed by retry passes. */
   private lastEnabled: Suite[] = []
 
@@ -98,6 +104,26 @@ export class McpMountRegistry {
   /** Whether the last catalog snapshot uses one credential reference. */
   usesCredential(ref: string): boolean {
     return this.credentialRefs.has(ref)
+  }
+
+  /**
+   * Flag one mount for an explicit rebuild on the next reconcile: used by
+   * re-authorize, which deletes a grant without changing any resolved config
+   * field, so a fingerprint-only reconcile would keep the live bridge (and
+   * its in-memory tokens) untouched.
+   */
+  forceRemount(suiteId: string, serverKey: string): void {
+    this.forcedRemounts.add(mountKey(suiteId, serverKey))
+  }
+
+  /** The mount key owning one derived serverName; undefined when not mounted here. */
+  serverOwner(serverName: string): { suiteId: string; serverKey: string } | undefined {
+    const owner = this.names.get(serverName)
+    if (owner === undefined) return undefined
+    // Values are `${suiteId}\u0000${serverKey}` — suite ids may contain a
+    // slash (qualified ids), so the separator is the NUL byte, not '/'.
+    const separator = owner.indexOf('\u0000')
+    return { suiteId: owner.slice(0, separator), serverKey: owner.slice(separator + 1) }
   }
 
   /** Queue one reconciliation behind any in-flight mount/unmount pass. */
@@ -154,7 +180,12 @@ export class McpMountRegistry {
     }
     for (const [key, entry] of wanted) {
       const live = this.live.get(key)
-      if (live !== undefined && live.configFingerprint === fingerprintOf(entry.request)) continue
+      // A forced remount (re-authorize) skips the fingerprint match on
+      // purpose: dropping a grant does not change the resolved config, so
+      // only the explicit instruction tears the live bridge down and lets
+      // the server's 401 restart the browser authorization.
+      if (live !== undefined && !this.forcedRemounts.has(key) && live.configFingerprint === fingerprintOf(entry.request)) continue
+      this.forcedRemounts.delete(key)
       // Either a fresh mount, or a remount because the resolved config moved
       // (a credential rotation rewrites the env/header/url values while the
       // suite stays enabled) — keeping the old mount would keep serving the
@@ -302,7 +333,7 @@ export class McpMountRegistry {
       configFingerprint: fingerprintOf(request),
       disposer: () => handle.dispose()
     })
-    this.names.set(request.config.serverName, `${request.suiteId}/${request.serverKey}`)
+    this.names.set(request.config.serverName, `${request.suiteId}\u0000${request.serverKey}`)
     return undefined
   }
 

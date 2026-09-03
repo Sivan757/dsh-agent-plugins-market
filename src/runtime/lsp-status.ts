@@ -13,6 +13,7 @@
  */
 import type { LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
 import type { LspMountDiagnostic } from './lsp-mounts.js'
+import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { LspServerSpec, Suite } from '../model/types.js'
 
 /** Sentinel suite id for user-configured (non-suite) LSP servers. */
@@ -59,17 +60,19 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
   const mountedSuiteIds = new Set<number | string>()
   for (const suite of suites) {
     // Operational inventory, mirroring mcp-status: only installed+enabled
-    // suites' declarations appear.
+    // suites' declarations appear. The diagnostic key is the qualified suite
+    // id, matching the mount registry's wanted key exactly.
     if (suite.lsp === undefined || suite.installedAt === undefined || !suite.enabled) continue
+    const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
     const disabled = suite.activeSurfaces?.lsp === false
-    const diagnostic = diagnostics.get(suite.id)
+    const diagnostic = diagnostics.get(suiteKey)
     const { state, reason, retryable } = deriveState(disabled, diagnostic, anyLive)
-    if (state === 'mounted') mountedSuiteIds.add(suite.id)
+    if (state === 'mounted') mountedSuiteIds.add(suiteKey)
     for (const spec of Object.values(suite.lsp.servers)) {
       entries.push({
-        id: `${suite.id}/${spec.key}`,
+        id: `${suiteKey}/${spec.key}`,
         serverKey: spec.key,
-        suiteId: suite.id,
+        suiteId: suiteKey,
         suiteName: suite.manifest.name,
         sourceId: suite.sourceId,
         kind: 'plugin',

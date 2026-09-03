@@ -16,7 +16,7 @@ export interface MarketQueries {
   sourceProgress(): SourceProgress
   suiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail>
   skillContent(sourceId: string, suiteId: string, skillName: string): Promise<SkillContent>
-  mcpOverrides(suiteId: string): Promise<McpSuiteOverrides>
+  mcpOverrides(sourceId: string, suiteId: string): Promise<McpSuiteOverrides>
 }
 
 /** Mutating market operations required by HTTP routes. */

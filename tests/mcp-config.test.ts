@@ -150,3 +150,28 @@ describe('mcp-config: serverName derivation', () => {
     expect(deriveServerName('a'.repeat(40), 'b'.repeat(40))).toBe(long)
   })
 })
+
+describe('mcp-config: source-scoped identity', () => {
+  it('derives serverNames and mount keys from the qualified suite id so two sources never collide', async () => {
+    // Regression: mount requests keyed by the bare suite id let two sources'
+    // same-named suites shadow each other's mounts, data dirs, and status.
+    const a = suite()
+    const b = { ...suite(), sourceId: 'other' }
+    const first = await toMcpMounts(a, '/tmp/data', {}, alwaysResolves)
+    const second = await toMcpMounts(b, '/tmp/data', {}, alwaysResolves)
+    const firstNames = first.mounts.map(mount => mount.config.serverName)
+    const secondNames = second.mounts.map(mount => mount.config.serverName)
+    // Qualified ids differ, so every derived serverName differs.
+    expect(firstNames.some(name => secondNames.includes(name))).toBe(false)
+    expect(firstNames.every(name => name.startsWith('demo_my-suite__'))).toBe(true)
+    expect(secondNames.every(name => name.startsWith('other_my-suite__'))).toBe(true)
+    // The request's suiteId — the mount registry key — is qualified on both.
+    expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
+    expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
+    // Per-suite PLUGIN_DATA directories are qualified too.
+    const dbA = first.mounts[0]!.config as Record<string, unknown>
+    expect(dbA['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    const dbB = second.mounts[0]!.config as Record<string, unknown>
+    expect(dbB['env']).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
+  })
+})

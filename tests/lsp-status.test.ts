@@ -35,13 +35,13 @@ describe('buildLspStatus', () => {
   it('marks an enabled declaration as mounted when mounts are live and no diagnostic exists', () => {
     const payload = buildLspStatus([lspSuite('ts')], registry([], true))
     expect(payload.entries).toHaveLength(1)
-    expect(payload.entries[0]).toMatchObject({ id: 'ts/typescript', serverKey: 'typescript', command: 'typescript-language-server', state: 'mounted' })
+    expect(payload.entries[0]).toMatchObject({ id: 'src/ts/typescript', serverKey: 'typescript', command: 'typescript-language-server', state: 'mounted' })
     expect(payload.totals).toEqual({ all: 1, mounted: 1, failed: 0, blocked: 0, disabled: 0 })
     expect(payload.hostMissing).toBe(false)
   })
 
   it('reports host-missing from the stored diagnostic', () => {
-    const payload = buildLspStatus([lspSuite('ts')], registry([{ suiteId: 'ts', serverKey: 'ts/typescript', reason: 'not installed', code: 'host-missing' }]))
+    const payload = buildLspStatus([lspSuite('ts')], registry([{ suiteId: 'src/ts', serverKey: 'ts/typescript', reason: 'not installed', code: 'host-missing' }]))
     expect(payload.entries[0]!.state).toBe('host-missing')
     expect(payload.entries[0]!.reason).toBe('not installed')
     expect(payload.hostMissing).toBe(true)
@@ -58,8 +58,8 @@ describe('buildLspStatus', () => {
     const payload = buildLspStatus(
       [lspSuite('a'), lspSuite('b')],
       registry([
-        { suiteId: 'a', serverKey: 'a/typescript', reason: 'extension ".ts" is already handled by another LSP provider', code: 'seam-conflict' },
-        { suiteId: 'b', serverKey: 'b/typescript', reason: 'mount failed: executable not found', code: 'mount-failed' }
+        { suiteId: 'src/a', serverKey: 'a/typescript', reason: 'extension ".ts" is already handled by another LSP provider', code: 'seam-conflict' },
+        { suiteId: 'src/b', serverKey: 'b/typescript', reason: 'mount failed: executable not found', code: 'mount-failed' }
       ])
     )
     expect(payload.entries[0]!.state).toBe('conflict')
@@ -79,7 +79,7 @@ describe('buildLspStatus', () => {
       registry([], true)
     )
     expect(payload.entries).toHaveLength(1)
-    expect(payload.entries[0]).toMatchObject({ id: 'off/typescript', state: 'disabled' })
+    expect(payload.entries[0]).toMatchObject({ id: 'src/off/typescript', state: 'disabled' })
     expect(payload.totals.disabled).toBe(1)
   })
 })

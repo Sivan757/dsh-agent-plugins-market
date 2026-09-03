@@ -9,7 +9,7 @@
  * fail-closed: broken files produce a diagnostic and are skipped, never a
  * thrown discovery.
  */
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { parseSkillFrontmatter } from './skills-parse.js'
 import { isDirectory } from './paths.js'
@@ -19,15 +19,24 @@ import type { LspSuiteConfig, McpSuiteConfig, SuiteSkill, SuiteSurfaceCounts } f
 
 const DOT_DIRS = new Set(['.git', '.github', '.claude', '.cursor', '.kimi', '.plugin', '.sources', 'node_modules'])
 
-/** Resolve a manifest-declared skills path into absolute directories (string or array form). */
-function declaredSkillDirs(root: string, declared: unknown): string[] {
+/**
+ * Resolve a manifest-declared skills path into absolute directories (string or
+ * array form). Containment is checked on the *realpath* of both sides: the
+ * declared path may be (or pass through) a symlink whose target leaves the
+ * suite root, which lexical resolution cannot see.
+ */
+async function declaredSkillDirs(root: string, declared: unknown): Promise<string[]> {
   const values = Array.isArray(declared) ? declared : [declared]
   const dirs: string[] = []
+  const realRoot = await realpath(root).catch(() => root)
   for (const value of values) {
     if (typeof value !== 'string' || value === '') continue
     const cleaned = value.replace(/^\.\//, '')
     const path = resolve(root, cleaned)
-    if (isWithin(root, path)) dirs.push(path)
+    // A missing path is not an escape; the discovery walk reports it absent.
+    const realPath = await realpath(path).catch(() => undefined)
+    if (realPath === undefined) continue
+    if (isWithin(realRoot, realPath)) dirs.push(path)
   }
   return dirs
 }
@@ -50,7 +59,7 @@ export async function discoverSkills(root: string, errors: string[], declared?: 
   const rootName = root.split(/[\\/]/).at(-1) ?? 'plugin'
   const rootParsed = await parseOneSkill(rootSkill, root, rootName, errors)
   if (rootParsed !== undefined) skills.push(rootParsed)
-  const skillsDirs = declaredSkillDirs(root, declared)
+  const skillsDirs = await declaredSkillDirs(root, declared)
   if (skillsDirs.length === 0) {
     const fallback = join(root, 'skills')
     if (await isDirectory(fallback)) skillsDirs.push(fallback)

@@ -169,7 +169,7 @@ describe('McpMountRegistry', () => {
     const first = await registry.reconcile([])
     const second = await registry.reconcile([])
 
-    expect(first).toContainEqual({ suiteId: 'retry', serverKey: 'service', code: 'unmount-failed', reason: 'unmount failed: busy' })
+    expect(first).toContainEqual({ suiteId: 'demo/retry', serverKey: 'service', code: 'unmount-failed', reason: 'unmount failed: busy' })
     expect(second).toEqual([])
     expect(disposeAttempts).toBe(2)
   })
@@ -226,6 +226,49 @@ describe('McpMountRegistry', () => {
     expect((mounted[0]!.config['env'] as Record<string, string>).API_TOKEN).toBe('secret')
     await registry.disposeAll()
     expect(mounted[0]!.disposed).toBe(true)
+  })
+
+  it('rebuilds a live mount flagged by forceRemount even when the config is unchanged', async () => {
+    // Regression: re-authorize drops a grant without changing any resolved
+    // config field, so a fingerprint-only reconcile kept the live bridge —
+    // with its in-memory tokens — and the re-authorization never ran.
+    const mounted: Array<Record<string, unknown> & { disposed?: boolean }> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const record: Record<string, unknown> & { disposed?: boolean } = { ...config, disposed: false }
+        mounted.push(record)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            record.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const authSuite = suite('auth', 'service')
+    authSuite.mcp!.servers.service = { type: 'stdio', command: 'tool', env: { API_TOKEN: 'token-v1' } }
+
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(1)
+    // No remount without a flag: identical config, live bridge stays.
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(1)
+    // Force-remount (re-authorize): same config, but the bridge is rebuilt.
+    registry.forceRemount('demo/auth', 'service')
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(2)
+    expect(mounted[0]!.disposed).toBe(true)
+    // A subsequent pass with no flag does not rebuild again.
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(2)
+    await registry.disposeAll()
+  })
+
+  it('resolves the owning mount key from a derived serverName', () => {
+    const registry = new McpMountRegistry({ logger: { warn: () => {} } } as never, '/tmp/data')
+    expect(registry.serverOwner('demo_alpha__db')).toBeUndefined()
   })
 
   it('skips mounting when a foreign MCP client already owns the derived serverName namespace', async () => {

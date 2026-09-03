@@ -74,7 +74,7 @@ describe('buildLspStatus with direct servers', () => {
 
   it('emits kind plugin rows for suites and direct rows for user configuration', () => {
     const payload = buildLspStatus([lspSuite('ts')], { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => true }, directSource)
-    const plugin = payload.entries.find(entry => entry.id === 'ts/typescript')!
+    const plugin = payload.entries.find(entry => entry.id === 'src/ts/typescript')!
     const direct = payload.entries.find(entry => entry.id === `${DIRECT_LSP_SUITE_ID}/lua`)!
     expect(plugin.kind).toBe('plugin')
     expect(plugin.sourceId).toBe('src')

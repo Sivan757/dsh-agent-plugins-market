@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { parse as parseYaml } from 'yaml'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
+import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { Suite } from '../model/types.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
 
@@ -69,8 +70,11 @@ export class CommandMountRegistry {
               ...(suite.activeSurfaces?.agents === false ? [] : await readAgents(suite.root, this.t))
             ]
       for (const spec of specs) {
-        const key = `${suite.id}/${spec.name}`
-        wanted.set(key, { ...spec, suiteId: suite.id, suiteName: suite.manifest.name })
+        // The registry key is source-qualified: bare suite ids are unique per
+        // source only, so two sources' same-named suites would collide.
+        const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
+        const key = `${suiteKey}/${spec.name}`
+        wanted.set(key, { ...spec, suiteId: suiteKey, suiteName: suite.manifest.name })
       }
     }
     for (const [key, disposer] of [...this.live]) {

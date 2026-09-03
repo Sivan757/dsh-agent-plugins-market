@@ -61,6 +61,16 @@ export class RuntimeReconciler {
     return this.mcp.usesCredential(ref)
   }
 
+  /** Flag one MCP mount for an explicit rebuild on the next reconcile. */
+  forceMcpRemount(suiteId: string, serverKey: string): void {
+    this.mcp.forceRemount(suiteId, serverKey)
+  }
+
+  /** The mount key owning one derived serverName; undefined when not mounted here. */
+  mcpServerOwner(serverName: string): { suiteId: string; serverKey: string } | undefined {
+    return this.mcp.serverOwner(serverName)
+  }
+
   /** Reconcile all runtime surfaces against one enabled-suite snapshot. */
   async reconcile(enabledSuites: readonly Suite[]): Promise<RuntimeDiagnostics> {
     const suites = [...enabledSuites]

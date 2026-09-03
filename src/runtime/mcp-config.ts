@@ -141,7 +141,7 @@ async function toResolvedMount(
     if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
     return {
       request: {
-        suiteId: suite.id,
+        suiteId: qualifiedSuiteId(suite.sourceId, suite.id),
         serverKey,
         config: {
           transport: 'stdio',

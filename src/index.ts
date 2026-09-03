@@ -149,6 +149,13 @@ export function apply(ctx: Context, config: Config = {}): void {
     }
   })
   runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
+  // Re-authorize must rebuild the live bridge, not just drop the grant: the
+  // registry flags the mount and the following reconcile tears it down and
+  // remounts, so the server's 401 restarts the browser authorization.
+  catalog.setMcpRemountHook(
+    (suiteId, serverKey) => runtime.forceMcpRemount(suiteId, serverKey),
+    serverName => runtime.mcpServerOwner(serverName)
+  )
   catalog.setLspStatusSource(runtime.lsp)
   runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)
   // The MCP backend choice is a host settings namespace (the registration is

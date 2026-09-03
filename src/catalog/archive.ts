@@ -18,7 +18,7 @@ import { execFile } from 'node:child_process'
 import { mkdir, open, readdir, readFile, readlink, rename, rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
-import { unzipSync } from 'fflate'
+import { Unzip, UnzipInflate, type FlateError } from 'fflate'
 
 const run = promisify(execFile)
 
@@ -148,38 +148,86 @@ export async function archiveInstall(url: string, dest: string, options: Archive
 }
 
 /**
- * Extract a zip payload with per-entry path-traversal guards and decompression
- * limits: total bytes, entry count, and per-entry size are bounded so a zip
- * bomb cannot exhaust memory or disk.
+ * Extract a zip payload with per-entry path-traversal guards and resource
+ * limits enforced *during* decompression: the stream feeds a stateful unzip
+ * (never a whole-archive `unzipSync` into memory), and total bytes, entry
+ * count, and per-entry size are counted as data arrives — a zip bomb aborts
+ * the stream before it can exhaust memory or disk. Guard violations set a
+ * failure instead of throwing inside the stream callbacks (a throw from
+ * within fflate's synchronous push recursion overflows the stack); the
+ * chunked feed halts at the next slice.
  */
 async function extractZip(archiveFile: string, dest: string): Promise<void> {
-  const buffer = await readFile(archiveFile)
-  const entries = unzipSync(buffer)
+  const compressed = await readFile(archiveFile)
   let totalBytes = 0
-  const names = Object.keys(entries)
-  if (names.length > ARCHIVE_MAX_ENTRIES) {
-    throw new Error(`archive exceeds the ${ARCHIVE_MAX_ENTRIES} entry limit: ${names.length}`)
+  let entryCount = 0
+  let failure: Error | undefined
+  const fail = (error: Error): void => {
+    failure ??= error
   }
-  for (const [name, data] of Object.entries(entries)) {
-    const normalized = name.replace(/\\/g, '/')
-    if (normalized === '' || normalized.endsWith('/')) continue
-    totalBytes += data.byteLength
-    if (totalBytes > ARCHIVE_MAX_EXTRACTED_BYTES) {
-      throw new Error(`archive exceeds the ${ARCHIVE_MAX_EXTRACTED_BYTES} byte extracted-size limit`)
+  const unzip = new Unzip()
+  unzip.register(UnzipInflate)
+  const writes: Array<Promise<void>> = []
+  unzip.onfile = file => {
+    if (failure !== undefined) return
+    entryCount += 1
+    if (entryCount > ARCHIVE_MAX_ENTRIES) {
+      fail(new Error(`archive exceeds the ${ARCHIVE_MAX_ENTRIES} entry limit`))
+      return
     }
-    if (data.byteLength > ARCHIVE_MAX_ENTRY_BYTES) {
-      throw new Error(`archive entry "${name}" exceeds the ${ARCHIVE_MAX_ENTRY_BYTES} byte per-entry limit`)
-    }
-    assertSafeEntryName(normalized)
-    const target = join(dest, normalized)
-    if (target !== dest && !target.startsWith(`${dest}/`)) throw new Error(`zip entry escapes the extraction root: ${name}`)
-    await mkdir(resolve(target, '..'), { recursive: true })
-    const handle = await open(target, 'w')
+    const normalized = file.name.replace(/\\/g, '/')
+    if (normalized === '' || normalized.endsWith('/')) return
     try {
-      await handle.write(data)
-    } finally {
-      await handle.close()
+      assertSafeEntryName(normalized)
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error(String(error)))
+      return
     }
+    const target = join(dest, normalized)
+    if (target !== dest && !target.startsWith(`${dest}/`)) {
+      fail(new Error(`zip entry escapes the extraction root: ${file.name}`))
+      return
+    }
+    let entryBytes = 0
+    const chunks: Buffer[] = []
+    file.ondata = (error: FlateError | null, data: Uint8Array, final: boolean): void => {
+      if (error !== null) {
+        fail(error)
+        return
+      }
+      entryBytes += data.byteLength
+      totalBytes += data.byteLength
+      if (entryBytes > ARCHIVE_MAX_ENTRY_BYTES) {
+        fail(new Error(`archive entry "${file.name}" exceeds the ${ARCHIVE_MAX_ENTRY_BYTES} byte per-entry limit`))
+        return
+      }
+      if (totalBytes > ARCHIVE_MAX_EXTRACTED_BYTES) {
+        fail(new Error(`archive exceeds the ${ARCHIVE_MAX_EXTRACTED_BYTES} byte extracted-size limit`))
+        return
+      }
+      chunks.push(Buffer.from(data))
+      if (final) writes.push(writeZipEntry(target, chunks))
+    }
+    file.start()
+  }
+  // Feed in small slices so the failure flag halts processing promptly.
+  const view = new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength)
+  const slice = 64 * 1024
+  for (let offset = 0; offset < view.length && failure === undefined; offset += slice) {
+    unzip.push(view.subarray(offset, Math.min(offset + slice, view.length)), offset + slice >= view.length)
+  }
+  if (failure !== undefined) throw failure
+  await Promise.all(writes)
+}
+
+/** Write one buffered zip entry to disk after its data completed inflating. */
+async function writeZipEntry(target: string, chunks: Buffer[]): Promise<void> {
+  await mkdir(resolve(target, '..'), { recursive: true })
+  const handle = await open(target, 'w')
+  try {
+    for (const chunk of chunks) await handle.write(chunk)
+  } finally {
+    await handle.close()
   }
 }
 

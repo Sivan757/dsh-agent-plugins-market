@@ -83,6 +83,13 @@ export interface CatalogOptions {
    * to 5 seconds; 0 disables caching.
    */
   projectSnapshotTtlMs?: number
+  /**
+   * Freshness window for the cached user-dimension snapshot (defaults to the
+   * scan-cache TTL). It bounds how long out-of-band edits to local sources
+   * stay invisible; 0 disables snapshot caching. Tests pass a small value so
+   * staleness regressions need no real sleeps.
+   */
+  userSnapshotTtlMs?: number
 }
 
 /** A coherent discovered-and-installed view for one catalog dimension. */
@@ -123,11 +130,10 @@ export class Catalog {
    * User-dimension snapshot TTL: bounded staleness for edits made outside the
    * plugin (a new skill dropped into a local source's working tree, a hand
    * edit in a project layout) becomes visible on the next read past the TTL
-   * instead of living until the next mutation. It bounds the *snapshot*
-   * freshness; the scan cache TTL below bounds the reuse of a full scan, so
-   * this must stay at or below the scan TTL to actually force a rescan.
+   * instead of living until the next mutation. Configurable; a 0 value
+   * disables snapshot caching entirely.
    */
-  private static readonly USER_SNAPSHOT_TTL_MS = Catalog.SCAN_CACHE_TTL_MS
+  private readonly userSnapshotTtlMs: number
   /** Project-dimension snapshots keyed by project root, with TTL freshness. */
   private readonly projectSnapshots = new Map<string, { snapshot: CatalogSnapshot; expiresAt: number }>()
   private readonly projectSnapshotPromises = new Map<string, Promise<CatalogSnapshot>>()
@@ -139,6 +145,10 @@ export class Catalog {
   /** Credential-store seam for dropping a grant record (MCP re-authorize). */
   private credentialsStore: { deleteGrantRecord(serverName: string): Promise<void> } | undefined
   private toolSnapshotProvider: () => readonly McpToolSnapshot[] = () => []
+  /** Mount-registry seam: flags a mount key for an explicit rebuild (re-authorize). */
+  private mcpRemount: (suiteId: string, serverKey: string) => void = () => {}
+  /** Resolves the mount key owning one derived serverName; absent when the server is not mounted. */
+  private mcpServerOwner: (serverName: string) => { suiteId: string; serverKey: string } | undefined = () => undefined
   /** Backend source (the host settings namespace scope); default is the built-in client. */
   private mcpBackendProvider: () => Promise<McpBackend> = async () => 'builtin'
   /** Backend writer (a scope update); absent until the settings service resolves. */
@@ -151,6 +161,7 @@ export class Catalog {
   constructor(private readonly options: CatalogOptions) {
     this.statePath = join(options.userRoot, STATE_FILE_NAME)
     this.projectSnapshotTtlMs = options.projectSnapshotTtlMs ?? 5_000
+    this.userSnapshotTtlMs = options.userSnapshotTtlMs ?? Catalog.SCAN_CACHE_TTL_MS
   }
 
   /** Install the host tool snapshot provider used by the MCP status surface. */
@@ -166,16 +177,29 @@ export class Catalog {
   /**
    * Drop one MCP server's OAuth grant record so the next mount re-runs the
    * browser authorization — the path for "I picked too narrow a scope".
-   * @param suiteId - the owning suite.
-   * @param serverKey - the suite's server key.
-   * @param serverName - the derived `dsh-mcp-client` serverName whose folded form keys the record.
+   * @param serverName - the derived serverName whose folded form keys the record.
    * @throws when the credentials service is not mounted.
    */
   async reauthorizeMcpServer(serverName: string): Promise<void> {
     await this.enqueue(async () => {
       await this.credentialsStore?.deleteGrantRecord(serverName)
+      // Dropping a grant changes no resolved config field, so a fingerprint
+      // reconcile would keep the live bridge — with its in-memory tokens —
+      // untouched. The serverName maps back to exactly one mount key (the
+      // registry reserved the name), so flag it for an explicit rebuild.
+      const key = this.mcpServerOwner(serverName)
+      if (key !== undefined) this.mcpRemount?.(key.suiteId, key.serverKey)
       await this.notifyChanged(true)
     })
+  }
+
+  /**
+   * Install the MCP remount seam used by re-authorize: the registry flags the
+   * mount so the next reconcile tears the live bridge down and rebuilds it.
+   */
+  setMcpRemountHook(hook: (suiteId: string, serverKey: string) => void, serverOwner: (serverName: string) => { suiteId: string; serverKey: string } | undefined): void {
+    this.mcpRemount = hook
+    this.mcpServerOwner = serverOwner
   }
 
   /** Whether the re-authorize action can run in this composition. */
@@ -221,11 +245,12 @@ export class Catalog {
     })
   }
 
-  /** One suite's persisted MCP overrides. */
-  async mcpOverrides(suiteId: string): Promise<McpSuiteOverrides> {
+  /** One suite's persisted MCP overrides, addressed by qualified suite id. */
+  async mcpOverrides(sourceId: string, suiteId: string): Promise<McpSuiteOverrides> {
+    const suiteKey = qualifiedSuiteId(sourceId, suiteId)
     const snapshot = await this.readUserCatalog()
-    if (!snapshot.suites.some(suite => suite.id === suiteId)) throw new Error(`suite "${suiteId}" not found`)
-    return redactMcpOverrides(await loadSuiteOverrides(this.options.dataRoot, suiteId))
+    if (!snapshot.suites.some(suite => suite.sourceId === sourceId && suite.id === suiteId)) throw new Error(`suite "${suiteKey}" not found`)
+    return redactMcpOverrides(await loadSuiteOverrides(this.options.dataRoot, suiteKey))
   }
 
   /**
@@ -235,6 +260,7 @@ export class Catalog {
    */
   async setMcpOverride(sourceId: string, suiteId: string, serverKey: string, override: McpServerOverride | null): Promise<void> {
     return this.enqueue(async () => {
+      const suiteKey = qualifiedSuiteId(sourceId, suiteId)
       const source = this.state.sources.find(entry => entry.id === sourceId)
       if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
       const checkout = this.sourceCheckoutPath(source)
@@ -243,7 +269,9 @@ export class Catalog {
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.mcp?.servers[serverKey] === undefined) throw new Error(`server "${serverKey}" is not defined by suite "${suiteId}"`)
-      const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteId)
+      // Override files are keyed by the qualified id so two sources' same-named
+      // suites never share one override record.
+      const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteKey)
       if (override === null) {
         delete overrides[serverKey]
       } else {
@@ -251,7 +279,7 @@ export class Catalog {
         // values, so a verbatim write would drop keys it simply redacted.
         overrides[serverKey] = mergeOverridePatch(overrides[serverKey] ?? {}, override)
       }
-      await saveSuiteOverrides(this.options.dataRoot, suiteId, overrides)
+      await saveSuiteOverrides(this.options.dataRoot, suiteKey, overrides)
       await this.notifyChanged(true)
     })
   }
@@ -315,8 +343,9 @@ export class Catalog {
     const snapshot = await this.readUserCatalog()
     const map = new Map<string, McpSuiteOverrides>()
     for (const suite of snapshot.suites) {
-      const overrides = await loadSuiteOverrides(this.options.dataRoot, suite.id)
-      if (Object.keys(overrides).length > 0) map.set(qualifiedSuiteId(suite.sourceId, suite.id), overrides)
+      const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
+      const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteKey)
+      if (Object.keys(overrides).length > 0) map.set(suiteKey, overrides)
     }
     return map
   }
@@ -339,11 +368,14 @@ export class Catalog {
 
   /** Read one coherent user-dimension snapshot, reusing in-flight discovery. */
   async readUserCatalog(): Promise<CatalogSnapshot> {
+    // TTL 0 disables snapshot caching: every read observes fresh discovery,
+    // mirroring the project dimension's caching-disabled semantics.
+    if (this.userSnapshotTtlMs <= 0) return this.buildSnapshot(this.state, 'user', this.options.userRoot)
     if (this.userSnapshot !== undefined && Date.now() < this.userSnapshotExpiresAt) return this.userSnapshot
     this.userSnapshotPromise ??= this.buildSnapshot(this.state, 'user', this.options.userRoot)
       .then(snapshot => {
         this.userSnapshot = snapshot
-        this.userSnapshotExpiresAt = Date.now() + Catalog.USER_SNAPSHOT_TTL_MS
+        this.userSnapshotExpiresAt = Date.now() + this.userSnapshotTtlMs
         return snapshot
       })
       .finally(() => {
@@ -384,7 +416,8 @@ export class Catalog {
     const snapshot = await this.readUserCatalog()
     const suite = snapshot.suites.find(entry => entry.sourceId === sourceId && entry.id === suiteId)
     if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
-    return buildSuiteDetail(suite, this.state.installed[installKey(sourceId, suiteId)], this.mcpDiagnostics, await loadSuiteOverrides(this.options.dataRoot, suiteId))
+    const suiteKey = qualifiedSuiteId(sourceId, suiteId)
+    return buildSuiteDetail(suite, this.state.installed[installKey(sourceId, suiteId)], this.mcpDiagnostics, await loadSuiteOverrides(this.options.dataRoot, suiteKey))
   }
 
   /** One skill's full SKILL.md text for the market detail modal. */
@@ -764,6 +797,18 @@ export class Catalog {
           if (lock !== undefined) this.headCache.set(source.id, lock)
           continue
         }
+        // Adopted checkouts are user-owned working trees: no `reset --hard`
+        // (it would destroy uncommitted work), and no re-acquire either —
+        // a broken HEAD means the user repairs the checkout, not that the
+        // manager may clone or extract over their directory.
+        if (source.adopted === true) {
+          try {
+            this.headCache.set(source.id, await gitHead(checkout))
+          } catch {
+            // A failed HEAD read means the next overview re-probes.
+          }
+          continue
+        }
         try {
           await gitHead(checkout)
         } catch {
@@ -776,17 +821,6 @@ export class Catalog {
             } catch {
               // A failed HEAD read means the next overview re-probes.
             }
-          }
-          continue
-        }
-        // Adopted checkouts are user-owned working trees: a `reset --hard`
-        // would destroy uncommitted work, so they are left untouched (the
-        // scan reads whatever state the user's checkout is in).
-        if (source.adopted === true) {
-          try {
-            this.headCache.set(source.id, await gitHead(checkout))
-          } catch {
-            // A failed HEAD read means the next overview re-probes.
           }
           continue
         }
@@ -929,7 +963,10 @@ export class Catalog {
   private async buildSnapshot(state: SuiteState, dimension: SuiteDimension, dimensionRoot: string, skipScanCache = false): Promise<CatalogSnapshot> {
     const fingerprint = JSON.stringify([dimension, dimensionRoot, state.sources])
     const cached = this.scanCache.get(fingerprint)
-    const cacheFresh = !skipScanCache && !this.scanCacheDirty && cached !== undefined && Date.now() - cached.at < Catalog.SCAN_CACHE_TTL_MS
+    // The user snapshot's TTL also bounds scan reuse: a snapshot rebuild that
+    // replays a 30s scan cache would silently outlive its own staleness bound.
+    const scanCacheTtl = dimension === 'user' ? Math.min(this.userSnapshotTtlMs, Catalog.SCAN_CACHE_TTL_MS) : Catalog.SCAN_CACHE_TTL_MS
+    const cacheFresh = !skipScanCache && !this.scanCacheDirty && cached !== undefined && Date.now() - cached.at < scanCacheTtl
     let discovered: Suite[]
     let scanNotes: Record<string, string[]>
     if (cacheFresh && cached !== undefined) {

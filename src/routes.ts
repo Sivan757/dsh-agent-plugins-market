@@ -211,13 +211,15 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
   })
 
   get(MARKET_ROUTES.mcpOverrides, async (request, response) => {
-    const suiteId = queryOf(request).get('suiteId')
-    if (suiteId === null) {
-      sendJson(response, 400, { ok: false, error: 'missing suiteId' })
+    const query = queryOf(request)
+    const sourceId = query.get('sourceId')
+    const suiteId = query.get('suiteId')
+    if (sourceId === null || suiteId === null) {
+      sendJson(response, 400, { ok: false, error: 'missing sourceId or suiteId' })
       return
     }
     try {
-      sendJson(response, 200, { ok: true, overrides: await manager.mcpOverrides(suiteId) })
+      sendJson(response, 200, { ok: true, overrides: await manager.mcpOverrides(sourceId, suiteId) })
     } catch (error) {
       sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }

@@ -3,6 +3,7 @@ import { credentialRefsInServer, deriveServerName } from './mcp-config.js'
 import type { McpStatusEntry, McpStatusPayload, McpStatusState } from '../contracts/mcp-status.js'
 import { inspectToolRegistry, type McpToolSnapshot } from './tool-registry-observer.js'
 import { redactMcpConfig, redactUrl } from './mcp-redaction.js'
+import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { McpServer, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 
 export type { McpStatusEntry, McpStatusPayload, McpStatusKind, McpStatusState } from '../contracts/mcp-status.js'
@@ -31,7 +32,10 @@ export function buildMcpStatus(
   for (const suite of suites) {
     if (suite.mcp === undefined) continue
     for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
-      const serverName = deriveServerName(suite.id, serverKey)
+      // Server names and every status key are source-qualified: two sources
+      // may ship the same suite id, and the inventory must not conflate them.
+      const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
+      const serverName = deriveServerName(suiteKey, serverKey)
       knownServerNames.add(serverName)
       knownDefinitions.set(serverName, { suite, serverKey, server })
     }
@@ -43,13 +47,14 @@ export function buildMcpStatus(
     // This is an operational inventory, not a configuration audit: suite MCP
     // definitions only appear after their suite is both installed and enabled.
     if (suite.mcp === undefined || suite.installedAt === undefined || !suite.enabled) continue
-    const suiteOverrides = overrides.get(suite.id)
+    const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
+    const suiteOverrides = overrides.get(suiteKey)
     for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
       const override = suiteOverrides?.[serverKey]
-      const serverName = deriveServerName(suite.id, serverKey)
+      const serverName = deriveServerName(suiteKey, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
-      const diagnostic = diagnosticsByKey.get(`${suite.id}\u0000${serverKey}`)
+      const diagnostic = diagnosticsByKey.get(`${suiteKey}\u0000${serverKey}`)
       const effective = applyOverride(server as McpServerStdio | McpServerStreamableHttp, override)
       const credentialRefs = [...new Set([...credentialRefsInServer(effective), ...(diagnostic?.credentialRefs ?? [])])].sort()
       const disabled = override?.enabled === false || suite.activeSurfaces?.mcp === false
@@ -71,12 +76,12 @@ export function buildMcpStatus(
         ? 'MCP tools remain after this plugin surface was disabled'
         : (diagnostic?.reason ?? (override === undefined || (state !== 'disabled' && tools.length > 0) ? undefined : disabled ? 'disabled by override' : 'modified by override'))
       entries.push({
-        id: `plugin:${suite.sourceId}/${suite.id}/${serverKey}`,
+        id: `plugin:${suiteKey}/${serverKey}`,
         name: serverName,
         kind: 'plugin',
         state,
         source: suite.manifest.name,
-        suiteId: suite.id,
+        suiteId: suiteKey,
         serverKey,
         transport: server.type,
         endpoint: endpointOf(server),
@@ -96,13 +101,14 @@ export function buildMcpStatus(
     const stale = knownDefinitions.get(serverName)
     if (stale !== undefined) {
       const staleRefs = credentialRefsInServer(stale.server)
+      const staleKey = qualifiedSuiteId(stale.suite.sourceId, stale.suite.id)
       entries.push({
-        id: `orphaned:${stale.suite.sourceId}/${stale.suite.id}/${stale.serverKey}`,
+        id: `orphaned:${staleKey}/${stale.serverKey}`,
         name: serverName,
         kind: 'plugin',
         state: 'orphaned',
         source: stale.suite.manifest.name,
-        suiteId: stale.suite.id,
+        suiteId: staleKey,
         serverKey: stale.serverKey,
         transport: stale.server.type,
         endpoint: endpointOf(stale.server),
