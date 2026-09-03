@@ -98,9 +98,28 @@ Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (
       - { id: claude-plugins-official, url: 'https://github.com/anthropics/claude-plugins-official' }
       - { id: ui-ux-pro-max, url: 'https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git' }
       - { id: my-local-plugin, url: '/Users/me/work/my-plugin', local: true }
+      - { id: packaged-plugin, url: 'https://example.com/plugin-0.1.zip', kind: archive, sha256: '<64-hex digest>' }
 ```
 
-A `local: true` source reads the directory in place (live working tree; never deleted on removal).
+A `local: true` source reads the directory in place (live working tree; never deleted on removal). Discovery results are cached for up to 30 seconds and reused across install/enable/panel actions, so working-tree edits of local sources appear on the next cache refresh (any source mutation, the refresh button, or the 30 s TTL). An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
+
+### Manual clones, adoption, and network tuning
+
+Cloning from the UI times out on a restricted network? Clone the repository yourself into the checkout root (`~/.dsh/agent-plugins/.sources/<id>/`) — the market page lists it under **unregistered local checkouts** with a one-click **adopt** action that registers it in place (no re-clone, no deletion, ever). Adding a URL whose checkout already exists with a matching `origin` remote adopts it automatically instead of cloning a second copy.
+
+Git/archive acquisition is tunable through the host config:
+
+```yaml
+- id: dsh-agent-plugins-market
+  config:
+    git:
+      proxy: 'http://127.0.0.1:7890' # injected as git http/https proxy
+      insteadOf: { 'https://github.com/': 'https://mirror.example/https://github.com/' }
+      timeoutMs: 300000 # per git invocation (default 120000)
+      cloneRetry: true # one automatic retry (default)
+      fallbackTarball: false # retry a failed github.com clone as a codeload tarball download
+      allowHttpArchives: false # permit plain-http archive URLs (intranet mirrors)
+```
 
 ## Comparison with other DSH ↔ Claude Code bridges
 
@@ -169,7 +188,7 @@ Yes — MIT licensed, published on [npm](https://www.npmjs.com/package/dsh-agent
 
 ## Security model
 
-- Git sources clone through `git` via `execFile` (no shell), depth 1, `--ff-only` pulls, 120s timeouts; local sources are read in place and never deleted.
+- Git sources clone through `git` via `execFile` (no shell), depth 1, shallow `fetch` + `reset` updates, configurable timeouts/proxy/mirrors with a low-speed guard; local sources are read in place and never deleted. Archive sources are HTTPS-only by default, capped at 256 MiB, extracted with path-traversal guards, and optionally pinned to a SHA-256 digest.
 - Mutating HTTP routes accept same-origin POSTs only; bodies capped at 64 KiB.
 - Portable paths must start with `./` and resolve inside the plugin root (symlink escapes rejected); `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` expand.
 - Third-party failures are always contained: broken manifests, invalid skills, escaping paths, unknown MCP transports, missing MCP credentials, and mount failures are per-plugin diagnostics.

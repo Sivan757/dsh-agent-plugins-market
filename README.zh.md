@@ -98,9 +98,28 @@ dsh plugin --profile <名字> add github:Sivan757/dsh-agent-plugins-market
       - { id: claude-plugins-official, url: 'https://github.com/anthropics/claude-plugins-official' }
       - { id: ui-ux-pro-max, url: 'https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git' }
       - { id: my-local-plugin, url: '/Users/me/work/my-plugin', local: true }
+      - { id: packaged-plugin, url: 'https://example.com/plugin-0.1.zip', kind: archive, sha256: '<64 位十六进制摘要>' }
 ```
 
-`local: true` 的源直接读取本地目录（实时反映工作树，移除源时不会删除目录）。
+`local: true` 的源直接读取本地目录（实时反映工作树，移除源时不会删除目录）。扫描结果会缓存最多 30 秒，并在安装/启用/面板切换等操作间复用，因此本地源的工作树改动会在下一次缓存刷新时可见（任何源变更、刷新按钮，或 30 秒 TTL 到期）。`archive` 源下载 HTTPS 压缩包（`.zip` / `.tar.gz` / `.tgz` / `.tar`，256 MiB 上限，可选 `sha256` 完整性校验）并解压为 checkout。
+
+### 手动克隆、收编与网络调优
+
+界面上克隆超时？你可以自己把仓库克隆到 checkout 根（`~/.dsh/agent-plugins/.sources/<id>/`）——市场页会在「未登记的本地仓库」中列出它，并提供一键**收编**：原样登记、不重新克隆、永不删除。在 UI 里添加 URL 时，若已存在 `origin` 匹配的 checkout，也会自动收编而不是二次克隆。
+
+git/压缩包获取可通过宿主配置调优：
+
+```yaml
+- id: dsh-agent-plugins-market
+  config:
+    git:
+      proxy: 'http://127.0.0.1:7890' # 以 git http/https 代理注入
+      insteadOf: { 'https://github.com/': 'https://mirror.example/https://github.com/' }
+      timeoutMs: 300000 # 每次 git 调用超时（默认 120000）
+      cloneRetry: true # 失败自动重试一次（默认开）
+      fallbackTarball: false # github.com 克隆失败时回退为 codeload tarball 下载
+      allowHttpArchives: false # 允许明文 http 压缩包地址（内网镜像）
+```
 
 ## 与其他 DSH ↔ Claude Code 桥接项目的对比
 
@@ -169,7 +188,7 @@ dsh plugin --profile <名字> add dsh-agent-plugins-market
 
 ## 安全模型
 
-- git 源经 `execFile` 克隆（无 shell），`--depth 1`，`--ff-only`，120s 超时；本地源原地读取、移除不删除。
+- git 源经 `execFile` 克隆（无 shell），`--depth 1`，shallow `fetch` + `reset` 更新，超时/代理/镜像可配置并带低速熔断；本地源原地读取、移除不删除。压缩包源默认仅 HTTPS、256 MiB 上限、带路径穿越防护的解压，可选 SHA-256 校验。
 - 变更类 HTTP 路由仅接受同源 POST，请求体上限 64 KiB。
 - 便携包路径必须 `./` 开头且解析后留在套件根内（拒绝 symlink 逃逸）；`${PLUGIN_ROOT}`/`${PLUGIN_DATA}` 展开。
 - 第三方套件故障永远受控：坏清单、非法技能、逃逸路径、未知 MCP transport、缺失 MCP 凭据、挂载失败均为逐套件诊断。
