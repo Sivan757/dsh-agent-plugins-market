@@ -26,6 +26,7 @@ import css from './market.module.css'
 /** Host step keys -> translation keys, resolved against the active t(). */
 const PROGRESS_STEP_LABELS: Record<string, string> = {
   cloning: 'progressCloning',
+  downloading: 'progressDownloading',
   reading: 'progressReading'
 }
 
@@ -131,6 +132,14 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
 
   const selectedSource = category === 'all' ? undefined : overview.sources.find(source => source.id === category)
 
+  const adoptSource = useCallback(
+    async (id: string) => {
+      await action(`s:adopt:${id}`, 'sources/adopt', { id })
+    },
+    [action]
+  )
+  const unmanaged = overview.unmanaged ?? []
+
   return h(ErrorBoundary, {
     fallback: error => h('div', { className: css.empty }, `${t('actionFail')}: ${error.message}`),
     children: h(
@@ -183,11 +192,12 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
                 .map(source => {
                   const notes = source.scanNotes ?? []
                   const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
+                  const kindBadge = source.local === true ? t('sourceLocal') : source.kind === 'archive' ? t('sourceArchive') : source.adopted === true ? t('sourceAdopted') : undefined
                   return h(SourceTab, {
                     key: source.id,
                     t,
                     active: category === source.id,
-                    label: `${source.id}${source.local === true ? ` · ${t('sourceLocal')}` : ''} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
+                    label: `${source.id}${kindBadge === undefined ? '' : ` · ${kindBadge}`} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
                     title: noteHint,
                     onSelect: () => setCategory(source.id),
                     onDelete: () => setConfirm({ kind: 'removeSource', sourceId: source.id }),
@@ -196,6 +206,33 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
                 })
             )
           ),
+          unmanaged.length === 0
+            ? null
+            : h(
+                'div',
+                { className: css.unmanagedRow },
+                h('span', { className: css.unmanagedLabel }, t('unmanagedTitle')),
+                ...unmanaged.map(entry =>
+                  h(
+                    'span',
+                    { key: entry.id, className: css.unmanagedChip, title: entry.url ?? t('unmanagedNoRemote') },
+                    h('span', { className: css.unmanagedChipName }, entry.id),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: css.unmanagedAdopt,
+                        disabled: busy !== undefined,
+                        title: t('unmanagedAdopt'),
+                        onClick: () => {
+                          void adoptSource(entry.id)
+                        }
+                      },
+                      '＋'
+                    )
+                  )
+                )
+              ),
           h(SearchFilterToolbar, {
             search,
             searchLabel: t('searchPh'),
@@ -323,9 +360,11 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
             busy: busy !== undefined,
             progress,
             onClose: () => setEditor(undefined),
-            onSave: async (url, branch, local) => {
+            onSave: async ({ url, branch, kind, sha256 }) => {
               const key = editor.mode === 'edit' ? `s:edit:${editor.source.id}` : `s:add:${url}`
-              const body = { url, ...(branch === '' ? {} : { branch }), local }
+              const body: Record<string, unknown> = { url, local: kind === 'local', kind }
+              if (branch !== '' && kind === 'git') body['branch'] = branch
+              if (sha256 !== '' && kind === 'archive') body['sha256'] = sha256
               if (editor.mode === 'add') {
                 setBusy(key)
                 setProgress({ step: t('progressStarting'), error: undefined })

@@ -7,7 +7,7 @@ export interface SourceProgressState {
   error: string | undefined
 }
 
-const EMPTY_OVERVIEW: OverviewData = { sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '', data: '' } }
+const EMPTY_OVERVIEW: OverviewData = { sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '', data: '' }, unmanaged: [] }
 
 let cachedOverview: OverviewData | undefined
 let inflightOverview: Promise<OverviewData> | undefined

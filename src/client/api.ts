@@ -96,10 +96,11 @@ export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   await postAction('mcp-reauthorize', { serverName })
 }
 
-/** The MCP backend block state: active client plus host availability. */
+/** The MCP backend card state: active client, host availability, download region. */
 export interface McpBackendInfo {
   backend: 'builtin' | 'host'
   hostClient: { available: boolean; version?: string }
+  downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
 }
 
 export async function fetchMcpBackend(): Promise<McpBackendInfo> {

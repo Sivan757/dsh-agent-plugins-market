@@ -70,11 +70,11 @@
 }
 .chiporphaned, .chipfailed {
   color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, 0.08));
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
 }
 .chipneedsCredentials, .chipdegraded {
   color: var(--dsw-alias-state-warn-primary, #b45309);
-  background: var(--dsw-alias-bg-warn, rgba(180, 83, 9, 0.09));
+  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
 }
 .chipdisabled {
   color: var(--dsw-alias-label-tertiary, #8b93a1);
@@ -156,7 +156,7 @@
 }
 .card:hover {
   border-color: var(--dsw-alias-border-l3, #d9dde3);
-  background: var(--dsw-alias-bg-hover, rgba(0, 0, 0, 0.035));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
 }
 .cardBody {
@@ -274,15 +274,15 @@
 }
 .stateconnected {
   color: var(--dsw-alias-state-success-primary, #16a34a);
-  background: var(--dsw-alias-bg-success, rgba(22, 163, 74, 0.09));
+  background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237));
 }
 .statedegraded, .stateneeds-credentials {
   color: var(--dsw-alias-state-warn-primary, #b45309);
-  background: var(--dsw-alias-bg-warn, rgba(180, 83, 9, 0.1));
+  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
 }
 .statefailed, .stateorphaned {
   color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, 0.08));
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
 }
 .statedisabled {
   color: var(--dsw-alias-label-tertiary, #8b93a1);
@@ -368,7 +368,7 @@
 .reason {
   padding: 9px 10px;
   color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, .06));
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
   border-left: 2px solid currentColor;
   font-size: 11px;
   line-height: 16px;
@@ -379,7 +379,7 @@
   gap: 4px;
   padding: 10px 12px;
   color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, 0.06));
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
   border-radius: 8px;
 }
 .reasonText {
@@ -439,15 +439,15 @@
 /* ── LSP status states (reuse the MCP pill/accent palette) ──────────────── */
 .statemounted {
   color: var(--dsw-alias-state-success-primary, #16a34a);
-  background: var(--dsw-alias-bg-success, rgba(22, 163, 74, 0.09));
+  background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237));
 }
 .statehost-missing {
   color: var(--dsw-alias-state-warn-primary, #b45309);
-  background: var(--dsw-alias-bg-warn, rgba(180, 83, 9, 0.1));
+  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
 }
 .stateconflict {
   color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, 0.08));
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
 }
 .statusmounted {
   color: var(--dsw-alias-state-success-primary, #16a34a);
@@ -461,8 +461,8 @@
 .cardMounted { border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a); }
 .cardHostMissing { border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309); }
 .cardConflict { border-left: 3px solid var(--dsw-alias-state-error-primary, #dc2626); }
-.chipmounted { background: var(--dsw-alias-bg-success, rgba(22, 163, 74, 0.09)); }
-.chipblocked { background: var(--dsw-alias-bg-warn, rgba(180, 83, 9, 0.1)); }
+.chipmounted { background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237)); }
+.chipblocked { background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231)); }
 
 /* ── Panel polish: spacing between header/summary/toolbar, compact rows ─── */
 .summaryBar + .toolbar,

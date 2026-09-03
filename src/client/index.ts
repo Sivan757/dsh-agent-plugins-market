@@ -36,7 +36,7 @@ interface SlotsService {
 /** The subset of the host settings-scope service this plugin touches. */
 interface SettingsScopeService {
   bind(options: { namespace: string }): {
-    getSnapshot(): { value?: { mcpEnhanced?: boolean }; writable: boolean }
+    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string }; writable: boolean }
     subscribe(listener: () => void): () => void
     set(field: string, value: unknown): Promise<void>
   }
@@ -110,6 +110,11 @@ export function apply(ctx: SuiteClientContext): void {
           writable: () => scope.getSnapshot().writable,
           subscribe: listener => scope.subscribe(listener),
           setEnhanced: next => scope.set('mcpEnhanced', next),
+          region: () => {
+            const value = scope.getSnapshot().value?.downloadRegion
+            return value === 'global' || value === 'china' ? value : 'auto'
+          },
+          setRegion: next => scope.set('downloadRegion', next)
         },
         probe: () => fetchMcpBackend(),
       })),

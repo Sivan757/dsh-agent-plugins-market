@@ -51,7 +51,7 @@
 }
 
 .surfaceSwitch:hover {
-  background: var(--dsw-alias-bg-selected, #edf1ff);
+  background: var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253));
 }
 
 /* Legacy page-mode shell: scoped to the injected data attributes. */
@@ -100,11 +100,11 @@
 }
 
 .pageEntry:hover {
-  background: var(--dsw-alias-bg-hover, rgba(0, 0, 0, 0.05));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
 }
 
 .pageEntry:active {
-  background: var(--dsw-alias-bg-active, rgba(0, 0, 0, 0.08));
+  background: var(--dsw-alias-interactive-bg-active, rgba(38, 49, 72, 0.1));
 }
 
 .pageEntry svg {
@@ -408,7 +408,8 @@
   flex: 0 0 auto;
 }
 
-.list .meta {
+.list .meta,
+.list .tagRow {
   flex-basis: 100%;
 }
 
@@ -429,6 +430,24 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--dsw-alias-border-l3, #d9dde3);
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
+}
+
+/* Installed cards carry the MCP card's left accent so install state scans
+   like connection state does on the MCP page: green = enabled, gray = off. */
+.cardOn {
+  border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a);
+}
+
+.cardMuted {
+  border-left: 3px solid var(--dsw-alias-label-tertiary, #98a2b3);
 }
 
 .cardTop {
@@ -469,6 +488,58 @@
   flex-shrink: 0;
 }
 
+/* Flat icon-only action (harness Button ghost geometry: transparent fill,
+   interactive-bg hover). Rendered inline so no button-chrome box shows. */
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.iconBtn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.iconBtn:active:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-active, rgba(38, 49, 72, 0.1));
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
+  outline-offset: 1px;
+}
+
+.iconBtn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* Destructive action only announces itself on hover, like the platform. */
+.iconBtnDanger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
+  color: var(--dsw-alias-state-error-primary, rgb(236, 19, 19));
+}
+
 .switchOn,
 .switchOff {
   position: relative;
@@ -490,7 +561,7 @@
 }
 
 .switchOff {
-  background: var(--dsw-alias-state-neutral, #d1d5db);
+  background: var(--dsw-alias-label-dimmed, rgb(225, 229, 238));
 }
 
 .switchOn:disabled,
@@ -529,6 +600,15 @@
 }
 
 .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Surface-count tags live on their own line below source · layout so the
+   first meta row stays scannable. */
+.tagRow {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -618,9 +698,9 @@
 }
 
 .installConfirmWarn {
-  color: var(--dsw-alias-danger, #b45309);
+  color: var(--dsw-alias-state-warn-label, rgb(221, 134, 41));
   font-size: 12px;
-  border: 1px solid var(--dsw-alias-danger, #b45309);
+  border: 1px solid var(--dsw-alias-state-warn-label, rgb(221, 134, 41));
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -798,11 +878,11 @@
 }
 
 .detailItemRow:hover {
-  background: var(--dsw-alias-bg-hover, rgba(0, 0, 0, 0.05));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
 }
 
 .detailItemOpen {
-  background: var(--dsw-alias-bg-selected, rgba(79, 110, 247, 0.08));
+  background: var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253));
 }
 
 .detailItemName {
@@ -853,8 +933,8 @@
 }
 
 .progressError {
-  border-color: var(--dsw-alias-danger, #e5484d);
-  color: var(--dsw-alias-danger, #e5484d);
+  border-color: var(--dsw-alias-state-error-primary, rgb(236, 19, 19));
+  color: var(--dsw-alias-state-error-primary, rgb(236, 19, 19));
 }
 
 .progressSpin {
@@ -953,13 +1033,13 @@
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  color: var(--dsw-alias-text-2, #5a6070);
+  color: var(--dsw-alias-label-secondary, rgb(97, 102, 107));
   cursor: pointer;
   user-select: none;
 }
 
 .surfaceToggle input[type='checkbox'] {
-  accent-color: var(--dsw-alias-accent, #4b6bfb);
+  accent-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color, rgb(65, 118, 230));
   margin: 0;
 }
 
@@ -969,7 +1049,7 @@
   gap: 8px;
   margin: 0 0 10px;
   padding: 10px;
-  border: 1px solid var(--dsw-alias-border, #d8dbe2);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   border-radius: 8px;
 }
 
@@ -979,7 +1059,7 @@
   gap: 8px;
   margin: 0 0 10px;
   padding: 10px;
-  border: 1px solid var(--dsw-alias-border, #d8dbe2);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   border-radius: 8px;
 }
 
@@ -1036,7 +1116,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 12px 14px;
-  border: 1px solid var(--dsw-alias-border, rgba(128, 128, 128, 0.25));
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   border-radius: 10px;
   opacity: 1;
 }
@@ -1195,4 +1275,47 @@
 
 .pluginChevronOpen {
   transform: rotate(180deg);
+}
+
+/* Region segmented control, mirroring dshmarket's setSeg chrome. */
+.regionSeg {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 8px;
+}
+
+.regionSegBtn {
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.regionSegOn {
+  appearance: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  background: var(--dsw-alias-bg-layer-2, #eef0f4);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-weight: 600;
+}
+
+.regionSegBtn:disabled,
+.regionSegOn:disabled {
+  cursor: default;
+  opacity: 0.5;
 }

@@ -49,13 +49,16 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
                     ? t('layoutProjectNative')
                     : t('layoutSkills')
   const isRemote = suite.remoteUrl !== undefined
+  const hasTagRow = tags.length > 0 || suite.errors.length > 0 || (suite.mcpErrors?.length ?? 0) > 0
   const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
     event.stopPropagation()
     callback()
   }
+  // Installed cards carry the MCP card's left accent: green = enabled, gray = disabled.
+  const accent = suite.installed ? (suite.enabled ? css.cardOn : css.cardMuted) : undefined
   return h(
     'article',
-    { className: css.card, onClick: props.onOpen },
+    { className: accent ? `${css.card} ${accent}` : css.card, onClick: props.onOpen },
     h(
       'div',
       { className: css.cardTop },
@@ -69,12 +72,51 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
         'div',
         { className: css.cardActions },
         suite.installed
-          ? h(ToggleSwitch, {
-              on: suite.enabled,
-              disabled: busy,
-              title: suite.enabled ? t('disable') : t('enable'),
-              onChange: props.onToggle
-            })
+          ? [
+              h(
+                'button',
+                {
+                  key: 'refresh',
+                  type: 'button',
+                  className: css.iconBtn,
+                  title: t('refresh'),
+                  disabled: busy,
+                  onClick: stop(props.onRefresh)
+                },
+                h(
+                  'svg',
+                  { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+                  h('path', { d: 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8' }),
+                  h('path', { d: 'M21 3v5h-5' })
+                )
+              ),
+              h(
+                'button',
+                {
+                  key: 'uninstall',
+                  type: 'button',
+                  className: `${css.iconBtn} ${css.iconBtnDanger}`,
+                  title: t('uninstall'),
+                  disabled: busy,
+                  onClick: stop(props.onUninstall)
+                },
+                h(
+                  'svg',
+                  { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+                  h('path', { d: 'M3 6h18' }),
+                  h('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6' }),
+                  h('path', { d: 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' })
+                )
+              ),
+              // The enable switch reads last, at the card's trailing edge.
+              h(ToggleSwitch, {
+                key: 'toggle',
+                on: suite.enabled,
+                disabled: busy,
+                title: suite.enabled ? t('disable') : t('enable'),
+                onChange: props.onToggle
+              })
+            ]
           : isRemote
             ? h(
                 Button,
@@ -96,9 +138,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
                   onClick: stop(props.onInstall)
                 },
                 t('install')
-              ),
-        suite.installed ? h(Button, { variant: 'ghost', size: 'sm', title: t('refresh'), disabled: busy, onClick: stop(props.onRefresh) }, '↻') : null,
-        suite.installed ? h(Button, { variant: 'ghost', size: 'sm', title: t('uninstall'), disabled: busy, onClick: stop(props.onUninstall) }, '🗑') : null
+              )
       )
     ),
     h('p', { className: css.desc }, suite.description ?? ''),
@@ -106,21 +146,26 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
       'div',
       { className: css.meta },
       h('span', { className: css.src }, `${suite.sourceId} · ${isRemote ? t('remoteRef') : suite.dimension === 'user' ? t('dimensionUser') : t('dimensionProject')}`),
-      h('span', { className: css.tag }, layoutLabel),
-      suite.installed ? h('span', { className: suite.enabled ? css.okState : css.tag }, suite.enabled ? `✓ ${t('installedBadge')}` : t('installedBadge')) : null,
-      ...tags.map(([label, count]) => h('span', { key: label, className: css.tag }, `${label} ${count}`)),
-      suite.errors.length === 0
-        ? null
-        : h(Tooltip, {
-            label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')),
-            children: h('span', { className: css.warnLine }, `⚠ ${t('errors')} ${suite.errors.length}`) as unknown as ReactElement
-          }),
-      (suite.mcpErrors?.length ?? 0) === 0
-        ? null
-        : h(Tooltip, {
-            label: suite.mcpErrors!.slice(0, 8).join(t('sourceErrorSeparator')),
-            children: h('span', { className: css.warnLine }, `⚠ ${t('mcpSection')} ${suite.mcpErrors!.length}`) as unknown as ReactElement
-          })
-    )
+      h('span', { className: css.tag }, layoutLabel)
+    ),
+    hasTagRow
+      ? h(
+          'div',
+          { className: css.tagRow },
+          ...tags.map(([label, count]) => h('span', { key: label, className: css.tag }, `${label} ${count}`)),
+          suite.errors.length === 0
+            ? null
+            : h(Tooltip, {
+                label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')),
+                children: h('span', { className: css.warnLine }, `⚠ ${t('errors')} ${suite.errors.length}`) as unknown as ReactElement
+              }),
+          (suite.mcpErrors?.length ?? 0) === 0
+            ? null
+            : h(Tooltip, {
+                label: suite.mcpErrors!.slice(0, 8).join(t('sourceErrorSeparator')),
+                children: h('span', { className: css.warnLine }, `⚠ ${t('mcpSection')} ${suite.mcpErrors!.length}`) as unknown as ReactElement
+              })
+        )
+      : null
   )
 }

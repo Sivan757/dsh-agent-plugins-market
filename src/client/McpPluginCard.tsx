@@ -33,6 +33,9 @@ export interface McpEnhanceScopeFace {
   writable(): boolean
   subscribe(listener: () => void): () => void
   setEnhanced(next: boolean): Promise<void>
+  /** The persisted download region; `auto` follows the interface language. */
+  region(): 'auto' | 'global' | 'china'
+  setRegion(next: 'global' | 'china'): Promise<void>
 }
 
 export interface McpPluginCardProps {
@@ -63,6 +66,10 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
 
   const enhanced = scope.enhanced()
   const writable = scope.writable()
+  const regionSetting = scope.region()
+  // The highlighted segment is the route clones actually take: the explicit
+  // choice, or the language-resolved one while the setting is still auto.
+  const effectiveRegion = probeInfo?.downloadRegion.effective ?? (regionSetting === 'china' ? 'china' : 'global')
   // Compat mode requires the host client to resolve; the enhanced (built-in)
   // client is always available because it ships inside this plugin.
   const hostUsable = probeInfo?.hostClient.available === true
@@ -132,6 +139,43 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
           error !== undefined
             ? h('div', { className: css.pluginCardError }, error)
             : null,
+          h(
+            'div',
+            { className: css.pluginCardRow },
+            h(
+              'div',
+              { className: css.pluginCardText },
+              h('div', { className: css.pluginCardRowLabel }, t('regionLabel')),
+              h('div', { className: css.pluginCardDesc }, t('regionHint'))
+            ),
+            h(
+              'div',
+              { className: css.regionSeg },
+              (['global', 'china'] as const).map(region =>
+                h(
+                  'button',
+                  {
+                    key: region,
+                    type: 'button',
+                    disabled: busy || !writable,
+                    className: effectiveRegion === region ? css.regionSegOn : css.regionSegBtn,
+                    onClick: () => {
+                      if (regionSetting === region) return
+                      setBusy(true)
+                      setError(undefined)
+                      void scope.setRegion(region).then(() => {
+                        setBusy(false)
+                      }).catch((cause: unknown) => {
+                        setError(cause instanceof Error ? cause.message : String(cause))
+                        setBusy(false)
+                      })
+                    }
+                  },
+                  region === 'global' ? t('regionGlobal') : t('regionChina')
+                )
+              )
+            )
+          ),
           probeInfo?.hostClient.available === true && probeInfo.hostClient.version !== undefined
             ? h('div', { className: css.pluginCardMeta }, `dsh-mcp-client ${probeInfo.hostClient.version}`)
             : null
