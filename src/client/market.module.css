@@ -1259,13 +1259,6 @@
   margin: 0;
 }
 
-.pluginCardMeta {
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  margin: 0;
-}
-
 .pluginChevron {
   flex: none;
   color: var(--dsw-alias-label-tertiary, #8b93a1);

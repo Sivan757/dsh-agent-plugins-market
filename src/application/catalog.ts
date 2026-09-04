@@ -14,7 +14,7 @@ import { canonicalGitUrl } from '../catalog/scan-resolvers.js'
 import { discoverSourceListWithNotes } from '../catalog/source-catalog.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import { archiveInstall } from '../catalog/archive.js'
-import { gitClone, gitCurrentBranch, gitHead, gitRemoteUrl, gitRemove, gitSync, type GitOptions } from '../catalog/git.js'
+import { gitClone, gitCurrentBranch, gitHead, gitRemoteUrl, gitRemove, gitSetRemoteUrl, gitSync, type GitOptions } from '../catalog/git.js'
 import { buildMcpStatus, type McpToolSnapshot } from '../runtime/mcp-status.js'
 import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import { buildLspStatus, type LspMountStatusSource } from '../runtime/lsp-status.js'
@@ -826,6 +826,22 @@ export class Catalog {
         }
         // Shallow-friendly sync: fetch depth 1 into FETCH_HEAD, hard reset.
         const branch = source.branch ?? (await gitCurrentBranch(checkout).catch(() => undefined))
+        // Keep origin on the region's route: a clone made before a region
+        // switch (or an explicit flip) re-points origin so the fetch follows.
+        // Only origins this plugin itself wrote (the direct or proxied
+        // source.url) are re-pointed — a foreign remote is left untouched.
+        if (source.kind === 'git' || (source.kind === undefined && source.local !== true)) {
+          try {
+            const region = resolveRegion(await this.downloadRegionProvider(), await readLocalePreference())
+            const routed = githubCloneUrl(region, source.url)
+            const origin = await gitRemoteUrl(checkout)
+            if (origin !== routed && (origin === source.url || origin === githubCloneUrl('china', source.url))) {
+              await gitSetRemoteUrl(checkout, routed)
+            }
+          } catch {
+            // Origin reconciliation is best effort; plain sync still runs.
+          }
+        }
         await gitSync(checkout, branch, this.options.git ?? {})
         try {
           this.headCache.set(source.id, await gitHead(checkout))

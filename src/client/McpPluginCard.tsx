@@ -175,10 +175,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                 )
               )
             )
-          ),
-          probeInfo?.hostClient.available === true && probeInfo.hostClient.version !== undefined
-            ? h('div', { className: css.pluginCardMeta }, `dsh-mcp-client ${probeInfo.hostClient.version}`)
-            : null
+          )
         )
       : null
   )

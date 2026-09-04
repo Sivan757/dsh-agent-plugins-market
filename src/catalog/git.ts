@@ -128,6 +128,15 @@ export async function gitRemoteUrl(dir: string, timeoutMs: number = 30_000): Pro
   }
 }
 
+/** Point the checkout's `origin` at a new URL (download-region rerouting). */
+export async function gitSetRemoteUrl(dir: string, url: string, timeoutMs: number = 30_000): Promise<void> {
+  try {
+    await run('git', ['-C', dir, 'remote', 'set-url', 'origin', url], { timeout: timeoutMs, env: gitEnv() })
+  } catch (error) {
+    throw gitError('remote', error)
+  }
+}
+
 /** Remove a source checkout tree entirely. */
 export async function gitRemove(dir: string): Promise<void> {
   await rm(dir, { recursive: true, force: true })
