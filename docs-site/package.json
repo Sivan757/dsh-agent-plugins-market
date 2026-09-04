@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "astro": "^7.2.6"
+    "astro": "^7.2.10"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild", "sharp"]
