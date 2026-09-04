@@ -98,7 +98,16 @@ export async function readManifest(
     return undefined
   }
   const record = raw as ParsedRecord
-  const problems = candidate.kind === 'agent-plugin-v1' ? await validatePluginManifest(raw) : []
+  // The v1 dialect is identified by position AND declaration: the spec's
+  // schema requires `$schema`, so a root `plugin.json` without it is not a
+  // v1 manifest. Real-world single-repo marketplaces (agent-skills) ship a
+  // plain metadata object at the root alongside their Claude dialect
+  // manifests; reading that as strict v1 would fail-closed on a repo that
+  // is perfectly usable. Such a file is read leniently as the Claude
+  // layout instead — strict validation only ever applies to manifests
+  // that actually declare the v1 schema.
+  const kind: ManifestKind = candidate.kind === 'agent-plugin-v1' && !isRecognizedSchema(record.$schema) ? 'claude-code' : candidate.kind
+  const problems = kind === 'agent-plugin-v1' ? await validatePluginManifest(raw) : []
   errors.push(...problems.map(problem => `${candidate.path}: ${problem}`))
   const name = pickString(record.name) ?? hint?.name ?? syntheticManifestName(root)
   const version = pickString(record.version) ?? hint?.version
@@ -106,15 +115,15 @@ export async function readManifest(
   const author = record.author as { name?: string; url?: string } | undefined
   return {
     layout:
-      candidate.kind === 'agent-plugin-v1'
+      kind === 'agent-plugin-v1'
         ? 'agent-plugin-v1'
-        : candidate.kind === 'universal'
+        : kind === 'universal'
           ? 'universal'
-          : candidate.kind === 'claude-code'
+          : kind === 'claude-code'
             ? 'claude-code'
-            : candidate.kind === 'cursor'
+            : kind === 'cursor'
               ? 'cursor'
-              : candidate.kind === 'kimi'
+              : kind === 'kimi'
                 ? 'kimi'
                 : 'codex',
     path: candidate.path,
@@ -136,6 +145,8 @@ export interface MarketplaceEntry {
   name?: string
   version?: string
   description?: string
+  /** Claude Code: inline `lspServers` table declared on the entry itself. */
+  lspServers?: unknown
   /** Claude Code: a relative path string or `{ source: 'url', url }`.
    *  Codex: `{ source: 'local', path }` or `{ source: 'remote', url }`. */
   source: string | { source?: string; url?: string; path?: string }
@@ -149,30 +160,63 @@ export interface Marketplace {
 /** Marketplace manifest locations per dialect (Claude Code, Codex). */
 const MARKETPLACE_PATHS = ['.claude-plugin/marketplace.json', '.agents/plugins/marketplace.json']
 
-/** Read a marketplace manifest from a checkout root, or undefined when absent. */
-export async function readMarketplace(checkoutDir: string): Promise<Marketplace | undefined> {
-  for (const relative of MARKETPLACE_PATHS) {
-    let text: string
-    try {
-      text = await readFile(join(checkoutDir, relative), 'utf8')
-    } catch {
-      continue
-    }
-    try {
-      const parsed: unknown = JSON.parse(text)
-      if (typeof parsed !== 'object' || parsed === null) continue
-      const record = parsed as Record<string, unknown>
-      const plugins = record['plugins']
-      if (!Array.isArray(plugins)) continue
-      return {
-        ...(typeof record['name'] === 'string' ? { name: record['name'] } : {}),
-        entries: plugins as MarketplaceEntry[]
-      }
-    } catch {
-      continue
-    }
+export interface ReadMarketplaceResult extends Marketplace {
+  /** The manifest file the entries were read from. */
+  path: string
+}
+
+/** Read one marketplace manifest file; malformed documents are diagnosed, not thrown. */
+async function readOneMarketplace(path: string, errors: string[]): Promise<ReadMarketplaceResult | undefined> {
+  let text: string
+  try {
+    text = await readFile(path, 'utf8')
+  } catch {
+    return undefined
   }
-  return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (error) {
+    errors.push(`marketplace ${path} unparsable: ${error instanceof Error ? error.message : String(error)}`)
+    return undefined
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    errors.push(`marketplace ${path}: manifest is not a JSON object`)
+    return undefined
+  }
+  const record = parsed as Record<string, unknown>
+  const plugins = record['plugins']
+  if (!Array.isArray(plugins)) {
+    errors.push(`marketplace ${path}: "plugins" is not an array`)
+    return undefined
+  }
+  return {
+    ...(typeof record['name'] === 'string' ? { name: record['name'] } : {}),
+    entries: plugins as MarketplaceEntry[],
+    path
+  }
+}
+
+/**
+ * Read every marketplace manifest the checkout carries, in dialect
+ * precedence order (Claude Code before Codex). Both dialects can coexist
+ * (e.g. a repo shipping one marketplace per agent); callers decide which
+ * dialect's entries win, so no dialect is silently shadowed.
+ */
+export async function readMarketplaces(checkoutDir: string): Promise<ReadMarketplaceResult[]> {
+  const results: ReadMarketplaceResult[] = []
+  const errors: string[] = []
+  for (const relative of MARKETPLACE_PATHS) {
+    const result = await readOneMarketplace(join(checkoutDir, relative), errors)
+    if (result !== undefined) results.push(result)
+  }
+  return results
+}
+
+/** Read the highest-precedence marketplace manifest, or undefined when absent. */
+export async function readMarketplace(checkoutDir: string): Promise<Marketplace | undefined> {
+  const results = await readMarketplaces(checkoutDir)
+  return results[0]
 }
 
 /** Resolve one marketplace entry to a local checkout-relative directory, or
@@ -244,6 +288,22 @@ export async function declaredMcpServers(root: string): Promise<Record<string, u
     const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
     if (typeof raw === 'object' && raw !== null) {
       const servers = (raw as Record<string, unknown>)['mcpServers']
+      if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
+/** The winning manifest's inline `lspServers`, or undefined. */
+export async function declaredLspServers(root: string): Promise<Record<string, unknown> | undefined> {
+  const candidate = await detectManifest(root)
+  if (candidate === undefined) return undefined
+  try {
+    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
+    if (typeof raw === 'object' && raw !== null) {
+      const servers = (raw as Record<string, unknown>)['lspServers']
       if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
     }
   } catch {

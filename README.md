@@ -64,6 +64,7 @@ Build artifacts (`lib/`, `client/`) are not committed; npm publishes them via `p
 - **Runtime injection**
   - **Skills** — a `ctx.skills` SkillProvider (project rank 250 / user rank 450); `${CLAUDE_PLUGIN_ROOT}` is substituted so Claude Code-authored skills work verbatim, and appear in the `/` slash menu.
   - **MCP servers** — every valid `mcp.json` server of an enabled plugin mounts a live `dsh-mcp-client` child; tools appear as `mcp__<plugin>__<server>__<tool>`.
+  - **MCP credentials** — `${ENV_NAME}` references resolve through the optional DSH credentials service before a child starts; missing references block the spawn and surface as `needs-credentials`. The Web detail view uses write-only credentials operations and never persists token values in suite state or overrides.
   - **Hooks** — a plugin's `hooks/hooks.json` mounts the `dsh-hooks-claude-code` bridge on the harness interception points (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop).
   - **Commands / subagents** — `commands/*.md` register as dsh slash commands; `agents/*.md` register as `agent-<name>` skills.
   - **Model context** — skills flow through the host-native skill catalog and MCP tools register directly through `dsh-mcp-client`; suite inventory and source metadata remain available in the Web market page without adding a redundant model-facing inventory tool.
@@ -97,9 +98,28 @@ Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (
       - { id: claude-plugins-official, url: 'https://github.com/anthropics/claude-plugins-official' }
       - { id: ui-ux-pro-max, url: 'https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git' }
       - { id: my-local-plugin, url: '/Users/me/work/my-plugin', local: true }
+      - { id: packaged-plugin, url: 'https://example.com/plugin-0.1.zip', kind: archive, sha256: '<64-hex digest>' }
 ```
 
-A `local: true` source reads the directory in place (live working tree; never deleted on removal).
+A `local: true` source reads the directory in place (live working tree; never deleted on removal). Discovery results are cached for up to 30 seconds and reused across install/enable/panel actions, so working-tree edits of local sources appear on the next cache refresh (any source mutation, the refresh button, or the 30 s TTL). An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
+
+### Manual clones, adoption, and network tuning
+
+Cloning from the UI times out on a restricted network? Clone the repository yourself into the checkout root (`~/.dsh/agent-plugins/.sources/<id>/`) — the market page lists it under **unregistered local checkouts** with a one-click **adopt** action that registers it in place (no re-clone, no deletion, ever). Adding a URL whose checkout already exists with a matching `origin` remote adopts it automatically instead of cloning a second copy.
+
+Git/archive acquisition is tunable through the host config:
+
+```yaml
+- id: dsh-agent-plugins-market
+  config:
+    git:
+      proxy: 'http://127.0.0.1:7890' # injected as git http/https proxy
+      insteadOf: { 'https://github.com/': 'https://mirror.example/https://github.com/' }
+      timeoutMs: 300000 # per git invocation (default 120000)
+      cloneRetry: true # one automatic retry (default)
+      fallbackTarball: false # retry a failed github.com clone as a codeload tarball download
+      allowHttpArchives: false # permit plain-http archive URLs (intranet mirrors)
+```
 
 ## Comparison with other DSH ↔ Claude Code bridges
 
@@ -135,6 +155,10 @@ Yes — through this plugin. It reads `.claude-plugin/marketplace.json` + per-pl
 
 Yes. Every valid `mcp.json` server of an enabled suite mounts a live `dsh-mcp-client` child, so MCP tools are callable by the DSH agent. `mcp.json` is validated strictly; `.mcp.json` is parsed leniently with placeholder support (`${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`, `${NAME:-default}`).
 
+### How do MCP servers that require an environment token work?
+
+Declare the server's environment value as a reference, for example `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. Before starting the child, the market resolves that reference through DSH credentials. Open the suite detail view to configure a writable credential through the Host credentials service; the value is write-only and is never stored in the suite or override JSON. A read-only launch-environment credential must be changed before restarting DSH. Missing references block the child start and show `needs-credentials` instead of silently starting an unusable server.
+
 ### What about Claude Code hooks?
 
 A suite's `hooks/hooks.json` is mounted through the official `@deepseek-ai/dsh-hooks-claude-code` bridge onto the harness interception points (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop). Only the mapped command-hook subset runs — see the bridge's README for the exact mapping.
@@ -159,14 +183,16 @@ Yes — MIT licensed, published on [npm](https://www.npmjs.com/package/dsh-agent
 
 - `ctx.skills` (dsh-skill) is required.
 - Optional peers: `@deepseek-ai/dsh-mcp-client` (MCP injection), `@deepseek-ai/dsh-hooks-claude-code` (hooks bridge); missing capabilities degrade gracefully.
+- The Host credentials service is optional: standard DSH profiles provide it for write-only token configuration and live remounts; without it, `${ENV_NAME}` falls back to the launch environment and requires a restart after changes.
 - Web GUI ≥ 0.1.0-rc.6.
 
 ## Security model
 
-- Git sources clone through `git` via `execFile` (no shell), depth 1, `--ff-only` pulls, 120s timeouts; local sources are read in place and never deleted.
+- Git sources clone through `git` via `execFile` (no shell), depth 1, shallow `fetch` + `reset` updates, configurable timeouts/proxy/mirrors with a low-speed guard; local sources are read in place and never deleted. Archive sources are HTTPS-only by default, capped at 256 MiB, extracted with path-traversal guards, and optionally pinned to a SHA-256 digest.
 - Mutating HTTP routes accept same-origin POSTs only; bodies capped at 64 KiB.
 - Portable paths must start with `./` and resolve inside the plugin root (symlink escapes rejected); `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` expand.
-- Third-party failures are always contained: broken manifests, invalid skills, escaping paths, unknown MCP transports, and mount failures are per-plugin diagnostics.
+- Third-party failures are always contained: broken manifests, invalid skills, escaping paths, unknown MCP transports, missing MCP credentials, and mount failures are per-plugin diagnostics.
+- MCP credential values are resolved in memory through the Host credentials service; status/detail projections redact sensitive fields and credential writes never persist literal values in suite state or overrides.
 - An error boundary wraps the whole market section and the detail modal: any preview render failure degrades to a notice instead of crashing the UI.
 
 ## Known limitations

@@ -25,20 +25,115 @@ function suite(overrides: Partial<Suite> = {}): Suite {
   }
 }
 
-describe('mcp-config: suite mcp.json → dsh-mcp-client rows', () => {
-  it('maps stdio and streamable-http, skipping legacy SSE with a reason', () => {
-    const { mounts, failures } = toMcpMounts(suite(), '/tmp/data')
-    expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web'])
-    expect(failures).toEqual([{ serverKey: 'legacy', reason: expect.stringContaining('HTTP+SSE') }])
+/** A resolver that satisfies every reference, for tests of the mapping itself. */
+const alwaysResolves = { resolve: async () => ({ value: 'resolved' }) } as const
+
+describe('mcp-config: suite mcp.json → bridge rows', () => {
+  it('maps stdio, streamable-http, and legacy SSE servers', async () => {
+    const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
+    expect(mounts.map(mount => mount.config.serverName)).toEqual(['demo_my-suite__db', 'demo_my-suite__web', 'demo_my-suite__legacy'])
+    expect(failures).toEqual([])
     const db = mounts[0]!.config as Record<string, unknown>
     expect(db['transport']).toBe('stdio')
     expect(db['command']).toBe('/tmp/my-suite/bin/db')
     expect(db['args']).toEqual(['--root', '/tmp/my-suite'])
-    expect(db['env']).toEqual({ CACHE: '/tmp/data/my-suite/cache' })
+    expect(db['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
     expect(db['cwd']).toBe('/tmp/my-suite/data')
     const web = mounts[1]!.config as Record<string, unknown>
     expect(web['transport']).toBe('streamable-http')
-    expect(web['headers']).toEqual({ Authorization: 'Bearer ' })
+    expect(web['headers']).toEqual({ Authorization: 'Bearer resolved' })
+    const legacy = mounts[2]!.config as Record<string, unknown>
+    expect(legacy['transport']).toBe('sse')
+    expect(legacy['url']).toBe('https://example.com/sse')
+  })
+})
+
+describe('mcp-config: credential references', () => {
+  it('resolves env and header placeholders through the credential resolver', async () => {
+    const result = await toMcpMounts(
+      suite(),
+      '/tmp/data',
+      {},
+      {
+        resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'resolved-secret', source: 'file' } : undefined)
+      }
+    )
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config as Record<string, unknown>
+    expect((web['headers'] as Record<string, string>)['Authorization']).toBe('Bearer resolved-secret')
+    expect(result.failures).toEqual([])
+  })
+
+  it('reports missing credential references before a mount can start', async () => {
+    const result = await toMcpMounts(suite(), '/tmp/data', {}, { resolve: async () => undefined })
+    expect(result.mounts.some(mount => mount.serverKey === 'web')).toBe(false)
+    expect(result.failures).toContainEqual({
+      serverKey: 'web',
+      code: 'missing-credential',
+      credentialRefs: ['MCP_TOKEN'],
+      reason: 'missing credential reference MCP_TOKEN'
+    })
+  })
+
+  it('resolves credential placeholders inside a streamable-http url', async () => {
+    const target = suite()
+    target.mcp!.servers.web = { type: 'streamable-http', url: 'https://example.com/mcp?key=${MCP_TOKEN}' }
+    const result = await toMcpMounts(target, '/tmp/data', {}, { resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'abc123' } : undefined) })
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config as Record<string, unknown>
+    expect(web['url']).toBe('https://example.com/mcp?key=abc123')
+  })
+
+  it('honors an explicit non-empty fallback but still fails closed on an empty one', async () => {
+    const target = suite()
+    // Isolate to the stdio server: the shared fixture's http server carries an
+    // unsatisfied ${MCP_TOKEN}, which is meant to fail closed here.
+    target.mcp!.servers = {
+      db: { type: 'stdio', command: 'db', args: ['--root', '${MISSING:-/default}'] }
+    }
+    const resolved = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
+    const db = resolved.mounts.find(mount => mount.serverKey === 'db')!.config as Record<string, unknown>
+    expect(db['args']).toEqual(['--root', '/default'])
+    expect(resolved.failures).toEqual([])
+
+    // `${REF:-}` supplies an empty fallback, so an unresolved value stays empty
+    // and is reported missing rather than silently passing an empty flag.
+    target.mcp!.servers = { db: { type: 'stdio', command: 'db', args: ['--tag', '${ALSO_MISSING:-}'] } }
+    const emptyFallback = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
+    expect(emptyFallback.mounts).toEqual([])
+    expect(emptyFallback.failures).toContainEqual({
+      serverKey: 'db',
+      code: 'missing-credential',
+      credentialRefs: ['ALSO_MISSING'],
+      reason: 'missing credential reference ALSO_MISSING'
+    })
+  })
+
+  it('fails closed when a reference has neither a value nor a fallback', async () => {
+    const target = suite()
+    target.mcp!.servers = { db: { type: 'stdio', command: 'db', args: ['--root', '${NOPE}'] } }
+    const result = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
+    expect(result.mounts).toEqual([])
+    expect(result.failures).toEqual([{ serverKey: 'db', code: 'missing-credential', credentialRefs: ['NOPE'], reason: 'missing credential reference NOPE' }])
+  })
+
+  it('deduplicates repeated references so one credential is fetched once', async () => {
+    const target = suite()
+    target.mcp!.servers = { db: { type: 'stdio', command: 'db', args: ['${T}', '${T}'] } }
+    let lookups = 0
+    const result = await toMcpMounts(
+      target,
+      '/tmp/data',
+      {},
+      {
+        resolve: async ref => {
+          if (ref !== 'T') return undefined
+          lookups++
+          return { value: 'v' }
+        }
+      }
+    )
+    const db = result.mounts[0]!.config as Record<string, unknown>
+    expect(db['args']).toEqual(['v', 'v'])
+    expect(lookups).toBe(1)
   })
 })
 
@@ -53,5 +148,30 @@ describe('mcp-config: serverName derivation', () => {
     expect(long.length).toBe(32)
     expect(long.endsWith('-')).toBe(false)
     expect(deriveServerName('a'.repeat(40), 'b'.repeat(40))).toBe(long)
+  })
+})
+
+describe('mcp-config: source-scoped identity', () => {
+  it('derives serverNames and mount keys from the qualified suite id so two sources never collide', async () => {
+    // Regression: mount requests keyed by the bare suite id let two sources'
+    // same-named suites shadow each other's mounts, data dirs, and status.
+    const a = suite()
+    const b = { ...suite(), sourceId: 'other' }
+    const first = await toMcpMounts(a, '/tmp/data', {}, alwaysResolves)
+    const second = await toMcpMounts(b, '/tmp/data', {}, alwaysResolves)
+    const firstNames = first.mounts.map(mount => mount.config.serverName)
+    const secondNames = second.mounts.map(mount => mount.config.serverName)
+    // Qualified ids differ, so every derived serverName differs.
+    expect(firstNames.some(name => secondNames.includes(name))).toBe(false)
+    expect(firstNames.every(name => name.startsWith('demo_my-suite__'))).toBe(true)
+    expect(secondNames.every(name => name.startsWith('other_my-suite__'))).toBe(true)
+    // The request's suiteId — the mount registry key — is qualified on both.
+    expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
+    expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
+    // Per-suite PLUGIN_DATA directories are qualified too.
+    const dbA = first.mounts[0]!.config as Record<string, unknown>
+    expect(dbA['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    const dbB = second.mounts[0]!.config as Record<string, unknown>
+    expect(dbB['env']).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
   })
 })

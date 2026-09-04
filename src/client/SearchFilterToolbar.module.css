@@ -1,22 +1,29 @@
+/* Shared search + filter + view-switch row.
+ *
+ * Flexbox, not a fixed column grid: panels pass different filter counts
+ * (MCP 3, LSP 4), and a hard-coded grid template overflowed on the fourth
+ * filter, pushing the view switch onto its own row and forcing a horizontal
+ * scrollbar. Here the search box flexes, filter buttons keep their natural
+ * width, and the spacer pushes the view switch to the trailing edge. */
 .toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 12px auto auto auto 8px auto;
-  gap: 0;
-  min-width: 0;
+  display: flex;
   align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
 }
 
 .filterGap,
 .viewGap {
+  flex: 1 0 12px;
   min-width: 0;
 }
 
 .search {
   display: flex;
+  flex: 1 1 240px;
   align-items: center;
   box-sizing: border-box;
   min-width: 0;
-  width: 100%;
   height: 36px;
 }
 
@@ -36,6 +43,7 @@
 .filter,
 .filterOn {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -73,6 +81,7 @@
 
 .viewSwitch {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 34px;
@@ -97,13 +106,12 @@
 
 @media (max-width: 760px) {
   .toolbar {
-    grid-template-columns: auto auto auto 8px auto;
-    justify-content: end;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .search {
-    grid-column: 1 / -1;
+    flex-basis: 100%;
   }
 
   .filterGap {

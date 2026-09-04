@@ -56,7 +56,7 @@ describe('McpMountRegistry', () => {
     expect(mounts.size).toBe(1)
     const mounted = [...mounts.values()][0]!
     expect(mounted.config['transport']).toBe('stdio')
-    expect(mounted.config['serverName']).toBe('alpha__db')
+    expect(mounted.config['serverName']).toBe('demo_alpha__db')
 
     await registry.reconcile([])
     expect(mounted.disposed).toBe(true)
@@ -114,6 +114,192 @@ describe('McpMountRegistry', () => {
     const diagnostics = await registry.reconcile([duplicate, suite('alpha!', 'db')])
     expect(diagnostics.some(diagnostic => diagnostic.reason.includes('already mounted'))).toBe(true)
     expect(mounts.size).toBe(1)
+    await registry.disposeAll()
+  })
+
+  it('surfaces a failed startup as `failed` and leaves no orphan child behind', async () => {
+    const disposed: string[] = []
+    const ctx = {
+      plugin: () => ({
+        // `dsh-mcp-client` rejects on startup failure because mounts are
+        // created with failOnStartupError, so the real error reaches us.
+        await: async () => {
+          throw new Error('connection refused')
+        },
+        dispose: async () => {
+          disposed.push('disposed')
+        }
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const broken = suite('broken', 'service')
+
+    const diagnostics = await registry.reconcile([broken])
+
+    // The connection error is reported with its real message, not swallowed
+    // into a silent "degraded" row.
+    expect(diagnostics).toContainEqual({
+      suiteId: 'broken',
+      serverKey: 'service',
+      code: 'mount-failed',
+      reason: 'mount failed: connection refused'
+    })
+    // The half-mounted handle is disposed so no child process survives.
+    expect(disposed).toEqual(['disposed'])
+    await registry.disposeAll()
+  })
+
+  it('retains a mount after failed disposal so a later reconcile can retry cleanup', async () => {
+    let disposeAttempts = 0
+    const ctx = {
+      plugin: () => ({
+        await: async () => {},
+        dispose: async () => {
+          disposeAttempts++
+          if (disposeAttempts === 1) throw new Error('busy')
+        }
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const mountedSuite = suite('retry', 'service')
+
+    await registry.reconcile([mountedSuite])
+    const first = await registry.reconcile([])
+    const second = await registry.reconcile([])
+
+    expect(first).toContainEqual({ suiteId: 'demo/retry', serverKey: 'service', code: 'unmount-failed', reason: 'unmount failed: busy' })
+    expect(second).toEqual([])
+    expect(disposeAttempts).toBe(2)
+  })
+
+  it('does not spawn a server when an environment credential is missing', async () => {
+    const mounted: Array<Record<string, unknown>> = []
+    const ctx = {
+      get: (name: string) => (name === 'credentials' ? { resolve: async () => undefined } : undefined),
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const authSuite = suite('auth', 'service')
+    authSuite.mcp!.servers.service = { type: 'stdio', command: 'tool', env: { API_TOKEN: '${API_TOKEN}' } }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const diagnostics = await registry.reconcile([authSuite])
+
+    expect(mounted).toHaveLength(0)
+    expect(diagnostics).toContainEqual({
+      suiteId: 'auth',
+      serverKey: 'service',
+      code: 'missing-credential',
+      credentialRefs: ['API_TOKEN'],
+      reason: 'missing credential reference API_TOKEN'
+    })
+  })
+
+  it('mounts with a credential supplied by the host resolver', async () => {
+    const mounted: Array<{ config: Record<string, unknown>; disposed: boolean }> = []
+    const ctx = {
+      get: (name: string) => (name === 'credentials' ? { resolve: async (ref: string) => (ref === 'API_TOKEN' ? { value: 'secret', source: 'file' } : undefined) } : undefined),
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const row = { config, disposed: false }
+        mounted.push(row)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            row.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const authSuite = suite('auth', 'service')
+    authSuite.mcp!.servers.service = { type: 'stdio', command: 'tool', env: { API_TOKEN: '${API_TOKEN}' } }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    await expect(registry.reconcile([authSuite])).resolves.toEqual([])
+
+    expect(mounted).toHaveLength(1)
+    expect((mounted[0]!.config['env'] as Record<string, string>).API_TOKEN).toBe('secret')
+    await registry.disposeAll()
+    expect(mounted[0]!.disposed).toBe(true)
+  })
+
+  it('rebuilds a live mount flagged by forceRemount even when the config is unchanged', async () => {
+    // Regression: re-authorize drops a grant without changing any resolved
+    // config field, so a fingerprint-only reconcile kept the live bridge —
+    // with its in-memory tokens — and the re-authorization never ran.
+    const mounted: Array<Record<string, unknown> & { disposed?: boolean }> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const record: Record<string, unknown> & { disposed?: boolean } = { ...config, disposed: false }
+        mounted.push(record)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            record.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const authSuite = suite('auth', 'service')
+    authSuite.mcp!.servers.service = { type: 'stdio', command: 'tool', env: { API_TOKEN: 'token-v1' } }
+
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(1)
+    // No remount without a flag: identical config, live bridge stays.
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(1)
+    // Force-remount (re-authorize): same config, but the bridge is rebuilt.
+    registry.forceRemount('demo/auth', 'service')
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(2)
+    expect(mounted[0]!.disposed).toBe(true)
+    // A subsequent pass with no flag does not rebuild again.
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(2)
+    await registry.disposeAll()
+  })
+
+  it('resolves the owning mount key from a derived serverName', () => {
+    const registry = new McpMountRegistry({ logger: { warn: () => {} } } as never, '/tmp/data')
+    expect(registry.serverOwner('demo_alpha__db')).toBeUndefined()
+  })
+
+  it('skips mounting when a foreign MCP client already owns the derived serverName namespace', async () => {
+    const mounted: Array<Record<string, unknown>> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    // A native host MCP client (or another plugin) already registered tools
+    // under this suite's derived namespace.
+    registry.setToolNamesProvider(() => ['mcp__demo_alpha__db__query', 'other_tool'])
+
+    const diagnostics = await registry.reconcile([suite('alpha', 'db')])
+
+    expect(mounted).toHaveLength(0)
+    expect(diagnostics).toContainEqual({
+      suiteId: 'alpha',
+      serverKey: 'db',
+      code: 'foreign-mount',
+      reason: expect.stringContaining('already mounted by another MCP client')
+    })
+
+    // Once the foreign owner goes away, a later reconcile mounts normally.
+    registry.setToolNamesProvider(() => [])
+    await expect(registry.reconcile([suite('alpha', 'db')])).resolves.toEqual([])
+    expect(mounted).toHaveLength(1)
+    expect(mounted[0]!['serverName']).toBe('demo_alpha__db')
     await registry.disposeAll()
   })
 })

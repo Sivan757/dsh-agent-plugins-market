@@ -2,14 +2,12 @@
 import { readFile } from 'node:fs/promises'
 import { parse as parseYaml } from 'yaml'
 import { discoverLspEntries, listMdFiles } from '../catalog/surfaces.js'
-import type { SkillContent, SuiteDetail } from '../contracts/market.js'
-import { effectiveSurfaces, type InstalledEntry, type Suite } from '../model/types.js'
-
-interface McpDiagnostic {
-  suiteId: string
-  serverKey: string
-  reason: string
-}
+import { credentialRefsInServer } from '../runtime/mcp-config.js'
+import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
+import { applyOverride, type McpServerOverride } from '../runtime/mcp-overrides.js'
+import type { LspSurfaceDetail, McpServerDetail, SkillContent, SuiteDetail } from '../contracts/market.js'
+import { effectiveSurfaces, type InstalledEntry, type McpServerStdio, type McpServerStreamableHttp, type Suite } from '../model/types.js'
+import type { McpMountDiagnostic as McpDiagnostic } from '../runtime/mcp-mounts.js'
 
 /** Build the detail response for one normalized suite. */
 export async function buildSuiteDetail(
@@ -34,18 +32,28 @@ export async function buildSuiteDetail(
     installed: installed !== undefined,
     enabled: installed?.enabled === true,
     surfaceToggles: effectiveSurfaces(installed?.surfaces),
-    mcpOverrides,
+    mcpOverrides: redactMcpOverrides(mcpOverrides),
     skills: suite.skills.map(skill => ({
       name: skill.name,
       description: skill.description,
       ...(skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse }),
       path: skill.file
     })),
-    mcpServers: suite.mcp === undefined ? [] : Object.entries(suite.mcp.servers).map(([key, server]) => ({ key, ...server })),
+    mcpServers:
+      suite.mcp === undefined
+        ? []
+        : Object.entries(suite.mcp.servers).map(([key, server]) => {
+            const effective = applyOverride(server as McpServerStdio | McpServerStreamableHttp, mcpOverrides[key] as McpServerOverride | undefined)
+            return {
+              key,
+              ...(redactMcpConfig(server) as Omit<McpServerDetail, 'key' | 'credentialRefs'>),
+              credentialRefs: credentialRefsInServer(effective)
+            }
+          }),
     hooks: remoteUrl === undefined ? await hooksPreviews(suite.root) : { count: 0, entries: [] },
     commands: remoteUrl === undefined ? await markdownPreviews(`${suite.root}/commands`) : [],
     agents: remoteUrl === undefined ? await markdownPreviews(`${suite.root}/agents`) : [],
-    lsp: remoteUrl === undefined ? await lspPreviews(suite.root) : [],
+    lsp: remoteUrl === undefined ? await lspDetail(suite) : { servers: [], raw: [] },
     errors: suite.errors,
     mcpErrors: diagnostics.filter(diagnostic => diagnostic.suiteId === suite.id).map(diagnostic => `${diagnostic.serverKey}: ${diagnostic.reason}`)
   }
@@ -130,14 +138,29 @@ async function hooksPreviews(root: string): Promise<{ count: number; entries: Ar
   return { count: 0, entries: [] }
 }
 
-async function lspPreviews(root: string): Promise<Array<{ name: string; content: string }>> {
-  const previews: Array<{ name: string; content: string }> = []
-  for (const entry of await discoverLspEntries(root)) {
-    try {
-      previews.push({ name: entry.name, content: await readPreview(entry.path) })
-    } catch {
-      // Unreadable LSP files are omitted from the detail response.
+/**
+ * The suite's LSP surface: inline-declared `lspServers` (already parsed into
+ * `suite.lsp` at discovery) rendered as structured server previews, plus the
+ * directory-style `.claude-plugin/lsp/*.json` / reverse-domain files as raw
+ * previews. Remote suites (not cloned) carry an empty detail.
+ */
+async function lspDetail(suite: Suite): Promise<LspSurfaceDetail> {
+  const servers = Object.values(suite.lsp?.servers ?? {}).map(spec => ({
+    key: spec.key,
+    command: spec.command,
+    args: spec.args,
+    extensions: spec.extensionToLanguage,
+    ...(spec.env === undefined ? {} : { env: spec.env })
+  }))
+  const raw: Array<{ name: string; content: string }> = []
+  if (suite.remote?.url === undefined) {
+    for (const entry of await discoverLspEntries(suite.root)) {
+      try {
+        raw.push({ name: entry.name, content: await readPreview(entry.path) })
+      } catch {
+        // Unreadable LSP files are omitted from the detail response.
+      }
     }
   }
-  return previews
+  return { servers, raw }
 }

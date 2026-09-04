@@ -1,0 +1,6 @@
+{
+  "name": "dual-selfref",
+  "plugins": [
+    { "name": "dual-selfref", "version": "1.0.0", "source": { "source": "local", "path": "./" } }
+  ]
+}

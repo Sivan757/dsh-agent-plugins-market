@@ -7,12 +7,15 @@ export const MARKET_API_PREFIX = '/api/agent-plugins/' as const
 export const MARKET_ROUTES = {
   overview: `${MARKET_API_PREFIX}overview`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
+  lspStatus: `${MARKET_API_PREFIX}lsp-status`,
+  lspServers: `${MARKET_API_PREFIX}lsp-servers`,
   progress: `${MARKET_API_PREFIX}progress`,
   config: `${MARKET_API_PREFIX}config`,
   suite: `${MARKET_API_PREFIX}suite`,
   skill: `${MARKET_API_PREFIX}skill`,
   addSource: `${MARKET_API_PREFIX}sources/add`,
   updateSource: `${MARKET_API_PREFIX}sources/update`,
+  adoptSource: `${MARKET_API_PREFIX}sources/adopt`,
   removeSource: `${MARKET_API_PREFIX}sources/remove`,
   refreshSource: `${MARKET_API_PREFIX}sources/refresh`,
   install: `${MARKET_API_PREFIX}install`,
@@ -20,8 +23,28 @@ export const MARKET_ROUTES = {
   setEnabled: `${MARKET_API_PREFIX}set-enabled`,
   setSurface: `${MARKET_API_PREFIX}set-surface`,
   mcpOverrides: `${MARKET_API_PREFIX}mcp-overrides`,
-  setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`
+  setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`,
+  mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
+  mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
+  mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
+  setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`
 } as const
+
+/** The MCP mount backend state reported to the settings page. */
+export interface McpBackendPayload {
+  backend: 'builtin' | 'host'
+  /** Whether the host `dsh-mcp-client` resolves from the plugin context. */
+  hostClient: { available: boolean; version?: string }
+  /** Download region: the persisted setting and its locale-resolved route. */
+  downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
+}
+
+/** One unmanaged `.sources/` checkout the user can adopt as a source. */
+export interface UnmanagedSource {
+  id: string
+  /** The checkout's `origin` remote URL; absent for non-git directories. */
+  url?: string
+}
 
 /** A configured source row returned to the market client. */
 export interface SourceOverview {
@@ -29,9 +52,16 @@ export interface SourceOverview {
   url: string
   branch?: string
   local?: boolean
+  /** Acquisition kind (`git` / `local` / `archive`); `local` mirrors the legacy flag. */
+  kind: string
+  /** The checkout pre-existed (manually cloned or adopted); never deleted on removal. */
+  adopted?: boolean
   cloned: boolean
   lockCommit?: string
   error?: string
+  /** Scanner diagnostics for this source (dropped entries, fallbacks taken);
+   *  absent when the scan completed with no notes. */
+  scanNotes?: string[]
   suiteIds: string[]
 }
 
@@ -52,6 +82,7 @@ export interface SuiteSurfaceToggles {
   hooks: boolean
   commands: boolean
   agents: boolean
+  lsp: boolean
 }
 
 /** One server's persisted MCP override (wire shape mirrors runtime types). */
@@ -92,6 +123,8 @@ export interface OverviewPayload {
   suites: SuiteOverviewCard[]
   totals: { all: number; installed: number; enabled: number }
   roots: { user: string; data: string }
+  /** Unmanaged `.sources/` checkouts (manual clones) available for adoption. */
+  unmanaged?: UnmanagedSource[]
 }
 
 /** Host-side progress of the source mutation currently in flight. */
@@ -127,6 +160,23 @@ export interface LspPreview {
   content: string
 }
 
+/** One inline-declared LSP server in a suite detail response. */
+export interface LspServerPreview {
+  /** Server key from the declaring `lspServers` table. */
+  key: string
+  command: string
+  args: string[]
+  /** Lowercase leading-dot extension → LSP language id. */
+  extensions: Record<string, string>
+  env?: Record<string, string>
+}
+
+/** The suite's LSP surface: inline-declared servers plus directory definition files. */
+export interface LspSurfaceDetail {
+  servers: LspServerPreview[]
+  raw: LspPreview[]
+}
+
 /** One flattened hook entry in a suite detail response. */
 export interface HookPreview {
   event: string
@@ -144,6 +194,8 @@ export interface McpServerDetail {
   env?: Record<string, string>
   cwd?: string
   headers?: Record<string, string>
+  /** External credential references used by env/header/argument placeholders. */
+  credentialRefs: string[]
 }
 
 /** Full suite detail response served by the detail modal. */
@@ -169,7 +221,7 @@ export interface SuiteDetail {
   hooks: { count: number; entries: HookPreview[] }
   commands: MarkdownPreview[]
   agents: MarkdownPreview[]
-  lsp: LspPreview[]
+  lsp: LspSurfaceDetail
   errors: string[]
   mcpErrors: string[]
 }

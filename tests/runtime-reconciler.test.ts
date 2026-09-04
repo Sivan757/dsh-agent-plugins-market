@@ -6,7 +6,7 @@ describe('RuntimeReconciler', () => {
     const context = { logger: { warn: () => {} } }
     const reconciler = new RuntimeReconciler(context as never, '/tmp/dsh-agent-plugins-runtime-data')
 
-    await expect(reconciler.reconcile([])).resolves.toEqual({ mcp: [], commands: [], hooks: [], errors: [] })
+    await expect(reconciler.reconcile([])).resolves.toEqual({ mcp: [], commands: [], hooks: [], lsp: [], errors: [] })
     await expect(reconciler.dispose()).resolves.toBeUndefined()
   })
 })

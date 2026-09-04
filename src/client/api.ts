@@ -2,6 +2,8 @@
 import { MARKET_API_PREFIX, MARKET_ROUTES, skillRoute, suiteRoute } from '../contracts/market.js'
 import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
+import type { LspStatusPayload } from '../contracts/lsp-status.js'
+import type { LspServerSpec } from '../model/types.js'
 
 export type {
   AgentPreview,
@@ -19,6 +21,8 @@ export type {
   SuiteSurfaceCounts
 } from '../contracts/market.js'
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../contracts/mcp-status.js'
+export type { LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
+export type { LspServerSpec } from '../model/types.js'
 
 /** Client-facing alias retained during migration from the original transport types. */
 export type OverviewData = OverviewPayload
@@ -49,10 +53,60 @@ export async function fetchMcpStatus(): Promise<McpStatusPayload> {
   return response.json() as Promise<McpStatusPayload>
 }
 
+export async function fetchLspStatus(): Promise<LspStatusPayload> {
+  const response = await fetch(MARKET_ROUTES.lspStatus, { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`LSP status failed: ${response.status}`)
+  return response.json() as Promise<LspStatusPayload>
+}
+
+/** The user's direct LSP server table (normalized specs). */
+export async function fetchLspServers(): Promise<Record<string, LspServerSpec>> {
+  const response = await fetch(MARKET_ROUTES.lspServers, { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`LSP servers failed: ${response.status}`)
+  const body = (await response.json()) as { lspServers?: Record<string, LspServerSpec> }
+  return body.lspServers ?? {}
+}
+
+/** Validate and persist the user's direct LSP server table. */
+export async function saveLspServers(lspServers: unknown): Promise<Record<string, LspServerSpec>> {
+  const response = await fetch(MARKET_ROUTES.lspServers, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ lspServers })
+  })
+  const body = (await response.json()) as { ok?: boolean; error?: string; lspServers?: Record<string, LspServerSpec> }
+  if (!response.ok || body.ok === false) throw new Error(body.error ?? `LSP servers save failed: ${response.status}`)
+  return body.lspServers ?? {}
+}
+
 export async function fetchSkillContent(sourceId: string, suiteId: string, skill: string): Promise<SkillContent> {
   const response = await fetch(skillRoute(sourceId, suiteId, skill), { credentials: 'same-origin' })
   if (!response.ok) throw new Error(`skill content failed: ${response.status}`)
   return response.json() as Promise<SkillContent>
+}
+
+/** Re-run the host MCP reconcile: retries failed mounts, clears residual tools. */
+export async function retryMcpMounts(): Promise<void> {
+  await postAction('mcp-retry', {})
+}
+
+/** Drop one server's OAuth grant so its next mount re-runs browser authorization. */
+export async function reauthorizeMcpServer(serverName: string): Promise<void> {
+  await postAction('mcp-reauthorize', { serverName })
+}
+
+/** The MCP backend card state: active client, host availability, download region. */
+export interface McpBackendInfo {
+  backend: 'builtin' | 'host'
+  hostClient: { available: boolean; version?: string }
+  downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
+}
+
+export async function fetchMcpBackend(): Promise<McpBackendInfo> {
+  const response = await fetch(MARKET_ROUTES.mcpBackend, { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`mcp backend failed: ${response.status}`)
+  return response.json() as Promise<McpBackendInfo>
 }
 
 export async function postAction(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {

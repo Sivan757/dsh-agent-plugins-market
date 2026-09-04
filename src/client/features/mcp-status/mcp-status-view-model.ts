@@ -9,7 +9,8 @@ export interface McpStatusViewModel {
   activeEntries: McpStatusEntry[]
   filtered: McpStatusEntry[]
   filterCounts: { all: number; plugin: number; direct: number }
-  visibleTotals: { all: number; connected: number; failed: number }
+  /** Counted over the active (non-disabled-hidden) rows for the current view. */
+  visibleTotals: { all: number; connected: number; degraded: number; failed: number; needsCredentials: number; orphaned: number; disabled: number; foreign: number }
 }
 
 interface SearchableEntry {
@@ -24,8 +25,7 @@ export function deriveMcpStatusViewModel(payload: McpStatusPayload, filter: McpS
   const searchable = searchableFor(payload)
   const activeEntries = searchable.map(item => item.entry)
   const filterCounts = { all: 0, plugin: 0, direct: 0 }
-  let connected = 0
-  let failed = 0
+  const visibleTotals = { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 }
   const filtered: McpStatusEntry[] = []
   const needle = search.trim().toLowerCase()
 
@@ -33,8 +33,14 @@ export function deriveMcpStatusViewModel(payload: McpStatusPayload, filter: McpS
     const entry = item.entry
     filterCounts.all++
     filterCounts[entry.kind]++
-    if (entry.state === 'connected') connected++
-    if (entry.state === 'failed') failed++
+    visibleTotals.all++
+    if (entry.state === 'connected') visibleTotals.connected++
+    if (entry.state === 'degraded') visibleTotals.degraded++
+    if (entry.state === 'failed') visibleTotals.failed++
+    if (entry.state === 'needs-credentials') visibleTotals.needsCredentials++
+    if (entry.state === 'orphaned') visibleTotals.orphaned++
+    if (entry.state === 'disabled') visibleTotals.disabled++
+    if (entry.state === 'foreign') visibleTotals.foreign++
     if (filter !== 'all' && entry.kind !== filter) continue
     if (needle !== '' && !item.haystack.includes(needle)) continue
     filtered.push(entry)
@@ -44,7 +50,7 @@ export function deriveMcpStatusViewModel(payload: McpStatusPayload, filter: McpS
     activeEntries,
     filtered,
     filterCounts,
-    visibleTotals: { all: activeEntries.length, connected, failed }
+    visibleTotals
   }
 }
 
@@ -55,7 +61,7 @@ function searchableFor(payload: McpStatusPayload): SearchableEntry[] {
     .filter(entry => entry.state !== 'disabled')
     .map(entry => ({
       entry,
-      haystack: `${entry.name} ${entry.source ?? ''} ${entry.endpoint ?? ''} ${entry.transport}`.toLowerCase()
+      haystack: `${entry.name} ${entry.source ?? ''} ${entry.endpoint ?? ''} ${entry.transport} ${entry.reason ?? ''} ${(entry.credentialRefs ?? []).join(' ')}`.toLowerCase()
     }))
   searchableCache.set(payload, searchable)
   return searchable

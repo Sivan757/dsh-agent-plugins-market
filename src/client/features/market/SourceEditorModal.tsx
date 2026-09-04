@@ -8,23 +8,39 @@ import css from '../../market.module.css'
 
 export type EditorState = { mode: 'edit'; source: SourceOverview } | { mode: 'add' } | undefined
 
+/** Which acquisition path the editor configures. */
+export type SourceEditorKind = 'git' | 'archive' | 'local'
+
 export interface SourceEditorModalProps {
   t: Translate
   editor: Exclude<EditorState, undefined>
   busy: boolean
   progress: SourceProgressState
   onClose: () => void
-  onSave: (url: string, branch: string, local: boolean) => Promise<boolean>
+  onSave: (input: { url: string; branch: string; kind: SourceEditorKind; sha256: string }) => Promise<boolean>
   onRemove: (id: string) => void
 }
 
 export function SourceEditorModal(props: SourceEditorModalProps): ReactNode {
   const { t, editor } = props
-  const [local, setLocal] = useState(editor.mode === 'edit' && editor.source.local === true)
+  const [kind, setKind] = useState<SourceEditorKind>(editor.mode === 'edit' ? (editor.source.kind === 'archive' ? 'archive' : editor.source.local === true ? 'local' : 'git') : 'git')
   const [url, setUrl] = useState(editor.mode === 'edit' ? editor.source.url : '')
   const [branch, setBranch] = useState(editor.mode === 'edit' ? (editor.source.branch ?? '') : '')
+  const [sha256, setSha256] = useState('')
   const id = editor.mode === 'edit' ? editor.source.id : ''
   const title = editor.mode === 'edit' ? t('editSourceTitle') : t('addSourceTitle')
+  const urlPlaceholder = kind === 'local' ? t('sourceUrlLocalPh') : kind === 'archive' ? t('sourceUrlArchivePh') : t('sourceUrlPh')
+  const urlHint = kind === 'local' ? t('urlLocalHint') : kind === 'archive' ? t('urlArchiveHint') : t('urlGitHint')
+  const segment = (value: SourceEditorKind, label: string): ReactNode =>
+    h(
+      'button',
+      {
+        type: 'button',
+        className: kind === value ? css.segOn : css.seg,
+        onClick: () => setKind(value)
+      },
+      label
+    )
   return h(Modal, {
     open: true,
     onClose: props.onClose,
@@ -43,7 +59,7 @@ export function SourceEditorModal(props: SourceEditorModalProps): ReactNode {
           variant: 'primary',
           disabled: props.busy,
           onClick: () => {
-            void props.onSave(url.trim(), branch.trim(), local)
+            void props.onSave({ url: url.trim(), branch: branch.trim(), kind, sha256: sha256.trim() })
           }
         },
         t('save')
@@ -55,24 +71,9 @@ export function SourceEditorModal(props: SourceEditorModalProps): ReactNode {
       h(
         'div',
         { className: css.modeRow },
-        h(
-          'button',
-          {
-            type: 'button',
-            className: local ? css.seg : css.segOn,
-            onClick: () => setLocal(false)
-          },
-          t('sourceModeGit')
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            className: local ? css.segOn : css.seg,
-            onClick: () => setLocal(true)
-          },
-          t('sourceModeLocal')
-        )
+        segment('git', t('sourceModeGit')),
+        segment('archive', t('sourceModeArchive')),
+        segment('local', t('sourceModeLocal'))
       ),
       editor.mode === 'edit'
         ? h(
@@ -85,19 +86,28 @@ export function SourceEditorModal(props: SourceEditorModalProps): ReactNode {
       h(
         'div',
         { className: css.fieldGroup },
-        h('label', { className: css.fieldLabel }, local ? t('sourceUrlLocalPh') : t('sourceUrlPh')),
-        h(Input, { placeholder: local ? t('sourceUrlLocalPh') : t('sourceUrlPh'), value: url, onChange: event => setUrl((event.target as HTMLInputElement).value) }),
-        h('span', { className: css.fieldHint }, local ? t('urlLocalHint') : t('urlGitHint'))
+        h('label', { className: css.fieldLabel }, urlPlaceholder),
+        h(Input, { placeholder: urlPlaceholder, value: url, onChange: event => setUrl((event.target as HTMLInputElement).value) }),
+        h('span', { className: css.fieldHint }, urlHint)
       ),
-      local
-        ? null
-        : h(
+      kind === 'git'
+        ? h(
             'div',
             { className: css.fieldGroup },
             h('label', { className: css.fieldLabel }, t('branchPh')),
             h(Input, { placeholder: t('branchPh'), value: branch, onChange: event => setBranch((event.target as HTMLInputElement).value) }),
             h('span', { className: css.fieldHint }, t('branchHint'))
-          ),
+          )
+        : null,
+      kind === 'archive'
+        ? h(
+            'div',
+            { className: css.fieldGroup },
+            h('label', { className: css.fieldLabel }, t('sha256Ph')),
+            h(Input, { placeholder: t('sha256Ph'), value: sha256, onChange: event => setSha256((event.target as HTMLInputElement).value) }),
+            h('span', { className: css.fieldHint }, t('sha256Hint'))
+          )
+        : null,
       props.progress.error === undefined && props.progress.step === undefined
         ? null
         : h(

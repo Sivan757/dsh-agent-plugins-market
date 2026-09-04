@@ -85,6 +85,9 @@
         },
         "headers": {
           "$ref": "#/$defs/headers"
+        },
+        "auth": {
+          "$ref": "#/$defs/oauth"
         }
       },
       "required": ["type", "url"],
@@ -104,9 +107,28 @@
         },
         "headers": {
           "$ref": "#/$defs/headers"
+        },
+        "auth": {
+          "$ref": "#/$defs/oauth"
         }
       },
       "required": ["type", "url"],
+      "additionalProperties": false
+    },
+    "oauth": {
+      "title": "OAuth 2.1 authorization",
+      "type": "object",
+      "description": "OAuth 2.1 authorization for servers that answer 401 with a challenge. The flow activates by default on the server's first 401; set enabled to false to opt out.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the OAuth flow (default true; set false to opt out explicitly)."
+        },
+        "scope": {
+          "type": "string",
+          "description": "Space-separated scope string requested during authorization."
+        }
+      },
       "additionalProperties": false
     },
     "headers": {

@@ -1,4 +1,4 @@
-/** Shared green/gray switch control used by suite cards. */
+/** Shared switch control (ON = primary button fill, like every host toggle). */
 import { createElement as h, type ReactNode } from 'react'
 import css from '../market.module.css'
 

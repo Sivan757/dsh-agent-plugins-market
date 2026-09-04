@@ -58,7 +58,7 @@ const mcpStatus: McpStatusPayload = {
     { id: 'disabled:three', name: 'three', kind: 'plugin', state: 'disabled', transport: 'stdio', tools: [] }
   ],
   observedAt: '',
-  totals: { all: 3, connected: 1, degraded: 0, failed: 1, disabled: 1 },
+  totals: { all: 3, connected: 1, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 1 },
   directObservationOnly: true
 }
 

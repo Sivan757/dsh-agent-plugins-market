@@ -14,6 +14,7 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type * as HooksBridge from '@deepseek-ai/dsh-hooks-claude-code'
+import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { Suite } from '../model/types.js'
 
 export interface HooksMountDiagnostic {
@@ -39,16 +40,18 @@ export class HooksMountRegistry {
   async reconcile(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
     const diagnostics: HooksMountDiagnostic[] = []
     const active = enabledSuites.filter(suite => suite.activeSurfaces?.hooks !== false)
-    const wanted = new Set(active.map(suite => suite.id))
+    // Keys are the qualified suite id: bare ids are unique per source only.
+    const wanted = new Set(active.map(suite => qualifiedSuiteId(suite.sourceId, suite.id)))
     for (const [suiteId, handle] of [...this.live]) {
       if (!wanted.has(suiteId)) {
         await this.unmount(suiteId, handle)
       }
     }
     for (const suite of active) {
-      if (this.live.has(suite.id)) continue
-      const reason = await this.mount(suite)
-      if (reason !== undefined) diagnostics.push({ suiteId: suite.id, reason })
+      const key = qualifiedSuiteId(suite.sourceId, suite.id)
+      if (this.live.has(key)) continue
+      const reason = await this.mount(key, suite)
+      if (reason !== undefined) diagnostics.push({ suiteId: key, reason })
     }
     return diagnostics
   }
@@ -60,7 +63,7 @@ export class HooksMountRegistry {
     }
   }
 
-  private async mount(suite: Suite): Promise<string | undefined> {
+  private async mount(key: string, suite: Suite): Promise<string | undefined> {
     const configPath = await hookConfigPath(suite.root)
     if (configPath === undefined) return undefined
     let bridge: typeof HooksBridge | undefined
@@ -77,7 +80,7 @@ export class HooksMountRegistry {
         pluginRoot: suite.root
       })
       await handle.await()
-      this.live.set(suite.id, handle)
+      this.live.set(key, handle)
       return undefined
     } catch (error) {
       return `mount failed: ${error instanceof Error ? error.message : String(error)}`

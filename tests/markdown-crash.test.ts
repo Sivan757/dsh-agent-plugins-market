@@ -42,7 +42,7 @@ describe('MarkdownText renders all mattpocock skill bodies', () => {
       const root = createRoot(container)
       try {
         act(() => {
-          root.render(h(MarkdownText, { text }))
+          root.render(h(MarkdownText, { text, labels: { code: { copyLabel: 'Copy', copiedLabel: 'Copied' }, footnotes: 'Footnotes' } }))
         })
         act(() => {
           root.unmount()

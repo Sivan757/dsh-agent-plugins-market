@@ -1,0 +1,7 @@
+{
+  "name": "broken-market",
+  "plugins": [
+    { "name": "escaper", "source": "../outside" },
+    { "name": "void-one", "source": { "source": "unknown-dialect" } }
+  ]
+}

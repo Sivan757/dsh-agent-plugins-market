@@ -17,6 +17,7 @@ import { InstallConfirmModal, type InstallConfirmState } from './features/market
 import { SuiteCard } from './features/market/SuiteCard.js'
 import { StatusIcon } from './ui/StatusIcon.js'
 import type { Translate } from './index.js'
+import type { CredentialApi } from './credentials.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
@@ -25,11 +26,14 @@ import css from './market.module.css'
 /** Host step keys -> translation keys, resolved against the active t(). */
 const PROGRESS_STEP_LABELS: Record<string, string> = {
   cloning: 'progressCloning',
+  downloading: 'progressDownloading',
   reading: 'progressReading'
 }
 
 export interface MarketSectionProps {
   t: Translate
+  /** Host credentials wire used for write-only MCP env configuration. */
+  credentials?: CredentialApi
   /** The host surface controls only outer spacing; data and actions stay shared. */
   mode?: 'settings' | 'page'
 }
@@ -59,7 +63,7 @@ function interpolate(text: string, params: Record<string, unknown>): string {
   return text.replace(/\{(\w+)\}/g, (match, key: string) => (key in params ? String(params[key]) : match))
 }
 
-export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): ReactNode {
+export function MarketSection({ t, credentials, mode = 'settings' }: MarketSectionProps): ReactNode {
   const [overview, setOverview] = useState<OverviewData>(() => loadOverview().initial)
   const [loading, setLoading] = useState(() => loadOverview().revalidating)
   const [search, setSearch] = useState('')
@@ -128,6 +132,14 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
 
   const selectedSource = category === 'all' ? undefined : overview.sources.find(source => source.id === category)
 
+  const adoptSource = useCallback(
+    async (id: string) => {
+      await action(`s:adopt:${id}`, 'sources/adopt', { id })
+    },
+    [action]
+  )
+  const unmanaged = overview.unmanaged ?? []
+
   return h(ErrorBoundary, {
     fallback: error => h('div', { className: css.empty }, `${t('actionFail')}: ${error.message}`),
     children: h(
@@ -177,19 +189,50 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
               }),
               ...[...overview.sources]
                 .sort((a, b) => a.id.localeCompare(b.id))
-                .map(source =>
-                  h(SourceTab, {
+                .map(source => {
+                  const notes = source.scanNotes ?? []
+                  const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
+                  const kindBadge = source.local === true ? t('sourceLocal') : source.kind === 'archive' ? t('sourceArchive') : source.adopted === true ? t('sourceAdopted') : undefined
+                  return h(SourceTab, {
                     key: source.id,
                     t,
                     active: category === source.id,
-                    label: `${source.id}${source.local === true ? ` · ${t('sourceLocal')}` : ''} ${source.suiteIds.length}${source.cloned === false ? ' ⚠' : ''}`,
+                    label: `${source.id}${kindBadge === undefined ? '' : ` · ${kindBadge}`} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
+                    title: noteHint,
                     onSelect: () => setCategory(source.id),
                     onDelete: () => setConfirm({ kind: 'removeSource', sourceId: source.id }),
                     onEdit: selectedSource?.id === source.id ? () => setEditor({ mode: 'edit', source: source }) : undefined
                   })
-                )
+                })
             )
           ),
+          unmanaged.length === 0
+            ? null
+            : h(
+                'div',
+                { className: css.unmanagedRow },
+                h('span', { className: css.unmanagedLabel }, t('unmanagedTitle')),
+                ...unmanaged.map(entry =>
+                  h(
+                    'span',
+                    { key: entry.id, className: css.unmanagedChip, title: entry.url ?? t('unmanagedNoRemote') },
+                    h('span', { className: css.unmanagedChipName }, entry.id),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: css.unmanagedAdopt,
+                        disabled: busy !== undefined,
+                        title: t('unmanagedAdopt'),
+                        onClick: () => {
+                          void adoptSource(entry.id)
+                        }
+                      },
+                      '＋'
+                    )
+                  )
+                )
+              ),
           h(SearchFilterToolbar, {
             search,
             searchLabel: t('searchPh'),
@@ -304,6 +347,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         ? null
         : h(SuiteDetailModal, {
             t,
+            credentials,
             sourceId: detail.sourceId,
             suiteId: detail.suiteId,
             onClose: () => setDetail(undefined)
@@ -316,9 +360,11 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             busy: busy !== undefined,
             progress,
             onClose: () => setEditor(undefined),
-            onSave: async (url, branch, local) => {
+            onSave: async ({ url, branch, kind, sha256 }) => {
               const key = editor.mode === 'edit' ? `s:edit:${editor.source.id}` : `s:add:${url}`
-              const body = { url, ...(branch === '' ? {} : { branch }), local }
+              const body: Record<string, unknown> = { url, local: kind === 'local', kind }
+              if (branch !== '' && kind === 'git') body['branch'] = branch
+              if (sha256 !== '' && kind === 'archive') body['sha256'] = sha256
               if (editor.mode === 'add') {
                 setBusy(key)
                 setProgress({ step: t('progressStarting'), error: undefined })

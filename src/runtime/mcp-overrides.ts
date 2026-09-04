@@ -8,13 +8,17 @@
  * Editable scope is deliberate: connection inputs (`url`, `headers`, `env`,
  * `args`) and enable/disable are local-adaptation concerns; transport type,
  * command, and the derived serverName stay source-owned so mounts stay
- * coherent across refreshes. Secret values should reference the process
- * environment through `${NAME}` placeholders so keys never persist in plain
- * text.
+ * coherent across refreshes. Secret values should use `${NAME}` references
+ * resolved by the Host credentials service (or launch-environment fallback)
+ * so keys never persist in plain text.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { McpServerStreamableHttp, McpServerStdio } from '../model/types.js'
+import { isSensitiveKey } from './mcp-redaction.js'
+import type { McpServerSse, McpServerStreamableHttp, McpServerStdio } from '../model/types.js'
+
+/** HTTP-shaped server sources (url + headers carriers) overrides can edit. */
+type McpServerHttp = McpServerStreamableHttp | McpServerSse
 
 /** Per-server override record; absent fields pass through from the source. */
 export type McpServerOverride = {
@@ -28,6 +32,8 @@ export type McpServerOverride = {
   env?: Record<string, string>
   /** Replaces the whole args list (stdio). */
   args?: string[]
+  /** Replaces the OAuth block (streamable-http only); `enabled: false` disables a source-declared flow. */
+  auth?: { enabled: boolean; scope?: string }
 }
 
 /** Overrides for one suite, keyed by mcp.json server key. */
@@ -74,6 +80,8 @@ export function sanitizeOverrides(raw: unknown): McpSuiteOverrides {
     if (typeof record['url'] === 'string' && record['url'] !== '') override.url = record['url']
     const headers = stringMap(record['headers'])
     if (headers !== undefined) override.headers = headers
+    const auth = sanitizeAuth(record['auth'])
+    if (auth !== undefined) override.auth = auth
     const env = stringMap(record['env'])
     if (env !== undefined) override.env = env
     if (Array.isArray(record['args']) && record['args'].every(entry => typeof entry === 'string')) {
@@ -84,9 +92,58 @@ export function sanitizeOverrides(raw: unknown): McpSuiteOverrides {
   return result
 }
 
+/** Keep a well-formed auth block; anything else passes nothing through. */
+function sanitizeAuth(raw: unknown): { enabled: boolean; scope?: string } | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const record = raw as Record<string, unknown>
+  if (typeof record['enabled'] !== 'boolean') return undefined
+  return {
+    enabled: record['enabled'],
+    ...(typeof record['scope'] === 'string' && record['scope'] !== '' ? { scope: record['scope'] } : {})
+  }
+}
+
 /** Validate a client-supplied patch for one server into an override value. */
 export function sanitizeOverridePatch(patch: unknown): McpServerOverride | undefined {
+  if (containsLiteralSensitiveValue(patch)) return undefined
   return sanitizeOverrides({ server: patch })['server']
+}
+
+/**
+ * Merge one client patch into the override already on disk.
+ *
+ * The UI redacts secret-shaped values before rendering them, so a patch built
+ * from that redacted view must not be written verbatim — that would silently
+ * drop keys the user did not intend to change. Existing stored values are
+ * therefore preserved and only the fields the patch actually carries replace
+ * them.
+ */
+export function mergeOverridePatch(existing: McpServerOverride, patch: McpServerOverride): McpServerOverride {
+  const headers = mergeStringMap(existing.headers, patch.headers)
+  const env = mergeStringMap(existing.env, patch.env)
+  return {
+    enabled: patch.enabled ?? existing.enabled ?? true,
+    ...(patch.url !== undefined ? { url: patch.url } : existing.url === undefined ? {} : { url: existing.url }),
+    ...(headers === undefined ? {} : { headers }),
+    ...(env === undefined ? {} : { env }),
+    ...(patch.args !== undefined ? { args: patch.args } : existing.args === undefined ? {} : { args: existing.args }),
+    ...(patch.auth !== undefined ? { auth: patch.auth } : existing.auth === undefined ? {} : { auth: existing.auth })
+  }
+}
+
+function mergeStringMap(existing: Record<string, string> | undefined, patch: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (existing === undefined && patch === undefined) return undefined
+  const merged = { ...(existing ?? {}) }
+  for (const [key, value] of Object.entries(patch ?? {})) merged[key] = value
+  return Object.keys(merged).length > 0 ? merged : undefined
+}
+
+function containsLiteralSensitiveValue(value: unknown, key = ''): boolean {
+  if (isSensitiveKey(key) && typeof value === 'string') return !value.includes('${')
+  if (Array.isArray(value)) return value.some(item => containsLiteralSensitiveValue(item, key))
+  if (typeof value === 'object' && value !== null)
+    return Object.entries(value as Record<string, unknown>).some(([childKey, childValue]) => containsLiteralSensitiveValue(childValue, childKey))
+  return false
 }
 
 function stringMap(value: unknown): Record<string, string> | undefined {
@@ -104,10 +161,11 @@ function stringMap(value: unknown): Record<string, string> | undefined {
  * whole-map (headers/env/args), never per-key merge, so removing a key in the
  * UI actually removes it at mount time. Values pass through the ordinary
  * mount-time placeholder pipeline afterwards, so override authors may
- * reference secrets as `${NAME}` or `${NAME:-fallback}` (resolved from the
- * process environment in memory) instead of persisting them here.
+ * reference secrets as `${NAME}` or `${NAME:-fallback}` (resolved through the
+ * Host credentials service or launch environment in memory) instead of
+ * persisting them here.
  */
-export function applyOverride(server: McpServerStdio | McpServerStreamableHttp, override: McpServerOverride | undefined): McpServerStdio | McpServerStreamableHttp {
+export function applyOverride(server: McpServerStdio | McpServerHttp, override: McpServerOverride | undefined): McpServerStdio | McpServerHttp {
   if (override === undefined) return server
   if (server.type === 'stdio') {
     return {
@@ -119,7 +177,8 @@ export function applyOverride(server: McpServerStdio | McpServerStreamableHttp, 
   return {
     ...server,
     ...(override.url !== undefined ? { url: override.url } : {}),
-    ...(override.headers !== undefined ? { headers: override.headers } : {})
+    ...(override.headers !== undefined ? { headers: override.headers } : {}),
+    ...(override.auth !== undefined ? { auth: override.auth } : {})
   }
 }
 

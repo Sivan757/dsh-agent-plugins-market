@@ -1,11 +1,7 @@
 .surface {
   display: flex;
-  height: 100%;
-  max-height: 100%;
-  flex: 1;
-  min-height: 0;
+  min-width: 0;
   flex-direction: column;
-  overflow: hidden;
   color: var(--dsw-alias-label-primary, #1f2328);
 }
 .header {
@@ -49,6 +45,60 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+/* Summary bar: one chip per non-healthy state, plus the observation time. */
+.summaryBar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 10px;
+}
+.summaryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.chiporphaned, .chipfailed {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
+}
+.chipneedsCredentials, .chipdegraded {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
+}
+.chipdisabled {
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+}
+.summaryAllGood {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dsw-alias-state-success-primary, #16a34a);
+  font-size: 12px;
+}
+.summaryCount {
+  font-weight: 700;
+}
+.summaryLabel {
+  color: inherit;
+}
+.observedAt {
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 11px;
+  white-space: nowrap;
+}
 .summaryDotGreen, .summaryDotRed {
   width: 7px;
   height: 7px;
@@ -56,6 +106,8 @@
 }
 .summaryDotGreen { background: var(--dsw-alias-state-success-primary, #16a34a); }
 .summaryDotRed { background: var(--dsw-alias-state-error-primary, #dc2626); }
+.summaryDotWarn { background: var(--dsw-alias-state-warn-primary, #b45309); }
+.summaryDotInfo { background: var(--dsw-alias-brand-primary, #4f6ef7); }
 .toolbar {
   flex: none;
   margin-bottom: 24px;
@@ -63,25 +115,15 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  flex: 1;
   min-width: 0;
-  min-height: 0;
   gap: 12px;
   align-content: start;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  padding-right: 4px;
 }
 .list {
   display: flex;
-  flex: 1;
   min-width: 0;
-  min-height: 0;
   flex-direction: column;
   gap: 8px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  padding-right: 4px;
 }
 .list .card {
   flex-direction: row;
@@ -95,22 +137,13 @@
 }
 .list .endpoint {
   flex: 1 1 200px;
-  min-height: 0;
-  -webkit-line-clamp: 1;
-}
-.list .meta {
-  flex: 0 1 auto;
-}
-.list .cardReason {
-  flex-basis: 100%;
+  max-height: 18px;
 }
 .card {
   display: flex;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
   color: inherit;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
@@ -118,11 +151,23 @@
   cursor: pointer;
   font: inherit;
   text-align: left;
+  user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 .card:hover {
   border-color: var(--dsw-alias-border-l3, #d9dde3);
-  background: var(--dsw-alias-bg-hover, rgba(0, 0, 0, 0.035));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
 }
+.cardBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 10px;
+}
+
 .card:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
   outline-offset: 2px;
@@ -143,6 +188,8 @@
 .statusconnected { background: var(--dsw-alias-state-success-primary, #16a34a); }
 .statusdegraded { background: var(--dsw-alias-state-warn-primary, #b45309); }
 .statusfailed { background: var(--dsw-alias-state-error-primary, #dc2626); }
+.statusneeds-credentials { background: var(--dsw-alias-state-warn-primary, #b45309); }
+.statusorphaned { background: var(--dsw-alias-state-error-primary, #dc2626); }
 .statusdisabled { background: var(--dsw-alias-label-tertiary, #98a2b3); }
 .service {
   flex: 1;
@@ -157,21 +204,15 @@
   font: 600 13px/22px ui-monospace, Menlo, Consolas, monospace;
 }
 .endpoint {
-  display: -webkit-box;
-  min-height: 36px;
+  /* Two-line truncation without legacy -webkit-box line clamping: the
+     nested-scroll compositor paints -webkit-box text outside its box when
+     the surrounding page re-scrolls, so cap the block height instead. */
+  max-height: 36px;
   overflow: hidden;
   margin: 0;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   font: 12px/18px ui-monospace, Menlo, Consolas, monospace;
   overflow-wrap: anywhere;
-}
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
 }
 .sourcePlugin, .sourceDirect, .transport, .toolCount {
   display: inline-flex;
@@ -179,6 +220,7 @@
   gap: 5px;
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
   padding: 1px 6px;
   color: var(--dsw-alias-label-secondary, #6b7280);
   border: 1px solid var(--dsw-alias-border-l3, #d9dde3);
@@ -206,13 +248,51 @@
   color: var(--dsw-alias-label-primary, #1f2328);
   font-weight: 600;
 }
-.cardReason {
-  margin: 0;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
+.reasonLabel {
+  flex: none;
+  font-weight: 600;
+  opacity: 0.85;
 }
+/* State pill: the card's one-line verdict, color-coded by severity. */
+.statePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 17px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.statePill::before {
+  width: 6px;
+  height: 6px;
+  content: '';
+  background: currentColor;
+  border-radius: 50%;
+}
+.stateconnected {
+  color: var(--dsw-alias-state-success-primary, #16a34a);
+  background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237));
+}
+.statedegraded, .stateneeds-credentials {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
+}
+.statefailed, .stateorphaned {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
+}
+.statedisabled {
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
+}
+/* Card left accent follows the state so scanning the grid is instant. */
+.cardConnected { border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a); }
+.cardDegraded, .cardNeedsCredentials { border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309); }
+.cardFailed, .cardOrphaned { border-left: 3px solid var(--dsw-alias-state-error-primary, #dc2626); }
+.cardDisabled { border-left: 3px solid var(--dsw-alias-label-tertiary, #98a2b3); }
 .state, .detailState {
   display: inline-flex;
   align-items: center;
@@ -231,6 +311,8 @@
 .stateconnected, .detailStateconnected { color: var(--dsw-alias-state-success-primary, #16a34a); }
 .statedegraded, .detailStatedegraded { color: var(--dsw-alias-state-warn-primary, #b45309); }
 .statefailed, .detailStatefailed { color: var(--dsw-alias-state-error-primary, #dc2626); }
+.stateneeds-credentials, .detailStateneeds-credentials { color: var(--dsw-alias-state-warn-primary, #b45309); }
+.stateorphaned, .detailStateorphaned { color: var(--dsw-alias-state-error-primary, #dc2626); }
 .statedisabled, .detailStatedisabled { color: var(--dsw-alias-label-tertiary, #98a2b3); }
 .chevron { color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 18px; }
 .empty, .detailEmpty {
@@ -261,13 +343,50 @@
 .modalFooter { display: flex; justify-content: flex-end; width: 100%; }
 .detail { display: flex; flex-direction: column; gap: 16px; }
 .detailMeta { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Modal hero: state + endpoint above the fold. */
+.detailHero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 10px;
+}
+.detailHeroText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+.detailEndpoint {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary, #667085);
+  overflow-wrap: anywhere;
+  font: 12px/18px ui-monospace, Menlo, Consolas, monospace;
+}
 .reason {
   padding: 9px 10px;
   color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-bg-error, rgba(220, 38, 38, .06));
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
   border-left: 2px solid currentColor;
   font-size: 11px;
   line-height: 16px;
+}
+.reasonBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
+  border-radius: 8px;
+}
+.reasonText {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 18px;
 }
 .detailSection { display: flex; flex-direction: column; gap: 7px; }
 .detailHead {
@@ -292,16 +411,17 @@
   font: 11px/17px ui-monospace, Menlo, Consolas, monospace;
 }
 .toolList { display: flex; flex-direction: column; }
+/* Two columns: the name track sizes to its content (long MCP tool names are
+   the identity, never clipped), the description takes the remainder. */
 .tool {
   display: grid;
-  grid-template-columns: 26px minmax(120px, auto) minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(140px, max-content) minmax(0, 1fr);
+  gap: 12px;
   align-items: center;
   padding: 7px 0;
   border-bottom: 1px solid var(--dsw-alias-border-l1, #eef1f5);
 }
 .tool:last-child { border-bottom: none; }
-.toolIndex { color: var(--dsw-alias-brand-primary, #4f6ef7); font: 10px/16px ui-monospace, Menlo, Consolas, monospace; }
 .toolName { overflow: hidden; color: var(--dsw-alias-label-primary, #1f2328); text-overflow: ellipsis; white-space: nowrap; font: 11px/16px ui-monospace, Menlo, Consolas, monospace; }
 .toolDescription { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 @media (max-width: 760px) {
@@ -309,7 +429,141 @@
   .header { flex-direction: column; }
   .headerActions { width: 100%; margin-left: 0; justify-content: space-between; }
   .grid { grid-template-columns: minmax(0, 1fr); }
-  .list .cardTop, .list .meta { max-width: 100%; }
-  .tool { grid-template-columns: 26px minmax(0, 1fr); }
+  .list .cardTop { max-width: 100%; }
+  .tool { grid-template-columns: minmax(0, 1fr); }
   .toolDescription { display: none; }
+  .summaryBar { gap: 6px; padding: 8px 10px; }
+  .observedAt { flex-basis: 100%; margin-left: 0; }
+}
+
+/* ── LSP status states (reuse the MCP pill/accent palette) ──────────────── */
+.statemounted {
+  color: var(--dsw-alias-state-success-primary, #16a34a);
+  background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237));
+}
+.statehost-missing {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
+}
+.stateconflict {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
+}
+.statusmounted {
+  color: var(--dsw-alias-state-success-primary, #16a34a);
+}
+.statushost-missing {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+}
+.statusconflict {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+}
+.cardMounted { border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a); }
+.cardHostMissing { border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309); }
+.cardConflict { border-left: 3px solid var(--dsw-alias-state-error-primary, #dc2626); }
+.chipmounted { background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237)); }
+.chipblocked { background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231)); }
+
+/* ── Panel polish: spacing between header/summary/toolbar, compact rows ─── */
+.summaryBar + .toolbar,
+.toolbar {
+  margin-top: 12px;
+}
+.header + .summaryBar {
+  margin-top: 12px;
+}
+
+/* Hide the entire summary bar when every row is healthy: the green
+   "all good" confirmation repeated above a green-stamped list is noise. */
+@media (prefers-reduced-data: no-preference) {
+  /* no-op block keeps the section marker above meaningful rules only */
+}
+
+/* Compact list mode: one-line rows (state · name · meta pill on the right). */
+.list .card {
+  min-height: 0;
+  padding: 2px 0;
+}
+.list .cardBody {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+}
+.list .cardTop {
+  flex: 0 1 300px;
+  min-width: 0;
+}
+.list .endpoint {
+  flex: 1 1 240px;
+  max-height: 22px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* LSP extension-map rows: no index column — extension gets room to breathe. */
+.extRow {
+  display: grid;
+  grid-template-columns: minmax(64px, auto) 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #eef1f5);
+}
+.extRow:last-child { border-bottom: none; }
+.extName { color: var(--dsw-alias-label-primary, #1f2328); font: 12px/18px ui-monospace, Menlo, Consolas, monospace; }
+.extArrow { color: var(--dsw-alias-label-tertiary, #8b93a1); }
+.extLanguage { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font: 12px/18px ui-monospace, Menlo, Consolas, monospace; }
+
+/* ── Detail-dialog retry control: spinner + in-place outcome echo ────── */
+.retryStack {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 4px;
+}
+.retrySpinner {
+  display: inline-flex;
+  font-size: 13px;
+  line-height: 1;
+}
+.spinning {
+  animation: mcp-retry-spin 0.9s linear infinite;
+}
+@keyframes mcp-retry-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinning { animation: none; }
+}
+.retryEchoSuccess,
+.retryEchoFailure {
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.retryEchoSuccess { color: var(--dsw-alias-state-success-primary, #16a34a); }
+.retryEchoFailure { color: var(--dsw-alias-state-error-primary, #dc2626); }
+.statusstarting {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  animation: lspStartingPulse 1.2s ease-in-out infinite;
+}
+@keyframes lspStartingPulse {
+  50% { opacity: 0.35; }
+}
+
+.statusforeign { background: var(--dsw-alias-brand-primary, #4f6ef7); }
+
+.cardForeign { border-left: 3px solid var(--dsw-alias-brand-primary, #4f6ef7); }
+
+.reasonRaw {
+  margin: 6px 0 0;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
 }

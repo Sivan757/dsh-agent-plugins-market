@@ -36,7 +36,20 @@ function normalizeState(record: Record<string, unknown>): SuiteState {
         if (id === '' || url === '') return []
         const branch = typeof source['branch'] === 'string' ? source['branch'] : undefined
         const local = source['local'] === true
-        return [{ id, url, ...(branch === undefined ? {} : { branch }), ...(local ? { local: true } : {}) }]
+        const kind = source['kind'] === 'git' || source['kind'] === 'local' || source['kind'] === 'archive' ? source['kind'] : undefined
+        const sha256 = typeof source['sha256'] === 'string' && source['sha256'] !== '' ? source['sha256'] : undefined
+        const adopted = source['adopted'] === true
+        return [
+          {
+            id,
+            url,
+            ...(branch === undefined ? {} : { branch }),
+            ...(local ? { local: true } : {}),
+            ...(kind === undefined ? {} : { kind }),
+            ...(sha256 === undefined ? {} : { sha256 }),
+            ...(adopted ? { adopted: true } : {})
+          }
+        ]
       })
     : []
   const installed: Record<string, InstalledEntry> = {}

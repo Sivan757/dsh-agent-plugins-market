@@ -14,6 +14,8 @@ export interface SearchFilterToolbarFilter {
   icon: ReactNode
   active: boolean
   onSelect: () => void
+  /** Extended hover/aria explanation; falls back to the label when absent. */
+  hint?: string
 }
 
 export interface SearchFilterToolbarProps {
@@ -51,8 +53,8 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
       key: filter.id,
       type: 'button',
       className: filter.active ? css.filterOn : css.filter,
-      title: `${filter.label} ${filter.count}`,
-      'aria-label': `${filter.label} ${filter.count}`,
+      title: filter.hint ?? `${filter.label} ${filter.count}`,
+      'aria-label': filter.hint ?? `${filter.label} ${filter.count}`,
       onClick: filter.onSelect,
     }, filter.icon, h('span', { className: css.filterCount }, filter.count))),
     h('div', { className: css.viewGap }),

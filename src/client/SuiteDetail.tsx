@@ -6,10 +6,12 @@
  * mcp.json servers (each expands to its full config), command/subagent file
  * lists, hook/LSP counts, and validation diagnostics.
  */
-import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, Modal, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { createElement as h, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Button, Modal, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, type SuiteDetail } from './api.js'
+import type { CredentialApi } from './credentials.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
+import { McpCredentialEditor } from './McpCredentialEditor.js'
 import type { Translate } from './index.js'
 import { createLatestRequestGuard } from './features/suite-detail/suite-detail-resource.js'
 import css from './market.module.css'
@@ -20,17 +22,25 @@ const SURFACE_TOGGLE_ROWS = [
   ['mcp', 'surfaceMcp'],
   ['hooks', 'surfaceHooks'],
   ['commands', 'surfaceCommands'],
-  ['agents', 'surfaceAgents']
+  ['agents', 'surfaceAgents'],
+  ['lsp', 'surfaceLsp']
 ] as const
 
 export interface SuiteDetailModalProps {
   t: Translate
+  credentials?: CredentialApi
   sourceId: string
   suiteId: string
   onClose: () => void
 }
 
-export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailModalProps): ReactNode {
+export function SuiteDetailModal({ t, credentials, sourceId, suiteId, onClose }: SuiteDetailModalProps): ReactNode {
+  // MarkdownText's chrome (code copy buttons, footnotes heading) is
+  // Cordis-free and takes its copy through this labels object.
+  const markdownLabels = useMemo<MarkdownLabels>(
+    () => ({ code: { copyLabel: t('mdCodeCopy'), copiedLabel: t('mdCodeCopied') }, footnotes: t('mdFootnotes') }),
+    [t]
+  )
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [openSkill, setOpenSkill] = useState<string | undefined>(undefined)
@@ -240,7 +250,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                             h('span', { className: css.detailItemDesc }, skill.description),
                             h('span', { className: css.detailChevron }, openSkill === skill.name ? '▾' : '▸')
                           ),
-                          openSkill !== skill.name ? null : h('div', { className: css.skillContent }, skillLoading ? t('loading') : h(MarkdownText, { text: skillText ?? '' }))
+                          openSkill !== skill.name ? null : h('div', { className: css.skillContent }, skillLoading ? t('loading') : h(MarkdownText, { text: skillText ?? '', labels: markdownLabels }))
                         )
                       )
                 ),
@@ -280,6 +290,9 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                                 'div',
                                 { className: css.skillContent },
                                 detail.installed && detail.surfaceToggles?.mcp !== false
+                                   ? h(McpCredentialEditor, { t, api: credentials, refs: server.credentialRefs ?? [] })
+                                   : null,
+                                 detail.installed && detail.surfaceToggles?.mcp !== false
                                   ? h(McpOverrideEditor, {
                                       t,
                                       serverKey: server.key,
@@ -310,7 +323,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                           description: command.description,
                           open: openPreview === `c:${command.name}`,
                           onToggle: () => setOpenPreview(openPreview === `c:${command.name}` ? undefined : `c:${command.name}`),
-                          children: h(MarkdownText, { text: command.content })
+                          children: h(MarkdownText, { text: command.content, labels: markdownLabels })
                         })
                       )
                 ),
@@ -328,7 +341,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                           description: agent.description,
                           open: openPreview === `a:${agent.name}`,
                           onToggle: () => setOpenPreview(openPreview === `a:${agent.name}` ? undefined : `a:${agent.name}`),
-                          children: h(MarkdownText, { text: agent.content })
+                          children: h(MarkdownText, { text: agent.content, labels: markdownLabels })
                         })
                       )
                 ),
@@ -353,19 +366,32 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                 h(
                   'section',
                   { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, `${t('lspSection')} (${detail.lsp.length})`),
-                  detail.lsp.length === 0
+                  h('h4', { className: css.detailHead }, `${t('lspSection')} (${detail.lsp.servers.length + detail.lsp.raw.length})`),
+                  detail.lsp.servers.length === 0 && detail.lsp.raw.length === 0
                     ? h('div', { className: css.sidebarEmpty }, '—')
-                    : detail.lsp.map(entry =>
-                        h(PreviewRow, {
-                          key: `l:${entry.name}`,
-                          t,
-                          name: entry.name,
-                          open: openPreview === `l:${entry.name}`,
-                          onToggle: () => setOpenPreview(openPreview === `l:${entry.name}` ? undefined : `l:${entry.name}`),
-                          children: h('pre', { className: css.mono }, entry.content)
-                        })
-                      )
+                    : [
+                        ...detail.lsp.servers.map(server =>
+                          h(PreviewRow, {
+                            key: `l:${server.key}`,
+                            t,
+                            name: server.key,
+                            description: lspSummary(server),
+                            open: openPreview === `l:${server.key}`,
+                            onToggle: () => setOpenPreview(openPreview === `l:${server.key}` ? undefined : `l:${server.key}`),
+                            children: h('pre', { className: css.mono }, JSON.stringify(server, null, 2))
+                          })
+                        ),
+                        ...detail.lsp.raw.map(entry =>
+                          h(PreviewRow, {
+                            key: `l:${entry.name}`,
+                            t,
+                            name: entry.name,
+                            open: openPreview === `l:${entry.name}`,
+                            onToggle: () => setOpenPreview(openPreview === `l:${entry.name}` ? undefined : `l:${entry.name}`),
+                            children: h('pre', { className: css.mono }, entry.content)
+                          })
+                        )
+                      ]
                 ),
                 detail.errors.length === 0
                   ? null
@@ -385,6 +411,11 @@ function mcpSummary(server: McpServerDetail): string {
   return server.url ?? server.type
 }
 
+/** One-line summary of a declared LSP server: command plus mapped extension list. */
+function lspSummary(server: { command: string; extensions: Record<string, string> }): string {
+  return [server.command, Object.keys(server.extensions).join(' ')].join(' · ')
+}
+
 /** Parse `KEY=VALUE` lines into a record; blank and comment lines are skipped. */
 function parseKvLines(text: string): Record<string, string> | undefined {
   const result: Record<string, string> = {}
@@ -398,10 +429,13 @@ function parseKvLines(text: string): Record<string, string> | undefined {
   return Object.keys(result).length > 0 ? result : undefined
 }
 
-/** Format a record back into sorted `KEY=VALUE` lines for editing. */
+/** Format a record back into sorted `KEY=VALUE` lines without exposing literal secrets. */
+const SENSITIVE_KEY = /(authorization|token|secret|password|credential|api[-_]?key)/i
+
 function formatKvLines(map: Record<string, string> | undefined): string {
   if (map === undefined) return ''
   return Object.keys(map)
+    .filter(key => !SENSITIVE_KEY.test(key) || map[key]?.includes('${'))
     .sort()
     .map(key => `${key}=${map[key]}`)
     .join('\n')

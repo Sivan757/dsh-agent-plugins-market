@@ -8,16 +8,44 @@
  * internal shape; runtime injection consumes only the internal shape.
  */
 
+/** How a source's content is acquired. */
+export type SourceKind = 'git' | 'local' | 'archive'
+
 /** One configured repository source. */
 export interface SourceRef {
   /** Stable local id; `[a-z0-9][a-z0-9-]*`, unique across sources. */
   id: string
-  /** Git URL to clone, or a local directory path when `local` is set. */
+  /** Git URL, archive (zip / tar.gz) URL, or a local directory path. */
   url: string
   /** Optional branch to pin (git sources only). */
   branch?: string
-  /** Read the source directory directly instead of cloning it. */
+  /** Read the source directory directly instead of cloning it (legacy flag; `kind: 'local'`). */
   local?: boolean
+  /** Acquisition kind; inferred from the URL shape when omitted. */
+  kind?: SourceKind
+  /** Expected SHA-256 of an archive download (archive sources only). */
+  sha256?: string
+  /** The checkout pre-existed (manually cloned or adopted); never deleted on source removal. */
+  adopted?: boolean
+}
+
+/** Archive URL extensions the archive acquisition path understands. */
+const ARCHIVE_URL_PATTERN = /\.(zip|tgz|tar\.gz|tar)$/i
+
+/** Whether a URL points at a downloadable archive. */
+export function isArchiveUrl(url: string): boolean {
+  return ARCHIVE_URL_PATTERN.test(url.trim())
+}
+
+/**
+ * Effective acquisition kind of a source: the explicit `kind` wins, the
+ * legacy `local` flag maps to `'local'`, archive-shaped URLs infer
+ * `'archive'`, and everything else stays `'git'`.
+ */
+export function resolveSourceKind(source: Pick<SourceRef, 'url' | 'local' | 'kind'>): SourceKind {
+  if (source.local === true || source.kind === 'local') return 'local'
+  if (source.kind === 'git' || source.kind === 'archive') return source.kind
+  return isArchiveUrl(source.url) ? 'archive' : 'git'
 }
 
 /** The manifest layout a suite root was discovered under. */
@@ -78,12 +106,16 @@ export interface McpServerStreamableHttp {
   type: 'streamable-http'
   url: string
   headers?: Record<string, string>
+  /** Opt in to OAuth 2.1 authorization for servers that answer `401` with a challenge (on by default; `enabled: false` opts out). */
+  auth?: { enabled: boolean; scope?: string }
 }
 
 export interface McpServerSse {
   type: 'sse'
   url: string
   headers?: Record<string, string>
+  /** OAuth 2.1 authorization, mirroring the streamable-http semantics. */
+  auth?: { enabled: boolean; scope?: string }
 }
 
 export type McpServer = McpServerStdio | McpServerStreamableHttp | McpServerSse
@@ -92,6 +124,29 @@ export type McpServer = McpServerStdio | McpServerStreamableHttp | McpServerSse
 export interface McpSuiteConfig {
   schema: string
   servers: Record<string, McpServer>
+}
+
+/** One normalized inline LSP server declaration (`lspServers` table entry). */
+export interface LspServerSpec {
+  /** Server key from the declaring table (e.g. `typescript`). */
+  key: string
+  /** Executable to spawn (resolved on PATH by the LSP host). */
+  command: string
+  /** Arguments passed to the executable. Default `[]`. */
+  args: string[]
+  /** Lowercase leading-dot extension → LSP language id. */
+  extensionToLanguage: Record<string, string>
+  /** Extra env vars merged over the ambient env. */
+  env?: Record<string, string>
+  /** Static `initialize` options forwarded to the server. */
+  initializationOptions?: unknown
+  /** Static answer to every `workspace/configuration` item. */
+  configuration?: unknown
+}
+
+/** Parsed inline `lspServers` declarations of one suite. */
+export interface LspSuiteConfig {
+  servers: Record<string, LspServerSpec>
 }
 
 /** Install dimension of a suite. */
@@ -106,6 +161,8 @@ export interface Suite {
   skills: SuiteSkill[]
   /** Validated mcp.json content; absent when the file is missing or invalid. */
   mcp?: McpSuiteConfig
+  /** Parsed inline `lspServers` declarations; absent when the suite declares none. */
+  lsp?: LspSuiteConfig
   surfaces: SuiteSurfaceCounts
   dimension: SuiteDimension
   enabled: boolean
@@ -122,13 +179,13 @@ export interface Suite {
 }
 
 /** Runtime surfaces that can be selectively enabled per installed suite. */
-export type SuiteSurfaceKey = 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents'
+export type SuiteSurfaceKey = 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents' | 'lsp'
 
 /** Per-surface user overrides; absent keys default to enabled. */
 export type SurfaceOverrides = Partial<Record<SuiteSurfaceKey, boolean>>
 
 /** The full set of toggleable surfaces, in display order. */
-export const SUITE_SURFACE_KEYS: readonly SuiteSurfaceKey[] = ['skills', 'mcp', 'hooks', 'commands', 'agents']
+export const SUITE_SURFACE_KEYS: readonly SuiteSurfaceKey[] = ['skills', 'mcp', 'hooks', 'commands', 'agents', 'lsp']
 
 /** Merge user overrides over the enabled default into the effective surface set. */
 export function effectiveSurfaces(overrides: SurfaceOverrides | undefined): Record<SuiteSurfaceKey, boolean> {
@@ -137,7 +194,8 @@ export function effectiveSurfaces(overrides: SurfaceOverrides | undefined): Reco
     mcp: overrides?.mcp !== false,
     hooks: overrides?.hooks !== false,
     commands: overrides?.commands !== false,
-    agents: overrides?.agents !== false
+    agents: overrides?.agents !== false,
+    lsp: overrides?.lsp !== false
   }
 }
 
