@@ -9,6 +9,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.6.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.5.3...dsh-agent-plugins-market-v0.6.0) (2026-09-04)
+
+
+### Features
+
+* **api:** source kind/sha256 on add/update and the adopt route ([c04f079](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c04f07979bd44eeced9da26815af8a6df3e1dba0))
+* **catalog:** discover inline lspServers declarations with fail-closed validation ([baf1708](https://github.com/Sivan757/dsh-agent-plugins-market/commit/baf1708a6d84216bb40aaac50f382b96a3a92d45))
+* **direct:** user-configured LSP servers alongside suite declarations ([ac43606](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ac43606d389eea46a9c30852194358e5c2144a9a))
+* **lsp-status:** aggregated status surface and structured suite detail ([01e9bb9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/01e9bb9f8088b557928d2a303145489d94d03b7a))
+* **market:** adopt flow, source editor kinds, and download-region control ([9d38064](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9d3806494e0e171439801ec29c093dbdeac13e91))
+* **market:** wire the LSP surface into catalog, reconciler, and host entry ([9e45f3c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9e45f3c864567a45ca3b8de97515874dea3a5d8e))
+* **mcp:** backend switch on the plugin settings page (built-in bridge vs host dsh-mcp-client) ([7db693c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7db693c41066224b76ac7dba8a1b4350e3f08852))
+* **mcp:** credential-aware MCP configuration base shared by the LSP panel ([eed5c85](https://github.com/Sivan757/dsh-agent-plugins-market/commit/eed5c8514b5009c7ef263f521ab8f44d09d15c3a))
+* **mcp:** move the backend switch to the host plugin-config tab as an enhancement toggle ([62af1cf](https://github.com/Sivan757/dsh-agent-plugins-market/commit/62af1cfe47dd8d3ef15b7c8db958ef01d9aad5ad))
+* **mcp:** name the matching tools in the foreign-namespace skip diagnostic ([9d11112](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9d11112cab49ebd0eca1554f895e26176417d798))
+* **mcp:** name the plugin-config card after the market and disclose the enhancement switch ([0393e9b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0393e9b497ff862ed1fc9db7066b4926959d6d3e))
+* **mcp:** re-authorize action drops a grant to widen a chosen scope ([77053de](https://github.com/Sivan757/dsh-agent-plugins-market/commit/77053de8cd5a0afd85d28557eb8c43f410275e73))
+* **mcp:** self-built MCP client bridge with OAuth; drop the host dsh-mcp-client runtime dependency ([bc4b653](https://github.com/Sivan757/dsh-agent-plugins-market/commit/bc4b653a6cedd0fc1a4ce0c7924ea212014e6c3f))
+* **mcp:** simplify the plugin-config card copy and follow the region on refresh ([24713be](https://github.com/Sivan757/dsh-agent-plugins-market/commit/24713be4263d382473daa36447d5090e6d4f0e2c))
+* **mcp:** skip mounting into a foreign mcp__ namespace with a clear diagnostic ([7735ae6](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7735ae60415cb020945e482341780157ea65d107))
+* **mcp:** surface a foreign mount as an informational state, not a red failure ([79f557a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/79f557a8dbfcf51abdb43e9364ec5258e2291cac))
+* **panel:** LSP status panel mirroring the MCP panel's visual system ([5b8fbb3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5b8fbb3100ddd2a60935fdf5b7db1f1e249e0dc6))
+* **runtime:** mount enabled suites' LSP servers as dsh-lsp-stdio instances ([d790efc](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d790efca7026375e61c4c45447a509cb3ddb5a8d))
+* **settings:** market settings namespace with the download-region field ([c5fdbe4](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c5fdbe444129e49ac387b6f957cfd29de619e541))
+* **source:** acquisition kinds, git acceleration, and download regions ([680029c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/680029c74f93fdae15d88a18fe41013de107c35e))
+
+
+### Bug Fixes
+
+* **archive:** readlink-based symlink containment and extraction bomb limits ([6ce0561](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6ce0561b36edbf3adb532638c7c46799b110d2be))
+* **catalog:** expire the user snapshot so out-of-band edits become visible ([98fce0a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/98fce0a0f4dec626acf5e51f08e5ba6b791d9976))
+* **lsp-status:** report a starting state while the mount pass is in flight ([e06ad14](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e06ad147646c148114db8ed519f4f6e2adb89431))
+* **mcp:** align override note, connect label, and migration destination ([c407451](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c4074516aad5d624ed2a72592d0041e3b1225af5))
+* **mcp:** align the plugin-config card with the host PluginCard chrome ([d00cf28](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d00cf28f12c4077a6769849403c3b0aecbc33498))
+* **mcp:** register the plugin-config card's settings namespace so the tab serves it ([f40f8f1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f40f8f19a0db3a089a6381e9503220230edc75c0))
+* **mcp:** resolve the credentials store lazily for re-authorize ([565f07d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/565f07daaae8af330f52de1961ece6fb2d385039))
+* **mcp:** reuse the shared ToggleSwitch in the plugin-config card ([1b13d01](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1b13d01de22c7ce14407b4d23359f38c2fda6e04))
+* **mcp:** ride the primary button fill for the switch ON track ([375e34c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/375e34c56afa378cc2b3067b8441fc59fd45130f))
+* **runtime:** scope suite identity by source across mounts, overrides, and data ([0326afe](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0326afe01c76bc893bd30c72b119ef1cc7d9ce8e))
+* **runtime:** source-qualify every suite-keyed surface — identity, status, overrides, data ([32811fd](https://github.com/Sivan757/dsh-agent-plugins-market/commit/32811fd5254f2378d8a2a4a7914cd8926b02dae6))
+* **scan:** resolve declared skills paths and require real containment ([b559b08](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b559b082adb76264259b6f56128491103c4f36f3))
+
 ## [0.5.3](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.5.2...dsh-agent-plugins-market-v0.5.3) (2026-08-28)
 
 
