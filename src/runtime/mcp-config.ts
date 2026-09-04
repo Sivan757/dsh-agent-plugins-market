@@ -122,7 +122,7 @@ async function toResolvedMount(
     if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
     const sseConfig: SseConfig = {
       transport: 'sse',
-      serverName: deriveServerName(qualifiedSuiteId(suite.sourceId, suite.id), serverKey),
+      serverName: deriveServerName(suite.sourceId, suite.id, serverKey),
       url: url.value,
       headers: headers.values,
       ...(server.auth === undefined ? {} : { auth: mapAuth(server.auth) }),
@@ -132,7 +132,7 @@ async function toResolvedMount(
     return { request: { suiteId: qualifiedSuiteId(suite.sourceId, suite.id), serverKey, config: sseConfig } }
   }
   const expand = expander(suite, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id)), resolver)
-  const serverName = deriveServerName(qualifiedSuiteId(suite.sourceId, suite.id), serverKey)
+  const serverName = deriveServerName(suite.sourceId, suite.id, serverKey)
   if (server.type === 'stdio') {
     const args = await expand.all(server.args ?? [])
     const env = await expand.map(server.env ?? {})
@@ -273,14 +273,23 @@ function sanitizeToken(raw: string): string {
 }
 
 /**
- * Derive a stable, unique-ish bridge serverName from the suite and
- * server ids: `${suiteId}__${serverKey}` sanitized, truncated to 32 chars
- * with a deterministic 12-hex suffix when the join exceeds the budget (the
- * same deterministic-hash policy the MCP client uses for long tool names).
+ * Derive a stable, unique bridge serverName from the source/suite/server
+ * identity, keeping the server key readable:
+ *
+ * - Source, suite, and server key all coinciding (the common single-server
+ *   suite) read as the bare server key — no repeated segments.
+ * - Everything else reads as `<serverKey>-<hash12>`, where the hash covers
+ *   `sourceId\0suiteId`. The source id is unique per profile, so two sources
+ *   shipping the same suite/server pair can never collide, and a name never
+ *   changes when unrelated sources come and go (set-independence was the
+ *   reason the old unconditional source prefix existed).
  */
-export function deriveServerName(suiteId: string, serverKey: string): string {
-  const candidate = `${sanitizeToken(suiteId)}__${sanitizeToken(serverKey)}`
-  if (candidate.length <= SERVER_NAME_MAX) return candidate
-  const hash = createHash('sha256').update(`${suiteId}\u0000${serverKey}`).digest('hex').slice(0, 12)
-  return `${candidate.slice(0, SERVER_NAME_MAX - 13)}-${hash}`
+export function deriveServerName(sourceId: string, suiteId: string, serverKey: string): string {
+  const base = sanitizeToken(serverKey)
+  if (sourceId === suiteId && suiteId === serverKey) return base
+  const qualified = qualifiedSuiteId(sourceId, suiteId)
+  if (qualified === serverKey) return base
+  const hash = createHash('sha256').update(`${sourceId}\u0000${suiteId}`).digest('hex').slice(0, 12)
+  const prefixed = `${base}-${hash}`
+  return prefixed.length <= SERVER_NAME_MAX ? prefixed : `${base.slice(0, SERVER_NAME_MAX - 13)}-${hash}`
 }

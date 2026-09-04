@@ -56,7 +56,7 @@ describe('McpMountRegistry', () => {
     expect(mounts.size).toBe(1)
     const mounted = [...mounts.values()][0]!
     expect(mounted.config['transport']).toBe('stdio')
-    expect(mounted.config['serverName']).toBe('demo_alpha__db')
+    expect(mounted.config['serverName']).toBe('db-3d480507cc11')
 
     await registry.reconcile([])
     expect(mounted.disposed).toBe(true)
@@ -107,15 +107,12 @@ describe('McpMountRegistry', () => {
     await registry.disposeAll()
   })
 
-  it('reports duplicate derived serverNames instead of double-mounting', async () => {
-    const { ctx, mounts } = fakeContext()
-    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
-    const duplicate = suite('alpha', 'db')
-    const diagnostics = await registry.reconcile([duplicate, suite('alpha!', 'db')])
-    expect(diagnostics.some(diagnostic => diagnostic.reason.includes('already mounted'))).toBe(true)
-    expect(mounts.size).toBe(1)
-    await registry.disposeAll()
-  })
+  // No dedicated "duplicate derived serverName" test: since serverNames hash
+  // over (sourceId, suiteId), two different suites can no longer derive the
+  // same name, and the identical suite listed twice is deduped by the wanted
+  // map before mounting. The owner guard in mountWith stays as
+  // defense-in-depth; the observable collision path is the foreign-mount
+  // test below.
 
   it('surfaces a failed startup as `failed` and leaves no orphan child behind', async () => {
     const disposed: string[] = []
@@ -268,7 +265,7 @@ describe('McpMountRegistry', () => {
 
   it('resolves the owning mount key from a derived serverName', () => {
     const registry = new McpMountRegistry({ logger: { warn: () => {} } } as never, '/tmp/data')
-    expect(registry.serverOwner('demo_alpha__db')).toBeUndefined()
+    expect(registry.serverOwner('db-3d480507cc11')).toBeUndefined()
   })
 
   it('skips mounting when a foreign MCP client already owns the derived serverName namespace', async () => {
@@ -283,7 +280,7 @@ describe('McpMountRegistry', () => {
     const registry = new McpMountRegistry(ctx as never, '/tmp/data')
     // A native host MCP client (or another plugin) already registered tools
     // under this suite's derived namespace.
-    registry.setToolNamesProvider(() => ['mcp__demo_alpha__db__query', 'other_tool'])
+    registry.setToolNamesProvider(() => ['mcp__db-3d480507cc11__query', 'other_tool'])
 
     const diagnostics = await registry.reconcile([suite('alpha', 'db')])
 
@@ -299,7 +296,7 @@ describe('McpMountRegistry', () => {
     registry.setToolNamesProvider(() => [])
     await expect(registry.reconcile([suite('alpha', 'db')])).resolves.toEqual([])
     expect(mounted).toHaveLength(1)
-    expect(mounted[0]!['serverName']).toBe('demo_alpha__db')
+    expect(mounted[0]!['serverName']).toBe('db-3d480507cc11')
     await registry.disposeAll()
   })
 })

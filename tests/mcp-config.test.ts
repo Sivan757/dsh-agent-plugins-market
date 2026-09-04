@@ -31,7 +31,7 @@ const alwaysResolves = { resolve: async () => ({ value: 'resolved' }) } as const
 describe('mcp-config: suite mcp.json → bridge rows', () => {
   it('maps stdio, streamable-http, and legacy SSE servers', async () => {
     const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
-    expect(mounts.map(mount => mount.config.serverName)).toEqual(['demo_my-suite__db', 'demo_my-suite__web', 'demo_my-suite__legacy'])
+    expect(mounts.map(mount => mount.config.serverName)).toEqual(['db-8be1a5e1e11e', 'web-8be1a5e1e11e', 'legacy-8be1a5e1e11e'])
     expect(failures).toEqual([])
     const db = mounts[0]!.config as Record<string, unknown>
     expect(db['transport']).toBe('stdio')
@@ -138,16 +138,21 @@ describe('mcp-config: credential references', () => {
 })
 
 describe('mcp-config: serverName derivation', () => {
-  it('joins sanitized ids with __', () => {
-    expect(deriveServerName('my-suite', 'db')).toBe('my-suite__db')
-    expect(deriveServerName('My Suite!', 'DB 1')).toBe('My_Suite__DB_1')
+  it('reads the bare server key when source, suite, and server key coincide', () => {
+    expect(deriveServerName('context7', 'context7', 'context7')).toBe('context7')
+    expect(deriveServerName('demo', 'demo', 'demo')).toBe('demo')
   })
 
-  it('truncates over-budget names with a deterministic hash suffix', () => {
-    const long = deriveServerName('a'.repeat(40), 'b'.repeat(40))
+  it('suffixes the server key with a source/suite hash otherwise', () => {
+    expect(deriveServerName('demo', 'my-suite', 'db')).toBe('db-8be1a5e1e11e')
+    expect(deriveServerName('My Suite!', 'My Suite!', 'DB 1')).toBe('DB_1-8eb0a5f79bf5')
+  })
+
+  it('is deterministic and clamps to the 32-char budget', () => {
+    const long = deriveServerName('a'.repeat(40), 'b'.repeat(40), 'c'.repeat(40))
     expect(long.length).toBe(32)
     expect(long.endsWith('-')).toBe(false)
-    expect(deriveServerName('a'.repeat(40), 'b'.repeat(40))).toBe(long)
+    expect(deriveServerName('a'.repeat(40), 'b'.repeat(40), 'c'.repeat(40))).toBe(long)
   })
 })
 
@@ -163,8 +168,8 @@ describe('mcp-config: source-scoped identity', () => {
     const secondNames = second.mounts.map(mount => mount.config.serverName)
     // Qualified ids differ, so every derived serverName differs.
     expect(firstNames.some(name => secondNames.includes(name))).toBe(false)
-    expect(firstNames.every(name => name.startsWith('demo_my-suite__'))).toBe(true)
-    expect(secondNames.every(name => name.startsWith('other_my-suite__'))).toBe(true)
+    expect(firstNames.every(name => name.endsWith('-8be1a5e1e11e'))).toBe(true)
+    expect(secondNames.every(name => name.endsWith('-210d1b266f4a'))).toBe(true)
     // The request's suiteId — the mount registry key — is qualified on both.
     expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
     expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)

@@ -34,8 +34,7 @@ export function buildMcpStatus(
     for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
       // Server names and every status key are source-qualified: two sources
       // may ship the same suite id, and the inventory must not conflate them.
-      const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
-      const serverName = deriveServerName(suiteKey, serverKey)
+      const serverName = deriveServerName(suite.sourceId, suite.id, serverKey)
       knownServerNames.add(serverName)
       knownDefinitions.set(serverName, { suite, serverKey, server })
     }
@@ -51,7 +50,7 @@ export function buildMcpStatus(
     const suiteOverrides = overrides.get(suiteKey)
     for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
       const override = suiteOverrides?.[serverKey]
-      const serverName = deriveServerName(suiteKey, serverKey)
+      const serverName = deriveServerName(suite.sourceId, suite.id, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
       const diagnostic = diagnosticsByKey.get(`${suiteKey}\u0000${serverKey}`)
