@@ -6,8 +6,8 @@
  * mcp.json servers (each expands to its full config), command/subagent file
  * lists, hook/LSP counts, and validation diagnostics.
  */
-import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, Modal, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { createElement as h, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Button, Modal, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, type SuiteDetail } from './api.js'
 import type { CredentialApi } from './credentials.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
@@ -35,6 +35,12 @@ export interface SuiteDetailModalProps {
 }
 
 export function SuiteDetailModal({ t, credentials, sourceId, suiteId, onClose }: SuiteDetailModalProps): ReactNode {
+  // MarkdownText's chrome (code copy buttons, footnotes heading) is
+  // Cordis-free and takes its copy through this labels object.
+  const markdownLabels = useMemo<MarkdownLabels>(
+    () => ({ code: { copyLabel: t('mdCodeCopy'), copiedLabel: t('mdCodeCopied') }, footnotes: t('mdFootnotes') }),
+    [t]
+  )
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [openSkill, setOpenSkill] = useState<string | undefined>(undefined)
@@ -244,7 +250,7 @@ export function SuiteDetailModal({ t, credentials, sourceId, suiteId, onClose }:
                             h('span', { className: css.detailItemDesc }, skill.description),
                             h('span', { className: css.detailChevron }, openSkill === skill.name ? '▾' : '▸')
                           ),
-                          openSkill !== skill.name ? null : h('div', { className: css.skillContent }, skillLoading ? t('loading') : h(MarkdownText, { text: skillText ?? '' }))
+                          openSkill !== skill.name ? null : h('div', { className: css.skillContent }, skillLoading ? t('loading') : h(MarkdownText, { text: skillText ?? '', labels: markdownLabels }))
                         )
                       )
                 ),
@@ -317,7 +323,7 @@ export function SuiteDetailModal({ t, credentials, sourceId, suiteId, onClose }:
                           description: command.description,
                           open: openPreview === `c:${command.name}`,
                           onToggle: () => setOpenPreview(openPreview === `c:${command.name}` ? undefined : `c:${command.name}`),
-                          children: h(MarkdownText, { text: command.content })
+                          children: h(MarkdownText, { text: command.content, labels: markdownLabels })
                         })
                       )
                 ),
@@ -335,7 +341,7 @@ export function SuiteDetailModal({ t, credentials, sourceId, suiteId, onClose }:
                           description: agent.description,
                           open: openPreview === `a:${agent.name}`,
                           onToggle: () => setOpenPreview(openPreview === `a:${agent.name}` ? undefined : `a:${agent.name}`),
-                          children: h(MarkdownText, { text: agent.content })
+                          children: h(MarkdownText, { text: agent.content, labels: markdownLabels })
                         })
                       )
                 ),

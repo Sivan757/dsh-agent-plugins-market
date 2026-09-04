@@ -235,6 +235,9 @@ export const zh = {
   lspDetailSubtitle: '语言服务器详情',
   lspDetailCommand: '启动命令',
   lspDetailExtensions: '扩展映射',
+  mdCodeCopy: '复制',
+  mdCodeCopied: '已复制',
+  mdFootnotes: '脚注',
 }
 
 export type LocaleKey = keyof typeof zh
@@ -471,4 +474,7 @@ export const en: Record<LocaleKey, string> = {
   lspDetailSubtitle: 'Language server detail',
   lspDetailCommand: 'Launch command',
   lspDetailExtensions: 'Extension map',
+  mdCodeCopy: 'Copy',
+  mdCodeCopied: 'Copied',
+  mdFootnotes: 'Footnotes',
 }

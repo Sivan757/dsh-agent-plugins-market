@@ -92,9 +92,9 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-hooks-claude-code": "^0.1.0-rc.8",
-    "@deepseek-ai/dsh-mcp-client": "^0.1.0-rc.8",
-    "@deepseek-ai/dsh-skill": "^0.1.0-rc.8"
+    "@deepseek-ai/dsh-hooks-claude-code": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-mcp-client": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-skill": "^0.1.2-rc.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-mcp-client": {
@@ -114,11 +114,11 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.8",
-    "@deepseek-ai/dsh-hooks-claude-code": "0.1.0-rc.8",
-    "@deepseek-ai/dsh-llm": "^0.1.0-rc.8",
-    "@deepseek-ai/dsh-mcp-client": "^0.1.0-rc.8",
-    "@deepseek-ai/dsh-skill": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-hooks-claude-code": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-mcp-client": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-skill": "0.1.2-rc.1",
     "@eslint/js": "^9.39.5",
     "@tsdown/css": "^0.22.14",
     "@types/node": "^22.15.0",
