@@ -121,7 +121,7 @@
     "@deepseek-ai/dsh-skill": "0.1.2-rc.1",
     "@eslint/js": "^9.39.5",
     "@tsdown/css": "^0.22.14",
-    "@types/node": "^22.15.0",
+    "@types/node": "^26.4.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "^19.2.4",
     "@vitest/coverage-v8": "^4.1.11",
