@@ -31,7 +31,7 @@ describe('MCP status aggregation', () => {
       [suite()],
       [{ suiteId: 'codex-plugin/codex', serverKey: 'docs', reason: 'connection refused' }],
       [
-        { name: 'mcp__app-ea0cfce3249e__read_file', description: 'Read a file' },
+        { name: 'mcp__codex__app__read_file', description: 'Read a file' },
         { name: 'mcp__filesystem__read_file', description: 'Read a file' }
       ]
     )
@@ -56,14 +56,14 @@ describe('MCP status aggregation', () => {
           pick({
             tools: {
               entries: () => [
-                ['mcp__filesystem__read_file', { description: 'Read a file' }],
+                ['mcp__codex__docs__read_file', { description: 'Read a file' }],
                 ['bash', { description: 'Shell' }]
               ]
             }
           })
       }
     }
-    expect(inspectToolRegistry(runtime)).toEqual([{ name: 'mcp__filesystem__read_file', description: 'Read a file' }])
+    expect(inspectToolRegistry(runtime)).toEqual([{ name: 'mcp__codex__docs__read_file', description: 'Read a file' }])
   })
 
   it('omits MCP servers from uninstalled or disabled suites', () => {
@@ -94,8 +94,8 @@ describe('MCP status aggregation', () => {
   })
 
   it('labels observed tools from a disabled or uninstalled suite as orphaned', () => {
-    const payload = buildMcpStatus([suite({ enabled: false, installedAt: undefined })], [], [{ name: 'mcp__app-ea0cfce3249e__read_file', description: 'Read a file' }])
-    const orphaned = payload.entries.find(entry => entry.name === 'app-ea0cfce3249e')!
+    const payload = buildMcpStatus([suite({ enabled: false, installedAt: undefined })], [], [{ name: 'mcp__codex__app__read_file', description: 'Read a file' }])
+    const orphaned = payload.entries.find(entry => entry.name === 'codex__app')!
     expect(orphaned.kind).toBe('plugin')
     expect(orphaned.state).toBe('orphaned')
     expect(orphaned.reason).toContain('disabled or uninstalled')
@@ -123,22 +123,21 @@ describe('MCP status: cross-source suite collisions', () => {
     // like the only plugin row.
     const a = suite({ sourceId: 'source-a' })
     const b = suite({ sourceId: 'source-b' })
-    const observed = [
-      { name: 'mcp__app-f9b2873fc80b__probe', description: 'probe' },
-      { name: 'mcp__app-2c4f0d23ea05__probe', description: 'probe' }
-    ]
+    // Same suite/server pair across sources derives ONE serverName by
+    // design, so the single live namespace serves both rows.
+    const observed = [{ name: 'mcp__codex__app__probe', description: 'probe' }]
     const payload = buildMcpStatus([a, b], [{ suiteId: 'source-a/codex', serverKey: 'app', reason: 'connection refused', code: 'mount-failed' }], observed)
     const pluginRows = payload.entries.filter(entry => entry.kind === 'plugin' && entry.serverKey === 'app')
     expect(pluginRows).toHaveLength(2)
-    // Each row carries its own sourceId and a distinct derived name.
-    expect(pluginRows.map(row => row.name).sort()).toEqual(['app-2c4f0d23ea05', 'app-f9b2873fc80b'])
+    // Both rows share the one derived name; identity stays in sourceId/suiteId.
+    expect(pluginRows.map(row => row.name).sort()).toEqual(['codex__app', 'codex__app'])
     // The diagnostic lands on source-a's row only.
     const rowA = pluginRows.find(row => row.suiteId === 'source-a/codex')!
     const rowB = pluginRows.find(row => row.suiteId === 'source-b/codex')!
     expect(rowA.state).toBe('failed')
     expect(rowA.reason).toBe('connection refused')
     expect(rowB.state).toBe('connected')
-    // Both servers' observed tools are attributed to their own row.
+    // The one live namespace's tools appear on the connected row.
     expect(rowA.tools.map(tool => tool.name)).toEqual(['probe'])
     expect(rowB.tools.map(tool => tool.name)).toEqual(['probe'])
   })

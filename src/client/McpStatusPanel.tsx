@@ -345,14 +345,15 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
           ].join(' · '))
         )
       ),
-      // A foreign mount is informational: the localized hint replaces the raw
-      // English reason, which drops to a dim secondary line for its tool names.
+      // A foreign mount is informational: the localized hint (per cause —
+      // another plugin, or another source's identical suite) replaces the raw
+      // English reason, which drops to a dim secondary line for its details.
       entry.state === 'foreign'
         ? h(
             'div',
             { className: css.reasonBox },
             h('span', { className: css.reasonLabel }, t('mcpReasonLabel')),
-            h('p', { className: css.reasonText }, t('mcpForeignHint')),
+            h('p', { className: css.reasonText }, entry.code === 'duplicate-mount' ? t('mcpDuplicateHint') : t('mcpForeignHint')),
             entry.reason === undefined ? null : h('p', { className: css.reasonRaw }, entry.reason)
           )
         : entry.reason === undefined

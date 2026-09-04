@@ -27,7 +27,7 @@ export interface McpStatusEntry {
   tools: McpStatusTool[]
   reason?: string
   /** Mount-path classification when a diagnostic produced this row. */
-  code?: 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed' | 'foreign-mount'
+  code?: 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed' | 'foreign-mount' | 'duplicate-mount'
   /** Environment-variable credential references required by this server. */
   credentialRefs?: string[]
   /** Whether this server advertised zero tools at observation time. Zero-tool

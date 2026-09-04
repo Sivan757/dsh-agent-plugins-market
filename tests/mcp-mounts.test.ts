@@ -56,7 +56,7 @@ describe('McpMountRegistry', () => {
     expect(mounts.size).toBe(1)
     const mounted = [...mounts.values()][0]!
     expect(mounted.config['transport']).toBe('stdio')
-    expect(mounted.config['serverName']).toBe('db-3d480507cc11')
+    expect(mounted.config['serverName']).toBe('alpha__db')
 
     await registry.reconcile([])
     expect(mounted.disposed).toBe(true)
@@ -265,7 +265,7 @@ describe('McpMountRegistry', () => {
 
   it('resolves the owning mount key from a derived serverName', () => {
     const registry = new McpMountRegistry({ logger: { warn: () => {} } } as never, '/tmp/data')
-    expect(registry.serverOwner('db-3d480507cc11')).toBeUndefined()
+    expect(registry.serverOwner('alpha__db')).toBeUndefined()
   })
 
   it('skips mounting when a foreign MCP client already owns the derived serverName namespace', async () => {
@@ -280,7 +280,7 @@ describe('McpMountRegistry', () => {
     const registry = new McpMountRegistry(ctx as never, '/tmp/data')
     // A native host MCP client (or another plugin) already registered tools
     // under this suite's derived namespace.
-    registry.setToolNamesProvider(() => ['mcp__db-3d480507cc11__query', 'other_tool'])
+    registry.setToolNamesProvider(() => ['mcp__alpha__db__query', 'other_tool'])
 
     const diagnostics = await registry.reconcile([suite('alpha', 'db')])
 
@@ -296,7 +296,7 @@ describe('McpMountRegistry', () => {
     registry.setToolNamesProvider(() => [])
     await expect(registry.reconcile([suite('alpha', 'db')])).resolves.toEqual([])
     expect(mounted).toHaveLength(1)
-    expect(mounted[0]!['serverName']).toBe('db-3d480507cc11')
+    expect(mounted[0]!['serverName']).toBe('alpha__db')
     await registry.disposeAll()
   })
 })

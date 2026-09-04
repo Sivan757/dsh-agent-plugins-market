@@ -202,10 +202,12 @@ export class McpMountRegistry {
       const failure = await this.mountWith(entry.request)
       if (failure !== undefined) {
         diagnostics.push({ suiteId: entry.suite.id, serverKey: entry.serverKey, reason: failure.reason, code: failure.code })
-        // A foreign-namespace skip is deterministic, not transient: retrying
-        // it just burns the attempt budget and log lines. The next full
-        // reconcile re-checks it anyway, so the self-heal path is intact.
-        this.scheduleRetry(key, entry.suite.id, entry.serverKey, failure.code === 'foreign-mount' ? undefined : failure.reason)
+        // Foreign and duplicate skips are deterministic, not transient:
+        // retrying them just burns the attempt budget and log lines. The
+        // next full reconcile re-checks them anyway, so the self-heal path
+        // is intact.
+        const informational = failure.code === 'foreign-mount' || failure.code === 'duplicate-mount'
+        this.scheduleRetry(key, entry.suite.id, entry.serverKey, informational ? undefined : failure.reason)
       }
     }
     return diagnostics.filter(diagnostic => diagnostic.reason !== 'unmounted')
@@ -265,7 +267,13 @@ export class McpMountRegistry {
   private async mountWith(request: McpMountRequest): Promise<{ reason: string; code: McpMountFailureCode } | undefined> {
     const owner = this.names.get(request.config.serverName)
     if (owner !== undefined) {
-      return { reason: `derived serverName "${request.config.serverName}" already mounted by ${owner}`, code: 'mount-failed' }
+      // Two sources shipping the same suite/server pair derive one serverName:
+      // the model only needs one copy, so later arrivals skip with an
+      // informational diagnostic instead of double-registering.
+      return {
+        reason: `server "${request.config.serverName}" is already mounted from ${owner} — this suite's copy is redundant and was skipped`,
+        code: 'duplicate-mount'
+      }
     }
     // Foreign-namespace guard: a native host MCP client (or another plugin's
     // mount) may already own this `mcp__<serverName>__` namespace. Registering
