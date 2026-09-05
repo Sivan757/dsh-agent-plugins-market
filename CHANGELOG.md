@@ -9,6 +9,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.6.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.6.0...dsh-agent-plugins-market-v0.6.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **client:** adapt to the host remote.credentials service ([8b48cdb](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8b48cdbd9ac92db0c0ff016a487b1ef2d86c0000))
+* **lsp:** key unmount diagnostics and live mounts by the qualified suite id ([b5229e0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b5229e08fd90cf2ddb4bfe26236e70943875c393))
+* **mcp:** derive serverNames from the identity, not a source-name prefix ([00573bb](https://github.com/Sivan757/dsh-agent-plugins-market/commit/00573bb58351df37b7733b9346a902f021a73b27))
+* **mcp:** two-layer serverNames with a duplicate-mount skip, not name mangling ([3915b37](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3915b370c802e5abfb8f5af6745bfa84f43e4d34))
+
 ## [0.6.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.5.3...dsh-agent-plugins-market-v0.6.0) (2026-09-04)
 
 
