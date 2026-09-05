@@ -92,7 +92,7 @@ describe('LspMountRegistry', () => {
       const registry = new LspMountRegistry(ctx as never, hostLoader('missing'))
       const first = await registry.reconcile([lspSuite('ts')])
       expect(first).toHaveLength(1)
-      expect(first[0]).toMatchObject({ suiteId: 'ts', code: 'host-missing' })
+      expect(first[0]).toMatchObject({ suiteId: 'src/ts', code: 'host-missing' })
       // Later passes keep reporting honestly (a missing package is a state,
       // not a transient error), and no retry timer fires.
       const second = await registry.reconcile([lspSuite('ts')])

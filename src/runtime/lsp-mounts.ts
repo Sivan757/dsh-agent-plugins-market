@@ -174,8 +174,8 @@ export class LspMountRegistry {
     for (const [key, live] of [...this.live]) {
       if (!wanted.has(key)) {
         const reason = await this.unmount(key, live)
-        this.lastDiagnostics.delete(live.suiteId)
-        if (reason !== undefined) diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
+        this.lastDiagnostics.delete(key)
+        if (reason !== undefined) diagnostics.push({ suiteId: key, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
       }
     }
     for (const [key, entry] of wanted) {
@@ -215,12 +215,12 @@ export class LspMountRegistry {
     const hostKeys = Object.keys(servers).join(',')
     const module = await this.loadHost()
     if (module === undefined) {
-      return { suiteId: suite.id, serverKey: hostKeys, reason: HOST_MISSING_REASON, code: 'host-missing' }
+      return { suiteId: key, serverKey: hostKeys, reason: HOST_MISSING_REASON, code: 'host-missing' }
     }
     const plugin = module.default ?? module
     const mountCtx = this.ctx as unknown as PluginMountContext
     if (typeof mountCtx.plugin !== 'function') {
-      return { suiteId: suite.id, serverKey: hostKeys, reason: 'the host context does not support dynamic plugin mounting', code: 'host-missing' }
+      return { suiteId: key, serverKey: hostKeys, reason: 'the host context does not support dynamic plugin mounting', code: 'host-missing' }
     }
     let handle: MountPluginHandle | undefined
     try {
@@ -239,13 +239,13 @@ export class LspMountRegistry {
       const message = error instanceof Error ? error.message : String(error)
       const conflict = /already handled by another LSP provider|already registered/.test(message)
       return {
-        suiteId: suite.id,
+        suiteId: key,
         serverKey: hostKeys,
         reason: `mount failed: ${message}`,
         code: conflict ? 'seam-conflict' : 'mount-failed'
       }
     }
-    this.live.set(key, { suiteId: suite.id, serverKeys: Object.keys(servers), disposer: () => handle.dispose() })
+    this.live.set(key, { suiteId: key, serverKeys: Object.keys(servers), disposer: () => handle.dispose() })
     return undefined
   }
 
