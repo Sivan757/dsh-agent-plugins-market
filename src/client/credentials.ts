@@ -41,3 +41,22 @@ export async function unsetCredential(api: CredentialApi, ref: string): Promise<
   const response = (await api.unset({ ref })) as CredentialMutationResponse
   if (response.result?.ok !== true) throw new Error(response.result?.error?.message ?? 'credential removal failed')
 }
+
+/** Current Host remote service; methods return unwrapped RPC results. */
+export interface CredentialRemote {
+  describe(refs: string[]): Promise<{ ok: boolean; value?: Record<string, CredentialView>; error?: { message?: string } }>
+  set(ref: string, value: string): Promise<unknown>
+  unset(ref: string): Promise<unknown>
+}
+
+/** Adapt the current Host service to the credential editor's wire contract. */
+export function credentialApi(remote: CredentialRemote): CredentialApi {
+  return {
+    describe: async ({ refs }) => {
+      const result = await remote.describe(refs)
+      return { result: result.ok ? { ok: true, value: { credentials: result.value } } : result }
+    },
+    set: async ({ ref, value }) => ({ result: await remote.set(ref, value) }),
+    unset: async ({ ref }) => ({ result: await remote.unset(ref) }),
+  }
+}

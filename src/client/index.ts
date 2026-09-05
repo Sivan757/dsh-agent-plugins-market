@@ -13,7 +13,7 @@ import { MarketSection } from './MarketSection.js'
 import { McpStatusPanel } from './McpStatusPanel.js'
 import { LspStatusPanel } from './LspStatusPanel.js'
 import { McpPluginCard } from './McpPluginCard.js'
-import type { CredentialApi } from './credentials.js'
+import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './page-mode.js'
 
 const NS = 'dsh-agent-plugins-market'
@@ -49,11 +49,11 @@ interface SuiteClientContext {
   inject?(services: string[], callback: (resolved: Record<string, unknown>) => void): void
   locale: LocaleService
   slots: SlotsService
-  connection: { api: { credentials: CredentialApi } }
+  remote: { credentials: CredentialRemote }
 }
 
 export const name = 'dsh-agent-plugins-market'
-export const inject = ['slots', 'locale', 'connection']
+export const inject = ['slots', 'locale', 'remote', 'remote.credentials']
 export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
 
 /**
@@ -71,7 +71,7 @@ export function missingPrimitives(module: Record<string, unknown>, required: rea
 export function apply(ctx: SuiteClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-agent-plugins: dictionaries')
   const t = ctx.locale.bind(NS)
-  const credentials = ctx.connection.api.credentials
+  const credentials = credentialApi(ctx.remote.credentials)
 
   const gaps = missingPrimitives(primitives as unknown as Record<string, unknown>)
   if (gaps.length > 0) {
