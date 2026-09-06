@@ -214,6 +214,18 @@
   font: 12px/18px ui-monospace, Menlo, Consolas, monospace;
   overflow-wrap: anywhere;
 }
+
+/* The owning suite id, so same-named servers from different sources are
+   tellable apart at a glance. */
+.sourceLine {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sourcePlugin, .sourceDirect, .transport, .toolCount {
   display: inline-flex;
   align-items: center;

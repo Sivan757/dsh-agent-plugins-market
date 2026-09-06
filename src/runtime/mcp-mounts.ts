@@ -156,7 +156,7 @@ export class McpMountRegistry {
       const { mounts, failures } = await toMcpMounts(suite, this.pluginDataRoot, suiteOverrides, resolver)
       for (const failure of failures) {
         diagnostics.push({
-          suiteId: suite.id,
+          suiteId: qualifiedSuiteId(suite.sourceId, suite.id),
           serverKey: failure.serverKey,
           reason: failure.reason,
           ...(failure.code === undefined ? {} : { code: failure.code }),
@@ -201,7 +201,7 @@ export class McpMountRegistry {
       // reported so a transient error does not shadow the final state.
       const failure = await this.mountWith(entry.request)
       if (failure !== undefined) {
-        diagnostics.push({ suiteId: entry.suite.id, serverKey: entry.serverKey, reason: failure.reason, code: failure.code })
+        diagnostics.push({ suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id), serverKey: entry.serverKey, reason: failure.reason, code: failure.code })
         // Foreign and duplicate skips are deterministic, not transient:
         // retrying them just burns the attempt budget and log lines. The
         // next full reconcile re-checks them anyway, so the self-heal path

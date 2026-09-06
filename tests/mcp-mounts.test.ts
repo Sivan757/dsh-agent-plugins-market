@@ -137,7 +137,7 @@ describe('McpMountRegistry', () => {
     // The connection error is reported with its real message, not swallowed
     // into a silent "degraded" row.
     expect(diagnostics).toContainEqual({
-      suiteId: 'broken',
+      suiteId: 'demo/broken',
       serverKey: 'service',
       code: 'mount-failed',
       reason: 'mount failed: connection refused'
@@ -189,7 +189,7 @@ describe('McpMountRegistry', () => {
 
     expect(mounted).toHaveLength(0)
     expect(diagnostics).toContainEqual({
-      suiteId: 'auth',
+      suiteId: 'demo/auth',
       serverKey: 'service',
       code: 'missing-credential',
       credentialRefs: ['API_TOKEN'],
@@ -286,7 +286,7 @@ describe('McpMountRegistry', () => {
 
     expect(mounted).toHaveLength(0)
     expect(diagnostics).toContainEqual({
-      suiteId: 'alpha',
+      suiteId: 'demo/alpha',
       serverKey: 'db',
       code: 'foreign-mount',
       reason: expect.stringContaining('already mounted by another MCP client')

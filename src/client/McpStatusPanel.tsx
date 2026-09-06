@@ -208,7 +208,12 @@ function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; o
         h('span', { className: css.service }, h('span', { className: css.name }, entry.name)),
         h('span', { className: css.toolCount }, entry.tools.length === 1 ? `${entry.tools.length} ${t('mcpTool')}` : `${entry.tools.length} ${t('mcpTools')}`)
       ),
-      h('p', { className: css.endpoint }, entry.endpoint ?? t('mcpObservedEndpoint'))
+      h('p', { className: css.endpoint }, entry.endpoint ?? t('mcpObservedEndpoint')),
+      // Identity line: the qualified suite id disambiguates same-named
+      // servers from different sources (e.g. two context7 installs).
+      entry.kind === 'plugin' && entry.suiteId !== undefined
+        ? h('p', { className: css.sourceLine }, `${t('mcpPlugin')}: ${entry.suiteId}`)
+        : null
       // Reason text, the state pill, and every action (retry, configure,
       // details) live in the detail dialog: the card keeps only the identity
       // line and the endpoint, so a wall of red cards stays scannable.

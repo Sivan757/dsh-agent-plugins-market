@@ -58,11 +58,15 @@ export function buildMcpStatus(
       const credentialRefs = [...new Set([...credentialRefsInServer(effective), ...(diagnostic?.credentialRefs ?? [])])].sort()
       const disabled = override?.enabled === false || suite.activeSurfaces?.mcp === false
       const orphaned = disabled && tools.length > 0
+      // A duplicate copy shares the live serverName, so observed tools land
+      // on it too — that does not make it connected: its own diagnostic says
+      // another source's mount is the one serving.
+      const servedElsewhere = diagnostic?.code === 'duplicate-mount'
       const state: McpStatusState = orphaned
         ? 'orphaned'
         : diagnostic?.code === 'missing-credential'
           ? 'needs-credentials'
-          : diagnostic?.code === 'foreign-mount' || diagnostic?.code === 'duplicate-mount'
+          : servedElsewhere || diagnostic?.code === 'foreign-mount'
             ? 'foreign'
             : diagnostic !== undefined
               ? 'failed'
