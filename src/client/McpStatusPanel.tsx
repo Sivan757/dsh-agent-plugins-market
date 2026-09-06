@@ -208,12 +208,7 @@ function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; o
         h('span', { className: css.service }, h('span', { className: css.name }, entry.name)),
         h('span', { className: css.toolCount }, entry.tools.length === 1 ? `${entry.tools.length} ${t('mcpTool')}` : `${entry.tools.length} ${t('mcpTools')}`)
       ),
-      h('p', { className: css.endpoint }, entry.endpoint ?? t('mcpObservedEndpoint')),
-      // Identity line: the qualified suite id disambiguates same-named
-      // servers from different sources (e.g. two context7 installs).
-      entry.kind === 'plugin' && entry.suiteId !== undefined
-        ? h('p', { className: css.sourceLine }, `${t('mcpPlugin')}: ${entry.suiteId}`)
-        : null
+      h('p', { className: css.endpoint }, entry.endpoint ?? t('mcpObservedEndpoint'))
       // Reason text, the state pill, and every action (retry, configure,
       // details) live in the detail dialog: the card keeps only the identity
       // line and the endpoint, so a wall of red cards stays scannable.
@@ -343,9 +338,11 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
           'div',
           { className: css.detailHeroText },
           entry.endpoint === undefined ? null : h('p', { className: css.detailEndpoint }, entry.endpoint),
-          // Source and transport moved here from the card meta row.
+          // Source and transport moved here from the card meta row. The
+          // qualified suite id disambiguates same-named servers from
+          // different sources (e.g. two context7 installs).
           h('p', { className: css.detailEndpoint }, [
-            entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.source ?? '—'}` : t('mcpDirect'),
+            entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.suiteId ?? entry.source ?? '—'}` : t('mcpDirect'),
             entry.transport
           ].join(' · '))
         )
