@@ -2,30 +2,28 @@
 import Base from '../layouts/Base.astro';
 const faqs = [
   {
-    q: 'How do I install Claude Code plugins in DeepSeek Harness (DSH)?',
-    a: `Install dsh-agent-plugins-market in a dsh profile, then add any Claude Code marketplace repo as a source:
-<pre><code>dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market</code></pre>
-Then open <strong>Settings → Agent Plugins Market</strong> in the Web GUI. Skills, MCP servers, hooks and slash commands are injected into your dsh sessions at runtime — no conversion, no file copying.`,
+    q: 'Why is an installed skill or tool missing?',
+    a: 'Check that the suite and its capability are enabled. Skills may restrict manual invocation. MCP and LSP panels report missing credentials, dependencies and mount failures. Project-scoped MCP is not mounted.',
   },
   {
-    q: 'Does DeepSeek Harness support .claude-plugin/marketplace.json?',
-    a: 'Yes — through dsh-agent-plugins-market. It reads <code>.claude-plugin/marketplace.json</code> and per-plugin <code>.claude-plugin/plugin.json</code> natively, plus <code>.codex-plugin</code>, <code>.cursor-plugin</code>, <code>.kimi-plugin</code>, <code>.plugin</code> (universal) and agent-plugins.org v1.0.0 <code>plugin.json</code> manifests.',
-  },
-  {
-    q: 'Do Claude Code-authored skills work verbatim?',
-    a: 'Yes. <code>${CLAUDE_PLUGIN_ROOT}</code> is substituted automatically at runtime, so Claude Code ecosystem skills run unchanged and appear in the <code>/</code> slash menu.',
-  },
-  {
-    q: 'dsh-agent-plugins-market vs manually copying skill files?',
-    a: 'Manual copying breaks <code>${CLAUDE_PLUGIN_ROOT}</code> paths, skips MCP servers / hooks / commands, and gives you no update path. This plugin installs whole suites from git sources with per-plugin enable/disable/refresh, and injects every surface automatically.',
+    q: 'Where do I configure MCP credentials?',
+    a: 'Open the service in <strong>MCP services</strong>. Suite details are read-only previews. Missing references show <code>needs-credentials</code>; launch-environment credentials require an environment change and a DSH restart.',
   },
   {
     q: 'Which MCP transports are supported?',
-    a: '<code>mcp.json</code> is validated strictly against the agent-plugins.org schema; <code>.mcp.json</code> is parsed leniently — top-level server-map shorthand, <code>type: http</code> / <code>local</code> / omitted type (stdio by <code>command</code>) normalization, and <code>${CLAUDE_PLUGIN_ROOT}</code> / <code>${CLAUDE_PLUGIN_DATA}</code> / <code>${NAME:-default}</code> placeholders are supported.',
+    a: 'The built-in bridge supports stdio, Streamable HTTP with OAuth, and legacy SSE. Turning off MCP enhancement selects the optional host-client compatibility backend, without OAuth or SSE through this integration.',
   },
   {
-    q: 'Is it free and open source?',
-    a: 'Yes — MIT licensed, published on <a href="https://www.npmjs.com/package/dsh-agent-plugins-market">npm</a>, source on <a href="https://github.com/Sivan757/dsh-agent-plugins-market">GitHub</a>.',
+    q: 'What if a source download fails?',
+    a: 'Use a local directory, adopt a manual checkout, or configure a proxy or mirror. See the <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/guides/usage.md#configure-marketplace-sources">source configuration guide</a>.',
+  },
+  {
+    q: 'When do local edits become visible?',
+    a: 'There is no file watcher. Local-source discovery caches results for up to 30 seconds; refresh the source to invalidate them. Project discovery has a separate five-second cache. An already-open page does not automatically refresh.',
+  },
+  {
+    q: 'Does removing a source delete files?',
+    a: 'Only when you tick <strong>also delete the managed market directory</strong> in the confirmation. That removes the checkout under <code>.sources/&lt;id&gt;</code> — including one you cloned yourself and adopted. A local-directory source pointing outside <code>.sources/</code> is never deleted.',
   },
 ];
 ---

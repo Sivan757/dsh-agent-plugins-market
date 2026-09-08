@@ -2,18 +2,18 @@
 import Base from '../layouts/Base.astro';
 ---
 <Base
-  title="Install Claude Code plugins in DeepSeek Harness — dsh-agent-plugins-market guide"
+  title="Install the agent workspace in DeepSeek Harness — dsh-agent-plugins-market guide"
   description="Step-by-step guide: install dsh-agent-plugins-market in a DSH profile, add a Claude Code marketplace repo as a source, and install plugin suites with skills, MCP servers, hooks and slash commands."
 >
-  <h1>Install Claude Code plugins in DeepSeek Harness</h1>
+  <h1>Install the agent workspace in DeepSeek Harness</h1>
   <p>
     This guide shows how to bring Claude Code, Codex, Cursor and Kimi plugin marketplaces into DeepSeek Harness (DSH) in a few minutes.
   </p>
 
   <h2>Prerequisites</h2>
   <ul>
-    <li>DeepSeek Harness ≥ 0.1.0-rc.6 with a Web profile</li>
-    <li>A terminal with <code>dsh</code> and <code>pnpm</code> available</li>
+    <li>Node.js 22+ and a DSH Web profile with the skill service; current DSH peer declarations use ^0.1.2-rc.1</li>
+    <li>A terminal with <code>dsh</code>; Git for Git sources, and pnpm for GitHub or manual installation</li>
   </ul>
 
   <h2>Step 1 — Install the plugin</h2>
@@ -29,33 +29,34 @@ dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market</code></pre>
   <h2>Step 2 — Restart dsh and open the market</h2>
   <p>
     Restart dsh, open the Web GUI, then go to <strong>Settings → Agent Plugins Market</strong>.
-    The built entry point is committed to the repository, so GitHub installs work without a build step.
+    npm packages contain built artifacts. GitHub installs build through <code>prepare</code> and need Node.js and pnpm. Older shells may expose a top-level page entry instead.
   </p>
 
   <h2>Step 3 — Add a marketplace source</h2>
   <p>
-    In the market page, add any git marketplace repository URL as a source (for example a Claude Code marketplace repo with <code>.claude-plugin/marketplace.json</code>).
-    The source id is derived automatically from the repository manifest — no manual input.
+    In the market page, add a supported git marketplace repository URL as a source (for example a Claude Code marketplace repo with <code>.claude-plugin/marketplace.json</code>).
+    No sources are preconfigured. Source ids are assigned automatically.
   </p>
 
   <h2>Step 4 — Install suites</h2>
   <p>
-    Browse the card grid, open a suite for a preview of its skills / MCP servers / hooks / commands, and install it.
+    Browse the card grid, open a suite for a preview of its skills / MCP servers / hooks / commands, then install it and ensure it is enabled.
     Installed plugins live under <code>~/.dsh/agent-plugins/.sources/&lt;sourceId&gt;/</code> (user dimension) or <code>&lt;project&gt;/.dsh/agent-plugins/.sources/&lt;sourceId&gt;/</code> (project dimension).
   </p>
 
-  <h2>Step 5 — Use it</h2>
+  <h2>Step 5 — Verify and use it</h2>
   <ul>
-    <li><strong>Skills</strong> appear in the <code>/</code> slash menu; Claude Code-authored skills work verbatim.</li>
-    <li><strong>MCP servers</strong> mount automatically — tools appear as <code>mcp__&lt;plugin&gt;__&lt;server&gt;__&lt;tool&gt;</code>.</li>
-    <li><strong>Hooks</strong> from <code>hooks/hooks.json</code> are mapped to DSH interception points.</li>
-    <li><strong>Commands / subagents</strong> — <code>commands/*.md</code> become slash commands; <code>agents/*.md</code> become <code>agent-&lt;name&gt;</code> skills.</li>
+    <li>For a suite with skills, check the Skills tab, then type <code>/</code> in chat to find its user-invocable skills.</li>
+    <li>For MCP, open MCP services and resolve connection or credential notices. Credentials and overrides are edited here; suite previews are read-only.</li>
+    <li>Commands become slash entries. Role delegation through <code>market_agent</code> requires host tools, LLM and subagent services.</li>
+    <li>LSP requires host LSP packages and a profile exposing the LSP tool; check LSP servers for diagnostics.</li>
   </ul>
+  <p>See the <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/guides/usage.md">usage guide</a> for host requirements and configuration.</p>
 
   <h2>Troubleshooting</h2>
   <ul>
     <li>Project-dimension MCP servers are not mounted (DSH has no per-session tool scope); the project dimension covers skills and context.</li>
-    <li>Skill discovery has no file watcher — catalog changes apply after a manager action or a host restart.</li>
+    <li>There is no file watcher. Local-source discovery caches results for up to 30 seconds; refresh the source to invalidate them. Project discovery has a separate five-second cache.</li>
     <li>Remote URL marketplace entries show as "remote reference" cards; add the target repo as a source to install them.</li>
   </ul>
 </Base>

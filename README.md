@@ -1,237 +1,141 @@
-# dsh-agent-plugins-market — Claude Code plugin marketplaces for DeepSeek Harness
+<img src="docs-site/public/favicon.svg" alt="" width="48" height="48" />
 
-English | [简体中文](README.zh.md) | [Docs website](https://sivan757.github.io/dsh-agent-plugins-market/)
+# dsh-agent-plugins-market
 
-> **Bring the Claude Code / Codex / Cursor plugin-marketplace ecosystem into DeepSeek Harness (DSH): install and inject agent plugins — skills, MCP servers, hooks and slash commands — from git marketplace repos, with a market page right inside the Web GUI.**
+**A plugin marketplace and agent capability workspace for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).**
 
-**dsh-agent-plugins-market is the standard way to run Claude Code, Codex, Cursor and Kimi plugin marketplaces inside DeepSeek Harness — zero conversion, zero file copying.**
+Reuse supported content from Claude Code, Codex and Cursor suites, plus community compatibility layouts. Manage your own skills, commands, agent personas, MCP services and LSP servers in the DSH Web GUI. Supported layouts are read in place, without converting manifests or manually copying files into DSH. See the capability matrix for format-specific limits.
 
-![npm](https://img.shields.io/npm/v/dsh-agent-plugins-market) ![npm downloads](https://img.shields.io/npm/dm/dsh-agent-plugins-market) ![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market) ![GitHub stars](https://img.shields.io/github/stars/Sivan757/dsh-agent-plugins-market)
+English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github.io/dsh-agent-plugins-market/) | [npm](https://www.npmjs.com/package/dsh-agent-plugins-market)
 
-![Agent Plugins Market screenshot](docs/screenshot.png)
+[![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](LICENSE)
 
-![Suite detail (skills / MCP / commands preview)](docs/screenshot-detail.png)
+[Quick start](#quick-start) · [Everyday use](#everyday-use) · [Compatibility](#compatibility-and-boundaries) · [FAQ](#faq)
 
-## Why?
+![Current six-tab Agent Plugins workspace](docs/screenshot-workspace.png)
 
-DeepSeek Harness is a powerful agent harness — but its plugin ecosystem doesn't yet have the breadth of the **Claude Code plugin marketplace** world. There are hundreds of ready-made plugin marketplaces on GitHub (Claude Code `.claude-plugin/marketplace.json`, Codex `.codex-plugin`, Cursor, Kimi, agent-plugins.org v1.0.0 portable suites) full of skills, MCP servers, hooks and slash commands.
+## What you can do
 
-`dsh-agent-plugins-market` is the bridge: **add any git marketplace repo as a source, install its suites, and their skills / MCP servers / hooks / commands are injected into your DSH sessions at runtime** — no manual file copying, no conversion needed. Claude Code-authored skills work verbatim (`${CLAUDE_PLUGIN_ROOT}` is substituted automatically).
+- **Reuse ecosystem suites.** Add a Git repository, local directory or archive as a source; browse, preview, install and enable its suites. Supported capabilities become available to DSH at runtime.
+- **Build your own toolkit.** Create skills, reusable slash commands and agent personas. Edit or disable your own entries without deleting them.
+- **Keep project resources in place.** Project `.claude/` and `.agents/` skills and agents are discovered without an installation step or file copying.
+- **Manage services where you use them.** Configure MCP credentials and authorization, inspect MCP / LSP status, and diagnose unavailable services from one workspace.
 
 ## Quick start
 
-> Requires DeepSeek Harness ≥ 0.1.0-rc.6 with a Web profile.
+You need Node.js 22+, Git for Git sources, and a DSH Web profile with the skill service enabled. This repository declares DSH peer packages in the `^0.1.2-rc.1` range; individual capabilities also depend on the services in your profile. See [host requirements](docs/guides/usage.md#host-requirements).
+
+Install into your profile, replacing `<name>` with its name:
 
 ```sh
-# install into a dsh profile (npm registry, recommended)
 dsh plugin --profile <name> add dsh-agent-plugins-market
-
-# or via pnpm inside the profile
-pnpm add dsh-agent-plugins-market
 ```
 
-Restart dsh, open **Settings → Agent Plugins Market**, add a marketplace repo as a source (e.g. `https://github.com/anthropics/claude-plugins-official`), and install suites with one click. On legacy Web shells without the `settings.section` slot, the same UI falls back to a top-level Agent Plugins Market page entry. Skills appear in the `/` slash menu; MCP tools appear as `mcp__<suite>__<server>__<tool>`; slash commands and `/agent-*` subagents register automatically.
+1. Restart DSH and open **Settings → Agent Plugins Market**. Older shells may show a top-level page entry instead.
+2. In **Market**, add a source, for example `https://github.com/anthropics/claude-plugins-official`. No sources are preconfigured.
+3. Open a suite, review its contents, then install it and ensure it is enabled.
+4. For a suite with skills, check the **Skills** tab and type `/` in chat to find its user-invocable skills. For an MCP suite, check **MCP services** and resolve any credential or connection notices before using its tools.
 
-<details>
-<summary><strong>More install options</strong></summary>
+For GitHub installation and profile configuration, see the [usage guide](docs/guides/usage.md#installation-options).
 
-**GitHub:**
+## Everyday use
 
-```sh
-pnpm add github:Sivan757/dsh-agent-plugins-market
-# or
-dsh plugin --profile <name> add github:Sivan757/dsh-agent-plugins-market
-```
+The workspace has six tabs:
 
-**Manual** — add the package to the profile's `dsh.profile.bundles` (the package's `cordis.patch.yml` inserts the plugin row):
+| Tab            | Use it to                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                |
+| Skills         | Browse skills and create or edit your own reusable instructions.                                               |
+| Commands       | Manage prompt templates invoked as `/name`; `$ARGUMENTS` inserts the text supplied after the command.          |
+| Agent personas | Select providers and models from DSH, manage role instructions and tools, and delegate through `market_agent`. |
+| MCP services   | Configure services, credentials and authorization; inspect connection status and retry failures.               |
+| LSP servers    | Configure language servers and inspect their runtime status.                                                   |
 
-```jsonc
-// ~/.dsh/profiles/<profile>/package.json
-{
-  "dependencies": { "dsh-agent-plugins-market": "^0.4.6" },
-  "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-agent-plugins-market"] } }
-}
-```
+A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities. Suite details preview files; MCP credentials and overrides are edited in **MCP services**.
 
-Build artifacts (`lib/`, `client/`) are not committed; npm publishes them via `prepack`, and GitHub installs build them automatically through the `prepare` script (requires Node + pnpm toolchain on the installing machine).
+Your own skills, commands and personas are stored as Markdown under `~/.dsh/agent-plugins/user/`. Project-native resources stay in the project. See [storage and discovery](docs/guides/usage.md#storage-and-discovery) for paths and precedence.
 
-</details>
+## Compatibility and boundaries
 
-## Features
+Supported **layout dialects** describe how files are organized:
 
-- **Plugin / suite management** — configure git repository sources (markets), browse every discoverable plugin, install / uninstall / enable / disable / refresh per source or per plugin. Source ids are derived automatically from the repository manifest JSON — no manual input.
-- **Market page in the Web GUI** — source pills + search/actions, status tabs, a two-column card grid, and a plugin detail modal with previews for skills / MCP / hooks / commands / LSP. New shells render it as a localized Settings page; legacy shells without `settings.section` receive a guarded top-level page-mode fallback instead of a duplicate surface.
-- **Runtime injection**
-  - **Skills** — a `ctx.skills` SkillProvider (project rank 250 / user rank 450); `${CLAUDE_PLUGIN_ROOT}` is substituted so Claude Code-authored skills work verbatim, and appear in the `/` slash menu.
-  - **MCP servers** — every valid `mcp.json` server of an enabled plugin mounts a live `dsh-mcp-client` child; tools appear as `mcp__<plugin>__<server>__<tool>`.
-  - **MCP credentials** — `${ENV_NAME}` references resolve through the optional DSH credentials service before a child starts; missing references block the spawn and surface as `needs-credentials`. The Web detail view uses write-only credentials operations and never persists token values in suite state or overrides.
-  - **Hooks** — a plugin's `hooks/hooks.json` mounts the `dsh-hooks-claude-code` bridge on the harness interception points (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop).
-  - **Commands / subagents** — `commands/*.md` register as dsh slash commands; `agents/*.md` register as `agent-<name>` skills.
-  - **Model context** — skills flow through the host-native skill catalog and MCP tools register directly through `dsh-mcp-client`; suite inventory and source metadata remain available in the Web market page without adding a redundant model-facing inventory tool.
-- **Runtime discovery** — installed plugins are discovered from configured source ids under `~/.dsh/agent-plugins/.sources/<sourceId>/` (user dimension) and `<project>/.dsh/agent-plugins/.sources/<sourceId>/` (project dimension). Stale unmanaged user checkouts are ignored, while project checkouts remain state-authorized. Local sources read the working tree directly, including uncommitted changes.
-- **Native project layouts (zero-copy migration)** — a repository's own `.claude/` and `.agents/` directories (skills, agents) are discovered in place as read-only `project-native` suites: no install, no copying, no state file. Repositories migrating from Claude Code or agent-plugins.org conventions work as-is; a project skill shadows an installed suite skill of the same name (project wins).
+| Layout dialect           | Manifest or directory convention                                   |
+| ------------------------ | ------------------------------------------------------------------ |
+| Claude Code              | `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json` |
+| Codex                    | `.codex-plugin/plugin.json`                                        |
+| Cursor                   | `.cursor-plugin/plugin.json`                                       |
+| Kimi-named compatibility | `.kimi-plugin/plugin.json`; not Kimi's official tool-plugin format |
+| Universal compatibility  | `.plugin/plugin.json`; not the agent-plugins.org standard          |
+| agent-plugins.org v1     | `plugin.json`, validated with the vendored 1.0.0 schema            |
+| Skill collection         | Directories containing `SKILL.md`, without a plugin manifest       |
 
-## Supported plugin layouts
+Supported **runtime surfaces** describe what DSH can use:
 
-| Layout                           | Manifest                                                         | Notes                                                      |
-| -------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------- |
-| agent-plugins.org v1             | `plugin.json`                                                    | vendored 1.0.0 JSON Schema validation + spec §4 path rules |
-| Claude Code market               | `.claude-plugin/marketplace.json` + `.claude-plugin/plugin.json` | marketplace `plugins[].source` relative paths              |
-| Universal                        | `.plugin/plugin.json`                                            | multi-client repos (e.g. vercel-plugin)                    |
-| Cursor                           | `.cursor-plugin/plugin.json`                                     | declared skills paths                                      |
-| Kimi                             | `.kimi-plugin/plugin.json`                                       | inline mcpServers                                          |
-| Codex                            | `.codex-plugin/plugin.json`                                      | —                                                          |
-| Skill collection (manifest-less) | none (synthetic)                                                 | flat `SKILL.md` directory collections                      |
+| Surface  | Runtime support and conditions                                                                                                            |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Skills   | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded.                                            |
+| Commands | Slash commands through the host command service.                                                                                          |
+| Agents   | Agent instructions as skills; role delegation requires host tools, LLM and subagent services.                                             |
+| MCP      | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available. |
+| Hooks    | The command-hook subset mapped by `dsh-hooks-claude-code`.                                                                                |
+| LSP      | Live mounts when the host provides LSP packages; the profile must expose the LSP tool for agent use.                                      |
 
-One repo may carry several dialects at once (vercel/vercel-plugin ships all of them); the suite identity comes from the highest-precedence manifest while surfaces are scanned from the directories. `mcp.json` is validated strictly against the agent-plugins.org schema; `.mcp.json` is parsed leniently — top-level server-map shorthand, `type: http` / `local` / omitted `type` (stdio by `command`) normalization, `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` / `${NAME:-default}` placeholders, and unknown transports are tolerated per server. The marketplace manifest is authoritative for the suite set; manifest-less marketplace entries that carry skills and manifest-bearing container dirs not listed there are supplemented. Remote URL entries show as "remote reference" cards (metadata + source URL, not directly installable; add the repo as a source to install).
+### Layout capability matrix
 
-## Configure marketplace sources
+Checked against official documentation and this plugin's source on 2026-09-08. This table describes **integration by this plugin**. “Shared” means the plugin's common scanning conventions, not an upstream-defined capability. “Partial” requires the limitations below.
 
-Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (and re-adds missing ids on every boot):
+| Layout | Skills | Agents | Commands | MCP | Hooks | LSP |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Claude Code](https://code.claude.com/docs/en/plugins-reference) | Supported | Partial: `agents/*.md` | Partial: `commands/*.md` | Partial: file / inline | Claude command-hook subset | Partial: inline |
+| [Codex](https://developers.openai.com/plugins/build/plugins) | Supported | Shared | Shared | Partial: `.mcp.json` | Compatible event subset | Shared inline |
+| [Cursor](https://cursor.com/docs/reference/plugins) | Supported | Partial: `.md` only | Partial: `.md` only | Partial: see below | Native events unsupported | Shared inline |
+| Kimi-named compatibility layout `.kimi-plugin/` | Shared | Shared | Shared | Shared | Claude-format subset | Shared inline |
+| Universal compatibility layout `.plugin/` | Shared | Shared | Shared | Shared | Claude-format subset | Shared inline |
+| [agent-plugins.org v1](https://agent-plugins.org/specification) | Supported | Shared, nonstandard | Shared, nonstandard | Standard `mcp.json` | Shared, nonstandard | Directory preview only, nonstandard |
+| Manifest-less skill collection | Supported | Shared | Shared | Shared files | Claude-format subset | Directory preview only |
+| Project-native `.claude/`, `.agents/` | Supported | Skill instructions | Counted, not registered | Not mounted | Not mounted | Not mounted |
 
-```yaml
-- id: dsh-agent-plugins-market
-  config:
-    sources:
-      - { id: agent-plugins, url: 'https://github.com/Sivan757/agent-plugins.git' }
-      - { id: mattpocock-skills, url: 'https://github.com/mattpocock/skills.git' }
-      - { id: claude-plugins-official, url: 'https://github.com/anthropics/claude-plugins-official' }
-      - { id: ui-ux-pro-max, url: 'https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git' }
-      - { id: my-local-plugin, url: '/Users/me/work/my-plugin', local: true }
-      - { id: packaged-plugin, url: 'https://example.com/plugin-0.1.zip', kind: archive, sha256: '<64-hex digest>' }
-```
+- **Shared scanning:** root `SKILL.md`, `skills/` or manifest `skills` paths, and files directly under `agents/*.md` and `commands/*.md`. Custom manifest agents / commands paths are not read; upstream frontmatter, invocation, and tool semantics are not fully reproduced. Manifest-less roots must first qualify through skill discovery.
+- **MCP:** reads `mcp.json`, then `.mcp.json`, then inline manifest `mcpServers`; custom manifest MCP file paths are not followed. Root `mcp.json` must pass the agent-plugins.org schema, so **Cursor's documented schema-less `mcp.json` is unsupported**. `.mcp.json` accepts both the `mcpServers` wrapper and a direct top-level server map, which covers Codex's documented forms; Codex `.app.json` connector bindings are not read. An invalid higher-priority file does not fall back.
+- **Hooks:** only `hooks/hooks.json` or root `hooks.json`, using the Claude Code bridge's supported command-hook events. Inline hooks and custom manifest paths are not read. Cursor-native events such as `afterFileEdit` are not integrated by that bridge.
+- **LSP:** only validated inline `lspServers` are mounted, including Claude marketplace declarations. **Claude's documented root `.lsp.json` and manifest LSP file paths are not read**. `.claude-plugin/lsp/*.json` and reverse-domain `*/lsp/` entries are counted and previewed only.
+- **Specification boundaries:** agent-plugins.org v1 standardizes portable skills and MCP only; shared agents / commands / hooks scanning is not a standard capability. Universal is a compatibility-layout label used by this plugin; the [OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins) documents the same `.plugin/plugin.json` location and a [Vercel repository](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json) uses it, but no cross-vendor specification exists.
+- **Kimi boundary:** [Kimi's official plugin documentation](https://github.com/MoonshotAI/kimi-cli/blob/main/docs/en/customization/plugins.md) defines `tools` in root `plugin.json`; its [agent documentation](https://github.com/MoonshotAI/kimi-cli/blob/main/docs/en/customization/agents.md) uses YAML. Neither is integrated. Those official documents do not establish a `.kimi-plugin/plugin.json` specification, so this is not full Kimi plugin support.
+- **Project directories:** [Claude project skills](https://code.claude.com/docs/en/skills) and [Codex `.agents/skills`](https://developers.openai.com/codex/skills) are documented upstream; `.agents/agents` and `.agents/commands` are this plugin's shared discovery conventions.
 
-A `local: true` source reads the directory in place (live working tree; never deleted on removal). Discovery results are cached for up to 30 seconds and reused across install/enable/panel actions, so working-tree edits of local sources appear on the next cache refresh (any source mutation, the refresh button, or the 30 s TTL). An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
+Source checks covered `src/catalog/manifests.ts`, `surfaces.ts`, `validate.ts`, `native-project.ts`, and `src/runtime/hooks-mounts.ts`. This is a documentation and source audit, not end-to-end compatibility certification for every platform.
 
-### Manual clones, adoption, and network tuning
+Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped. The project dimension does not mount MCP servers, and project-native commands are not registered because the host command registry is process-scoped.
 
-Cloning from the UI times out on a restricted network? Clone the repository yourself into the checkout root (`~/.dsh/agent-plugins/.sources/<id>/`) — the market page lists it under **unregistered local checkouts** with a one-click **adopt** action that registers it in place (no re-clone, no deletion, ever). Adding a URL whose checkout already exists with a matching `origin` remote adopts it automatically instead of cloning a second copy.
-
-Git/archive acquisition is tunable through the host config:
-
-```yaml
-- id: dsh-agent-plugins-market
-  config:
-    git:
-      proxy: 'http://127.0.0.1:7890' # injected as git http/https proxy
-      insteadOf: { 'https://github.com/': 'https://mirror.example/https://github.com/' }
-      timeoutMs: 300000 # per git invocation (default 120000)
-      cloneRetry: true # one automatic retry (default)
-      fallbackTarball: false # retry a failed github.com clone as a codeload tarball download
-      allowHttpArchives: false # permit plain-http archive URLs (intranet mirrors)
-```
-
-## Comparison with other DSH ↔ Claude Code bridges
-
-| Capability | **dsh-agent-plugins-market** | [dsh-skills](https://github.com/CocoSgt/dsh-skills) | [@claude2dsh/plugin](https://www.npmjs.com/package/@claude2dsh/plugin) | [@deepseek-ai/dsh-hooks-claude-code](https://github.com/deepseek-ai/deepseek-harness) |
-| --- | --- | --- | --- | --- |
-| Source | **any git marketplace repo** (`.claude-plugin`, `.codex-plugin`, `.cursor-plugin`, `.kimi-plugin`, agent-plugins.org v1, manifest-less skills) | `~/.claude/skills` dirs, project dirs, `.skill` packages | Claude Code sessions + skills | a Claude Code `hooks.json` config |
-| Skills injection | ✅ + `/` slash menu | ✅ global skill library | ✅ | ❌ |
-| MCP servers | ✅ live `dsh-mcp-client` mounts | ❌ | — | ❌ |
-| Hooks | ✅ via `dsh-hooks-claude-code` bridge | ❌ | — | ✅ (direct) |
-| Slash commands / subagents | ✅ `commands/*.md`, `agents/*.md` | ❌ | — | ❌ |
-| Market UI | ✅ full market page in the Web GUI | ✅ settings page | — | ❌ |
-| Direction | CC / Codex / Cursor ecosystem → DSH | CC skills → DSH | CC ↔ DSH session sync | config → DSH |
-
-Want the opposite direction (dispatch work **from** Claude Code / Codex **to** DSH agents)? See [dsh-crew](https://github.com/ZSeven-W/dsh-crew).
+Review third-party suites before enabling them: enabled services and hooks can execute programs. See the [runtime and security details](docs/guides/usage.md#runtime-and-security).
 
 ## FAQ
 
-### How do I install Claude Code plugins in DeepSeek Harness (DSH)?
+**Why is an installed skill or tool missing?**
 
-Install this plugin in a dsh profile, then add any Claude Code marketplace repo as a source:
+Check that the suite and the relevant capability are enabled. Skills may restrict manual invocation. MCP / LSP panels show credential, dependency and mount failures; project-scoped MCP is not mounted.
 
-```sh
-dsh plugin --profile <name> add dsh-agent-plugins-market
-```
+**Where do I configure MCP tokens?**
 
-Then open **Settings → Agent Plugins Market** in the Web GUI, add the marketplace repo URL, and install suites with one click. Skills, MCP servers, hooks and slash commands are injected into your dsh sessions at runtime — no conversion, no file copying.
+Open the service in **MCP services**. Missing environment references show `needs-credentials`. Host-managed credentials are write-only; launch-environment credentials require changing the environment and restarting DSH.
 
-### Does DeepSeek Harness support `.claude-plugin/marketplace.json`?
+**What if a source download fails?**
 
-Yes — through this plugin. It reads `.claude-plugin/marketplace.json` + per-plugin `.claude-plugin/plugin.json` natively, plus `.codex-plugin`, `.cursor-plugin`, `.kimi-plugin`, `.plugin` (universal) and agent-plugins.org v1.0.0 `plugin.json` manifests (see the layout table above).
+Use a local directory, adopt a manual checkout, or configure a proxy / mirror. See [source configuration](docs/guides/usage.md#configure-marketplace-sources).
 
-### Can it inject MCP servers from a plugin suite?
+**When do local edits become visible?**
 
-Yes. Every valid `mcp.json` server of an enabled suite mounts a live `dsh-mcp-client` child, so MCP tools are callable by the DSH agent. `mcp.json` is validated strictly; `.mcp.json` is parsed leniently with placeholder support (`${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`, `${NAME:-default}`).
+There is no file watcher. Local-source discovery caches results for up to 30 seconds; refresh the source to invalidate them immediately. Project discovery has a separate five-second cache. A refresh does not happen automatically on an already-open page.
 
-### How do MCP servers that require an environment token work?
+**Does removing a source delete its files?**
 
-Declare the server's environment value as a reference, for example `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. Before starting the child, the market resolves that reference through DSH credentials. Open the suite detail view to configure a writable credential through the Host credentials service; the value is write-only and is never stored in the suite or override JSON. A read-only launch-environment credential must be changed before restarting DSH. Missing references block the child start and show `needs-credentials` instead of silently starting an unusable server.
+Only when you tick **also delete the managed market directory** in the confirmation. That removes the source's checkout under `~/.dsh/agent-plugins/.sources/<id>` — including one you cloned yourself and adopted. A local-directory source pointing outside `.sources/` is never deleted.
 
-### What about Claude Code hooks?
+## More documentation
 
-A suite's `hooks/hooks.json` is mounted through the official `@deepseek-ai/dsh-hooks-claude-code` bridge onto the harness interception points (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop). Only the mapped command-hook subset runs — see the bridge's README for the exact mapping.
+- [Usage guide](docs/guides/usage.md): installation, source configuration, storage, host requirements, MCP / LSP and feedback settings.
+- [Contributing](CONTRIBUTING.md): development setup, checks and PR workflow.
+- [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).
+- [Domain glossary](CONTEXT.md) · [Architecture](docs/adr/0001-catalog-centered-modular-refactor.md).
 
-### Do Claude Code-authored skills work verbatim?
-
-Yes. `${CLAUDE_PLUGIN_ROOT}` is substituted automatically at runtime, so Claude Code ecosystem skills run unchanged and appear in the `/` slash menu.
-
-### dsh-agent-plugins-market vs manually copying skill files?
-
-Manual copying breaks `${CLAUDE_PLUGIN_ROOT}` paths, skips MCP servers/hooks/commands, and gives you no update path. This plugin installs whole suites from git sources with per-plugin enable/disable/refresh, and injects every surface (skills, MCP, hooks, commands, subagents) automatically.
-
-### Is it safe to install third-party suites?
-
-The plugin never executes third-party code at install time: git sources clone through `execFile` (no shell), and third-party failures (broken manifests, invalid skills, escaping paths, unknown MCP transports, mount failures) are contained as per-plugin diagnostics. As with any third-party code, review a suite before enabling it.
-
-### Is it free and open source?
-
-Yes — MIT licensed, published on [npm](https://www.npmjs.com/package/dsh-agent-plugins-market), source on [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market).
-
-## Requirements
-
-- `ctx.skills` (dsh-skill) is required.
-- Optional peers: `@deepseek-ai/dsh-mcp-client` (MCP injection), `@deepseek-ai/dsh-hooks-claude-code` (hooks bridge); missing capabilities degrade gracefully.
-- The Host credentials service is optional: standard DSH profiles provide it for write-only token configuration and live remounts; without it, `${ENV_NAME}` falls back to the launch environment and requires a restart after changes.
-- Web GUI ≥ 0.1.0-rc.6.
-
-## Security model
-
-- Git sources clone through `git` via `execFile` (no shell), depth 1, shallow `fetch` + `reset` updates, configurable timeouts/proxy/mirrors with a low-speed guard; local sources are read in place and never deleted. Archive sources are HTTPS-only by default, capped at 256 MiB, extracted with path-traversal guards, and optionally pinned to a SHA-256 digest.
-- Mutating HTTP routes accept same-origin POSTs only; bodies capped at 64 KiB.
-- Portable paths must start with `./` and resolve inside the plugin root (symlink escapes rejected); `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` expand.
-- Third-party failures are always contained: broken manifests, invalid skills, escaping paths, unknown MCP transports, missing MCP credentials, and mount failures are per-plugin diagnostics.
-- MCP credential values are resolved in memory through the Host credentials service; status/detail projections redact sensitive fields and credential writes never persist literal values in suite state or overrides.
-- An error boundary wraps the whole market section and the detail modal: any preview render failure degrades to a notice instead of crashing the UI.
-
-## Known limitations
-
-- Project-dimension MCP servers are not mounted (dsh has no per-session tool scope); the project dimension covers skills and context.
-- Skill discovery has no file watcher: catalog changes apply after a manager action or a host restart (project-dimension snapshots are cached for 5 seconds on the skill-list hot path).
-- Claude Code hooks support the mapped bridge subset; LSP is counted and previewed but not executed.
-- Native project layouts (`.claude/`, `.agents/`) inject skills and subagents; their `commands/*.md` are not registered as slash commands because the harness command registry is process-scoped, not session-cwd-scoped.
-
-## Development
-
-```sh
-pnpm install
-pnpm run test        # vitest over fixture suites + multi-dialect parsing
-pnpm run typecheck
-pnpm run lint        # ESLint over the refactored source and tests
-pnpm run format:check
-pnpm run check:architecture
-pnpm run check:refactor
-pnpm run build       # tsc host + tsdown client + module-loader banner
-pnpm pack
-```
-
-The internal modularization decision and staged migration are documented in [`docs/design/engineering-refactor-plan.md`](docs/design/engineering-refactor-plan.md) and [`docs/adr/0001-catalog-centered-modular-refactor.md`](docs/adr/0001-catalog-centered-modular-refactor.md).
-
-The docs website lives in [`docs-site/`](docs-site/) (Astro, deployed to GitHub Pages).
-
-## Vendored assets
-
-The `schemas/1.0.0/` JSON Schemas are vendored from [agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec) (spec 1.0.0 working draft); the spec forbids fetching schemas at load time.
-
-## Related projects
-
-- [dsh-skills](https://github.com/CocoSgt/dsh-skills) — centralize `~/.claude/skills` and `.skill` packages into a global DSH skill library
-- [@claude2dsh/plugin](https://www.npmjs.com/package/@claude2dsh/plugin) — import Claude Code sessions & skills into DSH, sync sessions back
-- [dsh-crew](https://github.com/ZSeven-W/dsh-crew) — dispatch work from Claude Code / Codex to DSH agents
-- [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) — the DeepSeek Harness itself (official)
-- [awesome-deepseek-harness-plugins](https://github.com/imsai-sh/awesome-deepseek-harness-plugins) — community DSH plugin directory
-
----
-
-**If this plugin helps you, please give it a ⭐ on GitHub — it helps more people find the Claude Code ecosystem inside DeepSeek Harness.**
+See [agent roles and storage](docs/guides/agent-roles.md) for installed-resource editing, model routing and migration.

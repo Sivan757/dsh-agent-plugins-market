@@ -4,7 +4,7 @@ const markets = [
   {
     name: 'anthropics/claude-code (official ecosystem)',
     url: 'https://github.com/anthropics/claude-code',
-    note: 'Reference for the .claude-plugin/marketplace.json format. Thousands of community marketplaces follow it.',
+    note: 'Reference project for the Claude Code ecosystem; this list includes format references as well as suite repositories.',
   },
   {
     name: 'vercel/vercel-plugin',
@@ -18,10 +18,11 @@ const markets = [
   },
 ];
 const skills = [
-  'Skills from any Claude Code marketplace repo (SKILL.md) run verbatim — ${CLAUDE_PLUGIN_ROOT} is substituted automatically.',
-  'MCP servers declared in mcp.json / .mcp.json mount as live dsh-mcp-client children.',
+  'Supported skills enter the host skill catalog; root placeholders are substituted and invocation settings are respected.',
+  'Valid MCP declarations use the built-in bridge by default; optional host-client compatibility mode is available.',
   'hooks/hooks.json bridges to DSH interception points: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop.',
-  'commands/*.md become DSH slash commands; agents/*.md become agent-<name> skills.',
+  'Commands use the host slash registry. Agent instructions enter the skill catalog; role delegation needs host tools, LLM and subagents.',
+  'LSP declarations mount when host LSP packages are available; agent use also needs the LSP tool in the profile.',
 ];
 ---
 <Base
@@ -33,7 +34,7 @@ const skills = [
     Any git repository carrying one of the supported manifests can be added as a source. One repo may carry several dialects at once; the suite identity comes from the highest-precedence manifest while surfaces (skills / commands / agents / hooks / MCP) are scanned from the directories.
   </p>
 
-  <h2>Known marketplace repos</h2>
+  <h2>Repositories and format references</h2>
   {markets.map((m) => (
     <div class="card">
       <strong><a href={m.url}>{m.name}</a></strong>
@@ -41,6 +42,8 @@ const skills = [
     </div>
   ))}
   <p><em>This list is community-maintained — <a href="https://github.com/Sivan757/dsh-agent-plugins-market">open a PR</a> to add a marketplace you tested.</em></p>
+
+  <p>Layout support does not imply full compatibility with the original platform. Hooks support the mapped command-hook subset; project-scoped MCP and project-native slash commands are not mounted.</p>
 
   <h2>What gets injected</h2>
   <ul>
