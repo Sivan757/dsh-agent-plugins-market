@@ -13,4 +13,6 @@ The `SuiteManager` facade was deleted after its deletion condition was met — r
 
 ## Consequences
 
+Runtime user-suite queries select sources from enabled install state before discovery; market queries retain the full configured source inventory. Both use the same scanner and bounded discovery cache. Content invalidation clears all scan entries and increments a generation so older in-flight work cannot repopulate caches. Identical concurrent scans share one promise. This preserves Catalog ownership without making session initialization pay for uninstalled sources.
+
 New layout dialects belong in discovery/scanner code and fixtures; runtime mounts and client modules do not parse source formats. MCP, command, and hook mounts remain separate because their host APIs and failure semantics differ. Compatibility code requires tests and an explicit deletion condition; it is not a permanent second implementation.

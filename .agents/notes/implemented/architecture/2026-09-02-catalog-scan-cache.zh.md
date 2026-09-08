@@ -12,7 +12,7 @@ Status: implemented
 
 目录层的两层缓存，都有界，且都保留了真正需要新数据的变更路径：
 
-- **发现扫描缓存**（`Catalog.buildSnapshot`）：以 `[dimension, dimensionRoot, state.sources]` 指纹为键，TTL 30 秒，≤8 条。快照推导（约 2,650 套件的 installed/enabled/surfaces 映射）始终基于缓存发现重算——该映射约 25ms。仅状态类变更（`install`、`uninstall`、`setEnabled`、`setSurface`、`setMcpOverride`、`setLspServers`、`retryMounts`、`setMcpBackend`、`reauthorizeMcpServer`）经 `notifyChanged` 传入 `keepScanCache = true`，从缓存重推导。内容类变更（add / update / remove / adopt / refresh / acquire / `mergeSources` / `load`）置 `scanCacheDirty`，仅旁路下一次扫描；一次完成的新扫描会清除该标志（最初实现漏了这一步，缓存永不命中——靠测量发现，测试没抓到）。
+- **发现扫描缓存**（`Catalog.buildSnapshot`）：以 `[dimension, dimensionRoot, state.sources]` 指纹为键，TTL 30 秒，≤8 条。快照推导始终基于缓存发现重算。仅状态类变更经 `notifyChanged` 传入 `keepScanCache = true`，从缓存重推导。内容类变更清除全部条目并递增代次；旧扫描不能重新填充缓存。并发相同扫描共享同一个 promise。失效机制由[运行时按需发现](../performance/2026-09-07-runtime-selective-discovery.zh.md)部分替代；有界缓存与 frontmatter 复用决策继续生效。
 - **技能 frontmatter 解析缓存**（`surfaces.ts`）：`SKILL.md` 解析结论按路径为键、`mtimeMs`+`size` 为戳，上限 20 000 条，超限整体重置。TTL 到期后的重扫只需重新 stat 文件，跳过数千份 frontmatter 的重读重析；实测刷新后的重扫从约 1.1 秒降到约 0.44 秒。
 
 新鲜度契约：本地源仍然原地读取，但工作树改动在下一次缓存刷新时可见——任何源变更、刷新按钮，或 30 秒 TTL。TTL 为 0 的项目维度快照（`projectSnapshotTtlMs <= 0`，显式禁用缓存）完全旁路扫描缓存，保留其逐读观察语义（由 `tests/native-project.test.ts` 钉住）。

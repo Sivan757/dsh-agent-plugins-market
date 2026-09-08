@@ -118,12 +118,13 @@ export class Catalog {
    * discovery (cheap mapping) instead of re-walking every checkout — a full
    * rescan of a 2,500-suite catalog costs ~1s and UI mutations happen in
    * bursts. Content-changing mutations (add / update / remove / adopt /
-   * refresh / acquire) set {@link scanCacheDirty}, which bypasses the cache
-   * until the next scan; the TTL bounds staleness for in-place working-tree
+   * refresh / acquire) clear every cached discovery generation; the TTL
+   * bounds staleness for in-place working-tree
    * edits of local sources.
    */
   private readonly scanCache = new Map<string, { at: number; discovered: Suite[]; scanNotes: Record<string, string[]> }>()
-  private scanCacheDirty = true
+  private scanGeneration = 0
+  private readonly scanPromises = new Map<string, Promise<{ suites: Suite[]; scanNotes: Record<string, string[]> }>>()
   private static readonly SCAN_CACHE_TTL_MS = 30_000
   private static readonly SCAN_CACHE_MAX_ENTRIES = 8
   /**
@@ -338,11 +339,10 @@ export class Catalog {
     this.downloadRegionProvider = provider
   }
 
-  /** All persisted MCP overrides keyed by qualified suite id (mount-time provider). */
-  async allMcpOverrides(): Promise<Map<string, McpSuiteOverrides>> {
-    const snapshot = await this.readUserCatalog()
+  /** MCP overrides for a supplied runtime selection, or the full market catalog when omitted. */
+  async allMcpOverrides(suites?: readonly Suite[]): Promise<Map<string, McpSuiteOverrides>> {
     const map = new Map<string, McpSuiteOverrides>()
-    for (const suite of snapshot.suites) {
+    for (const suite of suites ?? (await this.readUserCatalog()).suites) {
       const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
       const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteKey)
       if (Object.keys(overrides).length > 0) map.set(suiteKey, overrides)
@@ -353,7 +353,7 @@ export class Catalog {
   /** Load persisted user state once at plugin activation. */
   async load(): Promise<void> {
     this.state = await loadState(this.statePath)
-    this.scanCacheDirty = true
+    this.invalidateScans()
     this.invalidateSnapshot(false)
   }
 
@@ -372,16 +372,22 @@ export class Catalog {
     // mirroring the project dimension's caching-disabled semantics.
     if (this.userSnapshotTtlMs <= 0) return this.buildSnapshot(this.state, 'user', this.options.userRoot)
     if (this.userSnapshot !== undefined && Date.now() < this.userSnapshotExpiresAt) return this.userSnapshot
-    this.userSnapshotPromise ??= this.buildSnapshot(this.state, 'user', this.options.userRoot)
+    if (this.userSnapshotPromise !== undefined) return this.userSnapshotPromise
+    const revision = this.revision
+    const generation = this.scanGeneration
+    const promise = this.buildSnapshot(this.state, 'user', this.options.userRoot)
       .then(snapshot => {
-        this.userSnapshot = snapshot
-        this.userSnapshotExpiresAt = Date.now() + this.userSnapshotTtlMs
+        if (revision === this.revision && generation === this.scanGeneration) {
+          this.userSnapshot = snapshot
+          this.userSnapshotExpiresAt = Date.now() + this.userSnapshotTtlMs
+        }
         return snapshot
       })
       .finally(() => {
-        this.userSnapshotPromise = undefined
+        if (this.userSnapshotPromise === promise) this.userSnapshotPromise = undefined
       })
-    return this.userSnapshotPromise
+    this.userSnapshotPromise = promise
+    return promise
   }
 
   /** Read one coherent project-dimension snapshot for a workspace cwd. */
@@ -392,13 +398,17 @@ export class Catalog {
     if (cached !== undefined && cached.expiresAt > Date.now()) return cached.snapshot
     const inFlight = this.projectSnapshotPromises.get(projectRoot)
     if (inFlight !== undefined) return inFlight
+    const revision = this.revision
+    const generation = this.scanGeneration
     const promise = this.buildProjectSnapshot(projectRoot)
       .then(snapshot => {
-        this.projectSnapshots.set(projectRoot, { snapshot, expiresAt: Date.now() + this.projectSnapshotTtlMs })
+        if (revision === this.revision && generation === this.scanGeneration) {
+          this.projectSnapshots.set(projectRoot, { snapshot, expiresAt: Date.now() + this.projectSnapshotTtlMs })
+        }
         return snapshot
       })
       .finally(() => {
-        this.projectSnapshotPromises.delete(projectRoot)
+        if (this.projectSnapshotPromises.get(projectRoot) === promise) this.projectSnapshotPromises.delete(projectRoot)
       })
     this.projectSnapshotPromises.set(projectRoot, promise)
     return promise
@@ -511,15 +521,22 @@ export class Catalog {
     }
   }
 
-  /** Enabled user-dimension suites from one user snapshot. */
+  /** Runtime discovery scans only sources containing an enabled install. No acquisition or network access. */
   async enabledUserSuites(): Promise<Suite[]> {
-    return (await this.readUserCatalog()).enabledSuites
+    const enabledSources = new Set(
+      Object.entries(this.state.installed)
+        .filter(([, entry]) => entry.enabled)
+        .map(([key]) => key.slice(0, key.indexOf('/')))
+    )
+    const sources = this.state.sources.filter(source => enabledSources.has(source.id))
+    if (sources.length === 0) return []
+    return (await this.buildSnapshot({ ...this.state, sources }, 'user', this.options.userRoot)).enabledSuites
   }
 
   /** Enabled user- and project-dimension suites for a workspace cwd. */
   async enabledSuitesForCwd(cwd: string): Promise<{ user: Suite[]; project: Suite[] }> {
-    const [user, project] = await Promise.all([this.readUserCatalog(), this.readProjectCatalog(cwd)])
-    return { user: user.enabledSuites, project: project.enabledSuites }
+    const [user, project] = await Promise.all([this.enabledUserSuites(), this.readProjectCatalog(cwd)])
+    return { user, project: project.enabledSuites }
   }
 
   /** All suites of one dimension. */
@@ -920,7 +937,7 @@ export class Catalog {
     await saveState(this.statePath, this.state)
     // New sources change the fingerprint, but their content arrives through
     // an acquire, so mark the scan cache dirty conservatively.
-    this.scanCacheDirty = true
+    this.invalidateScans()
     this.invalidateSnapshot(true)
   }
 
@@ -982,21 +999,32 @@ export class Catalog {
     // The user snapshot's TTL also bounds scan reuse: a snapshot rebuild that
     // replays a 30s scan cache would silently outlive its own staleness bound.
     const scanCacheTtl = dimension === 'user' ? Math.min(this.userSnapshotTtlMs, Catalog.SCAN_CACHE_TTL_MS) : Catalog.SCAN_CACHE_TTL_MS
-    const cacheFresh = !skipScanCache && !this.scanCacheDirty && cached !== undefined && Date.now() - cached.at < scanCacheTtl
+    const cacheFresh = !skipScanCache && cached !== undefined && Date.now() - cached.at < scanCacheTtl
     let discovered: Suite[]
     let scanNotes: Record<string, string[]>
     if (cacheFresh && cached !== undefined) {
       discovered = cached.discovered
       scanNotes = cached.scanNotes
     } else {
-      const result = await discoverSourceListWithNotes(state.sources, dimension, dimensionRoot)
+      const generation = this.scanGeneration
+      let pending = this.scanPromises.get(fingerprint)
+      if (pending === undefined) {
+        pending = discoverSourceListWithNotes(state.sources, dimension, dimensionRoot)
+        this.scanPromises.set(fingerprint, pending)
+      }
+      let result: Awaited<typeof pending>
+      try {
+        result = await pending
+      } finally {
+        if (this.scanPromises.get(fingerprint) === pending) this.scanPromises.delete(fingerprint)
+      }
       discovered = result.suites
       scanNotes = result.scanNotes
-      // The fresh scan satisfies the invalidation: content mutations mark the
-      // cache dirty, and the next scan (this one) makes it clean again.
-      this.scanCacheDirty = false
-      if (this.scanCache.size >= Catalog.SCAN_CACHE_MAX_ENTRIES) this.scanCache.clear()
-      this.scanCache.set(fingerprint, { at: Date.now(), discovered, scanNotes })
+      // A scan started before a content mutation must not repopulate its cache.
+      if (generation === this.scanGeneration) {
+        if (this.scanCache.size >= Catalog.SCAN_CACHE_MAX_ENTRIES) this.scanCache.clear()
+        this.scanCache.set(fingerprint, { at: Date.now(), discovered, scanNotes })
+      }
     }
     const suites = discovered.map(suite => {
       const installed = state.installed[installKey(suite.sourceId, suite.id)]
@@ -1026,6 +1054,13 @@ export class Catalog {
     this.userSnapshotExpiresAt = 0
     this.userSnapshotPromise = undefined
     this.projectSnapshots.clear()
+    this.projectSnapshotPromises.clear()
+  }
+
+  private invalidateScans(): void {
+    this.scanGeneration++
+    this.scanCache.clear()
+    this.scanPromises.clear()
   }
 
   /**
@@ -1035,7 +1070,7 @@ export class Catalog {
    * re-derives from cached discovery instead of rescanning the filesystem.
    */
   private async notifyChanged(keepScanCache = false): Promise<void> {
-    if (!keepScanCache) this.scanCacheDirty = true
+    if (!keepScanCache) this.invalidateScans()
     this.invalidateSnapshot(true)
     await this.options.onChanged()
     for (const listener of this.listeners) listener()
