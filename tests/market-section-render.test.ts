@@ -162,4 +162,24 @@ describe('MarketSection rendering', () => {
     expect(bodyText).toContain('installConfirmLocalTree')
     expect(bodyText).not.toContain('f0e9fdf066c1')
   })
+
+  it('renders an adopted source like any other chip, without an adoption badge', async () => {
+    const payload = {
+      ...overviewPayload,
+      sources: [
+        { ...overviewPayload.sources[0]!, adopted: true },
+        { ...overviewPayload.sources[0]!, id: 'second', url: 'https://example.com/second.git', suiteIds: [] }
+      ]
+    }
+    const resource = await import('../src/client/features/market/market-resource.js')
+    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    const el = await mountSection()
+    const text = el.textContent ?? ''
+    // jsdom reports no content height, so the strip never folds and every chip renders.
+    expect(text).toContain('demo')
+    expect(text).toContain('second')
+    expect(text).not.toContain('sourceFoldExpand')
+    // The translate stub echoes keys, so a rendered badge would surface as `sourceAdopted`.
+    expect(text).not.toContain('sourceAdopted')
+  })
 })

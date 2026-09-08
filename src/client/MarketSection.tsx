@@ -11,7 +11,7 @@ import { Button, Modal, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from './api.js'
 import { loadOverview, invalidateOverview, startSourceProgressPolling, type SourceProgressState } from './features/market/market-resource.js'
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from './features/market/market-view-model.js'
-import { SourceTab } from './features/market/SourceTab.js'
+import { SourceTabsRow, type SourceTabItem } from './features/market/SourceTabsRow.js'
 import { SourceEditorModal, type EditorState } from './features/market/SourceEditorModal.js'
 import { interpolate } from './ui/interpolate.js'
 import { InstallConfirmModal, type InstallConfirmState } from './features/market/InstallConfirmModal.js'
@@ -134,6 +134,31 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
 
   const selectedSource = category === 'all' ? undefined : overview.sources.find(source => source.id === category)
 
+  // Chips in display order: `全部` first, the selected source pinned second so
+  // the strip can collapse the rest without hiding the current scope, then the
+  // remaining sources by id. Kind badges are limited to `本地`/`压缩包`; an
+  // adopted checkout is an implementation detail, not a user-facing state.
+  const sourceItems = useMemo<SourceTabItem[]>(() => {
+    const sorted = [...overview.sources].sort((a, b) => a.id.localeCompare(b.id))
+    const ordered =
+      selectedSource === undefined ? sorted : [selectedSource, ...sorted.filter(source => source.id !== selectedSource.id)]
+    return [
+      { id: 'all', label: `${t('tabAll')} ${overview.totals.all}` },
+      ...ordered.map(source => {
+        const notes = source.scanNotes ?? []
+        const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
+        const kindBadge = source.local === true ? t('sourceLocal') : source.kind === 'archive' ? t('sourceArchive') : undefined
+        return {
+          id: source.id,
+          label: `${source.id}${kindBadge === undefined ? '' : ` · ${kindBadge}`} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
+          ...(noteHint === undefined ? {} : { title: noteHint }),
+          editable: selectedSource?.id === source.id,
+          deletable: true
+        }
+      })
+    ]
+  }, [overview.sources, overview.totals.all, selectedSource, t])
+
   const adoptSource = useCallback(
     async (id: string) => {
       await action(`s:adopt:${id}`, 'sources/adopt', { id })
@@ -176,38 +201,17 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
         h(
           'div',
           { className: css.marketControls },
-          h(
-            'div',
-            { className: css.sourceTabsRow },
-            h(
-              'div',
-              { className: css.sourceTabsScroll },
-              h(SourceTab, {
-                key: '__all__',
-                t,
-                active: category === 'all',
-                label: `${t('tabAll')} ${overview.totals.all}`,
-                onSelect: () => setCategory('all')
-              }),
-              ...[...overview.sources]
-                .sort((a, b) => a.id.localeCompare(b.id))
-                .map(source => {
-                  const notes = source.scanNotes ?? []
-                  const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
-                  const kindBadge = source.local === true ? t('sourceLocal') : source.kind === 'archive' ? t('sourceArchive') : source.adopted === true ? t('sourceAdopted') : undefined
-                  return h(SourceTab, {
-                    key: source.id,
-                    t,
-                    active: category === source.id,
-                    label: `${source.id}${kindBadge === undefined ? '' : ` · ${kindBadge}`} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
-                    title: noteHint,
-                    onSelect: () => setCategory(source.id),
-                    onDelete: () => setConfirm({ kind: 'removeSource', sourceId: source.id, deleteCheckout: true }),
-                    onEdit: selectedSource?.id === source.id ? () => setEditor({ mode: 'edit', source: source }) : undefined
-                  })
-                })
-            )
-          ),
+          h(SourceTabsRow, {
+            t,
+            items: sourceItems,
+            activeId: category,
+            onSelect: setCategory,
+            onDelete: id => setConfirm({ kind: 'removeSource', sourceId: id, deleteCheckout: true }),
+            onEdit: id => {
+              const source = overview.sources.find(entry => entry.id === id)
+              if (source !== undefined) setEditor({ mode: 'edit', source })
+            }
+          }),
           unmanaged.length === 0
             ? null
             : h(
