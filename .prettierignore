@@ -10,3 +10,4 @@ CHANGELOG.md
 .release-please-manifest.json
 # untracked tool state
 .mnemon/
+.playwright-cli/
