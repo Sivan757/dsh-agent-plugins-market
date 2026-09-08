@@ -8,11 +8,13 @@
  */
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { MARKET_ROUTES } from './contracts/market.js'
+import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from './contracts/market.js'
 import { expandHome } from './catalog/paths.js'
 import { sanitizeOverridePatch } from './runtime/mcp-overrides.js'
 import type { MarketService } from './application/queries.js'
 import type { SuiteSurfaceKey } from './model/types.js'
+import type { PanelResourceStore } from './application/panel-resources.js'
+import { readModelCatalog } from './runtime/model-catalog.js'
 
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -22,10 +24,15 @@ export interface WebServerService {
 
 interface RouteHost {
   webServer: WebServerService
+  get?(name: string): unknown
 }
 
 /** Mount every route; returns the disposer releasing them all. */
-export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () => void {
+export function mountSuiteRoutes(
+  hostCtx: unknown,
+  manager: MarketService,
+  panels?: { skills: PanelResourceStore; commands: PanelResourceStore; agents: PanelResourceStore }
+): () => void {
   const host = hostCtx as RouteHost
   const disposers: Array<() => void> = []
   const get = (path: string, handler: RouteHandler) => {
@@ -48,7 +55,7 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
               return
             }
             try {
-              const value = await handler(body as Record<string, unknown>)
+              const value = await handler(body as Record<string, unknown>, request)
               sendJson(response, 200, { ok: true, ...value })
             } catch (error) {
               sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
@@ -61,6 +68,14 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
 
   get(MARKET_ROUTES.overview, async (_request, response) => {
     sendJson(response, 200, await manager.overview())
+  })
+
+  get(MARKET_ROUTES.modelCatalog, async (request, response) => {
+    try {
+      sendJson(response, 200, await readModelCatalog(host, queryOf(request).get('provider') || undefined))
+    } catch (error) {
+      sendJson(response, 503, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
   })
 
   get(MARKET_ROUTES.mcpStatus, async (_request, response) => {
@@ -170,7 +185,7 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
   post(MARKET_ROUTES.removeSource, async body => {
     const id = body['id']
     if (typeof id !== 'string' || id === '') throw new Error('missing source id')
-    await manager.removeSource(id)
+    await manager.removeSource(id, body['deleteCheckout'] === true)
     return {}
   })
 
@@ -266,11 +281,65 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
   })
 
   // Validate and persist the user's direct LSP server table; the reconcile
-  // pass picks it up and mounts it alongside the suite declarations.
-  post(MARKET_ROUTES.lspServers, async body => {
+  // pass picks it up and mounts it alongside the suite declarations. The
+  // mutation path is distinct from the read path: the webserver's exact table
+  // is keyed by pathname only, so a same-path GET/POST pair cannot coexist.
+  post(`${MARKET_ROUTES.lspServers}/save`, async body => {
     const servers = await manager.setLspServers(body['lspServers'])
     return { lspServers: servers }
   })
+
+  // User panel CRUD (skills / commands / agent personas). The host web
+  // server matches exact pathnames, so the entry name rides the `name` query
+  // parameter (GET read, POST replace, POST .../delete remove). The routes
+  // only parse and delegate; the stores own validation and persistence, and
+  // each mutation notifies the change pipeline so skills/commands remount.
+  if (panels !== undefined) {
+    const kinds: ReadonlyArray<UserPanelKind> = ['skills', 'commands', 'agents']
+    const storeOf = (kind: UserPanelKind): PanelResourceStore => panels[kind]
+
+    for (const kind of kinds) {
+      get(userPanelRoute(kind), async (_request, response) => {
+        sendJson(response, 200, { entries: await storeOf(kind).list() })
+      })
+
+      get(`${userPanelRoute(kind)}/entry`, async (request, response) => {
+        const name = queryOf(request).get('name') ?? ''
+        const entry = await storeOf(kind).get(name)
+        if (entry === undefined) {
+          sendJson(response, 404, { ok: false, error: `no entry named "${name}"` })
+          return
+        }
+        sendJson(response, 200, { entry })
+      })
+
+      post(`${userPanelRoute(kind)}/create`, async body => {
+        const name = String(body['name'] ?? '').trim()
+        const text = String(body['text'] ?? '')
+        if (name === '') throw new Error('missing entry name')
+        const entry = await storeOf(kind).create(name, text)
+        await manager.notifyPanelsChanged()
+        return { entry }
+      })
+
+      post(`${userPanelRoute(kind)}/update`, async (body, request) => {
+        const name = queryOf(request).get('name') ?? ''
+        const text = String(body['text'] ?? '')
+        if (name === '') throw new Error('missing entry name')
+        await storeOf(kind).update(name, text)
+        await manager.notifyPanelsChanged()
+        return {}
+      })
+
+      post(`${userPanelRoute(kind)}/delete`, async body => {
+        const name = String(body['name'] ?? '')
+        if (name === '') throw new Error('missing entry name')
+        await storeOf(kind).remove(name)
+        await manager.notifyPanelsChanged()
+        return {}
+      })
+    }
+  }
 
   return () => {
     for (const dispose of disposers) dispose()
@@ -278,7 +347,7 @@ export function mountSuiteRoutes(hostCtx: unknown, manager: MarketService): () =
 }
 
 type RouteHandler = (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
-type JsonAction = (body: Record<string, unknown>) => Promise<Record<string, unknown>>
+type JsonAction = (body: Record<string, unknown>, request: IncomingMessage) => Promise<Record<string, unknown>>
 
 function parseTarget(body: Record<string, unknown>): { sourceId: string; suiteId: string } {
   const sourceId = body['sourceId']

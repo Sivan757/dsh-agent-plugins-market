@@ -777,8 +777,16 @@ export class Catalog {
     })
   }
 
-  /** Remove a source, its install entries, and its managed checkout. */
-  async removeSource(sourceId: string): Promise<void> {
+  /**
+   * Remove a source and its install entries. `deleteCheckout` (the UI's
+   * "also delete the managed market directory" option) physically removes the
+   * `.sources/<id>` checkout — including an adopted one, since a directory
+   * under `.sources` is manager-owned storage. A `local` source whose URL
+   * points outside `.sources` is registration-only: its directory is never
+   * touched. Deleting the checkout is what keeps a removed source from
+   * reappearing as an unmanaged entry.
+   */
+  async removeSource(sourceId: string, deleteCheckout = false): Promise<void> {
     return this.enqueue(async () => {
       const source = this.state.sources.find(entry => entry.id === sourceId)
       this.state = {
@@ -788,10 +796,11 @@ export class Catalog {
       }
       await saveState(this.statePath, this.state)
       this.headCache.delete(sourceId)
-      // Adopted checkouts (manual clones) and local paths are user-owned
-      // directories; only self-acquired checkouts are deleted.
-      const userOwned = source !== undefined && (source.local === true || source.adopted === true)
-      if (!userOwned) await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
+      // A checkout under `.sources` is manager-owned even when it was first
+      // discovered/adopted. Only an explicit local path points outside the
+      // manager's storage and must remain untouched.
+      const externalLocal = source?.local === true && source.url !== sourceCheckoutDir(this.options.userRoot, sourceId)
+      if (!externalLocal && deleteCheckout) await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
       await this.notifyChanged()
     })
   }
@@ -939,6 +948,16 @@ export class Catalog {
     // an acquire, so mark the scan cache dirty conservatively.
     this.invalidateScans()
     this.invalidateSnapshot(true)
+  }
+
+  /**
+   * Panel changed hook: the HTTP layer notifies after a user-panel mutation
+   * (skills / commands / agent personas). Catalog state is untouched — this
+   * only runs the change pipeline so the runtime remounts commands and the
+   * skill providers re-read their catalogs.
+   */
+  async notifyPanelsChanged(): Promise<void> {
+    await this.notifyChanged()
   }
 
   private async setInstalled(sourceId: string, suiteId: string, entry: InstalledEntry): Promise<void> {

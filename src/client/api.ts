@@ -1,5 +1,6 @@
 /** Typed fetch helpers over the host's `/api/agent-plugins/*` routes. */
-import { MARKET_API_PREFIX, MARKET_ROUTES, skillRoute, suiteRoute } from '../contracts/market.js'
+import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
+import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
 import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
@@ -18,7 +19,9 @@ export type {
   SuiteDetail,
   SuiteOverviewCard,
   SuiteSkillMeta,
-  SuiteSurfaceCounts
+  SuiteSurfaceCounts,
+  UserPanelEntryWire,
+  UserPanelKind
 } from '../contracts/market.js'
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../contracts/mcp-status.js'
 export type { LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
@@ -28,6 +31,14 @@ export type { LspServerSpec } from '../model/types.js'
 export type OverviewData = OverviewPayload
 /** Client-facing alias retained during migration from the original transport types. */
 export type SuiteCardData = SuiteOverviewCard
+
+/** Load providers, or models of a selected provider, from DSH's live LLM service. */
+export async function fetchModelCatalog(provider?: string, signal?: AbortSignal): Promise<import('../contracts/market.js').ModelCatalogPayload> {
+  const query = provider === undefined ? '' : `?${new URLSearchParams({ provider })}`
+  const response = await fetch(`${MARKET_ROUTES.modelCatalog}${query}`, { credentials: 'same-origin', signal })
+  if (!response.ok) throw new Error(`DSH model directory failed: ${response.status}`)
+  return response.json() as Promise<import('../contracts/market.js').ModelCatalogPayload>
+}
 
 export async function fetchOverview(): Promise<OverviewData> {
   const response = await fetch(MARKET_ROUTES.overview, { credentials: 'same-origin' })
@@ -69,7 +80,7 @@ export async function fetchLspServers(): Promise<Record<string, LspServerSpec>> 
 
 /** Validate and persist the user's direct LSP server table. */
 export async function saveLspServers(lspServers: unknown): Promise<Record<string, LspServerSpec>> {
-  const response = await fetch(MARKET_ROUTES.lspServers, {
+  const response = await fetch(`${MARKET_ROUTES.lspServers}/save`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
@@ -121,4 +132,54 @@ export async function postAction(path: string, body: Record<string, unknown>): P
     throw new Error(payload.error ?? `request failed: ${response.status}`)
   }
   return payload
+}
+
+/* ---- User panel CRUD (skills / commands / agent personas) -------------- */
+
+/** One user panel entry, client-facing alias of the wire shape. */
+export type UserPanelEntry = UserPanelEntryWire
+
+/** List one panel's entries. */
+export async function fetchUserPanel(kind: UserPanelKind): Promise<UserPanelEntry[]> {
+  const response = await fetch(userPanelRoute(kind), { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`user panel failed: ${response.status}`)
+  const body = (await response.json()) as { entries?: UserPanelEntry[] }
+  return body.entries ?? []
+}
+
+/** Create one panel entry. */
+export async function createUserPanelEntry(kind: UserPanelKind, name: string, text: string): Promise<UserPanelEntry> {
+  const response = await fetch(userPanelMutationRoute(kind, 'create'), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, text })
+  })
+  const payload = (await response.json()) as { ok?: boolean; error?: string; entry?: UserPanelEntry }
+  if (!response.ok || payload.ok !== true || payload.entry === undefined) throw new Error(payload.error ?? `create failed: ${response.status}`)
+  return payload.entry
+}
+
+/** Replace one panel entry's file content. */
+export async function updateUserPanelEntry(kind: UserPanelKind, name: string, text: string): Promise<void> {
+  const response = await fetch(userPanelMutationRoute(kind, 'update', name), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text })
+  })
+  const payload = (await response.json()) as { ok?: boolean; error?: string }
+  if (!response.ok || payload.ok !== true) throw new Error(payload.error ?? `save failed: ${response.status}`)
+}
+
+/** Delete one panel entry. */
+export async function deleteUserPanelEntry(kind: UserPanelKind, name: string): Promise<void> {
+  const response = await fetch(userPanelMutationRoute(kind, 'delete'), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name })
+  })
+  const payload = (await response.json()) as { ok?: boolean; error?: string }
+  if (!response.ok || payload.ok !== true) throw new Error(payload.error ?? `delete failed: ${response.status}`)
 }

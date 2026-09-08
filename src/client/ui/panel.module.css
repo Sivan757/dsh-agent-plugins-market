@@ -1,0 +1,442 @@
+/**
+ * Shared panel building-block styles (PanelShell, BusyIndicator, badges,
+ * editors). Colors ride the dsh --dsw-alias-* tokens exclusively so dark
+ * mode follows the active theme with no per-rule branches.
+ */
+
+/* ---- PanelShell ------------------------------------------------------- */
+
+.shell {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  container-type: inline-size;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+}
+
+.headerText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.headerActions {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+
+/* The scroll region: every panel scrolls inside its own body, never the
+   full settings column, so switching tabs cannot shift the layout. */
+.body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/* ---- BusyIndicator ---------------------------------------------------- */
+
+.busyLine {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  font-size: 12px;
+}
+
+.busyOverlay {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  background: var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253));
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
+}
+
+.busyLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spinner {
+  display: inline-flex;
+  flex: none;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  font-size: 13px;
+}
+
+.busyOverlay .spinner {
+  color: var(--dsw-alias-label-primary, #4966f5);
+}
+
+.spinning {
+  animation: panel-spin 0.9s linear infinite;
+}
+
+@keyframes panel-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation-duration: 2.4s;
+  }
+}
+
+/* ---- SourceBadge ------------------------------------------------------ */
+
+.badgePlugin,
+.badgeUser {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.badgePlugin {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.badgeUser {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* ---- EntryEditorModal / ConfirmModal ---------------------------------- */
+
+.editorDialog {
+  max-width: 720px;
+}
+
+.editorBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editorForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.editorNameRow {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.editorName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.editorPath {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary, #6b7280);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editorHint {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #6b7280);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.editorArea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  resize: vertical;
+}
+
+.editorFooter {
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.editorError {
+  margin-right: auto;
+  color: var(--dsw-alias-state-error-primary, rgb(200, 30, 30));
+  font-size: 12px;
+}
+
+.confirmCheck {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
+}
+
+/* ---- Shared rows / cards for list panels ------------------------------ */
+
+.entryList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entryRow {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+}
+
+.entryRowDisabled {
+  opacity: 0.72;
+}
+
+.entryMain {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entryHead {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.entryName {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryDesc {
+  margin: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  font-size: 12px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.entryPath {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary, #6b7280);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryActions {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  gap: 2px;
+  align-items: center;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.iconBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.iconBtn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.iconBtnDanger:hover {
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
+  color: var(--dsw-alias-state-error-primary, rgb(200, 30, 30));
+}
+
+.empty {
+  padding: 24px 12px;
+  color: var(--dsw-alias-label-tertiary, #6b7280);
+  font-size: 12px;
+  text-align: center;
+}
+
+.entryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 12px;
+}
+
+.entryGrid .entryRow {
+  flex-direction: column;
+}
+
+.entryGrid .entryActions {
+  align-self: flex-end;
+  margin-top: auto;
+}
+
+.iconBtn:focus-visible,
+.entryName:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+@container (max-width: 540px) {
+  .entryRow { flex-wrap: wrap; }
+  .entryActions { margin-left: auto; }
+  .entryMain { flex-basis: 100%; }
+}
+
+.entryName {
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.entryName:hover {
+  text-decoration: underline;
+}
+
+.entryHead {
+  flex-wrap: wrap;
+}
+
+.roleFields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+}
+
+.roleFields legend {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.roleFields .editorHint,
+.roleFields .editorLabel:last-of-type {
+  grid-column: 1 / -1;
+}
+
+.editorLabel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.editorInput {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+@media (max-width: 480px) {
+  .roleFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

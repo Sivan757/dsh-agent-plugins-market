@@ -297,6 +297,44 @@ describe('adopting manually cloned checkouts', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it('removeSource with deleteCheckout physically removes managed checkouts but never external local paths', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-remove-delete-'))
+    // Adopted checkout: registered in place, user-owned files.
+    const adoptedDir = await makeManualCheckout(root, 'adopted', 'https://github.com/example/adopted.git')
+    // Plain local directory source.
+    const localDir = join(root, '.sources', 'localdir')
+    await mkdir(localDir, { recursive: true })
+    // Self-acquired checkout: registered through addSource without adoption
+    // (a plain directory registered as a non-local source stands in for the
+    // clone the plugin itself made).
+    const acquiredDir = join(root, '.sources', 'acquired')
+    await mkdir(acquiredDir, { recursive: true })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    await catalog.load()
+    await catalog.adoptSource('adopted')
+    await catalog.adoptSource('localdir')
+    // Seed the self-acquired source through state.json (the state field is
+    // plugin-private): a plain directory registered as a non-local git source
+    // stands in for the clone the plugin itself made.
+    const statePath = join(root, 'state.json')
+    const state = JSON.parse(await readFile(statePath, 'utf8')) as { sources: Array<Record<string, unknown>> }
+    state.sources.push({ id: 'acquired', url: 'https://github.com/example/acquired.git', kind: 'git' })
+    await writeFile(statePath, JSON.stringify(state))
+    const reloaded = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    await reloaded.load()
+
+    await reloaded.removeSource('acquired', true)
+    await expect(stat(acquiredDir)).rejects.toThrow()
+    // Managed `.sources` directories are removable even when they were
+    // adopted; only an external local directory survives.
+    await reloaded.removeSource('adopted', true)
+    await reloaded.removeSource('localdir', true)
+    await expect(stat(adoptedDir)).rejects.toThrow()
+    await expect(stat(localDir)).rejects.toThrow()
+    expect(reloaded.sources).toEqual([])
+    await rm(root, { recursive: true, force: true })
+  })
+
   it('rejects adopting an unknown or already registered checkout', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-reject-'))
     const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })

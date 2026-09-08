@@ -23,7 +23,11 @@ export interface MarketQueries {
 export interface MarketMutations {
   addSource(input: { url: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<SourceRef>
   updateSource(sourceId: string, patch: { url?: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<void>
-  removeSource(sourceId: string): Promise<void>
+  /**
+   * Remove a source registration; `deleteCheckout` also physically deletes
+   * its managed `.sources/<id>` checkout. External local paths are never deleted.
+   */
+  removeSource(sourceId: string, deleteCheckout?: boolean): Promise<void>
   /** Register an unmanaged `.sources/` checkout in place (manual-clone repair). */
   adoptSource(id: string): Promise<SourceRef>
   refreshSource(sourceId?: string): Promise<void>
@@ -46,6 +50,12 @@ export interface MarketMutations {
   }>
   /** Switch the MCP mount backend and remount every suite server through it. */
   setMcpBackend(backend: McpBackend): Promise<void>
+  /**
+   * Panel change hook: the HTTP layer notifies after a user-panel mutation
+   * (skills / commands / agent personas) so the runtime remounts commands
+   * and the skill providers re-read their catalogs.
+   */
+  notifyPanelsChanged(): Promise<void>
 }
 
 /** Complete application surface required by the HTTP routes. */

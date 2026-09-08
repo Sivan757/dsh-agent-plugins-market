@@ -9,9 +9,7 @@ import { createElement as h } from 'react'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
-import { MarketSection } from './MarketSection.js'
-import { McpStatusPanel } from './McpStatusPanel.js'
-import { LspStatusPanel } from './LspStatusPanel.js'
+import { PluginWorkspace } from './PluginWorkspace.js'
 import { McpPluginCard } from './McpPluginCard.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './page-mode.js'
@@ -36,7 +34,7 @@ interface SlotsService {
 /** The subset of the host settings-scope service this plugin touches. */
 interface SettingsScopeService {
   bind(options: { namespace: string }): {
-    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string }; writable: boolean }
+    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean }; writable: boolean }
     subscribe(listener: () => void): () => void
     set(field: string, value: unknown): Promise<void>
   }
@@ -114,7 +112,9 @@ export function apply(ctx: SuiteClientContext): void {
             const value = scope.getSnapshot().value?.downloadRegion
             return value === 'global' || value === 'china' ? value : 'auto'
           },
-          setRegion: next => scope.set('downloadRegion', next)
+          setRegion: next => scope.set('downloadRegion', next),
+          feedbackEnabled: () => scope.getSnapshot().value?.feedbackEnabled !== false,
+          setFeedbackEnabled: next => scope.set('feedbackEnabled', next)
         },
         probe: () => fetchMcpBackend(),
       })),
@@ -124,40 +124,24 @@ export function apply(ctx: SuiteClientContext): void {
   ctx.slots.inject('settings.section', () => {
     settingsSurfaceAvailable = true
     notifyPageModeSurfaceChange()
-    const marketDispose = ctx.slots.register({
+    // One section, six top tabs (market / skills / commands / personas /
+    // MCP / LSP) — the PluginWorkspace owns the tab row and per-tab scroll.
+    const workspaceDispose = ctx.slots.register({
       name: 'settings.section',
-      id: 'agent-plugin',
+      id: 'agent-plugin-workspace',
       order: 45,
       label: () => t('nav'),
       locale: NS,
       inject: () => ({ t }),
-    }, () => h(MarketSection, {
+    }, () => h(PluginWorkspace, {
       t,
       credentials,
       mode: 'settings',
     }))
-    const mcpDispose = ctx.slots.register({
-      name: 'settings.section',
-      id: 'mcp-status',
-      order: 46,
-      label: () => t('mcpStatusNav'),
-      locale: NS,
-      inject: () => ({ t }),
-    }, () => h(McpStatusPanel, { t, credentials }))
-    const lspDispose = ctx.slots.register({
-      name: 'settings.section',
-      id: 'lsp-status',
-      order: 47,
-      label: () => t('lspStatusNav'),
-      locale: NS,
-      inject: () => ({ t }),
-    }, () => h(LspStatusPanel, { t }))
     return () => {
       settingsSurfaceAvailable = false
       notifyPageModeSurfaceChange()
-      if (typeof mcpDispose === 'function') mcpDispose()
-      if (typeof lspDispose === 'function') lspDispose()
-      if (typeof marketDispose === 'function') marketDispose()
+      if (typeof workspaceDispose === 'function') workspaceDispose()
     }
   })
 }

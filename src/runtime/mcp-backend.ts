@@ -27,12 +27,14 @@ export const MCP_BACKENDS: readonly McpBackend[] = ['builtin', 'host']
 /** Settings namespace this plugin registers; the key the plugin-config tab pairs our card by. */
 export const MCP_SETTINGS_NAMESPACE = 'dsh-agent-plugins-market'
 
-/** Schema of the market settings namespace: the MCP enhancement switch and the download region. */
+/** Schema of the market settings namespace: the MCP enhancement switch, the download region, and the feedback tool switch. */
 export const MarketSettingsSchema = z.object({
   /** ON (default) = the built-in bridge with OAuth and SSE; OFF = host client compat mode. */
   mcpEnhanced: z.boolean().default(true),
   /** Download region for GitHub acquisition; `auto` follows the interface language. */
-  downloadRegion: z.union([z.const('auto'), z.const('global'), z.const('china')]).default('auto')
+  downloadRegion: z.union([z.const('auto'), z.const('global'), z.const('china')]).default('auto'),
+  /** ON (default) = the `report_market_issue` model tool is registered; OFF = unregistered. */
+  feedbackEnabled: z.boolean().default(true)
 })
 
 /** Path of the legacy persisted settings file under the plugin data root. */

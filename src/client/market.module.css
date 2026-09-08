@@ -8,6 +8,8 @@
 .market {
   display: flex;
   min-width: 0;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 24px;
   color: var(--dsw-alias-label-primary, #1f2328);
@@ -352,8 +354,11 @@
 
 /* --- card grid ----------------------------------------------------------------- */
 
-/* Lists scroll only in page mode (fixed shell); in settings mode the host
-   `.options` container is the single scroller. */
+/* Both host surfaces scroll inside the market's own list region: page mode is
+   a fixed shell and settings mode stretches the workspace to the section, so
+   the host `.options` container no longer scrolls the market. In-panel
+   scrolling with a stable gutter also removes the layout jitter when a tab
+   switch changes the scrollbar's visibility. */
 .grid {
   flex: 1;
   min-height: 0;
@@ -362,9 +367,6 @@
   gap: 12px;
   min-width: 0;
   align-content: start;
-}
-
-.pageMode .grid {
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-right: 4px;
@@ -377,9 +379,6 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-}
-
-.pageMode .list {
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-right: 4px;
@@ -652,6 +651,17 @@
   justify-content: flex-end;
   gap: 8px;
   width: 100%;
+}
+
+/* The remove-source "also delete local files" checkbox row (matches
+   ui/panel.module.css .confirmCheck). */
+.confirmCheck {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
 }
 
 .modalFooterLeft {

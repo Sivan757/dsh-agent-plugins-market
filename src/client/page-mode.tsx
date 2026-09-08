@@ -9,7 +9,7 @@
  */
 import { createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MarketSection } from './MarketSection.js'
+import { PluginWorkspace } from './PluginWorkspace.js'
 import { shouldUseLegacyPageMode } from './page-mode-selection.js'
 import type { Translate } from './index.js'
 import type { CredentialApi } from './credentials.js'
@@ -62,6 +62,13 @@ export function mountLegacyPageMode(options: LegacyPageModeOptions): () => void 
   let entryLabel: HTMLSpanElement | undefined
   let observer: MutationObserver | undefined
 
+  const unmountView = (): void => {
+    root?.unmount()
+    root = undefined
+    container?.remove()
+    container = undefined
+  }
+
   const setActive = (next: boolean): void => {
     open = next
     if (open && !options.isSettingsSurfaceAvailable()) {
@@ -69,20 +76,17 @@ export function mountLegacyPageMode(options: LegacyPageModeOptions): () => void 
       document.dispatchEvent(new CustomEvent(PANEL_EVENT, { detail: PANEL_NAME }))
     } else {
       document.documentElement.removeAttribute(ACTIVE_ATTRIBUTE)
+      unmountView()
     }
   }
 
   const removeView = (): void => {
     setActive(false)
-    root?.unmount()
-    root = undefined
-    container?.remove()
-    container = undefined
   }
 
   const renderView = (): void => {
     if (root === undefined) return
-    root.render(h(MarketSection, { t: options.t, credentials: options.credentials, mode: 'page' }))
+    root.render(h(PluginWorkspace, { t: options.t, credentials: options.credentials, mode: 'page' }))
   }
 
   const updateEntryCopy = (): void => {
@@ -98,6 +102,7 @@ export function mountLegacyPageMode(options: LegacyPageModeOptions): () => void 
       removeView()
       return
     }
+    if (!open) return
     const column = conversationColumn()
     if (!shouldUseLegacyPageMode(options.isSettingsSurfaceAvailable(), column !== undefined)) {
       removeView()
@@ -128,14 +133,18 @@ export function mountLegacyPageMode(options: LegacyPageModeOptions): () => void 
       entryLabel = entry.querySelector<HTMLSpanElement>('[data-dsh-agent-plugins-market-label]') ?? undefined
       updateEntryCopy()
     }
-    if (entry.parentElement !== anchor.parentElement || entry.previousSibling !== anchor) {
+    // Other plugins share this anchor; competing for its immediate next sibling
+    // creates an endless MutationObserver loop across their adapters.
+    if (entry.parentElement !== anchor.parentElement) {
       anchor.insertAdjacentElement('afterend', entry)
     }
   }
 
   const observeShell = (): void => {
     if (stopped || observer !== undefined || options.isSettingsSurfaceAvailable()) return
-    observer = new MutationObserver(ensure)
+    observer = new MutationObserver(records => {
+      if (records.some(record => !container?.contains(record.target) && !entry?.contains(record.target))) ensure()
+    })
     observer.observe(document.body ?? document.documentElement, { childList: true, subtree: true })
   }
 

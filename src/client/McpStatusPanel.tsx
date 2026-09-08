@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PanelHeader } from './ui/panel.js'
 import type { Translate } from './index.js'
 import { fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, type McpStatusEntry, type McpStatusPayload } from './api.js'
 import type { CredentialApi } from './credentials.js'
@@ -88,21 +89,9 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   return h(
     'div',
     { className: css.surface },
-    h(
-      'header',
-      { className: css.header },
-      h(
-        'div',
-        { className: css.headerText },
-        h('h2', { className: css.title }, t('mcpStatusTitle')),
-        h('p', { className: css.subtitle }, t('mcpStatusSubtitle'))
-      ),
-      h(
-        'div',
-        { className: css.headerActions },
-        h(Button, { variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh') }, `↻ ${t('refresh')}`)
-      )
-    ),
+    h(PanelHeader, { title: t('mcpStatusTitle'), subtitle: t('mcpStatusSubtitle'), actions:
+      h(Button, { variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh'), 'aria-label': t('refresh') }, h(IconRefreshOutline16))
+    }),
     activeEntries.length === 0 || allHealthy || loading
       ? null
       : h(StatusSummaryBar, { t, totals: visibleTotals, observedAt: payload.observedAt }),
@@ -197,7 +186,7 @@ function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; o
   } }
   return h(
     'div',
-    { className: `${css.card} ${css[`card${stateClass(entry.state)}`]}`, ...interactive },
+    { className: css.card, ...interactive },
     h(
       'div',
       { className: css.cardBody },
@@ -214,14 +203,6 @@ function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; o
       // line and the endpoint, so a wall of red cards stays scannable.
     )
   )
-}
-
-function stateClass(state: string): string {
-  return state
-    .split('-')
-    .map((part, index) => (index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
-    .join('')
-    .replace(/^./, char => char.toUpperCase())
 }
 
 function McpSourceIcon({ kind }: { kind: 'plugin' | 'direct' }): ReactNode {
@@ -411,4 +392,3 @@ function mcpFilterHint(t: Translate, kind: Filter): string {
   if (kind === 'direct') return t('mcpFilterDirectHint')
   return t('mcpFilterAllHint')
 }
-

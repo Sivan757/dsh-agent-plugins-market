@@ -12,8 +12,12 @@ export default defineConfig({
   format: ['cjs'],
   outDir: 'client',
   platform: 'browser',
+  // tsdown defaults CJS input resolution to Node; the DSH CJS factory runs in a browser.
+  inputOptions: { platform: 'browser' },
   hash: false,
   external: [/^react(\/|$)/, /^react-dom(\/|$)/, /^@deepseek-ai\/dsh-client-/, /^@deepseek-ai\/dsh-llm(\/|$)/],
+  // YAML edits run in the browser; it is not a host-injected client module.
+  deps: { alwaysBundle: ['yaml'] },
   css: { inject: true },
   outExtensions: ({ format }) => (format === 'cjs' ? { js: '.js' } : {}),
   dts: false,

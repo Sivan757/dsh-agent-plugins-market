@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { parse as parseYaml } from 'yaml'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
+import { parseFrontmatterRecord } from './user-store.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { Suite } from '../model/types.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
@@ -50,6 +51,7 @@ interface InboxAgent {
 const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/
 
 export class CommandMountRegistry {
+  private readonly fingerprints = new Map<string, string>()
   private readonly live = new Map<string, () => void>()
 
   constructor(
@@ -67,7 +69,7 @@ export class CommandMountRegistry {
           ? []
           : [
               ...(suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root)),
-              ...(suite.activeSurfaces?.agents === false ? [] : await readAgents(suite.root, this.t))
+              ...(suite.activeSurfaces?.agents === false ? [] : await readAgents(suite.root, this.t, suite.sourceId, suite.id))
             ]
       for (const spec of specs) {
         // The registry key is source-qualified: bare suite ids are unique per
@@ -89,7 +91,11 @@ export class CommandMountRegistry {
       return diagnostics
     }
     for (const [key, spec] of wanted) {
-      if (this.live.has(key)) continue
+      const fingerprint = JSON.stringify(spec)
+      if (this.live.has(key) && this.fingerprints.get(key) === fingerprint) continue
+      this.live.get(key)?.()
+      this.live.delete(key)
+      this.fingerprints.delete(key)
       try {
         const disposer = host.commands.register({
           name: spec.name,
@@ -103,6 +109,7 @@ export class CommandMountRegistry {
           }
         })
         this.live.set(key, disposer)
+        this.fingerprints.set(key, fingerprint)
       } catch (error) {
         diagnostics.push({ suiteId: spec.suiteId, command: spec.name, reason: error instanceof Error ? error.message : String(error) })
       }
@@ -114,6 +121,7 @@ export class CommandMountRegistry {
   disposeAll(): void {
     for (const disposer of [...this.live.values()]) disposer()
     this.live.clear()
+    this.fingerprints.clear()
   }
 }
 
@@ -136,6 +144,11 @@ export async function readCommands(root: string): Promise<CommandSpec[]> {
     } catch {
       continue
     }
+    try {
+      if (parseFrontmatterRecord(text).disabled === true) continue
+    } catch {
+      continue
+    }
     const meta = commandMeta(text)
     const description = meta?.description ?? firstLine(text)
     if (description === undefined) continue
@@ -147,7 +160,7 @@ export async function readCommands(root: string): Promise<CommandSpec[]> {
 /** Parse `agents/*.md` of one suite root into `agent-<name>` commands so
  *  subagents are selectable from the slash-command menu, grouped by the
  *  `agent-` prefix (the harness command UI has no group headers). */
-export async function readAgents(root: string, t: HostTranslate): Promise<CommandSpec[]> {
+export async function readAgents(root: string, t: HostTranslate, sourceId?: string, suiteId?: string): Promise<CommandSpec[]> {
   let entries: string[]
   try {
     entries = await readdir(join(root, 'agents'))
@@ -165,10 +178,23 @@ export async function readAgents(root: string, t: HostTranslate): Promise<Comman
     } catch {
       continue
     }
+    try {
+      if (parseFrontmatterRecord(text).disabled === true) continue
+    } catch {
+      continue
+    }
     const parsed = parseSkillFrontmatter(text, name)
     const description = typeof parsed === 'string' ? parsed : parsed.description
     if (description === undefined) continue
-    specs.push({ name, description, hint: t('agentCommandHint'), body: stripFrontmatter(text) })
+    specs.push({
+      name,
+      description,
+      hint: t('agentCommandHint'),
+      body:
+        sourceId === undefined
+          ? stripFrontmatter(text)
+          : `Use market_agent action run with role ${JSON.stringify(JSON.stringify([sourceId, suiteId, 'agents', entry.slice(0, -3)]))}. Task: $ARGUMENTS`
+    })
   }
   return specs
 }

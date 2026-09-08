@@ -18,6 +18,7 @@ import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider
 import type { Catalog } from '../application/catalog.js'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 import type { Suite, SuiteSkill } from '../model/types.js'
+import { parseFrontmatterRecord } from './user-store.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
 
 export const SUITE_PROJECT_SOURCE = 'agent-plugin-project' satisfies SkillSource
@@ -29,6 +30,7 @@ interface SkillLocator {
   file: string
   directory: string
   suiteRoot: string
+  roleId?: string
   /** 'skill' for SKILL.md, 'agent' for a Claude Code agent definition. */
   kind: 'skill' | 'agent'
 }
@@ -91,6 +93,11 @@ export class SuiteSkillProvider implements SkillProvider {
       } catch {
         continue
       }
+      try {
+        if (parseFrontmatterRecord(text).disabled === true) continue
+      } catch {
+        continue
+      }
       const parsed = parseSkillFrontmatter(text, agentName)
       const description = typeof parsed === 'string' ? (suite.manifest.description ?? agentName) : parsed.description
       const skill: SuiteSkill = {
@@ -119,9 +126,23 @@ export class SuiteSkillProvider implements SkillProvider {
     } catch {
       return undefined
     }
+    try {
+      if (parseFrontmatterRecord(text).disabled === true) return undefined
+    } catch {
+      return undefined
+    }
     if (locator.kind === 'agent') {
       const suiteName = locator.suiteRoot.split(/[\\/]/).at(-1) ?? 'suite'
-      const content = [this.t('agentDefinitionTitle', { suite: suiteName }), '', this.t('agentDefinitionIntro'), '', '```markdown', text, '```'].join('\n')
+      const content = [
+        this.t('agentDefinitionTitle', { suite: suiteName }),
+        '',
+        this.t('agentDefinitionIntro'),
+        `market_agent: action=run, role=${locator.roleId ?? candidate.name}`,
+        '',
+        '```markdown',
+        text,
+        '```'
+      ].join('\n')
       return {
         name: candidate.name,
         description: candidate.description,
@@ -162,6 +183,7 @@ export class SuiteSkillProvider implements SkillProvider {
         file: entry.skill.file,
         directory: entry.skill.directory,
         suiteRoot: entry.suite.root,
+        roleId: JSON.stringify([entry.suite.sourceId, entry.suite.id, 'agents', entry.skill.file.split(/[\\/]/).at(-1)!.replace(/\.md$/, '')]),
         kind: entry.skill.name.startsWith('agent-') ? 'agent' : 'skill'
       } satisfies SkillLocator,
       path: entry.skill.file,
@@ -174,6 +196,11 @@ export class SuiteSkillProvider implements SkillProvider {
     const userSuites = await this.manager.enabledUserSuites()
     for (const suite of userSuites) {
       for (const skill of suite.activeSurfaces?.skills === false ? [] : suite.skills) {
+        try {
+          if (parseFrontmatterRecord(await readFile(skill.file, 'utf8')).disabled === true) continue
+        } catch {
+          continue
+        }
         located.push({ rank: USER_RANK, source: SUITE_USER_SOURCE, suite, skill })
       }
       located.push(...(await this.agentsOf(suite)))
@@ -189,6 +216,11 @@ export class SuiteSkillProvider implements SkillProvider {
     const located: LocatedSkill[] = []
     for (const suite of snapshot.enabledSuites) {
       for (const skill of suite.activeSurfaces?.skills === false ? [] : suite.skills) {
+        try {
+          if (parseFrontmatterRecord(await readFile(skill.file, 'utf8')).disabled === true) continue
+        } catch {
+          continue
+        }
         located.push({ rank: PROJECT_RANK, source: SUITE_PROJECT_SOURCE, suite, skill })
       }
       located.push(...(await this.agentsOf(suite)))

@@ -36,6 +36,10 @@ export interface McpEnhanceScopeFace {
   /** The persisted download region; `auto` follows the interface language. */
   region(): 'auto' | 'global' | 'china'
   setRegion(next: 'global' | 'china'): Promise<void>
+  /** Whether the experience-feedback model tool is registered (default true). */
+  feedbackEnabled?(): boolean
+  /** Register/unregister the experience-feedback model tool. */
+  setFeedbackEnabled?(next: boolean): Promise<void>
 }
 
 export interface McpPluginCardProps {
@@ -175,7 +179,34 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                 )
               )
             )
-          )
+          ),
+          scope.feedbackEnabled !== undefined && scope.setFeedbackEnabled !== undefined
+            ? h(
+                'div',
+                { className: css.pluginCardRow },
+                h(
+                  'div',
+                  { className: css.pluginCardText },
+                  h('div', { className: css.pluginCardRowLabel }, t('feedbackToggleLabel')),
+                  h('div', { className: css.pluginCardDesc }, scope.feedbackEnabled() ? t('feedbackToggleDescOn') : t('feedbackToggleDescOff'))
+                ),
+                h(ToggleSwitch, {
+                  on: scope.feedbackEnabled(),
+                  disabled: busy || !writable,
+                  onChange: () => {
+                    if (busy || !writable) return
+                    setBusy(true)
+                    setError(undefined)
+                    void scope.setFeedbackEnabled!(!scope.feedbackEnabled!()).then(() => {
+                      setBusy(false)
+                    }).catch((cause: unknown) => {
+                      setError(cause instanceof Error ? cause.message : String(cause))
+                      setBusy(false)
+                    })
+                  }
+                })
+              )
+            : null
         )
       : null
   )

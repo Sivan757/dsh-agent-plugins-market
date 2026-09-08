@@ -12,22 +12,45 @@ import { join } from 'node:path'
 import { resolveDshHome } from '../catalog/paths.js'
 
 /** Host runtime dictionary keys (mirrored for zh and en). */
-export type HostLocaleKey = 'agentDefinitionTitle' | 'agentDefinitionIntro' | 'commandForwardTitle' | 'commandAcknowledged' | 'agentCommandHint'
+export type HostLocaleKey =
+  | 'agentDefinitionTitle'
+  | 'agentDefinitionIntro'
+  | 'commandForwardTitle'
+  | 'commandAcknowledged'
+  | 'agentCommandHint'
+  | 'userCommandSourceLabel'
+  | 'userCommandForwardTitle'
+  | 'userCommandAcknowledged'
+  | 'userSkillDescription'
+  | 'userPersonaDescription'
+  | 'feedbackToolCardTitle'
 
 const zh: Record<HostLocaleKey, string> = {
   agentDefinitionTitle: '## 子代理定义（来自 Agent Plugins {suite}，Claude Code agents 格式）',
-  agentDefinitionIntro: '当任务匹配下方描述时，通过 subagent 工具创建子代理并将「定义正文」原样作为指令执行。',
+  agentDefinitionIntro: '当任务匹配下方描述时，通过 market_agent 工具按下方角色 ID 创建子代理，让保存的模型和工具限制实际生效。',
   commandForwardTitle: '[Agent Plugins 命令 /{command}（来自 {suite}）]',
   commandAcknowledged: '/{command} 已转交模型执行（{suite}）',
-  agentCommandHint: '子代理'
+  agentCommandHint: '子代理',
+  userCommandSourceLabel: '用户命令',
+  userCommandForwardTitle: '[用户快捷命令 /{command}]',
+  userCommandAcknowledged: '/{command} 已转交模型执行',
+  userSkillDescription: '[用户技能] {description}',
+  userPersonaDescription: '[用户角色卡] {description}',
+  feedbackToolCardTitle: '提交市场体验反馈'
 }
 
 const en: Record<HostLocaleKey, string> = {
   agentDefinitionTitle: '## Subagent definition (from Agent Plugins {suite}, Claude Code agents format)',
-  agentDefinitionIntro: 'When the task matches the description below, create a subagent through the subagent tool and pass the definition body verbatim as its instructions.',
+  agentDefinitionIntro: 'When the task matches the description below, use market_agent with the role ID below so its saved model and tool restrictions are enforced.',
   commandForwardTitle: '[Agent Plugins command /{command} (from {suite})]',
   commandAcknowledged: '/{command} forwarded to the model for execution ({suite})',
-  agentCommandHint: 'subagent'
+  agentCommandHint: 'subagent',
+  userCommandSourceLabel: 'user command',
+  userCommandForwardTitle: '[User quick command /{command}]',
+  userCommandAcknowledged: '/{command} forwarded to the model for execution',
+  userSkillDescription: '[user skill] {description}',
+  userPersonaDescription: '[user persona] {description}',
+  feedbackToolCardTitle: 'File market feedback'
 }
 
 const DICTS = { zh, en } as const

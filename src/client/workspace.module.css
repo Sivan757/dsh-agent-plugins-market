@@ -1,0 +1,80 @@
+/**
+ * Plugin workspace layout: the top tab row plus the active tab's scroll
+ * region. The workspace owns the height in both host surfaces (settings
+ * section and legacy page mode), so each tab's content scrolls inside its
+ * own panel and switching tabs never moves the page.
+ */
+
+.workspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+/* Page mode is a fixed shell; settings mode stretches to the host column.
+   The `height: 100%` chain (workspace → tab panel → section) is what keeps
+   every panel's scrollbar inside its own content area. */
+.pageMode {
+  box-sizing: border-box;
+  padding: 4px 0;
+}
+
+.tabRow {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  scrollbar-width: none;
+}
+
+.tab,
+.tabOn {
+  position: relative;
+  flex: none;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.tabOn {
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-weight: 600;
+}
+
+.tabOn::after {
+  position: absolute;
+  right: 10px;
+  bottom: 0;
+  left: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color, rgb(65, 118, 230));
+  content: '';
+}
+
+.tabPanel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}

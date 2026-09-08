@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { migrateLegacyDataRoot } from '../src/catalog/legacy-root-migration.js'
+import { migrateLegacyDataRoot } from '../src/runtime/legacy-root-migration.js'
 
 describe('legacy data-root migration', () => {
   it('moves data and overrides under the user root and removes the empty legacy root', async () => {
@@ -18,6 +18,20 @@ describe('legacy data-root migration', () => {
     expect(await readFile(join(dataRoot, 'overrides', 'cloudflare.json'), 'utf8')).toBe('{"a":1}')
     expect(await readFile(join(dataRoot, 'data', 'cloudflare', 'db.sqlite'), 'utf8')).toBe('bytes')
     expect(existsSync(legacy)).toBe(false)
+  })
+
+  it('retains conflicting legacy files instead of deleting uncopied data', async () => {
+    const legacy = await mkdtemp(join('/tmp', 'legacy-root-'))
+    const dataRoot = await mkdtemp(join('/tmp', 'data-root-'))
+    await mkdir(join(legacy, 'overrides'), { recursive: true })
+    await mkdir(join(dataRoot, 'overrides'), { recursive: true })
+    await writeFile(join(legacy, 'overrides', 'same.json'), 'old credentials')
+    await writeFile(join(dataRoot, 'overrides', 'same.json'), 'new credentials')
+    await migrateLegacyDataRoot(legacy, dataRoot)
+    expect(await readFile(join(legacy, 'overrides', 'same.json'), 'utf8')).toBe('old credentials')
+    expect(await readFile(join(dataRoot, 'overrides', 'same.json'), 'utf8')).toBe('new credentials')
+    await rm(legacy, { recursive: true, force: true })
+    await rm(dataRoot, { recursive: true, force: true })
   })
 
   it('is a no-op when the legacy root is absent', async () => {

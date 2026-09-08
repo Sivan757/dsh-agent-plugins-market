@@ -11,7 +11,8 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, IconRefreshOutline16, IconSettingsOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PanelHeader } from './ui/panel.js'
 import type { Translate } from './index.js'
 import { fetchLspServers, fetchLspStatus, saveLspServers, type LspStatusEntry, type LspStatusPayload, type LspStatusState } from './api.js'
 import { SearchFilterToolbar, type SearchFilterToolbarView } from './SearchFilterToolbar.js'
@@ -128,22 +129,10 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   return h(
     'div',
     { className: css.surface },
-    h(
-      'header',
-      { className: css.header },
-      h(
-        'div',
-        { className: css.headerText },
-        h('h2', { className: css.title }, t('lspStatusTitle')),
-        h('p', { className: css.subtitle }, t('lspStatusSubtitle'))
-      ),
-      h(
-        'div',
-        { className: css.headerActions },
-        h(Button, { variant: 'ghost', size: 'sm', onClick: () => setEditorOpen(true), disabled: loading, title: t('lspConfigure') }, t('lspConfigure')),
-        h(Button, { variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh') }, `↻ ${t('refresh')}`)
-      )
-    ),
+    h(PanelHeader, { title: t('lspStatusTitle'), subtitle: t('lspStatusSubtitle'), actions: [
+      h(Button, { key: 'configure', variant: 'ghost', size: 'sm', onClick: () => setEditorOpen(true), disabled: loading, title: t('lspConfigure'), 'aria-label': t('lspConfigure') }, h(IconSettingsOutline16)),
+      h(Button, { key: 'refresh', variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh'), 'aria-label': t('refresh') }, h(IconRefreshOutline16))
+    ] }),
     // The summary bar appears only when attention is needed; a healthy panel
     // is silent (the green card accents already say "mounted").
     allHealthy || payload.entries.length === 0 || loading
@@ -302,7 +291,7 @@ function LspRow({ entry, t, onOpen }: { entry: LspStatusEntry; t: Translate; onO
   const showPill = entry.state !== 'mounted'
   return h(
     'div',
-    { className: `${css.card} ${css[`card${accentClass(entry.state)}`]}`, ...interactive },
+    { className: css.card, ...interactive },
     h(
       'div',
       { className: css.cardBody },
@@ -399,15 +388,6 @@ function LspFilterIcon({ k }: { k: string }): ReactNode {
     return h('svg', common, h('path', { d: 'M8 2.5 14 13H2L8 2.5Z', stroke: 'currentColor', strokeLinejoin: 'round' }), h('path', { d: 'M8 6.5v3M8 11.2v.3', stroke: 'currentColor', strokeLinecap: 'round' }))
   }
   return h('svg', common, h('path', { d: 'M2.5 5 8 2.5 13.5 5 8 7.5 2.5 5Zm0 3L8 10.5 13.5 8M2.5 11 8 13.5 13.5 11' }))
-}
-
-/** The card-accent CSS suffix; host-missing uses the warn palette. */
-function accentClass(state: LspStatusState): string {
-  if (state === 'mounted') return 'Mounted'
-  if (state === 'host-missing') return 'HostMissing'
-  if (state === 'conflict') return 'Conflict'
-  if (state === 'failed') return 'Failed'
-  return 'Disabled'
 }
 
 /** The status-dot CSS suffix (lowercase state names in the stylesheet). */

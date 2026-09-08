@@ -109,7 +109,9 @@ describe('MarketSection rendering', () => {
     await mountSection()
 
     // The suite card's install button (primary action in the card actions row).
-    const installButtons = [...host!.querySelectorAll('button')].filter(button => (button.textContent ?? '').includes('install'))
+    // Scoped to the card: the toolbar's own "uninstalled" filter label also
+    // contains the substring `install`.
+    const installButtons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
     expect(installButtons.length).toBe(1)
     const probe = vi.fn()
     installButtons[0]!.addEventListener('click', probe)
@@ -146,7 +148,9 @@ describe('MarketSection rendering', () => {
     const resource = await import('../src/client/features/market/market-resource.js')
     vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
     await mountSection()
-    const installButtons = [...host!.querySelectorAll('button')].filter(button => (button.textContent ?? '').includes('install'))
+    // Scoped to the card: the toolbar's own "uninstalled" filter label also
+    // contains the substring `install`.
+    const installButtons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
     expect(installButtons.length).toBe(1)
     act(() => {
       installButtons[0]!.click()

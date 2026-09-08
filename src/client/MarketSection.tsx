@@ -13,6 +13,7 @@ import { loadOverview, invalidateOverview, startSourceProgressPolling, type Sour
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from './features/market/market-view-model.js'
 import { SourceTab } from './features/market/SourceTab.js'
 import { SourceEditorModal, type EditorState } from './features/market/SourceEditorModal.js'
+import { interpolate } from './ui/interpolate.js'
 import { InstallConfirmModal, type InstallConfirmState } from './features/market/InstallConfirmModal.js'
 import { SuiteCard } from './features/market/SuiteCard.js'
 import { StatusIcon } from './ui/StatusIcon.js'
@@ -21,6 +22,7 @@ import type { CredentialApi } from './credentials.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
+import { BusyIndicator } from './ui/panel.js'
 import css from './market.module.css'
 
 /** Host step keys -> translation keys, resolved against the active t(). */
@@ -51,16 +53,13 @@ interface ConfirmState {
   kind: 'uninstall' | 'removeSource'
   sourceId: string
   suiteId?: string
+  /** removeSource only: also physically delete the managed checkout. */
+  deleteCheckout: boolean
 }
 
 function progressStepLabel(t: Translate, step: string): string {
   const key = PROGRESS_STEP_LABELS[step]
   return key === undefined ? step : t(key as Parameters<Translate>[0])
-}
-
-/** Keep parameterized copy compatible with hosts whose bound translator ignores params. */
-function interpolate(text: string, params: Record<string, unknown>): string {
-  return text.replace(/\{(\w+)\}/g, (match, key: string) => (key in params ? String(params[key]) : match))
 }
 
 export function MarketSection({ t, credentials, mode = 'settings' }: MarketSectionProps): ReactNode {
@@ -116,7 +115,7 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
   const { scopeTotals, filtered } = viewModel
 
   const openUninstall = useCallback((suite: SuiteCardData) => {
-    setConfirm({ kind: 'uninstall', sourceId: suite.sourceId, suiteId: suite.suiteId })
+    setConfirm({ kind: 'uninstall', sourceId: suite.sourceId, suiteId: suite.suiteId, deleteCheckout: false })
   }, [])
 
   const confirmAction = useCallback(async () => {
@@ -124,7 +123,10 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
     if (confirm.kind === 'uninstall' && confirm.suiteId !== undefined) {
       await action(`u:${confirm.suiteId}`, 'uninstall', { sourceId: confirm.sourceId, suiteId: confirm.suiteId })
     } else if (confirm.kind === 'removeSource') {
-      await action(`s:${confirm.sourceId}`, 'sources/remove', { id: confirm.sourceId })
+      // deleteCheckout physically removes self-acquired checkouts (the host
+      // still protects adopted/local directories), so the removed source
+      // does not reappear as an "unmanaged checkout" entry.
+      await action(`s:${confirm.sourceId}`, 'sources/remove', { id: confirm.sourceId, deleteCheckout: confirm.deleteCheckout })
       if (category === confirm.sourceId) setCategory('all')
     }
     setConfirm(undefined)
@@ -200,7 +202,7 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
                     label: `${source.id}${kindBadge === undefined ? '' : ` · ${kindBadge}`} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
                     title: noteHint,
                     onSelect: () => setCategory(source.id),
-                    onDelete: () => setConfirm({ kind: 'removeSource', sourceId: source.id }),
+                    onDelete: () => setConfirm({ kind: 'removeSource', sourceId: source.id, deleteCheckout: true }),
                     onEdit: selectedSource?.id === source.id ? () => setEditor({ mode: 'edit', source: source }) : undefined
                   })
                 })
@@ -264,6 +266,9 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
           })
         )
       ),
+      // The busy strip renders above the list region, not inside it: as a
+      // grid child it would occupy a cell and reflow the cards.
+      busy !== undefined ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
       h(
         'main',
         { className: view === 'grid' ? css.grid : css.list },
@@ -327,14 +332,32 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
                 : interpolate(t('removeSourceConfirmTitle', { sourceId: confirm.sourceId }), { sourceId: confirm.sourceId }),
             closeLabel: t('cancel'),
             description: confirm.kind === 'uninstall' ? t('uninstallConfirmDesc') : t('removeSourceConfirmDesc'),
+            children:
+              confirm.kind === 'removeSource'
+                ? h(
+                    'label',
+                    { className: css.confirmCheck },
+                    h('input', {
+                      type: 'checkbox',
+                      checked: confirm.deleteCheckout,
+                      onChange: event =>
+                        setConfirm({
+                          ...confirm,
+                          deleteCheckout: (event.target as HTMLInputElement).checked
+                        })
+                    }),
+                    confirm.deleteCheckout ? t('removeSourceDeleteFiles') : t('removeSourceKeepFiles')
+                  )
+                : null,
             footer: h(
               'div',
               { className: css.modalFooter },
-              h(Button, { variant: 'ghost', onClick: () => setConfirm(undefined) }, t('cancel')),
+              h(Button, { variant: 'ghost', disabled: busy !== undefined, onClick: () => setConfirm(undefined) }, t('cancel')),
               h(
                 Button,
                 {
                   variant: 'primary',
+                  disabled: busy !== undefined,
                   onClick: () => {
                     void confirmAction()
                   }
@@ -391,7 +414,7 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
               return ok
             },
             onRemove: async id => {
-              setConfirm({ kind: 'removeSource', sourceId: id })
+              setConfirm({ kind: 'removeSource', sourceId: id, deleteCheckout: true })
               setEditor(undefined)
             }
           })
