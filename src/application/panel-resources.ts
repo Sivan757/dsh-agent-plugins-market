@@ -1,8 +1,8 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
-import { readFile, realpath, unlink, writeFile } from 'node:fs/promises'
-import { isAbsolute, join, relative } from 'node:path'
+import { realpath, unlink, writeFile } from 'node:fs/promises'
+import { isAbsolute, relative } from 'node:path'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
-import { listMdFiles } from '../catalog/surfaces.js'
+import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from '../runtime/user-store.js'
 import type { UserPanelStore } from '../runtime/user-panels.js'
@@ -10,7 +10,8 @@ import type { Catalog } from './catalog.js'
 
 /** The routes consume this structural surface, also implemented by user-only stores in tests. */
 export interface PanelResourceStore {
-  list(): Promise<UserPanelEntryWire[]>
+  /** Strict runtime reads propagate I/O failures so catalogs cannot publish partial replacements. */
+  list(strict?: boolean): Promise<UserPanelEntryWire[]>
   get(id: string): Promise<UserPanelEntryWire | undefined>
   create(name: string, text: string): Promise<UserPanelEntryWire>
   update(id: string, text: string): Promise<void>
@@ -32,8 +33,8 @@ class PanelResources implements PanelResourceStore {
     private kind: UserPanelKind
   ) {}
 
-  async list(): Promise<UserPanelEntryWire[]> {
-    const entries: UserPanelEntryWire[] = await this.users.list()
+  async list(strict = false): Promise<UserPanelEntryWire[]> {
+    const entries: UserPanelEntryWire[] = await this.users.list(strict)
     const snapshot = await this.catalog.readUserCatalog()
     const installed = new Set((await this.catalog.overview()).suites.filter(suite => suite.installed).map(suite => JSON.stringify([suite.sourceId, suite.suiteId])))
     for (const suite of snapshot.suites) {
@@ -41,9 +42,14 @@ class PanelResources implements PanelResourceStore {
       const files =
         this.kind === 'skills'
           ? suite.skills.map(skill => ({ name: skill.name, file: skill.file }))
-          : (await listMdFiles(join(suite.root, this.kind))).map(file => ({ name: file.slice(0, -3), file: join(suite.root, this.kind, file) }))
-      for (const { name, file } of files) {
-        const rawText = await readFile(file, 'utf8')
+          : (suite.resources?.[this.kind] ?? (await defaultMarkdownResources(suite.root, this.kind)))
+      for (const resource of files) {
+        const { name, file } = resource
+        const rawText = await resourceText(resource).catch(error => {
+          if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          return undefined
+        })
+        if (rawText === undefined) continue
         let metadata: Record<string, unknown>
         try {
           metadata = parseFrontmatterRecord(rawText)
@@ -78,6 +84,7 @@ class PanelResources implements PanelResourceStore {
   private async pluginPath(id: string): Promise<string> {
     const entry = await this.get(id)
     if (entry?.origin !== 'plugin') throw new Error('Unknown installed plugin resource')
+    if (entry.path.endsWith('.json')) throw new Error('Inline manifest resources are read-only; edit their source manifest')
     const root = await realpath(this.users.root())
     const path = await realpath(entry.path)
     const rel = relative(root, path)

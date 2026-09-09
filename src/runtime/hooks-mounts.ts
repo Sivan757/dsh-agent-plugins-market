@@ -10,7 +10,9 @@
  * on every enable/disable/install/uninstall; a missing bridge package, a
  * broken hook file, or a mount failure is contained per suite.
  */
-import { stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type * as HooksBridge from '@deepseek-ai/dsh-hooks-claude-code'
@@ -33,13 +35,25 @@ interface PluginMountContext {
 
 export class HooksMountRegistry {
   private readonly live = new Map<string, MountHandle>()
+  private readonly fingerprints = new Map<string, string>()
+  private readonly temporary = new Map<string, string>()
+  private queue: Promise<void> = Promise.resolve()
 
   constructor(private readonly ctx: Context) {}
 
   /** Mount/unmount one bridge per suite to match the enabled suites exactly. */
   async reconcile(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
+    const run = this.queue.then(() => this.reconcileNow(enabledSuites))
+    this.queue = run.then(
+      () => {},
+      () => {}
+    )
+    return run
+  }
+
+  private async reconcileNow(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
     const diagnostics: HooksMountDiagnostic[] = []
-    const active = enabledSuites.filter(suite => suite.activeSurfaces?.hooks !== false)
+    const active = enabledSuites.filter(suite => suite.activeSurfaces?.hooks !== false && (suite.resources === undefined || suite.hooks !== undefined))
     // Keys are the qualified suite id: bare ids are unique per source only.
     const wanted = new Set(active.map(suite => qualifiedSuiteId(suite.sourceId, suite.id)))
     for (const [suiteId, handle] of [...this.live]) {
@@ -49,8 +63,24 @@ export class HooksMountRegistry {
     }
     for (const suite of active) {
       const key = qualifiedSuiteId(suite.sourceId, suite.id)
-      if (this.live.has(key)) continue
-      const reason = await this.mount(key, suite)
+      const originalPath = suite.hooks === undefined ? await hookConfigPath(suite.root) : undefined
+      const content =
+        suite.hooks === undefined
+          ? originalPath === undefined
+            ? undefined
+            : await readFile(originalPath, 'utf8').catch(() => undefined)
+          : JSON.stringify({ hooks: suite.hooks.events })
+      const fingerprint =
+        content === undefined
+          ? undefined
+          : createHash('sha256')
+              .update(JSON.stringify([content, suite.root, suite.hooks?.projectRoot]))
+              .digest('hex')
+      const previous = this.live.get(key)
+      if (previous !== undefined && fingerprint === this.fingerprints.get(key)) continue
+      if (previous !== undefined) await this.unmount(key, previous)
+      if (content === undefined || fingerprint === undefined) continue
+      const reason = await this.mount(key, suite, content, fingerprint, originalPath)
       if (reason !== undefined) diagnostics.push({ suiteId: key, reason })
     }
     return diagnostics
@@ -58,14 +88,14 @@ export class HooksMountRegistry {
 
   /** Dispose every live bridge; used at plugin teardown. */
   async disposeAll(): Promise<void> {
-    for (const [suiteId, handle] of [...this.live]) {
-      await this.unmount(suiteId, handle)
-    }
+    const run = this.queue.then(async () => {
+      for (const [suiteId, handle] of [...this.live]) await this.unmount(suiteId, handle)
+    })
+    this.queue = run.catch(() => {})
+    await run
   }
 
-  private async mount(key: string, suite: Suite): Promise<string | undefined> {
-    const configPath = await hookConfigPath(suite.root)
-    if (configPath === undefined) return undefined
+  private async mount(key: string, suite: Suite, content: string, fingerprint: string, originalPath?: string): Promise<string | undefined> {
     let bridge: typeof HooksBridge | undefined
     try {
       bridge = await import('@deepseek-ai/dsh-hooks-claude-code')
@@ -74,25 +104,47 @@ export class HooksMountRegistry {
     }
     const mountCtx = this.ctx as unknown as PluginMountContext
     if (typeof mountCtx.plugin !== 'function') return 'the host context does not support dynamic plugin mounting'
+    let temporary: string | undefined
+    let handle: MountHandle | undefined
     try {
-      const handle = mountCtx.plugin(bridge, {
+      let configPath = originalPath
+      if (configPath === undefined) {
+        temporary = await mkdtemp(join(tmpdir(), 'dsh-project-hooks-'))
+        configPath = join(temporary, 'hooks.json')
+        await writeFile(configPath, content, { mode: 0o600 })
+      }
+      handle = mountCtx.plugin(bridge, {
         configPath,
-        pluginRoot: suite.root
+        pluginRoot: suite.root,
+        ...(suite.hooks === undefined ? {} : { projectDir: suite.hooks.projectRoot })
       })
       await handle.await()
       this.live.set(key, handle)
+      this.fingerprints.set(key, fingerprint)
+      if (temporary !== undefined) this.temporary.set(key, temporary)
       return undefined
     } catch (error) {
+      try {
+        await handle?.dispose()
+      } catch {
+        /* Preserve the startup failure. */
+      }
+      if (temporary !== undefined) await rm(temporary, { recursive: true, force: true })
       return `mount failed: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 
   private async unmount(suiteId: string, handle: MountHandle): Promise<void> {
     this.live.delete(suiteId)
+    this.fingerprints.delete(suiteId)
     try {
       await handle.dispose()
     } catch (error) {
       this.ctx.logger?.warn(`[dsh-agent-plugins-market] hooks unmount ${suiteId} failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      const temporary = this.temporary.get(suiteId)
+      this.temporary.delete(suiteId)
+      if (temporary !== undefined) await rm(temporary, { recursive: true, force: true })
     }
   }
 }

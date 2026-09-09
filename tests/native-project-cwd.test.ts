@@ -33,7 +33,7 @@ describe('live-like native discovery through a real project tree', () => {
     const candidates = await provider.list({ cwd: join(repo, 'packages', 'app') })
     const names = candidates.map(c => c.name).sort()
     expect(names).toContain('deploy')
-    expect(names.find(n => n.startsWith('agent-'))).toBe('agent-reviewer')
+    expect(names).toEqual(['deploy'])
     expect(candidates.every(c => c.rank === 250)).toBe(true)
   })
 })

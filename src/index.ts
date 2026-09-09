@@ -20,6 +20,8 @@ import { RuntimeReconciler } from './runtime/reconciler.js'
 import { inspectToolRegistry } from './runtime/tool-registry-observer.js'
 import { migratePluginStorage } from './runtime/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agent-role-router.js'
+import { projectAgentRoles } from './application/project-agent-roles.js'
+import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/project-runtime.js'
 import { createPanelResources } from './application/panel-resources.js'
 import { resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
@@ -27,6 +29,7 @@ import { MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, readMcpBackend } from './
 import { narrowDownloadRegion } from './runtime/regions.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
+import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
 import { bindHostLocale, loadHostLocale, type HostLocaleKey, type HostTranslate } from './runtime/host-locale.js'
 import { mountFeedbackTool } from './runtime/feedback-tool.js'
 import { createUserPanelStores } from './runtime/user-panels.js'
@@ -88,6 +91,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   const userCommands = new UserCommandMountRegistry(ctx, panels.commands, key => hostLocale.t(key))
 
   let disposed = false
+  let projectCommands: ReturnType<typeof mountProjectCommands> | undefined
+  let projectMcp: ReturnType<typeof mountProjectMcp> | undefined
+  let projectHooks: ReturnType<typeof mountProjectHooks> | undefined
+  let suitePrompts: ReturnType<typeof mountSuiteInstructions> | undefined
   let reconcileRequested = false
   let reconciliation: Promise<void> | undefined
   const reconcileOnce = async (): Promise<void> => {
@@ -162,6 +169,9 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     if (disposed) return
     providerControl?.invalidate()
     userPanelControl?.invalidate()
+    await projectCommands?.refresh()
+    await suitePrompts?.refresh()
+    await Promise.all([projectMcp?.refresh(), projectHooks?.refresh()])
     const userCommandDiagnostics = await userCommands.reconcile().catch(() => [] as string[])
     for (const reason of userCommandDiagnostics) {
       ctx.logger?.warn(`[dsh-agent-plugins-market] user commands: ${reason}`)
@@ -202,6 +212,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   )
   catalog.setLspStatusSource(runtime.lsp)
   runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)
+  runtime.lsp.setDisabledProvider(() => loadDisabledLspServers(dataRoot))
   // The MCP backend choice is a host settings namespace (the registration is
   // also what makes the plugin-config tab serve our card). The node half owns
   // it: the provider derives the mount backend from the scope, the writer
@@ -235,7 +246,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
         }
       ).settings
       const scope = settings.register(MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, {
-        base: { mcpEnhanced: true, downloadRegion: 'auto', feedbackEnabled: true }
+        base: { mcpEnhanced: true, downloadRegion: 'auto', feedbackEnabled: true, scanProjectLayouts: true }
       })
       ctx.logger?.info?.('[dsh-agent-plugins-market] settings namespace registered — plugin-config card will serve')
       catalog.setMcpBackendProvider(async () => (scope.get().mcpEnhanced === false ? 'host' : 'builtin'))
@@ -243,6 +254,13 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
         await scope.update({ mcpEnhanced: backend !== 'host' })
       })
       catalog.setDownloadRegionProvider(async () => narrowDownloadRegion(scope.get().downloadRegion))
+      const syncProjectLayouts = (): void => {
+        void catalog.setScanProjectLayouts(scope.get().scanProjectLayouts !== false).catch(error => {
+          ctx.logger?.error?.(`[dsh-agent-plugins-market] project layout reconciliation failed: ${String(error)}`)
+        })
+      }
+      syncProjectLayouts()
+      settingsWatchers.push(scope.watch(syncProjectLayouts))
       // One-time migration from the earlier data-root settings.json choice.
       void readMcpBackend(dataRoot).then(backend => {
         if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})
@@ -253,7 +271,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
           const backend = scope.get().mcpEnhanced !== false
           if (backend === previousBackend) return
           previousBackend = backend
-          void reconcileMounts().catch(() => {})
+          void Promise.all([reconcileMounts(), projectMcp?.refresh()]).catch(() => {})
         })
       )
       // The experience-feedback model tool: gated by the namespace's
@@ -311,21 +329,49 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
 
   ctx.skills.registerProvider(control => {
     providerControl = control
-    return new SuiteSkillProvider(catalog, key => hostLocale.t(key))
+    return new SuiteSkillProvider(catalog)
   })
 
-  // User panel skills and agent personas ride a second provider so a panel
+  // User panel skills ride a second provider so a panel
   // edit invalidates only its own catalog contribution.
   ctx.skills.registerProvider(control => {
     userPanelControl = control
-    return new UserPanelSkillProvider(panels.skills, panels.agents, key => hostLocale.t(key))
+    return new UserPanelSkillProvider(panels.skills, key => hostLocale.t(key))
   })
 
-  ctx.inject(['tools', 'llm', 'subagents'], hostCtx => {
+  ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
     hostCtx.effect(
-      () => mountAgentRoleTool(hostCtx, async () => (await resources.agents.list()).map(entry => ({ ...entry, name: entry.id ?? entry.name }))),
+      () =>
+        mountAgentRoleTool(
+          hostCtx,
+          async parent => [
+            ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
+            ...(await projectAgentRoles(catalog, parent))
+          ],
+          (key, params) => hostLocale.t(key, params)
+        ),
       'dsh-agent-plugins-market: agent role routing'
     )
+  })
+
+  ctx.inject(['agents'], hostCtx => {
+    hostCtx.effect(() => {
+      const mounted = mountProjectCommands(hostCtx, catalog, key => hostLocale.t(key))
+      const mcp = mountProjectMcp(hostCtx, catalog, dataRoot)
+      const hooks = mountProjectHooks(hostCtx, catalog)
+      const prompts = mountSuiteInstructions(hostCtx, catalog)
+      projectCommands = mounted
+      projectMcp = mcp
+      projectHooks = hooks
+      suitePrompts = prompts
+      return async () => {
+        if (projectCommands === mounted) projectCommands = undefined
+        if (projectMcp === mcp) projectMcp = undefined
+        if (projectHooks === hooks) projectHooks = undefined
+        if (suitePrompts === prompts) suitePrompts = undefined
+        await Promise.all([mounted.dispose(), mcp.dispose(), hooks.dispose(), prompts.dispose()])
+      }
+    }, 'dsh-agent-plugins-market: project command lifecycle')
   })
 
   ctx.inject(['webServer', 'loader'], hostCtx => {

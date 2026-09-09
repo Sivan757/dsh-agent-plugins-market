@@ -82,6 +82,9 @@ export interface ToolHost {
 
 /** Resolved options relevant to tool bridging. */
 export interface ToolBridgeOptions {
+  enabledTools?: string[]
+  disabledTools?: string[]
+  startupTimeoutMs?: number
   /** Whether a registry conflict is contained or rejects this synchronization. */
   registrationFailure: 'contain' | 'throw'
   serverName: string
@@ -113,8 +116,9 @@ const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9
 const RawCallToolResultSchema = z.record(z.string(), z.unknown())
 
 /** List without mutating the SDK's per-page output-validator cache. */
-function listToolsUncached(client: Client, cursor?: string) {
-  return client.request({ method: 'tools/list', ...(cursor === undefined ? {} : { params: { cursor } }) }, ListToolsResultSchema)
+function listToolsUncached(client: Client, cursor?: string, timeout?: number) {
+  const request = { method: 'tools/list' as const, ...(cursor === undefined ? {} : { params: { cursor } }) }
+  return timeout === undefined ? client.request(request, ListToolsResultSchema) : client.request(request, ListToolsResultSchema, { timeout })
 }
 
 /** Call without the SDK pre-validating an output schema the bridge may not support. */
@@ -176,8 +180,9 @@ export async function syncTools(client: Client, host: ToolHost, opts: ToolBridge
   const definitions = new Map<string, ToolDefinition>()
   let cursor: string | undefined
   do {
-    const response = await listToolsUncached(client, cursor)
+    const response = await listToolsUncached(client, cursor, opts.startupTimeoutMs)
     for (const tool of response.tools) {
+      if ((opts.enabledTools !== undefined && !opts.enabledTools.includes(tool.name)) || opts.disabledTools?.includes(tool.name)) continue
       const publicName = publicToolName(opts.serverName, tool.name)
       if (definitions.has(publicName)) {
         throw new Error(`mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`)

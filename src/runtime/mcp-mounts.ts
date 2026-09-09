@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto'
 import * as mcpBridge from './mcp-client/bridge.js'
 import type { McpBackend } from './mcp-backend.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
-import { credentialRefsInServer, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
+import { credentialRefsInServer, deriveServerName, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
@@ -79,7 +79,8 @@ export class McpMountRegistry {
 
   constructor(
     private readonly ctx: Context,
-    private readonly pluginDataRoot: string
+    private readonly pluginDataRoot: string,
+    private readonly namespace?: string
   ) {}
 
   /** Install the per-suite overrides provider (suiteId -> overrides). */
@@ -164,6 +165,8 @@ export class McpMountRegistry {
         })
       }
       for (const mount of mounts) {
+        // Bridge namespaces are reserved app-wide, even when tools are agent-scoped.
+        if (this.namespace !== undefined) mount.config.serverName = deriveServerName(mount.config.serverName, this.namespace)
         wanted.set(mountKey(mount.suiteId, mount.serverKey), { suite, serverKey: mount.serverKey, request: mount })
       }
     }
@@ -301,6 +304,9 @@ export class McpMountRegistry {
     }
     let pluginModule: unknown = mcpBridge
     if ((await this.backendProvider()) === 'host') {
+      if (request.config.enabledTools !== undefined || request.config.disabledTools !== undefined || request.config.startupTimeoutMs !== undefined) {
+        return { reason: 'native MCP tool filters and startup timeouts require the built-in backend; host compatibility mode cannot enforce them', code: 'mount-failed' }
+      }
       if (request.config.transport === 'sse') {
         return {
           reason: 'the host dsh-mcp-client does not support the legacy SSE transport — switch the MCP backend back to the built-in client for this server',

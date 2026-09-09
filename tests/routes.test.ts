@@ -30,6 +30,7 @@ function service(): MarketService {
     setEnabled: async () => {},
     setSurface: async () => {},
     setMcpOverride: async () => {},
+    addMcpServer: async () => {},
     retryMounts: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
@@ -83,6 +84,30 @@ function postRequest(url: string, body: Record<string, unknown>): unknown {
 const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
 
 describe('market HTTP routes', () => {
+  it('forwards exact model queries and returns reasoning options without provider configuration', async () => {
+    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const calls: string[][] = []
+    const llm = {
+      listProviders: () => [{ id: 'p', apiKey: 'private' }],
+      resolveModelInfo: async (provider: string, model: string) => {
+        calls.push([provider, model])
+        return { id: model, reasoning: { efforts: [{ id: 'high', name: 'High' }] } }
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes), get: () => llm }, service())
+    try {
+      const output = response()
+      await routes.get(MARKET_ROUTES.modelCatalog)!({ method: 'GET', url: `${MARKET_ROUTES.modelCatalog}?provider=p&model=vendor%2Fmodel` }, output)
+      expect(calls).toEqual([['p', 'vendor/model']])
+      expect(output.value()).toEqual({
+        providers: [{ id: 'p', name: 'p' }],
+        models: [{ id: 'vendor/model', name: 'vendor/model' }],
+        reasoning: { efforts: [{ id: 'high', name: 'High' }] }
+      })
+    } finally {
+      dispose()
+    }
+  })
   it('registers the shared route constants and disposes them together', async () => {
     const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
     const webServer = strictWebServer(routes)
@@ -93,7 +118,9 @@ describe('market HTTP routes', () => {
     // exact table by pathname only, so a same-path GET/POST pair throws at
     // mount); the user panel routes appear only when a panel store set is
     // provided. The strict mock reproduces that duplicate-throw contract.
-    expect([...routes.keys()].sort()).toEqual([...Object.values(MARKET_ROUTES).filter(path => path !== MARKET_ROUTES.userPanel), `${MARKET_ROUTES.lspServers}/save`].sort())
+    expect([...routes.keys()].sort()).toEqual(
+      [...Object.values(MARKET_ROUTES).filter(path => path !== MARKET_ROUTES.userPanel), `${MARKET_ROUTES.lspServers}/save`, `${MARKET_ROUTES.lspServers}/enabled`].sort()
+    )
     const overviewResponse = response()
     await routes.get(MARKET_ROUTES.overview)?.({ url: '/api/agent-plugins/overview', headers: {} }, overviewResponse)
     expect(overviewResponse.value()).toMatchObject({ totals: { all: 0 } })

@@ -5,9 +5,11 @@ import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from 
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../runtime/mcp-overrides.js'
 import type { HostMcpClientProbe, McpBackend } from '../runtime/mcp-backend.js'
+import type { ServerConfigPayload } from '../contracts/market.js'
 
 /** Read-only market operations required by HTTP routes. */
 export interface MarketQueries {
+  serverConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload>
   readonly sources: SourceRef[]
   overview(): Promise<OverviewPayload>
   mcpStatus(): Promise<McpStatusPayload>
@@ -21,6 +23,9 @@ export interface MarketQueries {
 
 /** Mutating market operations required by HTTP routes. */
 export interface MarketMutations {
+  saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown): Promise<void>
+  addMcpServer(name: string, server: unknown): Promise<void>
+  addLspServer(name: string, config: unknown): Promise<void>
   addSource(input: { url: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<SourceRef>
   updateSource(sourceId: string, patch: { url?: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<void>
   /**
@@ -38,6 +43,7 @@ export interface MarketMutations {
   setMcpOverride(sourceId: string, suiteId: string, serverKey: string, override: McpServerOverride | null): Promise<void>
   /** Validate and persist the user's direct LSP server table. */
   setLspServers(raw: unknown): Promise<Record<string, import('../model/types.js').LspServerSpec>>
+  setLspServerEnabled(id: string, enabled: boolean): Promise<void>
   /** Re-run the MCP reconcile pass: retries failed mounts and clears residual tools. */
   retryMounts(): Promise<void>
   reauthorizeMcpServer(serverName: string): Promise<void>

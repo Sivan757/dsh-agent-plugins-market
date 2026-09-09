@@ -16,17 +16,20 @@ import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import { archiveInstall } from '../catalog/archive.js'
 import { gitClone, gitCurrentBranch, gitHead, gitRemoteUrl, gitRemove, gitSetRemoteUrl, gitSync, type GitOptions } from '../catalog/git.js'
 import { buildMcpStatus, type McpToolSnapshot } from '../runtime/mcp-status.js'
+import { addUserMcpServer, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from '../runtime/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import { buildLspStatus, type LspMountStatusSource } from '../runtime/lsp-status.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
-import { loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import { loadDisabledLspServers, saveDisabledLspServers } from '../runtime/lsp-server-state.js'
+import { applyOverride, loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from '../runtime/server-config.js'
 import { probeHostMcpClient, type HostMcpClientProbe, type McpBackend } from '../runtime/mcp-backend.js'
 import { githubCloneUrl, resolveRegion, type DownloadRegionSetting, type EffectiveRegion } from '../runtime/regions.js'
 import { readLocalePreference } from '../runtime/host-locale.js'
-import { redactMcpOverrides } from '../runtime/mcp-redaction.js'
+import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
-import type { OverviewPayload, SkillContent, SourceOverview, SuiteDetail } from '../contracts/market.js'
+import type { OverviewPayload, ServerConfigPayload, SkillContent, SourceOverview, SuiteDetail } from '../contracts/market.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
 import {
   deriveSourceIdCandidates,
@@ -158,6 +161,14 @@ export class Catalog {
   }
   /** Download-region source (the host settings namespace scope). */
   private downloadRegionProvider: () => Promise<DownloadRegionSetting> = async () => 'auto'
+  private scanProjectLayouts = true
+
+  /** Apply the host's project-layout switch and invalidate every project snapshot. */
+  async setScanProjectLayouts(enabled: boolean): Promise<void> {
+    if (this.scanProjectLayouts === enabled) return
+    this.scanProjectLayouts = enabled
+    await this.notifyChanged()
+  }
 
   constructor(private readonly options: CatalogOptions) {
     this.statePath = join(options.userRoot, STATE_FILE_NAME)
@@ -222,19 +233,108 @@ export class Catalog {
   /** Build the flat MCP service inventory for the status surface. */
   async mcpStatus(): Promise<McpStatusPayload> {
     const snapshot = await this.readUserCatalog()
-    return buildMcpStatus(snapshot.suites, this.mcpDiagnostics, this.toolSnapshotProvider(), await this.allMcpOverrides())
+    const suites = [...snapshot.suites, await loadUserMcpSuite(this.options.dataRoot)]
+    const payload = buildMcpStatus(suites, this.mcpDiagnostics, this.toolSnapshotProvider(), await this.allMcpOverrides(suites))
+    for (const entry of payload.entries)
+      if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
+        entry.kind = 'direct'
+        entry.managed = true
+      }
+    return payload
+  }
+
+  /** Persist a user-owned MCP service and reconcile its bridge mount. */
+  async addMcpServer(name: string, server: unknown): Promise<void> {
+    return this.enqueue(async () => {
+      await addUserMcpServer(this.options.dataRoot, name, server)
+      await this.notifyChanged(true)
+    })
+  }
+
+  /** Read effective service configuration without exposing credential literals. */
+  async serverConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
+    const config = await this.resolveServerConfig(kind, id)
+    return { kind, id, editable: true, config: redactMcpConfig(config.value) as Record<string, unknown> }
+  }
+
+  private async resolveServerConfig(kind: 'mcp' | 'lsp', id: string) {
+    if (kind === 'lsp' && id.startsWith('direct/')) {
+      const key = id.slice(7)
+      const server = (await loadLspServers(this.options.dataRoot)).servers[key]
+      if (server === undefined) throw new Error('LSP server not found')
+      return { key, suiteKey: 'direct', root: this.options.dataRoot, value: lspConfig(server) }
+    }
+    const suites = [...(await this.readUserCatalog()).suites, await loadUserMcpSuite(this.options.dataRoot)]
+    for (const suite of await applyLspOverrides(this.options.dataRoot, suites)) {
+      const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
+      if (kind === 'mcp') {
+        for (const [key, server] of Object.entries(suite.mcp?.servers ?? {})) {
+          if (id !== `plugin:${suiteKey}/${key}`) continue
+          const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteKey)
+          return { key, suiteKey, root: suite.root, value: { ...applyOverride(server, overrides[key]) } }
+        }
+      } else {
+        for (const [key, server] of Object.entries(suite.lsp?.servers ?? {})) {
+          if (id === `${suiteKey}/${key}`) return { key, suiteKey, root: suite.root, value: lspConfig(server) }
+        }
+      }
+    }
+    throw new Error('service configuration is not managed by this plugin')
+  }
+
+  /** Validate a complete replacement before writing; plugin checkouts remain untouched. */
+  async saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown): Promise<void> {
+    return this.enqueue(async () => {
+      const current = await this.resolveServerConfig(kind, id)
+      const value = restoreRedactedConfig(config, current.value)
+      if (kind === 'mcp') {
+        const server = await validateServerMcp(current.root, current.key, value)
+        const overrides = await loadSuiteOverrides(this.options.dataRoot, current.suiteKey)
+        const enabled = overrides[current.key]?.enabled
+        overrides[current.key] = { config: server, ...(enabled === undefined ? {} : { enabled }) }
+        await saveSuiteOverrides(this.options.dataRoot, current.suiteKey, overrides)
+      } else {
+        const server = validateServerLsp(current.key, value)
+        if (current.suiteKey === 'direct') {
+          const direct = await loadLspServers(this.options.dataRoot)
+          if (direct.errors.length > 0) throw new Error(direct.errors.join('; '))
+          direct.servers[current.key] = server
+          await saveLspServers(this.options.dataRoot, { lspServers: Object.fromEntries(Object.entries(direct.servers).map(([key, spec]) => [key, lspConfig(spec)])) })
+        } else await saveLspOverride(this.options.dataRoot, id, server)
+      }
+      await this.notifyChanged(true)
+    })
   }
 
   /** The LSP status surface: declared servers merged with mount diagnostics. */
   async lspStatus(): Promise<LspStatusPayload> {
     const snapshot = await this.readUserCatalog()
     const direct = await loadLspServers(this.options.dataRoot)
-    return buildLspStatus(snapshot.suites, this.lspStatusSource ?? { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false }, direct)
+    return buildLspStatus(
+      await applyLspOverrides(this.options.dataRoot, snapshot.suites),
+      this.lspStatusSource ?? { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
+      direct
+    )
   }
 
   /** The user's direct LSP server table (normalized specs). */
   async lspServers(): Promise<Record<string, import('../model/types.js').LspServerSpec>> {
     return (await loadLspServers(this.options.dataRoot)).servers
+  }
+
+  /** Create one direct LSP declaration without replacing other user servers. */
+  async addLspServer(name: string, config: unknown): Promise<void> {
+    return this.enqueue(async () => {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name)) throw new Error('invalid LSP server name')
+      const direct = await loadLspServers(this.options.dataRoot)
+      if (direct.errors.length > 0) throw new Error(direct.errors.join('; '))
+      if (Object.hasOwn(direct.servers, name)) throw new Error('LSP server already exists')
+      const spec = validateServerLsp(name, config)
+      await saveLspServers(this.options.dataRoot, {
+        lspServers: { ...Object.fromEntries(Object.entries(direct.servers).map(([key, value]) => [key, lspConfig(value)])), [name]: lspConfig(spec) }
+      })
+      await this.notifyChanged(true)
+    })
   }
 
   /** Validate and persist the user's direct LSP server table. */
@@ -243,6 +343,16 @@ export class Catalog {
       const { servers } = await saveLspServers(this.options.dataRoot, raw)
       await this.notifyChanged(true)
       return servers
+    })
+  }
+
+  async setLspServerEnabled(id: string, enabled: boolean): Promise<void> {
+    return this.enqueue(async () => {
+      const disabled = await loadDisabledLspServers(this.options.dataRoot)
+      if (enabled) disabled.delete(id)
+      else disabled.add(id)
+      await saveDisabledLspServers(this.options.dataRoot, disabled)
+      await this.notifyChanged(true)
     })
   }
 
@@ -263,10 +373,15 @@ export class Catalog {
     return this.enqueue(async () => {
       const suiteKey = qualifiedSuiteId(sourceId, suiteId)
       const source = this.state.sources.find(entry => entry.id === sourceId)
-      if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
-      const checkout = this.sourceCheckoutPath(source)
-      if (!(await isDirectory(checkout))) await this.acquire(source)
-      const suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
+      let suites: Suite[]
+      if (sourceId === USER_MCP_SOURCE && suiteId === USER_MCP_SUITE) {
+        suites = [await loadUserMcpSuite(this.options.dataRoot)]
+      } else {
+        if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
+        const checkout = this.sourceCheckoutPath(source)
+        if (!(await isDirectory(checkout))) await this.acquire(source)
+        suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
+      }
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.mcp?.servers[serverKey] === undefined) throw new Error(`server "${serverKey}" is not defined by suite "${suiteId}"`)
@@ -529,8 +644,9 @@ export class Catalog {
         .map(([key]) => key.slice(0, key.indexOf('/')))
     )
     const sources = this.state.sources.filter(source => enabledSources.has(source.id))
-    if (sources.length === 0) return []
-    return (await this.buildSnapshot({ ...this.state, sources }, 'user', this.options.userRoot)).enabledSuites
+    const suites = sources.length === 0 ? [] : (await this.buildSnapshot({ ...this.state, sources }, 'user', this.options.userRoot)).enabledSuites
+    const direct = await loadUserMcpSuite(this.options.dataRoot)
+    return applyLspOverrides(this.options.dataRoot, Object.keys(direct.mcp!.servers).length === 0 ? suites : [...suites, direct])
   }
 
   /** Enabled user- and project-dimension suites for a workspace cwd. */
@@ -1013,7 +1129,7 @@ export class Catalog {
   }
 
   private async buildSnapshot(state: SuiteState, dimension: SuiteDimension, dimensionRoot: string, skipScanCache = false): Promise<CatalogSnapshot> {
-    const fingerprint = JSON.stringify([dimension, dimensionRoot, state.sources])
+    const fingerprint = JSON.stringify([dimension, dimensionRoot, state.sources, this.scanProjectLayouts])
     const cached = this.scanCache.get(fingerprint)
     // The user snapshot's TTL also bounds scan reuse: a snapshot rebuild that
     // replays a 30s scan cache would silently outlive its own staleness bound.
@@ -1028,7 +1144,7 @@ export class Catalog {
       const generation = this.scanGeneration
       let pending = this.scanPromises.get(fingerprint)
       if (pending === undefined) {
-        pending = discoverSourceListWithNotes(state.sources, dimension, dimensionRoot)
+        pending = discoverSourceListWithNotes(state.sources, dimension, dimensionRoot, this.scanProjectLayouts)
         this.scanPromises.set(fingerprint, pending)
       }
       let result: Awaited<typeof pending>
@@ -1053,7 +1169,11 @@ export class Catalog {
       return {
         ...suite,
         enabled,
-        activeSurfaces: effectiveSurfaces(installed?.surfaces),
+        activeSurfaces: {
+          ...effectiveSurfaces(installed?.surfaces),
+          ...(suite.manifest.layout === 'project-native' ? suite.activeSurfaces : {}),
+          ...(dimension === 'project' ? { lsp: false } : {})
+        },
         ...(installed?.lockCommit === undefined ? {} : { lockCommit: installed.lockCommit }),
         ...(installed?.installedAt === undefined ? {} : { installedAt: installed.installedAt })
       }

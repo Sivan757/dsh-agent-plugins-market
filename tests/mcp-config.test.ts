@@ -49,6 +49,24 @@ describe('mcp-config: suite mcp.json → bridge rows', () => {
 })
 
 describe('mcp-config: credential references', () => {
+  it.each(['ZCODE', 'QODER'])('expands %s plugin variables without treating them as credentials', async dialect => {
+    const source = suite({
+      mcp: {
+        schema: '',
+        servers: {
+          server: {
+            type: 'stdio',
+            command: 'server',
+            args: [`\${${dialect}_PLUGIN_ROOT}`],
+            env: { DATA: `\${${dialect}_PLUGIN_DATA}` }
+          }
+        }
+      }
+    })
+    const { mounts, failures } = await toMcpMounts(source, '/tmp/data')
+    expect(failures).toEqual([])
+    expect(mounts[0]!.config).toMatchObject({ args: ['/tmp/my-suite'], env: { DATA: '/tmp/data/demo/my-suite' } })
+  })
   it('resolves env and header placeholders through the credential resolver', async () => {
     const result = await toMcpMounts(
       suite(),

@@ -72,7 +72,8 @@ export function mountSuiteRoutes(
 
   get(MARKET_ROUTES.modelCatalog, async (request, response) => {
     try {
-      sendJson(response, 200, await readModelCatalog(host, queryOf(request).get('provider') || undefined))
+      const query = queryOf(request)
+      sendJson(response, 200, await readModelCatalog(host, query.get('provider') || undefined, query.get('model') || undefined))
     } catch (error) {
       sendJson(response, 503, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }
@@ -80,6 +81,29 @@ export function mountSuiteRoutes(
 
   get(MARKET_ROUTES.mcpStatus, async (_request, response) => {
     sendJson(response, 200, await manager.mcpStatus())
+  })
+
+  get(MARKET_ROUTES.serverConfig, async (request, response) => {
+    try {
+      const query = queryOf(request)
+      const kind = query.get('kind')
+      if (kind !== 'mcp' && kind !== 'lsp') throw new Error('invalid service kind')
+      sendJson(response, 200, await manager.serverConfig(kind, query.get('id') ?? ''))
+    } catch (error) {
+      sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+  post(MARKET_ROUTES.saveServerConfig, async body => {
+    if (body.kind !== 'mcp' && body.kind !== 'lsp') throw new Error('invalid service kind')
+    if (typeof body.id !== 'string' || body.id === '') throw new Error('missing service id')
+    await manager.saveServerConfig(body.kind, body.id, body.config)
+    return {}
+  })
+
+  post(MARKET_ROUTES.addMcpServer, async body => {
+    if (typeof body.name !== 'string') throw new Error('MCP server name is required')
+    await manager.addMcpServer(body.name, body.config)
+    return {}
   })
 
   get(MARKET_ROUTES.lspStatus, async (_request, response) => {
@@ -287,6 +311,17 @@ export function mountSuiteRoutes(
   post(`${MARKET_ROUTES.lspServers}/save`, async body => {
     const servers = await manager.setLspServers(body['lspServers'])
     return { lspServers: servers }
+  })
+  post(MARKET_ROUTES.addLspServer, async body => {
+    if (typeof body.name !== 'string') throw new Error('missing LSP server name')
+    await manager.addLspServer(body.name.trim(), body.config)
+    return {}
+  })
+  post(`${MARKET_ROUTES.lspServers}/enabled`, async body => {
+    const id = String(body['id'] ?? '')
+    if (id === '') throw new Error('missing LSP server id')
+    await manager.setLspServerEnabled(id, body['enabled'] !== false)
+    return {}
   })
 
   // User panel CRUD (skills / commands / agent personas). The host web

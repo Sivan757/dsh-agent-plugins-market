@@ -5,10 +5,9 @@
  * The suite's mcp.json is source-controlled content — editing it in place
  * would be clobbered by the next refresh and would blur authorship. Overrides
  * live in `${dataRoot}/overrides/<suiteId>.json` and win at mount time.
- * Editable scope is deliberate: connection inputs (`url`, `headers`, `env`,
- * `args`) and enable/disable are local-adaptation concerns; transport type,
- * command, and the derived serverName stay source-owned so mounts stay
- * coherent across refreshes. Secret values should use `${NAME}` references
+ * Legacy patches edit connection inputs and enablement; the service editor
+ * stores a validated complete configuration while retaining server identity.
+ * Secret values should use `${NAME}` references
  * resolved by the Host credentials service (or launch-environment fallback)
  * so keys never persist in plain text.
  */
@@ -22,6 +21,8 @@ type McpServerHttp = McpServerStreamableHttp | McpServerSse
 
 /** Per-server override record; absent fields pass through from the source. */
 export type McpServerOverride = {
+  /** Validated complete user configuration, retaining source-owned identity. */
+  config?: McpServerStdio | McpServerHttp
   /** Disabled servers are not mounted at all (default enabled). */
   enabled?: boolean
   /** Replaces the source URL (streamable-http only). */
@@ -65,7 +66,7 @@ export async function loadSuiteOverrides(dataRoot: string, suiteId: string): Pro
 export async function saveSuiteOverrides(dataRoot: string, suiteId: string, overrides: McpSuiteOverrides): Promise<void> {
   const path = suiteOverridePath(dataRoot, suiteId)
   await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, `${JSON.stringify(overrides, null, 2)}\n`, 'utf8')
+  await writeFile(path, `${JSON.stringify(overrides, null, 2)}\n`, { mode: 0o600 })
 }
 
 /** Keep only recognized fields with correct shapes; drop everything else. */
@@ -76,6 +77,7 @@ export function sanitizeOverrides(raw: unknown): McpSuiteOverrides {
     if (typeof value !== 'object' || value === null) continue
     const record = value as Record<string, unknown>
     const override: McpServerOverride = {}
+    if (typeof record['config'] === 'object' && record['config'] !== null) override.config = record['config'] as McpServerStdio | McpServerHttp
     if (typeof record['enabled'] === 'boolean') override.enabled = record['enabled']
     if (typeof record['url'] === 'string' && record['url'] !== '') override.url = record['url']
     const headers = stringMap(record['headers'])
@@ -105,6 +107,7 @@ function sanitizeAuth(raw: unknown): { enabled: boolean; scope?: string } | unde
 
 /** Validate a client-supplied patch for one server into an override value. */
 export function sanitizeOverridePatch(patch: unknown): McpServerOverride | undefined {
+  if (typeof patch === 'object' && patch !== null && 'config' in patch) return undefined
   if (containsLiteralSensitiveValue(patch)) return undefined
   return sanitizeOverrides({ server: patch })['server']
 }
@@ -122,6 +125,7 @@ export function mergeOverridePatch(existing: McpServerOverride, patch: McpServer
   const headers = mergeStringMap(existing.headers, patch.headers)
   const env = mergeStringMap(existing.env, patch.env)
   return {
+    ...(existing.config === undefined ? {} : { config: existing.config }),
     enabled: patch.enabled ?? existing.enabled ?? true,
     ...(patch.url !== undefined ? { url: patch.url } : existing.url === undefined ? {} : { url: existing.url }),
     ...(headers === undefined ? {} : { headers }),
@@ -167,6 +171,7 @@ function stringMap(value: unknown): Record<string, string> | undefined {
  */
 export function applyOverride(server: McpServerStdio | McpServerHttp, override: McpServerOverride | undefined): McpServerStdio | McpServerHttp {
   if (override === undefined) return server
+  if (override.config !== undefined) server = override.config
   if (server.type === 'stdio') {
     return {
       ...server,

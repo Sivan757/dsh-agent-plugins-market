@@ -17,11 +17,12 @@ import { resolveCwd } from '../catalog/validate.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
+import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'
 
 /** The max length the bridge accepts for a serverName. */
 const SERVER_NAME_MAX = 32
 const PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g
-const BUILTIN_PLACEHOLDERS = new Set(['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'PLUGIN_DATA', 'CLAUDE_PLUGIN_DATA'])
+const BUILTIN_PLACEHOLDERS = new Set([...PLUGIN_ROOT_VARIABLES, ...PLUGIN_DATA_VARIABLES])
 
 export interface McpMountRequest {
   suiteId: string
@@ -78,7 +79,7 @@ export async function toMcpMounts(
     if (override?.enabled === false) continue
     const server = applyOverride(source as McpServerStdio | McpServerStreamableHttp | McpServerSse, override)
     try {
-      const result = await toResolvedMount(suite, serverKey, server, pluginDataRoot, resolver)
+      const result = await toResolvedMount(suite.mcp.root === undefined ? suite : { ...suite, root: suite.mcp.root }, serverKey, server, pluginDataRoot, resolver)
       if (result.failure !== undefined) failures.push(result.failure)
       if (result.request !== undefined) mounts.push(result.request)
     } catch {
@@ -128,7 +129,7 @@ async function toResolvedMount(
       url: url.value,
       headers: headers.values,
       ...(server.auth === undefined ? {} : { auth: mapAuth(server.auth) }),
-      toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+      ...bridgePolicy(server),
       failOnStartupError: true
     }
     return { request: { suiteId: qualifiedSuiteId(suite.sourceId, suite.id), serverKey, config: sseConfig } }
@@ -152,7 +153,7 @@ async function toResolvedMount(
           args: args.values,
           env: env.values,
           cwd: resolveCwd(cwd.value, suite.root, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id))),
-          toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+          ...bridgePolicy(server),
           failOnStartupError: true
         }
       }
@@ -172,7 +173,7 @@ async function toResolvedMount(
         url: url.value,
         headers: headers.values,
         ...(server.auth === undefined ? {} : { auth: mapAuth(server.auth) }),
-        toolCallTimeoutMs: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+        ...bridgePolicy(server),
         failOnStartupError: true
       }
     }
@@ -189,6 +190,15 @@ function mapAuth(auth: { enabled: boolean; scope?: string }): { enabled: boolean
   return {
     enabled: auth.enabled !== false,
     ...(auth.scope === undefined ? {} : { scope: auth.scope })
+  }
+}
+
+function bridgePolicy(server: McpServer) {
+  return {
+    toolCallTimeoutMs: server.toolCallTimeoutMs ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    ...(server.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: server.startupTimeoutMs }),
+    ...(server.enabledTools === undefined ? {} : { enabledTools: server.enabledTools }),
+    ...(server.disabledTools === undefined ? {} : { disabledTools: server.disabledTools })
   }
 }
 
@@ -215,8 +225,8 @@ function expander(suite: Suite, pluginData: string, resolver: McpCredentialResol
       output += value.slice(cursor, index)
       const fallback = match[2]
       let replacement: string | undefined
-      if (name === 'PLUGIN_ROOT' || name === 'CLAUDE_PLUGIN_ROOT') replacement = suite.root
-      else if (name === 'PLUGIN_DATA' || name === 'CLAUDE_PLUGIN_DATA') replacement = pluginData
+      if (PLUGIN_ROOT_VARIABLES.has(name)) replacement = suite.root
+      else if (PLUGIN_DATA_VARIABLES.has(name)) replacement = pluginData
       else replacement = (await lookup(name))?.value
       if (replacement === undefined || replacement === '') {
         if (fallback !== undefined && fallback !== '') replacement = fallback

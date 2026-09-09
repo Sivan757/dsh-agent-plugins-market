@@ -10,14 +10,13 @@
  * broken command file or an unavailable `ctx.commands` is contained per
  * command and reported as a diagnostic.
  */
-import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { parse as parseYaml } from 'yaml'
-import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
+import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from './user-store.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
-import type { Suite } from '../model/types.js'
+import type { Suite, SuiteMarkdownResource } from '../model/types.js'
+import { defaultMarkdownResources, resourceText, resourceCommandName } from '../catalog/component-files.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
 
 export interface CommandMountDiagnostic {
@@ -59,23 +58,21 @@ export class CommandMountRegistry {
     private readonly t: HostTranslate = bindHostLocale(undefined)
   ) {}
 
-  /** Register/unregister suite commands and agent-commands to match the enabled suites exactly. */
+  /** Register/unregister suite commands to match the enabled suites exactly. */
   async reconcile(enabledSuites: Suite[]): Promise<CommandMountDiagnostic[]> {
     const diagnostics: CommandMountDiagnostic[] = []
     const wanted = new Map<string, CommandSpec & { suiteId: string; suiteName: string }>()
     for (const suite of enabledSuites) {
-      const specs =
-        suite.activeSurfaces?.commands === false && suite.activeSurfaces?.agents === false
-          ? []
-          : [
-              ...(suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root)),
-              ...(suite.activeSurfaces?.agents === false ? [] : await readAgents(suite.root, this.t, suite.sourceId, suite.id))
-            ]
+      const specs = suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root, suite.resources?.commands)
       for (const spec of specs) {
         // The registry key is source-qualified: bare suite ids are unique per
         // source only, so two sources' same-named suites would collide.
         const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
         const key = `${suiteKey}/${spec.name}`
+        if (wanted.has(key)) {
+          diagnostics.push({ suiteId: suiteKey, command: spec.name, reason: 'duplicate normalized command name' })
+          continue
+        }
         wanted.set(key, { ...spec, suiteId: suiteKey, suiteName: suite.manifest.name })
       }
     }
@@ -126,21 +123,15 @@ export class CommandMountRegistry {
 }
 
 /** Parse `commands/*.md` of one suite root (Claude Code format). */
-export async function readCommands(root: string): Promise<CommandSpec[]> {
-  let entries: string[]
-  try {
-    entries = await readdir(join(root, 'commands'))
-  } catch {
-    return []
-  }
+export async function readCommands(root: string, resources?: SuiteMarkdownResource[]): Promise<CommandSpec[]> {
+  const entries = resources ?? (await defaultMarkdownResources(root, 'commands'))
   const specs: CommandSpec[] = []
   for (const entry of entries) {
-    if (!entry.endsWith('.md')) continue
-    const name = entry.slice(0, -3)
+    const name = resourceCommandName(entry.name)
     if (!COMMAND_NAME.test(name)) continue
     let text: string
     try {
-      text = await readFile(join(root, 'commands', entry), 'utf8')
+      text = await resourceText(entry)
     } catch {
       continue
     }
@@ -153,48 +144,6 @@ export async function readCommands(root: string): Promise<CommandSpec[]> {
     const description = meta?.description ?? firstLine(text)
     if (description === undefined) continue
     specs.push({ name, description, hint: meta?.hint, body: stripFrontmatter(text) })
-  }
-  return specs
-}
-
-/** Parse `agents/*.md` of one suite root into `agent-<name>` commands so
- *  subagents are selectable from the slash-command menu, grouped by the
- *  `agent-` prefix (the harness command UI has no group headers). */
-export async function readAgents(root: string, t: HostTranslate, sourceId?: string, suiteId?: string): Promise<CommandSpec[]> {
-  let entries: string[]
-  try {
-    entries = await readdir(join(root, 'agents'))
-  } catch {
-    return []
-  }
-  const specs: CommandSpec[] = []
-  for (const entry of entries) {
-    if (!entry.endsWith('.md')) continue
-    const name = `agent-${entry.slice(0, -3)}`
-    if (!COMMAND_NAME.test(name)) continue
-    let text: string
-    try {
-      text = await readFile(join(root, 'agents', entry), 'utf8')
-    } catch {
-      continue
-    }
-    try {
-      if (parseFrontmatterRecord(text).disabled === true) continue
-    } catch {
-      continue
-    }
-    const parsed = parseSkillFrontmatter(text, name)
-    const description = typeof parsed === 'string' ? parsed : parsed.description
-    if (description === undefined) continue
-    specs.push({
-      name,
-      description,
-      hint: t('agentCommandHint'),
-      body:
-        sourceId === undefined
-          ? stripFrontmatter(text)
-          : `Use market_agent action run with role ${JSON.stringify(JSON.stringify([sourceId, suiteId, 'agents', entry.slice(0, -3)]))}. Task: $ARGUMENTS`
-    })
   }
   return specs
 }
@@ -214,7 +163,7 @@ function commandMeta(text: string): CommandMeta | undefined {
     const meta: CommandMeta = {}
     const description = record['description']
     if (typeof description === 'string' && description.trim() !== '') meta.description = description.trim()
-    const hint = record['argument-hint']
+    const hint = record['argument-hint'] ?? record['argumentHint']
     if (typeof hint === 'string' && hint.trim() !== '') meta.hint = hint.trim()
     return meta
   } catch {
