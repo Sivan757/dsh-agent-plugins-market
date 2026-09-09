@@ -80,23 +80,6 @@
   font-size: 12px;
 }
 
-.busyOverlay {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 12px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
-  border-radius: 8px;
-  background: var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253));
-  color: var(--dsw-alias-label-primary, #1f2328);
-  font-size: 12px;
-}
-
 .busyLabel {
   min-width: 0;
   overflow: hidden;
@@ -109,10 +92,6 @@
   flex: none;
   color: var(--dsw-alias-label-secondary, #6b7280);
   font-size: 13px;
-}
-
-.busyOverlay .spinner {
-  color: var(--dsw-alias-label-primary, #4966f5);
 }
 
 .spinning {
@@ -146,6 +125,11 @@
   font-size: 11px;
   line-height: 16px;
   white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badgePlugin {
@@ -256,6 +240,7 @@
   align-items: flex-start;
   padding: 10px 12px;
   border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-left: 3px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1, #fff);
 }
@@ -264,9 +249,11 @@
   opacity: 0.72;
 }
 
+
 .entryMain {
   display: flex;
   min-width: 0;
+  max-width: 100%;
   flex: 1;
   flex-direction: column;
   gap: 4px;
@@ -289,6 +276,7 @@
 
 .entryDesc {
   margin: 0;
+  overflow-wrap: anywhere;
   display: -webkit-box;
   overflow: hidden;
   color: var(--dsw-alias-label-secondary, #6b7280);
@@ -313,6 +301,7 @@
   flex-direction: row;
   gap: 2px;
   align-items: center;
+  margin-left: auto;
 }
 
 .iconBtn {
@@ -354,8 +343,13 @@
 
 .entryGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.entryGrid .entryPath {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .entryGrid .entryRow {
@@ -374,6 +368,7 @@
 }
 
 @container (max-width: 540px) {
+  .entryGrid { grid-template-columns: minmax(0, 1fr); }
   .entryRow { flex-wrap: wrap; }
   .entryActions { margin-left: auto; }
   .entryMain { flex-basis: 100%; }
@@ -413,7 +408,7 @@
 }
 
 .roleFields .editorHint,
-.roleFields .editorLabel:last-of-type {
+.roleFields .editorError {
   grid-column: 1 / -1;
 }
 

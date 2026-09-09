@@ -68,7 +68,7 @@
   left: 10px;
   height: 2px;
   border-radius: 2px;
-  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color, rgb(65, 118, 230));
+  background: var(--dsw-alias-brand-primary);
   content: '';
 }
 

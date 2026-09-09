@@ -10,8 +10,13 @@
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, Input, Modal, IconLoadingOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Modal, IconLoadingOutline16, IconPlusOutline16, IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './panel.module.css'
+import { beginBusyOperation } from './busy-operation.js'
+import { DetailModal } from './DetailModal.js'
+import { MarkdownDocument } from './MarkdownDocument.js'
+import type { Translate } from '../index.js'
+import detailCss from './detail.module.css'
 
 /** One header action slot (a button + its handler). */
 export interface PanelAction {
@@ -21,6 +26,13 @@ export interface PanelAction {
   danger?: boolean
   disabled?: boolean
   onSelect: () => void
+}
+
+/** The trailing header commands have one position and one visual treatment. */
+export function PanelActions(props: { addLabel?: string; onAdd?: () => void; refreshLabel?: string; onRefresh?: () => void; busy?: boolean }): ReactNode {
+  return h('div', { className: css.headerActions },
+    props.onAdd === undefined ? null : h(Button, { variant: 'ghost', size: 'sm', disabled: props.busy, title: props.addLabel, 'aria-label': props.addLabel, onClick: props.onAdd }, h(IconPlusOutline16), props.addLabel),
+    props.onRefresh === undefined ? null : h(Button, { variant: 'ghost', size: 'sm', disabled: props.busy, title: props.refreshLabel, 'aria-label': props.refreshLabel, onClick: props.onRefresh }, h(IconRefreshOutline16)))
 }
 
 /** Shared heading geometry for all resource tabs. */
@@ -60,17 +72,23 @@ export function PanelShell(props: { title: string; subtitle?: string; actions?: 
 }
 
 /**
- * Global busy indicator: an inline spinner with an optional label. Panels
- * render it as an overlay strip while a mutation is in flight so every
- * action's pending state reads identically across the workspace.
+ * Inline loading feedback, or a lease on the client's shared blocking overlay.
+ * Overlay leases render no layout element and can span request + refresh work.
  */
 export function BusyIndicator(props: { label?: string; overlay?: boolean }): ReactNode {
+  if (props.overlay) return h(BusyLease)
   return h(
     'div',
-    { className: props.overlay === true ? css.busyOverlay : css.busyLine, role: 'status' },
+    { className: css.busyLine, role: 'status' },
     h('span', { className: `${css.spinner} ${css.spinning}`, 'aria-hidden': true }, h(IconLoadingOutline16)),
     props.label === undefined ? null : h('span', { className: css.busyLabel }, props.label)
   )
+}
+
+/** Hold the shared mask through local refresh/validation after the HTTP mutation finishes. */
+function BusyLease(): ReactNode {
+  useEffect(() => beginBusyOperation(), [])
+  return null
 }
 
 /** The source badge: where an entry comes from (suite plugin vs user). */
@@ -90,6 +108,7 @@ export interface PanelEditorState {
 
 /** The shared Markdown entry editor: name (create only) + raw text. */
 export function EntryEditorModal(props: {
+  t: Translate
   open: boolean
   state: PanelEditorState | undefined
   title: string
@@ -106,14 +125,16 @@ export function EntryEditorModal(props: {
 }): ReactNode {
   const [draft, setDraft] = useState<PanelEditorState | undefined>(props.state)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [mode, setMode] = useState<'preview' | 'edit'>(props.state?.mode === 'create' ? 'edit' : 'preview')
   useEffect(() => {
     setDraft(props.state)
     setError(undefined)
+    setMode(props.state?.mode === 'create' ? 'edit' : 'preview')
   }, [props.state, props.open])
   if (!props.open || props.state === undefined) return null
   const current = draft ?? props.state
   return h(
-    Modal,
+    DetailModal,
     {
       open: true,
       onClose: () => {
@@ -163,6 +184,7 @@ export function EntryEditorModal(props: {
             props.nameLabel,
             h(Input, {
               value: current.name,
+              disabled: props.busy,
               placeholder: props.nameLabel,
               'aria-label': props.nameLabel,
               onChange: (event: { target: HTMLInputElement }) => setDraft({ ...current, name: event.target.value })
@@ -171,18 +193,19 @@ export function EntryEditorModal(props: {
         : h(
             'div',
             { className: css.editorNameRow },
-            h('span', { className: css.editorName }, current.name),
             h('code', { className: css.editorPath }, props.state.path ?? props.state.name)
           ),
       props.renderFields?.(current.text, text => setDraft({ ...current, text })),
       props.hint === undefined ? null : h('p', { className: css.editorHint }, props.hint),
-      h(
+      h('div', { className: detailCss.modes }, (['preview', 'edit'] as const).map(value => h('button', { type: 'button', className: detailCss.mode, 'aria-pressed': mode === value, onClick: () => setMode(value), key: value }, props.t(value === 'preview' ? 'detailPreview' : 'detailMarkdown')))),
+      mode === 'preview' ? h(MarkdownDocument, { text: current.text, t: props.t }) : h(
         'label',
         { className: css.editorLabel },
         props.textLabel,
         h('textarea', {
           className: css.editorArea,
           value: current.text,
+          disabled: props.busy,
           rows: 14,
           spellCheck: false,
           'aria-label': props.textLabel,

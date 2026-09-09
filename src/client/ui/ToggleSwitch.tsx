@@ -18,6 +18,7 @@ export function ToggleSwitch(props: ToggleSwitchProps): ReactNode {
       role: 'switch',
       'aria-checked': props.on,
       title: props.title,
+      'aria-label': props.title,
       disabled: props.disabled,
       className: props.on ? css.switchOn : css.switchOff,
       onClick: (event: { stopPropagation(): void }) => {

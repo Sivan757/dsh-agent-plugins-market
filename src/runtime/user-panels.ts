@@ -19,12 +19,9 @@ import { deleteEntryFile, entryExists, listEntryFiles, readEntryFile, USER_ENTRY
 import type { HostTranslate } from './host-locale.js'
 /** The skill-source label user-panel entries carry into the skill registry. */
 export const USER_PANEL_SKILL_SOURCE = 'user-panel' satisfies SkillSource
-/** Agent personas register as `persona-<name>` skills with this source. */
-export const USER_PERSONA_SKILL_SOURCE = 'user-persona' satisfies SkillSource
 
 /** Ranks sit behind every shipped root so real files always win a name clash. */
 const USER_PANEL_RANK = 600
-const USER_PERSONA_RANK = 610
 
 /** A user panel entry as the HTTP layer serializes it. */
 export interface UserPanelEntry {
@@ -66,9 +63,9 @@ export class UserPanelStore {
     return this.dirPath()
   }
 
-  /** Every entry, sorted by name; missing metadata falls back to the name. */
-  async list(): Promise<UserPanelEntry[]> {
-    const files = await listEntryFiles(this.dir)
+  /** Every entry, sorted by name; strict snapshots propagate temporary I/O failures. */
+  async list(strict = false): Promise<UserPanelEntry[]> {
+    const files = await listEntryFiles(this.dir, strict)
     return files.map(file => this.serialize(file))
   }
 
@@ -150,29 +147,24 @@ export function isUserSkillEntryName(name: string): boolean {
 }
 
 interface UserSkillLocator {
-  kind: 'skill' | 'persona'
   name: string
 }
 
 /**
- * Skill provider over the user skills and agent-personas panels. Disabled
- * entries (frontmatter `disabled: true`) never surface in discovery; skills
- * register under their own names and personas under `persona-<name>`, so the
- * model can load a persona card as an instruction body without colliding
- * with suite skills of the same name.
+ * Skill provider over user skills only. Agent definitions belong to the
+ * subagent catalog and never become skill candidates or slash entries.
  */
 export class UserPanelSkillProvider implements SkillProvider {
   readonly name = 'user-panel'
 
   constructor(
     private readonly skills: UserPanelStore,
-    private readonly personas: UserPanelStore,
     private readonly t: HostTranslate
   ) {}
 
   async list(_options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const candidates: SkillCandidate[] = []
-    const [skills, personas] = await Promise.all([this.skills.list(), this.personas.list()])
+    const skills = await this.skills.list()
     for (const entry of skills) {
       if (entry.disabled || !isUserSkillEntryName(entry.name)) continue
       candidates.push({
@@ -186,25 +178,9 @@ export class UserPanelSkillProvider implements SkillProvider {
         source: USER_PANEL_SKILL_SOURCE,
         provider: this.name,
         rank: USER_PANEL_RANK,
-        locator: { kind: 'skill', name: entry.name } satisfies UserSkillLocator,
+        locator: { name: entry.name } satisfies UserSkillLocator,
         path: entry.path,
         resourceBase: { kind: 'directory', path: this.skills.dirPath() }
-      })
-    }
-    for (const entry of personas) {
-      if (entry.disabled || !isUserSkillEntryName(entry.name)) continue
-      const description = this.t('userPersonaDescription', { description: entry.description === '' ? entry.name : entry.description })
-      candidates.push({
-        name: `persona-${entry.name}`,
-        description,
-        ...(typeof entry.metadata['whenToUse'] === 'string' && entry.metadata['whenToUse'] !== '' ? { whenToUse: entry.metadata['whenToUse'] } : {}),
-        invocation: { modelInvocable: true, userInvocable: true },
-        source: USER_PERSONA_SKILL_SOURCE,
-        provider: this.name,
-        rank: USER_PERSONA_RANK,
-        locator: { kind: 'persona', name: entry.name } satisfies UserSkillLocator,
-        path: entry.path,
-        resourceBase: { kind: 'directory', path: this.personas.dirPath() }
       })
     }
     return candidates
@@ -212,7 +188,7 @@ export class UserPanelSkillProvider implements SkillProvider {
 
   async get(candidate: SkillCandidate, _options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
     const locator = candidate.locator as UserSkillLocator
-    const store = locator.kind === 'skill' ? this.skills : this.personas
+    const store = this.skills
     const entry = await store.get(locator.name)
     if (entry === undefined || entry.disabled) return undefined
     return {
@@ -224,10 +200,7 @@ export class UserPanelSkillProvider implements SkillProvider {
       provider: this.name,
       resourceBase: { kind: 'directory', path: store.dirPath() },
       path: entry.path,
-      content:
-        locator.kind === 'persona'
-          ? `Use market_agent with action run and role ${JSON.stringify(entry.name)} to execute this role with its saved model and tool restrictions.\n\n${entry.content}`
-          : entry.content
+      content: entry.content
     }
   }
 }

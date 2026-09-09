@@ -62,7 +62,7 @@ const tStub = (key: string, params?: Record<string, string>): string => {
 }
 
 describe('user panel skill provider', () => {
-  it('surfaces enabled skills and personas, skipping disabled entries', async () => {
+  it('surfaces only enabled skills, keeping personas out of the skill registry', async () => {
     const root = await mkdtemp(join(tmpdir(), 'panels-'))
     try {
       const stores = createUserPanelStores(root)
@@ -70,18 +70,17 @@ describe('user panel skill provider', () => {
       await stores.skills.create('gone', '---\nname: gone\ndescription: vanished\ndisabled: true\n---\nBody')
       await stores.agents.create('reviewer', '---\ndescription: reviews code\n---\nPersona body')
 
-      const provider = new UserPanelSkillProvider(stores.skills, stores.agents, tStub)
+      const provider = new UserPanelSkillProvider(stores.skills, tStub)
       const candidates = await provider.list({})
       const names = candidates.map(entry => entry.name).sort()
-      expect(names).toEqual(['notes', 'persona-reviewer'])
+      expect(names).toEqual(['notes'])
       expect(candidates.find(entry => entry.name === 'notes')?.description).toBe('[user skill] take notes')
-      expect(candidates.find(entry => entry.name === 'persona-reviewer')?.description).toBe('[user persona] reviews code')
 
       const loaded = await provider.get(
-        candidates.find(entry => entry.name === 'persona-reviewer')!,
+        candidates.find(entry => entry.name === 'notes')!,
         {}
       )
-      expect(loaded?.content).toContain('Persona body')
+      expect(loaded?.content).toBe('Body')
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -96,7 +95,7 @@ describe('user panel skill provider', () => {
       // discovery: the registry would drop or reject it.
       const { writeFile } = await import('node:fs/promises')
       await writeFile(join(root, 'user', 'skills', 'my_skill.md'), '---\ndescription: underscored\n---\nBody', 'utf8')
-      const provider = new UserPanelSkillProvider(stores.skills, stores.agents, tStub)
+      const provider = new UserPanelSkillProvider(stores.skills, tStub)
       const names = (await provider.list({})).map(entry => entry.name)
       expect(names).toEqual(['ok-name'])
     } finally {

@@ -6,11 +6,14 @@
  * @module client/ui/UserPanelSurface
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { IconEditOutline16, IconTrashOutline16, IconPauseOutline16, IconPlayOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconEditOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ToggleSwitch } from './ToggleSwitch.js'
 import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanel, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
 import type { Translate } from '../index.js'
-import { SearchFilterToolbar, type SearchFilterToolbarView } from '../SearchFilterToolbar.js'
-import { PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, SourceBadge, type PanelConfirmState, type PanelEditorState } from './panel.js'
+import { SearchFilterToolbar } from '../SearchFilterToolbar.js'
+import { ResourceCard, ResourceCollection } from './ResourceCard.js'
+import { useWorkspaceView } from './workspace-view.js'
+import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, SourceBadge, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
 import { RoleMetadataFields } from '../features/personas/RoleMetadataFields.js'
 import { readRoleFields, updateFrontmatter } from '../features/personas/frontmatter.js'
@@ -42,7 +45,7 @@ export function UserPanelSurface(props: {
   const [busy, setBusy] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<PanelFilter>('all')
-  const [view, setView] = useState<SearchFilterToolbarView>('list')
+  const [view, setView] = useWorkspaceView()
   const [editor, setEditor] = useState<PanelEditorState | undefined>(undefined)
   const [confirm, setConfirm] = useState<PanelConfirmState | undefined>(undefined)
   // Latest-wins guard: overlapping mutations re-read the list, and a slow
@@ -156,7 +159,7 @@ export function UserPanelSurface(props: {
   return h(
     'div',
     { className: css.shell },
-    h(PanelHeader, { title: panelTitle, subtitle: panelDescription }),
+    h(PanelHeader, { title: panelTitle, subtitle: panelDescription, actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: openCreate, refreshLabel: t('refresh'), onRefresh: () => { void refresh() }, busy }) }),
     error === undefined ? null : h('div', { className: css.editorError }, error),
     busy ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
     h(SearchFilterToolbar, {
@@ -180,7 +183,6 @@ export function UserPanelSurface(props: {
       gridLabel: t('grid'),
       listLabel: t('list'),
       onViewChange: nextView => setView(nextView),
-      extraAction: { label: t('panelAdd'), title: t('panelAdd'), onSelect: openCreate }
     }),
     h(
       'div',
@@ -190,8 +192,8 @@ export function UserPanelSurface(props: {
         : visible.length === 0
           ? h('div', { className: css.empty }, t('panelEmpty'))
           : h(
-              'div',
-              { className: view === 'grid' ? css.entryGrid : css.entryList },
+              ResourceCollection,
+              { view, className: view === 'grid' ? css.entryGrid : css.entryList },
               visible.map(entry =>
                 h(UserEntryRow, {
                   key: entry.id ?? entry.name,
@@ -209,9 +211,10 @@ export function UserPanelSurface(props: {
       props.hint === undefined ? null : h('p', { className: css.editorHint }, props.hint)
     ),
     h(EntryEditorModal, {
+      t,
       open: editor !== undefined,
       state: editor,
-      title: editor?.mode === 'create' ? t('panelAddTitle') : t('panelEditTitle'),
+      title: editor?.mode === 'create' ? t('panelAddTitle') : editor?.name ?? t('panelEditTitle'),
       nameLabel: t('panelNamePh'),
       textLabel: t('panelTextPh'),
       busy,
@@ -244,10 +247,10 @@ function UserEntryRow(props: {
   onDelete: () => void
 }): ReactNode {
   const { entry, t } = props
-  const metaPairs = Object.entries(entry.metadata).filter(([key]) => key !== 'description' && key !== 'disabled')
+  const metaPairs = Object.entries(entry.metadata).filter(([key]) => key !== 'description' && key !== 'disabled' && key !== 'name')
   return h(
-    'div',
-    { className: `${css.entryRow} ${entry.disabled ? css.entryRowDisabled : ''}` },
+    ResourceCard,
+    { className: css.entryRow, state: entry.disabled ? 'disabled' : 'active' },
     h(
       'div',
       { className: css.entryMain },
@@ -263,7 +266,7 @@ function UserEntryRow(props: {
         entry.disabled ? h('span', { className: css.editorPath }, t('panelDisabledBadge')) : null
       ),
       entry.description === '' ? null : h('p', { className: css.entryDesc }, entry.description),
-      h('span', { className: css.entryPath }, entry.path),
+      props.compact ? null : h('span', { className: css.entryPath }, entry.path),
       metaPairs.length === 0 || props.compact
         ? null
         : h('span', { className: css.entryPath }, metaPairs.map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · '))
@@ -276,18 +279,6 @@ function UserEntryRow(props: {
         'button',
         {
           type: 'button',
-          className: css.iconBtn,
-          'aria-label': entry.disabled ? t('enable') : t('disable'),
-          disabled: props.busy,
-          title: entry.disabled ? t('enable') : t('disable'),
-          onClick: props.onToggle
-        },
-        h(entry.disabled ? IconPlayOutline16 : IconPauseOutline16)
-      ),
-      h(
-        'button',
-        {
-          type: 'button',
           className: `${css.iconBtn} ${css.iconBtnDanger}`,
           'aria-label': t('panelDelete'),
           disabled: props.busy,
@@ -295,7 +286,8 @@ function UserEntryRow(props: {
           onClick: props.onDelete
         },
         h(IconTrashOutline16)
-      )
+      ),
+      h(ToggleSwitch, { on: !entry.disabled, disabled: props.busy, title: entry.disabled ? t('enable') : t('disable'), onChange: props.onToggle })
     )
   )
 }

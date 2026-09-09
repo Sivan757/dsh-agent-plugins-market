@@ -13,12 +13,20 @@ Status: implemented
 
 ## 决策
 
+遮罩展示与操作租约分离：立即启动透明交互保护，200ms 后显示视觉遮罩，最短展示 400ms，结束后保留 100ms 缓冲。新请求取消撤除而不重新挂载遮罩，避免反复播放入场动画。时序只影响展示，不延迟请求执行或 Promise 返回。
+
+执行状态使用唯一的 body 级阻挡遮罩，覆盖当前窗口或工作区。带引用计数的操作租约跨越请求及后续刷新，finally 清理保留原始错误，避免并发操作互相提前撤掉遮罩。原 BusyIndicator 浮层模式改为不占布局的租约，以覆盖局部流程状态。通过 inert 和事件捕获阻止窗口背景点击与 Escape，结束后恢复原焦点和 inert 状态。活动期间跟随窗口变换；加载图标与轮播提示不会改变列表几何布局。
+
+`DetailModal` 统一市场、Markdown、MCP、LSP 详情的宽屏视口约束。`MarkdownDocument` 将结构化 frontmatter 与 Markdown 正文分开展示，原文仍是数据来源。`ServerConfigEditor` 在固定表单和原始 JSON 之间使用同一份草稿，阻止非法转换。单服务完整替换在持久化前校验；脱敏值往返保留原凭据，LSP 配置指纹确保编辑后重新挂载。这取代原有窄屏纯文本编辑器，市场内 suite 预览仍保持只读。
+
+六个 Tab 使用 `ResourceCard`、`ResourceCollection` 统一状态边框与卡片/列表布局，使用 `PanelHeader`、`PanelActions` 将新增/刷新放到右上方，使用 `SearchFilterToolbar` 处理搜索和筛选。`useWorkspaceView` 通过 `dsh-agent-plugins-market:view` 保存统一视图偏好，并同步已挂载面板和浏览器标签页。不同资源的搜索词和筛选值保持独立。来源标签表达归属；卡片边框表达状态：启用为绿色，禁用为灰色，警告为黄色，失败为红色。
+
 - **一个工作区页、六个顶部 Tab**（`PluginWorkspace`）：`settings.section` 从三条注册收敛为一条，内部承载 Tab 行（市场 / 技能 / 命令 / 代理角色 / MCP / LSP）。Tab 状态为组件局部；深链走 `#/agent-plugins/<tab>`。每个 Tab 在自己的区域内滚动（从 workspace 链路到 market/mcp CSS 统一 `overflow-y: auto; scrollbar-gutter: stable`），宿主 `.options` 容器不再是滚动者，滚动条显隐不再移动布局。
 - **套件详情 MCP 区域只读。** 凭据编辑器与覆盖表单移出 `SuiteDetailModal`；展开后仅展示校验过的配置 JSON 与停用徽标。`McpStatusPanel` 的详情弹窗仍是编辑凭据/覆盖的唯一入口。
 - **物理删除是可选的、逐次确认的。** `removeSource(id, deleteCheckout)` 仅在确认对话框勾选「同时删除市场目录」时删除 checkout（默认勾选）。`.sources/<id>` 下的目录属于管理器存储，即使来源是收编的也会被删除；只有 URL 指向 `.sources/` 之外的 `local` 源是仅取消登记、目录永不删除。删除 checkout 正是真正删除的市场不再出现在「未登记」提示里的原因。
-- **用户面板以 Markdown 持久化，而非 state JSON。** 技能 / 命令 / 代理角色存于 `userRoot/user/{skills,commands,agents}/*.md`，沿用与套件相同的 frontmatter 语法（`description`、`argument-hint`、invocation 开关）外加面板控制键 `disabled: true`。一个 `UserPanelStore` CRUD 类服务三个面板；第二个技能提供者（`UserPanelSkillProvider`，rank 600/610，来源 `user-panel`/`user-persona`）把技能与 `persona-<name>` 角色卡送进技能注册表，`UserCommandMountRegistry` 在同一条变更管线里把用户命令调和为斜杠命令。禁用条目在发现阶段即被跳过——禁用即卸载，而非状态翻转。
+- **用户面板以 Markdown 持久化，而非 state JSON。** 技能 / 命令 / 代理角色存于 `userRoot/user/{skills,commands,agents}/*.md`，沿用与套件相同的 frontmatter 语法（`description`、`argument-hint`、invocation 开关）外加面板控制键 `disabled: true`。一个 `UserPanelStore` CRUD 类服务三个面板；第二个技能提供者（`UserPanelSkillProvider`，rank 600，来源 `user-panel`）仅把技能送进技能注册表；角色使用[持久化子代理目录](../architecture/2026-09-09-subagent-catalog.zh.md)，`UserCommandMountRegistry` 在同一条变更管线里把用户命令调和为斜杠命令。禁用条目在发现阶段即被跳过——禁用即卸载，而非状态翻转。
 - **用户存储统一到一个根目录。** `userRoot` 固定解析为 `$DSH_HOME/agent-plugins`（默认 `~/.dsh/agent-plugins`），可变数据位于其 `data/` 下。旧根目录配置仅作为迁移输入。激活等待旧目录、同级 `agent-plugins-data` 和 `data/user` 条目迁移完成；冲突文件保留原路径并阻止激活，拒绝符号链接根目录，在移动 checkout 前检测旧安装状态的格式错误。项目维度和显式登记的外部本地来源保留就地读取语义。
-- **代理角色按保存的策略执行。** `market_agent` 在运行时读取角色 Markdown frontmatter 中的 `model`、`provider`、`tools` 和 `disallowedTools`，通过 `subagents.start` 启动真实子代理，将模型选择作为 `agentOptions`、角色正文作为 `persona`、工具限制作为 `toolFilter` 传入。详情编辑器把这些配置放在正文上方，并保存到同一 frontmatter。未指定模型或填写 `inherit` 时沿用父级选择；单独模型 id 必须唯一匹配一个 provider，显式 provider/model 配置则支持 provider 专用 id。无效或歧义配置在启动子代理前报错。
+- **代理角色按保存的策略执行。** `subagents_run` 在运行时读取角色 Markdown frontmatter 中的 `model`、`provider`、`reasoning_effort`、`tools` 和 `disallowedTools`，通过 `subagents.start` 启动真实子代理，将模型选择作为 `agentOptions`、角色正文作为 `persona`、工具限制作为 `toolFilter` 传入。详情编辑器把这些配置放在正文上方，并保存到同一 frontmatter。未指定模型或填写 `inherit` 时沿用父级选择；单独模型 id 必须唯一匹配一个 provider，显式 provider/model 配置则支持 provider 专用 id。无效或歧义配置在启动子代理前报错。
 - **公共构件优先于逐面板复制**（`client/ui/panel.tsx`）：`PanelShell`（标题/操作/滚动体）、`BusyIndicator`（全局进行中加载动画，含浮层变体）、`EntryEditorModal`、`ConfirmModal`、`SourceBadge` 与共享的 `panel.module.css`。三个用户面板在字面上是同一个组件（`UserPanelSurface`）按 kind 参数化；市场与 MCP 面板嵌入同一加载动画，`SearchFilterToolbar` 增加统一的 `＋ 新增` 席位。
 - **反馈工具是 model 工具，不是命令。** `report_market_issue` 通过 `ctx.tools` 注册，受既有 `dsh-agent-plugins-market` 命名空间中 `feedbackEnabled` 设置字段（默认 true）控制；watcher 实时挂载/卸载。存在 `GITHUB_TOKEN`/`GH_TOKEN` 时直接开 GitHub Issue，否则追加 JSONL 到 `data/feedback/` 本地卷宗；时间戳文件以 60 秒为限防止连发。`@deepseek-ai/dsh-tools` 以可选身份加入 peer/dev 依赖——包缺失处工具 simply 不挂载。
 

@@ -38,13 +38,14 @@ export function parseFrontmatterRecord(text: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-/** Read one panel entry's parsed shape; undefined when the file vanished. */
-export async function readEntryFile(file: string, fallbackName: string): Promise<UserEntryFile | undefined> {
+/** Read one entry; strict runtime snapshots throw on I/O errors other than a vanished file. */
+export async function readEntryFile(file: string, fallbackName: string, strict = false): Promise<UserEntryFile | undefined> {
   if (fallbackName !== '' && !USER_ENTRY_NAME.test(fallbackName)) return undefined
   let text: string
   try {
     text = await readFile(file, 'utf8')
-  } catch {
+  } catch (error) {
+    if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     return undefined
   }
   let meta: Record<string, unknown>
@@ -87,12 +88,13 @@ export interface UserEntryFile {
   invocation?: { modelInvocable: boolean; userInvocable: boolean }
 }
 
-/** List every `.md` entry in one panel directory, sorted by name. */
-export async function listEntryFiles(dir: string): Promise<UserEntryFile[]> {
+/** List `.md` entries; strict runtime snapshots propagate I/O errors instead of publishing partial inventories. */
+export async function listEntryFiles(dir: string, strict = false): Promise<UserEntryFile[]> {
   let entries: string[]
   try {
     entries = await readdir(dir)
-  } catch {
+  } catch (error) {
+    if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     return []
   }
   const found: UserEntryFile[] = []
@@ -102,10 +104,11 @@ export async function listEntryFiles(dir: string): Promise<UserEntryFile[]> {
     try {
       const info = await stat(file)
       if (!info.isFile()) continue
-    } catch {
+    } catch (error) {
+      if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       continue
     }
-    const parsed = await readEntryFile(file, entry.slice(0, -3))
+    const parsed = await readEntryFile(file, entry.slice(0, -3), strict)
     if (parsed !== undefined) found.push(parsed)
   }
   return found
