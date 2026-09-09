@@ -52,6 +52,8 @@ const connectedPayload = vi.hoisted(() => ({
 
 vi.mock('../src/client/api.js', () => ({
   fetchMcpStatus: vi.fn().mockResolvedValue(statusPayload),
+  fetchServerConfig: vi.fn().mockResolvedValue({ kind: 'mcp', id: 'direct-observation', editable: false, config: {} }),
+  saveServerConfig: vi.fn(),
   fetchSuiteDetail: vi.fn(),
   fetchSkillContent: vi.fn(),
   postAction: vi.fn(),

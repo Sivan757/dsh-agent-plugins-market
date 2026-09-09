@@ -100,6 +100,10 @@
   scrollbar-gutter: stable;
   padding-right: 4px;
 }
+
+@media (max-width: 760px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
 .list {
   display: flex;
   min-width: 0;
@@ -110,19 +114,13 @@
   scrollbar-gutter: stable;
   padding-right: 4px;
 }
+
 .list .card {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
   column-gap: 14px;
   row-gap: 8px;
-}
-.list .cardTop {
-  flex: 0 1 260px;
-}
-.list .endpoint {
-  flex: 1 1 200px;
-  max-height: 18px;
 }
 .card {
   display: flex;
@@ -441,15 +439,6 @@
 }
 .chipmounted { background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237)); }
 .chipblocked { background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231)); }
-
-/* ── Panel polish: spacing between header/summary/toolbar, compact rows ─── */
-.summaryBar + .toolbar,
-.toolbar {
-  margin-top: 12px;
-}
-.header + .summaryBar {
-  margin-top: 12px;
-}
 
 /* Hide the entire summary bar when every row is healthy: the green
    "all good" confirmation repeated above a green-stamped list is noise. */

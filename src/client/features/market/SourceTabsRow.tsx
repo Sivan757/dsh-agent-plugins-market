@@ -6,10 +6,11 @@
  * the same width and long ids ellipsize instead of stretching a column. While
  * folded the grid is lifted out of the flow at a fixed two-row height with a
  * bottom fade hinting at the rest; hovering or focusing it grows the same grid
- * as an overlay, so the card grid below never moves. The selected source is
- * ordered second, which keeps its edit and delete controls inside the fold.
+ * as an overlay, so the card grid below never moves. Picking a source folds the
+ * strip again at once. Chips keep their id order — the selected source is not
+ * moved to the front.
  */
-import { createElement as h, useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type ReactNode } from 'react'
 import { SourceTab } from './SourceTab.js'
 import type { Translate } from '../../index.js'
 import css from '../../market.module.css'
@@ -20,10 +21,16 @@ const COLLAPSED_ROWS = 2
 const CHIP_ROW_HEIGHT = 28
 /** Folded content height: two rows without the trailing gap. */
 const COLLAPSED_CONTENT_HEIGHT = CHIP_ROW_HEIGHT * COLLAPSED_ROWS - 4
-/** Overlay padding around the grid; `scrollHeight` includes it. */
+/** Overlay padding above the grid; `scrollHeight` includes it. */
 const OVERLAY_PADDING = 6
 /** `scrollHeight` that still fits the folded grid — taller means it can expand. */
-const COLLAPSED_SCROLL_HEIGHT = COLLAPSED_CONTENT_HEIGHT + OVERLAY_PADDING * 2
+const COLLAPSED_SCROLL_HEIGHT = COLLAPSED_CONTENT_HEIGHT + OVERLAY_PADDING
+/**
+ * How long the pointer must stay outside the strip before hover expansion is
+ * re-armed. Folding after a pick can push the pointer out of the box
+ * mid-gesture; without this grace the very next pointer move reopens the strip.
+ */
+const LEAVE_GRACE_MS = 300
 
 /** One chip in the source strip. */
 export interface SourceTabItem {
@@ -57,7 +64,18 @@ export interface SourceTabsRowProps {
 export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
   const { t, items, activeId, onSelect, onDelete, onEdit } = props
   const gridRef = useRef<HTMLDivElement>(null)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [folded, setFolded] = useState(false)
+  // Picking a source folds the strip immediately, even though the pointer is
+  // still inside it; leaving the strip (or focus) re-arms the hover expansion.
+  const [picked, setPicked] = useState(false)
+
+  const cancelLeave = useCallback(() => {
+    if (leaveTimer.current === undefined) return
+    clearTimeout(leaveTimer.current)
+    leaveTimer.current = undefined
+  }, [])
+  useEffect(() => cancelLeave, [cancelLeave])
 
   const measure = useCallback(() => {
     const grid = gridRef.current
@@ -77,9 +95,29 @@ export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
     return () => observer.disconnect()
   }, [measure, items])
 
+  const className = [css.sourceTabsBox, folded ? css.sourceTabsBoxFold : '', picked ? css.sourceTabsBoxPicked : ''].filter(Boolean).join(' ')
   return h(
     'div',
-    { className: folded ? `${css.sourceTabsBox} ${css.sourceTabsBoxFold}` : css.sourceTabsBox },
+    {
+      className,
+      onMouseEnter: cancelLeave,
+      onMouseLeave: () => {
+        // Grace period: a pointer swept out by the fold itself must not count
+        // as "left the strip", or the next move reopens it at once.
+        cancelLeave()
+        leaveTimer.current = setTimeout(() => {
+          leaveTimer.current = undefined
+          setPicked(false)
+        }, LEAVE_GRACE_MS)
+      },
+      onBlur: (event: FocusEvent<HTMLDivElement>) => {
+        // Focus left the strip entirely (the clicked pill keeps focus inside).
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          cancelLeave()
+          setPicked(false)
+        }
+      }
+    },
     h(
       'div',
       { ref: gridRef, className: css.sourceTabsRow },
@@ -90,7 +128,10 @@ export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
           active: item.id === activeId,
           label: item.label,
           title: item.title,
-          onSelect: () => onSelect(item.id),
+          onSelect: () => {
+            setPicked(true)
+            onSelect(item.id)
+          },
           onDelete: item.deletable === true ? () => onDelete(item.id) : undefined,
           onEdit: item.editable === true ? () => onEdit(item.id) : undefined
         })

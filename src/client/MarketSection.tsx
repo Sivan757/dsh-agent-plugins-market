@@ -24,6 +24,9 @@ import { SuiteDetailModal } from './SuiteDetail.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { BusyIndicator } from './ui/panel.js'
 import css from './market.module.css'
+import { useWorkspaceView } from './ui/workspace-view.js'
+import { PanelHeader, PanelActions } from './ui/panel.js'
+import { ResourceCollection } from './ui/ResourceCard.js'
 
 /** Host step keys -> translation keys, resolved against the active t(). */
 const PROGRESS_STEP_LABELS: Record<string, string> = {
@@ -42,7 +45,6 @@ export interface MarketSectionProps {
 
 type Tab = MarketFilter
 type Category = MarketCategory
-type ViewMode = 'grid' | 'list'
 
 interface ToastState {
   key: number
@@ -68,7 +70,7 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<Tab>('all')
   const [category, setCategory] = useState<Category>('all')
-  const [view, setView] = useState<ViewMode>('grid')
+  const [view, setView] = useWorkspaceView()
   const [busy, setBusy] = useState<string | undefined>(undefined)
   const [toast, setToast] = useState<ToastState | undefined>(undefined)
   const [confirm, setConfirm] = useState<ConfirmState | undefined>(undefined)
@@ -134,10 +136,11 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
 
   const selectedSource = category === 'all' ? undefined : overview.sources.find(source => source.id === category)
 
-  // Chips in display order: `全部` first, the selected source pinned second so
-  // the strip can collapse the rest without hiding the current scope, then the
-  // remaining sources by id. Kind badges are limited to `本地`/`压缩包`; an
-  // adopted checkout is an implementation detail, not a user-facing state.
+  // Chips read `全部` first, then the selected source, then every other source
+  // by id: picking a source keeps it in view once the strip folds, and the
+  // rest of the strip never reshuffles. Kind badges are limited to
+  // `本地`/`压缩包`; an adopted checkout is an implementation detail, not a
+  // user-facing state.
   const sourceItems = useMemo<SourceTabItem[]>(() => {
     const sorted = [...overview.sources].sort((a, b) => a.id.localeCompare(b.id))
     const ordered =
@@ -173,31 +176,9 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
       'div',
       { className: mode === 'page' ? `${css.market} ${css.pageMode}` : css.market },
       h(
-        'header',
+        'div',
         { className: css.header },
-        h(
-          'div',
-          { className: css.titleRow },
-          h('h2', { className: css.title }, t('nav')),
-          h('div', { className: css.spacer }),
-          h(
-            'div',
-            { className: css.searchGroup },
-            h(Button, { variant: 'ghost', size: 'sm', title: t('addSource'), onClick: () => setEditor({ mode: 'add' }) }, '＋'),
-            h(
-              Button,
-              {
-                variant: 'ghost',
-                size: 'sm',
-                title: t('refreshAll'),
-                onClick: () => {
-                  void action('s:refresh:all', 'sources/refresh', {})
-                }
-              },
-              '↻'
-            )
-          )
-        ),
+        h(PanelHeader, { title: t('nav'), actions: h(PanelActions, { addLabel: t('addSource'), onAdd: () => setEditor({ mode: 'add' }), refreshLabel: t('refreshAll'), onRefresh: () => { void action('s:refresh:all', 'sources/refresh', {}) }, busy: busy !== undefined }) }),
         h(
           'div',
           { className: css.marketControls },
@@ -270,12 +251,11 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
           })
         )
       ),
-      // The busy strip renders above the list region, not inside it: as a
-      // grid child it would occupy a cell and reflow the cards.
+      // Keep the global mask until both the mutation and list refresh finish.
       busy !== undefined ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
       h(
-        'main',
-        { className: view === 'grid' ? css.grid : css.list },
+        ResourceCollection,
+        { view, className: view === 'grid' ? css.grid : css.list },
         loading
           ? h('div', { className: css.empty }, t('loading'))
           : filtered.length === 0

@@ -6,6 +6,9 @@
  * module table, so it cannot reach packages the host does not serve.
  */
 import { createElement as h } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BusyOverlay } from './ui/BusyOverlay.js'
+import { withBusyOperation } from './ui/busy-operation.js'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
@@ -34,7 +37,7 @@ interface SlotsService {
 /** The subset of the host settings-scope service this plugin touches. */
 interface SettingsScopeService {
   bind(options: { namespace: string }): {
-    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean }; writable: boolean }
+    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean; scanProjectLayouts?: boolean }; writable: boolean }
     subscribe(listener: () => void): () => void
     set(field: string, value: unknown): Promise<void>
   }
@@ -78,6 +81,15 @@ export function apply(ctx: SuiteClientContext): void {
   }
 
   let settingsSurfaceAvailable = false
+  ctx.effect(() => {
+    if (typeof document === 'undefined') return
+    const element = document.createElement('div')
+    element.dataset.agentPluginsBusyHost = ''
+    document.body.append(element)
+    const root = createRoot(element)
+    root.render(h(BusyOverlay, { t }))
+    return () => { root.unmount(); element.remove() }
+  }, 'dsh-agent-plugins-market: operation overlay')
   ctx.effect(() => mountLegacyPageMode({
     t,
     credentials,
@@ -107,14 +119,16 @@ export function apply(ctx: SuiteClientContext): void {
           enhanced: () => scope.getSnapshot().value?.mcpEnhanced !== false,
           writable: () => scope.getSnapshot().writable,
           subscribe: listener => scope.subscribe(listener),
-          setEnhanced: next => scope.set('mcpEnhanced', next),
+          setEnhanced: next => withBusyOperation(() => scope.set('mcpEnhanced', next)),
           region: () => {
             const value = scope.getSnapshot().value?.downloadRegion
             return value === 'global' || value === 'china' ? value : 'auto'
           },
-          setRegion: next => scope.set('downloadRegion', next),
+          setRegion: next => withBusyOperation(() => scope.set('downloadRegion', next)),
           feedbackEnabled: () => scope.getSnapshot().value?.feedbackEnabled !== false,
-          setFeedbackEnabled: next => scope.set('feedbackEnabled', next)
+          setFeedbackEnabled: next => withBusyOperation(() => scope.set('feedbackEnabled', next)),
+          scanProjectLayouts: () => scope.getSnapshot().value?.scanProjectLayouts !== false,
+          setScanProjectLayouts: next => withBusyOperation(() => scope.set('scanProjectLayouts', next))
         },
         probe: () => fetchMcpBackend(),
       })),

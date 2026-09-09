@@ -178,8 +178,33 @@ describe('MarketSection rendering', () => {
     // jsdom reports no content height, so the strip never folds and every chip renders.
     expect(text).toContain('demo')
     expect(text).toContain('second')
-    expect(text).not.toContain('sourceFoldExpand')
     // The translate stub echoes keys, so a rendered badge would surface as `sourceAdopted`.
     expect(text).not.toContain('sourceAdopted')
+  })
+
+  it('moves the picked source next to 全部 and leaves the rest in id order', async () => {
+    const payload = {
+      ...overviewPayload,
+      sources: [
+        { ...overviewPayload.sources[0]!, id: 'zeta', url: 'https://example.com/zeta.git', suiteIds: [] },
+        { ...overviewPayload.sources[0]!, id: 'alpha', url: 'https://example.com/alpha.git', suiteIds: [] }
+      ]
+    }
+    const resource = await import('../src/client/features/market/market-resource.js')
+    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    await mountSection()
+    const chips = (): string[] =>
+      [...host!.querySelectorAll('button')]
+        .map(button => button.textContent ?? '')
+        // The toolbar's own status filters read `tabAll<n>` without the space.
+        .filter(text => text.startsWith('tabAll ') || text.startsWith('alpha') || text.startsWith('zeta'))
+    expect(chips()).toEqual(['tabAll 1', 'alpha 0', 'zeta 0'])
+
+    // The picked source moves next to 全部 so the folded strip still shows it.
+    const zeta = [...host!.querySelectorAll('button')].find(button => (button.textContent ?? '').startsWith('zeta'))
+    act(() => {
+      zeta!.click()
+    })
+    expect(chips()).toEqual(['tabAll 1', 'zeta 0', 'alpha 0'])
   })
 })

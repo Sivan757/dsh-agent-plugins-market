@@ -17,6 +17,8 @@ export interface McpStatusEntry {
   id: string
   name: string
   kind: McpStatusKind
+  /** A direct service whose persisted configuration is owned by this plugin. */
+  managed?: boolean
   state: McpStatusState
   source?: string
   suiteId?: string

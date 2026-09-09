@@ -213,7 +213,8 @@
   min-width: 0;
 }
 
-/* Folded: two 24px rows plus the 4px gap, and 6px overlay padding all round. */
+/* Folded: two 24px rows plus the 4px gap, with 6px of overlay padding above
+   only — a bottom pad would paint a white band over the toolbar below. */
 .sourceTabsBoxFold {
   height: 52px;
 }
@@ -222,26 +223,41 @@
   position: absolute;
   inset: -6px -6px auto;
   box-sizing: border-box;
-  max-height: 64px;
+  max-height: 58px;
   overflow: hidden;
-  padding: 6px;
+  padding: 6px 6px 0;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border-radius: 10px;
-  transition: max-height 160ms ease, box-shadow 160ms ease;
+  transition: max-height 160ms ease, box-shadow 160ms ease, padding-bottom 160ms ease;
   /* The fade is the only affordance that more sources exist below the fold. */
-  -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 62%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
 }
 
+/* Hover, or keyboard focus — `:focus-visible`, never plain `:focus-within`:
+   a mouse click leaves the chip focused, and plain focus would re-open the
+   strip on its own once the post-pick suppression expires. */
 .sourceTabsBoxFold:hover .sourceTabsRow,
-.sourceTabsBoxFold:focus-within .sourceTabsRow {
+.sourceTabsBoxFold:has(:focus-visible) .sourceTabsRow {
   z-index: 30;
   max-height: 420px;
+  padding-bottom: 6px;
   box-shadow:
     0 0 0 1px var(--dsw-alias-border-l3, #d9dde3),
     0 12px 28px rgba(16, 24, 40, 0.16);
   -webkit-mask-image: none;
   mask-image: none;
+}
+
+/* After a pick the strip folds again even though the pointer is still inside;
+   leaving the strip clears `.sourceTabsBoxPicked` and re-arms the hover. */
+.sourceTabsBoxFold.sourceTabsBoxPicked:hover .sourceTabsRow,
+.sourceTabsBoxFold.sourceTabsBoxPicked:has(:focus-visible) .sourceTabsRow {
+  max-height: 58px;
+  padding-bottom: 0;
+  box-shadow: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
 }
 
 /* --- unmanaged checkout adoption row ---------------------------------------------- */
@@ -359,9 +375,12 @@
   color: var(--dsw-alias-brand-primary, #4f6ef7);
 }
 
+/* Selected scope: the harness primary color, exactly as its own primary fill
+   uses it (primary Button, the toggle switch's ON track) — near-black on the
+   light theme, near-white on the dark one, with the matching foreground. */
 .srcTabOn {
-  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4176e6);
-  border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4176e6);
+  background: var(--dsw-alias-brand-primary, #0f1115);
+  border-color: var(--dsw-alias-brand-primary, #0f1115);
 }
 
 .srcTabOn .srcTabMain {
@@ -465,6 +484,7 @@
 .card {
   background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-left: 3px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   padding: 12px 14px;
   display: flex;
@@ -479,16 +499,6 @@
   border-color: var(--dsw-alias-border-l3, #d9dde3);
   background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
-}
-
-/* Installed cards carry the MCP card's left accent so install state scans
-   like connection state does on the MCP page: green = enabled, gray = off. */
-.cardOn {
-  border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a);
-}
-
-.cardMuted {
-  border-left: 3px solid var(--dsw-alias-label-tertiary, #98a2b3);
 }
 
 .cardTop {
@@ -1039,18 +1049,9 @@
     order: 4;
   }
 
-  .sourceTabsScroll {
-    display: flex;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: thin;
-  }
-
-  .srcTab,
-  .srcTabOn {
-    width: auto;
-    min-width: 128px;
-    flex: 0 0 auto;
+  /* Narrow panels fit fewer columns; keep pills equal width, never scroll. */
+  .sourceTabsRow {
+    grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
   }
 
   .grid {
@@ -1215,6 +1216,7 @@
    identical beside the native cards. */
 
 .pluginCard {
+  container: market-config / inline-size;
   list-style: none;
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
   border-radius: 12px;
@@ -1299,6 +1301,22 @@
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
+}
+
+@container market-config (max-width: 320px) {
+  .pluginCardRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pluginCardText {
+    width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .regionSeg {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
 }
 
 /* The switch is the shared ui/ToggleSwitch component (the same one the

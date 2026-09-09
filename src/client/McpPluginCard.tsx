@@ -38,6 +38,8 @@ export interface McpEnhanceScopeFace {
   setRegion(next: 'global' | 'china'): Promise<void>
   /** Whether the experience-feedback model tool is registered (default true). */
   feedbackEnabled?(): boolean
+  scanProjectLayouts?(): boolean
+  setScanProjectLayouts?(next: boolean): Promise<void>
   /** Register/unregister the experience-feedback model tool. */
   setFeedbackEnabled?(next: boolean): Promise<void>
 }
@@ -180,6 +182,23 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
               )
             )
           ),
+          scope.scanProjectLayouts !== undefined && scope.setScanProjectLayouts !== undefined
+            ? h('div', { className: css.pluginCardRow },
+                h('div', { className: css.pluginCardText }, h('div', { className: css.pluginCardRowLabel }, t('projectLayoutsLabel'))),
+                h(ToggleSwitch, {
+                  on: scope.scanProjectLayouts(),
+                  title: t('projectLayoutsLabel'),
+                  disabled: busy || !writable,
+                  onChange: () => {
+                    if (busy || !writable) return
+                    setBusy(true)
+                    setError(undefined)
+                    void scope.setScanProjectLayouts!(!scope.scanProjectLayouts!()).catch((cause: unknown) => {
+                      setError(cause instanceof Error ? cause.message : String(cause))
+                    }).finally(() => setBusy(false))
+                  }
+                }))
+            : null,
           scope.feedbackEnabled !== undefined && scope.setFeedbackEnabled !== undefined
             ? h(
                 'div',

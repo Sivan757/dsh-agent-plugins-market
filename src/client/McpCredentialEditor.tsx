@@ -11,6 +11,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { describeCredential, setCredential, unsetCredential, type CredentialApi, type CredentialView } from './credentials.js'
+import { BusyIndicator } from './ui/panel.js'
 import type { Translate } from './index.js'
 import css from './mcp-credential.module.css'
 
@@ -80,6 +81,7 @@ export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; 
   return h(
     'section',
     { className: css.form },
+    busy === undefined ? null : h(BusyIndicator, { overlay: true }),
     h('h4', { className: css.head }, t('mcpCredentialTitle')),
     error === undefined ? null : h('div', { className: css.error }, error),
     refs.map(ref => {

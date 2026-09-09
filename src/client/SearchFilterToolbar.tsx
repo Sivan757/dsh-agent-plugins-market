@@ -2,7 +2,7 @@
  * Shared search, filter, and view controls for catalog-style settings panels.
  */
 import { createElement as h, type ReactNode } from 'react'
-import { Input, IconPlusOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './SearchFilterToolbar.module.css'
 
 export type SearchFilterToolbarView = 'grid' | 'list'
@@ -29,8 +29,6 @@ export interface SearchFilterToolbarProps {
   listLabel: string
   onViewChange: (view: SearchFilterToolbarView) => void
   className?: string
-  /** Optional trailing add action (the unified "＋ 新增" seat). */
-  extraAction?: { label: string; title?: string; onSelect: () => void }
 }
 
 /**
@@ -80,20 +78,7 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
         onClick: () => props.onViewChange(nextView)
       },
       h(ViewIcon, { mode: nextView })
-    ),
-    props.extraAction === undefined
-      ? null
-      : h(
-          'button',
-          {
-            type: 'button',
-            className: css.extraAction,
-            title: props.extraAction.title ?? props.extraAction.label,
-            'aria-label': props.extraAction.title ?? props.extraAction.label,
-            onClick: props.extraAction.onSelect
-          },
-          h(IconPlusOutline16), props.extraAction.label
-        )
+    )
   )
 }
 

@@ -7,8 +7,12 @@ export const MARKET_API_PREFIX = '/api/agent-plugins/' as const
 export const MARKET_ROUTES = {
   overview: `${MARKET_API_PREFIX}overview`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
+  addMcpServer: `${MARKET_API_PREFIX}mcp-servers/add`,
   lspStatus: `${MARKET_API_PREFIX}lsp-status`,
   lspServers: `${MARKET_API_PREFIX}lsp-servers`,
+  addLspServer: `${MARKET_API_PREFIX}lsp-servers/add`,
+  serverConfig: `${MARKET_API_PREFIX}server-config`,
+  saveServerConfig: `${MARKET_API_PREFIX}server-config/save`,
   progress: `${MARKET_API_PREFIX}progress`,
   config: `${MARKET_API_PREFIX}config`,
   modelCatalog: `${MARKET_API_PREFIX}model-catalog`,
@@ -32,10 +36,19 @@ export const MARKET_ROUTES = {
   userPanel: `${MARKET_API_PREFIX}user-panel`
 } as const
 
-/** Only public display identities from the host LLM registry, never provider configuration. */
+/** Editable service configuration; masked values are preserved when unchanged. */
+export interface ServerConfigPayload {
+  kind: 'mcp' | 'lsp'
+  id: string
+  editable: boolean
+  config: Record<string, unknown>
+}
+
+/** Public model identities and exact-model reasoning options; never provider configuration. */
 export interface ModelCatalogPayload {
   providers: Array<{ id: string; name: string }>
   models: Array<{ id: string; name: string }>
+  reasoning?: { efforts: Array<{ id: string; name: string; description?: string }>; defaultEffort?: string }
 }
 
 /**

@@ -10,10 +10,13 @@
  * overrides are configured on the MCP services panel (their own detail
  * dialog), not inside the suite detail preview.
  */
-import { createElement as h, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, Modal, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DetailModal } from './ui/DetailModal.js'
+import { MarkdownDocument } from './ui/MarkdownDocument.js'
 import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, type SuiteDetail } from './api.js'
 import type { Translate } from './index.js'
+import { suiteLayoutLabel } from './layout-label.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import type { CredentialApi } from './credentials.js'
 import { createLatestRequestGuard } from './features/suite-detail/suite-detail-resource.js'
@@ -40,10 +43,6 @@ export interface SuiteDetailModalProps {
 export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailModalProps): ReactNode {
   // MarkdownText's chrome (code copy buttons, footnotes heading) is
   // Cordis-free and takes its copy through this labels object.
-  const markdownLabels = useMemo<MarkdownLabels>(
-    () => ({ code: { copyLabel: t('mdCodeCopy'), copiedLabel: t('mdCodeCopied') }, footnotes: t('mdFootnotes') }),
-    [t]
-  )
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [openSkill, setOpenSkill] = useState<string | undefined>(undefined)
@@ -110,28 +109,9 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
     }
   }
 
-  const layoutLabel =
-    detail === undefined
-      ? ''
-      : detail.layout === 'agent-plugin-v1'
-        ? t('layoutV1')
-        : detail.layout === 'claude-code'
-          ? t('layoutCC')
-          : detail.layout === 'codex'
-            ? t('layoutCodex')
-            : detail.layout === 'universal'
-              ? t('layoutUniversal')
-              : detail.layout === 'cursor'
-                ? t('layoutCursor')
-                : detail.layout === 'kimi'
-                  ? t('layoutKimi')
-                  : detail.layout === 'remote'
-                    ? t('layoutRemote')
-                    : detail.layout === 'project-native'
-                      ? t('layoutProjectNative')
-                      : t('layoutSkills')
+  const layoutLabel = detail === undefined ? '' : suiteLayoutLabel(detail.layout, t)
 
-  return h(Modal, {
+  return h(DetailModal, {
     open: true,
     onClose,
     title: detail === undefined ? t('detailTitle') : `${detail.name}${detail.version === null ? '' : ` v${detail.version}`}`,
@@ -239,7 +219,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                             h('span', { className: css.detailItemDesc }, skill.description),
                             h('span', { className: css.detailChevron }, openSkill === skill.name ? '▾' : '▸')
                           ),
-                          openSkill !== skill.name ? null : h('div', { className: css.skillContent }, skillLoading ? t('loading') : h(MarkdownText, { text: skillText ?? '', labels: markdownLabels }))
+                          openSkill !== skill.name ? null : h('div', { className: css.skillContent }, skillLoading ? t('loading') : h(MarkdownDocument, { text: skillText ?? '', t }))
                         )
                       )
                 ),
@@ -299,7 +279,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                           description: command.description,
                           open: openPreview === `c:${command.name}`,
                           onToggle: () => setOpenPreview(openPreview === `c:${command.name}` ? undefined : `c:${command.name}`),
-                          children: h(MarkdownText, { text: command.content, labels: markdownLabels })
+                          children: h(MarkdownDocument, { text: command.content, t })
                         })
                       )
                 ),
@@ -317,7 +297,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                           description: agent.description,
                           open: openPreview === `a:${agent.name}`,
                           onToggle: () => setOpenPreview(openPreview === `a:${agent.name}` ? undefined : `a:${agent.name}`),
-                          children: h(MarkdownText, { text: agent.content, labels: markdownLabels })
+                          children: h(MarkdownDocument, { text: agent.content, t })
                         })
                       )
                 ),

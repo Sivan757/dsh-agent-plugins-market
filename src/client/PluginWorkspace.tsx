@@ -71,7 +71,7 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
 
   return h(
     'div',
-    { className: mode === 'page' ? `${css.workspace} ${css.pageMode}` : css.workspace },
+    { className: mode === 'page' ? `${css.workspace} ${css.pageMode}` : css.workspace, 'data-agent-plugins-workspace': true },
     h(
       'nav',
       { className: css.tabRow, role: 'tablist' },

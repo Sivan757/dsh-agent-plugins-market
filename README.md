@@ -4,7 +4,7 @@
 
 **A plugin marketplace and agent capability workspace for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).**
 
-Reuse supported content from Claude Code, Codex and Cursor suites, plus community compatibility layouts. Manage your own skills, commands, agent personas, MCP services and LSP servers in the DSH Web GUI. Supported layouts are read in place, without converting manifests or manually copying files into DSH. See the capability matrix for format-specific limits.
+Reuse supported content from Claude Code, Codex, Cursor, Kimi and other recognized layouts. Manage your own skills, commands, agent personas, MCP services and LSP servers in the DSH Web GUI. Supported layouts are read in place, without converting manifests or manually copying files into DSH. See the capability matrix for format-specific limits.
 
 English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github.io/dsh-agent-plugins-market/) | [npm](https://www.npmjs.com/package/dsh-agent-plugins-market)
 
@@ -19,7 +19,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 - **Reuse ecosystem suites.** Add a Git repository, local directory or archive as a source; browse, preview, install and enable its suites. Supported capabilities become available to DSH at runtime.
 - **Build your own toolkit.** Create skills, reusable slash commands and agent personas. Edit or disable your own entries without deleting them.
 - **Keep project resources in place.** Project `.claude/` and `.agents/` skills and agents are discovered without an installation step or file copying.
-- **Manage services where you use them.** Configure MCP credentials and authorization, inspect MCP / LSP status, and diagnose unavailable services from one workspace.
+- **Manage services where you use them.** Add your own MCP services and LSP servers, configure credentials and authorization for installed ones, inspect status, and diagnose unavailable services from one workspace.
 
 ## Quick start
 
@@ -42,32 +42,32 @@ For GitHub installation and profile configuration, see the [usage guide](docs/gu
 
 The workspace has six tabs:
 
-| Tab            | Use it to                                                                                                      |
-| -------------- | -------------------------------------------------------------------------------------------------------------- |
-| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                |
-| Skills         | Browse skills and create or edit your own reusable instructions.                                               |
-| Commands       | Manage prompt templates invoked as `/name`; `$ARGUMENTS` inserts the text supplied after the command.          |
-| Agent personas | Select providers and models from DSH, manage role instructions and tools, and delegate through `market_agent`. |
-| MCP services   | Configure services, credentials and authorization; inspect connection status and retry failures.               |
-| LSP servers    | Configure language servers and inspect their runtime status.                                                   |
+| Tab            | Use it to                                                                                                                         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                   |
+| Skills         | Browse skills and create or edit your own reusable instructions.                                                                  |
+| Commands       | Manage prompt templates invoked as `/name`; `$ARGUMENTS` inserts the text supplied after the command.                             |
+| Agent personas | Select providers, models and reasoning effort from DSH, manage role instructions and tools, and delegate through `subagents_run`. |
+| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                |
+| LSP servers    | Add and configure language servers and inspect their runtime status.                                                              |
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities. Suite details preview files; MCP credentials and overrides are edited in **MCP services**.
 
 Your own skills, commands and personas are stored as Markdown under `~/.dsh/agent-plugins/user/`. Project-native resources stay in the project. See [storage and discovery](docs/guides/usage.md#storage-and-discovery) for paths and precedence.
 
+All six tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active.
+
+Resource details share a wide dialog. Markdown resources open with rendered content and structured frontmatter; switch to Markdown to edit. MCP/LSP provide fixed forms and JSON editing over the same configuration.
+
+Services you add yourself are validated before saving, persist under `~/.dsh/agent-plugins/data/`, and mount through the same lifecycle as suite services. Services observed from the host configuration stay read-only.
+
+Asynchronous workspace actions show a blocking overlay on the active settings panel or detail dialog, with rotating waiting messages. The overlay is released on success or failure; background status polling stays silent.
+
 ## Compatibility and boundaries
 
-Supported **layout dialects** describe how files are organized:
+Supported **layout dialects** describe how files are organized. The [shared priority table](#layout-detection-precedence) lists suite manifests and Marketplace catalogs together.
 
-| Layout dialect           | Manifest or directory convention                                   |
-| ------------------------ | ------------------------------------------------------------------ |
-| Claude Code              | `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json` |
-| Codex                    | `.codex-plugin/plugin.json`                                        |
-| Cursor                   | `.cursor-plugin/plugin.json`                                       |
-| Kimi-named compatibility | `.kimi-plugin/plugin.json`; not Kimi's official tool-plugin format |
-| Universal compatibility  | `.plugin/plugin.json`; not the agent-plugins.org standard          |
-| agent-plugins.org v1     | `plugin.json`, validated with the vendored 1.0.0 schema            |
-| Skill collection         | Directories containing `SKILL.md`, without a plugin manifest       |
+All ten active layout contracts in [`schemas/`](schemas/README.md) have independent reader tests. [The layout audit](docs/layout-coverage.md) maps them to commit-pinned README repository fixtures and distinguishes layout/component compatibility from full original-client runtime equivalence.
 
 Supported **runtime surfaces** describe what DSH can use:
 
@@ -75,37 +75,99 @@ Supported **runtime surfaces** describe what DSH can use:
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Skills   | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded.                                            |
 | Commands | Slash commands through the host command service.                                                                                          |
-| Agents   | Agent instructions as skills; role delegation requires host tools, LLM and subagent services.                                             |
+| Agents   | Dynamic subagent catalog and `subagents_run`; requires host agents, tools, LLM and subagent services.                                     |
 | MCP      | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available. |
 | Hooks    | The command-hook subset mapped by `dsh-hooks-claude-code`.                                                                                |
 | LSP      | Live mounts when the host provides LSP packages; the profile must expose the LSP tool for agent use.                                      |
 
+Agent roles are published directly in a dynamic `subagent-catalog`, using the same per-step comparison, durable entries and complete replacement mechanism as DSH's skills catalog. Call `subagents_run(role, prompt)` with the catalog's exact ID; it resolves the role's provider, model and `reasoning_effort`, then applies the persona and tool restrictions. Roles no longer generate `agent-*` or `persona-*` skill/command entries. See [agent roles](docs/guides/agent-roles.md) for model inheritance, catalog refresh and migration from `market_agent`.
+
+### Layout detection precedence
+
+When multiple manifests exist in the **same suite directory**, the first existing file in this order selects the layout:
+
+| Priority | Layout | Suite manifest | Marketplace catalog |
+| --- | --- | --- | --- |
+| 1 | agent-plugins.org v1 / root compatibility | `plugin.json` | No dedicated catalog |
+| 2 | Universal compatibility | `.plugin/plugin.json` | `.plugin/marketplace.json` |
+| 3 | Claude Code | `.claude-plugin/plugin.json` | `.claude-plugin/marketplace.json` |
+| 4 | Cursor | `.cursor-plugin/plugin.json` | `.cursor-plugin/marketplace.json` |
+| 5 | Kimi Code | `kimi.plugin.json`, then `.kimi-plugin/plugin.json` | `.kimi-plugin/marketplace.json` |
+| 6 | Codex | `.codex-plugin/plugin.json` | `.agents/plugins/marketplace.json`, then `.agents/plugins/api_marketplace.json` |
+| 7 | ZCode | `.zcode-plugin/plugin.json` | No dedicated catalog |
+| 8 | Qoder CLI | `.qoder-plugin/plugin.json` | `.qoder-plugin/marketplace.json` |
+| 9 | GitHub Copilot CLI | `.github/plugin/plugin.json` | `.github/plugin/marketplace.json` |
+| Fallback | Skill collection / shared catalog | Discover skills when no recognized manifest exists | Root `marketplace.json` |
+
+- **Selection precedes parsing:** an invalid higher-priority manifest produces diagnostics; it does not trigger a retry with a lower-priority manifest.
+- **Root manifest identity:** root `plugin.json` uses strict v1 validation only when it declares a recognized agent-plugins.org `$schema`. Otherwise it is read as a Claude-compatible manifest.
+- **Component fallback:** manifests are not generally merged. For a non-v1 root `plugin.json`, missing component declarations can come from `.claude-plugin/plugin.json`. Explicit root declarations win; marketplace entry declarations fill remaining gaps.
+
+**Both columns follow the same layout priority.** Catalog lookup skips layouts without a dedicated catalog; aliases are tried in the listed order. Root `marketplace.json` is a shared fallback, not a skill-collection manifest or an agent-plugins.org v1 catalog, and does not inherit the priority of root `plugin.json`.
+
+All existing catalogs are read, but suite scanning selects the first catalog that produces suites, rather than merging every catalog. Invalid or empty catalogs allow the next candidate to be tried. This priority does not make native project directories mutually exclusive.
+
+The order is defined in [`src/model/layouts.ts`](src/model/layouts.ts); selection and root-manifest fallback are implemented in [`src/catalog/manifests.ts`](src/catalog/manifests.ts).
+
 ### Layout capability matrix
 
-Checked against official documentation and this plugin's source on 2026-09-08. This table describes **integration by this plugin**. “Shared” means the plugin's common scanning conventions, not an upstream-defined capability. “Partial” requires the limitations below.
+Checked against official documentation, this plugin's source, and one real repository per schema on 2026-09-08. This table describes **integration by this plugin**. “Shared” means the plugin's common scanning conventions, not an upstream-defined capability. “Partial” requires the limitations below. The [compatibility report](docs/compat-report.md) records the sampled repositories, their commits, the schema verdicts and the scanner output.
 
 | Layout | Skills | Agents | Commands | MCP | Hooks | LSP |
 | --- | --- | --- | --- | --- | --- | --- |
-| [Claude Code](https://code.claude.com/docs/en/plugins-reference) | Supported | Partial: `agents/*.md` | Partial: `commands/*.md` | Partial: file / inline | Claude command-hook subset | Partial: inline |
+| [Claude Code](https://code.claude.com/docs/en/plugins-reference) | Declared + default skills | Declared Markdown | Declared Markdown | Files / inline | Command-hook subset | Files / inline |
 | [Codex](https://developers.openai.com/plugins/build/plugins) | Supported | Shared | Shared | Partial: `.mcp.json` | Compatible event subset | Shared inline |
 | [Cursor](https://cursor.com/docs/reference/plugins) | Supported | Partial: `.md` only | Partial: `.md` only | Partial: see below | Native events unsupported | Shared inline |
-| Kimi-named compatibility layout `.kimi-plugin/` | Shared | Shared | Shared | Shared | Claude-format subset | Shared inline |
+| Kimi Code | Declared skills + startup | Declared Markdown | Declared commands | Inline | Inline command events | Shared extension, non-native |
+| [ZCode](https://zcode.z.ai/en/docs/plugin) `.zcode-plugin/` | Shared | Shared | Shared | `.mcp.json` + inline overrides | Shared | Shared inline, non-native |
+| [Qoder CLI](https://docs.qoder.com/cli/plugins-reference) `.qoder-plugin/` | Shared | Shared | Shared | Partial: prefers `.mcp.json` | Shared | Shared inline, non-native |
+| [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) | Declared skills | `.md` / `.agent.md` | Declared Markdown | Files / inline | Mapped command events | Files / inline |
 | Universal compatibility layout `.plugin/` | Shared | Shared | Shared | Shared | Claude-format subset | Shared inline |
 | [agent-plugins.org v1](https://agent-plugins.org/specification) | Supported | Shared, nonstandard | Shared, nonstandard | Standard `mcp.json` | Shared, nonstandard | Directory preview only, nonstandard |
 | Manifest-less skill collection | Supported | Shared | Shared | Shared files | Claude-format subset | Directory preview only |
-| Project-native `.claude/`, `.agents/` | Supported | Skill instructions | Counted, not registered | Not mounted | Not mounted | Not mounted |
+| Project-native directories (see below) | Supported | Portable Markdown roles | Scoped commands | JSON / Codex TOML | Mapped command-hook subset | Diagnosed, not mounted |
 
-- **Shared scanning:** root `SKILL.md`, `skills/` or manifest `skills` paths, and files directly under `agents/*.md` and `commands/*.md`. Custom manifest agents / commands paths are not read; upstream frontmatter, invocation, and tool semantics are not fully reproduced. Manifest-less roots must first qualify through skill discovery.
-- **MCP:** reads `mcp.json`, then `.mcp.json`, then inline manifest `mcpServers`; custom manifest MCP file paths are not followed. Root `mcp.json` must pass the agent-plugins.org schema, so **Cursor's documented schema-less `mcp.json` is unsupported**. `.mcp.json` accepts both the `mcpServers` wrapper and a direct top-level server map, which covers Codex's documented forms; Codex `.app.json` connector bindings are not read. An invalid higher-priority file does not fall back.
-- **Hooks:** only `hooks/hooks.json` or root `hooks.json`, using the Claude Code bridge's supported command-hook events. Inline hooks and custom manifest paths are not read. Cursor-native events such as `afterFileEdit` are not integrated by that bridge.
-- **LSP:** only validated inline `lspServers` are mounted, including Claude marketplace declarations. **Claude's documented root `.lsp.json` and manifest LSP file paths are not read**. `.claude-plugin/lsp/*.json` and reverse-domain `*/lsp/` entries are counted and previewed only.
+- **Component paths:** declared files, directory trees and arrays resolve inside the suite by realpath. Commands, agents and detail panels use the same resources. Cursor also accepts `.mdc`, `.markdown` and `.txt` commands; Qoder maps support files and inline content. Claude/Codex skills supplement default discovery. Flat skill Markdown files work in manifest-less collections.
+- **Agent identities:** `reviewer.agent.md` and `reviewer.md` retain distinct role IDs in the subagent catalog. Roles have no generated `agent-*` skill or command aliases. Ordinary skills with those names remain skills.
+- **MCP:** declared files, inline maps and arrays are resolved by dialect. Cursor's schema-less `mcp.json` is supported; agent-plugins v1 stays schema-strict. Claude/ZCode declarations add to defaults, Cursor declarations replace defaults, Copilot/Universal include `.github/mcp.json`, and Kimi Code uses inline declarations. Invalid explicit configs cannot revive defaults. Codex app connectors remain outside this adapter.
+- **Hooks:** declared files/directories and inline configs are supported, including Kimi arrays and ZCode process hooks with quoted argv. Supported Copilot/Cursor lifecycle names map to the existing command-hook bridge. Events without a DSH equivalent, such as `afterFileEdit`, are diagnosed rather than simulated.
+- **LSP:** user suites accept declared files, arrays and inline tables, plus `.lsp.json` and Copilot/Universal `lsp.json`, `.github/lsp.json`, `lsp-config/servers.json`. Reverse-domain directory definitions remain previews. Project LSP retains its host-scope limitation.
 - **Specification boundaries:** agent-plugins.org v1 standardizes portable skills and MCP only; shared agents / commands / hooks scanning is not a standard capability. Universal is a compatibility-layout label used by this plugin; the [OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins) documents the same `.plugin/plugin.json` location and a [Vercel repository](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json) uses it, but no cross-vendor specification exists.
-- **Kimi boundary:** [Kimi's official plugin documentation](https://github.com/MoonshotAI/kimi-cli/blob/main/docs/en/customization/plugins.md) defines `tools` in root `plugin.json`; its [agent documentation](https://github.com/MoonshotAI/kimi-cli/blob/main/docs/en/customization/agents.md) uses YAML. Neither is integrated. Those official documents do not establish a `.kimi-plugin/plugin.json` specification, so this is not full Kimi plugin support.
+- **Kimi Code:** the active schema covers both manifest spellings, startup skills, appended skill instructions, system prompts, inline hooks and catalog aliases. The historical `kimi-cli` root tools protocol is a different system; it must not be confused with the current Kimi Code schema.
+- **ZCode boundary:** `.zcode-plugin/plugin.json` and root `marketplace.json` are recognized, including keyed plugin maps. Inline MCP servers override matching `.mcp.json` keys. The zip + `sha256` marketplace distribution contract is not implemented.
+- **Qoder boundary:** `.qoder-plugin/plugin.json` and `.qoder-plugin/marketplace.json` are recognized. MCP prefers `.mcp.json`, with schema-less `mcp.json` as fallback.
+- **GitHub Copilot CLI:** `.plugin/plugin.json` retains the Universal identity. Both spellings consume declared component paths and fallback MCP/LSP files. Isolated tests suppress competing manifests at nested suite roots, preventing a Claude fallback from masquerading as a passing Copilot test.
 - **Project directories:** [Claude project skills](https://code.claude.com/docs/en/skills) and [Codex `.agents/skills`](https://developers.openai.com/codex/skills) are documented upstream; `.agents/agents` and `.agents/commands` are this plugin's shared discovery conventions.
 
-Source checks covered `src/catalog/manifests.ts`, `surfaces.ts`, `validate.ts`, `native-project.ts`, and `src/runtime/hooks-mounts.ts`. This is a documentation and source audit, not end-to-end compatibility certification for every platform.
+### Project layout switch
 
-Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped. The project dimension does not mount MCP servers, and project-native commands are not registered because the host command registry is process-scoped.
+The plugin settings card exposes **Scan project Agent layouts** (`dsh-agent-plugins-market.scanProjectLayouts`, default `true`). Turning it off removes this plugin's native project candidates immediately; configured sources and the harness's own skill providers remain independent. Files are read in place and are never installed, rewritten or deleted.
+
+The registry reads skills under `.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder` and `.github`. Portable Markdown agents are enabled for all except `.codex` and `.kimi`; their TOML/YAML formats need separate adapters. Role execution resolves the calling session's project. Project commands, supported MCP servers and mapped command hooks register in each agent's scoped context and refresh on session startup or catalog changes; disabling the switch removes them.
+
+MCP reads root `.mcp.json`, `.cursor/mcp.json`, and the `mcpServers` tables in `.qoder/settings.json` and `.qoder/settings.local.json` (local keys override project keys). ZCode reads `mcp.servers` from `zcode.json` and `.zcode/config.json`, with `.agents/mcp.json` as an empty-native-table fallback. Codex reads `[mcp_servers.*]` from `.codex/config.toml` through `smol-toml`, preserving stdio/HTTP configuration, environment/header references, enabled flags, tool filters and timeouts. Unsupported server options produce diagnostics; host-client mode rejects policies it cannot enforce. Relative executables resolve from the project root. Claude/Qoder settings hooks and enabled ZCode configuration hooks use the bridge's supported command-event subset. Validated hooks become private temporary runtime files removed on teardown; project files remain unchanged. Project LSP is diagnosed and not mounted: host changes are outside this plugin's scope. See the [architecture decision and supported boundaries](docs/adr/2026-09-09-layout-registry.md).
+
+### Verified samples
+
+The nine README repository samples have offline snapshots in [`tests/fixtures/real-layouts/`](tests/fixtures/real-layouts/), with commit IDs, hashes and licenses. Tests validate real schemas, scan original trees and isolate each dialect independently. The [compatibility report](docs/compat-report.md) records natural precedence; [the audit](docs/layout-coverage.md) records independent resource checks.
+
+| Layout | Sample repository | Dialect manifest | Schema | Scanner |
+| --- | --- | --- | --- | --- |
+| Claude Code | [grafana/mcp-grafana](https://github.com/grafana/mcp-grafana) | `.claude-plugin/plugin.json` | valid | integrated |
+| Codex | [saadeghi/daisyui](https://github.com/saadeghi/daisyui) | `.codex-plugin/plugin.json` | valid | shadowed |
+| Cursor | [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) | `.cursor-plugin/plugin.json` + marketplace | valid | shadowed |
+| Kimi | [obra/superpowers](https://github.com/obra/superpowers) | `.kimi-plugin/plugin.json` | valid | shadowed |
+| Universal | [muratcankoylan/Agent-Skills-for-Context-Engineering](https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering) | `.plugin/plugin.json` | valid | integrated |
+| agent-plugins.org v1 | [saadeghi/daisyui](https://github.com/saadeghi/daisyui) | `plugin.json` | valid | integrated |
+| ZCode | [zenstory-ai/oh-story-claudecode](https://github.com/zenstory-ai/oh-story-claudecode) | `.zcode-plugin/plugin.json` + `marketplace.json` | valid | shadowed |
+| Qoder CLI | [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) | `.qoder-plugin/plugin.json` | valid | shadowed |
+| GitHub Copilot CLI | [headroomlabs-ai/headroom](https://github.com/headroomlabs-ai/headroom) | `.github/plugin/marketplace.json` | valid | shadowed |
+
+**Scanner** describes the unmodified repository: **integrated** means its own manifest won; **shadowed** means another won; **unread** means no suite. These verdicts are separate from passing isolated tests. Skill collection is tested with the real Universal repository's skills and no manifests, completing coverage of all ten layouts.
+
+Source checks covered `src/catalog/manifests.ts`, `surfaces.ts`, `validate.ts`, `native-project.ts`, and `src/runtime/hooks-mounts.ts`. The [compatibility report](docs/compat-report.md) adds one real repository per schema, read by this plugin's own scanner. This is a documentation, source and sample audit, not end-to-end compatibility certification for every platform.
+
+Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped. Project-native commands and supported MCP servers use agent-scoped host registration; project MCP server names include session identity to avoid app-wide namespace conflicts.
 
 Review third-party suites before enabling them: enabled services and hooks can execute programs. See the [runtime and security details](docs/guides/usage.md#runtime-and-security).
 
@@ -113,11 +175,15 @@ Review third-party suites before enabling them: enabled services and hooks can e
 
 **Why is an installed skill or tool missing?**
 
-Check that the suite and the relevant capability are enabled. Skills may restrict manual invocation. MCP / LSP panels show credential, dependency and mount failures; project-scoped MCP is not mounted.
+Check that the suite and the relevant capability are enabled. Skills may restrict manual invocation. MCP / LSP panels show user-service failures. Project resources additionally require the project-scan switch; unsupported native fields and project LSP declarations appear in scan diagnostics, while scoped mount failures are logged by the host.
 
 **Where do I configure MCP tokens?**
 
 Open the service in **MCP services**. Missing environment references show `needs-credentials`. Host-managed credentials are write-only; launch-environment credentials require changing the environment and restarting DSH.
+
+**How do I add a service that no suite declares?**
+
+Use **Add** in **MCP services** or **LSP servers**. The declaration is validated, stored under `~/.dsh/agent-plugins/data/`, and mounted through the same lifecycle as suite services. Host-observed services remain read-only.
 
 **What if a source download fails?**
 
@@ -134,6 +200,8 @@ Only when you tick **also delete the managed market directory** in the confirmat
 ## More documentation
 
 - [Usage guide](docs/guides/usage.md): installation, source configuration, storage, host requirements, MCP / LSP and feedback settings.
+- [Plugin specifications](schemas/README.md): per-dialect reference schemas and evidence, plus the vendored agent-plugins.org v1.0.0 contracts.
+- [Compatibility report](docs/compat-report.md): one real repository per schema, with commits, schema verdicts and scanner output.
 - [Contributing](CONTRIBUTING.md): development setup, checks and PR workflow.
 - [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).
 - [Domain glossary](CONTEXT.md) · [Architecture](docs/adr/0001-catalog-centered-modular-refactor.md).
