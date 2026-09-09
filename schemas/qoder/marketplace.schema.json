@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/qoder/marketplace.schema.json",
+  "title": "Qoder CLI Marketplace Manifest",
+  "description": "Marketplace catalog read by Qoder CLI at .qoder-plugin/marketplace.json, .claude-plugin/marketplace.json, or a repository-root marketplace.json. Authored from the official reference page and the Zod schema compiled into the shipped CLI; Qoder publishes no JSON Schema.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://docs.qoder.com/cli/plugins-reference ; @qoder-ai/qodercli@1.1.47 bundle/qodercli.js (marketplace schema Jji, plugin-entry schema jjt, source union bYa). The plugin-entry schema is the plugin manifest schema made optional plus name/source/category/tags/strict, so entries may carry any plugin-manifest field. metadata.pluginRoot is declared but has no consumer in the observed CLI.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[a-zA-Z0-9][-a-zA-Z0-9._]*$",
+      "description": "Marketplace name; no spaces or non-ASCII characters. Reserved names and qoder-* prefixes are rejected by the CLI."
+    },
+    "owner": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "plugins": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "forceRemoveDeletedPlugins": { "type": "boolean", "description": "Uninstall plugins removed from this marketplace." },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "pluginRoot": { "type": "string", "description": "Declared as the base path for relative plugin sources; no consumer was found in the observed CLI." },
+        "version": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "allowCrossMarketplaceDependenciesOn": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["name", "owner", "plugins"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "description": "A plugin entry. Extends the plugin manifest schema, so manifest fields are accepted here too.",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "description": "Unique identifier matching the plugin name." },
+        "source": { "$ref": "#/$defs/source" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "strict": { "type": "boolean", "default": true, "description": "Require a plugin manifest in the plugin folder. When false, the marketplace entry provides the manifest." },
+        "version": { "type": "string" },
+        "description": { "type": "string" },
+        "author": {
+          "type": "object",
+          "properties": { "name": { "type": "string" }, "email": { "type": "string" }, "url": { "type": "string" } },
+          "required": ["name"],
+          "additionalProperties": true
+        },
+        "homepage": { "type": "string" },
+        "repository": { "type": "string" },
+        "license": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "dependencies": { "type": "array", "items": {} },
+        "commands": {},
+        "agents": {},
+        "skills": {},
+        "outputStyles": {},
+        "workflowsPath": { "type": "string" },
+        "workflowsPaths": { "type": "array", "items": { "type": "string" } },
+        "hooks": {},
+        "mcpServers": {},
+        "userConfig": { "type": "object" },
+        "settings": { "type": "object" }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "source": {
+      "description": "Where to fetch the plugin. A relative path must start with ./ and is resolved against the marketplace install location.",
+      "anyOf": [
+        { "type": "string", "pattern": "^\\./" },
+        {
+          "type": "object",
+          "properties": { "source": { "enum": ["npm", "pip"] }, "package": { "type": "string" }, "version": { "type": "string" }, "registry": { "type": "string" } },
+          "required": ["source", "package"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "url" }, "url": { "type": "string" }, "ref": { "type": "string" }, "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" } },
+          "required": ["source", "url"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "github" }, "repo": { "type": "string" }, "ref": { "type": "string" }, "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" } },
+          "required": ["source", "repo"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": { "const": "git-subdir" },
+            "url": { "type": "string" },
+            "path": { "type": "string" },
+            "ref": { "type": "string" },
+            "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+          },
+          "required": ["source", "url", "path"],
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

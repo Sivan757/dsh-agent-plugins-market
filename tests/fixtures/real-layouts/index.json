@@ -1,0 +1,65 @@
+[
+  {
+    "dialect": "claude-code",
+    "schema": "claude-code",
+    "repo": "grafana/mcp-grafana",
+    "commit": "75dc30f8fc5960d8b16ba393a8cc1f0e5ed2a6f8",
+    "fixture": "claude-code.json"
+  },
+  {
+    "dialect": "codex",
+    "schema": "codex",
+    "repo": "saadeghi/daisyui",
+    "commit": "9a4b5ad28edecdad8caedc8059da1a88d0adf50e",
+    "fixture": "codex.json"
+  },
+  {
+    "dialect": "cursor",
+    "schema": "cursor",
+    "repo": "EveryInc/compound-engineering-plugin",
+    "commit": "8df67793b9733d2220fa9a7fc37139931471af62",
+    "fixture": "cursor.json"
+  },
+  {
+    "dialect": "kimi",
+    "schema": "kimi",
+    "repo": "obra/superpowers",
+    "commit": "b36e0829c6d0140e93cfef2ca599b1b07d4a7797",
+    "fixture": "kimi.json"
+  },
+  {
+    "dialect": "universal",
+    "schema": "universal",
+    "repo": "muratcankoylan/Agent-Skills-for-Context-Engineering",
+    "commit": "6dbe1a1d868eab51a3bc9011b0f55e2891513e40",
+    "fixture": "universal.json"
+  },
+  {
+    "dialect": "agent-plugins",
+    "schema": "agent-plugins",
+    "repo": "saadeghi/daisyui",
+    "commit": "9a4b5ad28edecdad8caedc8059da1a88d0adf50e",
+    "fixture": "agent-plugins.json"
+  },
+  {
+    "dialect": "zcode",
+    "schema": "zcode",
+    "repo": "zenstory-ai/oh-story-claudecode",
+    "commit": "12a300afb9735307657e2f84f27c51f8ca069f24",
+    "fixture": "zcode.json"
+  },
+  {
+    "dialect": "qoder",
+    "schema": "qoder",
+    "repo": "DietrichGebert/ponytail",
+    "commit": "356918eba965ee1eac64bd3a7f0dd02108350de5",
+    "fixture": "qoder.json"
+  },
+  {
+    "dialect": "github-copilot",
+    "schema": "github-copilot",
+    "repo": "headroomlabs-ai/headroom",
+    "commit": "e67b3c8a29443a60d6b0018fb22f525c5cd7e709",
+    "fixture": "github-copilot.json"
+  }
+]

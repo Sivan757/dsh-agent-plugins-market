@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/kimi/plugin.schema.json",
+  "title": "Kimi Code Plugin Manifest",
+  "description": "Plugin manifest for the current Kimi CLI (kimi-code), looked up as kimi.plugin.json then .kimi-plugin/plugin.json in the plugin root. Authored from MoonshotAI's official documentation and source; Kimi publishes no reachable JSON Schema (its shipped manifest declares https://kimi.com/schemas/kimi.plugin.schema.json, which serves HTML).",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: MoonshotAI/kimi-code docs/en/customization/plugins.md and packages/agent-core-v2/src/app/plugin/{manifest,types,marketplace}.ts. The legacy MoonshotAI/kimi-cli plugin system is a different format: root plugin.json with a tools array, no marketplace, no skills/agents components (see spec.md). fields listed in UNSUPPORTED_RUNTIME_FIELDS (tools, apps, inject, configFile, config_file, bootstrap) emit an info diagnostic and are ignored.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Plugin identifier; normalized to lowercase. The only field whose failure invalidates the manifest."
+    },
+    "version": { "type": "string", "description": "Display metadata." },
+    "description": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "author": {
+      "description": "Author as a bare name or a structured record; a bare string is coerced to { name }.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": { "name": { "type": "string" }, "email": { "type": "string" } },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "homepage": { "type": "string" },
+    "license": { "type": "string" },
+    "skills": { "$ref": "#/$defs/pathList", "description": "./-prefixed paths that must resolve inside the plugin root. Defaults to a root SKILL.md when present." },
+    "agents": { "$ref": "#/$defs/pathList", "description": "./-prefixed paths to agent files. agents/ is auto-discovered when omitted." },
+    "sessionStart": {
+      "type": "object",
+      "description": "Loads a named plugin skill at new or resumed session start.",
+      "properties": { "skill": { "type": "string" } },
+      "required": ["skill"],
+      "additionalProperties": true
+    },
+    "skillInstructions": { "type": "string", "description": "Extra instructions appended whenever a skill from this plugin loads." },
+    "systemPrompt": { "type": "string", "description": "Inline system-prompt contribution; capped at 32 KB." },
+    "systemPromptPath": { "type": "string", "description": "./ path to a UTF-8 text file appended after systemPrompt; capped at 32 KB and read at install or reload." },
+    "mcpServers": {
+      "type": "object",
+      "description": "Inline MCP server map. Kimi declares MCP only inline; there is no .mcp.json companion file. A command containing / must start with ./."
+    },
+    "hooks": { "type": "array", "description": "Inline hook definitions; there is no hooks/hooks.json convention.", "items": { "$ref": "#/$defs/hook" } },
+    "commands": { "$ref": "#/$defs/pathList", "description": "./ directories or .md files exposed as slash commands namespaced <plugin>:<command>." },
+    "interface": {
+      "type": "object",
+      "description": "Listing metadata; dropped entirely when every field is absent.",
+      "properties": {
+        "displayName": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "longDescription": { "type": "string" },
+        "developerName": { "type": "string" },
+        "websiteURL": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "tools": { "description": "Legacy kimi-cli field; emits an info diagnostic and is ignored by kimi-code." },
+    "apps": { "description": "Unsupported runtime field; ignored." },
+    "inject": { "description": "Unsupported runtime field; ignored." },
+    "configFile": { "description": "Unsupported runtime field; ignored." },
+    "config_file": { "description": "Unsupported runtime field; ignored." },
+    "bootstrap": { "description": "Unsupported runtime field; ignored." }
+  },
+  "required": ["name"],
+  "additionalProperties": true,
+  "$defs": {
+    "pathList": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "hook": {
+      "type": "object",
+      "properties": {
+        "event": { "type": "string" },
+        "matcher": { "type": "string" },
+        "command": { "type": "string" },
+        "timeout": { "type": "number" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

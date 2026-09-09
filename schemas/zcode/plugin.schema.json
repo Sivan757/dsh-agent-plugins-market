@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/zcode/plugin.schema.json",
+  "title": "ZCode Plugin Manifest",
+  "description": "Plugin manifest accepted by ZCode (Z.ai) at .zcode-plugin/plugin.json, .claude-plugin/plugin.json, or .codex-plugin/plugin.json. Authored from the official authoring page and the shipped runtime; ZCode publishes no JSON Schema. Unknown properties are ignored by the client, so this schema is open.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://zcode.z.ai/en/docs/plugin ; https://github.com/zai-org/zcode-plugins (docs/distribution.md, docs/PLUGIN_DEVELOPMENT.md, scripts/validate.py, plugins/example-plugin) ; ZCode 3.11.2 runtime constants (manifest candidate order). Fields channels/lspServers/outputStyles/settings are registered but diagnostic-only in the observed runtime.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+      "description": "Plugin identifier; 1-128 characters, lowercase."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version. The runtime defaults to \"0.0.0\" when absent. The official marketplace validator requires this to equal the marketplace entry version."
+    },
+    "description": {
+      "type": "string",
+      "description": "One-line description shown in the plugin manager."
+    },
+    "description_i18n": {
+      "type": "object",
+      "description": "Localized descriptions keyed by BCP-47 locale. Required for community submissions by the official marketplace validator (en and zh-CN), which also requires it to match the marketplace entry.",
+      "additionalProperties": { "type": "string" }
+    },
+    "author": {
+      "description": "Author as a bare name or a structured record.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "email": { "type": "string" },
+            "url": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "homepage": { "type": "string" },
+    "repository": { "type": "string" },
+    "license": { "type": "string", "description": "SPDX identifier, e.g. MIT." },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "commands": { "$ref": "#/$defs/component" },
+    "skills": { "$ref": "#/$defs/component" },
+    "agents": { "$ref": "#/$defs/component" },
+    "hooks": { "$ref": "#/$defs/component" },
+    "mcpServers": {
+      "description": "MCP servers: a path to a JSON file, an array of such paths, or an inline server map. Inline entries override same-named servers from .mcp.json.",
+      "$ref": "#/$defs/component"
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Other plugins required at enable time. A bare name resolves inside the declaring marketplace; use name@marketplace for another marketplace.",
+      "items": { "type": "string" }
+    },
+    "userConfig": {
+      "type": "object",
+      "description": "User-configurable options prompted when the plugin is enabled. Values are referenced as ${user_config.<key>} in MCP declarations and hooks.",
+      "additionalProperties": { "$ref": "#/$defs/userConfigOption" }
+    },
+    "channels": { "description": "Registered but diagnostic-only in the observed ZCode runtime; not executed." },
+    "lspServers": { "description": "Registered but diagnostic-only in the observed ZCode runtime; not executed." },
+    "outputStyles": { "description": "Registered but diagnostic-only in the observed ZCode runtime; not executed." },
+    "settings": { "description": "Registered but diagnostic-only in the observed ZCode runtime; not executed." }
+  },
+  "required": ["name"],
+  "additionalProperties": true,
+  "$defs": {
+    "component": {
+      "description": "Component declaration: a relative path, an array of relative paths, or an inline object. ZCode resolves relative paths against the plugin root.",
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }, { "type": "object" }]
+    },
+    "userConfigOption": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["string", "number", "boolean", "directory", "file"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "default": { "type": ["string", "number", "boolean"] },
+        "required": { "type": "boolean" },
+        "sensitive": { "type": "boolean", "description": "Masked in the UI and not enterable interactively." }
+      },
+      "additionalProperties": false
+    }
+  }
+}

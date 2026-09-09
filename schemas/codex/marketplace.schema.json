@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/codex/marketplace.schema.json",
+  "title": "Codex Marketplace Manifest",
+  "description": "Marketplace catalog read by Codex at .agents/plugins/marketplace.json, .agents/plugins/api_marketplace.json, .claude-plugin/marketplace.json, or .cursor-plugin/marketplace.json (first match wins). Authored from the OpenAI Codex source; OpenAI publishes no JSON Schema for this manifest.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: openai/codex codex-rs/core-plugins/src/marketplace.rs (MARKETPLACE_MANIFEST_RELATIVE_PATHS, raw structs), marketplace_tests.rs fixtures, installed_marketplaces.rs, marketplace_add/source.rs, and the bundled plugin-creator skill. There is no github source variant: the tagged enum has only Local, Url, GitSubdir, and Npm. Entry order is render order.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "description": "Marketplace identifier." },
+    "interface": {
+      "type": "object",
+      "properties": { "displayName": { "type": "string" } },
+      "additionalProperties": true
+    },
+    "plugins": { "type": "array", "items": { "$ref": "#/$defs/entry" }, "description": "Ordered plugin entries; the order is the render order." }
+  },
+  "required": ["name", "plugins"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "description": "Any plugin-manifest field may be inlined here as a flattened fallback used when the plugin source cannot be read.",
+      "properties": {
+        "name": { "type": "string", "description": "Must match the folder name and the plugin.json name." },
+        "source": { "$ref": "#/$defs/source" },
+        "category": { "type": "string" },
+        "policy": { "$ref": "#/$defs/policy" }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "installation": { "enum": ["NOT_AVAILABLE", "AVAILABLE", "INSTALLED_BY_DEFAULT"], "default": "AVAILABLE" },
+        "authentication": { "enum": ["ON_INSTALL", "ON_USE"], "default": "ON_INSTALL" },
+        "products": { "type": "array", "items": { "type": "string" }, "description": "Product gating override; an empty array denies every product." }
+      },
+      "additionalProperties": true
+    },
+    "source": {
+      "description": "Where to fetch the plugin. A bare string is treated as a local relative path. The github variant is not supported.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "local" }, "path": { "type": "string" } },
+          "required": ["source", "path"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "url" }, "url": { "type": "string" }, "path": { "type": "string" }, "ref": { "type": "string" }, "sha": { "type": "string" } },
+          "required": ["source", "url"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": { "const": "git-subdir" },
+            "url": { "type": "string" },
+            "path": { "type": "string" },
+            "ref": { "type": "string" },
+            "sha": { "type": "string" }
+          },
+          "required": ["source", "url", "path"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "npm" }, "package": { "type": "string" }, "version": { "type": "string" }, "registry": { "type": "string" } },
+          "required": ["source", "package"],
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

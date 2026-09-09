@@ -1,0 +1,711 @@
+{
+  "generatedAt": "2026-09-09",
+  "selection": {
+    "metric": "stargazers",
+    "method": "GitHub code search for the layout's manifest path, then a batched GraphQL star lookup over the first 40 candidates; the highest-starred candidate was verified file-by-file to ship the manifest before being pinned here. This is the highest-starred candidate the search returned, not an exhaustive ranking of every repository on GitHub.",
+    "candidatePool": 40,
+    "checkedOn": "2026-09-08"
+  },
+  "method": {
+    "schema": "Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored schemas/1.0.0/plugin.schema.json.",
+    "scanner": "Each checkout is scanned by the shipped catalog scanner (lib/catalog/suite-scanner.js scanSource) after a sparse depth-1 clone, so the row records what this plugin actually does with the repository.",
+    "marketplace": "The scanner marketplace lookup order is `.claude-plugin/marketplace.json` then `.agents/plugins/marketplace.json` then `.plugin/marketplace.json` then `.cursor-plugin/marketplace.json` then `.kimi-plugin/marketplace.json` then `.agents/plugins/api_marketplace.json` then `.qoder-plugin/marketplace.json` then `.github/plugin/marketplace.json` then `marketplace.json`; other dialects' marketplace files are listed for context but are not read.",
+    "verdicts": {
+      "integrated": "The scanner read this dialect’s own manifest as the suite identity.",
+      "shadowed": "Suites were discovered, but a different dialect’s manifest won.",
+      "unread": "The checkout produced no suite.",
+      "error": "Acquisition or scanning failed; see the error field."
+    }
+  },
+  "samples": [
+    {
+      "dialect": "claude-code",
+      "schema": "claude-code",
+      "repo": "grafana/mcp-grafana",
+      "branch": "main",
+      "stars": 3433,
+      "note": "A Claude Code plugin that declares its MCP server inline in plugin.json and ships no skills or commands.",
+      "pluginManifest": ".claude-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "commit": "75dc30f8fc5960d8b16ba393a8cc1f0e5ed2a6f8",
+      "manifest": {
+        "vendored": false,
+        "plugin": {
+          "file": ".claude-plugin/plugin.json",
+          "schema": "schemas/claude-code/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": null
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "grafana",
+            "layout": "claude-code",
+            "manifestPath": ".claude-plugin/plugin.json",
+            "identity": "grafana",
+            "remote": null,
+            "surfaces": {
+              "skills": 0,
+              "mcp": 1,
+              "hooks": 0,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "claude-code"
+        ],
+        "surfaces": {
+          "skills": 0,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 1,
+          "hooks": 0,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "rooted",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "grafana"
+            ]
+          },
+          {
+            "filter": "marketplace",
+            "outcome": "abstain",
+            "detail": "delegated",
+            "suiteIds": []
+          }
+        ],
+        "notes": [],
+        "noteCount": 0,
+        "dialectManifestRead": true,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [],
+        "scannerMarketplace": null
+      },
+      "verdict": "integrated",
+      "interpretation": "The scanner read `.claude-plugin/plugin.json` as the suite identity."
+    },
+    {
+      "dialect": "codex",
+      "schema": "codex",
+      "repo": "saadeghi/daisyui",
+      "branch": "master",
+      "stars": 42328,
+      "note": "Ships a root plugin.json (agent-plugins v1.0.0), .codex-plugin, .claude-plugin, .cursor-plugin and .agents/plugins marketplace at once; the root manifest wins dialect precedence.",
+      "pluginManifest": ".codex-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "commit": "9a4b5ad28edecdad8caedc8059da1a88d0adf50e",
+      "manifest": {
+        "vendored": false,
+        "plugin": {
+          "file": ".codex-plugin/plugin.json",
+          "schema": "schemas/codex/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": null
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "daisyui",
+            "layout": "agent-plugin-v1",
+            "manifestPath": "plugin.json",
+            "identity": "daisyui",
+            "remote": null,
+            "surfaces": {
+              "skills": 5,
+              "mcp": 0,
+              "hooks": 0,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "agent-plugin-v1"
+        ],
+        "surfaces": {
+          "skills": 5,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 0,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "daisyui"
+            ]
+          }
+        ],
+        "notes": [
+          "marketplace entry \"daisyui-blueprint\": path \"./packages/blueprint\" is missing or unreadable"
+        ],
+        "noteCount": 1,
+        "dialectManifestRead": false,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json",
+          ".agents/plugins/marketplace.json",
+          ".cursor-plugin/marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "shadowed",
+      "interpretation": "The scanner discovered 1 suite(s) but not through `.codex-plugin/plugin.json`; the winning layout was agent-plugin-v1."
+    },
+    {
+      "dialect": "cursor",
+      "schema": "cursor",
+      "repo": "EveryInc/compound-engineering-plugin",
+      "branch": "main",
+      "stars": 24956,
+      "note": "Ships ten dialect directories; the root plugin.json carries no $schema, so the scanner reads it leniently as the Claude layout.",
+      "pluginManifest": ".cursor-plugin/plugin.json",
+      "marketplaceManifest": ".cursor-plugin/marketplace.json",
+      "commit": "8df67793b9733d2220fa9a7fc37139931471af62",
+      "manifest": {
+        "vendored": false,
+        "plugin": {
+          "file": ".cursor-plugin/plugin.json",
+          "schema": "schemas/cursor/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": {
+          "file": ".cursor-plugin/marketplace.json",
+          "schema": "schemas/cursor/marketplace.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        }
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "compound-engineering",
+            "layout": "claude-code",
+            "manifestPath": "plugin.json",
+            "identity": "compound-engineering",
+            "remote": null,
+            "surfaces": {
+              "skills": 33,
+              "mcp": 0,
+              "hooks": 0,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "claude-code"
+        ],
+        "surfaces": {
+          "skills": 33,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 0,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "compound-engineering"
+            ]
+          }
+        ],
+        "notes": [],
+        "noteCount": 0,
+        "dialectManifestRead": false,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json",
+          ".agents/plugins/marketplace.json",
+          ".cursor-plugin/marketplace.json",
+          ".kimi-plugin/marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "shadowed",
+      "interpretation": "The scanner discovered 1 suite(s) but not through `.cursor-plugin/plugin.json`; the winning layout was claude-code."
+    },
+    {
+      "dialect": "kimi",
+      "schema": "kimi",
+      "repo": "obra/superpowers",
+      "branch": "main",
+      "stars": 283142,
+      "note": "Ships .claude-plugin, .codex-plugin, .cursor-plugin and .kimi-plugin; the Claude manifest wins precedence.",
+      "pluginManifest": ".kimi-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "commit": "b36e0829c6d0140e93cfef2ca599b1b07d4a7797",
+      "manifest": {
+        "vendored": false,
+        "plugin": {
+          "file": ".kimi-plugin/plugin.json",
+          "schema": "schemas/kimi/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": null
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "superpowers",
+            "layout": "claude-code",
+            "manifestPath": ".claude-plugin/plugin.json",
+            "identity": "superpowers",
+            "remote": null,
+            "surfaces": {
+              "skills": 14,
+              "mcp": 0,
+              "hooks": 1,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "claude-code"
+        ],
+        "surfaces": {
+          "skills": 14,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 1,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "superpowers"
+            ]
+          }
+        ],
+        "notes": [],
+        "noteCount": 0,
+        "dialectManifestRead": false,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json",
+          ".agents/plugins/marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "shadowed",
+      "interpretation": "The scanner discovered 1 suite(s) but not through `.kimi-plugin/plugin.json`; the winning layout was claude-code."
+    },
+    {
+      "dialect": "universal",
+      "schema": "universal",
+      "repo": "muratcankoylan/Agent-Skills-for-Context-Engineering",
+      "branch": "main",
+      "stars": 17945,
+      "note": "Ships .plugin/plugin.json with no higher-precedence root manifest, so the universal dialect is read directly.",
+      "pluginManifest": ".plugin/plugin.json",
+      "marketplaceManifest": null,
+      "commit": "6dbe1a1d868eab51a3bc9011b0f55e2891513e40",
+      "manifest": {
+        "vendored": false,
+        "plugin": {
+          "file": ".plugin/plugin.json",
+          "schema": "schemas/universal/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": null
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "context-engineering",
+            "layout": "universal",
+            "manifestPath": ".plugin/plugin.json",
+            "identity": "context-engineering",
+            "remote": null,
+            "surfaces": {
+              "skills": 18,
+              "mcp": 0,
+              "hooks": 0,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "universal"
+        ],
+        "surfaces": {
+          "skills": 18,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 0,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "context-engineering"
+            ]
+          }
+        ],
+        "notes": [],
+        "noteCount": 0,
+        "dialectManifestRead": true,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "integrated",
+      "interpretation": "The scanner read `.plugin/plugin.json` as the suite identity."
+    },
+    {
+      "dialect": "agent-plugins",
+      "schema": "agent-plugins",
+      "repo": "saadeghi/daisyui",
+      "branch": "master",
+      "stars": 42328,
+      "note": "Root plugin.json declares the agent-plugins.org v1.0.0 $schema; validated with the vendored schemas/1.0.0/plugin.schema.json.",
+      "pluginManifest": "plugin.json",
+      "marketplaceManifest": null,
+      "commit": "9a4b5ad28edecdad8caedc8059da1a88d0adf50e",
+      "manifest": {
+        "vendored": true,
+        "plugin": {
+          "file": "plugin.json",
+          "schema": "schemas/1.0.0/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": null
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "daisyui",
+            "layout": "agent-plugin-v1",
+            "manifestPath": "plugin.json",
+            "identity": "daisyui",
+            "remote": null,
+            "surfaces": {
+              "skills": 5,
+              "mcp": 0,
+              "hooks": 0,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "agent-plugin-v1"
+        ],
+        "surfaces": {
+          "skills": 5,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 0,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "daisyui"
+            ]
+          }
+        ],
+        "notes": [
+          "marketplace entry \"daisyui-blueprint\": path \"./packages/blueprint\" is missing or unreadable"
+        ],
+        "noteCount": 1,
+        "dialectManifestRead": true,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json",
+          ".agents/plugins/marketplace.json",
+          ".cursor-plugin/marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "integrated",
+      "interpretation": "The scanner read `plugin.json` as the suite identity."
+    },
+    {
+      "dialect": "zcode",
+      "schema": "zcode",
+      "repo": "zenstory-ai/oh-story-claudecode",
+      "branch": "main",
+      "stars": 6665,
+      "note": "Ships ZCode and Claude manifests together. The isolated ZCode fixture verifies its custom commands directory and process-hook configuration.",
+      "pluginManifest": ".zcode-plugin/plugin.json",
+      "marketplaceManifest": "marketplace.json",
+      "commit": "12a300afb9735307657e2f84f27c51f8ca069f24",
+      "manifest": {
+        "vendored": false,
+        "plugin": {
+          "file": ".zcode-plugin/plugin.json",
+          "schema": "schemas/zcode/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": {
+          "file": "marketplace.json",
+          "schema": "schemas/zcode/marketplace.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        }
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "oh-story",
+            "layout": "claude-code",
+            "manifestPath": ".claude-plugin/plugin.json",
+            "identity": "oh-story",
+            "remote": null,
+            "surfaces": {
+              "skills": 13,
+              "mcp": 0,
+              "hooks": 0,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "claude-code"
+        ],
+        "surfaces": {
+          "skills": 13,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 0,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "oh-story"
+            ]
+          }
+        ],
+        "notes": [],
+        "noteCount": 0,
+        "dialectManifestRead": false,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json",
+          "marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "shadowed",
+      "interpretation": "The scanner discovered 1 suite(s) but not through `.zcode-plugin/plugin.json`; the winning layout was claude-code."
+    },
+    {
+      "dialect": "qoder",
+      "schema": "qoder",
+      "repo": "DietrichGebert/ponytail",
+      "branch": "main",
+      "stars": 131816,
+      "note": "Ships Qoder beside several higher-precedence manifests. The isolated fixture verifies Qoder identity and its declared hooks/qoder-hooks.json.",
+      "pluginManifest": ".qoder-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "commit": "356918eba965ee1eac64bd3a7f0dd02108350de5",
+      "manifest": {
+        "vendored": false,
+        "plugin": {
+          "file": ".qoder-plugin/plugin.json",
+          "schema": "schemas/qoder/plugin.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        },
+        "marketplace": null
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "ponytail",
+            "layout": "claude-code",
+            "manifestPath": "plugin.json",
+            "identity": "ponytail",
+            "remote": null,
+            "surfaces": {
+              "skills": 6,
+              "mcp": 0,
+              "hooks": 3,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "claude-code"
+        ],
+        "surfaces": {
+          "skills": 6,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 3,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "ponytail"
+            ]
+          }
+        ],
+        "notes": [],
+        "noteCount": 0,
+        "dialectManifestRead": false,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json",
+          ".agents/plugins/marketplace.json",
+          ".github/plugin/marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "shadowed",
+      "interpretation": "The scanner discovered 1 suite(s) but not through `.qoder-plugin/plugin.json`; the winning layout was claude-code."
+    },
+    {
+      "dialect": "github-copilot",
+      "schema": "github-copilot",
+      "repo": "headroomlabs-ai/headroom",
+      "branch": "main",
+      "stars": 70594,
+      "note": "Ships Copilot and Claude marketplaces. The isolated fixture removes Claude manifests at every suite root and verifies Copilot's hooks directory declaration.",
+      "pluginManifest": null,
+      "marketplaceManifest": ".github/plugin/marketplace.json",
+      "commit": "e67b3c8a29443a60d6b0018fb22f525c5cd7e709",
+      "manifest": {
+        "vendored": false,
+        "plugin": null,
+        "marketplace": {
+          "file": ".github/plugin/marketplace.json",
+          "schema": "schemas/github-copilot/marketplace.schema.json",
+          "present": true,
+          "valid": true,
+          "errors": []
+        }
+      },
+      "scan": {
+        "suites": [
+          {
+            "id": "headroom",
+            "layout": "claude-code",
+            "manifestPath": "plugins/headroom-agent-hooks/.claude-plugin/plugin.json",
+            "identity": "headroom",
+            "remote": null,
+            "surfaces": {
+              "skills": 0,
+              "mcp": 0,
+              "hooks": 2,
+              "commands": 0,
+              "agents": 0,
+              "lsp": 0
+            }
+          }
+        ],
+        "suiteCount": 1,
+        "layouts": [
+          "claude-code"
+        ],
+        "surfaces": {
+          "skills": 0,
+          "commands": 0,
+          "agents": 0,
+          "mcp": 0,
+          "hooks": 2,
+          "lsp": 0
+        },
+        "attempts": [
+          {
+            "filter": "marketplace",
+            "outcome": "resolved",
+            "detail": "1 suite(s)",
+            "suiteIds": [
+              "headroom"
+            ]
+          }
+        ],
+        "notes": [],
+        "noteCount": 0,
+        "dialectManifestRead": false,
+        "dialectMarketplaceRead": false,
+        "presentMarketplaces": [
+          ".claude-plugin/marketplace.json",
+          ".github/plugin/marketplace.json"
+        ],
+        "scannerMarketplace": ".claude-plugin/marketplace.json"
+      },
+      "verdict": "shadowed",
+      "interpretation": "The scanner discovered 1 suite(s) but not through `.github/plugin/marketplace.json`; the winning layout was claude-code."
+    }
+  ]
+}

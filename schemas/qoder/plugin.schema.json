@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/qoder/plugin.schema.json",
+  "title": "Qoder CLI Plugin Manifest",
+  "description": "Plugin manifest accepted by Qoder CLI at .qoder-plugin/plugin.json, with an undocumented .claude-plugin/plugin.json fallback. Authored from the official reference page and the Zod schema compiled into the shipped CLI; Qoder publishes no JSON Schema. Unknown properties are stripped by the client, so this schema is open.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://docs.qoder.com/cli/plugins-reference ; @qoder-ai/qodercli@1.1.47 bundle/qodercli.js (compiled Zod schemas, lookup arrays). Component paths must start with ./ per the CLI schema. lspServers and channels are recognized but not implemented and are ignored with a warning.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique identifier; non-empty and free of spaces. Kebab-case is recommended. The CLI defaults version to \"local\" and derives the name from the directory when the manifest is absent."
+    },
+    "version": { "type": "string", "description": "Semantic version. The CLI substitutes \"local\" at install time when absent." },
+    "displayName": { "type": "string", "description": "Human-readable name for UI surfaces." },
+    "description": { "type": "string" },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "homepage": { "type": "string", "description": "Must be a valid URL." },
+    "repository": { "type": "string" },
+    "license": { "type": "string", "description": "SPDX identifier, e.g. MIT or Apache-2.0." },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "dependencies": {
+      "type": "array",
+      "description": "Plugins that must be enabled for this plugin to work. A bare name resolves against the declaring plugin's own marketplace.",
+      "items": {
+        "anyOf": [
+          { "type": "string", "pattern": "^[a-z0-9][-a-z0-9._]*(@[a-z0-9][-a-z0-9._]*)?(@\\^[^@]*)?$" },
+          {
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "marketplace": { "type": "string" } },
+            "required": ["name"],
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "commands": { "$ref": "#/$defs/commandComponent" },
+    "agents": { "$ref": "#/$defs/markdownComponent" },
+    "skills": { "$ref": "#/$defs/component" },
+    "outputStyles": { "$ref": "#/$defs/component", "description": "Overrides the conventional output-styles/ directory." },
+    "workflowsPath": { "$ref": "#/$defs/componentPath" },
+    "workflowsPaths": { "type": "array", "items": { "$ref": "#/$defs/componentPath" } },
+    "hooks": { "$ref": "#/$defs/jsonComponent" },
+    "mcpServers": { "$ref": "#/$defs/jsonComponent" },
+    "userConfig": {
+      "type": "object",
+      "description": "User-configurable values prompted at enable time. Keys must match ^[A-Za-z_]\\w*$.",
+      "propertyNames": { "pattern": "^[A-Za-z_]\\w*$" },
+      "additionalProperties": { "$ref": "#/$defs/userConfigOption" }
+    },
+    "settings": {
+      "type": "object",
+      "description": "Settings merged when the plugin is enabled. Only the allowlisted key \"agent\" is kept; other keys are ignored."
+    },
+    "lspServers": { "description": "Recognized but not implemented in the observed CLI; warned and ignored." },
+    "channels": { "description": "Recognized but not implemented in the observed CLI; warned and ignored." }
+  },
+  "required": ["name"],
+  "additionalProperties": true,
+  "$defs": {
+    "componentPath": { "type": "string", "pattern": "^\\." },
+    "component": {
+      "description": "A plugin-relative path, an array of paths, or an object map.",
+      "anyOf": [{ "$ref": "#/$defs/componentPath" }, { "type": "array", "items": { "$ref": "#/$defs/componentPath" } }, { "type": "object" }]
+    },
+    "markdownComponent": {
+      "description": "Agent definitions; every declared path must end in .md.",
+      "anyOf": [
+        { "type": "string", "pattern": "^\\..*\\.md$" },
+        { "type": "array", "items": { "type": "string", "pattern": "^\\..*\\.md$" } }
+      ]
+    },
+    "jsonComponent": {
+      "description": "Configuration declared as a plugin-relative .json path, an inline object, or an array mixing both.",
+      "anyOf": [{ "type": "string", "pattern": "^\\..*\\.json$" }, { "type": "object" }, { "type": "array" }]
+    },
+    "commandComponent": {
+      "description": "Command definitions: paths, an array of paths, or an object mapping command names to inline definitions.",
+      "anyOf": [
+        { "$ref": "#/$defs/componentPath" },
+        { "type": "array", "items": { "$ref": "#/$defs/componentPath" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/commandDefinition" } }
+      ]
+    },
+    "commandDefinition": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "description": "Mutually exclusive with content." },
+        "content": { "type": "string", "description": "Mutually exclusive with source." },
+        "description": { "type": "string" },
+        "argumentHint": { "type": "string" },
+        "model": { "type": "string" },
+        "allowedTools": { "type": "array", "items": { "type": "string" } },
+        "context": { "enum": ["inline", "fork"] },
+        "arguments": { "type": "array", "items": { "type": "string" } },
+        "effort": { "type": "string" },
+        "agent": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "userConfigOption": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["string", "number", "boolean", "directory", "file"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "default": {},
+        "multiple": { "type": "boolean" },
+        "sensitive": { "type": "boolean" },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      },
+      "required": ["title", "description"],
+      "additionalProperties": false
+    }
+  }
+}
