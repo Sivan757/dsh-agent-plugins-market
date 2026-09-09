@@ -3,9 +3,14 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "astro": "^7.2.6"
+    "@astrojs/check": "^0.9.10",
+    "astro": "^7.2.6",
+    "typescript": "^5.8.3"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "sharp"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
   }
 }
