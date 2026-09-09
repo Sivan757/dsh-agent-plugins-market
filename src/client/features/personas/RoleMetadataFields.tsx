@@ -3,7 +3,7 @@ import type { Translate } from '../../index.js'
 import { fetchModelCatalog } from '../../api.js'
 import type { ModelCatalogPayload } from '../../../contracts/market.js'
 import css from '../../ui/panel.module.css'
-import { readRoleFields, updateFrontmatter } from './frontmatter.js'
+import { readRoleFields, updateFrontmatter, updateRoleReasoning } from './frontmatter.js'
 
 /** Structured controls edit the same frontmatter as the raw Markdown editor. */
 export function RoleMetadataFields(props: { text: string; onChange: (text: string) => void; t: Translate; disabled?: boolean }): ReactNode {
@@ -24,9 +24,15 @@ function RoleFields(props: { text: string; onChange: (text: string) => void; t: 
   const [providerError, setProviderError] = useState(false)
   const [modelError, setModelError] = useState(false)
   const [revision, setRevision] = useState(0)
+  const [reasoning, setReasoning] = useState<{ route: string; value: ModelCatalogPayload['reasoning'] }>()
+  const [effortError, setEffortError] = useState<string>()
   const qualified = providers.filter(entry => fields.model.startsWith(`${entry.id}/`)).sort((a, b) => b.id.length - a.id.length)[0]
   const provider = fields.provider || qualified?.id || ''
   const model = !fields.provider && qualified ? fields.model.slice(qualified.id.length + 1) : fields.model === 'inherit' ? '' : fields.model
+  const route = JSON.stringify([provider, model])
+  const hasRoute = provider !== '' && model !== ''
+  const effortLoading = hasRoute && reasoning?.route !== route && effortError !== route
+  const efforts = reasoning?.route === route ? reasoning.value?.efforts ?? [] : []
 
   useEffect(() => {
     const controller = new AbortController()
@@ -50,9 +56,20 @@ function RoleFields(props: { text: string; onChange: (text: string) => void; t: 
     return () => controller.abort()
   }, [provider, revision])
 
+  useEffect(() => {
+    const controller = new AbortController()
+    setReasoning(undefined)
+    setEffortError(undefined)
+    if (!hasRoute) return () => controller.abort()
+    void fetchModelCatalog(provider, controller.signal, model).then(data => {
+      if (!controller.signal.aborted) setReasoning({ route, value: data.reasoning })
+    }).catch(() => { if (!controller.signal.aborted) setEffortError(route) })
+    return () => controller.abort()
+  }, [provider, model, route, hasRoute, revision])
+
   const selectProvider = (value: string): void => {
     const next = updateFrontmatter(props.text, 'provider', value)
-    props.onChange(updateFrontmatter(next, 'model', value === '' ? 'inherit' : ''))
+    props.onChange(updateRoleReasoning(updateFrontmatter(next, 'model', value === '' ? 'inherit' : ''), ''))
   }
   return h(
     'fieldset',
@@ -66,13 +83,28 @@ function RoleFields(props: { text: string; onChange: (text: string) => void; t: 
       )
     ),
     h('label', { className: css.editorLabel }, t('personaModel'),
-      h('select', { className: css.editorInput, 'aria-label': t('personaModel'), value: model, disabled: provider === '' || loading, onChange: (event: { target: HTMLSelectElement }) => props.onChange(updateFrontmatter(updateFrontmatter(props.text, 'provider', provider), 'model', event.target.value)) },
+      h('select', { className: css.editorInput, 'aria-label': t('personaModel'), value: model, disabled: provider === '' || loading, onChange: (event: { target: HTMLSelectElement }) => props.onChange(updateRoleReasoning(updateFrontmatter(updateFrontmatter(props.text, 'provider', provider), 'model', event.target.value), '')) },
         h('option', { value: '', disabled: provider !== '' }, provider === '' ? t('personaInherit') : loading ? t('loading') : t('personaSelectModel')),
         model !== '' && !models.some(entry => entry.id === model) ? h('option', { value: model }, `${model} (${t('personaUnavailable')})`) : null,
         models.map(entry => h('option', { key: entry.id, value: entry.id }, entry.name))
       )
     ),
-    providerError || modelError ? h('div', { role: 'alert', className: css.editorError }, t('personaCatalogError'), h('button', { type: 'button', onClick: () => setRevision(value => value + 1) }, t('refresh'))) : null,
+    h('label', { className: css.editorLabel }, t('personaReasoningEffort'),
+      h('select', {
+        className: css.editorInput,
+        'aria-label': t('personaReasoningEffort'),
+        value: fields.reasoningEffort,
+        disabled: effortLoading,
+        onChange: (event: { target: HTMLSelectElement }) => props.onChange(updateRoleReasoning(props.text, event.target.value))
+      },
+        h('option', { value: '' }, effortLoading ? t('loading') : t('personaEffortAutomatic')),
+        fields.reasoningEffort !== '' && !efforts.some(effort => effort.id === fields.reasoningEffort)
+          ? h('option', { value: fields.reasoningEffort }, `${fields.reasoningEffort} (${t(reasoning?.route === route ? 'personaUnavailable' : 'personaEffortSaved')})`)
+          : null,
+        efforts.map(effort => h('option', { key: effort.id, value: effort.id, title: effort.description }, reasoning?.value?.defaultEffort === effort.id ? `${effort.name} (${t('personaEffortModelDefault')})` : effort.name))
+      )
+    ),
+    providerError || modelError || effortError === route ? h('div', { role: 'alert', className: css.editorError }, t('personaCatalogError'), h('button', { type: 'button', onClick: () => setRevision(value => value + 1) }, t('refresh'))) : null,
     (['tools'] as const).map(key =>
       h(
         'label',

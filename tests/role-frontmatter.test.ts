@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { readRoleFields, updateFrontmatter } from '../src/client/features/personas/frontmatter.js'
+import { readRoleFields, updateFrontmatter, updateRoleReasoning } from '../src/client/features/personas/frontmatter.js'
 
 describe('role metadata editing', () => {
   it('changes routing fields without corrupting nested metadata, comments or Markdown', () => {
@@ -10,7 +10,7 @@ describe('role metadata editing', () => {
     expect(updated).toContain('# keep this')
     expect(updated.endsWith(body)).toBe(true)
     expect(parse(updated.split('---\n')[1]!)).toEqual({ name: 'reviewer', tools: ['Read', 'Grep'], metadata: { tier: 2, flags: [true, false] }, model: 'deepseek/deepseek-chat' })
-    expect(readRoleFields(updated)).toEqual({ model: 'deepseek/deepseek-chat', provider: '', tools: 'Read, Grep' })
+    expect(readRoleFields(updated)).toEqual({ model: 'deepseek/deepseek-chat', provider: '', tools: 'Read, Grep', reasoningEffort: '' })
   })
 
   it('adds frontmatter to plain Markdown and supports clearing a model', () => {
@@ -30,5 +30,18 @@ describe('role metadata editing', () => {
     expect(() => updateFrontmatter('---\nmodel: [\n---\nbody', 'model', 'new')).toThrow()
     expect(() => readRoleFields('---\n- invalid\n---\nbody')).toThrow('mapping')
     expect(() => readRoleFields('---\nmodel: x')).toThrow('Unclosed')
+  })
+
+  it('reads effort aliases and saves one canonical key without changing the role body', () => {
+    const original = '---\n# retain\nmodel: p/m\nreasoningEffort: high\nmetadata: {tier: 2}\n---\nRole body\n'
+    expect(readRoleFields(original).reasoningEffort).toBe('high')
+    const updated = updateRoleReasoning(original, 'low')
+    expect(updated).toContain('# retain')
+    expect(updated.endsWith('Role body\n')).toBe(true)
+    expect(parse(updated.split('---\n')[1]!)).toEqual({ model: 'p/m', reasoning_effort: 'low', metadata: { tier: 2 } })
+    expect(readRoleFields(updateRoleReasoning(updated, '')).reasoningEffort).toBe('')
+    expect(updateRoleReasoning('Role body', '')).toBe('Role body')
+    expect(() => readRoleFields('---\nreasoning_effort: low\nreasoningEffort: high\n---\nRole')).toThrow('conflict')
+    expect(() => readRoleFields('---\nreasoning_effort: false\n---\nRole')).toThrow('non-empty string')
   })
 })

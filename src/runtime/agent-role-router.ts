@@ -3,10 +3,12 @@ import { readFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { parse as parseYaml } from 'yaml'
+import { mountSubagentCatalog, type SubagentCatalogEntry } from './subagent-catalog.js'
+import { bindHostLocale, type HostTranslate } from './host-locale.js'
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
-export const AGENT_ROLE_TOOL_NAME = 'market_agent'
+export const AGENT_ROLE_TOOL_NAME = 'subagents_run'
 
 /** Panel identity is preserved so identically named cards from different suites remain addressable. */
 export interface AgentRoleEntry {
@@ -14,12 +16,17 @@ export interface AgentRoleEntry {
   path: string
   description: string
   disabled: boolean
+  title?: string
+  rawText?: string
 }
 
 export interface AgentRolePolicy {
   content: string
   model?: string
   provider?: string
+  reasoningEffort?: string
+  title?: string
+  description?: string
   tools?: string[]
   disallowedTools?: string[]
   disabled: boolean
@@ -57,12 +64,21 @@ export function parseAgentRole(text: string): AgentRolePolicy {
   if (metadata.disabled !== undefined && typeof metadata.disabled !== 'boolean') throw new Error('agent metadata disabled must be a boolean')
   const model = optionalText(metadata.model, 'model')
   const provider = optionalText(metadata.provider, 'provider')
+  const effort = optionalText(metadata.reasoning_effort, 'reasoning_effort')
+  const camelEffort = optionalText(metadata.reasoningEffort, 'reasoningEffort')
+  if (effort !== undefined && camelEffort !== undefined && effort !== camelEffort) throw new Error('agent metadata reasoning_effort and reasoningEffort conflict')
+  const reasoningEffort = effort ?? camelEffort
+  const title = optionalText(metadata.name, 'name')
+  const description = optionalText(metadata.description, 'description')
   if (model === 'inherit' && provider !== undefined) throw new Error('agent model inherit cannot specify a provider')
   return {
     content: text.slice(match[0].length),
     disabled: metadata.disabled === true,
     ...(model === undefined || model === 'inherit' ? {} : { model }),
     ...(provider === undefined ? {} : { provider }),
+    ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+    ...(title === undefined ? {} : { title }),
+    ...(description === undefined ? {} : { description }),
     ...(metadata.tools === undefined ? {} : { tools: toolList(metadata.tools, 'tools') }),
     ...(metadata.disallowedTools === undefined ? {} : { disallowedTools: toolList(metadata.disallowedTools, 'disallowedTools') })
   }
@@ -71,6 +87,7 @@ export function parseAgentRole(text: string): AgentRolePolicy {
 interface ModelCatalog {
   listProviders(): { id: string }[]
   listModels(provider: string): Promise<{ id: string }[]>
+  resolveCallConfig(config: { provider: string; model: string; reasoningEffort?: string }, signal?: AbortSignal): Promise<unknown>
 }
 
 /** Bare ids must resolve uniquely; Claude aliases are accepted only if actually advertised by a DSH provider. */
@@ -108,7 +125,7 @@ export interface AgentRoleRequest {
   parent: unknown
   signal: AbortSignal
   maxDepth: number
-  agentOptions: { provider?: string; model?: string }
+  agentOptions: { provider?: string; model?: string; reasoningEffort?: string }
   persona: string
   toolFilter?: { allow?: string[]; deny?: string[] }
 }
@@ -128,23 +145,80 @@ export interface AgentRoleHost {
   }
 }
 
+/** Read the same declaration for catalog summaries and execution, including inline resources. */
+export async function readAgentRole(entry: AgentRoleEntry): Promise<AgentRolePolicy> {
+  return parseAgentRole(entry.rawText ?? (await readFile(entry.path, 'utf8')))
+}
+
+/** Stable summaries; invalid declarations are excluded and transient read failures abort publication. */
+export async function agentRoleCatalog(entries: AgentRoleEntry[], signal: AbortSignal, diagnose: (message: string) => void = () => {}): Promise<SubagentCatalogEntry[]> {
+  const summaries: SubagentCatalogEntry[] = []
+  const counts = new Map<string, number>()
+  for (const entry of entries) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1)
+  for (const entry of entries) {
+    signal.throwIfAborted()
+    if (entry.disabled) continue
+    if (counts.get(entry.name) !== 1) {
+      diagnose(`ambiguous subagent role: ${entry.name}`)
+      continue
+    }
+    let text: string
+    try {
+      text = entry.rawText ?? (await readFile(entry.path, 'utf8'))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      continue
+    }
+    let policy: AgentRolePolicy
+    try {
+      policy = parseAgentRole(text)
+    } catch (error) {
+      diagnose(`${entry.path}: ${String(error)}`)
+      continue
+    }
+    if (policy.disabled) continue
+    const description = (policy.description ?? entry.description).replaceAll(/\s+/g, ' ').trim()
+    summaries.push({
+      name: entry.name,
+      title: policy.title ?? entry.title ?? entry.name,
+      description: description.length <= 500 ? description : `${description.slice(0, 497)}...`,
+      ...(policy.provider === undefined ? {} : { provider: policy.provider }),
+      ...(policy.model === undefined ? {} : { model: policy.model }),
+      ...(policy.reasoningEffort === undefined ? {} : { reasoningEffort: policy.reasoningEffort })
+    })
+  }
+  signal.throwIfAborted()
+  return summaries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+}
+
 /** Resolve fresh panel state and raw Markdown on every call, including after edits, disabling and uninstall. */
 export async function executeAgentRole(
   host: AgentRoleHost,
-  listRoles: () => Promise<AgentRoleEntry[]>,
+  listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>,
   name: string,
   prompt: string,
   parent: unknown,
   signal: AbortSignal
 ): Promise<{ runId: string; output: JsonValue[] }> {
-  if (parent === undefined) throw new Error('market_agent requires a calling agent')
-  const entries = (await listRoles()).filter(entry => entry.name === name)
+  if (parent === undefined) throw new Error('subagents_run requires a calling agent')
+  if (prompt.trim() === '') throw new Error('subagents_run requires a non-empty prompt')
+  signal.throwIfAborted()
+  const entries = (await listRoles(parent)).filter(entry => entry.name === name)
   if (entries.length !== 1) throw new Error(`agent role "${name}" is unavailable or ambiguous`)
   const entry = entries[0]!
   if (entry.disabled) throw new Error(`agent role "${name}" is disabled`)
-  const policy = parseAgentRole(await readFile(entry.path, 'utf8'))
+  const policy = await readAgentRole(entry)
   if (policy.disabled) throw new Error(`agent role "${name}" is disabled`)
-  const agentOptions = await resolveAgentModel(policy, host.llm)
+  const agentOptions = { ...(await resolveAgentModel(policy, host.llm)), ...(policy.reasoningEffort === undefined ? {} : { reasoningEffort: policy.reasoningEffort }) }
+  const parentAgent = parent as { options?: AgentRoleRequest['agentOptions']; session?: { requestHeader?(): { config: AgentRoleRequest['agentOptions'] } | undefined } }
+  const parentOptions = parentAgent.session?.requestHeader?.()?.config ?? parentAgent.options ?? {}
+  const provider = agentOptions.provider ?? parentOptions.provider
+  const model = agentOptions.model ?? parentOptions.model
+  if (provider === undefined || model === undefined) throw new Error('subagents_run requires an effective provider and model')
+  const routeChanged = provider !== parentOptions.provider || model !== parentOptions.model
+  const reasoningEffort = agentOptions.reasoningEffort ?? (routeChanged ? undefined : parentOptions.reasoningEffort)
+  await host.llm.resolveCallConfig({ provider, model, ...(reasoningEffort === undefined ? {} : { reasoningEffort }) }, signal)
+  signal.throwIfAborted()
   const run = await host.subagents.start('spawn', {
     label: name,
     prompt: [{ type: 'text', text: prompt }],
@@ -172,26 +246,32 @@ export async function executeAgentRole(
 }
 
 /** Mount once after tools, llm and subagents are available; the returned disposer belongs to the plugin lifecycle. */
-export function mountAgentRoleTool(ctx: Context, listRoles: () => Promise<AgentRoleEntry[]>): () => void {
+export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>, t: HostTranslate = bindHostLocale(undefined)): () => void {
   const host = ctx as unknown as AgentRoleHost
-  return host.tools.register(
-    defineTool({
-      name: AGENT_ROLE_TOOL_NAME,
-      description:
-        'List enabled market agent roles or delegate a self-contained task to one. A role applies its saved persona, model/provider and tool restrictions in a real subagent. List first to obtain the exact role name; run waits for completion.',
-      parameters: {
-        action: { type: 'string', enum: ['list', 'run'], required: true },
-        role: { type: 'string', description: 'Exact role identity returned by list; required for run.' },
-        prompt: { type: 'string', description: 'Complete task and context for the isolated child; required for run.' }
-      },
-      output: { schema: { type: 'json' }, render: (_args, result) => [{ type: 'text', text: JSON.stringify(result) }] },
-      isConcurrencySafe: () => true,
-      async execute(args, exec) {
-        if (args.action === 'list')
-          return (await listRoles()).filter(entry => !entry.disabled).map(entry => ({ name: entry.name, description: entry.description, path: entry.path }))
-        if (args.role === undefined || args.prompt === undefined || args.prompt.trim() === '') throw new Error('market_agent run requires role and non-empty prompt')
-        return executeAgentRole(host, listRoles, args.role, args.prompt, exec.agent, exec.signal)
-      }
-    })
-  )
+  const tool = defineTool({
+    name: AGENT_ROLE_TOOL_NAME,
+    description:
+      'Delegate a self-contained task to a role from the current subagent catalog and wait for its result. The child starts without the parent conversation. Its saved provider, model, reasoning effort, persona and tool restrictions are applied automatically.',
+    parameters: {
+      role: { type: 'string', required: true, description: 'Exact role ID from the current subagent catalog.' },
+      prompt: { type: 'string', required: true, description: 'Complete task and context for the isolated child.' }
+    },
+    output: { schema: { type: 'json' }, render: (_args, result) => [{ type: 'text', text: JSON.stringify(result) }] },
+    isConcurrencySafe: () => true,
+    async execute(args, exec) {
+      return executeAgentRole(host, listRoles, args.role, args.prompt, exec.agent, exec.signal)
+    }
+  })
+  const disposeTool = host.tools.register(tool)
+  let disposeCatalog: () => void
+  try {
+    disposeCatalog = mountSubagentCatalog(ctx, tool, async (agent, signal) => agentRoleCatalog(await listRoles(agent), signal, message => ctx.logger?.warn(message)), t)
+  } catch (error) {
+    disposeTool()
+    throw error
+  }
+  return () => {
+    disposeCatalog()
+    disposeTool()
+  }
 }
