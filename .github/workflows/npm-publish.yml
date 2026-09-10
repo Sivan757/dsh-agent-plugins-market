@@ -2,6 +2,12 @@ name: npm-publish
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Force this exact version (e.g. 0.6.2). Empty = derive from conventional commits.'
+        required: false
+        default: ''
+        type: string
   push:
     branches: [main]
     # CI/tooling/docs changes must not open a release PR.
@@ -28,10 +34,17 @@ jobs:
       release_created: ${{ steps.release-please.outputs.release_created }}
       tag_name: ${{ steps.release-please.outputs.tag_name }}
     steps:
+      # Two release modes:
+      #  - push to main: the version comes from the conventional commits since
+      #    the last release (feat -> minor, fix/perf -> patch).
+      #  - manual dispatch with `version`: release-please is pinned to that
+      #    exact version, so a feature-heavy batch can still ship as a patch
+      #    (0.6.2) or a chosen minor/major. Empty input keeps the default.
       - uses: googleapis/release-please-action@v5
         id: release-please
         with:
           config-file: .release-please-config.json
+          release-as: ${{ inputs.version }}
 
   # The release-please workflow is the single release entry point.
   # Publish only when this run actually creates a GitHub release, using the
