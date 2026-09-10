@@ -131,7 +131,7 @@ describe('MCP backend dispatch at mount time', () => {
     const diagnostics = await registry.reconcile([suite('alpha', 'db')])
     expect(mounted).toHaveLength(0)
     expect(diagnostics).toContainEqual({
-      suiteId: 'alpha',
+      suiteId: 'demo/alpha',
       serverKey: 'db',
       code: 'mount-failed',
       reason: expect.stringContaining('not installed in this profile')
@@ -149,7 +149,7 @@ describe('MCP backend dispatch at mount time', () => {
     const diagnostics = await registry.reconcile([suite('alpha', 'web', 'sse')])
     expect(mounted).toHaveLength(0)
     expect(diagnostics).toContainEqual({
-      suiteId: 'alpha',
+      suiteId: 'demo/alpha',
       serverKey: 'web',
       code: 'mount-failed',
       reason: expect.stringContaining('does not support the legacy SSE transport')

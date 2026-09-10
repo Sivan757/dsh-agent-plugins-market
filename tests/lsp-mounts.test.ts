@@ -71,6 +71,22 @@ function mountCtx(handleBehavior: 'ok' | 'await-rejects', applyThrows = false): 
 }
 
 describe('LspMountRegistry', () => {
+  it('replaces a live mount when the effective server configuration changes', async () => {
+    const mounted: MountedConfig[] = []
+    const { ctx, disposed } = mountCtx('ok', true)
+    const registry = new LspMountRegistry(ctx as never, hostLoader('ok', mounted))
+    const suite = lspSuite('ts')
+    await registry.reconcile([suite])
+    suite.lsp!.servers.typescript!.command = 'replacement-language-server'
+    await registry.reconcile([suite])
+    expect(disposed()).toBe(true)
+    expect(mounted).toHaveLength(2)
+    expect(mounted[1]!.servers['src/ts/typescript']!.command).toBe('replacement-language-server')
+    await registry.reconcile([suite])
+    expect(mounted).toHaveLength(2)
+    await registry.disposeAll()
+  })
+
   it('mounts each suite as one dsh-lsp-stdio instance with derived provider keys', async () => {
     const mounted: MountedConfig[] = []
     const { ctx } = mountCtx('ok', true)
@@ -103,6 +119,19 @@ describe('LspMountRegistry', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('skips individually disabled servers and removes an existing mount', async () => {
+    const mounted: MountedConfig[] = []
+    const { ctx } = mountCtx('ok', true)
+    const registry = new LspMountRegistry(ctx as never, hostLoader('ok', mounted))
+    await registry.reconcile([lspSuite('ts')])
+    expect(mounted).toHaveLength(1)
+    registry.setDisabledProvider(async () => new Set(['src/ts/typescript']))
+    await registry.reconcile([lspSuite('ts')])
+    expect(mounted).toHaveLength(1)
+    expect(registry.disabledServers()).toEqual(new Set(['src/ts/typescript']))
+    await registry.disposeAll()
   })
 
   it('classifies seam conflicts and retries plain mount failures', async () => {

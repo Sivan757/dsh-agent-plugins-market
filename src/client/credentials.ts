@@ -1,3 +1,4 @@
+import { withBusyOperation } from './ui/busy-operation.js'
 /** Browser-safe structural subset of the Host credentials wire. */
 
 export interface CredentialView {
@@ -33,13 +34,17 @@ export async function describeCredential(api: CredentialApi | undefined, ref: st
 }
 
 export async function setCredential(api: CredentialApi, ref: string, value: string): Promise<void> {
-  const response = (await api.set({ ref, value })) as CredentialMutationResponse
-  if (response.result?.ok !== true) throw new Error(response.result?.error?.message ?? 'credential save failed')
+  return withBusyOperation(async () => {
+    const response = (await api.set({ ref, value })) as CredentialMutationResponse
+    if (response.result?.ok !== true) throw new Error(response.result?.error?.message ?? 'credential save failed')
+  })
 }
 
 export async function unsetCredential(api: CredentialApi, ref: string): Promise<void> {
-  const response = (await api.unset({ ref })) as CredentialMutationResponse
-  if (response.result?.ok !== true) throw new Error(response.result?.error?.message ?? 'credential removal failed')
+  return withBusyOperation(async () => {
+    const response = (await api.unset({ ref })) as CredentialMutationResponse
+    if (response.result?.ok !== true) throw new Error(response.result?.error?.message ?? 'credential removal failed')
+  })
 }
 
 /** Current Host remote service; methods return unwrapped RPC results. */
@@ -57,6 +62,6 @@ export function credentialApi(remote: CredentialRemote): CredentialApi {
       return { result: result.ok ? { ok: true, value: { credentials: result.value } } : result }
     },
     set: async ({ ref, value }) => ({ result: await remote.set(ref, value) }),
-    unset: async ({ ref }) => ({ result: await remote.unset(ref) }),
+    unset: async ({ ref }) => ({ result: await remote.unset(ref) })
   }
 }

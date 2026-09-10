@@ -1,13 +1,22 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DetailModal } from './ui/DetailModal.js'
+import { ServerConfigEditor } from './ui/ServerConfigEditor.js'
+import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
+import { parseServerConfig } from './ui/server-form.js'
+import { PanelActions, PanelHeader } from './ui/panel.js'
+import { mcpDetailActions } from './features/mcp-status/detail-actions.js'
 import type { Translate } from './index.js'
-import { fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, type McpStatusEntry, type McpStatusPayload } from './api.js'
+import { addMcpServer, fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, type McpStatusEntry, type McpStatusPayload } from './api.js'
 import type { CredentialApi } from './credentials.js'
 import { McpCredentialEditor } from './McpCredentialEditor.js'
-import { SearchFilterToolbar, type SearchFilterToolbarView } from './SearchFilterToolbar.js'
+import { SearchFilterToolbar } from './SearchFilterToolbar.js'
+import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
+import { useWorkspaceView } from './ui/workspace-view.js'
 import { deriveMcpStatusViewModel, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
 import css from './mcp-status.module.css'
+import { withBusyOperation } from './ui/busy-operation.js'
 
 interface McpStatusPanelProps {
   t: Translate
@@ -15,7 +24,6 @@ interface McpStatusPanelProps {
 }
 
 type Filter = McpStatusFilter
-type ViewMode = SearchFilterToolbarView
 
 const EMPTY_STATUS: McpStatusPayload = {
   entries: [],
@@ -31,38 +39,28 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   const [error, setError] = useState<string | undefined>(undefined)
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
-  const [view, setView] = useState<ViewMode>('grid')
+  const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<McpStatusEntry | undefined>(undefined)
+  const [adding, setAdding] = useState(false)
 
-  const retry = (entryId: string): Promise<boolean> => {
-    return retryMcpMounts()
-      .then(async () => {
-        // The POST only acknowledges that a reconcile ran; the mount's real
-        // verdict arrives in the refreshed status, so the outcome echo reads
-        // the state instead of trusting the request.
-        const refreshed = await fetchMcpStatus().catch(() => undefined)
-        if (refreshed !== undefined) setPayload(refreshed)
-        return refreshed?.entries.some(entry => entry.id === entryId && entry.state === 'connected') === true
-      })
-      .catch(async caught => {
-        setError(caught instanceof Error ? caught.message : String(caught))
-        // Still re-read: the failure may be transport-level while the mount
-        // actually settled; the echo follows the observed state.
-        const refreshed = await fetchMcpStatus().catch(() => undefined)
-        if (refreshed !== undefined) setPayload(refreshed)
-        return refreshed?.entries.some(entry => entry.id === entryId && entry.state === 'connected') === true
-      })
-      .finally(() => setLoading(false))
+  const observe = async (id: string): Promise<McpStatusEntry> => {
+    const refreshed = await fetchMcpStatus()
+    setPayload(refreshed)
+    const current = refreshed.entries.find(item => item.id === id)
+    if (!current) throw new Error(t('mcpEntryGone'))
+    setSelected(current)
+    return current
   }
-  const reauthorize = (serverName: string): Promise<void> => {
-    return reauthorizeMcpServer(serverName)
-      .then(() => retryMcpMounts())
-      .then(async () => {
-        await new Promise(resolve => setTimeout(resolve, 500))
-        const refreshed = await fetchMcpStatus().catch(() => undefined)
-        if (refreshed !== undefined) setPayload(refreshed)
-      })
-  }
+  const retry = (id: string): Promise<McpStatusEntry> =>
+    withBusyOperation(async () => {
+      await retryMcpMounts()
+      return observe(id)
+    })
+  const reauthorize = (id: string, serverName: string): Promise<McpStatusEntry> =>
+    withBusyOperation(async () => {
+      await reauthorizeMcpServer(serverName)
+      return observe(id)
+    })
 
   const refresh = (): void => {
     setLoading(true)
@@ -80,32 +78,18 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   }, [])
 
   const viewModel = deriveMcpStatusViewModel(payload, filter, search)
-  const { activeEntries, filtered, filterCounts, visibleTotals } = viewModel
+  const { activeEntries, filtered, filterCounts } = viewModel
   // Hide the summary bar entirely while every active row is connected: the
   // green confirmation above an all-green list is noise, not information.
-  const allHealthy = activeEntries.length > 0 && visibleTotals.connected === activeEntries.length
 
   return h(
     'div',
     { className: css.surface },
-    h(
-      'header',
-      { className: css.header },
-      h(
-        'div',
-        { className: css.headerText },
-        h('h2', { className: css.title }, t('mcpStatusTitle')),
-        h('p', { className: css.subtitle }, t('mcpStatusSubtitle'))
-      ),
-      h(
-        'div',
-        { className: css.headerActions },
-        h(Button, { variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh') }, `↻ ${t('refresh')}`)
-      )
-    ),
-    activeEntries.length === 0 || allHealthy || loading
-      ? null
-      : h(StatusSummaryBar, { t, totals: visibleTotals, observedAt: payload.observedAt }),
+    h(PanelHeader, {
+      title: t('mcpStatusTitle'),
+      subtitle: t('mcpStatusSubtitle'),
+      actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setAdding(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
+    }),
     h(SearchFilterToolbar, {
       className: css.toolbar,
       search,
@@ -133,11 +117,34 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
         : filtered.length === 0
           ? h('div', { className: css.empty }, t('mcpEmpty'))
           : h(
-              'div',
-              { className: view === 'grid' ? css.grid : css.list },
+              ResourceCollection,
+              { view, className: view === 'grid' ? css.grid : css.list },
               filtered.map(entry => h(McpCard, { key: entry.id, entry, t, onClick: () => setSelected(entry) }))
             ),
-    selected === undefined ? null : h(McpDetailModal, { entry: selected, t, credentials, onClose: () => setSelected(undefined), onRetry: retry, onReauthorize: reauthorize })
+    adding
+      ? h(McpAddModal, {
+          t,
+          onClose: () => setAdding(false),
+          onSaved: () => {
+            setAdding(false)
+            refresh()
+          }
+        })
+      : null,
+    selected === undefined
+      ? null
+      : h(McpDetailModal, {
+          entry: selected,
+          t,
+          credentials,
+          onClose: () => {
+            setSelected(undefined)
+            refresh()
+          },
+          onRetry: retry,
+          onReauthorize: reauthorize,
+          onRefresh: observe
+        })
   )
 }
 
@@ -148,56 +155,25 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
  * state that most needs attention, and the whole bar collapses to a single
  * "all connected" confirmation when nothing is wrong.
  */
-function StatusSummaryBar({ t, totals, observedAt }: { t: Translate; totals: McpStatusPayload['totals']; observedAt: string }): ReactNode {
-  const chips: Array<{ key: string; count: number; label: string }> = [
-    { key: 'orphaned', count: totals.orphaned, label: t('mcpOrphaned') },
-    { key: 'failed', count: totals.failed, label: t('mcpFailed') },
-    { key: 'needsCredentials', count: totals.needsCredentials, label: t('mcpNeedsCredentials') },
-    { key: 'degraded', count: totals.degraded, label: t('mcpDegraded') },
-    { key: 'foreign', count: totals.foreign, label: t('mcpForeign') },
-    { key: 'disabled', count: totals.disabled, label: t('mcpDisabled') }
-  ].filter(chip => chip.count > 0)
-
-  return h(
-    'div',
-    { className: css.summaryBar },
-    chips.length === 0
-      ? h('span', { className: css.summaryAllGood }, h('span', { className: css.summaryDotGreen }), t('mcpAllConnected'))
-      : chips.map(chip =>
-          h(
-            'span',
-            { key: chip.key, className: `${css.summaryChip} ${css[`chip${chip.key}`]}`, title: `${chip.count} ${chip.label}` },
-            h('span', { className: css[`summaryDot${dotTone(chip.key)}`] }),
-            h('span', { className: css.summaryCount }, chip.count),
-            h('span', { className: css.summaryLabel }, chip.label)
-          )
-        ),
-    h('span', { className: css.observedAt }, observedAt === '' ? '' : formatObservedAt(observedAt))
-  )
-}
-
-function dotTone(key: string): string {
-  if (key === 'foreign') return 'Info'
-  if (key === 'degraded' || key === 'needsCredentials') return 'Warn'
-  return 'Red'
-}
-
-function formatObservedAt(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleTimeString()
-}
-
 function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; onClick: () => void }): ReactNode {
-  const interactive = { role: 'button' as const, tabIndex: 0, onClick, onKeyDown: (event: { key: string; preventDefault: () => void }) => {
-    // Enter and Space activate a role="button" the same way a native one does.
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    onClick()
-  } }
+  const interactive = {
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick,
+    onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+      // Enter and Space activate a role="button" the same way a native one does.
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      onClick()
+    }
+  }
   return h(
-    'div',
-    { className: `${css.card} ${css[`card${stateClass(entry.state)}`]}`, ...interactive },
+    ResourceCard,
+    {
+      className: css.card,
+      state: entry.state === 'connected' ? 'active' : entry.state === 'disabled' ? 'disabled' : entry.state === 'failed' || entry.state === 'orphaned' ? 'error' : 'warning',
+      ...interactive
+    },
     h(
       'div',
       { className: css.cardBody },
@@ -214,14 +190,6 @@ function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; o
       // line and the endpoint, so a wall of red cards stays scannable.
     )
   )
-}
-
-function stateClass(state: string): string {
-  return state
-    .split('-')
-    .map((part, index) => (index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
-    .join('')
-    .replace(/^./, char => char.toUpperCase())
 }
 
 function McpSourceIcon({ kind }: { kind: 'plugin' | 'direct' }): ReactNode {
@@ -253,83 +221,114 @@ function McpFilterIcon({ kind }: { kind: Filter }): ReactNode {
  * echo. The state pill is dropped entirely — the dot and the reason box carry
  * that information without a second red stamp.
  */
-function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize }: {
+export function McpDetailModal({
+  entry,
+  t,
+  credentials,
+  onClose,
+  onRetry,
+  onReauthorize,
+  onRefresh
+}: {
   entry: McpStatusEntry
   t: Translate
   credentials?: CredentialApi
   onClose: () => void
-  onRetry: (entryId: string) => Promise<boolean>
-  onReauthorize: (serverName: string) => Promise<void>
+  onRetry: (entryId: string) => Promise<McpStatusEntry>
+  onReauthorize: (id: string, serverName: string) => Promise<McpStatusEntry>
+  onRefresh: (id: string) => Promise<McpStatusEntry>
 }): ReactNode {
-  const [retrying, setRetrying] = useState(false)
-  const [retryOutcome, setRetryOutcome] = useState<'success' | 'failure' | undefined>(undefined)
-  const [reauthorizing, setReauthorizing] = useState(false)
-  const [reauthOutcome, setReauthOutcome] = useState<'success' | 'failure' | undefined>(undefined)
-  const retry = (): void => {
-    setRetrying(true)
-    setRetryOutcome(undefined)
-    onRetry(entry.id)
-      .then(success => setRetryOutcome(success ? 'success' : 'failure'))
-      .catch(() => setRetryOutcome('failure'))
-      .finally(() => setRetrying(false))
+  const [pending, setPending] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [confirmAuth, setConfirmAuth] = useState(false)
+  const [feedback, setFeedback] = useState<{ error: boolean; text: string }>()
+  const actions = mcpDetailActions(entry)
+  const run = async (authorize: boolean): Promise<void> => {
+    setConfirmAuth(false)
+    setPending(true)
+    setFeedback(undefined)
+    try {
+      const current = authorize ? await onReauthorize(entry.id, entry.name) : await onRetry(entry.id)
+      const connected = current.state === 'connected'
+      setFeedback({ error: !connected, text: connected ? t('mcpRetrySuccess') : t('mcpStillUnavailable') + (current.reason ? ': ' + current.reason : '') })
+    } catch (reason) {
+      setFeedback({ error: true, text: t('actionFail') + ': ' + (reason instanceof Error ? reason.message : String(reason)) })
+    } finally {
+      setPending(false)
+    }
   }
-  const reauthorize = (): void => {
-    setReauthorizing(true)
-    setReauthOutcome(undefined)
-    onReauthorize(entry.name)
-      .then(() => setReauthOutcome('success'))
-      .catch(() => setReauthOutcome('failure'))
-      .finally(() => setReauthorizing(false))
-  }
-  return h(Modal, {
+  return h(DetailModal, {
     open: true,
-    onClose,
+    onClose: () => {
+      if (!pending) onClose()
+    },
     title: entry.name,
     description: t('mcpServiceDetail'),
-    closeLabel: t('cancel'),
+    closeLabel: t('mcpClose'),
     className: css.detailDialog,
     contentClassName: css.detailBody,
     footer: h(
       'div',
       { className: css.modalFooter },
-      entry.kind === 'direct' || entry.state === 'connected' || entry.state === 'disabled' || entry.state === 'foreign'
-        ? null
-        : h(
-            'span',
-            { className: css.retryStack },
-            retryOutcome === 'success'
-              ? h('span', { className: css.retryEchoSuccess, role: 'status' }, `✓ ${t('mcpRetrySuccess')}`)
-              : retryOutcome === 'failure'
-                ? h('span', { className: css.retryEchoFailure, role: 'alert' }, `✕ ${t('mcpRetryFailure')}`)
-                : null,
-            h(
-              Button,
-              { variant: 'ghost', size: 'sm', disabled: retrying, onClick: retry },
-              h('span', { className: retrying ? `${css.retrySpinner} ${css.spinning}` : css.retrySpinner, 'aria-hidden': true }, '↻'),
-              retrying ? t('mcpRetrying') : t('mcpRetry')
-            )
-          ),
-      entry.kind === 'plugin'
+      actions.retry
         ? h(
-            'span',
-            { className: css.retryStack },
-            reauthOutcome === 'success'
-              ? h('span', { className: css.retryEchoSuccess, role: 'status' }, `✓ ${t('mcpReauthSuccess')}`)
-              : reauthOutcome === 'failure'
-                ? h('span', { className: css.retryEchoFailure, role: 'alert' }, `✕ ${t('mcpReauthFailure')}`)
-                : null,
-            h(
-              Button,
-              { variant: 'ghost', size: 'sm', disabled: reauthorizing, title: entry.state === 'failed' ? t('mcpConnectHint') : t('mcpReauthHint'), onClick: reauthorize },
-              reauthorizing ? t('mcpReauthorizing') : entry.state === 'failed' ? t('mcpConnect') : t('mcpReauthorize')
-            )
+            Button,
+            {
+              variant: 'ghost',
+              size: 'sm',
+              disabled: pending || dirty,
+              title: dirty ? t('mcpSaveFirst') : t('mcpRetryPreservesCredentials'),
+              onClick: () => {
+                void run(false)
+              }
+            },
+            h(IconRefreshOutline16),
+            t('mcpRetryConnection')
           )
         : null,
-      h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))
+      actions.reauthorize
+        ? h(
+            Button,
+            {
+              variant: 'ghost',
+              size: 'sm',
+              disabled: pending || dirty,
+              title: dirty ? t('mcpSaveFirst') : t('mcpReauthExplain'),
+              onClick: () => {
+                setConfirmAuth(true)
+                setFeedback(undefined)
+              }
+            },
+            t('mcpReauthorize')
+          )
+        : null,
+      h(Button, { variant: 'ghost', disabled: pending, onClick: onClose }, t('mcpClose'))
     ),
     children: h(
       'div',
       { className: css.detail },
+      feedback ? h('p', { role: feedback.error ? 'alert' : 'status', className: feedback.error ? css.error : css.retryEchoSuccess }, feedback.text) : null,
+      confirmAuth
+        ? h(
+            'section',
+            { className: css.reasonBox, role: 'alert' },
+            h('p', null, t('mcpReauthExplain')),
+            h(Button, { variant: 'ghost', onClick: () => setConfirmAuth(false) }, t('cancel')),
+            h(
+              Button,
+              {
+                variant: 'primary',
+                disabled: dirty || pending,
+                onClick: () => {
+                  void run(true)
+                }
+              },
+              t('mcpConfirmReauth')
+            )
+          )
+        : null,
+      dirty && (actions.retry || actions.reauthorize) ? h('p', { className: css.reasonText }, t('mcpSaveFirst')) : null,
+      entry.state === 'needs-credentials' ? h('p', { className: css.reasonText }, t('mcpConfigureCredentialsFirst')) : null,
       h(
         'div',
         { className: css.detailHero },
@@ -338,11 +337,14 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
           'div',
           { className: css.detailHeroText },
           entry.endpoint === undefined ? null : h('p', { className: css.detailEndpoint }, entry.endpoint),
-          // Source and transport moved here from the card meta row.
-          h('p', { className: css.detailEndpoint }, [
-            entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.source ?? '—'}` : t('mcpDirect'),
-            entry.transport
-          ].join(' · '))
+          // Source and transport moved here from the card meta row. The
+          // qualified suite id disambiguates same-named servers from
+          // different sources (e.g. two context7 installs).
+          h(
+            'p',
+            { className: css.detailEndpoint },
+            [entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.suiteId ?? entry.source ?? '—'}` : t('mcpDirect'), entry.transport].join(' · ')
+          )
         )
       ),
       // A foreign mount is informational: the localized hint (per cause —
@@ -358,21 +360,22 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
           )
         : entry.reason === undefined
           ? null
-          : h(
-              'div',
-              { className: css.reasonBox },
-              h('span', { className: css.reasonLabel }, t('mcpReasonLabel')),
-              h('p', { className: css.reasonText }, entry.reason)
-            ),
-      entry.kind === 'direct' ? h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, t('mcpDirectBoundary'))) : null,
+          : h('div', { className: css.reasonBox }, h('span', { className: css.reasonLabel }, t('mcpReasonLabel')), h('p', { className: css.reasonText }, entry.reason)),
+      entry.kind === 'direct' && !entry.managed ? h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, t('mcpDirectBoundary'))) : null,
       entry.credentialRefs?.length === 0 || entry.credentialRefs === undefined ? null : h(McpCredentialEditor, { t, api: credentials, refs: entry.credentialRefs }),
       h(
         'section',
         { className: css.detailSection },
         h('h4', { className: css.detailHead }, t('mcpConfig')),
-        entry.config === undefined
-          ? h('div', { className: css.detailEmpty }, t('mcpDirectConfigUnavailable'))
-          : h('pre', { className: css.config }, JSON.stringify(entry.config, null, 2))
+        h(ServerConfigDetail, {
+          kind: 'mcp',
+          id: entry.id,
+          t,
+          onDirtyChange: setDirty,
+          onSaved: () => {
+            void onRefresh(entry.id).catch(reason => setFeedback({ error: true, text: t('mcpSavedStatusUnknown') + ': ' + String(reason) }))
+          }
+        })
       ),
       h(
         'section',
@@ -397,6 +400,55 @@ function McpDetailModal({ entry, t, credentials, onClose, onRetry, onReauthorize
   })
 }
 
+function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
+  const [name, setName] = useState('')
+  const [config, setConfig] = useState('{"type":"stdio","command":""}')
+  const [valid, setValid] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const save = (): void => {
+    setBusy(true)
+    setError(undefined)
+    void Promise.resolve()
+      .then(() => addMcpServer(name.trim(), parseServerConfig(config)))
+      .then(onSaved)
+      .catch(caught => setError(caught instanceof Error ? caught.message : String(caught)))
+      .finally(() => setBusy(false))
+  }
+  return h(DetailModal, {
+    open: true,
+    title: t('mcpAddTitle'),
+    onClose: busy ? () => {} : onClose,
+    closeLabel: t('cancel'),
+    className: css.detailDialog,
+    contentClassName: css.detailBody,
+    footer: h(
+      'div',
+      { className: css.modalFooter },
+      h(Button, { variant: 'ghost', disabled: busy, onClick: onClose }, t('cancel')),
+      h(Button, { disabled: busy || name.trim() === '' || !valid, onClick: save }, t('save'))
+    ),
+    children: h(
+      'div',
+      { className: css.detail },
+      h(
+        'label',
+        null,
+        t('mcpServerName'),
+        h(Input, {
+          value: name,
+          placeholder: t('mcpServerName'),
+          'aria-label': t('mcpServerName'),
+          disabled: busy,
+          onChange: (event: { target: { value: string } }) => setName(event.target.value)
+        })
+      ),
+      h(ServerConfigEditor, { kind: 'mcp', text: config, onChange: setConfig, t, disabled: busy, onValidityChange: setValid }),
+      error === undefined ? null : h('div', { role: 'alert', className: css.error }, error)
+    )
+  })
+}
+
 function filterLabel(t: Translate, kind: Filter): string {
   if (kind === 'plugin') return t('mcpPlugin')
   if (kind === 'direct') return t('mcpDirect')
@@ -409,4 +461,3 @@ function mcpFilterHint(t: Translate, kind: Filter): string {
   if (kind === 'direct') return t('mcpFilterDirectHint')
   return t('mcpFilterAllHint')
 }
-

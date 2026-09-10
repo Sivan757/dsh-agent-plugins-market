@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/cursor/plugin.schema.json",
+  "title": "Cursor Plugin Manifest",
+  "description": "Cursor Plugin manifest at .cursor-plugin/plugin.json. Cursor also loads the agent-plugins.org format from a root plugin.json, which the vendored schemas/1.0.0/plugin.schema.json covers. Authored from the official Cursor plugin reference and the official plugin template; Cursor publishes no JSON Schema.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://cursor.com/docs/reference/plugins ; cursor/plugin-template (.cursor-plugin/plugin.json) ; vercel/vercel-plugin. displayName and author.url are used by the official template and multiple vendor repos but are absent from the docs field table. Cursor documents no lspServers, outputStyles, workflows, userConfig, settings, strict, or dependencies for this manifest. A manifest field replaces folder discovery for that component; a root SKILL.md with no skills/ directory and no skills field loads as a single-skill plugin.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "description": "Lowercase kebab-case identifier (alphanumerics, hyphens, periods); must start and end with an alphanumeric character." },
+    "displayName": { "type": "string", "description": "UI label. Present in the official template and vendor manifests; missing from the docs field table." },
+    "description": { "type": "string" },
+    "version": { "type": "string", "description": "Semantic version." },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string", "description": "Used in the wild; not in the docs field table." }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "homepage": { "type": "string" },
+    "repository": { "type": "string" },
+    "license": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "logo": { "type": "string", "description": "Relative repository path resolved to raw.githubusercontent.com, or an absolute URL; relative is preferred." },
+    "rules": { "$ref": "#/$defs/pathList", "description": "Rule files or directories (.md, .mdc, .markdown). Default rules/." },
+    "agents": { "$ref": "#/$defs/pathList", "description": "Agent files or directories. Default agents/." },
+    "skills": { "$ref": "#/$defs/pathList", "description": "Skill directories. Default skills/." },
+    "commands": { "$ref": "#/$defs/pathList", "description": "Command files or directories (.md, .mdc, .markdown, .txt). Default commands/." },
+    "hooks": {
+      "description": "Path to a hooks configuration file or an inline hook configuration. Default hooks/hooks.json.",
+      "anyOf": [{ "type": "string" }, { "type": "object" }]
+    },
+    "mcpServers": {
+      "description": "Path, inline server map, or array of either. Overrides default mcp.json discovery.",
+      "anyOf": [{ "type": "string" }, { "type": "object" }, { "type": "array" }]
+    },
+    "variables": {
+      "type": "object",
+      "description": "JSON Schema declaring variable names only (never secret values). ${VAR} placeholders are substituted into mcp.json and similar files; values are configured by admins in the dashboard.",
+      "properties": {
+        "type": { "const": "object" },
+        "properties": { "type": "object" },
+        "required": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": true,
+  "$defs": {
+    "pathList": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    }
+  }
+}

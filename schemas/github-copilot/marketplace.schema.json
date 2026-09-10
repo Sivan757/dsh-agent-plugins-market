@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/github-copilot/marketplace.schema.json",
+  "title": "GitHub Copilot CLI Marketplace Manifest",
+  "description": "Marketplace catalog read by GitHub Copilot CLI, looked up as marketplace.json, .plugin/marketplace.json, .github/plugin/marketplace.json, then .claude-plugin/marketplace.json. Authored from the official CLI plugin reference; GitHub publishes no JSON Schema for this manifest.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Source: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference (raw markdown in github/docs). Marketplace names must be kebab-case (dots accepted for Open Plugin Spec plugins) and max 64 chars; the marketplace's own name becomes its registration key.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "maxLength": 64, "description": "Kebab-case marketplace name; dots are also accepted for Open Plugin Spec plugins." },
+    "owner": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "plugins": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "pluginRoot": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["name", "owner", "plugins"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 64, "description": "Kebab-case plugin name; dots are also accepted for Open Plugin Spec plugins." },
+        "source": { "$ref": "#/$defs/source" },
+        "description": { "type": "string", "maxLength": 1024 },
+        "version": { "type": "string" },
+        "author": {
+          "type": "object",
+          "properties": { "name": { "type": "string" }, "email": { "type": "string" }, "url": { "type": "string" } },
+          "required": ["name"],
+          "additionalProperties": true
+        },
+        "homepage": { "type": "string" },
+        "repository": { "type": "string" },
+        "license": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "commands": { "$ref": "#/$defs/pathList" },
+        "agents": { "$ref": "#/$defs/pathList" },
+        "skills": { "$ref": "#/$defs/pathList" },
+        "hooks": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "mcpServers": {
+          "description": "MCP servers to activate when the plugin is installed; an inline server map or a path to a JSON configuration file. Used when the plugin source does not ship its own MCP configuration.",
+          "anyOf": [{ "type": "string" }, { "type": "object" }]
+        },
+        "lspServers": {
+          "description": "Path to LSP configuration or inline server definitions.",
+          "anyOf": [{ "type": "string" }, { "type": "object" }]
+        },
+        "strict": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (the default) plugins must conform to the full schema and validation rules; false enables relaxed validation for direct installs or legacy plugins."
+        }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "source": {
+      "description": "A relative path string, or an object describing a GitHub repository or Git URL source.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "source": { "const": "github" },
+            "repo": { "type": "string" },
+            "ref": { "type": "string" },
+            "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$", "description": "Full 40-character commit SHA; pins installs against force-pushes and moved tags." },
+            "path": { "type": "string" }
+          },
+          "required": ["source", "repo"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": { "const": "url" },
+            "url": { "type": "string" },
+            "ref": { "type": "string" },
+            "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            "path": { "type": "string" }
+          },
+          "required": ["source", "url"],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "pathList": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    }
+  }
+}

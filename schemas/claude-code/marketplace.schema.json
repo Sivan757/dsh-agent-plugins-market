@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/claude-code/marketplace.schema.json",
+  "title": "Claude Code Marketplace Manifest",
+  "description": "Marketplace catalog read by Claude Code at .claude-plugin/marketplace.json, or from any marketplace.json file added by direct path or URL. Authored from the official plugin marketplace reference and the official claude-plugins-official catalog; Anthropic publishes no JSON Schema.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://code.claude.com/docs/en/plugin-marketplaces ; anthropics/claude-plugins-official/.claude-plugin/marketplace.json (291 entries). forceRemoveDeletedPlugins appears only in the community schemastore schema and in no current official doc. Entry source variants observed in the official catalog: url 153, git-subdir 85, relative path 53.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Ignored at load. The official catalog declares https://anthropic.com/claude-code/marketplace.schema.json, which currently returns 404."
+    },
+    "name": { "type": "string", "description": "Kebab-case marketplace identifier. Registration is per name per user; a reserved-name list applies." },
+    "owner": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "plugins": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "description": { "type": "string", "description": "Also accepted under metadata for backward compatibility." },
+    "version": { "type": "string", "description": "Also accepted under metadata for backward compatibility." },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "pluginRoot": {
+          "type": "string",
+          "description": "Directory under which bare source names resolve; must be a relative path inside the marketplace and is ignored for ./ sources."
+        },
+        "description": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "allowCrossMarketplaceDependenciesOn": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Marketplace names whose plugins may be auto-installed as dependencies. Only the root marketplace's allowlist applies; there is no transitive trust."
+    },
+    "renames": {
+      "type": "object",
+      "description": "Old plugin name to new name, or null when removed. Chains are followed; cycles are rejected by `claude plugin validate`.",
+      "additionalProperties": { "type": ["string", "null"] }
+    },
+    "forceRemoveDeletedPlugins": { "type": "boolean", "description": "Community-schema field with no current official documentation; treat as unverified." }
+  },
+  "required": ["name", "owner", "plugins"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Kebab-case plugin identifier used by enabledPlugins and /plugin." },
+        "source": { "$ref": "#/$defs/source" },
+        "displayName": { "type": "string" },
+        "description": { "type": "string" },
+        "version": { "type": "string", "description": "Pins the plugin. The plugin.json version wins when both are set; ignored for command sources." },
+        "author": {
+          "type": "object",
+          "properties": { "name": { "type": "string" }, "email": { "type": "string" }, "url": { "type": "string" } },
+          "required": ["name"],
+          "additionalProperties": true
+        },
+        "homepage": { "type": "string" },
+        "repository": { "type": "string" },
+        "license": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "metadata": { "type": "object" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "strict": {
+          "type": "boolean",
+          "default": true,
+          "description": "true: plugin.json is authoritative and this entry supplements it. false: this entry is the whole definition; a conflicting plugin.json fails to load."
+        },
+        "relevance": { "type": "object", "description": "Suggestion signals; only honored for admin-allowlisted marketplaces." },
+        "defaultEnabled": { "type": "boolean", "default": true, "description": "Takes precedence over the manifest value." },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" }, "description": "HTTP headers for this entry's archive download." },
+        "headersHelper": { "type": "string", "description": "Command printing header JSON; the entry must also set strict: false." },
+        "skills": { "anyOf": [{ "type": "string" }, { "type": "array" }] },
+        "commands": { "anyOf": [{ "type": "string" }, { "type": "array" }] },
+        "agents": { "anyOf": [{ "type": "string" }, { "type": "array" }] },
+        "hooks": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "mcpServers": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "lspServers": { "anyOf": [{ "type": "string" }, { "type": "object" }] }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "source": {
+      "description": "Where to fetch the plugin. When both ref and sha are set on a git source, sha is the effective pin.",
+      "anyOf": [
+        { "type": "string", "description": "Relative path beginning with ./, or a bare name resolved under metadata.pluginRoot." },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "github" }, "repo": { "type": "string" }, "ref": { "type": "string" }, "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" } },
+          "required": ["source", "repo"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "url" }, "url": { "type": "string" }, "ref": { "type": "string" }, "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" } },
+          "required": ["source", "url"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": { "const": "git-subdir" },
+            "url": { "type": "string" },
+            "path": { "type": "string" },
+            "ref": { "type": "string" },
+            "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+          },
+          "required": ["source", "url", "path"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "npm" }, "package": { "type": "string" }, "version": { "type": "string" }, "registry": { "type": "string" } },
+          "required": ["source", "package"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "archive" }, "url": { "type": "string" }, "sha256": { "type": "string" } },
+          "required": ["source", "url"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "command" }, "command": { "type": "string" }, "timeout": { "type": "number" }, "mode": { "enum": ["copy", "link"] } },
+          "required": ["source", "command"],
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

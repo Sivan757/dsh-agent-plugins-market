@@ -34,18 +34,18 @@ export function resolveDshHome(): string {
   return process.env.DSH_HOME === undefined ? join(homedir(), '.dsh') : resolve(process.env.DSH_HOME)
 }
 
-/** Resolve the user-dimension suite root. */
-export function resolveUserRoot(configUserRoot?: string): string {
-  return resolve(expandHome(configUserRoot ?? join(resolveDshHome(), 'agent-plugins')))
+/** Resolve the canonical user-dimension root. Legacy overrides are migration inputs only. */
+export function resolveUserRoot(_configUserRoot?: string): string {
+  return join(resolveDshHome(), 'agent-plugins')
 }
 
 /**
  * Resolve the suite data root hosting `${PLUGIN_DATA}` directories and the
  * MCP overrides. Defaults under the user root so the whole plugin persists
- * into one directory; an explicit `dataRoot` config still wins.
+ * into one directory. Legacy overrides are migration inputs only.
  */
-export function resolveDataRoot(configDataRoot?: string, configUserRoot?: string): string {
-  return resolve(expandHome(configDataRoot ?? join(configUserRoot ?? resolveUserRoot(), 'data')))
+export function resolveDataRoot(_configDataRoot?: string, _configUserRoot?: string): string {
+  return join(resolveUserRoot(), 'data')
 }
 
 /** Resolve a project root from a workspace cwd: nearest ancestor with `.git`. */

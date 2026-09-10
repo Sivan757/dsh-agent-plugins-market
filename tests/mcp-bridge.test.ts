@@ -98,6 +98,15 @@ describe('publicToolName', () => {
 // ---- syncTools ----
 
 describe('syncTools', () => {
+  it('enforces allow/deny lists on raw tool names across synchronization generations', async () => {
+    const host = createFakeHost()
+    const client = createMockClient(['read', 'write', 'admin'].map(name => ({ name, inputSchema: { type: 'object' } })))
+    const previous = await syncTools(client as never, host, { ...defaultOpts, enabledTools: ['read', 'write'], disabledTools: ['write'] }, new Map())
+    expect([...host.registered.keys()]).toEqual(['mcp__srv__read'])
+    const empty = await syncTools(client as never, host, { ...defaultOpts, enabledTools: [] }, previous)
+    expect(empty.size).toBe(0)
+    expect(host.registered.size).toBe(0)
+  })
   it('registers tools under server-qualified public names', async () => {
     const host = createFakeHost()
     const client = createMockClient([

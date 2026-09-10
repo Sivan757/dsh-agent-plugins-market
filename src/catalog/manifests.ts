@@ -8,7 +8,10 @@
  * - claude-code: `.claude-plugin/plugin.json`;
  * - cursor: `.cursor-plugin/plugin.json`;
  * - kimi: `.kimi-plugin/plugin.json`;
- * - codex: `.codex-plugin/plugin.json`.
+ * - codex: `.codex-plugin/plugin.json`;
+ * - zcode: `.zcode-plugin/plugin.json`;
+ * - qoder: `.qoder-plugin/plugin.json`;
+ * - github-copilot: `.github/plugin/plugin.json`.
  *
  * The same repo can declare several dialects (e.g. vercel/vercel-plugin ships
  * all of them); a suite's identity comes from the highest-precedence dialect
@@ -19,9 +22,10 @@ import { readFile, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { sanitizeId } from './paths.js'
 import { isRecognizedSchema, validatePluginManifest } from './validate.js'
-import type { SuiteManifest } from '../model/types.js'
+import type { SuiteManifest, SuiteComponents } from '../model/types.js'
+import { PLUGIN_LAYOUTS, MANIFEST_ALIASES, MARKETPLACE_PATHS, type ManifestKind } from '../model/layouts.js'
 
-export type ManifestKind = 'agent-plugin-v1' | 'universal' | 'claude-code' | 'cursor' | 'kimi' | 'codex'
+export type { ManifestKind } from '../model/layouts.js'
 
 /** One manifest candidate: its file path and the dialect it selects. */
 export interface ManifestCandidate {
@@ -29,26 +33,16 @@ export interface ManifestCandidate {
   path: string
 }
 
-/** Dialect precedence: v1 wins over universal over claude over cursor over kimi over codex. */
-const KIND_PRECEDENCE: ManifestKind[] = ['agent-plugin-v1', 'universal', 'claude-code', 'cursor', 'kimi', 'codex']
-
-const MANIFEST_PATHS: Record<ManifestKind, string> = {
-  'agent-plugin-v1': 'plugin.json',
-  universal: join('.plugin', 'plugin.json'),
-  'claude-code': join('.claude-plugin', 'plugin.json'),
-  cursor: join('.cursor-plugin', 'plugin.json'),
-  kimi: join('.kimi-plugin', 'plugin.json'),
-  codex: join('.codex-plugin', 'plugin.json')
-}
-
 /** The highest-precedence manifest file a directory carries, if any. */
 export async function detectManifest(dir: string): Promise<ManifestCandidate | undefined> {
-  for (const kind of KIND_PRECEDENCE) {
-    const path = join(dir, MANIFEST_PATHS[kind])
-    try {
-      if ((await stat(path)).isFile()) return { kind, path }
-    } catch {
-      // try the next dialect
+  for (const { kind, manifest } of PLUGIN_LAYOUTS) {
+    for (const relative of [...(MANIFEST_ALIASES[kind] ?? []), manifest]) {
+      const path = join(dir, relative)
+      try {
+        if ((await stat(path)).isFile()) return { kind, path }
+      } catch {
+        // try the next candidate
+      }
     }
   }
   return undefined
@@ -74,6 +68,11 @@ interface ParsedRecord {
   $schema?: unknown
 }
 
+export function componentDeclarations(record: object): SuiteComponents {
+  const value = record as Record<string, unknown>
+  return Object.fromEntries(['skills', 'commands', 'agents', 'hooks', 'mcpServers', 'lspServers'].filter(key => value[key] !== undefined).map(key => [key, value[key]]))
+}
+
 /**
  * Parse one manifest document into a normalized SuiteManifest. The v1 dialect
  * is schema-validated (fail-closed); the others are structurally read with
@@ -82,7 +81,7 @@ interface ParsedRecord {
 export async function readManifest(
   root: string,
   errors: string[],
-  hint: { name?: string; version?: string; description?: string } | undefined
+  hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined
 ): Promise<SuiteManifest | undefined> {
   const candidate = await detectManifest(root)
   if (candidate === undefined) return undefined
@@ -93,7 +92,7 @@ export async function readManifest(
     errors.push(`${candidate.path} unparsable: ${error instanceof Error ? error.message : String(error)}`)
     return undefined
   }
-  if (typeof raw !== 'object' || raw === null) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     errors.push(`${candidate.path}: manifest is not a JSON object`)
     return undefined
   }
@@ -107,6 +106,25 @@ export async function readManifest(
   // layout instead — strict validation only ever applies to manifests
   // that actually declare the v1 schema.
   const kind: ManifestKind = candidate.kind === 'agent-plugin-v1' && !isRecognizedSchema(record.$schema) ? 'claude-code' : candidate.kind
+  let fallbackComponents: SuiteComponents = {}
+  if (candidate.kind === 'agent-plugin-v1' && kind === 'claude-code') {
+    const path = join(root, '.claude-plugin/plugin.json')
+    let text: string | undefined
+    try {
+      text = await readFile(path, 'utf8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') errors.push(`${path}: component fallback is unreadable`)
+    }
+    if (text !== undefined) {
+      try {
+        const fallback: unknown = JSON.parse(text)
+        if (typeof fallback !== 'object' || fallback === null || Array.isArray(fallback)) errors.push(`${path}: component fallback must be an object`)
+        else fallbackComponents = componentDeclarations(fallback)
+      } catch {
+        errors.push(`${path}: invalid component fallback JSON`)
+      }
+    }
+  }
   const problems = kind === 'agent-plugin-v1' ? await validatePluginManifest(raw) : []
   errors.push(...problems.map(problem => `${candidate.path}: ${problem}`))
   const name = pickString(record.name) ?? hint?.name ?? syntheticManifestName(root)
@@ -114,24 +132,26 @@ export async function readManifest(
   const description = pickString(record.description) ?? hint?.description
   const author = record.author as { name?: string; url?: string } | undefined
   return {
-    layout:
-      kind === 'agent-plugin-v1'
-        ? 'agent-plugin-v1'
-        : kind === 'universal'
-          ? 'universal'
-          : kind === 'claude-code'
-            ? 'claude-code'
-            : kind === 'cursor'
-              ? 'cursor'
-              : kind === 'kimi'
-                ? 'kimi'
-                : 'codex',
+    components: { ...componentDeclarations(hint ?? {}), ...fallbackComponents, ...componentDeclarations(raw as Record<string, unknown>) },
+    ...(typeof (raw as Record<string, unknown>).skillInstructions === 'string' ? { skillInstructions: (raw as Record<string, unknown>).skillInstructions as string } : {}),
+    ...(typeof (raw as Record<string, unknown>).systemPrompt === 'string' ? { systemPrompt: (raw as Record<string, unknown>).systemPrompt as string } : {}),
+    ...(typeof (raw as Record<string, unknown>).systemPromptPath === 'string' ? { systemPromptPath: (raw as Record<string, unknown>).systemPromptPath as string } : {}),
+    ...(typeof (raw as { sessionStart?: { skill?: unknown } }).sessionStart?.skill === 'string'
+      ? { startupSkill: (raw as { sessionStart: { skill: string } }).sessionStart.skill }
+      : {}),
+    layout: kind,
     path: candidate.path,
     id: sanitizeId(name),
     name,
     ...(version === undefined ? {} : { version }),
     ...(description === undefined ? {} : { description }),
-    ...(author?.name !== undefined ? { author: author.name } : pickString(record.homepage) !== undefined ? { author: pickString(record.homepage) } : {}),
+    ...(typeof record.author === 'string'
+      ? { author: record.author }
+      : author?.name !== undefined
+        ? { author: author.name }
+        : pickString(record.homepage) !== undefined
+          ? { author: pickString(record.homepage) }
+          : {}),
     keywords: Array.isArray(record.keywords) ? (record.keywords as unknown[]).filter((entry): entry is string => typeof entry === 'string') : [],
     ...(isRecognizedSchema(record.$schema) ? { schemaVersion: record.$schema as string } : {})
   }
@@ -141,7 +161,9 @@ function pickString(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined
 }
 
-export interface MarketplaceEntry {
+export interface MarketplaceEntry extends SuiteComponents {
+  layout?: ManifestKind
+  strict?: boolean
   name?: string
   version?: string
   description?: string
@@ -153,12 +175,10 @@ export interface MarketplaceEntry {
 }
 
 export interface Marketplace {
+  pluginRoot?: string
   name?: string
   entries: MarketplaceEntry[]
 }
-
-/** Marketplace manifest locations per dialect (Claude Code, Codex). */
-const MARKETPLACE_PATHS = ['.claude-plugin/marketplace.json', '.agents/plugins/marketplace.json']
 
 export interface ReadMarketplaceResult extends Marketplace {
   /** The manifest file the entries were read from. */
@@ -180,35 +200,70 @@ async function readOneMarketplace(path: string, errors: string[]): Promise<ReadM
     errors.push(`marketplace ${path} unparsable: ${error instanceof Error ? error.message : String(error)}`)
     return undefined
   }
-  if (typeof parsed !== 'object' || parsed === null) {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     errors.push(`marketplace ${path}: manifest is not a JSON object`)
     return undefined
   }
   const record = parsed as Record<string, unknown>
-  const plugins = record['plugins']
-  if (!Array.isArray(plugins)) {
+  const rawPlugins = record['plugins']
+  const plugins = Array.isArray(rawPlugins)
+    ? rawPlugins
+    : typeof rawPlugins === 'object' && rawPlugins !== null
+      ? Object.entries(rawPlugins).map(([name, entry]) => (typeof entry === 'object' && entry !== null && !Array.isArray(entry) ? { ...entry, name } : entry))
+      : undefined
+  if (plugins === undefined) {
     errors.push(`marketplace ${path}: "plugins" is not an array`)
     return undefined
   }
   return {
+    ...(typeof (record.metadata as { pluginRoot?: unknown } | undefined)?.pluginRoot === 'string' ? { pluginRoot: (record.metadata as { pluginRoot: string }).pluginRoot } : {}),
     ...(typeof record['name'] === 'string' ? { name: record['name'] } : {}),
-    entries: plugins as MarketplaceEntry[],
+    entries: plugins
+      .map(entry => {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return entry
+        const value = entry as Record<string, unknown>
+        if (typeof value.id !== 'string') return value
+        const source = [value.source, value.url, value.downloadUrl].find(candidate => typeof candidate === 'string' && candidate.trim() !== '') ?? value.source
+        return { ...value, name: value.id, description: value.description ?? value.shortDescription, source, layout: 'kimi' }
+      })
+      .filter((entry): entry is MarketplaceEntry => {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry) || !('source' in entry)) {
+          errors.push(`marketplace ${path}: invalid plugin entry`)
+          return false
+        }
+        const metadata = entry as Record<string, unknown>
+        if (
+          ['name', 'version', 'description'].some(key => metadata[key] !== undefined && typeof metadata[key] !== 'string') ||
+          (typeof metadata.name === 'string' && metadata.name.trim() === '')
+        ) {
+          errors.push(`marketplace ${path}: invalid plugin entry metadata`)
+          return false
+        }
+        return true
+      }),
     path
   }
 }
 
 /**
  * Read every marketplace manifest the checkout carries, in dialect
- * precedence order (Claude Code before Codex). Both dialects can coexist
- * (e.g. a repo shipping one marketplace per agent); callers decide which
- * dialect's entries win, so no dialect is silently shadowed.
+ * precedence order shared with suite manifests, then the shared root catalog.
+ * The scan strategy selects the first catalog that produces suites; an empty
+ * or invalid catalog allows the next candidate to be tried.
  */
-export async function readMarketplaces(checkoutDir: string): Promise<ReadMarketplaceResult[]> {
+export async function readMarketplaces(checkoutDir: string, errors: string[] = []): Promise<ReadMarketplaceResult[]> {
   const results: ReadMarketplaceResult[] = []
-  const errors: string[] = []
   for (const relative of MARKETPLACE_PATHS) {
     const result = await readOneMarketplace(join(checkoutDir, relative), errors)
-    if (result !== undefined) results.push(result)
+    if (result !== undefined) {
+      const kind = PLUGIN_LAYOUTS.find(layout => layout.marketplaces.some(path => path === relative))?.kind
+      for (const entry of result.entries) {
+        entry.layout ??= kind
+        if (typeof entry.source === 'string' && /^https?:\/\//.test(entry.source)) entry.source = { source: 'url', url: entry.source }
+        if (typeof entry.source === 'string' && result.pluginRoot !== undefined && !entry.source.startsWith('.')) entry.source = join(result.pluginRoot, entry.source)
+      }
+      results.push(result)
+    }
   }
   return results
 }

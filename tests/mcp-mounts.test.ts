@@ -5,6 +5,21 @@ import type { Suite } from '../src/model/types.js'
 
 const CC_COMMANDS_ROOT = fileURLToPath(new URL('./fixtures/cc-commands', import.meta.url))
 
+it('does not pass native tool restrictions to a host backend that cannot enforce them', async () => {
+  const { ctx, mounts } = fakeContext()
+  const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+  registry.setBackendProvider(async () => 'host')
+  const source = suite('filtered', 'server')
+  source.mcp!.servers.server!.enabledTools = []
+  try {
+    const diagnostics = await registry.reconcile([source])
+    expect(mounts.size).toBe(0)
+    expect(diagnostics).toEqual([expect.objectContaining({ code: 'mount-failed', reason: expect.stringContaining('cannot enforce') })])
+  } finally {
+    await registry.disposeAll()
+  }
+})
+
 interface MountedPlugin {
   config: Record<string, unknown>
   disposed: boolean
@@ -137,7 +152,7 @@ describe('McpMountRegistry', () => {
     // The connection error is reported with its real message, not swallowed
     // into a silent "degraded" row.
     expect(diagnostics).toContainEqual({
-      suiteId: 'broken',
+      suiteId: 'demo/broken',
       serverKey: 'service',
       code: 'mount-failed',
       reason: 'mount failed: connection refused'
@@ -189,7 +204,7 @@ describe('McpMountRegistry', () => {
 
     expect(mounted).toHaveLength(0)
     expect(diagnostics).toContainEqual({
-      suiteId: 'auth',
+      suiteId: 'demo/auth',
       serverKey: 'service',
       code: 'missing-credential',
       credentialRefs: ['API_TOKEN'],
@@ -286,7 +301,7 @@ describe('McpMountRegistry', () => {
 
     expect(mounted).toHaveLength(0)
     expect(diagnostics).toContainEqual({
-      suiteId: 'alpha',
+      suiteId: 'demo/alpha',
       serverKey: 'db',
       code: 'foreign-mount',
       reason: expect.stringContaining('already mounted by another MCP client')
@@ -319,12 +334,9 @@ describe('CommandMountRegistry (CC commands compat)', () => {
     suites[0]!.enabled = true
     const diagnostics = await registry.reconcile(suites)
     expect(diagnostics).toEqual([])
-    // Commands register under their file name; agents/*.md register as
-    // /agent-<name> so subagents are selectable from the slash menu.
-    expect(registered.map(def => def.name)).toEqual(['review', 'agent-codex-rescue'])
+    // Role definitions are catalog entries, never generated slash commands.
+    expect(registered.map(def => def.name)).toEqual(['review'])
     expect(registered[0]!.description).toBe('[cc-commands] Run a challenge review')
-    expect(registered[1]!.description).toContain('[cc-commands]')
-    expect(registered[1]!.input).toEqual({ hint: '子代理' })
     let followup: { content: Array<{ type: string; text: string }> } | undefined
     const result = registered[0]!.handler({
       agent: {
@@ -341,8 +353,8 @@ describe('CommandMountRegistry (CC commands compat)', () => {
   })
 })
 
-describe('agents compat (agent-<name> skills)', () => {
-  it('lists agent definitions as agent-* skills and renders a usable body', async () => {
+describe('agent definitions stay separate from skills', () => {
+  it('keeps installed roles out of skill candidates while retaining ordinary skills', async () => {
     const { Catalog } = await import('../src/application/catalog.js')
     const { mkdtemp } = await import('node:fs/promises')
     const { tmpdir } = await import('node:os')
@@ -355,12 +367,8 @@ describe('agents compat (agent-<name> skills)', () => {
     const provider = new (await import('../src/runtime/skills-provider.js')).SuiteSkillProvider(manager)
     const candidates = await provider.list({})
     const names = candidates.map(candidate => candidate.name)
-    expect(names).toContain('agent-codex-rescue')
+    expect(names).not.toContain('agent-codex-rescue')
     expect(names).toContain('plain')
-    const agent = candidates.find(candidate => candidate.name === 'agent-codex-rescue')!
-    const definition = await provider.get(agent, {})
-    expect(definition!.content).toContain('子代理定义')
-    expect(definition!.content).toContain('forwarding wrapper')
   })
 })
 

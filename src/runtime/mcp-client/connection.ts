@@ -130,7 +130,10 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
   const opts: ToolBridgeOptions = {
     registrationFailure: 'contain',
     serverName: config.serverName,
-    toolCallTimeoutMs: config.toolCallTimeoutMs
+    toolCallTimeoutMs: config.toolCallTimeoutMs,
+    ...(config.enabledTools === undefined ? {} : { enabledTools: config.enabledTools }),
+    ...(config.disabledTools === undefined ? {} : { disabledTools: config.disabledTools }),
+    ...(config.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: config.startupTimeoutMs })
   }
   // The initial sync uses 'throw' when failOnStartupError is configured, so
   // a registration conflict propagates to the startup-await path. Re-syncs
@@ -273,7 +276,8 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       host.logger.info(message)
     })
     try {
-      await generation.connect(transport)
+      if (config.startupTimeoutMs === undefined) await generation.connect(transport)
+      else await generation.connect(transport, { timeout: config.startupTimeoutMs })
       if (hasClosed()) {
         attemptSettled = true
         generationDown(generation)

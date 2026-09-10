@@ -4,7 +4,7 @@ const markets = [
   {
     name: 'anthropics/claude-code (official ecosystem)',
     url: 'https://github.com/anthropics/claude-code',
-    note: 'Reference for the .claude-plugin/marketplace.json format. Thousands of community marketplaces follow it.',
+    note: 'Reference project for the Claude Code ecosystem; this list includes format references as well as suite repositories.',
   },
   {
     name: 'vercel/vercel-plugin',
@@ -18,22 +18,23 @@ const markets = [
   },
 ];
 const skills = [
-  'Skills from any Claude Code marketplace repo (SKILL.md) run verbatim — ${CLAUDE_PLUGIN_ROOT} is substituted automatically.',
-  'MCP servers declared in mcp.json / .mcp.json mount as live dsh-mcp-client children.',
+  'Supported skills enter the host skill catalog; root placeholders are substituted and invocation settings are respected.',
+  'Valid MCP declarations use the built-in bridge by default; optional host-client compatibility mode is available.',
   'hooks/hooks.json bridges to DSH interception points: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop.',
-  'commands/*.md become DSH slash commands; agents/*.md become agent-<name> skills.',
+  'Commands use the host slash registry. Roles enter a dynamic subagent catalog and run through subagents_run with their saved provider, model, reasoning effort and tool restrictions; this requires host agents, tools, LLM and subagents.',
+  'LSP declarations mount when host LSP packages are available; agent use also needs the LSP tool in the profile.',
 ];
 ---
 <Base
   title="Compatible plugin marketplaces and formats — dsh-agent-plugins-market"
-  description="Which Claude Code, Codex, Cursor and Kimi plugin marketplaces and formats work inside DeepSeek Harness via dsh-agent-plugins-market."
+  description="Which Claude Code, Codex, Cursor, Kimi, ZCode, Qoder CLI and GitHub Copilot CLI plugin marketplaces and formats work inside DeepSeek Harness via dsh-agent-plugins-market."
 >
   <h1>Compatible plugin marketplaces</h1>
   <p>
-    Any git repository carrying one of the supported manifests can be added as a source. One repo may carry several dialects at once; the suite identity comes from the highest-precedence manifest while surfaces (skills / commands / agents / hooks / MCP) are scanned from the directories.
+    Any git repository carrying one of the supported manifests can be added as a source. One repo may carry several dialects at once; identity follows manifest precedence while declared component paths resolve into resources shared by discovery, runtime and detail views.
   </p>
 
-  <h2>Known marketplace repos</h2>
+  <h2>Repositories and format references</h2>
   {markets.map((m) => (
     <div class="card">
       <strong><a href={m.url}>{m.name}</a></strong>
@@ -42,20 +43,36 @@ const skills = [
   ))}
   <p><em>This list is community-maintained — <a href="https://github.com/Sivan757/dsh-agent-plugins-market">open a PR</a> to add a marketplace you tested.</em></p>
 
+  <p>Layout support does not imply full compatibility with the original platform. Project commands, supported JSON/Codex TOML MCP configurations and mapped command hooks mount in the calling agent's scope. The <code>scanProjectLayouts</code> setting controls native project discovery. Project LSP is diagnosed and not mounted; host API changes are outside this plugin's scope.</p>
+
   <h2>What gets injected</h2>
   <ul>
     {skills.map((s) => <li set:html={s.replace(/CLAUDE_PLUGIN_ROOT/, '<code>${CLAUDE_PLUGIN_ROOT}</code>').replace(/mcp\.json/, '<code>mcp.json</code>').replace(/hooks\/hooks\.json/, '<code>hooks/hooks.json</code>').replace(/commands\/\*\.md/, '<code>commands/*.md</code>').replace(/agents\/\*\.md/, '<code>agents/*.md</code>')} />)}
   </ul>
 
-  <h2>Manifest precedence</h2>
+  <h2>Shared layout precedence</h2>
+  <p>Suite manifests and Marketplace catalogs follow the same layout order. Catalog lookup skips layouts without a dedicated catalog; aliases follow the order shown.</p>
   <table>
-    <tr><th>Layout</th><th>Manifest</th></tr>
-    <tr><td>agent-plugins.org v1</td><td><code>plugin.json</code></td></tr>
-    <tr><td>Claude Code market</td><td><code>.claude-plugin/marketplace.json</code> + <code>.claude-plugin/plugin.json</code></td></tr>
-    <tr><td>Universal</td><td><code>.plugin/plugin.json</code></td></tr>
-    <tr><td>Cursor</td><td><code>.cursor-plugin/plugin.json</code></td></tr>
-    <tr><td>Kimi</td><td><code>.kimi-plugin/plugin.json</code></td></tr>
-    <tr><td>Codex</td><td><code>.codex-plugin/plugin.json</code></td></tr>
-    <tr><td>Skill collection</td><td>none (synthetic)</td></tr>
+    <tr><th>Layout (highest priority first)</th><th>Suite manifest</th><th>Marketplace catalog</th></tr>
+    <tr><td>agent-plugins.org v1 / root compatibility</td><td><code>plugin.json</code></td><td>No dedicated catalog</td></tr>
+    <tr><td>Universal</td><td><code>.plugin/plugin.json</code></td><td><code>.plugin/marketplace.json</code></td></tr>
+    <tr><td>Claude Code</td><td><code>.claude-plugin/plugin.json</code></td><td><code>.claude-plugin/marketplace.json</code></td></tr>
+    <tr><td>Cursor</td><td><code>.cursor-plugin/plugin.json</code></td><td><code>.cursor-plugin/marketplace.json</code></td></tr>
+    <tr><td>Kimi Code</td><td><code>kimi.plugin.json</code>, then <code>.kimi-plugin/plugin.json</code></td><td><code>.kimi-plugin/marketplace.json</code></td></tr>
+    <tr><td>Codex</td><td><code>.codex-plugin/plugin.json</code></td><td><code>.agents/plugins/marketplace.json</code>, then <code>.agents/plugins/api_marketplace.json</code></td></tr>
+    <tr><td>ZCode</td><td><code>.zcode-plugin/plugin.json</code></td><td>No dedicated catalog</td></tr>
+    <tr><td>Qoder CLI</td><td><code>.qoder-plugin/plugin.json</code></td><td><code>.qoder-plugin/marketplace.json</code></td></tr>
+    <tr><td>GitHub Copilot CLI</td><td><code>.github/plugin/plugin.json</code></td><td><code>.github/plugin/marketplace.json</code></td></tr>
+    <tr><td>Fallback: skill collection / shared catalog</td><td>Discover skills when no recognized manifest exists</td><td>Root <code>marketplace.json</code></td></tr>
   </table>
+  <p>
+    Manifest selection uses the first existing file and fails closed if it is invalid. Root <code>plugin.json</code> uses strict v1 validation only with a recognized agent-plugins.org schema; otherwise it is Claude-compatible.
+    Catalog scanning selects the first catalog that produces suites; invalid or empty catalogs allow later candidates. Root <code>marketplace.json</code> is a shared fallback, not a v1 or skill-collection catalog, and does not inherit root manifest priority.
+  </p>
+
+  <p>
+    All ten active schema layouts have offline README-repository tests, including isolated variants that suppress competing manifests at nested suite roots. Cursor, Kimi, Qoder, Copilot, Universal and root marketplace files are recognized alongside Claude Code and Codex catalogs. The <a
+      href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/compat-report.md">compatibility report</a
+    > exercises every schema against one real repository and records the commit, the schema verdict and what the scanner did with it.
+  </p>
 </Base>

@@ -5,6 +5,8 @@ import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../index.js'
 import { ToggleSwitch } from '../../ui/ToggleSwitch.js'
 import css from '../../market.module.css'
+import { ResourceCard } from '../../ui/ResourceCard.js'
+import { suiteLayoutLabel } from '../../layout-label.js'
 
 export interface SuiteCardProps {
   t: Translate
@@ -30,24 +32,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
       [t('surfaceLsp'), suite.surfaces.lsp]
     ] as Array<[string, number]>
   ).filter(([, count]) => count > 0)
-  const layoutLabel =
-    suite.layout === 'agent-plugin-v1'
-      ? t('layoutV1')
-      : suite.layout === 'claude-code'
-        ? t('layoutCC')
-        : suite.layout === 'codex'
-          ? t('layoutCodex')
-          : suite.layout === 'universal'
-            ? t('layoutUniversal')
-            : suite.layout === 'cursor'
-              ? t('layoutCursor')
-              : suite.layout === 'kimi'
-                ? t('layoutKimi')
-                : suite.layout === 'remote'
-                  ? t('layoutRemote')
-                  : suite.layout === 'project-native'
-                    ? t('layoutProjectNative')
-                    : t('layoutSkills')
+  const layoutLabel = suiteLayoutLabel(suite.layout, t)
   const isRemote = suite.remoteUrl !== undefined
   const hasTagRow = tags.length > 0 || suite.errors.length > 0 || (suite.mcpErrors?.length ?? 0) > 0
   const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
@@ -55,10 +40,9 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
     callback()
   }
   // Installed cards carry the MCP card's left accent: green = enabled, gray = disabled.
-  const accent = suite.installed ? (suite.enabled ? css.cardOn : css.cardMuted) : undefined
   return h(
-    'article',
-    { className: accent ? `${css.card} ${accent}` : css.card, onClick: props.onOpen },
+    ResourceCard,
+    { className: css.card, state: suite.installed && suite.enabled ? 'active' : 'disabled', onClick: props.onOpen },
     h(
       'div',
       { className: css.cardTop },

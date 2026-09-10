@@ -9,13 +9,14 @@
  * fail-closed: broken files produce a diagnostic and are skipped, never a
  * thrown discovery.
  */
-import { readFile, readdir, realpath, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { parseSkillFrontmatter } from './skills-parse.js'
 import { isDirectory } from './paths.js'
 import { validateMcpJson } from './validate.js'
-import { declaredMcpServers } from './manifests.js'
-import type { LspSuiteConfig, McpSuiteConfig, SuiteSkill, SuiteSurfaceCounts } from '../model/types.js'
+import { readManifest } from './manifests.js'
+import type { LspSuiteConfig, McpServer, McpSuiteConfig, SuiteManifest, SuiteSkill, SuiteSurfaceCounts } from '../model/types.js'
+import { componentDocuments, componentPath, firstComponentFile } from './component-files.js'
 
 const DOT_DIRS = new Set(['.git', '.github', '.claude', '.cursor', '.kimi', '.plugin', '.sources', 'node_modules'])
 
@@ -25,31 +26,19 @@ const DOT_DIRS = new Set(['.git', '.github', '.claude', '.cursor', '.kimi', '.pl
  * declared path may be (or pass through) a symlink whose target leaves the
  * suite root, which lexical resolution cannot see.
  */
-async function declaredSkillDirs(root: string, declared: unknown): Promise<string[]> {
+async function declaredSkillDirs(root: string, declared: unknown, errors: string[]): Promise<string[]> {
   const values = Array.isArray(declared) ? declared : [declared]
   const dirs: string[] = []
-  const realRoot = await realpath(root).catch(() => root)
   for (const value of values) {
-    if (typeof value !== 'string' || value === '') continue
+    if (typeof value !== 'string' || value === '') {
+      if (declared !== undefined) errors.push('skills: paths must be non-empty strings')
+      continue
+    }
     const cleaned = value.replace(/^\.\//, '')
-    const path = resolve(root, cleaned)
-    // A missing path is not an escape; the discovery walk reports it absent.
-    const realPath = await realpath(path).catch(() => undefined)
-    if (realPath === undefined) continue
-    if (isWithin(realRoot, realPath)) dirs.push(path)
+    const path = await componentPath(root, cleaned, errors)
+    if (path !== undefined) dirs.push(path)
   }
   return dirs
-}
-
-/**
- * Whether `candidate` stays inside `root` once both are resolved. Callers pass
- * resolved paths: a sibling directory (`<root>-evil`) and any `../` escape
- * must be rejected — a bare string-prefix test admits both.
- */
-function isWithin(root: string, candidate: string): boolean {
-  if (candidate === root) return true
-  const separator = candidate.includes('\\') && !candidate.includes('/') ? '\\' : '/'
-  return candidate.startsWith(`${root}${separator}`)
 }
 
 /** Discover SKILL.md files under the suite's skills directory, up to 3 levels deep. */
@@ -59,18 +48,25 @@ export async function discoverSkills(root: string, errors: string[], declared?: 
   const rootName = root.split(/[\\/]/).at(-1) ?? 'plugin'
   const rootParsed = await parseOneSkill(rootSkill, root, rootName, errors)
   if (rootParsed !== undefined) skills.push(rootParsed)
-  const skillsDirs = await declaredSkillDirs(root, declared)
-  if (skillsDirs.length === 0) {
+  const skillsDirs = await declaredSkillDirs(root, declared, errors)
+  if (declared === undefined) {
     const fallback = join(root, 'skills')
     if (await isDirectory(fallback)) skillsDirs.push(fallback)
   }
-  const seen = new Set<string>()
+  const seen = new Set<string>(skills.map(skill => skill.name))
   const pushUnique = (skill: SuiteSkill | undefined): void => {
     if (skill === undefined || seen.has(skill.name)) return
     seen.add(skill.name)
     skills.push(skill)
   }
   for (const skillsDir of skillsDirs) {
+    if (await isFile(skillsDir)) {
+      pushUnique(await parseOneSkill(skillsDir, dirname(skillsDir), '', errors))
+      continue
+    }
+    for (const name of await listMdFiles(skillsDir)) {
+      pushUnique(await parseOneSkill(join(skillsDir, name), skillsDir, name.replace(/\.md$/, ''), errors))
+    }
     // A declared path may be one skill directory (a manifest listing
     // individual skills, e.g. mattpocock) or a container of skills.
     if (await isFile(join(skillsDir, 'SKILL.md'))) {
@@ -148,26 +144,47 @@ async function parseOneSkill(file: string, directory: string, fallbackName: stri
 }
 
 /** Read the suite's MCP config: `mcp.json` or `.mcp.json`, else the winning manifest's inline `mcpServers`. */
-export async function discoverMcp(root: string, errors: string[]): Promise<McpSuiteConfig | undefined> {
-  for (const name of ['mcp.json', '.mcp.json']) {
-    const path = join(root, name)
-    if (!(await isFile(path))) continue
-    let raw: unknown
-    try {
-      raw = JSON.parse(await readFile(path, 'utf8'))
-    } catch (error) {
-      errors.push(`${name} unparsable: ${error instanceof Error ? error.message : String(error)}`)
-      return undefined
-    }
-    const result = await validateMcpJson(root, raw, { strict: name === 'mcp.json' })
+export async function discoverMcp(root: string, errors: string[], manifest?: SuiteManifest): Promise<McpSuiteConfig | undefined> {
+  const resolved = manifest ?? (await readManifest(root, errors, undefined))
+  const layout = resolved?.layout
+  const names =
+    layout === 'zcode'
+      ? ['.mcp.json']
+      : layout === 'qoder'
+        ? ['.mcp.json', 'mcp.json']
+        : layout === 'github-copilot' || layout === 'universal'
+          ? ['.mcp.json', '.github/mcp.json', 'mcp.json']
+          : layout === 'codex' || layout === 'claude-code'
+            ? ['.mcp.json', 'mcp.json']
+            : layout === 'cursor'
+              ? ['mcp.json']
+              : ['mcp.json', '.mcp.json']
+  const declared = resolved?.components?.mcpServers
+  const fallback = layout === 'kimi' ? undefined : await firstComponentFile(root, names)
+  const additive = layout === 'zcode' || layout === 'claude-code'
+  const values =
+    declared === undefined
+      ? fallback === undefined
+        ? []
+        : [fallback]
+      : [...(additive && fallback !== undefined ? [fallback] : []), ...(Array.isArray(declared) ? declared : [declared])]
+  if (values.length === 0) return undefined
+  const documents = await componentDocuments(root, values, errors)
+  if (documents === undefined) return undefined
+  const servers: Record<string, McpServer> = Object.create(null) as Record<string, McpServer>
+  let schema = ''
+  for (const document of documents) {
+    const isBareFile = document.path === join(root, 'mcp.json')
+    const strict = isBareFile && (layout === 'agent-plugin-v1' || (declared === undefined && layout !== 'cursor' && layout !== 'qoder'))
+    const result = await validateMcpJson(root, document.value, { strict })
     errors.push(...result.errors)
-    return result.config
+    if (result.config === undefined) return undefined
+    if (result.config !== undefined) {
+      Object.assign(servers, result.config.servers)
+      schema = result.config.schema
+    }
   }
-  const inline = await declaredMcpServers(root)
-  if (inline === undefined) return undefined
-  const result = await validateMcpJson(root, { mcpServers: inline }, { strict: false })
-  errors.push(...result.errors)
-  return result.config
+  return { schema, servers }
 }
 
 /** Count surfaces for a suite; mcp counts only validated servers, lsp counts inline servers plus directory entries. */

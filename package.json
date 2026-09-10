@@ -93,14 +93,19 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-hooks-claude-code": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.1.2-rc.1",
     "@deepseek-ai/dsh-mcp-client": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-skill": "^0.1.2-rc.1"
+    "@deepseek-ai/dsh-skill": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.1.2-rc.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-mcp-client": {
       "optional": true
     },
     "@deepseek-ai/dsh-hooks-claude-code": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
       "optional": true
     }
   },
@@ -109,6 +114,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "ajv": "^8.17.1",
     "fflate": "^0.8.3",
+    "smol-toml": "^1.8.0",
     "yaml": "^2.7.0",
     "zod": "^4.4.3"
   },
@@ -119,6 +125,7 @@
     "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
     "@deepseek-ai/dsh-mcp-client": "0.1.2-rc.1",
     "@deepseek-ai/dsh-skill": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
     "@eslint/js": "^9.39.5",
     "@tsdown/css": "^0.22.14",
     "@types/node": "^22.15.0",

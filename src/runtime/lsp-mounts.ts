@@ -29,6 +29,7 @@ export interface LspMountDiagnostic {
 }
 
 interface LiveMount {
+  fingerprint: string
   suiteId: string
   serverKeys: string[]
   disposer: () => void | Promise<void>
@@ -105,6 +106,8 @@ export class LspMountRegistry {
   private readonly lastDiagnostics = new Map<string, LspMountDiagnostic>()
   /** Direct (user-configured) server provider; defaults to none. */
   private directProvider: () => Promise<Record<string, import('../model/types.js').LspServerSpec>> = async () => ({})
+  private disabledProvider: () => Promise<Set<string>> = async () => new Set()
+  private disabledSnapshot = new Set<string>()
 
   constructor(
     private readonly ctx: Context,
@@ -137,6 +140,8 @@ export class LspMountRegistry {
     const active = enabledSuites.filter(suite => suite.activeSurfaces?.lsp !== false)
     const wanted = new Map<string, { suite: Suite; config: Record<string, LspStdioServerConfig> }>()
     const diagnostics: LspMountDiagnostic[] = []
+    const disabled = await this.disabledProvider()
+    this.disabledSnapshot = new Set(disabled)
     for (const suite of active) {
       const servers = Object.values(suite.lsp?.servers ?? {})
       if (servers.length === 0) continue
@@ -145,8 +150,8 @@ export class LspMountRegistry {
       // otherwise shadow each other's mount and diagnostics.
       const key = qualifiedSuiteId(suite.sourceId, suite.id)
       const config: Record<string, LspStdioServerConfig> = {}
-      for (const spec of servers) config[`${key}/${spec.key}`] = toLspServerConfig(spec)
-      wanted.set(key, { suite, config })
+      for (const spec of servers) if (!disabled.has(`${key}/${spec.key}`)) config[`${key}/${spec.key}`] = toLspServerConfig(spec)
+      if (Object.keys(config).length > 0) wanted.set(key, { suite, config })
     }
     // Direct user-configured servers ride the same mount path under the
     // sentinel suite id, so their lifecycle (retries, diagnostics, disposal)
@@ -155,24 +160,25 @@ export class LspMountRegistry {
     const directKeys = Object.keys(direct)
     if (directKeys.length > 0) {
       const config: Record<string, LspStdioServerConfig> = {}
-      for (const [key, spec] of Object.entries(direct)) config[`${DIRECT_LSP_SUITE_ID}/${key}`] = toLspServerConfig(spec)
-      wanted.set(DIRECT_LSP_SUITE_ID, {
-        suite: {
-          sourceId: '',
-          id: DIRECT_LSP_SUITE_ID,
-          root: '',
-          manifest: { layout: 'claude-code', path: '', id: DIRECT_LSP_SUITE_ID, name: DIRECT_LSP_SUITE_ID },
-          skills: [],
-          surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: directKeys.length },
-          dimension: 'user',
-          enabled: true,
-          errors: []
-        },
-        config
-      })
+      for (const [key, spec] of Object.entries(direct)) if (!disabled.has(`${DIRECT_LSP_SUITE_ID}/${key}`)) config[`${DIRECT_LSP_SUITE_ID}/${key}`] = toLspServerConfig(spec)
+      if (Object.keys(config).length > 0)
+        wanted.set(DIRECT_LSP_SUITE_ID, {
+          suite: {
+            sourceId: '',
+            id: DIRECT_LSP_SUITE_ID,
+            root: '',
+            manifest: { layout: 'claude-code', path: '', id: DIRECT_LSP_SUITE_ID, name: DIRECT_LSP_SUITE_ID },
+            skills: [],
+            surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: directKeys.length },
+            dimension: 'user',
+            enabled: true,
+            errors: []
+          },
+          config
+        })
     }
     for (const [key, live] of [...this.live]) {
-      if (!wanted.has(key)) {
+      if (!wanted.has(key) || live.fingerprint !== JSON.stringify(wanted.get(key)!.config)) {
         const reason = await this.unmount(key, live)
         this.lastDiagnostics.delete(key)
         if (reason !== undefined) diagnostics.push({ suiteId: key, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
@@ -198,6 +204,12 @@ export class LspMountRegistry {
   /** Install the direct (user-configured) server provider used at reconcile time. */
   setDirectProvider(provider: () => Promise<Record<string, import('../model/types.js').LspServerSpec>>): void {
     this.directProvider = provider
+  }
+  setDisabledProvider(provider: () => Promise<Set<string>>): void {
+    this.disabledProvider = provider
+  }
+  disabledServers(): Set<string> {
+    return new Set(this.disabledSnapshot)
   }
 
   /** The latest mount diagnostic per suite, for the LSP status surface. */
@@ -245,7 +257,7 @@ export class LspMountRegistry {
         code: conflict ? 'seam-conflict' : 'mount-failed'
       }
     }
-    this.live.set(key, { suiteId: key, serverKeys: Object.keys(servers), disposer: () => handle.dispose() })
+    this.live.set(key, { fingerprint: JSON.stringify(servers), suiteId: key, serverKeys: Object.keys(servers), disposer: () => handle.dispose() })
     return undefined
   }
 

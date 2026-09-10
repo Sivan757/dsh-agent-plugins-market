@@ -28,6 +28,8 @@ export class RuntimeReconciler {
   private readonly commands: CommandMountRegistry
   private readonly hooks: HooksMountRegistry
   private readonly lspRegistry: LspMountRegistry
+  private readonly queues = new Map<keyof Omit<RuntimeDiagnostics, 'errors'>, Promise<void>>()
+  private disposed = false
 
   constructor(ctx: Context, dataRoot: string, t: HostTranslate = bindHostLocale(undefined)) {
     this.mcp = new McpMountRegistry(ctx, dataRoot)
@@ -75,35 +77,44 @@ export class RuntimeReconciler {
   async reconcile(enabledSuites: readonly Suite[]): Promise<RuntimeDiagnostics> {
     const suites = [...enabledSuites]
     const diagnostics: RuntimeDiagnostics = { mcp: [], commands: [], hooks: [], lsp: [], errors: [] }
-    try {
-      diagnostics.mcp = await this.mcp.reconcile(suites)
-    } catch (error) {
-      diagnostics.errors.push({ surface: 'mcp', reason: messageOf(error) })
+    if (this.disposed) return diagnostics
+    const reconcileSurface = <K extends keyof Omit<RuntimeDiagnostics, 'errors'>>(surface: K, reconcile: () => Promise<RuntimeDiagnostics[K]>): Promise<void> => {
+      const run = (this.queues.get(surface) ?? Promise.resolve()).then(async () => {
+        if (this.disposed) return
+        try {
+          diagnostics[surface] = await reconcile()
+        } catch (error) {
+          diagnostics.errors.push({ surface, reason: messageOf(error) })
+        }
+      })
+      this.queues.set(surface, run)
+      return run
     }
-    try {
-      diagnostics.commands = await this.commands.reconcile(suites)
-    } catch (error) {
-      diagnostics.errors.push({ surface: 'commands', reason: messageOf(error) })
-    }
-    try {
-      diagnostics.hooks = await this.hooks.reconcile(suites)
-    } catch (error) {
-      diagnostics.errors.push({ surface: 'hooks', reason: messageOf(error) })
-    }
-    try {
-      diagnostics.lsp = await this.lspRegistry.reconcile(suites)
-    } catch (error) {
-      diagnostics.errors.push({ surface: 'lsp', reason: messageOf(error) })
-    }
+    // Network-backed MCP startup must not delay local commands, hooks or LSP.
+    // Each surface retains its own order when catalog mutations overlap.
+    await Promise.all([
+      reconcileSurface('mcp', () => this.mcp.reconcile(suites)),
+      reconcileSurface('commands', () => this.commands.reconcile(suites)),
+      reconcileSurface('hooks', () => this.hooks.reconcile(suites)),
+      reconcileSurface('lsp', () => this.lspRegistry.reconcile(suites))
+    ])
     return diagnostics
   }
 
   /** Dispose all live mounts and registrations. */
   async dispose(): Promise<void> {
-    await this.mcp.disposeAll()
-    await this.hooks.disposeAll()
-    await this.lspRegistry.disposeAll()
-    this.commands.disposeAll()
+    this.disposed = true
+    const disposeSurface = async (surface: keyof Omit<RuntimeDiagnostics, 'errors'>, dispose: () => void | Promise<void>): Promise<void> => {
+      await this.queues.get(surface)
+      await dispose()
+    }
+    await Promise.all([
+      disposeSurface('mcp', () => this.mcp.disposeAll()),
+      disposeSurface('commands', () => this.commands.disposeAll()),
+      disposeSurface('hooks', () => this.hooks.disposeAll()),
+      disposeSurface('lsp', () => this.lspRegistry.disposeAll())
+    ])
+    this.queues.clear()
   }
 }
 

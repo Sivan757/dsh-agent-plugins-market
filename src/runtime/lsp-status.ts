@@ -23,6 +23,7 @@ export const DIRECT_LSP_SUITE_ID = 'direct'
 export interface LspMountStatusSource {
   diagnosticsSnapshot(): Map<string, LspMountDiagnostic>
   hasLiveMounts(): boolean
+  disabledServers?(): Set<string>
 }
 
 /** The direct servers table the aggregator merges in (structural, for tests). */
@@ -56,6 +57,7 @@ function deriveState(disabled: boolean, diagnostic: LspMountDiagnostic | undefin
 export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatusSource, direct: LspDirectServersSource = { servers: {}, errors: [] }): LspStatusPayload {
   const diagnostics = registry.diagnosticsSnapshot()
   const anyLive = registry.hasLiveMounts()
+  const disabledServers = registry.disabledServers?.() ?? new Set<string>()
   const entries: LspStatusEntry[] = []
   const mountedSuiteIds = new Set<number | string>()
   for (const suite of suites) {
@@ -79,7 +81,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
         command: spec.command,
         args: spec.args,
         extensions: spec.extensionToLanguage,
-        state,
+        state: disabled || disabledServers.has(`${suiteKey}/${spec.key}`) ? 'disabled' : state,
         ...(reason === undefined ? {} : { reason }),
         ...(retryable === undefined ? {} : { retryable })
       })
@@ -101,7 +103,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
       command: spec.command,
       args: spec.args,
       extensions: spec.extensionToLanguage,
-      state: directState,
+      state: disabledServers.has(`${DIRECT_LSP_SUITE_ID}/${spec.key}`) ? 'disabled' : directState,
       ...(directReason === undefined ? {} : { reason: directReason }),
       ...(directRetryable === undefined ? {} : { retryable: directRetryable })
     })

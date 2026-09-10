@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/claude-code/plugin.schema.json",
+  "title": "Claude Code Plugin Manifest",
+  "description": "Plugin manifest accepted by Claude Code at .claude-plugin/plugin.json. The manifest is optional: when omitted the client discovers components from default locations and derives the name from the directory. Authored from the official plugin reference; Anthropic publishes no JSON Schema (the $schema URL the official marketplace itself uses returns 404).",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Source: https://code.claude.com/docs/en/plugins-reference. Unrecognized top-level fields are ignored with a warning (--strict turns them into errors), so this schema is open. Paths are relative to the plugin root and must begin with ./ (skills also accepts \".\"). Claude Code is not listed among agent-plugins.org compatible clients.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string", "description": "Editor autocomplete only; ignored at load. The docs cite https://json.schemastore.org/claude-code-plugin-manifest.json." },
+    "name": {
+      "type": "string",
+      "description": "Kebab-case unique identifier; namespaces the plugin's components as <plugin>:<component>."
+    },
+    "displayName": { "type": "string", "description": "Human-readable UI name; falls back to name and is never used for lookup." },
+    "version": { "type": "string", "description": "Semantic version. When both the manifest and a marketplace entry declare a version, the manifest wins without warning." },
+    "description": { "type": "string" },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "homepage": { "type": "string" },
+    "repository": { "type": "string" },
+    "license": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" }, "description": "A wrong type is a load error." },
+    "metadata": { "type": "object", "description": "Free-form; Claude Code does not read it." },
+    "defaultEnabled": { "type": "boolean", "default": true, "description": "Ship the plugin disabled. A marketplace entry value takes precedence." },
+    "skills": { "$ref": "#/$defs/pathList", "description": "Adds to the default skills/ scan." },
+    "commands": { "$ref": "#/$defs/pathList", "description": "Replaces the default commands/ directory." },
+    "agents": { "$ref": "#/$defs/pathList", "description": "Replaces the default agents/ directory." },
+    "workflows": { "$ref": "#/$defs/pathList", "description": "Replaces the default workflows/ directory." },
+    "outputStyles": { "$ref": "#/$defs/pathList", "description": "Replaces the default output-styles/ directory." },
+    "hooks": { "$ref": "#/$defs/configOrPath", "description": "Path(s) to a hooks configuration file or inline config. Default hooks/hooks.json." },
+    "mcpServers": { "$ref": "#/$defs/configOrPath", "description": "Path(s) to an MCP configuration file or inline config. Default .mcp.json; inline servers are additive." },
+    "lspServers": { "$ref": "#/$defs/configOrPath", "description": "Path(s) to an LSP configuration file or inline config. Default .lsp.json." },
+    "experimental": {
+      "type": "object",
+      "description": "Newer home for themes and monitors; the top-level spellings still work but warn.",
+      "properties": {
+        "themes": { "$ref": "#/$defs/pathList" },
+        "monitors": { "$ref": "#/$defs/pathList" }
+      },
+      "additionalProperties": true
+    },
+    "themes": { "$ref": "#/$defs/pathList", "description": "Deprecated top-level spelling of experimental.themes." },
+    "monitors": { "$ref": "#/$defs/pathList", "description": "Deprecated top-level spelling of experimental.monitors." },
+    "userConfig": {
+      "type": "object",
+      "description": "Options prompted when the plugin is enabled. Referenced as ${user_config.<key>}; exported as CLAUDE_PLUGIN_OPTION_<KEY>. Shell-form hooks, monitor commands, and MCP headersHelper reject the substitution.",
+      "additionalProperties": { "$ref": "#/$defs/userConfigOption" }
+    },
+    "channels": { "type": "array", "description": "Message-channel declarations; each entry's server must match a key in mcpServers." },
+    "dependencies": {
+      "type": "array",
+      "description": "Plugins this one depends on.",
+      "items": {
+        "anyOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "properties": { "name": { "type": "string" }, "version": { "type": "string" } },
+            "required": ["name"],
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "settings": { "type": "object", "description": "Default settings. The settings.json file takes priority over this field." }
+  },
+  "required": ["name"],
+  "additionalProperties": true,
+  "$defs": {
+    "pathList": {
+      "description": "A plugin-relative path or an array of them; each must begin with ./.",
+      "anyOf": [
+        { "type": "string", "pattern": "^\\." },
+        { "type": "array", "items": { "type": "string", "pattern": "^\\." } }
+      ]
+    },
+    "configOrPath": {
+      "description": "A plugin-relative path, an array of paths, or inline configuration.",
+      "anyOf": [{ "type": "string", "pattern": "^\\." }, { "type": "array" }, { "type": "object" }]
+    },
+    "userConfigOption": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["string", "number", "boolean", "directory", "file"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "sensitive": { "type": "boolean" },
+        "required": { "type": "boolean" },
+        "default": {},
+        "multiple": { "type": "boolean", "description": "String type only." },
+        "min": { "type": "number", "description": "Number type only." },
+        "max": { "type": "number", "description": "Number type only." }
+      },
+      "required": ["type", "title", "description"],
+      "additionalProperties": true
+    }
+  }
+}

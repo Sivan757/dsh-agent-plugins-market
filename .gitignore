@@ -7,3 +7,7 @@ client/*.css
 .DS_Store
 scripts/npm-token-setup.sh
 coverage/
+# playwright-cli capture state
+.playwright-cli/
+# IDE state
+.idea/

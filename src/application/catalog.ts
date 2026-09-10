@@ -16,17 +16,20 @@ import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import { archiveInstall } from '../catalog/archive.js'
 import { gitClone, gitCurrentBranch, gitHead, gitRemoteUrl, gitRemove, gitSetRemoteUrl, gitSync, type GitOptions } from '../catalog/git.js'
 import { buildMcpStatus, type McpToolSnapshot } from '../runtime/mcp-status.js'
+import { addUserMcpServer, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from '../runtime/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import { buildLspStatus, type LspMountStatusSource } from '../runtime/lsp-status.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
-import { loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import { loadDisabledLspServers, saveDisabledLspServers } from '../runtime/lsp-server-state.js'
+import { applyOverride, loadSuiteOverrides, mergeOverridePatch, saveSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from '../runtime/server-config.js'
 import { probeHostMcpClient, type HostMcpClientProbe, type McpBackend } from '../runtime/mcp-backend.js'
 import { githubCloneUrl, resolveRegion, type DownloadRegionSetting, type EffectiveRegion } from '../runtime/regions.js'
 import { readLocalePreference } from '../runtime/host-locale.js'
-import { redactMcpOverrides } from '../runtime/mcp-redaction.js'
+import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
-import type { OverviewPayload, SkillContent, SourceOverview, SuiteDetail } from '../contracts/market.js'
+import type { OverviewPayload, ServerConfigPayload, SkillContent, SourceOverview, SuiteDetail } from '../contracts/market.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
 import {
   deriveSourceIdCandidates,
@@ -118,12 +121,13 @@ export class Catalog {
    * discovery (cheap mapping) instead of re-walking every checkout — a full
    * rescan of a 2,500-suite catalog costs ~1s and UI mutations happen in
    * bursts. Content-changing mutations (add / update / remove / adopt /
-   * refresh / acquire) set {@link scanCacheDirty}, which bypasses the cache
-   * until the next scan; the TTL bounds staleness for in-place working-tree
+   * refresh / acquire) clear every cached discovery generation; the TTL
+   * bounds staleness for in-place working-tree
    * edits of local sources.
    */
   private readonly scanCache = new Map<string, { at: number; discovered: Suite[]; scanNotes: Record<string, string[]> }>()
-  private scanCacheDirty = true
+  private scanGeneration = 0
+  private readonly scanPromises = new Map<string, Promise<{ suites: Suite[]; scanNotes: Record<string, string[]> }>>()
   private static readonly SCAN_CACHE_TTL_MS = 30_000
   private static readonly SCAN_CACHE_MAX_ENTRIES = 8
   /**
@@ -157,6 +161,14 @@ export class Catalog {
   }
   /** Download-region source (the host settings namespace scope). */
   private downloadRegionProvider: () => Promise<DownloadRegionSetting> = async () => 'auto'
+  private scanProjectLayouts = true
+
+  /** Apply the host's project-layout switch and invalidate every project snapshot. */
+  async setScanProjectLayouts(enabled: boolean): Promise<void> {
+    if (this.scanProjectLayouts === enabled) return
+    this.scanProjectLayouts = enabled
+    await this.notifyChanged()
+  }
 
   constructor(private readonly options: CatalogOptions) {
     this.statePath = join(options.userRoot, STATE_FILE_NAME)
@@ -221,19 +233,118 @@ export class Catalog {
   /** Build the flat MCP service inventory for the status surface. */
   async mcpStatus(): Promise<McpStatusPayload> {
     const snapshot = await this.readUserCatalog()
-    return buildMcpStatus(snapshot.suites, this.mcpDiagnostics, this.toolSnapshotProvider(), await this.allMcpOverrides())
+    const suites = [...snapshot.suites, await loadUserMcpSuite(this.options.dataRoot)]
+    const payload = buildMcpStatus(suites, this.mcpDiagnostics, this.toolSnapshotProvider(), await this.allMcpOverrides(suites))
+    for (const entry of payload.entries)
+      if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
+        entry.kind = 'direct'
+        entry.managed = true
+      }
+    const oauthBackend = (await this.mcpBackend()) === 'builtin' && this.mcpReauthorizeAvailable()
+    for (const entry of payload.entries) {
+      const auth = entry.config?.auth as { enabled?: boolean } | undefined
+      entry.canReauthorize =
+        oauthBackend &&
+        (entry.kind === 'plugin' || entry.managed === true) &&
+        (entry.transport === 'sse' || entry.transport === 'streamable-http') &&
+        auth?.enabled !== false &&
+        !['disabled', 'foreign', 'orphaned'].includes(entry.state)
+    }
+    return payload
+  }
+
+  /** Persist a user-owned MCP service and reconcile its bridge mount. */
+  async addMcpServer(name: string, server: unknown): Promise<void> {
+    return this.enqueue(async () => {
+      await addUserMcpServer(this.options.dataRoot, name, server)
+      await this.notifyChanged(true)
+    })
+  }
+
+  /** Read effective service configuration without exposing credential literals. */
+  async serverConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
+    const config = await this.resolveServerConfig(kind, id)
+    return { kind, id, editable: true, config: redactMcpConfig(config.value) as Record<string, unknown> }
+  }
+
+  private async resolveServerConfig(kind: 'mcp' | 'lsp', id: string) {
+    if (kind === 'lsp' && id.startsWith('direct/')) {
+      const key = id.slice(7)
+      const server = (await loadLspServers(this.options.dataRoot)).servers[key]
+      if (server === undefined) throw new Error('LSP server not found')
+      return { key, suiteKey: 'direct', root: this.options.dataRoot, value: lspConfig(server) }
+    }
+    const suites = [...(await this.readUserCatalog()).suites, await loadUserMcpSuite(this.options.dataRoot)]
+    for (const suite of await applyLspOverrides(this.options.dataRoot, suites)) {
+      const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
+      if (kind === 'mcp') {
+        for (const [key, server] of Object.entries(suite.mcp?.servers ?? {})) {
+          if (id !== `plugin:${suiteKey}/${key}`) continue
+          const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteKey)
+          return { key, suiteKey, root: suite.root, value: { ...applyOverride(server, overrides[key]) } }
+        }
+      } else {
+        for (const [key, server] of Object.entries(suite.lsp?.servers ?? {})) {
+          if (id === `${suiteKey}/${key}`) return { key, suiteKey, root: suite.root, value: lspConfig(server) }
+        }
+      }
+    }
+    throw new Error('service configuration is not managed by this plugin')
+  }
+
+  /** Validate a complete replacement before writing; plugin checkouts remain untouched. */
+  async saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown): Promise<void> {
+    return this.enqueue(async () => {
+      const current = await this.resolveServerConfig(kind, id)
+      const value = restoreRedactedConfig(config, current.value)
+      if (kind === 'mcp') {
+        const server = await validateServerMcp(current.root, current.key, value)
+        const overrides = await loadSuiteOverrides(this.options.dataRoot, current.suiteKey)
+        const enabled = overrides[current.key]?.enabled
+        overrides[current.key] = { config: server, ...(enabled === undefined ? {} : { enabled }) }
+        await saveSuiteOverrides(this.options.dataRoot, current.suiteKey, overrides)
+      } else {
+        const server = validateServerLsp(current.key, value)
+        if (current.suiteKey === 'direct') {
+          const direct = await loadLspServers(this.options.dataRoot)
+          if (direct.errors.length > 0) throw new Error(direct.errors.join('; '))
+          direct.servers[current.key] = server
+          await saveLspServers(this.options.dataRoot, { lspServers: Object.fromEntries(Object.entries(direct.servers).map(([key, spec]) => [key, lspConfig(spec)])) })
+        } else await saveLspOverride(this.options.dataRoot, id, server)
+      }
+      await this.notifyChanged(true)
+    })
   }
 
   /** The LSP status surface: declared servers merged with mount diagnostics. */
   async lspStatus(): Promise<LspStatusPayload> {
     const snapshot = await this.readUserCatalog()
     const direct = await loadLspServers(this.options.dataRoot)
-    return buildLspStatus(snapshot.suites, this.lspStatusSource ?? { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false }, direct)
+    return buildLspStatus(
+      await applyLspOverrides(this.options.dataRoot, snapshot.suites),
+      this.lspStatusSource ?? { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
+      direct
+    )
   }
 
   /** The user's direct LSP server table (normalized specs). */
   async lspServers(): Promise<Record<string, import('../model/types.js').LspServerSpec>> {
     return (await loadLspServers(this.options.dataRoot)).servers
+  }
+
+  /** Create one direct LSP declaration without replacing other user servers. */
+  async addLspServer(name: string, config: unknown): Promise<void> {
+    return this.enqueue(async () => {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name)) throw new Error('invalid LSP server name')
+      const direct = await loadLspServers(this.options.dataRoot)
+      if (direct.errors.length > 0) throw new Error(direct.errors.join('; '))
+      if (Object.hasOwn(direct.servers, name)) throw new Error('LSP server already exists')
+      const spec = validateServerLsp(name, config)
+      await saveLspServers(this.options.dataRoot, {
+        lspServers: { ...Object.fromEntries(Object.entries(direct.servers).map(([key, value]) => [key, lspConfig(value)])), [name]: lspConfig(spec) }
+      })
+      await this.notifyChanged(true)
+    })
   }
 
   /** Validate and persist the user's direct LSP server table. */
@@ -242,6 +353,16 @@ export class Catalog {
       const { servers } = await saveLspServers(this.options.dataRoot, raw)
       await this.notifyChanged(true)
       return servers
+    })
+  }
+
+  async setLspServerEnabled(id: string, enabled: boolean): Promise<void> {
+    return this.enqueue(async () => {
+      const disabled = await loadDisabledLspServers(this.options.dataRoot)
+      if (enabled) disabled.delete(id)
+      else disabled.add(id)
+      await saveDisabledLspServers(this.options.dataRoot, disabled)
+      await this.notifyChanged(true)
     })
   }
 
@@ -262,10 +383,15 @@ export class Catalog {
     return this.enqueue(async () => {
       const suiteKey = qualifiedSuiteId(sourceId, suiteId)
       const source = this.state.sources.find(entry => entry.id === sourceId)
-      if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
-      const checkout = this.sourceCheckoutPath(source)
-      if (!(await isDirectory(checkout))) await this.acquire(source)
-      const suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
+      let suites: Suite[]
+      if (sourceId === USER_MCP_SOURCE && suiteId === USER_MCP_SUITE) {
+        suites = [await loadUserMcpSuite(this.options.dataRoot)]
+      } else {
+        if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
+        const checkout = this.sourceCheckoutPath(source)
+        if (!(await isDirectory(checkout))) await this.acquire(source)
+        suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
+      }
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.mcp?.servers[serverKey] === undefined) throw new Error(`server "${serverKey}" is not defined by suite "${suiteId}"`)
@@ -338,11 +464,10 @@ export class Catalog {
     this.downloadRegionProvider = provider
   }
 
-  /** All persisted MCP overrides keyed by qualified suite id (mount-time provider). */
-  async allMcpOverrides(): Promise<Map<string, McpSuiteOverrides>> {
-    const snapshot = await this.readUserCatalog()
+  /** MCP overrides for a supplied runtime selection, or the full market catalog when omitted. */
+  async allMcpOverrides(suites?: readonly Suite[]): Promise<Map<string, McpSuiteOverrides>> {
     const map = new Map<string, McpSuiteOverrides>()
-    for (const suite of snapshot.suites) {
+    for (const suite of suites ?? (await this.readUserCatalog()).suites) {
       const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
       const overrides = await loadSuiteOverrides(this.options.dataRoot, suiteKey)
       if (Object.keys(overrides).length > 0) map.set(suiteKey, overrides)
@@ -353,7 +478,7 @@ export class Catalog {
   /** Load persisted user state once at plugin activation. */
   async load(): Promise<void> {
     this.state = await loadState(this.statePath)
-    this.scanCacheDirty = true
+    this.invalidateScans()
     this.invalidateSnapshot(false)
   }
 
@@ -372,16 +497,22 @@ export class Catalog {
     // mirroring the project dimension's caching-disabled semantics.
     if (this.userSnapshotTtlMs <= 0) return this.buildSnapshot(this.state, 'user', this.options.userRoot)
     if (this.userSnapshot !== undefined && Date.now() < this.userSnapshotExpiresAt) return this.userSnapshot
-    this.userSnapshotPromise ??= this.buildSnapshot(this.state, 'user', this.options.userRoot)
+    if (this.userSnapshotPromise !== undefined) return this.userSnapshotPromise
+    const revision = this.revision
+    const generation = this.scanGeneration
+    const promise = this.buildSnapshot(this.state, 'user', this.options.userRoot)
       .then(snapshot => {
-        this.userSnapshot = snapshot
-        this.userSnapshotExpiresAt = Date.now() + this.userSnapshotTtlMs
+        if (revision === this.revision && generation === this.scanGeneration) {
+          this.userSnapshot = snapshot
+          this.userSnapshotExpiresAt = Date.now() + this.userSnapshotTtlMs
+        }
         return snapshot
       })
       .finally(() => {
-        this.userSnapshotPromise = undefined
+        if (this.userSnapshotPromise === promise) this.userSnapshotPromise = undefined
       })
-    return this.userSnapshotPromise
+    this.userSnapshotPromise = promise
+    return promise
   }
 
   /** Read one coherent project-dimension snapshot for a workspace cwd. */
@@ -392,13 +523,17 @@ export class Catalog {
     if (cached !== undefined && cached.expiresAt > Date.now()) return cached.snapshot
     const inFlight = this.projectSnapshotPromises.get(projectRoot)
     if (inFlight !== undefined) return inFlight
+    const revision = this.revision
+    const generation = this.scanGeneration
     const promise = this.buildProjectSnapshot(projectRoot)
       .then(snapshot => {
-        this.projectSnapshots.set(projectRoot, { snapshot, expiresAt: Date.now() + this.projectSnapshotTtlMs })
+        if (revision === this.revision && generation === this.scanGeneration) {
+          this.projectSnapshots.set(projectRoot, { snapshot, expiresAt: Date.now() + this.projectSnapshotTtlMs })
+        }
         return snapshot
       })
       .finally(() => {
-        this.projectSnapshotPromises.delete(projectRoot)
+        if (this.projectSnapshotPromises.get(projectRoot) === promise) this.projectSnapshotPromises.delete(projectRoot)
       })
     this.projectSnapshotPromises.set(projectRoot, promise)
     return promise
@@ -511,15 +646,23 @@ export class Catalog {
     }
   }
 
-  /** Enabled user-dimension suites from one user snapshot. */
+  /** Runtime discovery scans only sources containing an enabled install. No acquisition or network access. */
   async enabledUserSuites(): Promise<Suite[]> {
-    return (await this.readUserCatalog()).enabledSuites
+    const enabledSources = new Set(
+      Object.entries(this.state.installed)
+        .filter(([, entry]) => entry.enabled)
+        .map(([key]) => key.slice(0, key.indexOf('/')))
+    )
+    const sources = this.state.sources.filter(source => enabledSources.has(source.id))
+    const suites = sources.length === 0 ? [] : (await this.buildSnapshot({ ...this.state, sources }, 'user', this.options.userRoot)).enabledSuites
+    const direct = await loadUserMcpSuite(this.options.dataRoot)
+    return applyLspOverrides(this.options.dataRoot, Object.keys(direct.mcp!.servers).length === 0 ? suites : [...suites, direct])
   }
 
   /** Enabled user- and project-dimension suites for a workspace cwd. */
   async enabledSuitesForCwd(cwd: string): Promise<{ user: Suite[]; project: Suite[] }> {
-    const [user, project] = await Promise.all([this.readUserCatalog(), this.readProjectCatalog(cwd)])
-    return { user: user.enabledSuites, project: project.enabledSuites }
+    const [user, project] = await Promise.all([this.enabledUserSuites(), this.readProjectCatalog(cwd)])
+    return { user, project: project.enabledSuites }
   }
 
   /** All suites of one dimension. */
@@ -760,8 +903,16 @@ export class Catalog {
     })
   }
 
-  /** Remove a source, its install entries, and its managed checkout. */
-  async removeSource(sourceId: string): Promise<void> {
+  /**
+   * Remove a source and its install entries. `deleteCheckout` (the UI's
+   * "also delete the managed market directory" option) physically removes the
+   * `.sources/<id>` checkout — including an adopted one, since a directory
+   * under `.sources` is manager-owned storage. A `local` source whose URL
+   * points outside `.sources` is registration-only: its directory is never
+   * touched. Deleting the checkout is what keeps a removed source from
+   * reappearing as an unmanaged entry.
+   */
+  async removeSource(sourceId: string, deleteCheckout = false): Promise<void> {
     return this.enqueue(async () => {
       const source = this.state.sources.find(entry => entry.id === sourceId)
       this.state = {
@@ -771,10 +922,11 @@ export class Catalog {
       }
       await saveState(this.statePath, this.state)
       this.headCache.delete(sourceId)
-      // Adopted checkouts (manual clones) and local paths are user-owned
-      // directories; only self-acquired checkouts are deleted.
-      const userOwned = source !== undefined && (source.local === true || source.adopted === true)
-      if (!userOwned) await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
+      // A checkout under `.sources` is manager-owned even when it was first
+      // discovered/adopted. Only an explicit local path points outside the
+      // manager's storage and must remain untouched.
+      const externalLocal = source?.local === true && source.url !== sourceCheckoutDir(this.options.userRoot, sourceId)
+      if (!externalLocal && deleteCheckout) await gitRemove(sourceCheckoutDir(this.options.userRoot, sourceId))
       await this.notifyChanged()
     })
   }
@@ -920,8 +1072,18 @@ export class Catalog {
     await saveState(this.statePath, this.state)
     // New sources change the fingerprint, but their content arrives through
     // an acquire, so mark the scan cache dirty conservatively.
-    this.scanCacheDirty = true
+    this.invalidateScans()
     this.invalidateSnapshot(true)
+  }
+
+  /**
+   * Panel changed hook: the HTTP layer notifies after a user-panel mutation
+   * (skills / commands / agent personas). Catalog state is untouched — this
+   * only runs the change pipeline so the runtime remounts commands and the
+   * skill providers re-read their catalogs.
+   */
+  async notifyPanelsChanged(): Promise<void> {
+    await this.notifyChanged()
   }
 
   private async setInstalled(sourceId: string, suiteId: string, entry: InstalledEntry): Promise<void> {
@@ -977,26 +1139,37 @@ export class Catalog {
   }
 
   private async buildSnapshot(state: SuiteState, dimension: SuiteDimension, dimensionRoot: string, skipScanCache = false): Promise<CatalogSnapshot> {
-    const fingerprint = JSON.stringify([dimension, dimensionRoot, state.sources])
+    const fingerprint = JSON.stringify([dimension, dimensionRoot, state.sources, this.scanProjectLayouts])
     const cached = this.scanCache.get(fingerprint)
     // The user snapshot's TTL also bounds scan reuse: a snapshot rebuild that
     // replays a 30s scan cache would silently outlive its own staleness bound.
     const scanCacheTtl = dimension === 'user' ? Math.min(this.userSnapshotTtlMs, Catalog.SCAN_CACHE_TTL_MS) : Catalog.SCAN_CACHE_TTL_MS
-    const cacheFresh = !skipScanCache && !this.scanCacheDirty && cached !== undefined && Date.now() - cached.at < scanCacheTtl
+    const cacheFresh = !skipScanCache && cached !== undefined && Date.now() - cached.at < scanCacheTtl
     let discovered: Suite[]
     let scanNotes: Record<string, string[]>
     if (cacheFresh && cached !== undefined) {
       discovered = cached.discovered
       scanNotes = cached.scanNotes
     } else {
-      const result = await discoverSourceListWithNotes(state.sources, dimension, dimensionRoot)
+      const generation = this.scanGeneration
+      let pending = this.scanPromises.get(fingerprint)
+      if (pending === undefined) {
+        pending = discoverSourceListWithNotes(state.sources, dimension, dimensionRoot, this.scanProjectLayouts)
+        this.scanPromises.set(fingerprint, pending)
+      }
+      let result: Awaited<typeof pending>
+      try {
+        result = await pending
+      } finally {
+        if (this.scanPromises.get(fingerprint) === pending) this.scanPromises.delete(fingerprint)
+      }
       discovered = result.suites
       scanNotes = result.scanNotes
-      // The fresh scan satisfies the invalidation: content mutations mark the
-      // cache dirty, and the next scan (this one) makes it clean again.
-      this.scanCacheDirty = false
-      if (this.scanCache.size >= Catalog.SCAN_CACHE_MAX_ENTRIES) this.scanCache.clear()
-      this.scanCache.set(fingerprint, { at: Date.now(), discovered, scanNotes })
+      // A scan started before a content mutation must not repopulate its cache.
+      if (generation === this.scanGeneration) {
+        if (this.scanCache.size >= Catalog.SCAN_CACHE_MAX_ENTRIES) this.scanCache.clear()
+        this.scanCache.set(fingerprint, { at: Date.now(), discovered, scanNotes })
+      }
     }
     const suites = discovered.map(suite => {
       const installed = state.installed[installKey(suite.sourceId, suite.id)]
@@ -1006,7 +1179,11 @@ export class Catalog {
       return {
         ...suite,
         enabled,
-        activeSurfaces: effectiveSurfaces(installed?.surfaces),
+        activeSurfaces: {
+          ...effectiveSurfaces(installed?.surfaces),
+          ...(suite.manifest.layout === 'project-native' ? suite.activeSurfaces : {}),
+          ...(dimension === 'project' ? { lsp: false } : {})
+        },
         ...(installed?.lockCommit === undefined ? {} : { lockCommit: installed.lockCommit }),
         ...(installed?.installedAt === undefined ? {} : { installedAt: installed.installedAt })
       }
@@ -1026,6 +1203,13 @@ export class Catalog {
     this.userSnapshotExpiresAt = 0
     this.userSnapshotPromise = undefined
     this.projectSnapshots.clear()
+    this.projectSnapshotPromises.clear()
+  }
+
+  private invalidateScans(): void {
+    this.scanGeneration++
+    this.scanCache.clear()
+    this.scanPromises.clear()
   }
 
   /**
@@ -1035,7 +1219,7 @@ export class Catalog {
    * re-derives from cached discovery instead of rescanning the filesystem.
    */
   private async notifyChanged(keepScanCache = false): Promise<void> {
-    if (!keepScanCache) this.scanCacheDirty = true
+    if (!keepScanCache) this.invalidateScans()
     this.invalidateSnapshot(true)
     await this.options.onChanged()
     for (const listener of this.listeners) listener()

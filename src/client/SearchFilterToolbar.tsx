@@ -40,31 +40,45 @@ export interface SearchFilterToolbarProps {
 export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode {
   const nextView: SearchFilterToolbarView = props.view === 'grid' ? 'list' : 'grid'
   const nextViewLabel = nextView === 'grid' ? props.gridLabel : props.listLabel
-  return h('div', { className: props.className === undefined ? css.toolbar : `${css.toolbar} ${props.className}` },
+  return h(
+    'div',
+    { className: props.className === undefined ? css.toolbar : `${css.toolbar} ${props.className}`, 'data-panel-toolbar': true },
     h(Input, {
       className: css.search,
       value: props.search,
       placeholder: props.searchPlaceholder,
       'aria-label': props.searchLabel,
-      onChange: event => props.onSearchChange((event.target as HTMLInputElement).value),
+      onChange: event => props.onSearchChange((event.target as HTMLInputElement).value)
     }),
     h('div', { className: css.filterGap }),
-    ...props.filters.map(filter => h('button', {
-      key: filter.id,
-      type: 'button',
-      className: filter.active ? css.filterOn : css.filter,
-      title: filter.hint ?? `${filter.label} ${filter.count}`,
-      'aria-label': filter.hint ?? `${filter.label} ${filter.count}`,
-      onClick: filter.onSelect,
-    }, filter.icon, h('span', { className: css.filterCount }, filter.count))),
+    ...props.filters.map(filter =>
+      h(
+        'button',
+        {
+          key: filter.id,
+          type: 'button',
+          className: filter.active ? css.filterOn : css.filter,
+          title: filter.hint ?? `${filter.label} ${filter.count}`,
+          'aria-label': filter.hint ?? `${filter.label} ${filter.count}`,
+          'aria-pressed': filter.active,
+          onClick: filter.onSelect
+        },
+        filter.label,
+        h('span', { className: css.filterCount }, filter.count)
+      )
+    ),
     h('div', { className: css.viewGap }),
-    h('button', {
-      type: 'button',
-      className: css.viewSwitch,
-      'aria-label': nextViewLabel,
-      title: nextViewLabel,
-      onClick: () => props.onViewChange(nextView),
-    }, h(ViewIcon, { mode: nextView })),
+    h(
+      'button',
+      {
+        type: 'button',
+        className: css.viewSwitch,
+        'aria-label': nextViewLabel,
+        title: nextViewLabel,
+        onClick: () => props.onViewChange(nextView)
+      },
+      h(ViewIcon, { mode: nextView })
+    )
   )
 }
 
@@ -72,5 +86,12 @@ function ViewIcon({ mode }: { mode: SearchFilterToolbarView }): ReactNode {
   const common = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
   return mode === 'list'
     ? h('svg', common, h('path', { d: 'M3 4h10M3 8h10M3 12h10' }))
-    : h('svg', common, h('rect', { x: 2.5, y: 2.5, width: 4, height: 4, rx: .8 }), h('rect', { x: 9.5, y: 2.5, width: 4, height: 4, rx: .8 }), h('rect', { x: 2.5, y: 9.5, width: 4, height: 4, rx: .8 }), h('rect', { x: 9.5, y: 9.5, width: 4, height: 4, rx: .8 }))
+    : h(
+        'svg',
+        common,
+        h('rect', { x: 2.5, y: 2.5, width: 4, height: 4, rx: 0.8 }),
+        h('rect', { x: 9.5, y: 2.5, width: 4, height: 4, rx: 0.8 }),
+        h('rect', { x: 2.5, y: 9.5, width: 4, height: 4, rx: 0.8 }),
+        h('rect', { x: 9.5, y: 9.5, width: 4, height: 4, rx: 0.8 })
+      )
 }

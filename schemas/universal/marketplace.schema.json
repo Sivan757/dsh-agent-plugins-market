@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/universal/marketplace.schema.json",
+  "title": "Universal .plugin/ Marketplace Manifest (observed convention)",
+  "description": "Marketplace catalog at .plugin/marketplace.json, read by the OpenHands SDK (after .plugin/, before .claude-plugin/) and by GitHub Copilot CLI (second in its lookup order). There is no cross-vendor specification for this location; this schema is the union of the two consumers' field sets. Authored; nothing upstream is vendored.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: OpenHands/software-agent-sdk openhands/sdk/plugin/format/claude_code.py (MARKETPLACE_MANIFEST_DIRS = ['.plugin', '.claude-plugin']) ; https://docs.openhands.dev/sdk/guides/plugins ; https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference. OpenHands requires name and owner and treats plugins and skills as separate lists; Copilot CLI requires name, owner, and plugins.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "owner": {
+      "type": "object",
+      "properties": { "name": { "type": "string" }, "email": { "type": "string" }, "url": { "type": "string" } },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "description": { "type": "string" },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "pluginRoot": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "plugins": { "type": "array", "items": { "$ref": "#/$defs/entry" }, "description": "Plugin entries; required by Copilot CLI, optional (default []) for OpenHands." },
+    "skills": { "type": "array", "description": "OpenHands-only skill entries.", "items": { "$ref": "#/$defs/skillEntry" } }
+  },
+  "required": ["name", "owner"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Kebab-case plugin name." },
+        "source": { "$ref": "#/$defs/source" },
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "author": {
+          "anyOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "properties": { "name": { "type": "string" }, "email": { "type": "string" }, "url": { "type": "string" } },
+              "additionalProperties": true
+            }
+          ]
+        },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "homepage": { "type": "string" },
+        "repository": { "type": "string" },
+        "license": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "entry_command": { "type": "string", "description": "OpenHands entry command." },
+        "strict": {
+          "type": "boolean",
+          "default": true,
+          "description": "OpenHands: true requires the source to contain plugin.json; false lets this entry define the plugin inline."
+        },
+        "commands": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "agents": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "hooks": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "mcpServers": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "lspServers": { "anyOf": [{ "type": "string" }, { "type": "object" }] }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "skillEntry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "source": {
+      "description": "A local path, or an object describing a GitHub or git source.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "source": { "type": "string" },
+            "repo": { "type": "string" },
+            "url": { "type": "string" },
+            "ref": { "type": "string" },
+            "path": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

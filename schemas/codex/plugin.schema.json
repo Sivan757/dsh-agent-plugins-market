@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/codex/plugin.schema.json",
+  "title": "Codex Plugin Manifest (legacy .codex-plugin dialect)",
+  "description": "Codex reads four manifest paths in order: root plugin.json when it declares the agent-plugins.org v1.0.0 $schema, then .codex-plugin/plugin.json, .claude-plugin/plugin.json, .cursor-plugin/plugin.json. This schema describes the legacy nested dialect; root plugin.json is validated by the vendored agent-plugins.org schema in schemas/1.0.0/plugin.schema.json. Authored from the OpenAI Codex source; OpenAI publishes no JSON Schema for the legacy dialect.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: openai/codex codex-rs/core-plugins/src/manifest.rs, codex-rs/utils/plugins/src/plugin_namespace.rs, codex-rs/exec-server-protocol/src/protocol.rs (DISCOVERABLE_PLUGIN_MANIFEST_PATHS), and the bundled plugin-creator skill (plugin-json-spec.md, validate_plugin.py). The runtime deserializer and the scaffold validator disagree: the runtime reads hooks and commands, while validate_plugin.py rejects both. Fields the runtime reads are marked; interface is required by the scaffold validator only.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Plugin identifier. Falls back to the plugin-root directory name when absent. Runtime pattern: [A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*."
+    },
+    "id": { "type": "string", "description": "Accepted by the scaffold validator only; not read by the runtime deserializer." },
+    "version": { "type": "string", "description": "Semantic version. The scaffold validator requires it; the runtime defaults to None. Cachebuster form: <base>+codex.<token>." },
+    "description": { "type": "string" },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string", "description": "Must be an absolute https:// URL per the scaffold validator." }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "homepage": { "type": "string" },
+    "repository": { "type": "string" },
+    "license": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "skills": { "$ref": "#/$defs/pathList", "description": "Relative ./ paths to skill directories or files. Supplements default discovery rather than replacing it." },
+    "mcpServers": {
+      "description": "A path to an MCP configuration file, or an inline server map. The scaffold validator requires a path that normalizes to exactly .mcp.json; mcp.json without the dot is not accepted.",
+      "anyOf": [{ "type": "string" }, { "type": "object" }]
+    },
+    "apps": {
+      "type": "string",
+      "description": "Path to a .app.json file. Must exist when declared; the file must contain {\"apps\": {\"<key>\": {\"id\": string, \"category\"?: string}}}."
+    },
+    "hooks": {
+      "description": "Path(s) to hooks file(s) or inline hook configuration. Read by the runtime; rejected by the scaffold validator.",
+      "anyOf": [{ "type": "string" }, { "type": "array" }, { "type": "object" }]
+    },
+    "commands": { "$ref": "#/$defs/pathList", "description": "Read by the runtime for install-time command-to-skill migration; rejected by the scaffold validator." },
+    "interface": {
+      "type": "object",
+      "description": "UI and listing block. Required by the scaffold validator; optional for the runtime.",
+      "properties": {
+        "displayName": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "longDescription": { "type": "string" },
+        "developerName": { "type": "string" },
+        "category": { "type": "string" },
+        "capabilities": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "websiteURL": { "type": "string" },
+        "websiteUrl": { "type": "string", "description": "Alias of websiteURL." },
+        "privacyPolicyURL": { "type": "string" },
+        "termsOfServiceURL": { "type": "string" },
+        "defaultPrompt": {
+          "description": "Starter prompts. At most 3 are used; each is truncated at 128 characters.",
+          "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+        },
+        "brandColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "composerIcon": { "type": "string", "description": "Asset path; must be a real file in the archive." },
+        "logo": { "type": "string" },
+        "logoDark": { "type": "string" },
+        "screenshots": { "type": "array", "items": { "type": "string" }, "description": "PNG only, under ./assets/.", "default": [] }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "pathList": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    }
+  }
+}

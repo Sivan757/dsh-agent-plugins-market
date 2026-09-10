@@ -10,11 +10,12 @@ describe('host locale', () => {
   it('resolves en for en-prefixed preferences', () => {
     const t = bindHostLocale('en-US')
     expect(t('commandAcknowledged', { command: 'review', suite: 'demo' })).toBe('/review forwarded to the model for execution (demo)')
-    expect(t('agentCommandHint')).toBe('subagent')
+    expect(t('subagentCatalogCall')).toContain('subagents_run')
   })
 
-  it('interpolates params into agent definition titles', () => {
-    expect(bindHostLocale('zh')('agentDefinitionTitle', { suite: 'my-plugin' })).toContain('my-plugin')
+  it('provides explicit catalog replacement and clearing guidance in both languages', () => {
+    expect(bindHostLocale('zh')('subagentCatalogUpdated')).toContain('替代')
+    expect(bindHostLocale('en')('subagentCatalogEmpty')).toContain('Do not use role IDs')
   })
 
   it('reads locale.preference from a settings file when present', async () => {

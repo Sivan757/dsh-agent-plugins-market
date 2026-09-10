@@ -50,8 +50,33 @@ const connectedPayload = vi.hoisted(() => ({
   directObservationOnly: true
 }))
 
+/** Reconnect only appears for a genuine mount failure, so the retry test needs one. */
+const failedPayload = vi.hoisted(() => ({
+  entries: [
+    {
+      id: 'plugin:demo/service',
+      name: 'demo__service',
+      kind: 'plugin' as const,
+      state: 'failed' as const,
+      code: 'mount-failed' as const,
+      source: 'Demo Suite',
+      suiteId: 'demo',
+      serverKey: 'service',
+      transport: 'stdio',
+      endpoint: 'node server.js',
+      reason: 'connection refused',
+      tools: []
+    }
+  ],
+  observedAt: '',
+  totals: { all: 1, connected: 0, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 0 },
+  directObservationOnly: true
+}))
+
 vi.mock('../src/client/api.js', () => ({
   fetchMcpStatus: vi.fn().mockResolvedValue(statusPayload),
+  fetchServerConfig: vi.fn().mockResolvedValue({ kind: 'mcp', id: 'direct-observation', editable: false, config: {} }),
+  saveServerConfig: vi.fn(),
   fetchSuiteDetail: vi.fn(),
   fetchSkillContent: vi.fn(),
   postAction: vi.fn(),
@@ -111,6 +136,7 @@ describe('MCP status actions', () => {
 
   it('offers retry in the dialog footer and echoes the outcome in place', async () => {
     const api = await import('../src/client/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
     const el = await mountPanel()
 
     const card = [...el.querySelectorAll('[role="button"]')].find(node => node.textContent?.includes('demo__service'))
@@ -119,9 +145,20 @@ describe('MCP status actions', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
 
-    const retry = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpRetry'))
+    const retry = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpRetryConnection'))
     expect(retry).toBeDefined()
 
+    // A failed retry echoes the action failure in place, and the button stays
+    // available because the entry is still failed.
+    vi.mocked(api.retryMcpMounts).mockRejectedValueOnce(new Error('boom'))
+    await act(async () => {
+      retry!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).toContain('actionFail')
+
+    // A successful retry echoes success; the entry turns connected, so the
+    // reconnect action is no longer offered.
     vi.mocked(api.retryMcpMounts).mockResolvedValueOnce()
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(connectedPayload)
     await act(async () => {
@@ -130,13 +167,6 @@ describe('MCP status actions', () => {
     })
     expect(api.retryMcpMounts).toHaveBeenCalled()
     expect(document.body.textContent).toContain('mcpRetrySuccess')
-
-    // A failed retry echoes failure instead.
-    vi.mocked(api.retryMcpMounts).mockRejectedValueOnce(new Error('boom'))
-    await act(async () => {
-      retry!.click()
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-    expect(document.body.textContent).toContain('mcpRetryFailure')
+    expect([...document.body.querySelectorAll('button')].some(button => button.textContent?.includes('mcpRetryConnection'))).toBe(false)
   })
 })

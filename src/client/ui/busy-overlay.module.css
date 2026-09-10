@@ -1,0 +1,89 @@
+.overlay {
+  position: fixed;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  background: var(--dsw-alias-bg-mask-3);
+  backdrop-filter: blur(3px);
+  cursor: progress;
+  outline: none;
+  overflow: hidden;
+}
+.overlay[data-visible='false'] {
+  background: transparent;
+  backdrop-filter: none;
+}
+.overlay[data-visible='true'] {
+  animation: busy-enter 140ms ease-out;
+}
+.content {
+  width: min(360px, calc(100% - 32px));
+  box-sizing: border-box;
+  padding: 24px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.spinner {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  animation: busy-spin 900ms linear infinite;
+}
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+.hintViewport {
+  min-height: 54px;
+  width: 100%;
+  overflow: hidden;
+}
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  animation: busy-hint 300ms ease-out;
+  overflow-wrap: anywhere;
+}
+@keyframes busy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes busy-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes busy-hint {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .hint {
+    animation: none;
+  }
+  .spinner {
+    animation-duration: 2400ms;
+  }
+}

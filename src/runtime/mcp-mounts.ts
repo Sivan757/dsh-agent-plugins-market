@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto'
 import * as mcpBridge from './mcp-client/bridge.js'
 import type { McpBackend } from './mcp-backend.js'
 import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
-import { credentialRefsInServer, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
+import { credentialRefsInServer, deriveServerName, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
@@ -79,7 +79,8 @@ export class McpMountRegistry {
 
   constructor(
     private readonly ctx: Context,
-    private readonly pluginDataRoot: string
+    private readonly pluginDataRoot: string,
+    private readonly namespace?: string
   ) {}
 
   /** Install the per-suite overrides provider (suiteId -> overrides). */
@@ -156,7 +157,7 @@ export class McpMountRegistry {
       const { mounts, failures } = await toMcpMounts(suite, this.pluginDataRoot, suiteOverrides, resolver)
       for (const failure of failures) {
         diagnostics.push({
-          suiteId: suite.id,
+          suiteId: qualifiedSuiteId(suite.sourceId, suite.id),
           serverKey: failure.serverKey,
           reason: failure.reason,
           ...(failure.code === undefined ? {} : { code: failure.code }),
@@ -164,6 +165,8 @@ export class McpMountRegistry {
         })
       }
       for (const mount of mounts) {
+        // Bridge namespaces are reserved app-wide, even when tools are agent-scoped.
+        if (this.namespace !== undefined) mount.config.serverName = deriveServerName(mount.config.serverName, this.namespace)
         wanted.set(mountKey(mount.suiteId, mount.serverKey), { suite, serverKey: mount.serverKey, request: mount })
       }
     }
@@ -201,7 +204,7 @@ export class McpMountRegistry {
       // reported so a transient error does not shadow the final state.
       const failure = await this.mountWith(entry.request)
       if (failure !== undefined) {
-        diagnostics.push({ suiteId: entry.suite.id, serverKey: entry.serverKey, reason: failure.reason, code: failure.code })
+        diagnostics.push({ suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id), serverKey: entry.serverKey, reason: failure.reason, code: failure.code })
         // Foreign and duplicate skips are deterministic, not transient:
         // retrying them just burns the attempt budget and log lines. The
         // next full reconcile re-checks them anyway, so the self-heal path
@@ -301,6 +304,9 @@ export class McpMountRegistry {
     }
     let pluginModule: unknown = mcpBridge
     if ((await this.backendProvider()) === 'host') {
+      if (request.config.enabledTools !== undefined || request.config.disabledTools !== undefined || request.config.startupTimeoutMs !== undefined) {
+        return { reason: 'native MCP tool filters and startup timeouts require the built-in backend; host compatibility mode cannot enforce them', code: 'mount-failed' }
+      }
       if (request.config.transport === 'sse') {
         return {
           reason: 'the host dsh-mcp-client does not support the legacy SSE transport — switch the MCP backend back to the built-in client for this server',

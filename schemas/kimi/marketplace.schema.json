@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/kimi/marketplace.schema.json",
+  "title": "Kimi Code Marketplace Manifest",
+  "description": "Marketplace catalog for the current Kimi CLI (kimi-code). The default catalog is https://code.kimi.com/kimi-code/plugins/marketplace.json, overridable with the KIMI_CODE_PLUGIN_MARKETPLACE_URL environment variable or /plugins marketplace <source>. Authored from MoonshotAI's official source; Kimi publishes no JSON Schema.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: MoonshotAI/kimi-code docs/en/customization/plugins.md and packages/agent-core-v2/src/app/plugin/marketplace.ts. Relative sources resolve against the marketplace URL when remote, or against the marketplace file's directory when local. The legacy kimi-cli has no marketplace.",
+  "type": "object",
+  "properties": {
+    "version": { "type": "string", "description": "Used for update checks via semantic version comparison." },
+    "plugins": { "type": "array", "items": { "$ref": "#/$defs/entry" }, "description": "Plugin catalog entries; required." }
+  },
+  "required": ["plugins"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Registration key." },
+        "source": { "type": "string", "description": "Plugin location. Aliases url and downloadUrl are accepted; the first non-empty value wins." },
+        "url": { "type": "string", "description": "Alias of source." },
+        "downloadUrl": { "type": "string", "description": "Alias of source." },
+        "displayName": { "type": "string", "description": "Falls back to name, then id. Alias name is accepted." },
+        "name": { "type": "string", "description": "Alias of displayName." },
+        "tier": { "enum": ["official", "curated"] },
+        "version": { "type": "string", "description": "Derived from a GitHub tree, commit, or releases/tag URL when present." },
+        "description": { "type": "string", "description": "Alias shortDescription is accepted." },
+        "shortDescription": { "type": "string", "description": "Alias of description." },
+        "homepage": { "type": "string", "description": "Alias websiteURL is accepted." },
+        "websiteURL": { "type": "string", "description": "Alias of homepage." },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "type": { "type": "string", "description": "plugin; legacy aliases managed and guide are accepted." },
+        "builtIn": { "type": "boolean", "description": "Declared in the TypeScript interface but not read by the parser." }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": true
+    }
+  }
+}

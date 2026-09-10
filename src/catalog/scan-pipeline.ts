@@ -24,6 +24,7 @@ import type { Suite } from '../model/types.js'
 
 /** One filter's work context: the checkout and its identity. */
 export interface ScanContext {
+  marketplacePath?: string
   /** Absolute path of the source checkout. */
   checkout: string
   /** The configured source id suites will be attributed to. */
@@ -68,6 +69,7 @@ export interface ScanAttempt {
 
 /** The full outcome of scanning one checkout. */
 export interface ScanResult {
+  marketplacePath?: string
   suites: Suite[]
   attempts: ScanAttempt[]
   /** Human-readable diagnostics: dropped entries, broken manifests, fallbacks taken. */
@@ -121,5 +123,10 @@ export async function runScanChain(filters: readonly ScanFilter[], context: Scan
     return resolution
   }
   const resolution = await run(0)
-  return { suites: resolution.kind === 'resolved' ? resolution.suites : [], attempts, notes }
+  return {
+    suites: resolution.kind === 'resolved' ? resolution.suites : [],
+    attempts,
+    notes,
+    ...(context.marketplacePath === undefined ? {} : { marketplacePath: context.marketplacePath })
+  }
 }

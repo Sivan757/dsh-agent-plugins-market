@@ -1,33 +1,11 @@
 .surface {
+  composes: shell from './ui/panel.module.css';
   display: flex;
   min-width: 0;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   color: var(--dsw-alias-label-primary, #1f2328);
-}
-.header {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0 8px;
-}
-.title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 24px;
-}
-.subtitle {
-  margin: 2px 0 0;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 13px;
-  line-height: 20px;
-}
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
 }
 .summary {
   display: inline-flex;
@@ -110,34 +88,39 @@
 .summaryDotInfo { background: var(--dsw-alias-brand-primary, #4f6ef7); }
 .toolbar {
   flex: none;
-  margin-bottom: 24px;
 }
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
+  min-height: 0;
   gap: 12px;
   align-content: start;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+}
+
+@media (max-width: 760px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
 }
 .list {
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
 }
+
 .list .card {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
   column-gap: 14px;
   row-gap: 8px;
-}
-.list .cardTop {
-  flex: 0 1 260px;
-}
-.list .endpoint {
-  flex: 1 1 200px;
-  max-height: 18px;
 }
 .card {
   display: flex;
@@ -147,7 +130,7 @@
   color: inherit;
   background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -157,7 +140,6 @@
 .card:hover {
   border-color: var(--dsw-alias-border-l3, #d9dde3);
   background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
-  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
 }
 .cardBody {
   display: flex;
@@ -214,6 +196,7 @@
   font: 12px/18px ui-monospace, Menlo, Consolas, monospace;
   overflow-wrap: anywhere;
 }
+
 .sourcePlugin, .sourceDirect, .transport, .toolCount {
   display: inline-flex;
   align-items: center;
@@ -289,10 +272,6 @@
   background: var(--dsw-alias-bg-layer-2, #f7f8fa);
 }
 /* Card left accent follows the state so scanning the grid is instant. */
-.cardConnected { border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a); }
-.cardDegraded, .cardNeedsCredentials { border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309); }
-.cardFailed, .cardOrphaned { border-left: 3px solid var(--dsw-alias-state-error-primary, #dc2626); }
-.cardDisabled { border-left: 3px solid var(--dsw-alias-label-tertiary, #98a2b3); }
 .state, .detailState {
   display: inline-flex;
   align-items: center;
@@ -458,20 +437,8 @@
 .statusconflict {
   color: var(--dsw-alias-state-error-primary, #dc2626);
 }
-.cardMounted { border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a); }
-.cardHostMissing { border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309); }
-.cardConflict { border-left: 3px solid var(--dsw-alias-state-error-primary, #dc2626); }
 .chipmounted { background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237)); }
 .chipblocked { background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231)); }
-
-/* ── Panel polish: spacing between header/summary/toolbar, compact rows ─── */
-.summaryBar + .toolbar,
-.toolbar {
-  margin-top: 12px;
-}
-.header + .summaryBar {
-  margin-top: 12px;
-}
 
 /* Hide the entire summary bar when every row is healthy: the green
    "all good" confirmation repeated above a green-stamped list is noise. */
@@ -557,7 +524,6 @@
 
 .statusforeign { background: var(--dsw-alias-brand-primary, #4f6ef7); }
 
-.cardForeign { border-left: 3px solid var(--dsw-alias-brand-primary, #4f6ef7); }
 
 .reasonRaw {
   margin: 6px 0 0;

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 // the runtime default export is the class itself (module.exports = Ajv2020).
 import Ajv2020Default from 'ajv/dist/2020.js'
 import type { McpServer, McpSuiteConfig } from '../model/types.js'
+import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'
 
 const SCHEMAS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'schemas', '1.0.0')
 
@@ -65,7 +66,7 @@ export function isRecognizedSchema(value: unknown): boolean {
  * @returns `undefined` when contained, or the rejection reason.
  */
 export async function pathContainmentError(pluginRoot: string, value: string): Promise<string | undefined> {
-  const raw = value.replace(/^\$\{PLUGIN_ROOT\}(\/|$)/, './')
+  const raw = value.replace(/^\$\{([A-Z_]+)\}(\/|$)/, (match, name: string) => (PLUGIN_ROOT_VARIABLES.has(name) ? './' : match))
   if (!raw.startsWith('./')) return `path "${value}" must begin with "./" (or ${'${PLUGIN_ROOT}'})`
   const candidate = resolve(pluginRoot, raw.slice(2))
   let rootResolved: string
@@ -109,6 +110,8 @@ export async function validatePluginManifest(raw: unknown): Promise<string[]> {
 const KNOWN_MCP_TRANSPORTS = new Set(['stdio', 'streamable-http', 'sse'])
 
 export interface McpValidateOptions {
+  /** Project-owned config may name external executables and working directories. */
+  pathMode?: 'plugin' | 'project'
   /** Strict portable mode (`mcp.json`): `$schema` required and schema-validated.
    *  Lenient mode (`.mcp.json`, native client file): no `$schema` requirement,
    *  unknown transports skipped per server, known transports still validated. */
@@ -137,7 +140,7 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
     }
     servers = record
   }
-  const valid: Record<string, McpServer> = {}
+  const valid: Record<string, McpServer> = Object.create(null) as Record<string, McpServer>
   for (const [name, value] of Object.entries(servers as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) {
       errors.push(`server "${name}": not an object`)
@@ -146,7 +149,7 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
     const server = value as { type?: unknown; command?: unknown; cwd?: unknown }
     // Claude Code dialects: `http`/`streamable-http` are the same remote
     // transport, and `local` or a missing `type` (with `command`) mean stdio.
-    let type = typeof server.type === 'string' ? server.type : server.command !== undefined ? 'stdio' : undefined
+    let type = typeof server.type === 'string' ? server.type : server.command !== undefined ? 'stdio' : !strict && 'url' in server ? 'streamable-http' : undefined
     if (type === 'local') type = 'stdio'
     if (type === 'http') type = 'streamable-http'
     if (type === undefined || !KNOWN_MCP_TRANSPORTS.has(type)) {
@@ -163,15 +166,18 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
       errors.push(`server "${name}": stdio servers require a command`)
       continue
     }
-    if (stdioServer.command.includes('/')) {
-      if (!stdioServer.command.startsWith('./')) {
-        problems.push(`command "${stdioServer.command}" must be a bare executable name or a plugin-relative path beginning with "./"`)
+    const command = stdioServer.command.replace(/^\$\{([A-Z_]+)\}\//, (match, name: string) => (PLUGIN_ROOT_VARIABLES.has(name) ? './' : match))
+    if (options?.pathMode !== 'project' && command.includes('/')) {
+      if (!command.startsWith('./')) {
+        problems.push(`command "${command}" must be a bare executable name or a plugin-relative path beginning with "./"`)
       } else {
-        const reason = await pathContainmentError(pluginRoot, stdioServer.command)
+        const reason = await pathContainmentError(pluginRoot, command)
         if (reason !== undefined) problems.push(reason)
       }
     }
-    if (stdioServer.cwd !== undefined && !stdioServer.cwd.startsWith('${PLUGIN_DATA}')) {
+    if (stdioServer.cwd !== undefined && typeof stdioServer.cwd !== 'string') {
+      problems.push('cwd must be a string')
+    } else if (options?.pathMode !== 'project' && stdioServer.cwd !== undefined && ![...PLUGIN_DATA_VARIABLES].some(name => stdioServer.cwd!.startsWith(`\${${name}}`))) {
       // `.` is the Codex dialect spelling for the plugin root.
       const cwd = stdioServer.cwd === '.' ? './' : stdioServer.cwd
       const reason = await pathContainmentError(pluginRoot, cwd)
@@ -180,7 +186,7 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
     if (problems.length > 0) {
       errors.push(...problems.map(problem => `server "${name}": ${problem}`))
     } else {
-      valid[name] = { ...server, type: 'stdio' } as McpServer
+      valid[name] = { ...server, command, type: 'stdio' } as McpServer
     }
   }
   return { config: { schema: typeof record['$schema'] === 'string' ? record['$schema'] : 'native-client', servers: valid }, errors }
@@ -191,8 +197,8 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
  *  `${NAME:-default}` fallbacks are honored for unset/empty env vars. */
 export function expandPlaceholders(value: string, pluginRoot: string, pluginData: string, env: NodeJS.ProcessEnv = process.env): string {
   return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g, (match, name: string, fallback?: string) => {
-    if (name === 'PLUGIN_ROOT' || name === 'CLAUDE_PLUGIN_ROOT') return pluginRoot
-    if (name === 'PLUGIN_DATA' || name === 'CLAUDE_PLUGIN_DATA') return pluginData
+    if (PLUGIN_ROOT_VARIABLES.has(name)) return pluginRoot
+    if (PLUGIN_DATA_VARIABLES.has(name)) return pluginData
     return env[name] || fallback || ''
   })
 }

@@ -49,7 +49,9 @@ describe('lsp-direct-config', () => {
     const root = await tempRoot()
     await expect(loadLspServers(root)).resolves.toEqual({ servers: {}, errors: [] })
     await writeFile(join(root, 'lsp-servers.json'), 'not json', 'utf8')
-    await expect(loadLspServers(root)).resolves.toEqual({ servers: {}, errors: [] })
+    const broken = await loadLspServers(root)
+    expect(broken.servers).toEqual({})
+    expect(broken.errors).toHaveLength(1)
   })
 })
 

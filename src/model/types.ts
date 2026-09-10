@@ -49,10 +49,15 @@ export function resolveSourceKind(source: Pick<SourceRef, 'url' | 'local' | 'kin
 }
 
 /** The manifest layout a suite root was discovered under. */
-export type SuiteLayoutKind = 'agent-plugin-v1' | 'universal' | 'claude-code' | 'cursor' | 'kimi' | 'codex' | 'skill-collection' | 'remote' | 'project-native'
+export type SuiteLayoutKind = import('./layouts.js').ManifestKind | 'skill-collection' | 'remote' | 'project-native'
 
 /** Normalized suite manifest fields. */
 export interface SuiteManifest {
+  components?: SuiteComponents
+  skillInstructions?: string
+  startupSkill?: string
+  systemPrompt?: string
+  systemPromptPath?: string
   layout: SuiteLayoutKind
   /** Absolute manifest file path. */
   path: string
@@ -65,6 +70,23 @@ export interface SuiteManifest {
   keywords?: string[]
   /** For agent-plugin-v1: the recognized `$schema` identifier. */
   schemaVersion?: string
+}
+
+/** Raw layout declarations are resolved once by the catalog into runtime resources. */
+export interface SuiteComponents {
+  skills?: unknown
+  commands?: unknown
+  agents?: unknown
+  hooks?: unknown
+  mcpServers?: unknown
+  lspServers?: unknown
+}
+
+export interface SuiteMarkdownResource {
+  name: string
+  file: string
+  /** Inline resources retain their manifest as provenance, with content separate from its JSON file. */
+  content?: string
 }
 
 /** One skill shipped inside a suite (`<suiteRoot>/skills/<name>/SKILL.md`). */
@@ -94,7 +116,14 @@ export interface SuiteSurfaceCounts {
 }
 
 /** agent-plugins.org v1 `mcp.json` server variants. */
-export interface McpServerStdio {
+export interface McpServerPolicy {
+  enabledTools?: string[]
+  disabledTools?: string[]
+  startupTimeoutMs?: number
+  toolCallTimeoutMs?: number
+}
+
+export interface McpServerStdio extends McpServerPolicy {
   type: 'stdio'
   command: string
   args?: string[]
@@ -102,7 +131,7 @@ export interface McpServerStdio {
   cwd?: string
 }
 
-export interface McpServerStreamableHttp {
+export interface McpServerStreamableHttp extends McpServerPolicy {
   type: 'streamable-http'
   url: string
   headers?: Record<string, string>
@@ -110,7 +139,7 @@ export interface McpServerStreamableHttp {
   auth?: { enabled: boolean; scope?: string }
 }
 
-export interface McpServerSse {
+export interface McpServerSse extends McpServerPolicy {
   type: 'sse'
   url: string
   headers?: Record<string, string>
@@ -122,6 +151,8 @@ export type McpServer = McpServerStdio | McpServerStreamableHttp | McpServerSse
 
 /** Parsed and validated `mcp.json` content. */
 export interface McpSuiteConfig {
+  /** Native project commands resolve from the project, not the agent configuration directory. */
+  root?: string
   schema: string
   servers: Record<string, McpServer>
 }
@@ -154,6 +185,10 @@ export type SuiteDimension = 'user' | 'project'
 
 /** One discovered suite with runtime-relevant fields resolved. */
 export interface Suite {
+  resources?: { commands: SuiteMarkdownResource[]; agents: SuiteMarkdownResource[] }
+  systemPrompt?: string
+  /** Validated native settings hooks; serialized only into a runtime-owned temporary file. */
+  hooks?: ProjectHooks
   sourceId: string
   id: string
   root: string
@@ -173,9 +208,13 @@ export interface Suite {
   /** Remote marketplace reference (not cloned): the source URL plus the
    *  marketplace entry metadata; no local content is available. */
   remote?: { url: string }
-  /** Discovery/validation failures for this suite; skills of a suite with a
-   * broken manifest are still exposed when they parse, per spec §7.1. */
+  /** Surface diagnostics on a surviving suite; invalid declared manifests are rejected before discovery returns a suite. */
   errors: string[]
+}
+
+export interface ProjectHooks {
+  projectRoot: string
+  events: Record<string, Array<{ matcher?: string; hooks: Array<{ type: 'command'; command: string; timeout?: number }> }>>
 }
 
 /** Runtime surfaces that can be selectively enabled per installed suite. */

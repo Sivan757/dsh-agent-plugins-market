@@ -3,29 +3,28 @@ import Base from '../layouts/Base.astro';
 const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
 ---
 <Base
-  title="dsh-agent-plugins-market — Use Claude Code plugins in DeepSeek Harness (DSH)"
-  description="The standard way to run Claude Code, Codex, Cursor and Kimi plugin marketplaces inside DeepSeek Harness — zero conversion, zero file copying. Skills, MCP servers, hooks and slash commands injected at runtime."
+  title="dsh-agent-plugins-market — Plugin marketplace and agent workspace for DeepSeek Harness"
+  description="Install ecosystem suites and manage skills, commands, agent personas, MCP services and LSP servers in the DSH Web GUI."
 >
   <section class="hero">
-    <h1>Use Claude Code plugins in DeepSeek Harness</h1>
+    <h1>Your agent toolkit, inside DeepSeek Harness</h1>
     <p class="tagline">
-      <strong>dsh-agent-plugins-market is the standard way to run Claude Code, Codex, Cursor and Kimi plugin marketplaces inside DeepSeek Harness (DSH) — zero conversion, zero file copying.</strong>
+      <strong>A plugin marketplace and agent capability workspace for DeepSeek Harness (DSH).</strong>
     </p>
     <p class="lead">
-      Add any git marketplace repo as a source, install its suites, and their skills, MCP servers, hooks and slash commands are injected into your dsh sessions at runtime. Claude Code-authored skills work verbatim (<code>${'{'}CLAUDE_PLUGIN_ROOT{'}'}</code> is substituted automatically).
+      Reuse Claude Code, Codex, Cursor and Kimi suites, manage your own resources, and inspect running services in one workspace. Supported layouts are read in place without converting manifests or manually copying files.
     </p>
     <p>
       <a class="cta" href={`${base}install/`}>Get started</a>
       <a class="cta ghost" href="https://github.com/Sivan757/dsh-agent-plugins-market">GitHub</a>
       <a class="cta ghost" href="https://www.npmjs.com/package/dsh-agent-plugins-market">npm</a>
     </p>
-    <img class="shot" src={`${base}assets/screenshot.png`} alt="Agent Plugins Market page inside the DeepSeek Harness Web GUI" width="100%" />
-    <img class="shot" src={`${base}assets/screenshot-detail.png`} alt="Plugin suite detail modal with skills, MCP servers and commands preview" width="100%" />
+    <img class="shot" src={`${base}assets/screenshot-workspace.png`} alt="The six-tab Agent Plugins workspace inside the DeepSeek Harness Web GUI" width="100%" />
   </section>
 
   <h2>What it solves</h2>
   <p>
-    DeepSeek Harness is a powerful agent harness, but its plugin ecosystem doesn't yet match the breadth of the Claude Code plugin marketplace world. There are hundreds of ready-made marketplace repos on GitHub full of skills, MCP servers, hooks and slash commands — <code>dsh-agent-plugins-market</code> is the bridge that makes them installable in DSH.
+    Add sources and install suites, create your own skills, commands and personas, and keep project-native resources in place. The workspace groups Market, Skills, Commands, Agent personas, MCP services and LSP servers into six tabs.
   </p>
 
   <h2>Supported plugin layouts</h2>
@@ -42,7 +41,7 @@ const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
 
   <h2>Quick install</h2>
   <pre><code>dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market</code></pre>
-  <p>Requires DeepSeek Harness ≥ 0.1.0-rc.6 with a Web profile. See the <a href={`${base}install/`}>install guide</a> for details.</p>
+  <p>Requires Node.js 22+ and a DSH Web profile with the skill service. Current DSH peer declarations use ^0.1.2-rc.1; feature availability depends on host services. See the <a href={`${base}install/`}>install guide</a> for details.</p>
 
   <h2>Learn more</h2>
   <ul>

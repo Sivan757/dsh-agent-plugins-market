@@ -1,0 +1,121 @@
+{
+  "$comment": "Pinned samples for the compatibility report: one GitHub repository per schema in schemas/. Each repository was chosen as the highest-starred candidate that ships the layout, found with GitHub code search on 2026-09-08 and then verified file-by-file. Regenerate the report with `node scripts/compat-report.mjs`.",
+  "selection": {
+    "metric": "stargazers",
+    "method": "GitHub code search for the layout's manifest path, then a batched GraphQL star lookup over the first 40 candidates; the highest-starred candidate was verified file-by-file to ship the manifest before being pinned here. This is the highest-starred candidate the search returned, not an exhaustive ranking of every repository on GitHub.",
+    "candidatePool": 40,
+    "checkedOn": "2026-09-08"
+  },
+  "sparsePaths": [
+    "/*.json",
+    "/.mcp.json",
+    "/SKILL.md",
+    "/skills/",
+    "/commands/",
+    "/agents/",
+    "/hooks/",
+    "/plugins/",
+    "/.claude-plugin/",
+    "/.codex-plugin/",
+    "/.cursor-plugin/",
+    "/.kimi-plugin/",
+    "/.plugin/",
+    "/.zcode-plugin/",
+    "/.qoder-plugin/",
+    "/.qoder/",
+    "/.github/plugin/",
+    "/.agents/"
+  ],
+  "samples": [
+    {
+      "dialect": "claude-code",
+      "schema": "claude-code",
+      "repo": "grafana/mcp-grafana",
+      "branch": "main",
+      "stars": 3433,
+      "pluginManifest": ".claude-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "note": "A Claude Code plugin that declares its MCP server inline in plugin.json and ships no skills or commands."
+    },
+    {
+      "dialect": "codex",
+      "schema": "codex",
+      "repo": "saadeghi/daisyui",
+      "branch": "master",
+      "stars": 42328,
+      "pluginManifest": ".codex-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "note": "Ships a root plugin.json (agent-plugins v1.0.0), .codex-plugin, .claude-plugin, .cursor-plugin and .agents/plugins marketplace at once; the root manifest wins dialect precedence."
+    },
+    {
+      "dialect": "cursor",
+      "schema": "cursor",
+      "repo": "EveryInc/compound-engineering-plugin",
+      "branch": "main",
+      "stars": 24956,
+      "pluginManifest": ".cursor-plugin/plugin.json",
+      "marketplaceManifest": ".cursor-plugin/marketplace.json",
+      "note": "Ships ten dialect directories; the root plugin.json carries no $schema, so the scanner reads it leniently as the Claude layout."
+    },
+    {
+      "dialect": "kimi",
+      "schema": "kimi",
+      "repo": "obra/superpowers",
+      "branch": "main",
+      "stars": 283142,
+      "pluginManifest": ".kimi-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "note": "Ships .claude-plugin, .codex-plugin, .cursor-plugin and .kimi-plugin; the Claude manifest wins precedence."
+    },
+    {
+      "dialect": "universal",
+      "schema": "universal",
+      "repo": "muratcankoylan/Agent-Skills-for-Context-Engineering",
+      "branch": "main",
+      "stars": 17945,
+      "pluginManifest": ".plugin/plugin.json",
+      "marketplaceManifest": null,
+      "note": "Ships .plugin/plugin.json with no higher-precedence root manifest, so the universal dialect is read directly."
+    },
+    {
+      "dialect": "agent-plugins",
+      "schema": "agent-plugins",
+      "repo": "saadeghi/daisyui",
+      "branch": "master",
+      "stars": 42328,
+      "pluginManifest": "plugin.json",
+      "marketplaceManifest": null,
+      "note": "Root plugin.json declares the agent-plugins.org v1.0.0 $schema; validated with the vendored schemas/1.0.0/plugin.schema.json."
+    },
+    {
+      "dialect": "zcode",
+      "schema": "zcode",
+      "repo": "zenstory-ai/oh-story-claudecode",
+      "branch": "main",
+      "stars": 6665,
+      "pluginManifest": ".zcode-plugin/plugin.json",
+      "marketplaceManifest": "marketplace.json",
+      "note": "Ships ZCode and Claude manifests together. The isolated ZCode fixture verifies its custom commands directory and process-hook configuration."
+    },
+    {
+      "dialect": "qoder",
+      "schema": "qoder",
+      "repo": "DietrichGebert/ponytail",
+      "branch": "main",
+      "stars": 131816,
+      "pluginManifest": ".qoder-plugin/plugin.json",
+      "marketplaceManifest": null,
+      "note": "Ships Qoder beside several higher-precedence manifests. The isolated fixture verifies Qoder identity and its declared hooks/qoder-hooks.json."
+    },
+    {
+      "dialect": "github-copilot",
+      "schema": "github-copilot",
+      "repo": "headroomlabs-ai/headroom",
+      "branch": "main",
+      "stars": 70594,
+      "pluginManifest": null,
+      "marketplaceManifest": ".github/plugin/marketplace.json",
+      "note": "Ships Copilot and Claude marketplaces. The isolated fixture removes Claude manifests at every suite root and verifies Copilot's hooks directory declaration."
+    }
+  ]
+}

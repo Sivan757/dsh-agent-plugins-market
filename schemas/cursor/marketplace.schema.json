@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/cursor/marketplace.schema.json",
+  "title": "Cursor Marketplace Manifest",
+  "description": "Marketplace catalog read by Cursor at .cursor-plugin/marketplace.json in the repository root. Authored from the official Cursor plugin reference and the official plugin template; Cursor publishes no JSON Schema.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://cursor.com/docs/reference/plugins ; cursor/plugin-template/.cursor-plugin/marketplace.json ; real catalogs (tldraw/tldraw for metadata.pluginRoot, cloudflare/skills, huggingface/skills, NVIDIA/skills, wshobson/agents). The docs describe the entry source object only as \"object with path and options\" and leave the option set unspecified, so it is modeled as an object requiring path. When a per-plugin manifest exists, it is merged with the entry and manifest values take precedence.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "description": "Marketplace identifier (kebab-case)." },
+    "owner": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string", "description": "Used in real catalogs; not in the docs field table." }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "plugins": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/entry" }, "description": "Plugin entries; at most 500." },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "pluginRoot": { "type": "string", "description": "Prefix path for all plugin sources; a bare source name resolves under it." }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["name", "owner", "plugins"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Kebab-case plugin name." },
+        "source": { "$ref": "#/$defs/source" },
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "displayName": { "type": "string" },
+        "author": {
+          "type": "object",
+          "properties": { "name": { "type": "string" }, "email": { "type": "string" }, "url": { "type": "string" } },
+          "required": ["name"],
+          "additionalProperties": true
+        },
+        "homepage": { "type": "string" },
+        "repository": { "type": "string" },
+        "license": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "logo": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "skills": { "$ref": "#/$defs/pathList" },
+        "rules": { "$ref": "#/$defs/pathList" },
+        "agents": { "$ref": "#/$defs/pathList" },
+        "commands": { "$ref": "#/$defs/pathList" },
+        "hooks": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "mcpServers": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+        "variables": { "type": "object", "description": "Variable schema; prefer the plugin manifest, whose values win when both are set." }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "source": {
+      "description": "Path to the plugin directory, or an object with path and options. Resolution: look for <source>/.cursor-plugin/plugin.json, merge it with this entry (manifest wins), then run component discovery inside the source directory.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": { "path": { "type": "string" } },
+          "required": ["path"],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "pathList": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    }
+  }
+}

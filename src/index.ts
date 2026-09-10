@@ -18,15 +18,23 @@ import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import { Catalog } from './application/catalog.js'
 import { RuntimeReconciler } from './runtime/reconciler.js'
 import { inspectToolRegistry } from './runtime/tool-registry-observer.js'
-import { migrateLegacyDataRoot } from './catalog/legacy-root-migration.js'
-import { resolveDataRoot, resolveDshHome, resolveUserRoot } from './catalog/paths.js'
-import { join } from 'node:path'
+import { migratePluginStorage } from './runtime/storage-migration.js'
+import { mountAgentRoleTool } from './runtime/agent-role-router.js'
+import { projectAgentRoles } from './application/project-agent-roles.js'
+import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/project-runtime.js'
+import { createPanelResources } from './application/panel-resources.js'
+import { resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
 import { MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, readMcpBackend } from './runtime/mcp-backend.js'
 import { narrowDownloadRegion } from './runtime/regions.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
-import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
+import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
+import { bindHostLocale, loadHostLocale, type HostLocaleKey, type HostTranslate } from './runtime/host-locale.js'
+import { mountFeedbackTool } from './runtime/feedback-tool.js'
+import { createUserPanelStores } from './runtime/user-panels.js'
+import { UserPanelSkillProvider } from './runtime/user-panels.js'
+import { UserCommandMountRegistry } from './runtime/user-commands.js'
 import type { SourceRef } from './model/types.js'
 
 export const name = 'dsh-agent-plugins-market'
@@ -36,7 +44,7 @@ export const inject = ['skills', 'commands']
 export interface Config {
   /** User-dimension suite root; defaults to `~/.dsh/agent-plugins` (`$DSH_HOME/agent-plugins`). */
   userRoot?: string
-  /** Per-suite data root backing `${PLUGIN_DATA}` and MCP overrides; defaults to `<userRoot>/data`. */
+  /** Legacy mutable data root to migrate; writes always use the canonical root/data. */
   dataRoot?: string
   /** Initial repository sources, merged into the persisted state on first load. */
   sources?: SourceRef[]
@@ -57,28 +65,43 @@ export interface Config {
   }
 }
 
-export function apply(ctx: Context, config: Config = {}): void {
+export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
-  // The pre-0.5.4 layout kept a sibling `agent-plugins-data` root; fold it in.
-  void migrateLegacyDataRoot(join(resolveDshHome(), 'agent-plugins-data'), dataRoot).catch(error => {
-    ctx.logger?.warn?.(`[dsh-agent-plugins-market] legacy data-root migration failed: ${String(error)}`)
-  })
+  const migration = await migratePluginStorage(config)
+  if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
   let providerControl: SkillProviderControl | undefined
+  let userPanelControl: SkillProviderControl | undefined
   // Host runtime copy resolves from the harness `locale.preference` setting;
   // the async settings read lands before the first session starts in practice.
   const t = bindHostLocale(undefined)
   void loadHostLocale().then(locale => {
     hostLocale.t = locale.t
     providerControl?.invalidate()
+    userPanelControl?.invalidate()
   })
   const hostLocale: { t: HostTranslate } = { t }
+  /** Settings watchers to release at teardown (backend watch + feedback switch). */
+  const settingsWatchers: Array<() => void> = []
   const runtime = new RuntimeReconciler(ctx, dataRoot, key => hostLocale.t(key))
 
-  const reconcileMounts = async (): Promise<void> => {
+  // User panel stores (skills / commands / agent personas) and their runtime
+  // contributions: one extra skill provider plus one command mount registry.
+  const panels = createUserPanelStores(userRoot)
+  const userCommands = new UserCommandMountRegistry(ctx, panels.commands, key => hostLocale.t(key))
+
+  let disposed = false
+  let projectCommands: ReturnType<typeof mountProjectCommands> | undefined
+  let projectMcp: ReturnType<typeof mountProjectMcp> | undefined
+  let projectHooks: ReturnType<typeof mountProjectHooks> | undefined
+  let suitePrompts: ReturnType<typeof mountSuiteInstructions> | undefined
+  let reconcileRequested = false
+  let reconciliation: Promise<void> | undefined
+  const reconcileOnce = async (): Promise<void> => {
     try {
-      const snapshot = await catalog.readUserCatalog()
-      const diagnostics = await runtime.reconcile(snapshot.enabledSuites)
+      const suites = await catalog.enabledUserSuites()
+      if (disposed) return
+      const diagnostics = await runtime.reconcile(suites)
       catalog.mcpDiagnostics = diagnostics.mcp
       for (const diagnostic of diagnostics.mcp) {
         ctx.logger?.warn(`[dsh-agent-plugins-market] suite "${diagnostic.suiteId}" mcp server "${diagnostic.serverKey}": ${diagnostic.reason}`)
@@ -99,6 +122,25 @@ export function apply(ctx: Context, config: Config = {}): void {
       ctx.logger?.warn(`[dsh-agent-plugins-market] runtime reconcile failed: ${error instanceof Error ? error.message : String(error)}`)
       throw error
     }
+  }
+
+  // Settings, credential and catalog events can arrive during a slow MCP
+  // connection. Keep one current pass and one fresh follow-up, not a queue
+  // of stale snapshots that all reconnect the same servers.
+  const reconcileMounts = (): Promise<void> => {
+    if (disposed) return Promise.resolve()
+    reconcileRequested = true
+    reconciliation ??= (async () => {
+      try {
+        do {
+          reconcileRequested = false
+          await reconcileOnce()
+        } while (reconcileRequested && !disposed)
+      } finally {
+        reconciliation = undefined
+      }
+    })()
+    return reconciliation
   }
 
   /**
@@ -124,7 +166,16 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
 
   const onChanged = async (): Promise<void> => {
+    if (disposed) return
     providerControl?.invalidate()
+    userPanelControl?.invalidate()
+    await projectCommands?.refresh()
+    await suitePrompts?.refresh()
+    await Promise.all([projectMcp?.refresh(), projectHooks?.refresh()])
+    const userCommandDiagnostics = await userCommands.reconcile().catch(() => [] as string[])
+    for (const reason of userCommandDiagnostics) {
+      ctx.logger?.warn(`[dsh-agent-plugins-market] user commands: ${reason}`)
+    }
     await reconcileMounts()
   }
 
@@ -134,6 +185,9 @@ export function apply(ctx: Context, config: Config = {}): void {
   // credentials plugin provisions, and a snapshot taken here would be
   // permanently undefined even after the service is live.
   const catalog = new Catalog({ userRoot, dataRoot, onChanged, ...(config.git === undefined ? {} : { git: config.git }) })
+  await catalog.load()
+  await catalog.mergeSources(config.sources ?? [])
+  const resources = createPanelResources(catalog, panels)
   // Mirror oauth.ts's `credentialIdFor`: the record is stored under the folded
   // serverName, so the delete must fold the same way or it misses the record.
   const credentialIdFor = (serverName: string): string =>
@@ -148,7 +202,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       await store.deleteRecord(`mcp-auth/${credentialIdFor(serverName)}` as never)
     }
   })
-  runtime.setMcpOverridesProvider(() => catalog.allMcpOverrides())
+  runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides(await catalog.enabledUserSuites()))
   // Re-authorize must rebuild the live bridge, not just drop the grant: the
   // registry flags the mount and the following reconcile tears it down and
   // remounts, so the server's 401 restarts the browser authorization.
@@ -158,41 +212,93 @@ export function apply(ctx: Context, config: Config = {}): void {
   )
   catalog.setLspStatusSource(runtime.lsp)
   runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)
+  runtime.lsp.setDisabledProvider(() => loadDisabledLspServers(dataRoot))
   // The MCP backend choice is a host settings namespace (the registration is
   // also what makes the plugin-config tab serve our card). The node half owns
   // it: the provider derives the mount backend from the scope, the writer
-  // flips the switch, and the watcher remounts servers when it flips.
+  // flips the switch, and the watcher remounts servers when it flips. The
+  // same single registration also gates the experience-feedback tool —
+  // `settings.register` throws on a duplicate namespace, so there is exactly
+  // one inject block and one `register` call.
+  //
+  // The whole callback is failure-contained on purpose: a throw here is
+  // INVISIBLE in the UI (the inject resolves asynchronously and cordis only
+  // logs), and it silently removes the namespace from settings.describe —
+  // which is exactly what hides the plugin-config card. Every failure mode
+  // lands in the logger with a loud prefix instead.
+  let feedbackDisposer: (() => void) | undefined
   ctx.inject(['settings'], settingsCtx => {
-    const settings = (
-      settingsCtx as unknown as {
-        settings: {
-          register<T>(
-            ns: string,
-            schema: unknown,
-            options?: { base?: T }
-          ): {
-            get(): T
-            watch(callback: () => void): () => void
-            update(patch: Partial<T>): Promise<void>
+    try {
+      ctx.logger?.info?.('[dsh-agent-plugins-market] settings inject resolved — registering namespace')
+      const settings = (
+        settingsCtx as unknown as {
+          settings: {
+            register<T>(
+              ns: string,
+              schema: unknown,
+              options?: { base?: T }
+            ): {
+              get(): T
+              watch(callback: () => void): () => void
+              update(patch: Partial<T>): Promise<void>
+            }
           }
         }
+      ).settings
+      const scope = settings.register(MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, {
+        base: { mcpEnhanced: true, downloadRegion: 'auto', feedbackEnabled: true, scanProjectLayouts: true }
+      })
+      ctx.logger?.info?.('[dsh-agent-plugins-market] settings namespace registered — plugin-config card will serve')
+      catalog.setMcpBackendProvider(async () => (scope.get().mcpEnhanced === false ? 'host' : 'builtin'))
+      catalog.setMcpBackendWriter(async backend => {
+        await scope.update({ mcpEnhanced: backend !== 'host' })
+      })
+      catalog.setDownloadRegionProvider(async () => narrowDownloadRegion(scope.get().downloadRegion))
+      const syncProjectLayouts = (): void => {
+        void catalog.setScanProjectLayouts(scope.get().scanProjectLayouts !== false).catch(error => {
+          ctx.logger?.error?.(`[dsh-agent-plugins-market] project layout reconciliation failed: ${String(error)}`)
+        })
       }
-    ).settings
-    const scope = settings.register(MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, {
-      base: { mcpEnhanced: true, downloadRegion: 'auto' }
-    })
-    catalog.setMcpBackendProvider(async () => (scope.get().mcpEnhanced === false ? 'host' : 'builtin'))
-    catalog.setMcpBackendWriter(async backend => {
-      await scope.update({ mcpEnhanced: backend !== 'host' })
-    })
-    catalog.setDownloadRegionProvider(async () => narrowDownloadRegion(scope.get().downloadRegion))
-    // One-time migration from the earlier data-root settings.json choice.
-    void readMcpBackend(dataRoot).then(backend => {
-      if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})
-    })
-    scope.watch(() => {
-      void reconcileMounts().catch(() => {})
-    })
+      syncProjectLayouts()
+      settingsWatchers.push(scope.watch(syncProjectLayouts))
+      // One-time migration from the earlier data-root settings.json choice.
+      void readMcpBackend(dataRoot).then(backend => {
+        if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})
+      })
+      let previousBackend = scope.get().mcpEnhanced !== false
+      settingsWatchers.push(
+        scope.watch(() => {
+          const backend = scope.get().mcpEnhanced !== false
+          if (backend === previousBackend) return
+          previousBackend = backend
+          void Promise.all([reconcileMounts(), projectMcp?.refresh()]).catch(() => {})
+        })
+      )
+      // The experience-feedback model tool: gated by the namespace's
+      // `feedbackEnabled` field (default on); the switch unregisters it. The
+      // tool mount is doubly contained — its failure must never take the
+      // settings namespace (and with it the config card) down with it.
+      const syncFeedbackTool = (): void => {
+        try {
+          const state = scope.get() as { feedbackEnabled?: boolean }
+          const wanted = state.feedbackEnabled !== false
+          if (wanted && feedbackDisposer === undefined) {
+            feedbackDisposer = mountFeedbackTool(ctx, dataRoot, (key, params) => hostLocale.t(key as HostLocaleKey, params)) ?? undefined
+          } else if (!wanted && feedbackDisposer !== undefined) {
+            feedbackDisposer()
+            feedbackDisposer = undefined
+          }
+        } catch (error) {
+          ctx.logger?.error?.(`[dsh-agent-plugins-market] feedback tool mount failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`)
+        }
+      }
+      syncFeedbackTool()
+      settingsWatchers.push(scope.watch(() => syncFeedbackTool()))
+    } catch (error) {
+      ctx.logger?.error?.(
+        `[dsh-agent-plugins-market] settings namespace registration failed — the plugin-config card will be hidden this boot: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+      )
+    }
   })
   runtime.setMcpBackendProvider(() => catalog.mcpBackend())
   const eventHost = ctx as unknown as { on?: (event: string, listener: (ref: string) => void) => () => void }
@@ -211,29 +317,78 @@ export function apply(ctx: Context, config: Config = {}): void {
     // own server with a clear diagnostic instead of failing mid-registration.
     runtime.setMcpToolNamesProvider(() => inspectToolRegistry(registry).map(tool => tool.name))
   })
-  void catalog
-    .load()
+  void Promise.resolve()
     .then(async () => {
-      await catalog.mergeSources(config.sources ?? [])
+      const userCommandDiagnostics = await userCommands.reconcile().catch(() => [] as string[])
+      for (const reason of userCommandDiagnostics) {
+        ctx.logger?.warn(`[dsh-agent-plugins-market] user commands: ${reason}`)
+      }
       await reconcileMounts()
     })
     .catch(() => {})
 
   ctx.skills.registerProvider(control => {
     providerControl = control
-    return new SuiteSkillProvider(catalog, key => hostLocale.t(key))
+    return new SuiteSkillProvider(catalog)
+  })
+
+  // User panel skills ride a second provider so a panel
+  // edit invalidates only its own catalog contribution.
+  ctx.skills.registerProvider(control => {
+    userPanelControl = control
+    return new UserPanelSkillProvider(panels.skills, key => hostLocale.t(key))
+  })
+
+  ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
+    hostCtx.effect(
+      () =>
+        mountAgentRoleTool(
+          hostCtx,
+          async parent => [
+            ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
+            ...(await projectAgentRoles(catalog, parent))
+          ],
+          (key, params) => hostLocale.t(key, params)
+        ),
+      'dsh-agent-plugins-market: agent role routing'
+    )
+  })
+
+  ctx.inject(['agents'], hostCtx => {
+    hostCtx.effect(() => {
+      const mounted = mountProjectCommands(hostCtx, catalog, key => hostLocale.t(key))
+      const mcp = mountProjectMcp(hostCtx, catalog, dataRoot)
+      const hooks = mountProjectHooks(hostCtx, catalog)
+      const prompts = mountSuiteInstructions(hostCtx, catalog)
+      projectCommands = mounted
+      projectMcp = mcp
+      projectHooks = hooks
+      suitePrompts = prompts
+      return async () => {
+        if (projectCommands === mounted) projectCommands = undefined
+        if (projectMcp === mcp) projectMcp = undefined
+        if (projectHooks === hooks) projectHooks = undefined
+        if (suitePrompts === prompts) suitePrompts = undefined
+        await Promise.all([mounted.dispose(), mcp.dispose(), hooks.dispose(), prompts.dispose()])
+      }
+    }, 'dsh-agent-plugins-market: project command lifecycle')
   })
 
   ctx.inject(['webServer', 'loader'], hostCtx => {
-    hostCtx.effect(() => mountSuiteRoutes(hostCtx, catalog), 'dsh-agent-plugins-market: http routes')
+    hostCtx.effect(() => mountSuiteRoutes(hostCtx, catalog, resources), 'dsh-agent-plugins-market: http routes')
   })
 
   ctx.effect(
     () => () => {
+      disposed = true
       disposeCredentialUpdates()
       if (credentialFlush !== undefined) clearTimeout(credentialFlush)
       credentialFlush = undefined
       pendingCredentialRefs.clear()
+      for (const dispose of settingsWatchers.splice(0)) dispose()
+      feedbackDisposer?.()
+      feedbackDisposer = undefined
+      userCommands.disposeAll()
       void runtime.dispose()
     },
     'dsh-agent-plugins-market: lifecycle'

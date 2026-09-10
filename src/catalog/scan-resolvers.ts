@@ -18,13 +18,14 @@
  * 3. `FlatCollectionsStrategy` — the terminal fallback: manifest-less
  *    `<root>/<name>/SKILL.md` collections.
  */
-import { readdir, stat } from 'node:fs/promises'
+import { readdir, realpath, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { isDirectory, sanitizeId } from './paths.js'
-import type { Suite, SuiteDimension, SuiteManifest } from '../model/types.js'
-import { declaredSkillsPath, detectManifest, readManifest, readMarketplaces, syntheticManifestName, declaredLspServers, type MarketplaceEntry } from './manifests.js'
-import { countSurfaces, discoverMcp, discoverSkills } from './surfaces.js'
-import { parseLspServers } from './lsp-spec.js'
+import type { Suite, SuiteComponents, SuiteDimension, SuiteManifest } from '../model/types.js'
+import { componentDeclarations, detectManifest, readManifest, readMarketplaces, syntheticManifestName, type MarketplaceEntry } from './manifests.js'
+import { countSurfaces, discoverMcp, discoverSkills, listMdFiles } from './surfaces.js'
+import { discoverMarkdownResources } from './component-files.js'
+import { discoverSuiteHooks, discoverSuiteLsp, discoverSystemPrompt } from './suite-components.js'
 import type { ScanChain, ScanContext, ScanFilter, ScanResolution, ScanResult } from './scan-pipeline.js'
 import { runScanChain } from './scan-pipeline.js'
 
@@ -35,7 +36,8 @@ export type { MarketplaceEntry } from './manifests.js'
 const CONTAINER_DIRS = ['plugins', 'external_plugins', 'skills'] as const
 const DOT_DIRS = new Set(['.git', '.github', '.claude', '.cursor', '.kimi', '.plugin', '.sources', 'node_modules'])
 
-export interface SuiteHint {
+export interface SuiteHint extends SuiteComponents {
+  layout?: import('../model/layouts.js').ManifestKind
   name?: string
   version?: string
   description?: string
@@ -109,7 +111,7 @@ export function entryRemoteUrl(entry: MarketplaceEntry): string | undefined {
   return githubRepoUrl(record)
 }
 
-function claimLocal(checkout: string, declaredPath: string): EntryResolution {
+async function claimLocal(checkout: string, declaredPath: string): Promise<EntryResolution> {
   const dir = resolve(checkout, declaredPath)
   // Containment guard: a relative entry must stay inside the checkout.
   if (dir !== checkout && !dir.startsWith(`${checkout}/`)) {
@@ -117,6 +119,14 @@ function claimLocal(checkout: string, declaredPath: string): EntryResolution {
     // path escapes the checkout. Its verdict is authoritative — later
     // handlers must not reinterpret it as something else.
     return { kind: 'rejected', reason: `path "${declaredPath}" escapes the checkout` }
+  }
+  try {
+    const [realCheckout, realDir] = await Promise.all([realpath(checkout), realpath(dir)])
+    if (realDir !== realCheckout && !realDir.startsWith(`${realCheckout}/`)) {
+      return { kind: 'rejected', reason: `path "${declaredPath}" escapes the checkout through a symlink` }
+    }
+  } catch {
+    return { kind: 'rejected', reason: `path "${declaredPath}" is missing or unreadable` }
   }
   return { kind: 'local', dir }
 }
@@ -128,7 +138,7 @@ function unclaimed(reason: string): EntryResolution {
 /** String source: a checkout-relative path (Claude Code `"./skills/x"` form). */
 const STRING_PATH_HANDLER: EntryHandler = {
   name: 'local-string-path',
-  handle(context): EntryResolution {
+  async handle(context): Promise<EntryResolution> {
     const source = context.entry.source
     if (typeof source !== 'string') return unclaimed('source is not a path string')
     return claimLocal(context.checkout, source)
@@ -138,10 +148,11 @@ const STRING_PATH_HANDLER: EntryHandler = {
 /** Object source with `path`: Codex `{ source: 'local', path }` and Claude `{ path }`. */
 const OBJECT_PATH_HANDLER: EntryHandler = {
   name: 'local-object-path',
-  handle(context): EntryResolution {
+  async handle(context): Promise<EntryResolution> {
     const source = context.entry.source
     if (source === null || typeof source !== 'object') return unclaimed('source is not an object')
     const record = source as Record<string, unknown>
+    if (entryRemoteUrl(context.entry) !== undefined) return unclaimed('path belongs to a remote source')
     if (typeof record['path'] !== 'string' || record['path'] === '') return unclaimed('object source carries no path')
     return claimLocal(context.checkout, record['path'])
   }
@@ -168,7 +179,8 @@ const ENTRY_HANDLERS: readonly EntryHandler[] = [STRING_PATH_HANDLER, OBJECT_PAT
 export async function resolveMarketplaceEntry(checkout: string, entry: MarketplaceEntry, sourceUrl: string | undefined): Promise<EntryResolution> {
   const remoteUrl = entryRemoteUrl(entry)
   if (sourceUrl !== undefined && remoteUrl !== undefined && canonicalGitUrl(remoteUrl) === canonicalGitUrl(sourceUrl) && (await isDirectory(checkout))) {
-    return { kind: 'local', dir: checkout }
+    const source = entry.source
+    return typeof source === 'object' && source !== null && typeof source.path === 'string' ? claimLocal(checkout, source.path) : { kind: 'local', dir: checkout }
   }
   let lastReason = 'no handler claimed the entry'
   for (const handler of ENTRY_HANDLERS) {
@@ -189,7 +201,7 @@ export class MarketplaceStrategy implements ScanFilter {
   readonly name = 'marketplace'
 
   async doScan(context: ScanContext, chain: ScanChain): Promise<ScanResolution> {
-    const marketplaces = await readMarketplaces(context.checkout)
+    const marketplaces = await readMarketplaces(context.checkout, context.notes)
     for (const marketplace of marketplaces) {
       const roots = await this.marketplaceRoots(context, marketplace.entries)
       if (roots.length === 0) {
@@ -198,7 +210,7 @@ export class MarketplaceStrategy implements ScanFilter {
       }
       const suites = await Promise.all(
         roots.map(async root =>
-          root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint)
+          root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
         )
       )
       const resolved = suites.filter((suite): suite is Suite => suite !== undefined)
@@ -207,12 +219,13 @@ export class MarketplaceStrategy implements ScanFilter {
         continue
       }
       // A productive dialect wins; supplement with containers it did not list.
+      context.marketplacePath = marketplace.path
       for (const container of CONTAINER_DIRS) {
         const containerDir = join(context.checkout, container)
         if (!(await isDirectory(containerDir))) continue
         for (const child of await listChildDirs(containerDir)) {
           if (roots.some(root => root.dir === child) || !(await hasSuiteManifest(child))) continue
-          const extra = await readSuite(child, context.sourceId, context.dimension, undefined)
+          const extra = await readSuite(child, context.sourceId, context.dimension, undefined, context.notes)
           if (extra !== undefined) resolved.push(extra)
         }
       }
@@ -229,6 +242,8 @@ export class MarketplaceStrategy implements ScanFilter {
     const seen = new Set<string>()
     for (const entry of entries) {
       const hint: SuiteHint = {
+        ...componentDeclarations(entry),
+        layout: entry.layout,
         name: entry.name,
         version: entry.version,
         description: entry.description,
@@ -267,14 +282,14 @@ export class RootedStrategy implements ScanFilter {
 
   async doScan(context: ScanContext, chain: ScanChain): Promise<ScanResolution> {
     if (await hasSuiteManifest(context.checkout)) {
-      const suite = await readSuite(context.checkout, context.sourceId, context.dimension, undefined)
+      const suite = await readSuite(context.checkout, context.sourceId, context.dimension, undefined, context.notes)
       return suite === undefined ? chain.next(context) : { kind: 'resolved', suites: [suite] }
     }
     const found = await collectRoots(context.checkout, undefined, new Set())
     if (found.length === 0) return chain.next(context)
     const suites = await Promise.all(
       found.map(async root =>
-        root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint)
+        root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
       )
     )
     const resolved = suites.filter((suite): suite is Suite => suite !== undefined)
@@ -287,6 +302,9 @@ export class FlatCollectionsStrategy implements ScanFilter {
   readonly name = 'flat-collections'
 
   async doScan(context: ScanContext): Promise<ScanResolution> {
+    // A declared suite has already been evaluated by rooted discovery.
+    // Reinterpreting its children would bypass a rejected manifest.
+    if (await hasSuiteManifest(context.checkout)) return { kind: 'resolved', suites: [] }
     const collection: SuiteRoot[] = []
     for (const child of await listChildDirs(context.checkout)) {
       if (await hasSkillFiles(child)) collection.push({ dir: child })
@@ -297,7 +315,7 @@ export class FlatCollectionsStrategy implements ScanFilter {
     }
     const suites = await Promise.all(
       collection.map(async root =>
-        root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint)
+        root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
       )
     )
     return { kind: 'resolved', suites: suites.filter((suite): suite is Suite => suite !== undefined) }
@@ -339,7 +357,7 @@ async function collectRoots(dir: string, hint: SuiteHint | undefined, seen: Set<
   // An entry carrying inline LSP declarations is a suite by declaration alone
   // (official CC lsp plugins ship only a README), but only at the marketplace
   // entry root — never deeper, so containers cannot self-declare.
-  if ((await hasSuiteManifest(dir)) || (await hasSkillFiles(dir)) || (hint?.lspServers !== undefined && depth === 0)) {
+  if ((await hasSuiteManifest(dir)) || (await hasSkillFiles(dir)) || (hint !== undefined && Object.keys(componentDeclarations(hint)).length > 0 && depth === 0)) {
     seen.add(dir)
     return [{ dir, hint }]
   }
@@ -358,6 +376,7 @@ export async function hasSkillFiles(dir: string): Promise<boolean> {
   if (await isFile(join(dir, 'SKILL.md'))) return true
   const skillsDir = join(dir, 'skills')
   if (!(await isDirectory(skillsDir))) return false
+  if ((await listMdFiles(skillsDir)).length > 0) return true
   for (const child of await listChildDirs(skillsDir)) {
     if (await isFile(join(child, 'SKILL.md'))) return true
   }
@@ -375,15 +394,21 @@ async function listChildDirs(dir: string): Promise<string[]> {
 }
 
 /** Read one suite root into the normalized shape, or undefined when no manifest parses. */
-export async function readSuite(root: string, sourceId: string, dimension: SuiteDimension, hint: SuiteHint | undefined): Promise<Suite | undefined> {
+export async function readSuite(root: string, sourceId: string, dimension: SuiteDimension, hint: SuiteHint | undefined, notes: string[] = []): Promise<Suite | undefined> {
   const errors: string[] = []
-  let manifest = (await readManifest(root, errors, hint)) ?? (await syntheticManifest(root))
+  const declaredManifest = await hasSuiteManifest(root)
+  let manifest = declaredManifest ? await readManifest(root, errors, hint) : await syntheticManifest(root)
+  if (declaredManifest && (manifest === undefined || errors.length > 0)) {
+    notes.push(...errors, `suite ${root}: rejected declared manifest`)
+    return undefined
+  }
   // A declaration-only suite (official CC lsp plugins ship just a README):
   // the marketplace entry's inline lspServers are its manifest.
-  if (manifest === undefined && hint?.lspServers !== undefined) {
+  if (manifest === undefined && hint !== undefined && Object.keys(componentDeclarations(hint)).length > 0) {
     const name = hint.name ?? syntheticManifestName(root)
     manifest = {
-      layout: 'claude-code',
+      layout: hint.layout ?? 'claude-code',
+      components: componentDeclarations(hint),
       path: '',
       id: sanitizeId(name),
       name,
@@ -392,16 +417,39 @@ export async function readSuite(root: string, sourceId: string, dimension: Suite
     }
   }
   if (manifest === undefined) return undefined
-  const declared = await declaredSkillsPath(root)
+  let declared = manifest.components?.skills
+  if (declared !== undefined && (manifest.layout === 'claude-code' || manifest.layout === 'codex') && (await isDirectory(join(root, 'skills')))) {
+    declared = ['skills', ...(Array.isArray(declared) ? declared : [declared])]
+  }
   const skills = await discoverSkills(root, errors, declared)
-  const mcp = await discoverMcp(root, errors)
-  // Inline LSP declarations: the marketplace entry wins over the manifest
-  // (Claude Code ships lspServers on the entry), and either is optional.
-  const lspRaw = hint?.lspServers ?? (await declaredLspServers(root))
-  const lspServers = parseLspServers(lspRaw, errors)
-  const lsp = Object.keys(lspServers).length > 0 ? { servers: lspServers } : undefined
+  if (manifest.layout === 'skill-collection' && skills.length === 0) {
+    notes.push(...errors)
+    return undefined
+  }
+  const mcp = await discoverMcp(root, errors, manifest)
+  // Effective component declarations include marketplace fallbacks and manifest overrides.
+  const lsp = await discoverSuiteLsp(root, manifest, errors)
+  const hooks = await discoverSuiteHooks(root, manifest, errors)
+  const resources = {
+    commands: await discoverMarkdownResources(
+      root,
+      'commands',
+      manifest.components?.commands,
+      manifest.path,
+      errors,
+      manifest.layout === 'cursor' ? ['.md', '.mdc', '.markdown', '.txt'] : ['.md']
+    ),
+    agents: await discoverMarkdownResources(root, 'agents', manifest.components?.agents, manifest.path, errors)
+  }
+  const systemPrompt = await discoverSystemPrompt(root, manifest, errors)
   const surfaces = await countSurfaces(root, skills, mcp, lsp)
+  surfaces.commands = resources.commands.length
+  surfaces.agents = resources.agents.length
+  surfaces.hooks = Object.values(hooks?.events ?? {}).reduce((count, groups) => count + groups.reduce((sum, group) => sum + group.hooks.length, 0), 0)
   return {
+    resources,
+    ...(hooks === undefined ? {} : { hooks }),
+    ...(systemPrompt === undefined ? {} : { systemPrompt }),
     sourceId,
     id: manifest.id,
     root,

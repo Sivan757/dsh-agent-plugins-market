@@ -1,12 +1,13 @@
 /** Suite detail and preview projections owned by the application layer. */
 import { readFile } from 'node:fs/promises'
 import { parse as parseYaml } from 'yaml'
-import { discoverLspEntries, listMdFiles } from '../catalog/surfaces.js'
+import { discoverLspEntries } from '../catalog/surfaces.js'
+import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { credentialRefsInServer } from '../runtime/mcp-config.js'
 import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import { applyOverride, type McpServerOverride } from '../runtime/mcp-overrides.js'
 import type { LspSurfaceDetail, McpServerDetail, SkillContent, SuiteDetail } from '../contracts/market.js'
-import { effectiveSurfaces, type InstalledEntry, type McpServerStdio, type McpServerStreamableHttp, type Suite } from '../model/types.js'
+import { effectiveSurfaces, type InstalledEntry, type McpServerStdio, type McpServerStreamableHttp, type Suite, type SuiteMarkdownResource } from '../model/types.js'
 import type { McpMountDiagnostic as McpDiagnostic } from '../runtime/mcp-mounts.js'
 
 /** Build the detail response for one normalized suite. */
@@ -50,9 +51,16 @@ export async function buildSuiteDetail(
               credentialRefs: credentialRefsInServer(effective)
             }
           }),
-    hooks: remoteUrl === undefined ? await hooksPreviews(suite.root) : { count: 0, entries: [] },
-    commands: remoteUrl === undefined ? await markdownPreviews(`${suite.root}/commands`) : [],
-    agents: remoteUrl === undefined ? await markdownPreviews(`${suite.root}/agents`) : [],
+    hooks:
+      remoteUrl === undefined
+        ? suite.hooks === undefined
+          ? suite.resources === undefined
+            ? await hooksPreviews(suite.root)
+            : { count: 0, entries: [] }
+          : normalizedHookPreviews(suite)
+        : { count: 0, entries: [] },
+    commands: remoteUrl === undefined ? await markdownPreviews(suite.resources?.commands ?? (await defaultMarkdownResources(suite.root, 'commands'))) : [],
+    agents: remoteUrl === undefined ? await markdownPreviews(suite.resources?.agents ?? (await defaultMarkdownResources(suite.root, 'agents'))) : [],
     lsp: remoteUrl === undefined ? await lspDetail(suite) : { servers: [], raw: [] },
     errors: suite.errors,
     mcpErrors: diagnostics.filter(diagnostic => diagnostic.suiteId === suite.id).map(diagnostic => `${diagnostic.serverKey}: ${diagnostic.reason}`)
@@ -77,13 +85,11 @@ async function readPreview(path: string, capBytes = 64 * 1024): Promise<string> 
   return text.length > capBytes ? `${text.slice(0, capBytes)}\n… (truncated)` : text
 }
 
-async function markdownPreviews(dir: string): Promise<Array<{ name: string; description?: string; content: string }>> {
-  const names = await listMdFiles(dir)
+async function markdownPreviews(resources: SuiteMarkdownResource[]): Promise<Array<{ name: string; description?: string; content: string }>> {
   const previews: Array<{ name: string; description?: string; content: string }> = []
-  for (const name of names) {
-    const file = `${dir}/${name}`
+  for (const resource of resources) {
     try {
-      const content = await readPreview(file)
+      const content = (await resourceText(resource)).slice(0, 64 * 1024)
       const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)
       let description: string | undefined
       if (match !== null) {
@@ -93,12 +99,19 @@ async function markdownPreviews(dir: string): Promise<Array<{ name: string; desc
           if (typeof desc === 'string') description = desc
         }
       }
-      previews.push({ name: name.slice(0, -3), ...(description === undefined ? {} : { description }), content })
+      previews.push({ name: resource.name, ...(description === undefined ? {} : { description }), content })
     } catch {
       // Unreadable preview files are omitted from the detail response.
     }
   }
   return previews
+}
+
+function normalizedHookPreviews(suite: Suite) {
+  const entries = Object.entries(suite.hooks!.events).flatMap(([event, groups]) =>
+    groups.flatMap(group => group.hooks.map(hook => ({ event, ...(group.matcher === undefined ? {} : { matcher: group.matcher }), command: hook.command })))
+  )
+  return { count: entries.length, entries }
 }
 
 async function hooksPreviews(root: string): Promise<{ count: number; entries: Array<{ event: string; matcher?: string; command: string }> }> {

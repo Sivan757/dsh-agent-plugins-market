@@ -30,6 +30,7 @@ function service(): MarketService {
     setEnabled: async () => {},
     setSurface: async () => {},
     setMcpOverride: async () => {},
+    addMcpServer: async () => {},
     retryMounts: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
@@ -38,7 +39,8 @@ function service(): MarketService {
       hostClient: { available: true, version: '0.1.1-rc.2' },
       downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
     }),
-    setMcpBackend: async () => {}
+    setMcpBackend: async () => {},
+    notifyPanelsChanged: async () => {}
   }
 }
 
@@ -53,37 +55,80 @@ function response(): { value: () => unknown; writeHead: (status: number, headers
   }
 }
 
+/** A strict webserver mock: mirrors the host's duplicate-throw contract. */
+function strictWebServer(routes: Map<string, (request: unknown, response: unknown) => void | Promise<void>>): WebServerService {
+  return {
+    register: route => {
+      if (routes.has(route.path)) throw new Error(`webserver: duplicate exact route "${route.path}"`)
+      routes.set(route.path, route.handler as (request: unknown, response: unknown) => void | Promise<void>)
+      return () => routes.delete(route.path)
+    }
+  }
+}
+
+/** A POST request stub with a JSON body and same-origin headers. */
+function postRequest(url: string, body: Record<string, unknown>): unknown {
+  return {
+    method: 'POST',
+    url,
+    headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+    on: (event: string, listener: (chunk?: unknown) => void) => {
+      if (event === 'data') listener(Buffer.from(JSON.stringify(body), 'utf8'))
+      if (event === 'end') listener()
+    },
+    destroy: () => {}
+  }
+}
+
+/** Wait out the async POST handler's response write. */
+const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
+
 describe('market HTTP routes', () => {
-  it('registers the shared route constants and disposes them together', async () => {
+  it('forwards exact model queries and returns reasoning options without provider configuration', async () => {
     const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
-    const webServer: WebServerService = {
-      register: route => {
-        routes.set(route.path, route.handler as (request: unknown, response: unknown) => void | Promise<void>)
-        return () => routes.delete(route.path)
+    const calls: string[][] = []
+    const llm = {
+      listProviders: () => [{ id: 'p', apiKey: 'private' }],
+      resolveModelInfo: async (provider: string, model: string) => {
+        calls.push([provider, model])
+        return { id: model, reasoning: { efforts: [{ id: 'high', name: 'High' }] } }
       }
     }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes), get: () => llm }, service())
+    try {
+      const output = response()
+      await routes.get(MARKET_ROUTES.modelCatalog)!({ method: 'GET', url: `${MARKET_ROUTES.modelCatalog}?provider=p&model=vendor%2Fmodel` }, output)
+      expect(calls).toEqual([['p', 'vendor/model']])
+      expect(output.value()).toEqual({
+        providers: [{ id: 'p', name: 'p' }],
+        models: [{ id: 'vendor/model', name: 'vendor/model' }],
+        reasoning: { efforts: [{ id: 'high', name: 'High' }] }
+      })
+    } finally {
+      dispose()
+    }
+  })
+  it('registers the shared route constants and disposes them together', async () => {
+    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
 
-    expect([...routes.keys()]).toEqual(Object.values(MARKET_ROUTES))
+    // The base mount registers exactly the shared route constants plus the
+    // LSP save mutation route (a distinct path — the webserver keys its
+    // exact table by pathname only, so a same-path GET/POST pair throws at
+    // mount); the user panel routes appear only when a panel store set is
+    // provided. The strict mock reproduces that duplicate-throw contract.
+    expect([...routes.keys()].sort()).toEqual(
+      [...Object.values(MARKET_ROUTES).filter(path => path !== MARKET_ROUTES.userPanel), `${MARKET_ROUTES.lspServers}/save`, `${MARKET_ROUTES.lspServers}/enabled`].sort()
+    )
     const overviewResponse = response()
     await routes.get(MARKET_ROUTES.overview)?.({ url: '/api/agent-plugins/overview', headers: {} }, overviewResponse)
     expect(overviewResponse.value()).toMatchObject({ totals: { all: 0 } })
 
     // Manual MCP retry: same-origin POST re-runs the reconcile pass.
     const retryResponse = response()
-    const retryRequest = {
-      method: 'POST',
-      url: MARKET_ROUTES.mcpRetry,
-      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from('{}', 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
-    await routes.get(MARKET_ROUTES.mcpRetry)?.(retryRequest, retryResponse)
-    // The POST handler writes asynchronously after the body promise settles.
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await routes.get(MARKET_ROUTES.mcpRetry)?.(postRequest(MARKET_ROUTES.mcpRetry, {}), retryResponse)
+    await settle()
     expect(retryResponse.value()).toMatchObject({ ok: true })
 
     // Re-authorize: drops the grant record for the named server.
@@ -94,88 +139,171 @@ describe('market HTTP routes', () => {
         reauthCalls.push(serverName)
       }
     }
-    const disposeReauth = mountSuiteRoutes({ webServer }, reauthService)
+    // The second mount gets its own table: the strict mock enforces the
+    // duplicate-throw contract per webserver instance, as the host does.
+    const reauthRoutes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const disposeReauth = mountSuiteRoutes({ webServer: strictWebServer(reauthRoutes) }, reauthService)
     const reauthResponse = response()
-    const reauthRequest = {
-      method: 'POST',
-      url: MARKET_ROUTES.mcpReauthorize,
-      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from(JSON.stringify({ serverName: 'cloudflare__cloudflare-api' }), 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
-    await routes.get(MARKET_ROUTES.mcpReauthorize)?.(reauthRequest, reauthResponse)
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await reauthRoutes.get(MARKET_ROUTES.mcpReauthorize)?.(postRequest(MARKET_ROUTES.mcpReauthorize, { serverName: 'cloudflare__cloudflare-api' }), reauthResponse)
+    await settle()
     expect(reauthResponse.value()).toMatchObject({ ok: true })
     expect(reauthCalls).toEqual(['cloudflare__cloudflare-api'])
 
     // Missing serverName is rejected.
-    const badRequest = {
-      method: 'POST',
-      url: MARKET_ROUTES.mcpReauthorize,
-      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from('{}', 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
-    await routes.get(MARKET_ROUTES.mcpReauthorize)?.(badRequest, response())
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await reauthRoutes.get(MARKET_ROUTES.mcpReauthorize)?.(postRequest(MARKET_ROUTES.mcpReauthorize, {}), response())
+    await settle()
 
     disposeReauth()
     dispose()
     expect(routes.size).toBe(0)
+    expect(reauthRoutes.size).toBe(0)
   })
 
   it('serves the MCP backend block and validates backend switches', async () => {
     const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
-    const webServer: WebServerService = {
-      register: route => {
-        routes.set(route.path, route.handler as (request: unknown, response: unknown) => void | Promise<void>)
-        return () => routes.delete(route.path)
-      }
-    }
+    const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
 
     const getResponse = response()
     await routes.get(MARKET_ROUTES.mcpBackend)?.({ url: MARKET_ROUTES.mcpBackend, headers: {} }, getResponse)
     expect(getResponse.value()).toMatchObject({ backend: 'builtin', hostClient: { available: true, version: '0.1.1-rc.2' } })
 
-    const postRequest = {
-      method: 'POST',
-      url: MARKET_ROUTES.setMcpBackend,
-      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from(JSON.stringify({ backend: 'host' }), 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
     const postResponse = response()
-    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest, postResponse)
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest(MARKET_ROUTES.setMcpBackend, { backend: 'host' }), postResponse)
+    await settle()
     expect(postResponse.value()).toMatchObject({ ok: true, backend: 'builtin' })
 
     // An unknown backend value is rejected with a 400 payload.
-    const badRequest = {
-      method: 'POST',
-      url: MARKET_ROUTES.setMcpBackend,
-      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from(JSON.stringify({ backend: 'nope' }), 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
     const badResponse = response()
-    await routes.get(MARKET_ROUTES.setMcpBackend)?.(badRequest, badResponse)
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest(MARKET_ROUTES.setMcpBackend, { backend: 'nope' }), badResponse)
+    await settle()
     expect(badResponse.value()).toMatchObject({ ok: false })
 
     dispose()
     expect(routes.size).toBe(0)
+  })
+
+  it('registers user-panel routes only when panel stores are provided', async () => {
+    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const webServer = strictWebServer(routes)
+    const created: Array<{ kind: string; name: string; text: string }> = []
+    const store = (kind: string) => ({
+      list: async () => [{ name: 'demo', description: 'd', disabled: false, metadata: {}, path: `/${kind}/demo.md`, content: 'body' }],
+      get: async (name: string) => ({ name, description: 'd', disabled: false, metadata: {}, path: `/${kind}/${name}.md`, content: 'body' }),
+      create: async (name: string, text: string) => {
+        created.push({ kind, name, text })
+        return { name, description: 'd', disabled: false, metadata: {}, path: `/${kind}/${name}.md`, content: text }
+      },
+      update: async () => {},
+      remove: async () => {}
+    })
+    const panels = {
+      skills: store('skills'),
+      commands: store('commands'),
+      agents: store('agents')
+    } as unknown as Parameters<typeof mountSuiteRoutes>[2]
+    const notifyCalls: number[] = []
+    const panelService = {
+      ...service(),
+      notifyPanelsChanged: async () => {
+        notifyCalls.push(1)
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer }, panelService, panels)
+
+    // Three panels × five routes each (list, entry read, create, update, delete).
+    const panelRoutes = [...routes.keys()].filter(path => path.startsWith(MARKET_ROUTES.userPanel))
+    expect(panelRoutes).toHaveLength(15)
+
+    // Create: POST body {name, text} → entry, then a change notification.
+    const createPath = `${MARKET_ROUTES.userPanel}/skills/create`
+    const postResponse = response()
+    await routes.get(createPath)?.(postRequest(createPath, { name: 'demo', text: '---\ndescription: d\n---\nbody' }), postResponse)
+    await settle()
+    expect(postResponse.value()).toMatchObject({ ok: true, entry: { name: 'demo' } })
+    expect(created).toEqual([{ kind: 'skills', name: 'demo', text: '---\ndescription: d\n---\nbody' }])
+    expect(notifyCalls).toHaveLength(1)
+
+    dispose()
+    expect(routes.size).toBe(0)
+  })
+
+  it('rejects panel entry names outside the grammar without filesystem effect', async () => {
+    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const webServer = strictWebServer(routes)
+    const removals: string[] = []
+    // The mock mirrors the real UserPanelStore's guard: a name outside the
+    // grammar throws before any filesystem call.
+    const ENTRY_NAME = /^[a-z][a-z0-9_-]*$/
+    const store = {
+      list: async () => [],
+      get: async () => undefined,
+      create: async () => ({}),
+      update: async () => {},
+      remove: async (name: string) => {
+        if (!ENTRY_NAME.test(name)) throw new Error(`invalid entry name "${name}"`)
+        removals.push(name)
+      }
+    }
+    const panels = { skills: store, commands: store, agents: store } as unknown as Parameters<typeof mountSuiteRoutes>[2]
+    const dispose = mountSuiteRoutes({ webServer }, { ...service(), notifyPanelsChanged: async () => {} }, panels)
+
+    // Traversal names hit the store but the grammar guard turns them into a
+    // 400 before any filesystem call.
+    const evil = '../../otherwise-secret'
+    const deletePath = `${MARKET_ROUTES.userPanel}/skills/delete`
+    const delResponse = response()
+    await routes.get(deletePath)?.(postRequest(deletePath, { name: evil }), delResponse)
+    await settle()
+    expect(delResponse.value()).toMatchObject({ ok: false })
+    expect(removals).toEqual([])
+
+    // Same-origin enforcement still guards every mutation.
+    const crossOrigin = {
+      method: 'POST',
+      url: deletePath,
+      headers: { host: '127.0.0.1', origin: 'http://evil.example' },
+      on: (event: string, listener: (chunk?: unknown) => void) => {
+        if (event === 'data') listener(Buffer.from('{"name":"ok"}', 'utf8'))
+        if (event === 'end') listener()
+      },
+      destroy: () => {}
+    }
+    const corsResponse = response()
+    await routes.get(deletePath)?.(crossOrigin, corsResponse)
+    await settle()
+    expect(corsResponse.value()).toMatchObject({ ok: false })
+    expect(removals).toEqual([])
+
+    dispose()
+  })
+
+  it('passes the delete-checkout flag through to removeSource', async () => {
+    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const webServer = strictWebServer(routes)
+    const removals: Array<{ id: string; deleteCheckout: boolean }> = []
+    const removeService = {
+      ...service(),
+      removeSource: async (id: string, deleteCheckout?: boolean) => {
+        removals.push({ id, deleteCheckout: deleteCheckout === true })
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer }, removeService)
+
+    const postRequest = {
+      method: 'POST',
+      url: MARKET_ROUTES.removeSource,
+      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+      on: (event: string, listener: (chunk?: unknown) => void) => {
+        if (event === 'data') listener(Buffer.from(JSON.stringify({ id: 'duckdb-skills', deleteCheckout: true }), 'utf8'))
+        if (event === 'end') listener()
+      },
+      destroy: () => {}
+    }
+    await routes.get(MARKET_ROUTES.removeSource)?.(postRequest, response())
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(removals).toEqual([{ id: 'duckdb-skills', deleteCheckout: true }])
+
+    dispose()
   })
 })

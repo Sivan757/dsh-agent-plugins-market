@@ -8,6 +8,8 @@
 .market {
   display: flex;
   min-width: 0;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 24px;
   color: var(--dsw-alias-label-primary, #1f2328);
@@ -195,15 +197,67 @@
 
 /* --- source tabs (top, primary) -------------------------------------------------- */
 
-.sourceTabsRow {
-  display: block;
-  padding: 0;
+/* Equal-width pill grid, exactly as the header always laid chips out. When the
+   list needs more than two rows the strip folds to that height and the grid is
+   lifted out of the flow, so hovering or focusing it expands as an overlay —
+   the card grid below never moves. */
+.sourceTabsBox {
+  position: relative;
+  min-width: 0;
 }
 
-.sourceTabsScroll {
+.sourceTabsRow {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
   gap: 4px;
+  min-width: 0;
+}
+
+/* Folded: two 24px rows plus the 4px gap, with 6px of overlay padding above
+   only — a bottom pad would paint a white band over the toolbar below. */
+.sourceTabsBoxFold {
+  height: 52px;
+}
+
+.sourceTabsBoxFold .sourceTabsRow {
+  position: absolute;
+  inset: -6px -6px auto;
+  box-sizing: border-box;
+  max-height: 58px;
+  overflow: hidden;
+  padding: 6px 6px 0;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border-radius: 10px;
+  transition: max-height 160ms ease, box-shadow 160ms ease, padding-bottom 160ms ease;
+  /* The fade is the only affordance that more sources exist below the fold. */
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+}
+
+/* Hover, or keyboard focus — `:focus-visible`, never plain `:focus-within`:
+   a mouse click leaves the chip focused, and plain focus would re-open the
+   strip on its own once the post-pick suppression expires. */
+.sourceTabsBoxFold:hover .sourceTabsRow,
+.sourceTabsBoxFold:has(:focus-visible) .sourceTabsRow {
+  z-index: 30;
+  max-height: 420px;
+  padding-bottom: 6px;
+  box-shadow:
+    0 0 0 1px var(--dsw-alias-border-l3, #d9dde3),
+    0 12px 28px rgba(16, 24, 40, 0.16);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* After a pick the strip folds again even though the pointer is still inside;
+   leaving the strip clears `.sourceTabsBoxPicked` and re-arms the hover. */
+.sourceTabsBoxFold.sourceTabsBoxPicked:hover .sourceTabsRow,
+.sourceTabsBoxFold.sourceTabsBoxPicked:has(:focus-visible) .sourceTabsRow {
+  max-height: 58px;
+  padding-bottom: 0;
+  box-shadow: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 78%, transparent 100%);
 }
 
 /* --- unmanaged checkout adoption row ---------------------------------------------- */
@@ -266,7 +320,8 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary, #9ca3af);
-  padding: 2px 2px;
+  padding: 0 2px;
+  margin-left: 4px;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -288,8 +343,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: 24px;
+  /* The pill owns the horizontal padding so the label keeps the same gap on
+     both sides whether or not trailing edit/delete controls are present. */
+  padding: 0 10px;
   border: 1px solid var(--dsw-alias-border-l3, #d9dde3);
   border-radius: 999px;
   overflow: hidden;
@@ -303,7 +362,7 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-primary, #1f2328);
-  padding: 2px 2px 2px 10px;
+  padding: 0;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -316,9 +375,12 @@
   color: var(--dsw-alias-brand-primary, #4f6ef7);
 }
 
+/* Selected scope: the harness primary color, exactly as its own primary fill
+   uses it (primary Button, the toggle switch's ON track) — near-black on the
+   light theme, near-white on the dark one, with the matching foreground. */
 .srcTabOn {
-  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4176e6);
-  border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4176e6);
+  background: var(--dsw-alias-brand-primary, #0f1115);
+  border-color: var(--dsw-alias-brand-primary, #0f1115);
 }
 
 .srcTabOn .srcTabMain {
@@ -333,7 +395,8 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary, #9ca3af);
-  padding: 2px 8px 2px 2px;
+  padding: 0 2px;
+  margin-left: 4px;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -352,8 +415,11 @@
 
 /* --- card grid ----------------------------------------------------------------- */
 
-/* Lists scroll only in page mode (fixed shell); in settings mode the host
-   `.options` container is the single scroller. */
+/* Both host surfaces scroll inside the market's own list region: page mode is
+   a fixed shell and settings mode stretches the workspace to the section, so
+   the host `.options` container no longer scrolls the market. In-panel
+   scrolling with a stable gutter also removes the layout jitter when a tab
+   switch changes the scrollbar's visibility. */
 .grid {
   flex: 1;
   min-height: 0;
@@ -362,9 +428,6 @@
   gap: 12px;
   min-width: 0;
   align-content: start;
-}
-
-.pageMode .grid {
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-right: 4px;
@@ -377,9 +440,6 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-}
-
-.pageMode .list {
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-right: 4px;
@@ -424,6 +484,7 @@
 .card {
   background: var(--dsw-alias-bg-layer-1, #fff);
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-left: 3px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   padding: 12px 14px;
   display: flex;
@@ -438,16 +499,6 @@
   border-color: var(--dsw-alias-border-l3, #d9dde3);
   background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
-}
-
-/* Installed cards carry the MCP card's left accent so install state scans
-   like connection state does on the MCP page: green = enabled, gray = off. */
-.cardOn {
-  border-left: 3px solid var(--dsw-alias-state-success-primary, #16a34a);
-}
-
-.cardMuted {
-  border-left: 3px solid var(--dsw-alias-label-tertiary, #98a2b3);
 }
 
 .cardTop {
@@ -652,6 +703,17 @@
   justify-content: flex-end;
   gap: 8px;
   width: 100%;
+}
+
+/* The remove-source "also delete local files" checkbox row (matches
+   ui/panel.module.css .confirmCheck). */
+.confirmCheck {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
 }
 
 .modalFooterLeft {
@@ -987,18 +1049,9 @@
     order: 4;
   }
 
-  .sourceTabsScroll {
-    display: flex;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: thin;
-  }
-
-  .srcTab,
-  .srcTabOn {
-    width: auto;
-    min-width: 128px;
-    flex: 0 0 auto;
+  /* Narrow panels fit fewer columns; keep pills equal width, never scroll. */
+  .sourceTabsRow {
+    grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
   }
 
   .grid {
@@ -1163,6 +1216,7 @@
    identical beside the native cards. */
 
 .pluginCard {
+  container: market-config / inline-size;
   list-style: none;
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
   border-radius: 12px;
@@ -1247,6 +1301,22 @@
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
+}
+
+@container market-config (max-width: 320px) {
+  .pluginCardRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pluginCardText {
+    width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .regionSeg {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
 }
 
 /* The switch is the shared ui/ToggleSwitch component (the same one the

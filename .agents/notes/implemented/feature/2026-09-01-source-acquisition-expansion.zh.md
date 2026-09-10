@@ -10,7 +10,7 @@ Status: implemented
 
 一个三 kind 的获取层，`resolveSourceKind` 是唯一权威（显式 `kind` 优先，遗留 `local` 标志映射为 `'local'`，压缩包形态的 URL 推断为 `'archive'`，其余为 `'git'`）：
 
-- **收编（手动克隆修复）。** `addSource` 先检查候选 id 的 checkout 目录：若某目录的 `origin` remote 与输入 URL 在 `canonicalGitUrl` 规范形下相等，则原样登记为 `adopted: true`——不克隆、不改名、不发明 id。`sources/adopt` 显式登记任意未托管的 `.sources/` checkout（非 git 目录落为 `local` 源）。overview 载荷上报 `unmanaged` checkout，客户端渲染收编条。收编源与 local 源是用户拥有的目录：`removeSource` 与 URL 变更永不删除它们。
+- **收编（手动克隆修复）。** `addSource` 先检查候选 id 的 checkout 目录：若某目录的 `origin` remote 与输入 URL 在 `canonicalGitUrl` 规范形下相等，则原样登记为 `adopted: true`——不克隆、不改名、不发明 id。`sources/adopt` 显式登记任意未托管的 `.sources/` checkout（非 git 目录落为 `local` 源）。overview 载荷上报 `unmanaged` checkout，客户端渲染收编条。收编源与 local 源是用户拥有的目录：URL 变更永不删除它们。自 [workspace-tabs 笔记](2026-09-06-workspace-tabs-user-panels.zh.md) 起，`removeSource(id, deleteCheckout)` 获得**可选**的物理删除（确认对话框勾选框）：它删除 `.sources/<id>` 下的 checkout（包括已收编的），因为该目录属于管理器存储；只有指向 `.sources/` 之外的 `local` 源是仅取消登记。客户端把收编源当普通源渲染——自 [源胶囊折叠笔记](2026-09-08-source-strip-fold.zh.md) 起不再带收编徽标。
 - **Git 提速。** `GitOptions` 随宿主配置下发：`proxy`（以 `-c http.proxy/https.proxy` 注入）、`insteadOf` URL 重写（镜像加速）、`timeoutMs`、`cloneRetry`（失败自动重试一次，默认开）、`fallbackTarball`（默认关——GitHub 克隆失败后经压缩包管线回退下载 codeload `tar.gz`）。所有触网调用注入 `GIT_HTTP_LOW_SPEED_LIMIT/TIME`，僵死传输尽早失败。更新改用 `fetch --depth 1` + `reset --hard FETCH_HEAD`（shallow 安全、幂等）取代 `git pull --ff-only`，分支从源配置或 checkout 当前分支解析。
 - **压缩包源。** `catalog/archive.ts` 经 HTTPS 下载（`allowHttpArchives` 才允许明文 http），256 MiB 上限，校验可选 `sha256`，解压 zip（fflate）或 tar.gz/tar（系统 `tar`），带 zip-slip 防护（条目名校验、zip 不落符号链接、解压后符号链接逃逸巡检），剥掉单层顶层包装目录后换入 `.sources/<id>`。下载摘要即源的锁值（不存在 git HEAD）。刷新即重新下载换入。
 

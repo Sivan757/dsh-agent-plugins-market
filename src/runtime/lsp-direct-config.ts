@@ -23,11 +23,12 @@ export async function loadLspServers(dataRoot: string): Promise<{ servers: Recor
   let raw: unknown
   try {
     raw = JSON.parse(await readFile(lspServersPath(dataRoot), 'utf8'))
-  } catch {
-    return { servers: {}, errors: [] }
+  } catch (error) {
+    return { servers: {}, errors: (error as NodeJS.ErrnoException).code === 'ENOENT' ? [] : [`lsp-servers.json: ${error instanceof Error ? error.message : String(error)}`] }
   }
   const errors: string[] = []
   const table = (raw as Record<string, unknown> | null)?.['lspServers']
+  if (table === undefined || table === null || Array.isArray(table) || typeof table !== 'object') return { servers: {}, errors: ['lsp-servers.json: lspServers must be an object'] }
   const servers = parseLspServers(table, errors)
   return { servers, errors: errors.map(error => `lsp-servers.json: ${error}`) }
 }
@@ -42,6 +43,7 @@ export async function saveLspServers(dataRoot: string, raw: unknown): Promise<{ 
   }
   const path = lspServersPath(dataRoot)
   await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, `${JSON.stringify({ lspServers: servers }, null, 2)}\n`, 'utf8')
+  const persisted = Object.fromEntries(Object.entries(servers).map(([name, { key: _key, ...config }]) => [name, config]))
+  await writeFile(path, `${JSON.stringify({ lspServers: persisted }, null, 2)}\n`, { mode: 0o600 })
   return { servers }
 }

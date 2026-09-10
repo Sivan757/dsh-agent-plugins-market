@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/universal/plugin.schema.json",
+  "title": "Universal .plugin/ Plugin Manifest (observed convention)",
+  "description": "Manifest at .plugin/plugin.json. There is no cross-vendor specification for this location: it is an observed convention implemented by GitHub Copilot CLI, the OpenHands SDK, vercel/vercel-plugin, and goose. This schema is the union of the field sets those consumers accept. Authored; nothing upstream is vendored.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference (.plugin/plugin.json is first in Copilot's lookup order) ; OpenHands/software-agent-sdk openhands/sdk/plugin/format/claude_code.py and docs.openhands.dev/sdk/guides/plugins ; vercel/vercel-plugin/.plugin/plugin.json ; aaif-goose/goose crates/goose/src/plugins/formats/open_plugins.rs. The originating open-plugin specification is not public (vercel-labs/plugins returns 404), so fields beyond name/version/description are unverified for any single consumer. The agent-plugins.org standard is the real cross-vendor format but mandates a root plugin.json, not .plugin/.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "description": "Plugin identifier." },
+    "version": { "type": "string", "description": "Required by the vercel-plugin validator; the only real .plugin/plugin.json file declares it." },
+    "description": { "type": "string", "description": "Required by the vercel-plugin validator." },
+    "author": {
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": { "name": { "type": "string" }, "email": { "type": "string" }, "url": { "type": "string" } },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "homepage": { "type": "string" },
+    "repository": { "type": "string" },
+    "license": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "category": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "agents": { "$ref": "#/$defs/pathList", "description": "Copilot CLI: path(s) to agent directories containing .agent.md files; default agents/." },
+    "skills": { "$ref": "#/$defs/pathList", "description": "Path(s) to skill directories containing SKILL.md; default skills/." },
+    "commands": { "$ref": "#/$defs/pathList", "description": "Path(s) to command directories." },
+    "hooks": { "anyOf": [{ "type": "string" }, { "type": "object" }], "description": "Copilot CLI reads hooks.json or hooks/hooks.json; other consumers use hooks/hooks.json." },
+    "extensions": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }, { "type": "object" }],
+      "description": "Copilot CLI extension directories, or { paths: [...], exclusive: true }."
+    },
+    "mcpServers": {
+      "anyOf": [{ "type": "string" }, { "type": "object" }],
+      "description": "Copilot CLI and the other .plugin/ consumers read .mcp.json; the agent-plugins.org standard uses mcp.json instead."
+    },
+    "lspServers": { "anyOf": [{ "type": "string" }, { "type": "object" }], "description": "Copilot CLI: path to an LSP configuration file, or inline server definitions." }
+  },
+  "required": ["name"],
+  "additionalProperties": true,
+  "$defs": {
+    "pathList": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    }
+  }
+}

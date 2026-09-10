@@ -11,10 +11,17 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DetailModal } from './ui/DetailModal.js'
+import { ServerConfigEditor } from './ui/ServerConfigEditor.js'
+import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
+import { parseServerConfig } from './ui/server-form.js'
+import { PanelHeader, PanelActions } from './ui/panel.js'
 import type { Translate } from './index.js'
-import { fetchLspServers, fetchLspStatus, saveLspServers, type LspStatusEntry, type LspStatusPayload, type LspStatusState } from './api.js'
-import { SearchFilterToolbar, type SearchFilterToolbarView } from './SearchFilterToolbar.js'
+import { addLspServer, fetchLspStatus, type LspStatusEntry, type LspStatusPayload, type LspStatusState } from './api.js'
+import { SearchFilterToolbar } from './SearchFilterToolbar.js'
+import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
+import { useWorkspaceView } from './ui/workspace-view.js'
 import css from './mcp-status.module.css'
 
 interface LspStatusPanelProps {
@@ -28,28 +35,26 @@ const EMPTY_STATUS: LspStatusPayload = {
   hostMissing: true
 }
 
-type Filter = 'all' | 'plugin' | 'direct' | 'blocked'
+type Filter = 'all' | 'plugin' | 'direct'
 
-const FILTER_KEYS: Filter[] = ['all', 'plugin', 'direct', 'blocked']
+const FILTER_KEYS: Filter[] = ['all', 'plugin', 'direct']
 
-const FILTER_LABEL_KEYS: Record<Filter, 'lspAll' | 'lspPlugin' | 'lspDirect' | 'lspBlocked'> = {
+const FILTER_LABEL_KEYS: Record<Filter, 'lspAll' | 'lspPlugin' | 'lspDirect'> = {
   all: 'lspAll',
   plugin: 'lspPlugin',
   direct: 'lspDirect',
-  blocked: 'lspBlocked'
 }
 
 /** Tooltip text per filter: the counts alone do not explain the grouping. */
-const FILTER_HINT_KEYS: Partial<Record<Filter, 'lspFilterAllHint' | 'lspFilterPluginHint' | 'lspFilterDirectHint' | 'lspFilterBlockedHint'>> = {
+const FILTER_HINT_KEYS: Partial<Record<Filter, 'lspFilterAllHint' | 'lspFilterPluginHint' | 'lspFilterDirectHint'>> = {
   all: 'lspFilterAllHint',
   plugin: 'lspFilterPluginHint',
   direct: 'lspFilterDirectHint',
-  blocked: 'lspFilterBlockedHint'
 }
 function matches(entry: LspStatusEntry, filter: Filter): boolean {
   if (filter === 'all') return true
   if (filter === 'plugin' || filter === 'direct') return entry.kind === filter
-  return entry.state === 'host-missing' || entry.state === 'conflict' || entry.state === 'failed'
+  return false
 }
 
 function severity(entry: LspStatusEntry): number {
@@ -68,7 +73,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const [error, setError] = useState<string | undefined>(undefined)
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
-  const [view, setView] = useState<SearchFilterToolbarView>('grid')
+  const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<LspStatusEntry | undefined>(undefined)
   const [editorOpen, setEditorOpen] = useState(false)
 
@@ -102,7 +107,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         clearInterval(timer)
         return
       }
-      fetchLspStatus()
+      fetchLspStatus(true)
         .then(value => {
           if (!cancelled) setPayload(value)
         })
@@ -122,53 +127,11 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const visible = payload.entries
     .filter(entry => matches(entry, filter))
     .filter(entry => needle === '' || `${entry.serverKey} ${entry.suiteName} ${entry.command}`.toLowerCase().includes(needle))
-  const settled = payload.entries.filter(entry => entry.state !== 'starting')
-  const allHealthy = settled.length > 0 && settled.every(entry => entry.state === 'mounted')
 
   return h(
     'div',
     { className: css.surface },
-    h(
-      'header',
-      { className: css.header },
-      h(
-        'div',
-        { className: css.headerText },
-        h('h2', { className: css.title }, t('lspStatusTitle')),
-        h('p', { className: css.subtitle }, t('lspStatusSubtitle'))
-      ),
-      h(
-        'div',
-        { className: css.headerActions },
-        h(Button, { variant: 'ghost', size: 'sm', onClick: () => setEditorOpen(true), disabled: loading, title: t('lspConfigure') }, t('lspConfigure')),
-        h(Button, { variant: 'ghost', size: 'sm', onClick: refresh, disabled: loading, title: t('refresh') }, `↻ ${t('refresh')}`)
-      )
-    ),
-    // The summary bar appears only when attention is needed; a healthy panel
-    // is silent (the green card accents already say "mounted").
-    allHealthy || payload.entries.length === 0 || loading
-      ? null
-      : h(
-          'div',
-          { className: css.summaryBar },
-          payload.hostMissing
-            ? h('span', { className: `${css.summaryChip} ${css.chipblocked}`, title: t('lspHostMissing') }, t('lspHostMissingShort'))
-            : ([
-                { key: 'failed', count: payload.totals.failed, label: t('lspFailed') },
-                { key: 'blocked', count: payload.totals.blocked, label: t('lspBlocked') },
-                { key: 'disabled', count: payload.totals.disabled, label: t('lspDisabled') }
-              ] as Array<{ key: string; count: number; label: string }>)
-                .filter(chip => chip.count > 0)
-                .map(chip =>
-                  h(
-                    'span',
-                    { key: chip.key, className: `${css.summaryChip} ${css[`chip${chip.key}`]}`, title: `${chip.count} ${chip.label}` },
-                    h('span', { className: css.summaryCount }, chip.count),
-                    h('span', { className: css.summaryLabel }, chip.label)
-                  )
-                ),
-          h('span', { className: css.observedAt }, formatObservedAt(payload.observedAt))
-        ),
+    h(PanelHeader, { title: t('lspStatusTitle'), subtitle: t('lspStatusSubtitle'), actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setEditorOpen(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading }) }),
     h(SearchFilterToolbar, {
       className: css.toolbar,
       search,
@@ -196,11 +159,11 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         : visible.length === 0
           ? h('div', { className: css.empty }, t('lspEmpty'))
           : h(
-              'div',
-              { className: view === 'grid' ? css.grid : css.list },
+              ResourceCollection,
+              { view, className: view === 'grid' ? css.grid : css.list },
               [...visible].sort((left, right) => severity(left) - severity(right)).map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry) }))
             ),
-    selected === undefined ? null : h(LspDetailModal, { entry: selected, t, onClose: () => setSelected(undefined) }),
+    selected === undefined ? null : h(LspDetailModal, { entry: selected, t, onClose: () => { setSelected(undefined); refresh() } }),
     editorOpen
       ? h(LspConfigEditor, {
           t,
@@ -221,31 +184,17 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
  * reconcile pass.
  */
 function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
-  const [text, setText] = useState<string | undefined>(undefined)
+  const [text, setText] = useState('{"command":"","extensionToLanguage":{}}')
+  const [name, setName] = useState('')
+  const [valid, setValid] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
-
-  useEffect(() => {
-    let cancelled = false
-    fetchLspServers()
-      .then(servers => {
-        if (cancelled) return
-        setText(JSON.stringify({ lspServers: servers }, null, 2))
-      })
-      .catch(reason => {
-        if (cancelled) setError(reason instanceof Error ? reason.message : String(reason))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const save = async (): Promise<void> => {
     setBusy(true)
     setError(undefined)
     try {
-      const parsed: unknown = JSON.parse(text ?? '')
-      await saveLspServers(parsed)
+      await addLspServer(name.trim(), parseServerConfig(text))
       onSaved()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
@@ -254,33 +203,25 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
     }
   }
 
-  return h(Modal, {
+  return h(DetailModal, {
     open: true,
-    onClose,
-    title: t('lspConfigure'),
-    description: t('lspConfigureHint'),
+    onClose: busy ? () => {} : onClose,
+    title: t('lspAddTitle'),
     closeLabel: t('cancel'),
     className: css.detailDialog,
     contentClassName: css.detailBody,
     footer: h(
       'div',
       { className: css.modalFooter },
-      h(Button, { variant: 'ghost', onClick: onClose }, t('cancel')),
-      h(Button, { variant: 'primary', disabled: busy || text === undefined, onClick: () => { void save() } }, t('lspSave'))
+      h(Button, { variant: 'ghost', disabled: busy, onClick: onClose }, t('cancel')),
+      h(Button, { variant: 'primary', disabled: busy || !valid || name.trim() === '', onClick: () => { void save() } }, t('lspSave'))
     ),
     children: h(
       'div',
       { className: css.detail },
       error === undefined ? null : h('div', { className: css.error }, error),
-      text === undefined
-        ? h('div', { className: css.empty }, t('loading'))
-        : h('textarea', {
-            className: css.config,
-            rows: 16,
-            spellcheck: false,
-            value: text,
-            onChange: (event: { target: { value: string } }) => setText(event.target.value)
-          })
+      h('label', null, t('lspServerName'), h(Input, { value: name, disabled: busy, 'aria-label': t('lspServerName'), onChange: (event: { target: { value: string } }) => setName(event.target.value) })),
+      h(ServerConfigEditor, { kind: 'lsp', text, onChange: setText, t, disabled: busy, onValidityChange: setValid })
     )
   })
 }
@@ -301,8 +242,8 @@ function LspRow({ entry, t, onOpen }: { entry: LspStatusEntry; t: Translate; onO
   }
   const showPill = entry.state !== 'mounted'
   return h(
-    'div',
-    { className: `${css.card} ${css[`card${accentClass(entry.state)}`]}`, ...interactive },
+    ResourceCard,
+    { className: css.card, state: entry.state === 'mounted' ? 'active' : entry.state === 'disabled' ? 'disabled' : entry.state === 'failed' || entry.state === 'conflict' ? 'error' : 'warning', ...interactive },
     h(
       'div',
       { className: css.cardBody },
@@ -316,14 +257,13 @@ function LspRow({ entry, t, onOpen }: { entry: LspStatusEntry; t: Translate; onO
           : h('span', { className: css.sourceDirect }, t('lspDirect')),
         showPill ? h('span', { className: `${css.statePill} ${css[`state${pillClass(entry.state)}`]}` }, stateLabel(t, entry.state)) : null
       ),
-      h('p', { className: css.endpoint }, [entry.command, ...entry.args].join(' '))
+      h('p', { className: css.endpoint }, [entry.command, ...entry.args].join(' ')),
     )
   )
 }
 
 function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Translate; onClose: () => void }): ReactNode {
-  const extensions = Object.entries(entry.extensions)
-  return h(Modal, {
+  return h(DetailModal, {
     open: true,
     onClose,
     title: entry.serverKey,
@@ -356,30 +296,7 @@ function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Trans
             h('span', { className: css.reasonLabel }, t('lspReasonLabel')),
             h('p', { className: css.reasonText }, entry.reason)
           ),
-      h(
-        'section',
-        { className: css.detailSection },
-        h('h4', { className: css.detailHead }, t('lspDetailCommand')),
-        h('pre', { className: css.config }, [entry.command, ...entry.args].join(' '))
-      ),
-      h(
-        'section',
-        { className: css.detailSection },
-        h('h4', { className: css.detailHead }, `${t('lspDetailExtensions')} (${extensions.length})`),
-        h(
-          'div',
-          { className: css.toolList },
-          extensions.map(([ext, languageId]) =>
-            h(
-              'div',
-              { key: ext, className: css.extRow },
-              h('span', { className: css.extName }, ext),
-              h('span', { className: css.extArrow, 'aria-hidden': true }, '→'),
-              h('span', { className: css.extLanguage }, languageId)
-            )
-          )
-        )
-      )
+      h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t })
     )
   })
 }
@@ -399,15 +316,6 @@ function LspFilterIcon({ k }: { k: string }): ReactNode {
     return h('svg', common, h('path', { d: 'M8 2.5 14 13H2L8 2.5Z', stroke: 'currentColor', strokeLinejoin: 'round' }), h('path', { d: 'M8 6.5v3M8 11.2v.3', stroke: 'currentColor', strokeLinecap: 'round' }))
   }
   return h('svg', common, h('path', { d: 'M2.5 5 8 2.5 13.5 5 8 7.5 2.5 5Zm0 3L8 10.5 13.5 8M2.5 11 8 13.5 13.5 11' }))
-}
-
-/** The card-accent CSS suffix; host-missing uses the warn palette. */
-function accentClass(state: LspStatusState): string {
-  if (state === 'mounted') return 'Mounted'
-  if (state === 'host-missing') return 'HostMissing'
-  if (state === 'conflict') return 'Conflict'
-  if (state === 'failed') return 'Failed'
-  return 'Disabled'
 }
 
 /** The status-dot CSS suffix (lowercase state names in the stylesheet). */
@@ -430,10 +338,4 @@ function stateLabel(t: Translate, state: LspStatusState): string {
   if (state === 'failed') return t('lspFailed')
   if (state === 'conflict') return t('lspConflict')
   return t('lspDisabled')
-}
-
-function formatObservedAt(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleTimeString()
 }

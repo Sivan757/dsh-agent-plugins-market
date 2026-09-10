@@ -109,7 +109,9 @@ describe('MarketSection rendering', () => {
     await mountSection()
 
     // The suite card's install button (primary action in the card actions row).
-    const installButtons = [...host!.querySelectorAll('button')].filter(button => (button.textContent ?? '').includes('install'))
+    // Scoped to the card: the toolbar's own "uninstalled" filter label also
+    // contains the substring `install`.
+    const installButtons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
     expect(installButtons.length).toBe(1)
     const probe = vi.fn()
     installButtons[0]!.addEventListener('click', probe)
@@ -146,7 +148,9 @@ describe('MarketSection rendering', () => {
     const resource = await import('../src/client/features/market/market-resource.js')
     vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
     await mountSection()
-    const installButtons = [...host!.querySelectorAll('button')].filter(button => (button.textContent ?? '').includes('install'))
+    // Scoped to the card: the toolbar's own "uninstalled" filter label also
+    // contains the substring `install`.
+    const installButtons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
     expect(installButtons.length).toBe(1)
     act(() => {
       installButtons[0]!.click()
@@ -157,5 +161,50 @@ describe('MarketSection rendering', () => {
     const bodyText = document.body.textContent ?? ''
     expect(bodyText).toContain('installConfirmLocalTree')
     expect(bodyText).not.toContain('f0e9fdf066c1')
+  })
+
+  it('renders an adopted source like any other chip, without an adoption badge', async () => {
+    const payload = {
+      ...overviewPayload,
+      sources: [
+        { ...overviewPayload.sources[0]!, adopted: true },
+        { ...overviewPayload.sources[0]!, id: 'second', url: 'https://example.com/second.git', suiteIds: [] }
+      ]
+    }
+    const resource = await import('../src/client/features/market/market-resource.js')
+    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    const el = await mountSection()
+    const text = el.textContent ?? ''
+    // jsdom reports no content height, so the strip never folds and every chip renders.
+    expect(text).toContain('demo')
+    expect(text).toContain('second')
+    // The translate stub echoes keys, so a rendered badge would surface as `sourceAdopted`.
+    expect(text).not.toContain('sourceAdopted')
+  })
+
+  it('moves the picked source next to 全部 and leaves the rest in id order', async () => {
+    const payload = {
+      ...overviewPayload,
+      sources: [
+        { ...overviewPayload.sources[0]!, id: 'zeta', url: 'https://example.com/zeta.git', suiteIds: [] },
+        { ...overviewPayload.sources[0]!, id: 'alpha', url: 'https://example.com/alpha.git', suiteIds: [] }
+      ]
+    }
+    const resource = await import('../src/client/features/market/market-resource.js')
+    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    await mountSection()
+    const chips = (): string[] =>
+      [...host!.querySelectorAll('button')]
+        .map(button => button.textContent ?? '')
+        // The toolbar's own status filters read `tabAll<n>` without the space.
+        .filter(text => text.startsWith('tabAll ') || text.startsWith('alpha') || text.startsWith('zeta'))
+    expect(chips()).toEqual(['tabAll 1', 'alpha 0', 'zeta 0'])
+
+    // The picked source moves next to 全部 so the folded strip still shows it.
+    const zeta = [...host!.querySelectorAll('button')].find(button => (button.textContent ?? '').startsWith('zeta'))
+    act(() => {
+      zeta!.click()
+    })
+    expect(chips()).toEqual(['tabAll 1', 'zeta 0', 'alpha 0'])
   })
 })

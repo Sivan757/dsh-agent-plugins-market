@@ -1,5 +1,7 @@
 # 兼容布局扩展设计：把市场基础能力开放给 Claude Code / Codex 等原生布局（带开关）
 
+> 本文保留较早的用户/全局维度扩展提案。本次项目布局与总开关的实现、证据和明确边界以 [2026-09-09 ADR](../adr/2026-09-09-layout-registry.md) 为准；不将修改宿主或完整复现原客户端行为作为布局扫描的前置条件。
+
 状态：已评审定稿（2026-09-02 决策记录见 §8）　日期：2026-09-02　基线：dev 工作树（0.5.x）依据：[2026-09-02-agent-config-compat-ecosystem.md](../research/2026-09-02-agent-config-compat-ecosystem.md)（GitHub 生态与各 CLI 布局事实，逐条带来源）
 
 ---

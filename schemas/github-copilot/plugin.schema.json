@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/github-copilot/plugin.schema.json",
+  "title": "GitHub Copilot CLI Plugin Manifest",
+  "description": "Plugin manifest accepted by GitHub Copilot CLI, looked up as .plugin/plugin.json, plugin.json, .github/plugin/plugin.json, then .claude-plugin/plugin.json. Authored from the official CLI plugin reference; GitHub publishes no JSON Schema for this manifest.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Source: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference (raw markdown in github/docs). Declaring the canonical agent-plugins.org $schema opts the plugin into Agent Plugins v1.0.0 additively; the extensions field then changes meaning. Unknown properties are reported and ignored.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string", "description": "Set to the agent-plugins.org v1.0.0 plugin schema URL to opt into Open Plugin Spec semantics." },
+    "name": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Kebab-case plugin name (letters, numbers, hyphens). Plugins opting into Open Plugin Spec support may also use dots, for example acme.tools."
+    },
+    "description": { "type": "string", "maxLength": 1024 },
+    "version": { "type": "string", "description": "Semantic version, e.g. 1.0.0." },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "homepage": { "type": "string" },
+    "repository": { "type": "string" },
+    "license": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "category": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "agents": { "$ref": "#/$defs/pathList", "description": "Path(s) to agent directories containing .agent.md files. Default agents/." },
+    "skills": { "$ref": "#/$defs/pathList", "description": "Path(s) to skill directories containing SKILL.md. Default skills/." },
+    "commands": { "$ref": "#/$defs/pathList", "description": "Path(s) to command directories." },
+    "hooks": {
+      "description": "Path to a hooks configuration file, or an inline hooks object.",
+      "anyOf": [{ "type": "string" }, { "type": "object" }]
+    },
+    "extensions": {
+      "description": "Path(s) to extension directories, or { paths: [...], exclusive: true } to suppress built-in extensions. In Open Plugin Spec mode the field has a different meaning.",
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }, { "type": "object" }]
+    },
+    "mcpServers": {
+      "description": "Path to an MCP configuration file such as .mcp.json, or inline server definitions.",
+      "anyOf": [{ "type": "string" }, { "type": "object" }]
+    },
+    "lspServers": {
+      "description": "Path to an LSP configuration file, or inline server definitions.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": { "lspServers": { "type": "object", "additionalProperties": { "$ref": "#/$defs/lspServer" } } },
+          "additionalProperties": true
+        }
+      ]
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": true,
+  "$defs": {
+    "pathList": {
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "lspServer": {
+      "type": "object",
+      "description": "One language server. At least one of command, bash, or powershell is required. When both bash and powershell are given, the platform-appropriate one is selected automatically.",
+      "properties": {
+        "command": { "type": "string", "description": "Executable to launch the server." },
+        "bash": { "type": "string", "description": "Bash script for Linux/macOS, executed via bash -c SCRIPT." },
+        "powershell": { "type": "string", "description": "PowerShell script for Windows, executed via pwsh -c SCRIPT." },
+        "cwd": { "type": "string", "description": "Working directory; absolute or relative to the configuration file. Supports ${PLUGIN_ROOT}." },
+        "args": { "type": "array", "items": { "type": "string" }, "description": "Arguments for command; ignored for bash and powershell." },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "fileExtensions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Map of file extension to language id, for example { \".ts\": \"typescript\" }."
+        },
+        "rootUri": { "type": "string", "description": "Project root relative to the git root; default \".\"." },
+        "initializationOptions": { "description": "Options sent in the LSP initialize request." }
+      },
+      "required": ["fileExtensions"],
+      "anyOf": [{ "required": ["command"] }, { "required": ["bash"] }, { "required": ["powershell"] }],
+      "additionalProperties": true
+    }
+  }
+}

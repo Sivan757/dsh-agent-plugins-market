@@ -10,6 +10,7 @@
  */
 
 import type { ReconnectConfig } from './connection.js'
+import type { McpServerPolicy } from '../../model/types.js'
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.js'
 export { RECONNECT_DEFAULTS } from './connection.js'
 
@@ -50,7 +51,7 @@ export interface OAuthConfig {
 }
 
 /** Config for connecting to an MCP server via a spawned child process over stdio. */
-export interface StdioConfig {
+export interface StdioConfig extends McpServerPolicy {
   /** Selects child-process stdio transport. */
   transport: 'stdio'
   /**
@@ -76,7 +77,7 @@ export interface StdioConfig {
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP. */
-export interface StreamableHttpConfig {
+export interface StreamableHttpConfig extends McpServerPolicy {
   /** Selects Streamable HTTP transport. */
   transport: 'streamable-http'
   /** Stable local namespace — see {@link StdioConfig.serverName}. */
@@ -100,7 +101,7 @@ export interface StreamableHttpConfig {
  * (the pre-Streamable-HTTP protocol some older servers still speak). The SDK
  * owns the protocol pairing; OAuth semantics mirror the Streamable HTTP case.
  */
-export interface SseConfig {
+export interface SseConfig extends McpServerPolicy {
   /** Selects the legacy HTTP+SSE transport. */
   transport: 'sse'
   /** Stable local namespace — see {@link StdioConfig.serverName}. */
@@ -123,7 +124,7 @@ export interface SseConfig {
 export type Config = StdioConfig | StreamableHttpConfig | SseConfig
 
 /** All transports carry these fields; narrows the union without a switch. */
-interface ConfigFields {
+interface ConfigFields extends McpServerPolicy {
   serverName: string
   toolCallTimeoutMs: number
   failOnStartupError: boolean
@@ -140,6 +141,12 @@ interface ConfigFields {
  */
 export function validateConfig(config: Config): Config {
   const fields = config as ConfigFields
+  for (const field of ['enabledTools', 'disabledTools'] as const) {
+    if (fields[field] !== undefined && (!Array.isArray(fields[field]) || !fields[field]!.every(name => typeof name === 'string')))
+      throw new Error(`bridge config ${field} must be an array of strings`)
+  }
+  if (fields.startupTimeoutMs !== undefined && (!Number.isFinite(fields.startupTimeoutMs) || fields.startupTimeoutMs <= 0 || fields.startupTimeoutMs > 2_147_483_647))
+    throw new Error('bridge config startupTimeoutMs must be a positive finite timeout within the timer range')
   if (!SERVER_NAME_PATTERN.test(config.serverName)) {
     throw new Error(`bridge config serverName "${config.serverName}" must match ${String(SERVER_NAME_PATTERN)}`)
   }

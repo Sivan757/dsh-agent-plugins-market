@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sivan757.github.io/dsh-agent-plugins-market/schemas/zcode/marketplace.schema.json",
+  "title": "ZCode Marketplace Manifest",
+  "description": "Marketplace catalog read by ZCode at .claude-plugin/marketplace.json or a repository-root marketplace.json (there is no .zcode-plugin/marketplace.json). Authored from the official authoring page, the official marketplace repository, and the shipped runtime; ZCode publishes no JSON Schema.",
+  "$comment": "Provenance: authored (not upstream-vendored) 2026-09-08. Sources: https://zcode.z.ai/en/docs/plugin ; https://github.com/zai-org/zcode-plugins (marketplace.json, scripts/validate.py, docs/distribution.md) ; ZCode 3.11.2 runtime (marketplace lookup order, plugin-entry normalizer). The official marketplace validator additionally requires owner and description_i18n; the runtime also accepts plugins as an object map keyed by plugin name.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "description": "Marketplace identifier." },
+    "description": { "type": "string" },
+    "description_i18n": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "owner": {
+      "type": "object",
+      "description": "Marketplace maintainer. Required by the official marketplace validator; not listed in the docs field table.",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "version": { "description": "Seen in the wild as a number (for example 1) in per-plugin payload manifests." },
+    "pluginRoot": {
+      "type": "string",
+      "description": "Base directory for resolving relative plugin sources. Documented at the top level; the observed runtime reads metadata.pluginRoot and only surfaces a top-level value on already-normalized manifests."
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "pluginRoot": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "featured": { "type": "array", "items": { "type": "string" }, "description": "Read by the runtime normalizer; not documented." },
+    "allowCrossMarketplaceDependenciesOn": { "type": "array", "items": { "type": "string" } },
+    "plugins": {
+      "description": "Plugin entries. Documented as an array; the observed runtime also accepts an object map keyed by plugin name.",
+      "anyOf": [
+        { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/entry" } }
+      ]
+    }
+  },
+  "required": ["name", "plugins"],
+  "additionalProperties": true,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Must match the plugin manifest name." },
+        "source": { "$ref": "#/$defs/source" },
+        "description": { "type": "string" },
+        "description_i18n": { "type": "object", "additionalProperties": { "type": "string" } },
+        "displayName": { "type": "string" },
+        "displayName_i18n": { "type": "object", "additionalProperties": { "type": "string" } },
+        "version": { "type": "string", "description": "Drives update checks; the installed version comes from the plugin's own manifest. Bump both." },
+        "author": {
+          "anyOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "properties": { "name": { "type": "string" }, "url": { "type": "string" } },
+              "additionalProperties": true
+            }
+          ]
+        },
+        "category": {
+          "description": "Discovery category. The official marketplace validator restricts this to developer-tools, productivity, utilities, guides, finance, template, other.",
+          "type": "string"
+        },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "icon": { "type": "string" },
+        "homepage": { "type": "string" },
+        "privacyPolicy": { "type": "string" },
+        "termsOfService": { "type": "string" },
+        "heroImage": { "type": "string" },
+        "examplePrompts": { "type": "array", "items": { "type": "string" } },
+        "examplePrompts_i18n": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+        "requiresPaidPlan": { "type": "boolean" },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "strict": { "type": "boolean", "description": "When false, ZCode synthesizes a plugin manifest from this entry if the plugin ships none." },
+        "cachePath": { "type": "string", "description": "Absolute cached plugin path; used with source \"filesystem\" in bundled marketplace manifests." },
+        "_artifact": {
+          "type": "object",
+          "description": "ZCode distribution extension: where the immutable zip artifact lives under the marketplace base URL.",
+          "properties": {
+            "path": { "type": "string" },
+            "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "size": { "type": "number" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": true
+    },
+    "source": {
+      "description": "Where the plugin lives. Documented forms plus runtime-observed forms.",
+      "anyOf": [
+        { "type": "string", "description": "Relative subdirectory such as ./plugins/hello, or the runtime-only literal \"filesystem\" / \"sea\"." },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "directory" }, "path": { "type": "string" } },
+          "required": ["source", "path"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "github" }, "repo": { "type": "string" }, "path": { "type": "string" }, "ref": { "type": "string" } },
+          "required": ["source", "repo"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "git" }, "url": { "type": "string" }, "path": { "type": "string" }, "ref": { "type": "string" } },
+          "required": ["source", "url"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "git-subdir" }, "url": { "type": "string" }, "path": { "type": "string" }, "ref": { "type": "string" } },
+          "required": ["source", "url", "path"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "file" }, "path": { "type": "string" } },
+          "required": ["source", "path"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": { "const": "url" },
+            "url": { "type": "string" },
+            "type": { "enum": ["git", "zip"] },
+            "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "path": { "type": "string" },
+            "stripRoot": { "type": "boolean" },
+            "headers": { "type": "object", "additionalProperties": { "type": "string" } }
+          },
+          "required": ["source", "url"],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": { "source": { "const": "npm" }, "package": { "type": "string" }, "version": { "type": "string" } },
+          "required": ["source", "package"],
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

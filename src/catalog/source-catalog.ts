@@ -23,7 +23,8 @@ export async function discoverSourceList(sources: SourceRef[], dimension: SuiteD
 export async function discoverSourceListWithNotes(
   sources: SourceRef[],
   dimension: SuiteDimension,
-  dimensionRoot: string
+  dimensionRoot: string,
+  scanProjectLayouts = true
 ): Promise<{ suites: Suite[]; scanNotes: Record<string, string[]> }> {
   const checkoutRoot = sourcesDir(dimensionRoot)
   const listed = new Set(sources.map(source => source.id))
@@ -57,10 +58,21 @@ export async function discoverSourceListWithNotes(
   for (const entry of discovered) {
     if (entry.notes.length > 0) scanNotes[entry.sourceId] = entry.notes
   }
-  if (dimension === 'project') {
+  if (dimension === 'project' && scanProjectLayouts) {
     // Native project directories live two levels above the dimension root
     // (`<projectRoot>/.dsh/agent-plugins`); read them in place.
-    suites.push(...(await discoverNativeProjectSuites(dirname(dirname(dimensionRoot)), dimension)))
+    const native = await discoverNativeProjectSuites(dirname(dirname(dimensionRoot)), dimension)
+    suites.push(...native)
+    const errors = [...new Set(native.flatMap(suite => suite.errors))]
+    if (errors.length > 0) scanNotes.native = errors
+  }
+  if (dimension === 'project') {
+    for (const suite of suites) {
+      if (suite.lsp === undefined) continue
+      const note = `suite ${suite.id}: project LSP declarations are not mounted; the host LSP registry does not isolate projects`
+      suite.errors.push(note)
+      ;(scanNotes[suite.sourceId] ??= []).push(note)
+    }
   }
   return { suites, scanNotes }
 }

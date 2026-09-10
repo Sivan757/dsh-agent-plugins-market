@@ -7,10 +7,15 @@ export const MARKET_API_PREFIX = '/api/agent-plugins/' as const
 export const MARKET_ROUTES = {
   overview: `${MARKET_API_PREFIX}overview`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
+  addMcpServer: `${MARKET_API_PREFIX}mcp-servers/add`,
   lspStatus: `${MARKET_API_PREFIX}lsp-status`,
   lspServers: `${MARKET_API_PREFIX}lsp-servers`,
+  addLspServer: `${MARKET_API_PREFIX}lsp-servers/add`,
+  serverConfig: `${MARKET_API_PREFIX}server-config`,
+  saveServerConfig: `${MARKET_API_PREFIX}server-config/save`,
   progress: `${MARKET_API_PREFIX}progress`,
   config: `${MARKET_API_PREFIX}config`,
+  modelCatalog: `${MARKET_API_PREFIX}model-catalog`,
   suite: `${MARKET_API_PREFIX}suite`,
   skill: `${MARKET_API_PREFIX}skill`,
   addSource: `${MARKET_API_PREFIX}sources/add`,
@@ -27,8 +32,43 @@ export const MARKET_ROUTES = {
   mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
   mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
   mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
-  setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`
+  setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`,
+  userPanel: `${MARKET_API_PREFIX}user-panel`
 } as const
+
+/** Editable service configuration; masked values are preserved when unchanged. */
+export interface ServerConfigPayload {
+  kind: 'mcp' | 'lsp'
+  id: string
+  editable: boolean
+  config: Record<string, unknown>
+}
+
+/** Public model identities and exact-model reasoning options; never provider configuration. */
+export interface ModelCatalogPayload {
+  providers: Array<{ id: string; name: string }>
+  models: Array<{ id: string; name: string }>
+  reasoning?: { efforts: Array<{ id: string; name: string; description?: string }>; defaultEffort?: string }
+}
+
+/**
+ * Mutation routes carry their verb in the path because the host webserver
+ * keys its exact table by pathname only — a second registration on the same
+ * path throws `duplicate exact route` at mount. The read route keeps the
+ * bare panel path; every write gets a distinct segment below it.
+ */
+export type UserPanelMutation = 'create' | 'update' | 'delete'
+
+/** Build one user-panel list route URL (`GET`, no mutation). */
+export function userPanelRoute(kind: UserPanelKind): string {
+  return `${MARKET_ROUTES.userPanel}/${kind}`
+}
+
+/** Build one user-panel mutation route URL (all POSTs). */
+export function userPanelMutationRoute(kind: UserPanelKind, mutation: UserPanelMutation, name?: string): string {
+  const base = `${userPanelRoute(kind)}/${mutation}`
+  return name === undefined ? base : `${base}?name=${encodeURIComponent(name)}`
+}
 
 /** The MCP mount backend state reported to the settings page. */
 export interface McpBackendPayload {
@@ -233,6 +273,25 @@ export interface SkillContent {
   content: string
   path: string
 }
+
+/** A user panel entry (skills / commands / agent personas) over HTTP. */
+export interface UserPanelEntryWire {
+  name: string
+  description: string
+  disabled: boolean
+  /** User and managed plugin entries are editable; external source files remain read-only. */
+  origin: 'user' | 'plugin'
+  id?: string
+  rawText: string
+  /** Human-readable suite owner for a plugin-provided entry. */
+  suiteName?: string
+  metadata: Record<string, unknown>
+  path: string
+  content: string
+}
+
+/** The user panel surface the market exposes. */
+export type UserPanelKind = 'skills' | 'commands' | 'agents'
 
 /** Build a suite-detail URL without duplicating route or query encoding logic. */
 export function suiteRoute(sourceId: string, suiteId: string): string {

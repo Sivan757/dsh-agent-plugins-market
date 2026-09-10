@@ -126,7 +126,19 @@ describe('MCP status: cross-source suite collisions', () => {
     // Same suite/server pair across sources derives ONE serverName by
     // design, so the single live namespace serves both rows.
     const observed = [{ name: 'mcp__codex__app__probe', description: 'probe' }]
-    const payload = buildMcpStatus([a, b], [{ suiteId: 'source-a/codex', serverKey: 'app', reason: 'connection refused', code: 'mount-failed' }], observed)
+    const payload = buildMcpStatus(
+      [a, b],
+      [
+        { suiteId: 'source-a/codex', serverKey: 'app', reason: 'connection refused', code: 'mount-failed' },
+        {
+          suiteId: 'source-b/codex',
+          serverKey: 'app',
+          reason: 'server "codex__app" is already mounted from source-a/codex — this suite\'s copy is redundant and was skipped',
+          code: 'duplicate-mount'
+        }
+      ],
+      observed
+    )
     const pluginRows = payload.entries.filter(entry => entry.kind === 'plugin' && entry.serverKey === 'app')
     expect(pluginRows).toHaveLength(2)
     // Both rows share the one derived name; identity stays in sourceId/suiteId.
@@ -136,7 +148,8 @@ describe('MCP status: cross-source suite collisions', () => {
     const rowB = pluginRows.find(row => row.suiteId === 'source-b/codex')!
     expect(rowA.state).toBe('failed')
     expect(rowA.reason).toBe('connection refused')
-    expect(rowB.state).toBe('connected')
+    // source-b's copy is skipped as a duplicate: informational foreign state.
+    expect(rowB.state).toBe('foreign')
     // The one live namespace's tools appear on the connected row.
     expect(rowA.tools.map(tool => tool.name)).toEqual(['probe'])
     expect(rowB.tools.map(tool => tool.name)).toEqual(['probe'])
