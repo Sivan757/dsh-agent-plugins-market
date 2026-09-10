@@ -9,6 +9,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.7.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.6.1...dsh-agent-plugins-market-v0.7.0) (2026-09-10)
+
+
+### Features
+
+* **catalog:** one layout registry behind unified dialect precedence ([f989b55](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f989b55a4b1bfd19e5e2411b48db8b5ee477bd6d))
+* **catalog:** per-dialect schema fixtures and a compatibility report ([769c87b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/769c87b1e0c13b25fad3f1c80460a7ea5544b496))
+* **market:** fold the equal-width source strip in place ([3f7dbf5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3f7dbf5bd3e61d26146c74acf2df53be8d8c5fc0))
+* **market:** fold the source strip, unify panel chrome, and refresh docs ([271e336](https://github.com/Sivan757/dsh-agent-plugins-market/commit/271e336b64f9f0de2721b390d16dc8819918e9ad))
+* **mcp:** separate reconnect from OAuth reset in the service detail dialog ([404c595](https://github.com/Sivan757/dsh-agent-plugins-market/commit/404c595449485998dc3374e91acedbb9f11ef2ae))
+* **personas:** subagent catalog and project agent roles ([4c7c05b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/4c7c05b6276766b3970f7a1eba4de3d588fd82c1))
+* **release:** accept an explicit version input alongside automatic versioning ([24e329f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/24e329f117f77a4852f4cea44dbe53e778a3b13c))
+* **release:** explicit version input for release-please ([211d458](https://github.com/Sivan757/dsh-agent-plugins-market/commit/211d4587ff0776947de256d186cf9bdb9d6cc563))
+* **runtime:** wire panels and layouts through the runtime seams ([dc03b46](https://github.com/Sivan757/dsh-agent-plugins-market/commit/dc03b46f41c65229ddbe499a5f0c5fabf8c11e90))
+* workspace panels, layout registry, and MCP detail action split (0.6.2) ([f355d7c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f355d7c5933d495e41299ffde19744f100aed224))
+* **workspace:** one tabbed workspace with user panels and personas ([ad924ec](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ad924ece3abacc768dab376d5593359bdb8e02c5))
+* **workspace:** user panels with direct MCP/LSP server editing ([f2d26da](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f2d26da05644e22026d57ad457a6e638336d2d9c))
+
+
+### Bug Fixes
+
+* **mcp:** qualify mount diagnostics and attribute status rows to their source ([85ba99e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/85ba99e5ae144d1e7c48037506ab008e1060dd8d))
+* **mcp:** show the owning suite id in the detail dialog, not on the card ([dc0a9fa](https://github.com/Sivan757/dsh-agent-plugins-market/commit/dc0a9fa10499e0722b212ab49701c290e4f53c70))
+* **release:** reset the open release PR when a version is forced ([9cd311a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9cd311a233ae53a272bcf28ccfe452dda7b0384e))
+* **release:** reset the open release PR when a version is forced ([207083e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/207083ec240f431d4687d496cacc08f450cd6424))
+* **runtime:** reconcile runtime surfaces concurrently ([d959326](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d9593261bcbf7e22279bd78f04d29a3200c1b886))
+
+
+### Performance Improvements
+
+* **catalog:** scan only sources with an enabled install ([86c81c3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/86c81c332b16e8351e05cb0b098a6914f929a194))
+
 ## [0.6.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.6.0...dsh-agent-plugins-market-v0.6.1) (2026-09-05)
 
 
