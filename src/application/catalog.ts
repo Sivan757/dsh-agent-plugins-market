@@ -240,6 +240,16 @@ export class Catalog {
         entry.kind = 'direct'
         entry.managed = true
       }
+    const oauthBackend = (await this.mcpBackend()) === 'builtin' && this.mcpReauthorizeAvailable()
+    for (const entry of payload.entries) {
+      const auth = entry.config?.auth as { enabled?: boolean } | undefined
+      entry.canReauthorize =
+        oauthBackend &&
+        (entry.kind === 'plugin' || entry.managed === true) &&
+        (entry.transport === 'sse' || entry.transport === 'streamable-http') &&
+        auth?.enabled !== false &&
+        !['disabled', 'foreign', 'orphaned'].includes(entry.state)
+    }
     return payload
   }
 

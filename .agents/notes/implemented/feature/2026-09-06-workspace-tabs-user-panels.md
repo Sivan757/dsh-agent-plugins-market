@@ -13,6 +13,8 @@ Eleven experience-feedback items landed at once; four of them carry decisions wo
 
 ## Decision
 
+MCP detail actions separate retry from OAuth reset, removing the enable control. Backend capability gates reauthorization, a confirmation explains grant deletion, and dirty drafts block connection operations. Refresh updates the open detail identity in place; neither successful POST nor a zero-tool declaration alone establishes a recovered connection.
+
 Overlay presentation is independent of operation leases: an immediate invisible interaction guard precedes a 200 ms display delay, with a 400 ms minimum visible duration and 100 ms settling grace. A new request cancels dismissal without remounting the overlay, preventing repeated entrance animations. These timings affect presentation only, not request execution or returned promises.
 
 Busy feedback is one body-level blocking overlay, scoped to the current dialog or workspace. Reference-counted operation leases span requests and follow-up reads, preserve errors with `finally` cleanup, and prevent concurrent requests from dismissing each other. A layout-free legacy BusyIndicator lease covers local workflow state. Interaction blocking uses inert plus capture guards for dialog backdrops and Escape, restoring the previous focus and inert state. Dialog transforms are tracked while active; the spinner and rotating messages never change list geometry.

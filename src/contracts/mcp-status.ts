@@ -19,6 +19,8 @@ export interface McpStatusEntry {
   kind: McpStatusKind
   /** A direct service whose persisted configuration is owned by this plugin. */
   managed?: boolean
+  /** The current backend and credential service support resetting this server's OAuth grant. */
+  canReauthorize?: boolean
   state: McpStatusState
   source?: string
   suiteId?: string

@@ -40,6 +40,8 @@ For GitHub installation and profile configuration, see the [usage guide](docs/gu
 
 ## Everyday use
 
+MCP details separate Retry connection (keeps credentials) from confirmed OAuth reauthorization. There is no enable switch in the detail dialog.
+
 The workspace has six tabs:
 
 | Tab            | Use it to                                                                                                                         |

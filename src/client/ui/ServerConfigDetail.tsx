@@ -8,7 +8,19 @@ import css from './detail.module.css'
 import { DetailFooterAction } from './DetailModal.js'
 
 /** Loads complete configuration rather than editing the abbreviated status projection. */
-export function ServerConfigDetail({ kind, id, t, onSaved }: { kind: ServerKind; id: string; t: Translate; onSaved?: () => void }): ReactNode {
+export function ServerConfigDetail({
+  kind,
+  id,
+  t,
+  onSaved,
+  onDirtyChange
+}: {
+  kind: ServerKind
+  id: string
+  t: Translate
+  onSaved?: () => void
+  onDirtyChange?: (dirty: boolean) => void
+}): ReactNode {
   const [text, setText] = useState<string>()
   const [editable, setEditable] = useState(false)
   const [valid, setValid] = useState(false)
@@ -16,6 +28,9 @@ export function ServerConfigDetail({ kind, id, t, onSaved }: { kind: ServerKind;
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(true)
   const [dirty, setDirty] = useState(false)
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
   useEffect(() => {
     let active = true
     setLoading(true)

@@ -91,6 +91,8 @@ Unmanaged user checkouts do not become runtime installations just because they e
 
 ## Runtime and security
 
+MCP details offer retry only for failed managed services or residual mounts, and OAuth reset only when the active backend supports it. Retrying checks all managed services without clearing credentials. Reauthorization explicitly confirms grant removal and possible interruption. Unsaved configuration disables connection actions. Results are based on refreshed status, not HTTP success; missing credentials must be configured first.
+
 ### MCP configuration
 
 Open **MCP services** for service configuration, credentials, overrides, authorization and retry actions. Suite details are read-only previews.
