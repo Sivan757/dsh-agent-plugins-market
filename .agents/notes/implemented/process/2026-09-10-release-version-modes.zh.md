@@ -11,7 +11,9 @@ Status: implemented
 `npm-publish.yml` 保留自动路径，并新增一个手动输入：
 
 - **自动（默认）**：push 到 `main` 时由 release-please 依据上次发版以来的 conventional commits 推导版本（`feat:` → minor，`fix:`/`perf:` → patch，breaking → major）。无需改任何配置。
-- **显式指定**：`workflow_dispatch` 接受 `version` 输入，作为 `release-as` 传给 `googleapis/release-please-action`。Release PR 随即携带该确切版本，与提交类型无关；输入留空则保持自动行为。
+- **显式指定**：`workflow_dispatch` 接受 `version` 输入。workflow 先在 `main` 上创建一个空提交，提交信息带 `Release-As: X.Y.Z` 页脚，再运行 release-please，候选 PR 随即被重算为该确切版本，与提交类型无关；输入留空则保持自动行为。
+
+action 自带的 `release-as` 输入刻意不使用：在 `config-file`（manifest）模式下 release-please 会忽略它——0.6.2 发版的 run 收到 `release-as: 0.6.2` 却仍打印 `updating from 0.6.1 to 0.7.0`，换成页脚后同一候选版本被正确重算为 0.6.2。页脚还能就地更新已打开的 Release PR，因此两种模式共用一个 PR；空提交不改任何文件，`paths-ignore` 会跳过它本会触发的 push 事件。
 
 两条路径汇聚到同一个 Release PR 分支，因此手动 dispatch 会更新 release-please 已提出的版本；合并该 PR 仍是唯一必做的人工步骤，tag / GitHub Release / npm 发布保持自动。
 

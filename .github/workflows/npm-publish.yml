@@ -36,35 +36,34 @@ jobs:
     steps:
       # Two release modes:
       #  - push to main: the version comes from the conventional commits since
-      #    the last release (feat -> minor, fix/perf -> patch).
-      #  - manual dispatch with `version`: release-please is pinned to that
-      #    exact version, so a feature-heavy batch can still ship as a patch
-      #    (0.6.2) or a chosen minor/major. Empty input keeps the default.
+      #    the last release (feat -> minor, fix/perf -> patch, breaking -> major).
+      #  - manual dispatch with `version`: that exact version is pinned through
+      #    a `Release-As:` footer commit, so a feature-heavy batch can still
+      #    ship as a patch (0.6.2) or any chosen version. Empty input keeps the
+      #    automatic rule.
       #
-      # `release-as` only applies while release-please CREATES the release PR
-      # ("PR remained the same" otherwise), so forcing a version closes any
-      # open release PR first; release-please then opens a fresh one at the
-      # requested version.
-      - name: Reset an open release PR when a version is forced
+      # The action's `release-as` input is NOT used: with `config-file` (manifest
+      # mode) release-please ignores it and still logged "updating from 0.6.1 to
+      # 0.7.0", while the `Release-As:` commit footer reliably recomputed the same
+      # candidate to 0.6.2 — verified on the 0.6.2 release.
+      - name: Pin the requested version with a Release-As footer
         if: inputs.version != ''
+        uses: actions/checkout@v7
+        with:
+          ref: main
+      - if: inputs.version != ''
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
         run: |
-          # This job has no checkout, so every gh call is repo-explicit.
-          gh pr list --state open --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("release-please--")) | .number' |
-          while read -r pr; do
-            [ -n "$pr" ] || continue
-            echo "Closing release PR #$pr so the forced version can take effect"
-            gh pr close "$pr" --delete-branch || true
-          done
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "chore(release): pin this release to ${VERSION}" -m "Release-As: ${VERSION}"
+          git push origin HEAD:main
 
       - uses: googleapis/release-please-action@v5
         id: release-please
         with:
           config-file: .release-please-config.json
-          release-as: ${{ inputs.version }}
 
   # The release-please workflow is the single release entry point.
   # Publish only when this run actually creates a GitHub release, using the

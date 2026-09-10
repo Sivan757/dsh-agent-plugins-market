@@ -15,9 +15,16 @@ release-please 内嵌在 `.github/workflows/npm-publish.yml`（无独立 workflo
 | 模式 | 触发方式 | 版本来源 |
 | --- | --- | --- |
 | **自动**（默认） | push 到 main | 上次发版以来的 conventional commits：`feat:` → minor，`fix:`/`perf:` → patch，`feat!`/`BREAKING CHANGE:` → major |
-| **指定** | 手动 `gh workflow run npm-publish -f version=X.Y.Z` | 传入的 `version` 原样生效（release-please 的 `release-as` 输入） |
+| **指定** | 手动 `gh workflow run npm-publish -f version=X.Y.Z` | 传入的 `version` 原样生效 |
 
 指定模式用于「提交类型与目标版本不一致」的场合：例如一批 `feat:` 提交仍要按 patch 发（`version=0.6.2`），或想跳号发 minor/major。输入留空即回到自动模式。
+
+**实现要点（0.6.2 发版实测，勿走弯路）**：
+
+- 收到 `version` 时，workflow 先在 main 上创建一个带 `Release-As: X.Y.Z` 页脚的**空提交**，再运行 release-please。
+- release-please 的 `release-as` **action 输入在 `config-file`（manifest）模式下被忽略**：实测传入 `0.6.2` 仍打印 `updating from 0.6.1 to 0.7.0`；改成页脚提交后，同一个候选版本被正确重算为 0.6.2。
+- 页脚会更新**已存在的** Release PR（不必先关闭），两种模式共用同一个 PR。
+- 空提交不改文件，`paths-ignore` 会跳过它触发的 push 事件，不产生重复 run；但它本身也不会触发 release-please，所以指定版本的那次 dispatch 要由人手动发起。
 
 ## 发版步骤
 

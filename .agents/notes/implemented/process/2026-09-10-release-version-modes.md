@@ -11,7 +11,9 @@ The release version was decided solely by conventional-commit types. That fails 
 `npm-publish.yml` keeps the automatic path and adds one manual input:
 
 - **Automatic (default):** a push to `main` lets release-please derive the version from the conventional commits since the last release (`feat:` → minor, `fix:`/`perf:` → patch, breaking → major). No configuration changes.
-- **Explicit:** `workflow_dispatch` accepts a `version` input, passed to `googleapis/release-please-action` as `release-as`. The Release PR then carries exactly that version, regardless of commit types. An empty input leaves the automatic behavior untouched.
+- **Explicit:** `workflow_dispatch` accepts a `version` input. The workflow creates an empty commit on `main` whose message carries a `Release-As: X.Y.Z` footer, then runs release-please, which recomputes the candidate PR to exactly that version regardless of commit types. An empty input leaves the automatic behavior untouched.
+
+The action's own `release-as` input is deliberately unused: with `config-file` (manifest mode) release-please ignores it — the 0.6.2 release run received `release-as: 0.6.2` and still logged `updating from 0.6.1 to 0.7.0`, while switching to the footer recomputed the same candidate to 0.6.2. The footer also updates an already-open Release PR in place, so both modes share one PR; the empty commit changes no file, so `paths-ignore` skips the push event it would otherwise raise.
 
 Both paths converge on the same Release PR branch, so a manual dispatch updates whatever release-please had already proposed; merging that PR remains the single mandatory human step, and tag/Release/npm publish stay automatic.
 
