@@ -40,6 +40,24 @@ jobs:
       #  - manual dispatch with `version`: release-please is pinned to that
       #    exact version, so a feature-heavy batch can still ship as a patch
       #    (0.6.2) or a chosen minor/major. Empty input keeps the default.
+      #
+      # `release-as` only applies while release-please CREATES the release PR
+      # ("PR remained the same" otherwise), so forcing a version closes any
+      # open release PR first; release-please then opens a fresh one at the
+      # requested version.
+      - name: Reset an open release PR when a version is forced
+        if: inputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr list --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("release-please--")) | .number' |
+          while read -r pr; do
+            [ -n "$pr" ] || continue
+            echo "Closing release PR #$pr so the forced version can take effect"
+            gh pr close "$pr" --delete-branch || true
+          done
+
       - uses: googleapis/release-please-action@v5
         id: release-please
         with:
