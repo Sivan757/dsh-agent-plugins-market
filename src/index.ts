@@ -31,7 +31,7 @@ import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
 import { bindHostLocale, loadHostLocale, type HostLocaleKey, type HostTranslate } from './runtime/host-locale.js'
-import { mountFeedbackTool } from './runtime/feedback-tool.js'
+import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from './runtime/feedback-tool.js'
 import { createUserPanelStores } from './runtime/user-panels.js'
 import { UserPanelSkillProvider } from './runtime/user-panels.js'
 import { UserCommandMountRegistry } from './runtime/user-commands.js'
@@ -227,6 +227,13 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   // which is exactly what hides the plugin-config card. Every failure mode
   // lands in the logger with a loud prefix instead.
   let feedbackDisposer: (() => void) | undefined
+  /**
+   * The feedback tool's last reported mount state. A settings change that does
+   * not move it (region, backend, project layouts) must not re-log the same
+   * line, and every other state is exactly one line: mounted, skipped by the
+   * switch, or skipped because the host has no tools registry to register on.
+   */
+  let feedbackMountState: 'mounted' | 'unavailable' | 'off' | undefined
   ctx.inject(['settings'], settingsCtx => {
     try {
       ctx.logger?.info?.('[dsh-agent-plugins-market] settings inject resolved — registering namespace')
@@ -277,16 +284,29 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
       // The experience-feedback model tool: gated by the namespace's
       // `feedbackEnabled` field (default on); the switch unregisters it. The
       // tool mount is doubly contained — its failure must never take the
-      // settings namespace (and with it the config card) down with it.
+      // settings namespace (and with it the config card) down with it. The
+      // mount outcome is logged on every transition so an absent
+      // `report_market_issue` in a session is traceable to its cause.
       const syncFeedbackTool = (): void => {
         try {
-          const state = scope.get() as { feedbackEnabled?: boolean }
-          const wanted = state.feedbackEnabled !== false
-          if (wanted && feedbackDisposer === undefined) {
+          const wanted = (scope.get() as { feedbackEnabled?: boolean }).feedbackEnabled !== false
+          if (!wanted) {
+            if (feedbackDisposer !== undefined) {
+              feedbackDisposer()
+              feedbackDisposer = undefined
+            }
+          } else if (feedbackDisposer === undefined) {
             feedbackDisposer = mountFeedbackTool(ctx, dataRoot, (key, params) => hostLocale.t(key as HostLocaleKey, params)) ?? undefined
-          } else if (!wanted && feedbackDisposer !== undefined) {
-            feedbackDisposer()
-            feedbackDisposer = undefined
+          }
+          const state: NonNullable<typeof feedbackMountState> = !wanted ? 'off' : feedbackDisposer === undefined ? 'unavailable' : 'mounted'
+          if (state === feedbackMountState) return
+          feedbackMountState = state
+          if (state === 'mounted') {
+            ctx.logger?.info?.(`[dsh-agent-plugins-market] ${FEEDBACK_TOOL_NAME} mounted on the host tools registry`)
+          } else if (state === 'off') {
+            ctx.logger?.info?.(`[dsh-agent-plugins-market] ${FEEDBACK_TOOL_NAME} not mounted: feedbackEnabled is off`)
+          } else {
+            ctx.logger?.warn?.(`[dsh-agent-plugins-market] ${FEEDBACK_TOOL_NAME} not mounted: the host exposes no tools registry`)
           }
         } catch (error) {
           ctx.logger?.error?.(`[dsh-agent-plugins-market] feedback tool mount failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`)

@@ -163,7 +163,12 @@ const FEEDBACK_DESCRIPTION =
   "or in the user's own repositories. Compose a specific title; describe what happened, what was expected, and " +
   'the exact error text when one appeared.'
 
-/** Register the feedback tool; returns the disposer. Undefined when the host has no tools service. */
+/**
+ * Register the feedback tool; returns the disposer. Undefined when the host has
+ * no tools service to register on — the caller turns that into a mount-path
+ * diagnostic instead of an error, since the setting can simply have no effect
+ * on this host.
+ */
 export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: string, params?: Record<string, string>) => string): (() => void) | undefined {
   const host = hostCtx as unknown as ToolsHost
   if (typeof host.tools?.register !== 'function') return undefined
