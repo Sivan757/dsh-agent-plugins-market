@@ -4,7 +4,7 @@
   "type": "module",
   "dependencies": {
     "@astrojs/check": "^0.9.10",
-    "astro": "^7.2.6",
+    "astro": "^7.3.2",
     "typescript": "^5.8.3"
   },
   "pnpm": {
