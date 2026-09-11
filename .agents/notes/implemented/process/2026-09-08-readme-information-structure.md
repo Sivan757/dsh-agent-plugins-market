@@ -12,7 +12,7 @@ The English and Chinese READMEs lead with user outcomes, then quick start, every
 
 The repository-versus-release notice is omitted from the README, the usage guides and the documentation site at the user's request, and the README uses a Playwright capture of the running six-tab plugin workspace. Its capability matrix separates documented upstream conventions from this plugin's implementation, checked against vendor documentation and the source on 2026-09-08; the Codex MCP row names the documented `mcpServers` wrapper and the Universal row cites the OpenHands SDK. Dependency declarations are not presented as a tested minimum host version. The shared SVG icon is a four-tile pinwheel mark generated with `gpt-image-2` (kie.ai) and vectorized to a two-colour SVG for both README and browser favicon use.
 
-The supersession check found no active note owning README organization. Existing source acquisition, cache and workspace decisions remain active and unchanged.
+The supersession check found no active note owning README organization. Existing source acquisition, cache and workspace decisions remain active and unchanged. [User-facing copy omits decisions and unrequested hints](2026-09-11-user-facing-copy-omits-decisions.md) later generalized the stance behind the omitted release notice to every user-facing surface, partially superseding this note's copy rule while its structure decisions stay active; both notes remain cross-linked.
 
 ## Alternatives considered
 
