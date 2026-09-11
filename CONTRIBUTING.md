@@ -57,6 +57,10 @@ For a CI-equivalent install, use the frozen lockfile:
 pnpm install --frozen-lockfile
 ```
 
+`pnpm install` also points git at the checked-in `.githooks/` directory, so the host dependency alignment gate runs on every commit and a stale `@deepseek-ai/dsh-*` pin cannot reach the branch release-please cuts a tarball from. When the host release line has moved, `pnpm run fix:host-alignment` rewrites `package.json` and `pnpm-workspace.yaml` to the new baseline; run `pnpm install` afterwards to refresh the lockfile.
+
+`pnpm install` 还会把 git 指向仓库内的 `.githooks/`，使宿主依赖对齐门禁在每次提交时执行，陈旧的 `@deepseek-ai/dsh-*` 版本钉不会进入 release-please 用来产出 tarball 的分支。宿主发布线推进后，用 `pnpm run fix:host-alignment` 按新基线重写 `package.json` 与 `pnpm-workspace.yaml`，随后再跑一次 `pnpm install` 刷新锁文件。
+
 ### Repository map / 目录结构
 
 - `src/` — TypeScript host modules and React client modules / TypeScript 宿主模块与 React 客户端模块
@@ -75,16 +79,18 @@ Run the focused checks that match your change, then run the full gate before ope
 
 请先运行与改动相关的专项检查，再在创建 PR 前运行完整门禁：
 
-| Command                       | Purpose / 用途                                                                                  |
-| ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| `pnpm run typecheck`          | TypeScript host and client type checks / TypeScript 宿主与客户端类型检查                        |
-| `pnpm run lint`               | ESLint checks / ESLint 检查                                                                     |
-| `pnpm run format:check`       | Prettier formatting check / Prettier 格式检查                                                   |
-| `pnpm run check:architecture` | Dependency-boundary check / 依赖边界检查                                                        |
-| `pnpm run test:contract`      | Fast host/client contract tests / 快速宿主/客户端契约测试                                       |
-| `pnpm run test`               | Full Vitest suite / 完整 Vitest 测试                                                            |
-| `pnpm run build`              | Published host and client artifacts / 发布用宿主与客户端构建产物                                |
-| `pnpm run check:refactor`     | Typecheck, lint, format, contract, and architecture gate / 类型、Lint、格式、契约与架构综合门禁 |
+| Command                         | Purpose / 用途                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pnpm run typecheck`            | TypeScript host and client type checks / TypeScript 宿主与客户端类型检查                        |
+| `pnpm run lint`                 | ESLint checks / ESLint 检查                                                                     |
+| `pnpm run format:check`         | Prettier formatting check / Prettier 格式检查                                                   |
+| `pnpm run check:architecture`   | Dependency-boundary check / 依赖边界检查                                                        |
+| `pnpm run check:host-alignment` | Host dependency baseline check against the registry / 对照 registry 的宿主依赖基线检查          |
+| `pnpm run fix:host-alignment`   | Rewrite pins and exclusions into alignment / 按基线重写版本钉与逃生舱条目                       |
+| `pnpm run test:contract`        | Fast host/client contract tests / 快速宿主/客户端契约测试                                       |
+| `pnpm run test`                 | Full Vitest suite / 完整 Vitest 测试                                                            |
+| `pnpm run build`                | Published host and client artifacts / 发布用宿主与客户端构建产物                                |
+| `pnpm run check:refactor`       | Typecheck, lint, format, contract, and architecture gate / 类型、Lint、格式、契约与架构综合门禁 |
 
 The pull-request workflow runs the refactor gate, the full test suite, and the build automatically. A PR should not be considered ready while a required check is failing.
 

@@ -34,9 +34,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:architecture": "depcruise --validate .dependency-cruiser.cjs src",
+    "check:host-alignment": "node scripts/check-host-alignment.mjs",
+    "fix:host-alignment": "node scripts/check-host-alignment.mjs --fix",
     "check:refactor": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture",
-    "prepack": "pnpm run build",
-    "prepare": "pnpm run build"
+    "prepack": "pnpm run check:host-alignment && pnpm run build",
+    "prepare": "node scripts/setup-git-hooks.mjs && pnpm run build"
   },
   "dsh": {
     "bundle": {
@@ -92,17 +94,21 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-hooks-claude-code": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-mcp-client": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-skill": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.1.2-rc.1"
+    "@deepseek-ai/dsh-hooks-claude-code": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-lsp-stdio": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-mcp-client": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-skill": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.2"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-mcp-client": {
+    "@deepseek-ai/dsh-hooks-claude-code": {
       "optional": true
     },
-    "@deepseek-ai/dsh-hooks-claude-code": {
+    "@deepseek-ai/dsh-lsp-stdio": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-mcp-client": {
       "optional": true
     },
     "@deepseek-ai/dsh-tools": {
@@ -120,24 +126,41 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-hooks-claude-code": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-mcp-client": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-skill": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-hooks-claude-code": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-lsp-stdio": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-mcp-client": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-skill": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
     "@eslint/js": "^9.39.5",
+    "@shikijs/langs": "^4.4.3",
     "@tsdown/css": "^0.22.14",
     "@types/node": "^22.15.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "^19.2.4",
     "@vitest/coverage-v8": "^4.1.11",
+    "anser": "^2.3.5",
+    "clsx": "^2.1.1",
     "dependency-cruiser": "^18.2.0",
     "eslint": "^10.9.1",
     "jsdom": "^30.0.1",
+    "katex": "^0.16.47",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-gfm": "^3.1.0",
+    "mdast-util-math": "^3.0.0",
+    "micromark-core-commonmark": "^2.0.3",
+    "micromark-extension-gfm": "^3.0.0",
+    "micromark-extension-math": "^3.1.0",
+    "micromark-factory-space": "^2.0.1",
+    "micromark-util-character": "^2.1.1",
+    "micromark-util-classify-character": "^2.0.1",
+    "micromark-util-sanitize-uri": "^2.0.1",
+    "micromark-util-symbol": "^2.0.1",
     "prettier": "^3.9.6",
     "react": "^18.3.1",
     "react-dom": "~18.3.1",
+    "shiki": "^4.4.3",
     "tsdown": "^0.22.14",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.67.0",

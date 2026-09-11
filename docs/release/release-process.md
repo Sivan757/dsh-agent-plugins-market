@@ -10,6 +10,20 @@ release-please 内嵌在 `.github/workflows/npm-publish.yml`（无独立 workflo
 - Release PR：head 固定为 `release-please--branches--main--components--dsh-agent-plugins-market`，base 为 main
 - GitHub Release 正文由 release-please 从 CHANGELOG 自动生成，无需人工撰写
 
+## 宿主依赖对齐门禁
+
+发布产物携带的是打 tag 那个 commit 上的 `package.json`。宿主发布线推进后若 pin 未跟上，tarball 里的 peer 范围会把消费方实际运行的宿主版本排除在外（prerelease 范围只匹配自己的 `major.minor.patch`），而只被动态 `import()` 却未声明的宿主包会让该 surface 静默降级。`scripts/check-host-alignment.mjs` 从 registry 的 `next` dist-tag 解析基线（`latest` 长期滞后，不能用），逐项核对 peer/dev pin、dev 镜像、`minimumReleaseAgeExclude` 与源码里的动态 import，任一不符即以退出码 1 失败。
+
+三处拦截，缺一不可：
+
+| 位置                                    | 作用                                                                                                      |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `.githooks/pre-commit`                  | `pnpm install` 的 `prepare` 自动注册 `core.hooksPath`，漂移提交在本地就被拦下（`--no-verify` 可显式绕过） |
+| `prepack`                               | `pnpm publish` / `npm pack` 都先跑一遍，覆盖真实发布路径                                                  |
+| `npm-publish.yml` 的 release-please job | 在 release-please-action 之前跑，避免先打出 tag 与 GitHub Release、才发现 npm 发不出去                    |
+
+宿主换线后的修法：`pnpm run fix:host-alignment` 重写 pin 与 `minimumReleaseAgeExclude`，再 `pnpm install` 刷新锁文件，然后按[对齐门禁的决策记录](../../.agents/notes/implemented/process/2026-09-11-host-dependency-alignment-gate.md)里的 API 断裂点清单逐条核对是否需要改代码，最后跑全量 `pnpm run test`。
+
 ## 版本号的两种模式
 
 | 模式 | 触发方式 | 版本来源 |
@@ -28,7 +42,7 @@ release-please 内嵌在 `.github/workflows/npm-publish.yml`（无独立 workflo
 
 ## 发版步骤
 
-1. **确认待发内容**：`git status` 干净、`check:refactor` + `pnpm run test` 全绿，并核对自上次 tag 以来的提交类型。
+1. **确认待发内容**：`git status` 干净、`check:refactor` + `pnpm run test` 全绿，并核对自上次 tag 以来的提交类型。宿主发布线若已推进，先按上一节的修法对齐（`check:refactor` 不含这条网络检查，须显式跑 `pnpm run check:host-alignment`）。
 2. **推送 main**：把待发提交推送到 main（需用户确认）。
 3. **决定版本模式**：自动模式等 release-please 自行计算；需要指定版本时执行 `gh workflow run npm-publish -f version=X.Y.Z`（推送触发的 run 与手动 run 都会开/更新同一个 Release PR）。
 4. **核对 Release PR**：`chore(main): release dsh-agent-plugins-market X.Y.Z`；核对 package.json version、CHANGELOG 小节、`.release-please-manifest.json` 三处一致且版本符合预期，quality / CodeQL 为绿。注意 bot 分支上的 run 可能停在 `action_required`，需 `gh api repos/<owner>/<repo>/actions/runs/<id>/approve --method POST` 批准。

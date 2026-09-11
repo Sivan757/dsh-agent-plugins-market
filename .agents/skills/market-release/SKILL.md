@@ -13,7 +13,7 @@ Every remote write — `git push`, `git tag`, `npm publish` — requires explici
 
 ## Steps
 
-1. **Verify the outgoing tree.** Run `check:refactor` and `pnpm run test`; both green is the completion criterion. Fix drift before any release talk (see [market-pre-push-checks](../market-pre-push-checks/SKILL.md) for the surface-to-check mapping).
+1. **Verify the outgoing tree.** Run `check:refactor`, `pnpm run test`, and `pnpm run check:host-alignment`; all green is the completion criterion. The last one is not part of `check:refactor` and is the only check that fails when the host release line has moved past the pins; `pnpm run fix:host-alignment` + `pnpm install` realigns (then re-check the API breakpoints in `AGENTS.local.md`). Fix drift before any release talk (see [market-pre-push-checks](../market-pre-push-checks/SKILL.md) for the surface-to-check mapping).
 2. **Classify the version.** Read `git log` since the latest `dsh-agent-plugins-market-v*` tag: any `feat:` → minor, only `fix:`/`perf:` → patch, `feat!`/`BREAKING CHANGE:` → major. State the expected next version to the user before pushing.
 3. **Propose the push and wait for confirmation.** After the user confirms, push `main`; `docs/**`, `README*`, and CI-only paths are in `paths-ignore` and do not trigger release-please.
 4. **Verify the Release PR.** `gh pr list` for the `chore(main): release` PR; check `package.json` version, CHANGELOG section, and `.release-please-manifest.json` agree with the classified version, and quality/CodeQL runs are green.

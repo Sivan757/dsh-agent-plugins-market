@@ -1,0 +1,10 @@
+#!/bin/sh
+# Host dependency alignment gate.
+#
+# This branch is what release-please cuts the published tarball from, and the tarball carries
+# whatever `package.json` said at that commit. A stale `@deepseek-ai/dsh-*` pin therefore ships a
+# contract that excludes the host line consumers actually run, and an undeclared dynamic import
+# ships a surface that silently degrades. Catch it here, before the commit exists.
+#
+# Bypass deliberately with `git commit --no-verify`; fix with `pnpm run fix:host-alignment`.
+exec node scripts/check-host-alignment.mjs
