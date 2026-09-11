@@ -31,6 +31,11 @@ function RoleFields(props: { text: string; onChange: (text: string) => void; t: 
   const model = !fields.provider && qualified ? fields.model.slice(qualified.id.length + 1) : fields.model === 'inherit' ? '' : fields.model
   const route = JSON.stringify([provider, model])
   const hasRoute = provider !== '' && model !== ''
+  // The executor applies only an exact provider + model pair. Anything else that is
+  // stored on disk is ignored and the child inherits the session route, so the form
+  // has to say so instead of presenting it as a working route.
+  const storedModel = fields.model === 'inherit' ? '' : fields.model
+  const ignoredRoute = (fields.provider === '') !== (storedModel === '') || (storedModel !== '' && qualified !== undefined)
   const effortLoading = hasRoute && reasoning?.route !== route && effortError !== route
   const efforts = reasoning?.route === route ? reasoning.value?.efforts ?? [] : []
 
@@ -105,19 +110,7 @@ function RoleFields(props: { text: string; onChange: (text: string) => void; t: 
       )
     ),
     providerError || modelError || effortError === route ? h('div', { role: 'alert', className: css.editorError }, t('personaCatalogError'), h('button', { type: 'button', onClick: () => setRevision(value => value + 1) }, t('refresh'))) : null,
-    (['tools'] as const).map(key =>
-      h(
-        'label',
-        { className: css.editorLabel, key },
-        props.t('personaTools'),
-        h('input', {
-          className: css.editorInput,
-          value: fields[key],
-          onChange: (event: { target: HTMLInputElement }) => props.onChange(updateFrontmatter(props.text, key, event.target.value))
-        })
-      )
-    ),
-    h('p', { className: css.editorHint }, props.t('personaModelHint')),
-    h('p', { className: css.editorHint }, props.t('personaToolsHint'))
+    ignoredRoute ? h('p', { className: css.editorWarning, role: 'status' }, t('personaRouteIgnored')) : null,
+    h('p', { className: css.editorHint }, props.t('personaModelHint'))
   )
 }

@@ -30,9 +30,9 @@ export type HostLocaleKey =
 const zh: Record<HostLocaleKey, string> = {
   subagentCatalogIntro: '以下子代理角色可用于当前会话。目录仅包含角色摘要，不是供当前代理执行的角色指令。',
   subagentCatalogUpdated: '可用子代理角色已变更。以下完整目录替代本会话此前的所有子代理角色目录。',
-  subagentCatalogEmpty: '当前没有可通过 subagents_run 调用的角色，不要使用旧目录中的角色 ID。',
+  subagentCatalogEmpty: '当前没有可通过 subagent_run 调用的角色，不要使用旧目录中的角色 ID。',
   subagentCatalogCall:
-    '任务适合某个角色时，使用 subagents_run(role=目录中的准确 ID, prompt=完整任务与必要上下文)。工具会应用角色的供应商、模型、思考强度、指令和工具限制，并等待结果。子代理不继承父会话对话。不要通过 skill 或 Slash Command 加载这些角色，也不要用其它委派工具绕过角色配置。',
+    '任务适合某个角色时，使用 subagent_run(agent=目录中的准确名称, prompt=完整任务与必要上下文)。工具会应用角色的指令与已保存的模型设置，立即返回子代理 ID 并在后台运行；子代理结束时你会收到结果通知，运行期间可用 send_message 追加指令。子代理不继承父会话对话。不要通过 skill 或 Slash Command 加载这些角色，也不要用其它委派工具绕过角色配置。',
   subagentCatalogInherit: '继承父代理',
   subagentCatalogDefaultEffort: '同路由继承，否则使用模型默认值',
   commandForwardTitle: '[Agent Plugins 命令 /{command}（来自 {suite}）]',
@@ -47,9 +47,9 @@ const zh: Record<HostLocaleKey, string> = {
 const en: Record<HostLocaleKey, string> = {
   subagentCatalogIntro: 'The following subagent roles are available in this session. These are role summaries, not instructions for the current agent to execute.',
   subagentCatalogUpdated: 'The available subagent roles changed. This complete catalog replaces every earlier subagent role catalog in this session.',
-  subagentCatalogEmpty: 'No roles are currently available through subagents_run. Do not use role IDs from earlier catalogs.',
+  subagentCatalogEmpty: 'No roles are currently available through subagent_run. Do not use role IDs from earlier catalogs.',
   subagentCatalogCall:
-    'When a task fits a role, call subagents_run with its exact catalog ID as role and a complete task and necessary context as prompt. The tool applies the saved provider, model, reasoning effort, persona and tool restrictions, and waits for the result. The child does not inherit the parent conversation. Do not load these roles through skill or slash commands, or bypass their configuration with another delegation tool.',
+    "When a task fits a role, call subagent_run with its exact catalog name as agent and a complete task and necessary context as prompt. It applies the role's instructions and saved model settings, returns a durable subagent id immediately, and runs in the background; the runtime sends you a notice carrying the outcome when it settles, and send_message steers the child while it runs. The child does not inherit the parent conversation. Do not load these roles through skill or slash commands, or bypass their configuration with another delegation tool.",
   subagentCatalogInherit: 'inherit parent',
   subagentCatalogDefaultEffort: 'inherit on the same route, otherwise model default',
   commandForwardTitle: '[Agent Plugins command /{command} (from {suite})]',

@@ -49,7 +49,7 @@ MCP 详情将保留凭据的“重试连接”与需要确认的“重新授权�
 | 插件市场 | 添加来源、预览套件、安装 / 卸载、启用 / 禁用和刷新。                                       |
 | 技能     | 浏览技能，创建或编辑自己的可复用指令。                                                     |
 | 命令     | 管理通过 `/名称` 调用的提示词模板；`$ARGUMENTS` 替换为命令后输入的文本。                   |
-| 代理角色 | 从 DSH 下拉选择供应商、模型和思考强度，管理角色指令与工具；通过 `subagents_run` 委派任务。 |
+| 代理角色 | 管理角色指令并为每个角色保存精确的供应商、模型与思考强度；通过 `subagent_run` 在后台委派。 |
 | MCP 服务 | 自行新增服务或配置已安装的服务及其凭据与授权，查看连接状态并重试失败的服务。               |
 | LSP 服务 | 新增并配置语言服务器，查看运行状态。                                                       |
 
@@ -69,12 +69,12 @@ MCP 详情将保留凭据的“重试连接”与需要确认的“重新授权�
 | ----- | -------------------------------------------------------------------------------------------------- |
 | 技能  | 接入宿主技能目录，允许手动调用的技能出现在斜杠菜单；展开支持的根路径占位符。                       |
 | 命令  | 通过宿主命令服务注册斜杠命令。                                                                     |
-| 代理  | 动态子代理目录与 `subagents_run`；需要宿主 agents、tools、LLM 和 subagents 服务。                  |
+| 代理  | 动态子代理目录与 `subagent_run`；需要宿主 agents、tools、LLM、subagents 与会话持久化服务。         |
 | MCP   | 默认使用内置桥接，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE；也可切换宿主客户端兼容模式。 |
 | Hooks | 运行 `dsh-hooks-claude-code` 桥接映射支持的 command-hook 子集。                                    |
 | LSP   | 宿主具备 LSP 包时实际挂载；Agent 调用还需要 profile 暴露 LSP 工具。                                |
 
-代理角色直接发布到动态 `subagent-catalog`，采用与 DSH skills catalog 相同的逐 step 比对、条目持久化和完整替换机制。通过 `subagents_run(role, prompt)` 传入目录中的准确 ID，由工具解析角色的供应商、模型和 `reasoning_effort`，再应用角色指令及工具限制。角色不再生成 `agent-*` 或 `persona-*` 技能/命令条目。模型继承、目录刷新与 `market_agent` 迁移说明见[代理角色](docs/guides/agent-roles.zh.md)。
+代理角色显示在会话目录中，并通过 `subagent_run(agent, prompt)` 执行：立即返回子代理 ID，在后台运行，结束时由运行时回报结果，运行期间可用 `send_message` 追加指令。角色可以保存精确的 `provider` + `model` 与 `reasoning_effort`；其余声明一律忽略，子代理改为继承父会话路由。`tools` 与 `disallowedTools` 会保留在文件中但不会生效。frontmatter 字段与边界见[代理角色](docs/guides/agent-roles.zh.md)。
 
 ### 布局识别优先级
 
@@ -122,7 +122,7 @@ MCP 详情将保留凭据的“重试连接”与需要确认的“重新授权�
 | 项目原生目录（见下文） | 支持 | 可移植 Markdown 角色 | 会话作用域命令 | JSON / Codex TOML | 已映射命令事件子集 | 诊断，不挂载 |
 
 - **组件路径：**支持声明文件、目录树和数组，按 realpath 限制在套件内部。命令、代理和详情面板消费同一组资源。Cursor 命令还支持 `.mdc`、`.markdown`、`.txt`；Qoder 命令映射支持文件与内联内容。Claude/Codex 技能声明补充默认发现；无清单集合也支持平铺技能 Markdown 文件。
-- **代理身份：**`reviewer.agent.md` 与 `reviewer.md` 在子代理目录中保留不同角色 ID，不再生成 `agent-*` 技能或命令别名。普通技能本身采用这些名称的不受影响。
+- **代理角色：**角色通过会话目录和 `subagent_run` 使用，不注册为技能或斜杠命令。
 - **MCP：**按方言解析声明文件、内联表和数组。支持 Cursor 无 schema 的 `mcp.json`；agent-plugins v1 保持严格 schema 校验。Claude/ZCode 声明叠加默认配置，Cursor 声明替换默认配置，Copilot/Universal 包含 `.github/mcp.json`，Kimi Code 使用内联声明。无效显式配置不会复活默认配置。Codex app 连接器不属于此适配器。
 - **Hooks：**支持声明文件/目录及内联配置，包括 Kimi 数组和保留 argv 引用边界的 ZCode process hooks。受支持的 Copilot/Cursor 生命周期名称映射到已有 command-hook 桥。没有 DSH 对应点的事件（如 `afterFileEdit`）给出诊断，不伪造执行。
 - **LSP：**用户套件支持声明文件、数组、内联表，以及 `.lsp.json` 和 Copilot/Universal 的 `lsp.json`、`.github/lsp.json`、`lsp-config/servers.json`。反向域名目录定义仍为预览。项目 LSP 保留宿主作用域限制。

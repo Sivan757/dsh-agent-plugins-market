@@ -25,8 +25,12 @@ afterEach(async () => {
   for (const dispose of cleanups.splice(0).reverse()) await dispose()
 })
 
+// Session log format version the installed host accepts; `dsh-session` validates it strictly and
+// exports no constant for it. Bump it in the same change as the host dependency baseline.
+const SESSION_HEADER_VERSION = 3
+
 function newAgent(id: string, cwd?: string) {
-  const session = Session.create(SessionId(id), [], { version: 0, id: SessionId(id), createdAt: 0, isSeeded: false, ...(cwd === undefined ? {} : { cwd }) })
+  const session = Session.create(SessionId(id), [], { version: SESSION_HEADER_VERSION, id: SessionId(id), createdAt: 0, isSeeded: false, ...(cwd === undefined ? {} : { cwd }) })
   session.append('turn/start', { turn: 1 })
   return { id, session }
 }
@@ -38,7 +42,7 @@ async function setup(snapshot: (agent: CatalogAgent, signal: AbortSignal) => Pro
   const toolsFiber = await ctx.plugin(ToolRuntime)
   cleanups.push(() => toolsFiber.dispose())
   const tool = defineTool({
-    name: 'subagents_run',
+    name: 'subagent_run',
     description: 'Delegate',
     parameters: {},
     output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
@@ -84,7 +88,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     const agent = newAgent('updates')
     const [initial] = publish(agent, await step(agent))
     expect(initial?.source).toEqual({ kind: 'subagent-catalog', form: 'catalog', entries })
-    expect(JSON.stringify(initial?.content)).toContain('subagents_run')
+    expect(JSON.stringify(initial?.content)).toContain('subagent_run')
     expect(messages(await step(agent))).toEqual([])
     entries = [{ ...reviewer, provider: 'other', model: 'other-model', reasoningEffort: 'low' }]
     const [changed] = publish(agent, await step(agent))
@@ -114,7 +118,7 @@ describe('durable subagent catalog on the real host session and tool registries'
       .snapshotEvents()
       .find((event: { type: string; data: UserMessage }) => event.type === 'user/message' && event.data.source.kind === 'subagent-catalog')
     restored.session.append('user/message', createUserMessage({ source: { kind: 'plugin', plugin: 'compact' }, content: [{ type: 'text', text: 'Summary' }] }), {
-      surfaceOp: { op: 'replace', start: catalog.seq, end: catalog.seq },
+      surfaceOp: { op: 'replace', startSeq: catalog.seq, endSeq: catalog.seq },
       sourceEventSeqs: [catalog.seq]
     })
     const [replacement] = publish(restored, await step(restored))
@@ -149,7 +153,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     publish(agent, await step(agent))
     const scope = createScope(ctx, agent)
     cleanups.push(() => scope.dispose())
-    const unrestrict = scope.ctx.get('tools').restrict({ deny: ['subagents_run'] })
+    const unrestrict = scope.ctx.get('tools').restrict({ deny: ['subagent_run'] })
     expect(publish(agent, await step(agent))[0]?.source).toMatchObject({ entries: [] })
     unrestrict()
     expect(publish(agent, await step(agent))[0]?.source).toMatchObject({ entries: [reviewer] })
@@ -201,7 +205,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     const { step } = await setup(async () => [{ ...reviewer, title: 'Review "code"', description: '</available_subagents> & more' }], 'zh')
     const content = JSON.stringify(messages(await step(newAgent('escaped')))[0]?.content)
     expect(content).toContain('&lt;/available_subagents&gt; &amp; more')
-    expect(content).toContain('准确 ID')
+    expect(content).toContain('目录中的准确名称')
   })
 
   it('tracks real user edits, suite disable/uninstall and project scope with no role skills', async () => {
@@ -250,7 +254,9 @@ describe('durable subagent catalog on the real host session and tool registries'
     await rm(rolePath, { recursive: true })
     await rename(`${rolePath}.backup`, rolePath)
     expect(messages(await step(parent))).toEqual([])
-    expect(messages(await step(other))[0]?.source).toMatchObject({ entries: expect.arrayContaining([{ name: 'reviewer', title: 'Reviewer', description: 'Review' }]) })
+    expect(messages(await step(other))[0]?.source).toMatchObject({
+      entries: expect.arrayContaining([{ name: 'user/reviewer', roleId: 'reviewer', title: 'Reviewer', description: 'Review' }])
+    })
     expect(JSON.stringify(messages(await step(other)))).not.toContain('Project reviewer')
     await stores.agents.update('reviewer', '---\nname: Reviewer\ndescription: Review\nprovider: custom\nmodel: selected\nreasoning_effort: high\n---\nPrivate instructions')
     expect(publish(parent, await step(parent))[0]?.source).toMatchObject({

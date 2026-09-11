@@ -10,7 +10,8 @@ describe('role metadata editing', () => {
     expect(updated).toContain('# keep this')
     expect(updated.endsWith(body)).toBe(true)
     expect(parse(updated.split('---\n')[1]!)).toEqual({ name: 'reviewer', tools: ['Read', 'Grep'], metadata: { tier: 2, flags: [true, false] }, model: 'deepseek/deepseek-chat' })
-    expect(readRoleFields(updated)).toEqual({ model: 'deepseek/deepseek-chat', provider: '', tools: 'Read, Grep', reasoningEffort: '' })
+    // `tools` stays in the document but is no longer surfaced: the executor never applies it.
+    expect(readRoleFields(updated)).toEqual({ model: 'deepseek/deepseek-chat', provider: '', reasoningEffort: '' })
   })
 
   it('adds frontmatter to plain Markdown and supports clearing a model', () => {

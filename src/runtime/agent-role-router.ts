@@ -5,10 +5,15 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { parse as parseYaml } from 'yaml'
 import { mountSubagentCatalog, type SubagentCatalogEntry } from './subagent-catalog.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
+import { namedAgentRoles } from './agent-role-names.js'
 
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+export const AGENT_ROLE_TOOL_NAME = 'subagent_run'
 
-export const AGENT_ROLE_TOOL_NAME = 'subagents_run'
+/**
+ * Absolute delegation-depth cap applied to every role child. The host default is
+ * the same value; keeping it explicit preserves the shipped recursion budget.
+ */
+const MAX_AGENT_ROLE_DEPTH = 3
 
 /** Panel identity is preserved so identically named cards from different suites remain addressable. */
 export interface AgentRoleEntry {
@@ -20,6 +25,10 @@ export interface AgentRoleEntry {
   rawText?: string
 }
 
+/**
+ * The executable part of one card. `tools` / `disallowedTools` stay in the file
+ * and are preserved by the editors, but they are not applied.
+ */
 export interface AgentRolePolicy {
   content: string
   model?: string
@@ -27,9 +36,33 @@ export interface AgentRolePolicy {
   reasoningEffort?: string
   title?: string
   description?: string
-  tools?: string[]
-  disallowedTools?: string[]
   disabled: boolean
+}
+
+/** Child LLM options this plugin sends; never carries inherited parent values. */
+export interface AgentRoleOptions {
+  provider?: string
+  model?: string
+  reasoningEffort?: string
+}
+
+/** What the host `ctx.subagents` seam receives for one role delegation. */
+export interface AgentRoleDelegation {
+  prompt: { type: 'text'; text: string }[]
+  parent: unknown
+  maxDepth: number
+  persona: string
+  agentOptions?: AgentRoleOptions
+}
+
+export interface AgentRoleHost {
+  tools: { register(definition: unknown): () => void }
+  llm: {
+    resolveCallConfig(config: { provider: string; model: string; reasoningEffort?: string }, signal?: AbortSignal): Promise<unknown>
+  }
+  subagents: {
+    startContinuable(spec: { provider: string; label: string; request: AgentRoleDelegation; signal: AbortSignal }): Promise<{ childId: string; messageId: string }>
+  }
 }
 
 function optionalText(value: unknown, key: string): string | undefined {
@@ -38,20 +71,7 @@ function optionalText(value: unknown, key: string): string | undefined {
   return value.trim()
 }
 
-function toolList(value: unknown, key: string): string[] | undefined {
-  if (value === undefined) return undefined
-  const entries: unknown[] = typeof value === 'string' ? value.split(',') : Array.isArray(value) ? value : [value]
-  return [
-    ...new Set(
-      entries.map(entry => {
-        if (typeof entry !== 'string' || !/^[\w.:-]+$/.test(entry.trim())) throw new Error(`agent metadata ${key} must contain tool names (comma-separated or a YAML array)`)
-        return entry.trim()
-      })
-    )
-  ]
-}
-
-/** Strict YAML parsing prevents malformed routing/restriction metadata from silently inheriting wider privileges. */
+/** Strict YAML parsing prevents malformed routing metadata from silently inheriting wider privileges. */
 export function parseAgentRole(text: string): AgentRolePolicy {
   const match = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text)
   if (match === null) {
@@ -78,76 +98,76 @@ export function parseAgentRole(text: string): AgentRolePolicy {
     ...(provider === undefined ? {} : { provider }),
     ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
     ...(title === undefined ? {} : { title }),
-    ...(description === undefined ? {} : { description }),
-    ...(metadata.tools === undefined ? {} : { tools: toolList(metadata.tools, 'tools') }),
-    ...(metadata.disallowedTools === undefined ? {} : { disallowedTools: toolList(metadata.disallowedTools, 'disallowedTools') })
+    ...(description === undefined ? {} : { description })
   }
 }
 
-interface ModelCatalog {
-  listProviders(): { id: string }[]
-  listModels(provider: string): Promise<{ id: string }[]>
-  resolveCallConfig(config: { provider: string; model: string; reasoningEffort?: string }, signal?: AbortSignal): Promise<unknown>
+/** Effective route the parent Agent's next request would use. */
+interface ParentRoute {
+  options?: AgentRoleOptions
+  session?: { requestHeader?(): { config?: AgentRoleOptions } | undefined }
 }
 
-/** Bare ids must resolve uniquely; Claude aliases are accepted only if actually advertised by a DSH provider. */
-export async function resolveAgentModel(policy: AgentRolePolicy, catalog: ModelCatalog): Promise<{ provider?: string; model?: string }> {
-  if (policy.model === undefined) return policy.provider === undefined ? {} : { provider: policy.provider }
-  const providers = catalog.listProviders()
-  if (policy.provider !== undefined) {
-    if (!providers.some(provider => provider.id === policy.provider)) throw new Error(`agent model provider "${policy.provider}" is not registered`)
-    return { provider: policy.provider, model: policy.model }
+function parentRouteOf(parent: unknown): AgentRoleOptions {
+  const agent = parent as ParentRoute | undefined
+  return agent?.session?.requestHeader?.()?.config ?? agent?.options ?? {}
+}
+
+/**
+ * Resolve the child LLM options one card may contribute.
+ *
+ * A card route is advisory. Only an exact `provider` plus `model` pair is
+ * applied, and only when the live LLM runtime accepts it; every other
+ * declaration — a bare id, a Claude alias, a lone `provider`, an unsupported
+ * effort — degrades to inheriting the parent route and reports a diagnostic.
+ * @param policy - the card's parsed routing metadata.
+ * @param parent - the calling Agent whose route an unusable declaration falls back to.
+ * @param llm - live LLM runtime owning provider, model and effort validation.
+ * @param signal - tool-call cancellation signal.
+ * @param subject - role name used in diagnostics.
+ * @param diagnose - diagnostic sink; degradation is reported, never silent.
+ * @returns the options to send, or undefined for pure inheritance.
+ */
+export async function resolveAgentOptions(
+  policy: AgentRolePolicy,
+  parent: unknown,
+  llm: AgentRoleHost['llm'],
+  signal: AbortSignal,
+  subject: string,
+  diagnose: (message: string) => void
+): Promise<AgentRoleOptions | undefined> {
+  const exact = policy.provider !== undefined && policy.model !== undefined
+  if (!exact && (policy.provider !== undefined || policy.model !== undefined)) {
+    const declared = [policy.provider, policy.model].filter(value => value !== undefined).join('/')
+    diagnose(`agent "${subject}": route "${declared}" needs an exact provider and model pair; it is ignored and the child inherits the parent route`)
   }
-  const qualified = providers.filter(provider => policy.model!.startsWith(`${provider.id}/`)).sort((a, b) => b.id.length - a.id.length)[0]
-  if (qualified !== undefined) {
-    const model = policy.model.slice(qualified.id.length + 1)
-    if (model === '') throw new Error('agent model id must not be empty')
-    return { provider: qualified.id, model }
+  const requested: AgentRoleOptions = exact ? { provider: policy.provider, model: policy.model } : {}
+  const effort = policy.reasoningEffort
+  if (effort === undefined && requested.provider === undefined) return undefined
+
+  const inherited = parentRouteOf(parent)
+  const provider = requested.provider ?? inherited.provider
+  const model = requested.model ?? inherited.model
+  if (provider === undefined || model === undefined) {
+    /* v8 ignore next 3 -- an effective route is always known once a parent Agent ran a request. */
+    if (effort !== undefined) diagnose(`agent "${subject}": reasoning effort "${effort}" has no effective route to validate against; it is ignored`)
+    return undefined
   }
-  const matches = (
-    await Promise.all(
-      providers.map(async provider => {
-        try {
-          return (await catalog.listModels(provider.id)).some(model => model.id === policy.model) ? provider.id : undefined
-        } catch {
-          return undefined
-        }
-      })
-    )
-  ).filter((provider): provider is string => provider !== undefined)
-  if (matches.length !== 1) throw new Error(`agent model "${policy.model}" ${matches.length === 0 ? 'is not advertised' : 'is ambiguous'}; configure provider and model explicitly`)
-  return { provider: matches[0], model: policy.model }
-}
-
-export interface AgentRoleRequest {
-  label: string
-  prompt: { type: 'text'; text: string }[]
-  parent: unknown
-  signal: AbortSignal
-  maxDepth: number
-  agentOptions: { provider?: string; model?: string; reasoningEffort?: string }
-  persona: string
-  toolFilter?: { allow?: string[]; deny?: string[] }
-}
-
-export interface AgentRoleHost {
-  tools: { register(definition: unknown): () => void }
-  llm: ModelCatalog
-  subagents: {
-    start(
-      provider: string,
-      request: AgentRoleRequest
-    ): Promise<{
-      id: string
-      result: Promise<{ stopReason: string; output: JsonValue[] }>
-      dispose(): void | Promise<void>
-    }>
+  const routeChanged = provider !== inherited.provider || model !== inherited.model
+  const effectiveEffort = effort ?? (routeChanged ? undefined : inherited.reasoningEffort)
+  try {
+    await llm.resolveCallConfig({ provider, model, ...(effectiveEffort === undefined ? {} : { reasoningEffort: effectiveEffort }) }, signal)
+  } catch (error) {
+    signal.throwIfAborted()
+    diagnose(`agent "${subject}": route ${provider}/${model} is unusable (${String(error)}); it is ignored and the child inherits the parent route`)
+    return undefined
   }
-}
-
-/** Read the same declaration for catalog summaries and execution, including inline resources. */
-export async function readAgentRole(entry: AgentRoleEntry): Promise<AgentRolePolicy> {
-  return parseAgentRole(entry.rawText ?? (await readFile(entry.path, 'utf8')))
+  // Cancellation raised during the adapter lookup must not create a child.
+  signal.throwIfAborted()
+  return {
+    ...(requested.provider === undefined ? {} : { provider: requested.provider, model: requested.model! }),
+    ...(effort === undefined ? {} : { reasoningEffort: effort })
+  }
 }
 
 /** Stable summaries; invalid declarations are excluded and transient read failures abort publication. */
@@ -155,7 +175,7 @@ export async function agentRoleCatalog(entries: AgentRoleEntry[], signal: AbortS
   const summaries: SubagentCatalogEntry[] = []
   const counts = new Map<string, number>()
   for (const entry of entries) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1)
-  for (const entry of entries) {
+  for (const entry of namedAgentRoles(entries)) {
     signal.throwIfAborted()
     if (entry.disabled) continue
     if (counts.get(entry.name) !== 1) {
@@ -178,12 +198,14 @@ export async function agentRoleCatalog(entries: AgentRoleEntry[], signal: AbortS
     }
     if (policy.disabled) continue
     const description = (policy.description ?? entry.description).replaceAll(/\s+/g, ' ').trim()
+    // Advertise a route only when the executor would apply it.
+    const exact = policy.provider !== undefined && policy.model !== undefined
     summaries.push({
-      name: entry.name,
-      title: policy.title ?? entry.title ?? entry.name,
+      name: entry.callName,
+      roleId: entry.name,
+      title: policy.title ?? entry.title ?? entry.callName,
       description: description.length <= 500 ? description : `${description.slice(0, 497)}...`,
-      ...(policy.provider === undefined ? {} : { provider: policy.provider }),
-      ...(policy.model === undefined ? {} : { model: policy.model }),
+      ...(exact ? { provider: policy.provider, model: policy.model } : {}),
       ...(policy.reasoningEffort === undefined ? {} : { reasoningEffort: policy.reasoningEffort })
     })
   }
@@ -191,58 +213,49 @@ export async function agentRoleCatalog(entries: AgentRoleEntry[], signal: AbortS
   return summaries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 }
 
-/** Resolve fresh panel state and raw Markdown on every call, including after edits, disabling and uninstall. */
+/** Read the same declaration for catalog summaries and execution, including inline resources. */
+export async function readAgentRole(entry: AgentRoleEntry): Promise<AgentRolePolicy> {
+  return parseAgentRole(entry.rawText ?? (await readFile(entry.path, 'utf8')))
+}
+
+/**
+ * Start one role child and return its durable id without waiting for the result.
+ * Resume state, steering, and the settlement notice belong to the host's
+ * continuation manager; this executor owns only role resolution.
+ */
 export async function executeAgentRole(
   host: AgentRoleHost,
   listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>,
-  name: string,
+  agentName: string,
   prompt: string,
   parent: unknown,
-  signal: AbortSignal
-): Promise<{ runId: string; output: JsonValue[] }> {
-  if (parent === undefined) throw new Error('subagents_run requires a calling agent')
-  if (prompt.trim() === '') throw new Error('subagents_run requires a non-empty prompt')
+  signal: AbortSignal,
+  diagnose: (message: string) => void = () => {}
+): Promise<{ subagentId: string }> {
+  if (parent === undefined) throw new Error('subagent_run requires a calling agent')
+  if (prompt.trim() === '') throw new Error('subagent_run requires a non-empty prompt')
   signal.throwIfAborted()
-  const entries = (await listRoles(parent)).filter(entry => entry.name === name)
-  if (entries.length !== 1) throw new Error(`agent role "${name}" is unavailable or ambiguous`)
+  const entries = namedAgentRoles(await listRoles(parent)).filter(entry => entry.callName === agentName)
+  if (entries.length !== 1) throw new Error(`agent "${agentName}" is unavailable or ambiguous`)
   const entry = entries[0]!
-  if (entry.disabled) throw new Error(`agent role "${name}" is disabled`)
+  if (entry.disabled) throw new Error(`agent "${agentName}" is disabled`)
   const policy = await readAgentRole(entry)
-  if (policy.disabled) throw new Error(`agent role "${name}" is disabled`)
-  const agentOptions = { ...(await resolveAgentModel(policy, host.llm)), ...(policy.reasoningEffort === undefined ? {} : { reasoningEffort: policy.reasoningEffort }) }
-  const parentAgent = parent as { options?: AgentRoleRequest['agentOptions']; session?: { requestHeader?(): { config: AgentRoleRequest['agentOptions'] } | undefined } }
-  const parentOptions = parentAgent.session?.requestHeader?.()?.config ?? parentAgent.options ?? {}
-  const provider = agentOptions.provider ?? parentOptions.provider
-  const model = agentOptions.model ?? parentOptions.model
-  if (provider === undefined || model === undefined) throw new Error('subagents_run requires an effective provider and model')
-  const routeChanged = provider !== parentOptions.provider || model !== parentOptions.model
-  const reasoningEffort = agentOptions.reasoningEffort ?? (routeChanged ? undefined : parentOptions.reasoningEffort)
-  await host.llm.resolveCallConfig({ provider, model, ...(reasoningEffort === undefined ? {} : { reasoningEffort }) }, signal)
+  if (policy.disabled) throw new Error(`agent "${agentName}" is disabled`)
+  const agentOptions = await resolveAgentOptions(policy, parent, host.llm, signal, agentName, diagnose)
   signal.throwIfAborted()
-  const run = await host.subagents.start('spawn', {
-    label: name,
-    prompt: [{ type: 'text', text: prompt }],
-    parent,
-    signal,
-    maxDepth: 3,
-    agentOptions,
-    persona: policy.content,
-    ...(policy.tools === undefined && policy.disallowedTools === undefined
-      ? {}
-      : {
-          toolFilter: {
-            ...(policy.tools === undefined ? {} : { allow: policy.tools }),
-            ...(policy.disallowedTools === undefined ? {} : { deny: policy.disallowedTools })
-          }
-        })
+  const started = await host.subagents.startContinuable({
+    provider: 'spawn',
+    label: agentName,
+    request: {
+      prompt: [{ type: 'text', text: prompt }],
+      parent,
+      maxDepth: MAX_AGENT_ROLE_DEPTH,
+      persona: policy.content,
+      ...(agentOptions === undefined ? {} : { agentOptions })
+    },
+    signal
   })
-  try {
-    const result = await run.result
-    if (result.stopReason !== 'completed') throw new Error(`agent role "${name}" stopped: ${result.stopReason}; partial output: ${JSON.stringify(result.output)}`)
-    return { runId: run.id, output: result.output }
-  } finally {
-    await run.dispose()
-  }
+  return { subagentId: started.childId }
 }
 
 /** Mount once after tools, llm and subagents are available; the returned disposer belongs to the plugin lifecycle. */
@@ -251,15 +264,24 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
   const tool = defineTool({
     name: AGENT_ROLE_TOOL_NAME,
     description:
-      'Delegate a self-contained task to a role from the current subagent catalog and wait for its result. The child starts without the parent conversation. Its saved provider, model, reasoning effort, persona and tool restrictions are applied automatically.',
+      'Delegate a self-contained task to a role from the current subagent catalog. The child starts without the parent conversation and runs ' +
+      'in the background: this returns a durable subagent id immediately. When the run settles the runtime sends you a notice carrying its ' +
+      "outcome and closing message, and send_message steers the child while it runs. The role's saved persona and model settings are applied automatically.",
     parameters: {
-      role: { type: 'string', required: true, description: 'Exact role ID from the current subagent catalog.' },
+      agent: { type: 'string', required: true, description: 'Exact callable role name from the current subagent catalog.' },
       prompt: { type: 'string', required: true, description: 'Complete task and context for the isolated child.' }
     },
-    output: { schema: { type: 'json' }, render: (_args, result) => [{ type: 'text', text: JSON.stringify(result) }] },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { subagentId: { type: 'string', required: true } }
+      },
+      render: (_args, value) => [{ type: 'text', text: `started subagent ${value.subagentId}` }]
+    },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      return executeAgentRole(host, listRoles, args.role, args.prompt, exec.agent, exec.signal)
+      return executeAgentRole(host, listRoles, args.agent, args.prompt, exec.agent, exec.signal, message => ctx.logger?.warn(message))
     }
   })
   const disposeTool = host.tools.register(tool)

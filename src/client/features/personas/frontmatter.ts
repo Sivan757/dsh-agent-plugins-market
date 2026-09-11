@@ -10,7 +10,7 @@ export function frontmatter(text: string) {
   return { document, body: match === null ? text : text.slice(match[0].length), matched: match !== null }
 }
 
-export function readRoleFields(text: string): { model: string; provider: string; tools: string; reasoningEffort: string } {
+export function readRoleFields(text: string): { model: string; provider: string; reasoningEffort: string } {
   const { document } = frontmatter(text)
   const fields = (document.toJS() ?? {}) as Record<string, unknown>
   for (const key of ['reasoning_effort', 'reasoningEffort']) {
@@ -22,8 +22,7 @@ export function readRoleFields(text: string): { model: string; provider: string;
   return {
     reasoningEffort: effort ?? alias ?? '',
     model: typeof fields.model === 'string' ? fields.model : '',
-    provider: typeof fields.provider === 'string' ? fields.provider : '',
-    tools: Array.isArray(fields.tools) ? fields.tools.join(', ') : typeof fields.tools === 'string' ? fields.tools : ''
+    provider: typeof fields.provider === 'string' ? fields.provider : ''
   }
 }
 

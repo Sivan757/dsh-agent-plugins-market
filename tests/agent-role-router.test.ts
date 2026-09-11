@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { agentRoleCatalog, executeAgentRole, mountAgentRoleTool, parseAgentRole, resolveAgentModel, type AgentRoleHost } from '../src/runtime/agent-role-router.js'
+import { agentRoleCatalog, executeAgentRole, mountAgentRoleTool, parseAgentRole, resolveAgentOptions, type AgentRoleHost } from '../src/runtime/agent-role-router.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const roots: string[] = []
@@ -11,14 +11,13 @@ afterEach(async () => {
 })
 
 function hostFixture() {
-  const dispose = vi.fn()
-  const start = vi.fn(async () => ({ id: 'child-1', result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: 'done' }] }), dispose }))
+  const startContinuable = vi.fn(async () => ({ childId: 'child-1', messageId: 'message-1' }))
   const host: AgentRoleHost = {
     tools: { register: vi.fn(() => vi.fn()) },
-    llm: { listProviders: () => [{ id: 'deepseek' }, { id: 'other' }], listModels: async () => [{ id: 'shared-model' }], resolveCallConfig: vi.fn(async config => config) },
-    subagents: { start }
+    llm: { resolveCallConfig: vi.fn(async config => config) },
+    subagents: { startContinuable }
   }
-  return { host, start, dispose }
+  return { host, startContinuable }
 }
 
 async function roleFile(text: string) {
@@ -29,151 +28,173 @@ async function roleFile(text: string) {
   return { name: 'source/suite/reviewer', path, description: 'Review code', disabled: false }
 }
 
+const signal = () => new AbortController().signal
+const parent = { options: { provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' } }
+
 describe('agent role metadata and runtime routing', () => {
   it('enforces metadata in BOM and CRLF files accepted by the editor', () => {
-    expect(parseAgentRole('\uFEFF---\r\nmodel: inherit\r\ntools: []\r\n--- \t\r\nBody')).toEqual({ content: 'Body', tools: [], disabled: false })
+    expect(parseAgentRole('\uFEFF---\r\nmodel: inherit\r\n--- \t\r\nBody')).toEqual({ content: 'Body', disabled: false })
     expect(() => parseAgentRole('\uFEFF---\nmodel: x')).toThrow('not closed')
   })
-  it('parses Claude comma-separated tools and YAML list disallowedTools without consuming body content', () => {
-    expect(parseAgentRole('---\nmodel: deepseek/deepseek-chat\ntools: read, grep\ndisallowedTools:\n  - bash\n---\nReview carefully.')).toEqual({
+
+  it('keeps Claude tool lists in the file without turning them into execution input', () => {
+    // The card dialect declares Claude Code tool names; the host registry has
+    // different, case-sensitive names, so the router must not consume them.
+    expect(parseAgentRole('---\nmodel: deepseek/deepseek-chat\ntools: Read, Grep\ndisallowedTools:\n  - Bash\n---\nReview carefully.')).toEqual({
       model: 'deepseek/deepseek-chat',
-      tools: ['read', 'grep'],
-      disallowedTools: ['bash'],
       disabled: false,
       content: 'Review carefully.'
     })
-    expect(parseAgentRole('---\nmodel: inherit\ntools: []\n---\ncard')).toEqual({ tools: [], content: 'card', disabled: false })
+    expect(parseAgentRole('---\nmodel: inherit\ntools: false\n---\ncard')).toEqual({ content: 'card', disabled: false })
   })
 
-  it('fails closed on invalid frontmatter or tool declarations', () => {
+  it('fails closed on malformed frontmatter and on contradicting routing metadata', () => {
     for (const text of [
       '---\nmodel: [bad\n---\nbody',
       '---\nmodel: x',
-      '---\ntools: false\n---\nbody',
       '---\nmodel: a\nmodel: b\n---\nbody',
-      '---\ndisabled: "false"\n---\nbody'
+      '---\ndisabled: "false"\n---\nbody',
+      '---\nmodel: inherit\nprovider: deepseek\n---\nbody',
+      '---\nprovider: ""\n---\nbody'
     ]) {
       expect(() => parseAgentRole(text)).toThrow()
     }
   })
 
-  it('resolves explicit routes without relying on remote catalogs and rejects ambiguous bare ids and Claude aliases', async () => {
+  it('applies an exact provider and model pair through host preflight', async () => {
     const { host } = hostFixture()
-    expect(await resolveAgentModel(parseAgentRole('---\nmodel: deepseek/deepseek-chat\n---\nbody'), host.llm)).toEqual({ provider: 'deepseek', model: 'deepseek-chat' })
-    expect(await resolveAgentModel(parseAgentRole('---\nprovider: deepseek\nmodel: vendor/model\n---\nbody'), host.llm)).toEqual({ provider: 'deepseek', model: 'vendor/model' })
-    await expect(resolveAgentModel(parseAgentRole('---\nmodel: shared-model\n---\nbody'), host.llm)).rejects.toThrow('ambiguous')
-    await expect(resolveAgentModel(parseAgentRole('---\nmodel: sonnet\n---\nbody'), host.llm)).rejects.toThrow('not advertised')
-    await expect(resolveAgentModel(parseAgentRole('---\nprovider: absent\nmodel: model\n---\nbody'), host.llm)).rejects.toThrow('not registered')
+    const call = signal()
+    expect(
+      await resolveAgentOptions(parseAgentRole('---\nprovider: deepseek\nmodel: deepseek-chat\nreasoning_effort: high\n---\nbody'), parent, host.llm, call, 'reviewer', vi.fn())
+    ).toEqual({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' })
+    expect(host.llm.resolveCallConfig).toHaveBeenCalledWith({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' }, call)
   })
 
-  it('runs the selected persona with model options, tool restrictions, parent, cancellation and depth cap', async () => {
-    const { host, start, dispose } = hostFixture()
-    const entry = await roleFile('---\nmodel: deepseek/deepseek-chat\ntools: [read, grep]\ndisallowedTools: bash\n---\nReview carefully.')
-    const parent = { id: 'parent-1' }
-    const signal = new AbortController().signal
-    expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review my diff', parent, signal)).toEqual({ runId: 'child-1', output: [{ type: 'text', text: 'done' }] })
-    expect(start).toHaveBeenCalledWith('spawn', {
-      label: entry.name,
-      parent,
-      signal,
-      maxDepth: 3,
-      prompt: [{ type: 'text', text: 'Review my diff' }],
-      persona: 'Review carefully.',
-      agentOptions: { provider: 'deepseek', model: 'deepseek-chat' },
-      toolFilter: { allow: ['read', 'grep'], deny: ['bash'] }
-    })
-    expect(dispose).toHaveBeenCalledOnce()
-    await writeFile(entry.path, '---\ndisabled: true\n---\nReview carefully.')
-    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Again', parent, signal)).rejects.toThrow('disabled')
-    expect(start).toHaveBeenCalledTimes(1)
-    await expect(executeAgentRole(host, async () => [], entry.name, 'Again', parent, signal)).rejects.toThrow('unavailable')
-  })
-
-  it('disposes failed runs and preserves failure and partial output', async () => {
-    const { host, start, dispose } = hostFixture()
-    const entry = await roleFile('---\nmodel: inherit\n---\nReview.')
-    start.mockResolvedValue({ id: 'child-1', result: Promise.resolve({ stopReason: 'max-tokens', output: [{ type: 'text', text: 'partial' }] }), dispose })
-    await expect(
-      executeAgentRole(host, async () => [entry], entry.name, 'Review', { options: { provider: 'deepseek', model: 'deepseek-chat' } }, new AbortController().signal)
-    ).rejects.toThrow('max-tokens; partial output')
-    expect(dispose).toHaveBeenCalledOnce()
-  })
-
-  it('registers a real host tool with a valid value schema and a disposer', () => {
+  it('degrades every inexact route to inheritance and reports why', async () => {
     const { host } = hostFixture()
-    const disposeListener = vi.fn()
-    const on = vi.fn(() => disposeListener)
-    const dispose = mountAgentRoleTool({ ...host, on } as unknown as Context, async () => [])
-    expect(host.tools.register).toHaveBeenCalledWith(expect.objectContaining({ name: 'subagents_run' }))
-    expect(on).toHaveBeenCalledWith('agent/pre-step', expect.any(Function))
-    dispose()
-    expect(disposeListener).toHaveBeenCalledOnce()
-  })
-
-  it.each(['reasoning_effort', 'reasoningEffort'])('parses %s and sends all saved model fields through host preflight', async field => {
-    const { host, start } = hostFixture()
-    const entry = await roleFile(`---\nprovider: deepseek\nmodel: deepseek-chat\n${field}: high\n---\nReview`)
-    const parent = { options: { provider: 'other', model: 'other-model', reasoningEffort: 'low' } }
-    const signal = new AbortController().signal
-    const summaries = await agentRoleCatalog([entry], signal)
-    expect(summaries[0]).toMatchObject({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' })
-    await executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, signal)
-    expect(host.llm.resolveCallConfig).toHaveBeenCalledWith({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' }, signal)
-    expect(start.mock.calls[0]?.[1].agentOptions).toEqual({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' })
-  })
-
-  it('inherits compatible parent effort but clears it on a model change', async () => {
-    const { host, start } = hostFixture()
-    const entry = await roleFile('---\nmodel: inherit\n---\nReview')
-    const parent = { options: { provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' } }
-    const signal = new AbortController().signal
-    await executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, signal)
-    expect(host.llm.resolveCallConfig).toHaveBeenLastCalledWith(parent.options, signal)
-    expect(start.mock.calls[0]?.[1].agentOptions).toEqual({})
-    await writeFile(entry.path, '---\nmodel: deepseek/other-model\n---\nReview')
-    await executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, signal)
-    expect(host.llm.resolveCallConfig).toHaveBeenLastCalledWith({ provider: 'deepseek', model: 'other-model' }, signal)
-    expect(start.mock.calls[1]?.[1].agentOptions).toEqual({ provider: 'deepseek', model: 'other-model' })
-  })
-
-  it('inherits the latest request route instead of stale agent creation options', async () => {
-    const { host } = hostFixture()
-    const entry = await roleFile('---\nmodel: inherit\n---\nReview')
-    const current = { provider: 'other', model: 'current-model' }
-    const parent = { options: { provider: 'deepseek', model: 'old-model', reasoningEffort: 'high' }, session: { requestHeader: () => ({ config: current }) } }
-    const signal = new AbortController().signal
-    await executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, signal)
-    expect(host.llm.resolveCallConfig).toHaveBeenCalledWith(current, signal)
-  })
-
-  it('rejects invalid efforts, provider failures and cancelled preflight before creating a child', async () => {
-    for (const metadata of ['reasoning_effort: false', 'reasoning_effort: ""', 'reasoning_effort: [high]', 'reasoning_effort: high\nreasoningEffort: low']) {
-      expect(() => parseAgentRole(`---\n${metadata}\n---\nReview`)).toThrow()
+    for (const metadata of ['model: sonnet', 'model: deepseek/deepseek-chat', 'model: GPT-4.1', 'provider: deepseek', 'provider: deepseek\nmodel: inherit']) {
+      if (metadata.includes('model: inherit')) continue
+      const diagnose = vi.fn()
+      const declared =
+        metadata.includes('provider: deepseek') && !metadata.includes('model:') ? parseAgentRole(`---\n${metadata}\n---\nbody`) : parseAgentRole(`---\n${metadata}\n---\nbody`)
+      expect(await resolveAgentOptions(declared, parent, host.llm, signal(), 'reviewer', diagnose)).toBeUndefined()
+      expect(diagnose).toHaveBeenCalled()
     }
-    const { host, start } = hostFixture()
-    const entry = await roleFile('---\nmodel: deepseek/deepseek-chat\nreasoning_effort: unsupported\n---\nReview')
+    expect(host.llm.resolveCallConfig).not.toHaveBeenCalled()
+  })
+
+  it('inherits silently when the card declares no route at all', async () => {
+    const { host } = hostFixture()
+    const diagnose = vi.fn()
+    expect(await resolveAgentOptions(parseAgentRole('---\nmodel: inherit\n---\nbody'), parent, host.llm, signal(), 'reviewer', diagnose)).toBeUndefined()
+    expect(await resolveAgentOptions(parseAgentRole('body only'), parent, host.llm, signal(), 'reviewer', diagnose)).toBeUndefined()
+    expect(diagnose).not.toHaveBeenCalled()
+    expect(host.llm.resolveCallConfig).not.toHaveBeenCalled()
+  })
+
+  it('validates a lone reasoning effort against the inherited route', async () => {
+    const { host } = hostFixture()
+    const call = signal()
+    expect(await resolveAgentOptions(parseAgentRole('---\nreasoning_effort: low\n---\nbody'), parent, host.llm, call, 'reviewer', vi.fn())).toEqual({ reasoningEffort: 'low' })
+    expect(host.llm.resolveCallConfig).toHaveBeenCalledWith({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'low' }, call)
+  })
+
+  it('degrades an unusable route instead of failing the call', async () => {
+    const { host } = hostFixture()
+    const diagnose = vi.fn()
     vi.mocked(host.llm.resolveCallConfig).mockRejectedValueOnce(new Error('unsupported reasoning effort'))
-    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', {}, new AbortController().signal)).rejects.toThrow('unsupported reasoning effort')
+    expect(
+      await resolveAgentOptions(
+        parseAgentRole('---\nprovider: deepseek\nmodel: deepseek-chat\nreasoning_effort: nope\n---\nbody'),
+        parent,
+        host.llm,
+        signal(),
+        'reviewer',
+        diagnose
+      )
+    ).toBeUndefined()
+    expect(diagnose).toHaveBeenCalledWith(expect.stringContaining('unusable'))
+  })
+
+  it('propagates cancellation raised during preflight', async () => {
+    const { host } = hostFixture()
     const controller = new AbortController()
     vi.mocked(host.llm.resolveCallConfig).mockImplementationOnce(async () => {
       controller.abort()
       return {}
     })
-    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', {}, controller.signal)).rejects.toThrow()
-    expect(start).not.toHaveBeenCalled()
+    await expect(
+      resolveAgentOptions(parseAgentRole('---\nprovider: deepseek\nmodel: deepseek-chat\n---\nbody'), parent, host.llm, controller.signal, 'reviewer', vi.fn())
+    ).rejects.toThrow()
   })
 
-  it('filters malformed or ambiguous roles, preserves exact IDs and reads inline definitions', async () => {
+  it('starts a background child and returns its durable id without waiting', async () => {
+    const { host, startContinuable } = hostFixture()
+    const entry = await roleFile('---\nprovider: deepseek\nmodel: deepseek-chat\ntools: [Read, Grep]\n---\nReview carefully.')
+    const call = signal()
+    expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review my diff', parent, call)).toEqual({ subagentId: 'child-1' })
+    expect(startContinuable).toHaveBeenCalledWith({
+      provider: 'spawn',
+      label: entry.name,
+      request: {
+        prompt: [{ type: 'text', text: 'Review my diff' }],
+        parent,
+        maxDepth: 3,
+        persona: 'Review carefully.',
+        agentOptions: { provider: 'deepseek', model: 'deepseek-chat' }
+      },
+      signal: call
+    })
+    // The card's Claude tool names must never reach the host as a restriction.
+    expect(startContinuable.mock.calls[0]?.[0].request).not.toHaveProperty('toolFilter')
+  })
+
+  it('rejects disabled, missing and ambiguous roles before starting a child', async () => {
+    const { host, startContinuable } = hostFixture()
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview.')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, '   ', parent, signal())).rejects.toThrow('non-empty prompt')
+    await expect(executeAgentRole(host, async () => [], entry.name, 'Review', parent, signal())).rejects.toThrow('unavailable')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', undefined, signal())).rejects.toThrow('calling agent')
+    await writeFile(entry.path, '---\ndisabled: true\n---\nReview.')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, signal())).rejects.toThrow('disabled')
+    expect(startContinuable).not.toHaveBeenCalled()
+  })
+
+  it('registers subagent_run(agent, prompt) with a real host tool and a disposer', () => {
+    const { host } = hostFixture()
+    const disposeListener = vi.fn()
+    const on = vi.fn(() => disposeListener)
+    const dispose = mountAgentRoleTool({ ...host, on } as unknown as Context, async () => [])
+    expect(host.tools.register).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'subagent_run',
+        parameters: expect.objectContaining({
+          properties: expect.objectContaining({ agent: expect.anything(), prompt: expect.anything() }),
+          required: ['agent', 'prompt']
+        })
+      })
+    )
+    expect(on).toHaveBeenCalledWith('agent/pre-step', expect.any(Function))
+    dispose()
+    expect(disposeListener).toHaveBeenCalledOnce()
+  })
+
+  it('catalogs roles with exact routes only and reads inline definitions', async () => {
     const entry = await roleFile('---\nname: Reviewer\ndescription: Review\nmodel: inherit\n---\nSecret persona')
-    const signal = new AbortController().signal
+    const signalValue = signal()
     const diagnose = vi.fn()
     const invalid = { ...entry, name: 'invalid', rawText: '---\nreasoning_effort: false\n---\nBad' }
-    expect(await agentRoleCatalog([entry, entry, invalid], signal, diagnose)).toEqual([])
+    expect(await agentRoleCatalog([entry, entry, invalid], signalValue, diagnose)).toEqual([])
     expect(diagnose).toHaveBeenCalled()
-    const inline = { ...entry, name: 'inline', path: '/unused/plugin.json', rawText: '---\nname: Inline\nmodel: deepseek/deepseek-chat\n---\nInline persona' }
-    expect((await agentRoleCatalog([inline, entry], signal)).map(role => role.name)).toEqual(['inline', entry.name])
-    const { host, start } = hostFixture()
-    await executeAgentRole(host, async () => [inline], 'inline', 'Review', {}, signal)
-    expect(start.mock.calls[0]?.[1].persona).toBe('Inline persona')
+    const inline = { ...entry, name: 'inline', path: '/unused/plugin.json', rawText: '---\nname: Inline\nprovider: deepseek\nmodel: deepseek-chat\n---\nInline persona' }
+    const inexact = { ...entry, name: 'alias', path: '/unused/plugin.json', rawText: '---\nname: Alias\nmodel: sonnet\n---\nAlias persona' }
+    const summaries = await agentRoleCatalog([inline, inexact, entry], signalValue)
+    expect(summaries.find(role => role.name === 'inline')).toMatchObject({ provider: 'deepseek', model: 'deepseek-chat' })
+    // An unresolvable Claude alias must not be advertised as a usable route.
+    expect(summaries.find(role => role.name === 'alias')).not.toHaveProperty('provider')
+    expect(summaries.find(role => role.name === 'alias')).not.toHaveProperty('model')
+    const { host, startContinuable } = hostFixture()
+    await executeAgentRole(host, async () => [inline], 'inline', 'Review', parent, signalValue)
+    expect(startContinuable.mock.calls[0]?.[0].request.persona).toBe('Inline persona')
   })
 })

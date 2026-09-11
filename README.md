@@ -44,14 +44,14 @@ MCP details separate Retry connection (keeps credentials) from confirmed OAuth r
 
 The workspace has six tabs:
 
-| Tab            | Use it to                                                                                                                         |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                   |
-| Skills         | Browse skills and create or edit your own reusable instructions.                                                                  |
-| Commands       | Manage prompt templates invoked as `/name`; `$ARGUMENTS` inserts the text supplied after the command.                             |
-| Agent personas | Select providers, models and reasoning effort from DSH, manage role instructions and tools, and delegate through `subagents_run`. |
-| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                |
-| LSP servers    | Add and configure language servers and inspect their runtime status.                                                              |
+| Tab            | Use it to                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                              |
+| Skills         | Browse skills and create or edit your own reusable instructions.                                                                             |
+| Commands       | Manage prompt templates invoked as `/name`; `$ARGUMENTS` inserts the text supplied after the command.                                        |
+| Agent personas | Manage role instructions and save an exact provider, model and reasoning effort per role; delegate in the background through `subagent_run`. |
+| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                           |
+| LSP servers    | Add and configure language servers and inspect their runtime status.                                                                         |
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities. Suite details preview files; MCP credentials and overrides are edited in **MCP services**.
 
@@ -77,12 +77,12 @@ Supported **runtime surfaces** describe what DSH can use:
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Skills   | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded.                                            |
 | Commands | Slash commands through the host command service.                                                                                          |
-| Agents   | Dynamic subagent catalog and `subagents_run`; requires host agents, tools, LLM and subagent services.                                     |
+| Agents   | Dynamic subagent catalog and `subagent_run`; requires host agents, tools, LLM, subagent and session-persistence services.                 |
 | MCP      | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available. |
 | Hooks    | The command-hook subset mapped by `dsh-hooks-claude-code`.                                                                                |
 | LSP      | Live mounts when the host provides LSP packages; the profile must expose the LSP tool for agent use.                                      |
 
-Agent roles are published directly in a dynamic `subagent-catalog`, using the same per-step comparison, durable entries and complete replacement mechanism as DSH's skills catalog. Call `subagents_run(role, prompt)` with the catalog's exact ID; it resolves the role's provider, model and `reasoning_effort`, then applies the persona and tool restrictions. Roles no longer generate `agent-*` or `persona-*` skill/command entries. See [agent roles](docs/guides/agent-roles.md) for model inheritance, catalog refresh and migration from `market_agent`.
+Agent roles appear in the session catalog and run through `subagent_run(agent, prompt)`, which starts a durable background child and returns its id immediately; the runtime reports the outcome when it settles and `send_message` steers it while it runs. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/guides/agent-roles.md) for the frontmatter fields and limits.
 
 ### Layout detection precedence
 
@@ -130,7 +130,7 @@ Checked against official documentation, this plugin's source, and one real repos
 | Project-native directories (see below) | Supported | Portable Markdown roles | Scoped commands | JSON / Codex TOML | Mapped command-hook subset | Diagnosed, not mounted |
 
 - **Component paths:** declared files, directory trees and arrays resolve inside the suite by realpath. Commands, agents and detail panels use the same resources. Cursor also accepts `.mdc`, `.markdown` and `.txt` commands; Qoder maps support files and inline content. Claude/Codex skills supplement default discovery. Flat skill Markdown files work in manifest-less collections.
-- **Agent identities:** `reviewer.agent.md` and `reviewer.md` retain distinct role IDs in the subagent catalog. Roles have no generated `agent-*` skill or command aliases. Ordinary skills with those names remain skills.
+- **Agent roles:** roles are available through the session catalog and `subagent_run`; they are not registered as skills or slash commands.
 - **MCP:** declared files, inline maps and arrays are resolved by dialect. Cursor's schema-less `mcp.json` is supported; agent-plugins v1 stays schema-strict. Claude/ZCode declarations add to defaults, Cursor declarations replace defaults, Copilot/Universal include `.github/mcp.json`, and Kimi Code uses inline declarations. Invalid explicit configs cannot revive defaults. Codex app connectors remain outside this adapter.
 - **Hooks:** declared files/directories and inline configs are supported, including Kimi arrays and ZCode process hooks with quoted argv. Supported Copilot/Cursor lifecycle names map to the existing command-hook bridge. Events without a DSH equivalent, such as `afterFileEdit`, are diagnosed rather than simulated.
 - **LSP:** user suites accept declared files, arrays and inline tables, plus `.lsp.json` and Copilot/Universal `lsp.json`, `.github/lsp.json`, `lsp-config/servers.json`. Reverse-domain directory definitions remain previews. Project LSP retains its host-scope limitation.

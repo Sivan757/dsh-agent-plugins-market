@@ -10,7 +10,7 @@ Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量�
 
 - Node.js 22 或更高版本、DSH Web profile 和宿主技能服务（`ctx.skills`）。Git 来源需要 Git。
 - 当前包声明的 DSH peer 包版本范围为 `^0.1.2-rc.1`。这是依赖声明，不代表已验证所有功能或历史 Web 外壳的最低支持版本。
-- 斜杠命令需要宿主命令服务。`subagents_run` 角色委派需要 agents、tools、LLM 和 subagents 服务；它将保存的角色指令、供应商、模型、思考强度和工具限制应用到真实子代理，并等待结果。
+- 斜杠命令需要宿主命令服务。`subagent_run` 角色委派需要 agents、tools、LLM、subagents 与会话持久化服务；它启动一个可继续的后台子代理，应用已保存的角色指令与角色声明的精确路由，并立即返回子代理 ID 而不等待结果。
 - MCP 默认使用内置桥接。宿主客户端兼容模式还需要 `@deepseek-ai/dsh-mcp-client`，hooks 需要 `@deepseek-ai/dsh-hooks-claude-code`。
 - LSP 挂载需要 `@deepseek-ai/dsh-lsp` 和 `@deepseek-ai/dsh-lsp-stdio`；要让 Agent 调用工具，还需在 profile 中暴露 `@deepseek-ai/dsh-tool-lsp`。对应语言服务器的可执行程序也必须可用。
 - 宿主凭据服务是可选的。缺失时环境变量引用从启动环境解析，变更后需要重启。

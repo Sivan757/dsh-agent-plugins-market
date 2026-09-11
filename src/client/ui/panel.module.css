@@ -216,6 +216,14 @@
   font-size: 12px;
 }
 
+/* Non-blocking notice: the stored value is valid YAML but will not be applied. */
+.editorWarning {
+  margin: 0;
+  color: var(--dsw-alias-state-warn-primary, rgb(180, 120, 0));
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .confirmCheck {
   display: flex;
   flex-direction: row;
@@ -408,6 +416,7 @@
 }
 
 .roleFields .editorHint,
+.roleFields .editorWarning,
 .roleFields .editorError {
   grid-column: 1 / -1;
 }

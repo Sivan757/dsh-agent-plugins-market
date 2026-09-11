@@ -7,6 +7,8 @@ import type { HostTranslate } from './host-locale.js'
 export interface SubagentCatalogEntry {
   /** Exact execution identity, independent of the human-readable title. */
   name: string
+  /** Durable identity for change detection; never rendered in the model-facing catalog. */
+  roleId?: string
   title: string
   description: string
   provider?: string
@@ -97,8 +99,8 @@ function escapeText(value: string): string {
 
 function renderCatalog(entries: readonly SubagentCatalogEntry[], update: boolean, t: HostTranslate): UserMessage {
   const lines = entries.map(entry => {
-    const route = [entry.provider, entry.model].filter(value => value !== undefined).join('/') || t('subagentCatalogInherit')
-    return `<subagent id="${escapeText(entry.name)}" name="${escapeText(entry.title)}" model="${escapeText(route)}" reasoning_effort="${escapeText(entry.reasoningEffort ?? t('subagentCatalogDefaultEffort'))}">${escapeText(entry.description)}</subagent>`
+    const config = [entry.provider, entry.model, entry.reasoningEffort].filter(value => value !== undefined).map(escapeText)
+    return `- ${escapeText(entry.name)}: ${escapeText(entry.description)}${config.length === 0 ? '' : ` (${config.join(' / ')})`}`
   })
   return createUserMessage({
     content: [
@@ -121,7 +123,7 @@ function renderCatalog(entries: readonly SubagentCatalogEntry[], update: boolean
 
 function digestEntries(entries: readonly SubagentCatalogEntry[]): string {
   return createHash('sha256')
-    .update(entries.map(entry => JSON.stringify([entry.name, entry.title, entry.description, entry.provider, entry.model, entry.reasoningEffort])).join('\n'))
+    .update(entries.map(entry => JSON.stringify([entry.name, entry.roleId, entry.title, entry.description, entry.provider, entry.model, entry.reasoningEffort])).join('\n'))
     .digest('hex')
 }
 
@@ -134,9 +136,10 @@ function readEntries(source: unknown): readonly SubagentCatalogEntry[] | undefin
     if (typeof raw !== 'object' || raw === null) return undefined
     const entry = raw as Record<string, unknown>
     if (typeof entry.name !== 'string' || entry.name === '' || typeof entry.title !== 'string' || typeof entry.description !== 'string') return undefined
-    if (['provider', 'model', 'reasoningEffort'].some(key => entry[key] !== undefined && (typeof entry[key] !== 'string' || entry[key] === ''))) return undefined
+    if (['roleId', 'provider', 'model', 'reasoningEffort'].some(key => entry[key] !== undefined && (typeof entry[key] !== 'string' || entry[key] === ''))) return undefined
     entries.push({
       name: entry.name,
+      ...(entry.roleId === undefined ? {} : { roleId: entry.roleId as string }),
       title: entry.title,
       description: entry.description,
       ...(entry.provider === undefined ? {} : { provider: entry.provider as string }),

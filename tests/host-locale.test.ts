@@ -10,7 +10,7 @@ describe('host locale', () => {
   it('resolves en for en-prefixed preferences', () => {
     const t = bindHostLocale('en-US')
     expect(t('commandAcknowledged', { command: 'review', suite: 'demo' })).toBe('/review forwarded to the model for execution (demo)')
-    expect(t('subagentCatalogCall')).toContain('subagents_run')
+    expect(t('subagentCatalogCall')).toContain('subagent_run')
   })
 
   it('provides explicit catalog replacement and clearing guidance in both languages', () => {

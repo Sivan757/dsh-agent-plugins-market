@@ -10,7 +10,7 @@ Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environm
 
 - Node.js 22 or later, a DSH Web profile and the host skill service (`ctx.skills`). Git sources require Git.
 - The current package declares DSH peer packages in the `^0.1.2-rc.1` range. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
-- Slash commands require the host command service. `subagents_run` role delegation requires agents, tools, LLM and subagent services; it applies the saved persona, provider, model, reasoning effort and tool restrictions to a real subagent and waits for its result.
+- Slash commands require the host command service. `subagent_run` role delegation requires agents, tools, LLM, subagent and session-persistence services; it starts a durable background child, applies the saved persona and any exact route the role declares, and returns the child id without waiting.
 - MCP uses the built-in bridge by default. Host-client compatibility mode additionally needs `@deepseek-ai/dsh-mcp-client`; hooks need `@deepseek-ai/dsh-hooks-claude-code`.
 - LSP mounting needs `@deepseek-ai/dsh-lsp` and `@deepseek-ai/dsh-lsp-stdio`; expose `@deepseek-ai/dsh-tool-lsp` in the profile to let the agent call the tool. Language-server executables must also be available.
 - Host credentials are optional. Without that service, environment references resolve from the launch environment, and changes require a restart.

@@ -69,7 +69,7 @@ const metadata = {
 }
 
 describe('role reasoning effort selector', () => {
-  it('loads exact-model options, preserves saved aliases and saves the value consumed by subagents_run', async () => {
+  it('loads exact-model options, preserves saved aliases and saves the value consumed by subagent_run', async () => {
     await mount('---\nprovider: p\nmodel: a\nreasoningEffort: high\nmetadata: {tier: 2}\n---\nRole body', async () => metadata)
     expect([...select('personaReasoningEffort').options].map(option => option.value)).toEqual(['', 'low', 'high'])
     expect(select('personaReasoningEffort').value).toBe('high')
@@ -125,5 +125,23 @@ describe('role reasoning effort selector', () => {
     await mount('---\nprovider: p\nmodel: a\n---\nRole', async () => ({}), true)
     expect([...select('personaReasoningEffort').options].map(option => option.value)).toEqual([''])
     expect(select('personaReasoningEffort').closest('fieldset')!.disabled).toBe(true)
+  })
+
+  it('warns about a stored route the executor would ignore and offers no tools control', async () => {
+    const warn = () => host.querySelector('[role="status"]')?.textContent ?? ''
+    // Exact pair: nothing to warn about, and the dead tools field is gone.
+    await mount('---\nprovider: p\nmodel: a\ntools: [Read, Grep]\n---\nRole', async () => metadata)
+    expect(warn()).toBe('')
+    expect(host.querySelector('input')).toBeNull()
+    // A bare model, a qualified string and a lone provider are all ignored at execution.
+    await mount('---\nmodel: sonnet\n---\nRole', async () => metadata)
+    expect(warn()).toBe('personaRouteIgnored')
+    await mount('---\nmodel: p/a\n---\nRole', async () => metadata)
+    expect(warn()).toBe('personaRouteIgnored')
+    await mount('---\nprovider: p\n---\nRole', async () => metadata)
+    expect(warn()).toBe('personaRouteIgnored')
+    // Inheritance is a valid declaration, not an ignored one.
+    await mount('---\nmodel: inherit\n---\nRole', async () => metadata)
+    expect(warn()).toBe('')
   })
 })
