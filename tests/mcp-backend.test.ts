@@ -104,9 +104,11 @@ describe('MCP backend dispatch at mount time', () => {
     if (backend !== undefined) registry.setBackendProvider(backend)
     await registry.reconcile([suite('alpha', 'db')])
     expect(mounted).toHaveLength(1)
+    const [mount] = mounted
+    if (mount === undefined) throw new Error(`expected ${expectedModule} to serve exactly one mount`)
     // The mounted module's plugin name marks which backend served the mount.
-    expect((mounted[0].module as { name?: string }).name).toBe(expectedModule)
-    expect(mounted[0].config['transport']).toBe('stdio')
+    expect((mount.module as { name?: string }).name).toBe(expectedModule)
+    expect(mount.config['transport']).toBe('stdio')
     await registry.disposeAll()
   })
 

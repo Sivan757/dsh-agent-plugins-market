@@ -302,6 +302,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     const parent = newAgent('project-parent', project)
     const other = newAgent('other-parent')
     const first = publish(parent, await step(parent))[0]
+    if (first === undefined) throw new Error('expected the project role catalog to publish one message')
     expect(first.source.kind === 'subagent-catalog' && first.source.entries).toHaveLength(3)
     expect(JSON.stringify(first.content)).not.toContain('Private')
     // A temporarily unreadable role directory must not publish a smaller catalog.

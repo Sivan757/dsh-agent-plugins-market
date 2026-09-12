@@ -84,7 +84,8 @@ describe('native hook bridge lifecycle', () => {
     try {
       expect(await registry.reconcile((await discoverNativeProjectSuites(project, 'project')).map(suite => withDefaultSurfaces(suite)))).toEqual([])
       expect(mounts).toHaveLength(1)
-      const first = mounts[0]
+      const [first] = mounts
+      if (first === undefined) throw new Error('expected the hook config to mount once')
       expect(first.projectDir).toBe(project)
       expect(first.configPath.startsWith(project)).toBe(false)
       expect((await stat(first.configPath)).mode & 0o777).toBe(0o600)
@@ -96,8 +97,10 @@ describe('native hook bridge lifecycle', () => {
       expect(first.disposed).toBe(true)
       await expect(stat(dirname(first.configPath))).rejects.toMatchObject({ code: 'ENOENT' })
       await registry.reconcile([])
-      expect(mounts[1].disposed).toBe(true)
-      await expect(stat(mounts[1].configPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      const second = mounts[1]
+      if (second === undefined) throw new Error('expected the changed hook config to remount')
+      expect(second.disposed).toBe(true)
+      await expect(stat(second.configPath)).rejects.toMatchObject({ code: 'ENOENT' })
     } finally {
       await registry.disposeAll()
     }

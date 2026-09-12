@@ -52,8 +52,10 @@ describe('layout registry', () => {
     await put(dir, '.mcp.json', JSON.stringify({ mcpServers: { test: { command: 'example-server' } } }))
     const result = await scanSource(dir, 'example', 'user')
     expect(result.suites).toHaveLength(1)
-    expect(result.suites[0].manifest.layout).toBe(layout.kind)
-    expect(result.suites[0].surfaces).toMatchObject({ skills: 1, mcp: 1 })
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error(`expected the ${layout.kind} manifest to resolve to one suite`)
+    expect(suite.manifest.layout).toBe(layout.kind)
+    expect(suite.surfaces).toMatchObject({ skills: 1, mcp: 1 })
   })
 
   it('keeps existing dialect precedence when a source declares several manifests', async () => {
@@ -165,8 +167,10 @@ describe('project layout discovery and switch', () => {
     const provider = new SuiteSkillProvider(catalog)
     expect(await provider.list({ cwd: project })).toEqual([])
     const roles = await projectAgentRoles(catalog, { session: { header: { cwd: project } } })
-    expect(roles[0]).toMatchObject({ path: join(project, '.github/agents/reviewer.agent.md'), title: 'reviewer', description: 'Review changes' })
-    expect(roleLeaf(roles[0].name)).toBe('reviewer.agent')
+    const [role] = roles
+    if (role === undefined) throw new Error('expected the Copilot agent file to resolve to one project role')
+    expect(role).toMatchObject({ path: join(project, '.github/agents/reviewer.agent.md'), title: 'reviewer', description: 'Review changes' })
+    expect(roleLeaf(role.name)).toBe('reviewer.agent')
     const commands: string[] = []
     const registry = new CommandMountRegistry({
       commands: {
@@ -190,6 +194,7 @@ describe('project layout discovery and switch', () => {
     await catalog.load()
     const provider = new SuiteSkillProvider(catalog)
     const [candidate] = await provider.list({ cwd: project })
+    if (candidate === undefined) throw new Error('expected the ordinary agent-helper skill to still be listed')
     expect((await provider.get(candidate, { cwd: project }))?.content).toBe('Normal skill body.')
   })
 
@@ -225,8 +230,12 @@ describe('project layout discovery and switch', () => {
     await put(dir, `${layout.dirName}/skills/test/SKILL.md`, skill)
     const suites = await discoverNativeProjectSuites(dir, 'project')
     expect(suites).toHaveLength(1)
-    expect(suites[0].skills[0].file).toBe(join(dir, layout.dirName, 'skills/test/SKILL.md'))
-    expect(suites[0].activeSurfaces).toMatchObject({ mcp: false, hooks: false, lsp: false })
+    const [suite] = suites
+    if (suite === undefined) throw new Error(`expected ${layout.dirName} skills to resolve to one suite`)
+    const [declared] = suite.skills
+    if (declared === undefined) throw new Error(`expected ${layout.dirName} to read its skill in place`)
+    expect(declared.file).toBe(join(dir, layout.dirName, 'skills/test/SKILL.md'))
+    expect(suite.activeSurfaces).toMatchObject({ mcp: false, hooks: false, lsp: false })
   })
 
   it('does not expose unsupported Markdown agent files from Codex projects', async () => {
@@ -234,8 +243,10 @@ describe('project layout discovery and switch', () => {
     await put(dir, '.codex/skills/test/SKILL.md', skill)
     await put(dir, '.codex/agents/unrelated.md', 'Unrelated document')
     const suites = await discoverNativeProjectSuites(dir, 'project')
-    expect(suites[0].surfaces.agents).toBe(0)
-    expect(suites[0].activeSurfaces?.agents).toBe(false)
+    const [suite] = suites
+    if (suite === undefined) throw new Error('expected the Codex project skills to resolve to one suite')
+    expect(suite.surfaces.agents).toBe(0)
+    expect(suite.activeSurfaces?.agents).toBe(false)
   })
 
   it('removes and restores project skill candidates immediately despite cached snapshots', async () => {

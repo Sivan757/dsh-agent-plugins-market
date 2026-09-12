@@ -33,7 +33,8 @@ describe('SuiteSkillProvider', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({})
     expect(candidates).toHaveLength(1)
-    const candidate = candidates[0]
+    const [candidate] = candidates
+    if (candidate === undefined) throw new Error('expected the installed fixture suite to list one skill')
     expect(candidate.name).toBe('greet')
     expect(candidate.description).toBe('[v1-suite] Greet the user and resolve bundled resources.')
     expect(candidate.source).toBe(SUITE_USER_SOURCE)
@@ -67,8 +68,10 @@ describe('SuiteSkillProvider', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
-    expect(candidates[0].source).toBe(SUITE_PROJECT_SOURCE)
-    expect(candidates[0].rank).toBe(250)
+    const [candidate] = candidates
+    if (candidate === undefined) throw new Error('expected the project-dimension suite to list one skill')
+    expect(candidate.source).toBe(SUITE_PROJECT_SOURCE)
+    expect(candidate.rank).toBe(250)
   })
 })
 
@@ -102,8 +105,10 @@ describe('local-directory sources (local: true)', () => {
     const manager = await emptyCatalog('dsh-agent-plugins-local2-')
     await manager.mergeSources([{ id: 'gone', url: join(tmpdir(), 'does-not-exist-xyz'), local: true }])
     const overview = await manager.overview()
-    expect(overview.sources[0].cloned).toBe(false)
-    expect(overview.sources[0].error).toContain('missing')
+    const [source] = overview.sources
+    if (source === undefined) throw new Error('expected the missing local directory to still be listed as a source')
+    expect(source.cloned).toBe(false)
+    expect(source.error).toContain('missing')
     await expect(manager.install('gone', 'anything')).rejects.toThrow('missing')
   })
 })
@@ -116,8 +121,10 @@ describe('source editing (updateSource)', () => {
     const sources = manager.sources
     expect(sources).toEqual([{ id: 'demo', url: join(fixtures, 'v1-suite'), local: true }])
     const overview = await manager.overview()
-    expect(overview.sources[0].local).toBe(true)
-    expect(overview.sources[0].cloned).toBe(true)
+    const [source] = overview.sources
+    if (source === undefined) throw new Error('expected the edited source in the overview')
+    expect(source.local).toBe(true)
+    expect(source.cloned).toBe(true)
   })
 
   it('rejects unknown source ids', async () => {

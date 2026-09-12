@@ -43,7 +43,9 @@ describe('Catalog application module', () => {
     await catalog.load()
     await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
     const before = await catalog.readUserCatalog()
-    expect(before.suites[0].skills.map(skill => skill.name)).not.toContain('late-skill')
+    const [beforeSuite] = before.suites
+    if (beforeSuite === undefined) throw new Error('expected the demo source to scan one suite before the refresh')
+    expect(beforeSuite.skills.map(skill => skill.name)).not.toContain('late-skill')
     // Drop a new skill into the working tree out of band, then let the tiny
     // TTL lapse (a macrotask gap suffices for a 10ms window).
     await mkdir(join(userRoot, '.sources', 'demo', 'skills', 'late'), { recursive: true })
@@ -51,7 +53,9 @@ describe('Catalog application module', () => {
     await new Promise(resolve => setTimeout(resolve, 20))
     const after = await catalog.readUserCatalog()
     expect(after).not.toBe(before)
-    expect(after.suites[0].skills.map(skill => skill.name)).toContain('late-skill')
+    const [afterSuite] = after.suites
+    if (afterSuite === undefined) throw new Error('expected the demo source to still scan one suite after the refresh')
+    expect(afterSuite.skills.map(skill => skill.name)).toContain('late-skill')
     await rm(userRoot, { recursive: true, force: true })
   })
 

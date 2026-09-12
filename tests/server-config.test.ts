@@ -44,8 +44,13 @@ describe('service configuration editing', () => {
     const detail = await catalog.serverConfig('lsp', id)
     await catalog.saveServerConfig('lsp', id, { ...detail.config, command: 'replacement' })
     expect((await catalog.serverConfig('lsp', id)).config.command).toBe('replacement')
-    expect((await catalog.enabledUserSuites()).find(suite => suite.id === 'typescript-lsp')!.lsp!.servers.typescript.command).toBe('replacement')
-    expect((await catalog.lspStatus()).entries.find(entry => entry.id === id)!.command).toBe('replacement')
+    const suite = (await catalog.enabledUserSuites()).find(candidate => candidate.id === 'typescript-lsp')
+    const typescript = suite?.lsp?.servers['typescript']
+    if (typescript === undefined) throw new Error('expected the saved command to reach the suite LSP table')
+    expect(typescript.command).toBe('replacement')
+    const statusEntry = (await catalog.lspStatus()).entries.find(entry => entry.id === id)
+    if (statusEntry === undefined) throw new Error('expected the saved command to reach the LSP status entry')
+    expect(statusEntry.command).toBe('replacement')
     expect(await readFile(manifest, 'utf8')).toBe(before)
   })
 

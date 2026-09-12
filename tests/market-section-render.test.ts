@@ -99,7 +99,9 @@ async function stubOverview(payload: unknown): Promise<void> {
 function installButton(): HTMLButtonElement {
   const buttons = [...host!.querySelectorAll<HTMLButtonElement>('article button')].filter(button => (button.textContent ?? '').includes('install'))
   expect(buttons.length).toBe(1)
-  return buttons[0]
+  const [button] = buttons
+  if (button === undefined) throw new Error('expected exactly one suite card install button')
+  return button
 }
 
 describe('MarketSection rendering', () => {

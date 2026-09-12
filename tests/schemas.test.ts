@@ -57,8 +57,10 @@ describe('schemas library', () => {
   it('keeps every $id unique and absolute', () => {
     const ids = schemas.map(schema => schema.document['$id'])
     for (const [index, id] of ids.entries()) {
-      expect(typeof id, `${schemas[index].relative} must declare $id`).toBe('string')
-      expect(id as string, `${schemas[index].relative} $id must be absolute`).toMatch(/^https:\/\//)
+      const schema = schemas[index]
+      if (schema === undefined) throw new Error(`expected a schema for $id entry ${index}`)
+      expect(typeof id, `${schema.relative} must declare $id`).toBe('string')
+      expect(id as string, `${schema.relative} $id must be absolute`).toMatch(/^https:\/\//)
     }
     expect(new Set(ids).size).toBe(ids.length)
   })

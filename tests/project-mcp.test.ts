@@ -48,6 +48,7 @@ command = "never-run"
 `
     )
     const [suite] = await discoverNativeProjectSuites(project, 'project')
+    if (suite === undefined) throw new Error('expected the TOML project MCP file to resolve to one suite')
     expect(suite?.errors).toEqual([])
     expect(suite?.surfaces.mcp).toBe(2)
     const { mounts, failures } = await toMcpMounts(withDefaultSurfaces(suite), '/runtime', {}, { resolve: async ref => ({ value: `resolved-${ref}` }) })
@@ -231,9 +232,11 @@ describe('project MCP runtime scope', () => {
     const runtime = mountProjectMcp(host as unknown as Context, catalog, join(userRoot, 'data'))
     try {
       await runtime.refresh()
-      expect([...scopes[0].values()]).toEqual([expect.objectContaining({ command: 'server-0', cwd: first })])
-      expect([...scopes[1].values()]).toEqual([expect.objectContaining({ command: 'server-1', cwd: second })])
-      expect([...scopes[0].keys()]).not.toEqual([...scopes[1].keys()])
+      const [firstScope, secondScope] = scopes
+      if (firstScope === undefined || secondScope === undefined) throw new Error('expected both project agent contexts to inject a mount scope')
+      expect([...firstScope.values()]).toEqual([expect.objectContaining({ command: 'server-0', cwd: first })])
+      expect([...secondScope.values()]).toEqual([expect.objectContaining({ command: 'server-1', cwd: second })])
+      expect([...firstScope.keys()]).not.toEqual([...secondScope.keys()])
       await catalog.setScanProjectLayouts(false)
       expect(scopes.map(scope => scope.size)).toEqual([0, 0])
       await catalog.setScanProjectLayouts(true)

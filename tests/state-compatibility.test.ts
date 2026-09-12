@@ -78,9 +78,11 @@ describe('loadState — v1 backward compatibility (past releases round-trip)', (
     await writeFile(statePath(), JSON.stringify(partial))
     const state = await loadState(statePath())
     expect(state.sources).toHaveLength(1)
-    expect(state.sources[0]).toEqual({ id: 's', url: 'https://github.com/x/y.git' })
-    expect(state.sources[0].branch).toBeUndefined()
-    expect(state.sources[0].local).toBeUndefined()
+    const [source] = state.sources
+    if (source === undefined) throw new Error('expected the partial source to be retained')
+    expect(source).toEqual({ id: 's', url: 'https://github.com/x/y.git' })
+    expect(source.branch).toBeUndefined()
+    expect(source.local).toBeUndefined()
   })
 
   it('tolerates an installed entry missing lockCommit (uses default timestamp for missing installedAt)', async () => {
@@ -92,7 +94,9 @@ describe('loadState — v1 backward compatibility (past releases round-trip)', (
     await writeFile(statePath(), JSON.stringify(partial))
     const state = await loadState(statePath())
     expect(state.installed['s/suite']).toEqual({ enabled: true, installedAt: new Date(0).toISOString() })
-    expect(state.installed['s/suite'].lockCommit).toBeUndefined()
+    const installed = state.installed['s/suite']
+    if (installed === undefined) throw new Error('expected the installed entry to be retained')
+    expect(installed.lockCommit).toBeUndefined()
   })
 
   it('skips sources with empty id or url (corrupted entry does not break the file)', async () => {
@@ -107,7 +111,9 @@ describe('loadState — v1 backward compatibility (past releases round-trip)', (
     await writeFile(statePath(), JSON.stringify(corrupted))
     const state = await loadState(statePath())
     expect(state.sources).toHaveLength(1)
-    expect(state.sources[0].id).toBe('good')
+    const [source] = state.sources
+    if (source === undefined) throw new Error('expected the valid source to survive the corrupted entry')
+    expect(source.id).toBe('good')
   })
 
   it('skips non-object installed entries instead of crashing', async () => {

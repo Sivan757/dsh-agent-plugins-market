@@ -99,7 +99,8 @@ describe('scan pipeline: fixtures', () => {
   it('dual-dialect-selfref: self-reference entry scans the local repo (25-skill class)', async () => {
     const result = await scanSource(join(fixtures, 'dual-dialect-selfref'), 'dual', 'user', 'https://github.com/example/dual-selfref')
     expect(result.suites).toHaveLength(1)
-    const suite = result.suites[0]
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error('expected the fixture to resolve to one suite')
     // The root metadata manifest (no $schema) is read leniently, not strict v1.
     expect(suite.errors).toEqual([])
     expect(suite.skills.map(skill => skill.name).sort()).toEqual(['one', 'two'])
@@ -109,16 +110,20 @@ describe('scan pipeline: fixtures', () => {
   it('marketplace-github-remote: github shorthand yields a remote card with the URL', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'marketplace-github-remote'), 'ghr', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0].manifest.layout).toBe('remote')
-    expect(suites[0].remote).toEqual({ url: 'https://github.com/example/external-gh' })
-    expect(suites[0].root).toBe('')
+    const [suite] = suites
+    if (suite === undefined) throw new Error('expected the github shorthand entry to yield one suite')
+    expect(suite.manifest.layout).toBe('remote')
+    expect(suite.remote).toEqual({ url: 'https://github.com/example/external-gh' })
+    expect(suite.root).toBe('')
   })
 
   it('marketplace-all-broken: every entry unresolvable falls back to the root manifest with notes', async () => {
     const result = await scanSource(join(fixtures, 'marketplace-all-broken'), 'broken', 'user')
     expect(result.suites).toHaveLength(1)
-    expect(result.suites[0].id).toBe('broken-root')
-    expect(result.suites[0].skills.map(skill => skill.name)).toEqual(['root-skill'])
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error('expected the all-broken fixture to fall back to its root manifest')
+    expect(suite.id).toBe('broken-root')
+    expect(suite.skills.map(skill => skill.name)).toEqual(['root-skill'])
     expect(result.notes.some(note => note.includes('escaper'))).toBe(true)
     expect(result.notes.some(note => note.includes('void-one'))).toBe(true)
     expect(result.notes.some(note => note.includes('no marketplace dialect produced suites'))).toBe(true)
@@ -133,9 +138,11 @@ describe('scan pipeline: fixtures', () => {
   it('dual-dialect-codex-fallback: an unproductive claude dialect defers to the codex dialect', async () => {
     const result = await scanSource(join(fixtures, 'dual-dialect-codex-fallback'), 'dialects', 'user')
     expect(result.suites).toHaveLength(1)
-    expect(result.suites[0].id).toBe('x-plugin')
-    expect(result.suites[0].manifest.layout).toBe('codex')
-    expect(result.suites[0].skills.map(skill => skill.name)).toEqual(['xskill'])
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error('expected the codex fallback fixture to resolve to one suite')
+    expect(suite.id).toBe('x-plugin')
+    expect(suite.manifest.layout).toBe('codex')
+    expect(suite.skills.map(skill => skill.name)).toEqual(['xskill'])
   })
 })
 

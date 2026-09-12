@@ -173,7 +173,9 @@ describe('agent role metadata and runtime routing', () => {
     // schema is the contract the model sees, and `register` records it as an
     // opaque value, so a nested matcher cannot be typed there.
     expect(register).toHaveBeenCalledWith(expect.anything())
-    const [definition] = register.mock.calls[0]
+    const [call] = register.mock.calls
+    if (call === undefined) throw new Error('expected the agent role tool to register exactly once')
+    const [definition] = call
     expect(definition).toHaveProperty('name', 'subagent_run')
     expect(definition).toHaveProperty('parameters.required', ['agent', 'prompt'])
     expect(definition).toHaveProperty('parameters.properties.agent', expect.anything())

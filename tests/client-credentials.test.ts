@@ -6,7 +6,9 @@ describe('client credentials adapter', () => {
     const calls: Array<{ ref: string }> = []
     const api = {
       describe: async (payload: { refs: string[] }) => {
-        calls.push({ ref: payload.refs[0] })
+        const [ref] = payload.refs
+        if (ref === undefined) throw new Error('expected describeCredential to send one credential ref')
+        calls.push({ ref })
         return { result: { ok: true, value: { credentials: { API_TOKEN: { configured: true, source: 'file', writable: true } } } } }
       },
       set: async () => ({}),
