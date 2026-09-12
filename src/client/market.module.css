@@ -33,29 +33,6 @@
   min-height: 0;
 }
 
-.mcpSurface {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.surfaceSwitch {
-  flex: none;
-  align-self: center;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l2, #d4dce8);
-  border-radius: 7px;
-  background: var(--dsw-alias-bg-layer-1, #fff);
-  color: var(--dsw-alias-brand-primary, #4966f5);
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.surfaceSwitch:hover {
-  background: var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253));
-}
-
 /* Legacy page-mode shell: scoped to the injected data attributes. */
 :global(html[data-dsh-agent-plugins-market-page]) :global([data-pane='conversation']),
 :global(html[data-dsh-agent-plugins-market-page]) :global([class*='centerCol']) {
@@ -147,52 +124,6 @@
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.titleRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 24px;
-}
-
-.sub {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spacer {
-  flex: 1;
-}
-
-.searchGroup {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.body {
-  display: flex;
-  gap: 20px;
-  min-height: 0;
-  flex: 1;
-  align-items: flex-start;
 }
 
 /* --- source tabs (top, primary) -------------------------------------------------- */
@@ -311,7 +242,6 @@
   cursor: default;
   opacity: 0.5;
 }
-
 
 .srcTabEdit {
   border: none;
@@ -454,14 +384,6 @@
 
 .list .cardTop {
   flex: 0 0 auto;
-}
-
-.list .cardDesc {
-  flex: 1;
-  min-width: 200px;
-  min-height: 0;
-  max-height: 18px;
-  overflow: hidden;
 }
 
 .list .cardActions {
@@ -1030,25 +952,6 @@
     padding: 14px;
   }
 
-  .titleRow {
-    flex-wrap: wrap;
-  }
-
-  .title {
-    flex: 1 0 auto;
-  }
-
-  .sub {
-    flex: 1 0 100%;
-    order: 3;
-    white-space: normal;
-  }
-
-  .searchGroup {
-    flex: 1 0 100%;
-    order: 4;
-  }
-
   /* Narrow panels fit fewer columns; keep pills equal width, never scroll. */
   .sourceTabsRow {
     grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
@@ -1094,121 +997,6 @@
 .surfaceToggle input[type='checkbox'] {
   accent-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color, rgb(65, 118, 230));
   margin: 0;
-}
-
-.mcpOverrideForm {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0 0 10px;
-  padding: 10px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
-  border-radius: 8px;
-}
-
-.mcpCredentialForm {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0 0 10px;
-  padding: 10px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
-  border-radius: 8px;
-}
-
-.mcpCredentialRow {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.mcpCredentialControls {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mcpCredentialEditor {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mcpOverrideCheck {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.mcpOverrideInput {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  font-size: 12px;
-}
-
-.mcpOverrideArea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  resize: vertical;
-}
-
-.mcpOverrideActions {
-  display: flex;
-  gap: 8px;
-}
-
-.backendBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
-  border-radius: 10px;
-  opacity: 1;
-}
-
-.backendBlock[data-busy='true'] {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.backendRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.backendTitle {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.backendCurrent {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.backendHint {
-  margin: 0;
-  font-size: 11px;
-  opacity: 0.7;
-}
-
-.backendVersion {
-  margin: 0;
-  font-size: 11px;
-  opacity: 0.55;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* The 插件配置 card mirrors the host PluginCard chrome (border-l2 tokens,

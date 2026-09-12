@@ -18,7 +18,6 @@ import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, 
 import type { Translate } from './index.js'
 import { suiteLayoutLabel } from './layout-label.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
-import type { CredentialApi } from './credentials.js'
 import { createLatestRequestGuard } from './features/suite-detail/suite-detail-resource.js'
 import css from './market.module.css'
 
@@ -34,15 +33,12 @@ const SURFACE_TOGGLE_ROWS = [
 
 export interface SuiteDetailModalProps {
   t: Translate
-  credentials?: CredentialApi
   sourceId: string
   suiteId: string
   onClose: () => void
 }
 
 export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailModalProps): ReactNode {
-  // MarkdownText's chrome (code copy buttons, footnotes heading) is
-  // Cordis-free and takes its copy through this labels object.
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [openSkill, setOpenSkill] = useState<string | undefined>(undefined)

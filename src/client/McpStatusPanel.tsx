@@ -77,10 +77,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     refresh()
   }, [])
 
-  const viewModel = deriveMcpStatusViewModel(payload, filter, search)
-  const { activeEntries, filtered, filterCounts } = viewModel
-  // Hide the summary bar entirely while every active row is connected: the
-  // green confirmation above an all-green list is noise, not information.
+  const { activeEntries, filtered, filterCounts } = deriveMcpStatusViewModel(payload, filter, search)
 
   return h(
     'div',
@@ -149,11 +146,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
 }
 
 /**
- * One chip per non-healthy state, shown only when that state is non-zero.
+ * One inventory row: state dot, server name, tool count, and endpoint.
  *
- * The chips are ordered by severity so the first one the eye lands on is the
- * state that most needs attention, and the whole bar collapses to a single
- * "all connected" confirmation when nothing is wrong.
+ * The reason text, the actions (retry, reauthorize), and the configuration
+ * editor live in the detail dialog, so a wall of failing rows stays scannable.
  */
 function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; onClick: () => void }): ReactNode {
   const interactive = {
@@ -337,8 +333,8 @@ export function McpDetailModal({
           'div',
           { className: css.detailHeroText },
           entry.endpoint === undefined ? null : h('p', { className: css.detailEndpoint }, entry.endpoint),
-          // Source and transport moved here from the card meta row. The
-          // qualified suite id disambiguates same-named servers from
+          // Source and transport live in the dialog rather than on the card:
+          // the qualified suite id disambiguates same-named servers from
           // different sources (e.g. two context7 installs).
           h(
             'p',

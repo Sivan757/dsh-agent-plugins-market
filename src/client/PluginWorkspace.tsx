@@ -97,7 +97,7 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
 function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi | undefined, mode: 'settings' | 'page'): ReactNode {
   switch (tab) {
     case 'market':
-      return h(MarketSection, { t, credentials, mode })
+      return h(MarketSection, { t, mode })
     case 'skills':
       return h(UserPanelSurface, { t, kind: 'skills' })
     case 'commands':

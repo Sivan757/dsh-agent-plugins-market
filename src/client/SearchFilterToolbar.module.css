@@ -94,29 +94,6 @@
   cursor: pointer;
 }
 
-/* The unified "＋ add" seat: a text label, so unlike the icon-only view
-   switch it needs an auto width and no wrap. */
-.extraAction {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 10px;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.extraAction:hover {
-  color: var(--dsw-alias-label-primary, #1f2328);
-}
-
 .viewSwitch:hover {
   color: var(--dsw-alias-label-primary, #1f2328);
 }
