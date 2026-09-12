@@ -22,13 +22,13 @@ runtime 的五个挂载注册表里有三个——MCP、LSP 与 hooks——按 s
 
 **挂载生命周期只有一份。** `src/runtime/mount-lifecycle.ts` 拥有串行过程队列、重试调度器与统一挂载句柄形态。各注册表保留自己的挂载语义，只提供自己的重试判据——MCP 除 foreign/duplicate 外都重试，LSP 对能力包缺失永不重试。
 
-**每个服务器的投影只有一份。** `effectiveMcpServers` 拥有 override 类型收窄、`applyOverride` 与凭证引用。它携带 `enabled` 而不是过滤，因为两个消费方需要相反的行为：状态清单要展示被 override 禁用的声明，挂载注册表要跳过它。这正是本次重构自己的审计判错的一处——第一版按字面套用"跳过禁用项"，静默地把这些行从状态载荷里删掉了，而当时没有任何测试覆盖。
+**每个服务器的投影只有一份。** `effectiveMcpServers` 拥有 override 类型收窄、`applyOverride` 与凭证引用。它携带 `enabled` 而不是过滤，因为两个消费方需要相反的行为：状态清单要展示被 override 禁用的声明，挂载注册表要跳过它。这正是本次重构自己的审计判错的一处：第一版按字面套用「跳过禁用项」，把这些行从状态载荷里删掉了。测试全绿是因为当时没有任何用例覆盖它，因此这个坑是本次工作自己造出又在同一次工作里堵上的——新增用例固定的是新行为，不是既有行为。
 
 **组装根只做组装。** `apply()` 从 349 行降到 183 行：协调合并与凭证通知防抖移到 `reconcile-scheduler.ts`，settings 命名空间及其 watcher、项目布局同步、反馈工具开关移到 `settings-namespace.ts`，MCP 凭证记录键与写入它的 OAuth provider 共用 `mcp-auth-record.ts`。唯一一次 `settings.register` 及其刻意的失败隔离保持不变（[调度决策](2026-09-08-runtime-reconciliation-scheduling.zh.md)继续生效）。
 
 **边界变得可强制。** 状态编解码器移到 `src/runtime/state-store.ts`，`src/model/` 只剩记录，规则不再需要例外。两条失效的 dependency-cruiser node 规则由 `eslint.config.mjs` 的 `no-restricted-imports` 取代——它能看见这些导入——覆盖 `src/model`、`src/contracts` 与 `src/client`。dependency-cruiser 新增 `contracts-import-nothing`、`model-cannot-import-server-layers` 与 `application-cannot-import-client-routes-or-index`。
 
-结构之外一并清理：七个无消费者的 catalog 导出（含三个被废弃的清单读取器）、四个死的 `Catalog` 成员、一个重复定义的 `hasSuiteManifest`、五份文件系统探测实现、69 个无处引用的 CSS 类与 56 个语言键、三个客户端 API 辅助函数、`PanelShell`/`PanelAction`，以及 `api.ts` 中十三份相同的 fetch 样板。
+结构之外一并清理：七个无消费者的 catalog 导出（含三个被废弃的清单读取器）、三个无调用方的 `Catalog` 成员（`subscribe` 及其监听集合、`enabledSuitesForCwd`、`suitesForDimension`）、一个重复定义的 `hasSuiteManifest`、重复的文件系统探测与五处手写的路径包含判断、69 个无处引用的 CSS 类与 56 个语言键、三个客户端 API 辅助函数、`PanelShell`/`PanelAction`，以及 `api.ts` 中十三份相同的 fetch 样板。第四个候选（`userRoot` getter）因测试读取而保留。
 
 ## Alternatives considered
 
@@ -40,7 +40,7 @@ runtime 的五个挂载注册表里有三个——MCP、LSP 与 hooks——按 s
 
 ## Consequences
 
-- `src/` 规模持平（22,140 → 22,121 行）。这是结构变更而非行数精简：拆分在消除重复的同时增加了模块骨架。变化的是极值：最大源文件从 1,260 行降到 551 行，`apply()` 从 349 降到 183，`src/client/` 减少 618 行，`src/catalog/` 减少 124 行。
+- `src/` 规模持平（22,140 → 22,115 行）。这是结构变更而非行数精简：拆分在消除重复的同时增加了模块骨架。变化的是极值：最大源文件从 1,260 行降到 551 行，`apply()` 从 349 降到 183，`src/client/` 减少 624 行，`src/catalog/` 减少 127 行。
 - 重构在自身范围之外发现了一个真实缺陷：`redactUrl`/`redactValue` 用 `.test()` 探测带 `g` 标志的正则，`lastIndex` 会在调用之间前进，导致同一个值里每隔一个 `${...}` 凭证引用被替换成 `[redacted]`——与该模块自己的文档相反。改用非全局正则修复，并由两个在旧代码上失败的回归用例固定。
 - 测试数从 504 变为 507：一个断言已删除实现细节导出的测试，改由它原本覆盖的 `archiveInstall` 行为承接；另新增四个用例（三个针对脱敏缺陷，一个把被 override 禁用的服务器固定进状态清单）。
 - 刻意仍保留的重复：`details.ts` 与 MCP 服务各自推导服务器视图，因为它们必须展示被禁用的声明和未脱敏的源形态；`commands-mounts.ts` 与 `user-commands.ts` 共享一张 wanted-diff-register 表，但两处调用点在描述、诊断与 reconcile 签名上并不一致。两者都判定为低于抽取门槛，而不是为了对称强行合并。

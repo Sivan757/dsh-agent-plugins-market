@@ -2,7 +2,7 @@
 import { withBusyOperation } from './ui/busy-operation.js'
 import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
 import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
-import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
+import type { McpBackendInfo, OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
 
@@ -25,6 +25,7 @@ export type {
 } from '../contracts/market.js'
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../contracts/mcp-status.js'
 export type { LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
+export type { McpBackendInfo }
 
 /** The market overview wire, under the name the client surfaces use. */
 export type OverviewData = OverviewPayload
@@ -133,13 +134,6 @@ export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   return withBusyOperation(async () => {
     await postAction('mcp-reauthorize', { serverName })
   })
-}
-
-/** The MCP backend card state: active client, host availability, download region. */
-export interface McpBackendInfo {
-  backend: 'builtin' | 'host'
-  hostClient: { available: boolean; version?: string }
-  downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
 }
 
 export async function fetchMcpBackend(): Promise<McpBackendInfo> {

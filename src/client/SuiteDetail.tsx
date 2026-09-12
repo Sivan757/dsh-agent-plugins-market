@@ -197,7 +197,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('skillsSection')} (${detail.skills.length})`),
                   detail.skills.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.skills.map(skill =>
                         h(
                           'div',
@@ -227,7 +227,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                     ? null
                     : h('div', { className: css.warnLine, style: { margin: '0 0 6px' } }, `⚠ ${detail.mcpErrors.join(t('sourceErrorSeparator'))}`),
                   detail.mcpServers.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                      : detail.mcpServers.map(server => {
                         const disabled = detail.mcpOverrides?.[server.key]?.enabled === false
                         return h(
@@ -266,7 +266,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('commandsSection')} (${detail.commands.length})`),
                   detail.commands.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.commands.map(command =>
                         h(PreviewRow, {
                           key: `c:${command.name}`,
@@ -284,7 +284,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('agentsSection')} (${detail.agents.length})`),
                   detail.agents.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.agents.map(agent =>
                         h(PreviewRow, {
                           key: `a:${agent.name}`,
@@ -302,7 +302,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('hooksLabel')} (${detail.hooks.count})`),
                   detail.hooks.count === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.hooks.entries.map((hook, index) =>
                         h(PreviewRow, {
                           key: `h:${index}`,
@@ -320,7 +320,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('lspSection')} (${detail.lsp.servers.length + detail.lsp.raw.length})`),
                   detail.lsp.servers.length === 0 && detail.lsp.raw.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : [
                         ...detail.lsp.servers.map(server =>
                           h(PreviewRow, {

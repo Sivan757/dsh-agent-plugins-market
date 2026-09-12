@@ -10,10 +10,11 @@
  * shape the tests build — fully functional.
  */
 import type { LspServerSpec, SourceKind } from '../model/types.js'
-import type { HostMcpClientProbe, McpBackend } from '../runtime/mcp-backend.js'
+export type { McpBackendInfo } from '../contracts/market.js'
+import type { McpBackend } from '../runtime/mcp-backend.js'
+import type { DownloadRegionSetting } from '../runtime/regions.js'
 import type { LspMountStatusSource } from '../runtime/lsp-status.js'
 import type { McpToolSnapshot } from '../runtime/mcp-status.js'
-import type { DownloadRegionSetting, EffectiveRegion } from '../runtime/regions.js'
 
 /** A new source: its location, optional branch, and acquisition kind. */
 export interface SourceInput {
@@ -35,13 +36,6 @@ export interface SourcePatch {
 
 /** The user's direct LSP server table, keyed by server name. */
 export type LspServerTable = Record<string, LspServerSpec>
-
-/** The MCP backend block the plugin-config card renders. */
-export type McpBackendInfo = {
-  backend: McpBackend
-  hostClient: HostMcpClientProbe
-  downloadRegion: { setting: DownloadRegionSetting; effective: EffectiveRegion }
-}
 
 /** Credential-store seam backing the MCP re-authorize action. */
 export interface CredentialGrantStore {

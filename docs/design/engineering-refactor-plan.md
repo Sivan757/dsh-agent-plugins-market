@@ -95,7 +95,7 @@ src/
 
 `contracts/` contains browser-safe request, response, error, and route-constant declarations. It must not expose filesystem paths or host implementation types.
 
-`catalog/` owns local and Git checkout selection, normalized discovery, manifest/layout detection, and surface scanning. It is pure: no filesystem, process, or harness access.
+`catalog/` owns local and Git checkout selection, normalized discovery, manifest/layout detection, and surface scanning. It reads the filesystem, runs `git` and unpacks archives, but it imports no other layer's module and never touches the harness context; the layout resolvers stay functions of the paths and manifests they are handed.
 
 `application/` owns the catalog lifecycle, its serialized mutations, the persisted user-data stores it is built from, query projections, and the single source of truth for enabled suites.
 
@@ -145,7 +145,6 @@ interface Catalog {
   install(sourceId: string, suiteId: string): Promise<void>
   uninstall(sourceId: string, suiteId: string): Promise<void>
   setEnabled(sourceId: string, suiteId: string, enabled: boolean): Promise<void>
-  subscribe(listener: () => void): () => void
 }
 ```
 
