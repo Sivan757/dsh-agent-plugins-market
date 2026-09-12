@@ -59,6 +59,12 @@ function isSnapshot(value: unknown): value is Snapshot {
   )
 }
 
+/** A fixture value this suite requires: fails naming what was expected instead of reading `undefined` further on. */
+function required<T>(value: T | undefined, expected: string): T {
+  if (value === undefined) throw new Error(`expected ${expected}`)
+  return value
+}
+
 const parsedIndex: unknown = JSON.parse(await readFile(join(fixtures, 'index.json'), 'utf8'))
 if (!Array.isArray(parsedIndex)) throw new Error('fixtures/real-layouts/index.json must be an array')
 const samples = parsedIndex.filter(isSample)
@@ -117,7 +123,8 @@ describe('README repository layout compatibility (offline snapshots)', () => {
         const schemaDir = sample.schema === 'agent-plugins' ? '1.0.0' : sample.schema
         const schema: unknown = JSON.parse(await readFile(fileURLToPath(new URL(`../schemas/${schemaDir}/${type}.schema.json`, import.meta.url)), 'utf8'))
         const validate = ajv.compile(schema)
-        expect(validate(JSON.parse(data.files[manifest])), `${sample.dialect}: ${JSON.stringify(validate.errors)}`).toBe(true)
+        const manifestText = required(data.files[manifest], `${manifest} among the ${sample.dialect} fixture files`)
+        expect(validate(JSON.parse(manifestText)), `${sample.dialect}: ${JSON.stringify(validate.errors)}`).toBe(true)
       }
       for (const [path, content] of Object.entries(data.files)) expect(createHash('sha256').update(content).digest('hex'), `${sample.dialect}/${path}`).toBe(data.hashes[path])
     }
@@ -133,25 +140,40 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     }
   })
   it('Kimi primary manifest, startup skill and skillInstructions use the real superpowers source', async () => {
-    const data = await snapshot(samples.find(sample => sample.dialect === 'kimi')!)
+    const data = await snapshot(
+      required(
+        samples.find(sample => sample.dialect === 'kimi'),
+        'a kimi sample in the real-layouts index'
+      )
+    )
     const root = await materialize(data, true)
     await rename(join(root, '.kimi-plugin/plugin.json'), join(root, 'kimi.plugin.json'))
-    const [suite] = (await scanSource(root, 'kimi', 'user')).suites
-    expect(suite?.manifest.layout).toBe('kimi')
-    expect(suite?.manifest.path).toBe(join(root, 'kimi.plugin.json'))
+    const [scanned] = (await scanSource(root, 'kimi', 'user')).suites
+    const suite = required(scanned, 'the kimi fixture to yield one suite')
+    expect(suite.manifest.layout).toBe('kimi')
+    expect(suite.manifest.path).toBe(join(root, 'kimi.plugin.json'))
     suite.enabled = true
     const instructions = await suiteInstructions([withDefaultSurfaces(suite)])
     expect(instructions.errors).toEqual([])
     expect(instructions.text).toContain('Kimi Code tool mapping')
     const provider = new SuiteSkillProvider({ enabledUserSuites: async () => [withDefaultSurfaces(suite)] } as never)
-    const candidate = (await provider.list({})).find(candidate => candidate.name === 'using-superpowers')!
+    const candidate = required(
+      (await provider.list({})).find(candidate => candidate.name === 'using-superpowers'),
+      'the kimi fixture to offer a using-superpowers skill'
+    )
     expect((await provider.get(candidate, {}))?.content).toContain('Kimi Code tool mapping')
     expect((await suiteInstructions([withDefaultSurfaces({ ...suite, enabled: false })])).text).toBe('')
   })
   it('Kimi startup instructions mount and withdraw through the scoped host interface without a cwd', async () => {
-    const data = await snapshot(samples.find(sample => sample.dialect === 'kimi')!)
+    const data = await snapshot(
+      required(
+        samples.find(sample => sample.dialect === 'kimi'),
+        'a kimi sample in the real-layouts index'
+      )
+    )
     const root = await materialize(data, true)
-    const [suite] = (await scanSource(root, 'kimi', 'user')).suites
+    const [scanned] = (await scanSource(root, 'kimi', 'user')).suites
+    const suite = required(scanned, 'the kimi fixture to yield one suite')
     suite.enabled = true
     let text = () => ''
     let removed = false
@@ -206,11 +228,12 @@ describe('README repository layout compatibility (offline snapshots)', () => {
       expect(result.marketplacePath).toBe(join(root, data.marketplaceManifest))
     }
     expect(result.suites.some(suite => Object.values(suite.surfaces).some(count => count > 0))).toBe(true)
-    const suite = result.suites[0]
+    const suite = required(result.suites[0], `the ${sample.dialect} fixture to yield one suite`)
     if (sample.dialect === 'zcode') {
-      expect(suite.resources?.commands.length).toBeGreaterThan(0)
-      expect(suite.resources!.commands.every(resource => resource.file.includes('references/zcode/commands/'))).toBe(true)
-      expect((await readCommands(root, suite.resources?.commands)).length).toBeGreaterThan(0)
+      const resources = required(suite.resources, 'the zcode fixture suite to declare resources')
+      expect(resources.commands.length).toBeGreaterThan(0)
+      expect(resources.commands.every(resource => resource.file.includes('references/zcode/commands/'))).toBe(true)
+      expect((await readCommands(root, resources.commands)).length).toBeGreaterThan(0)
       expect(suite.surfaces.hooks).toBe(4)
     }
     if (sample.dialect === 'qoder') expect(suite.surfaces.hooks).toBe(2)
@@ -223,12 +246,22 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     expect(detail.hooks.count).toBe(suite.surfaces.hooks)
   })
   it('skill-collection: real skills remain usable with no plugin manifests', async () => {
-    const data = await snapshot(samples.find(sample => sample.dialect === 'universal')!)
+    const data = await snapshot(
+      required(
+        samples.find(sample => sample.dialect === 'universal'),
+        'a universal sample in the real-layouts index'
+      )
+    )
     const result = await scanSource(await materialize(data, false, true), 'real-skills', 'user')
     expect(result.suites.some(suite => suite.manifest.layout === 'skill-collection' && suite.skills.length > 0)).toBe(true)
   })
   it('ponytail Copilot variant loads its native hook event names and bash commands', async () => {
-    const data = await snapshot(samples.find(sample => sample.dialect === 'qoder')!)
+    const data = await snapshot(
+      required(
+        samples.find(sample => sample.dialect === 'qoder'),
+        'a qoder sample in the real-layouts index'
+      )
+    )
     const root = await materialize({ ...data, dialect: 'github-copilot', pluginManifest: '.github/plugin/plugin.json', marketplaceManifest: null }, true)
     const [suite] = (await scanSource(root, 'ponytail', 'user')).suites
     expect(suite?.manifest.layout).toBe('github-copilot')
