@@ -104,8 +104,9 @@ function mountProjectSurface(
 ): { refresh(): Promise<void>; dispose(): Promise<void> } {
   const host = ctx as unknown as { agents: { list(): ProjectAgent[] } }
   const mounts = new Map<ProjectAgent, AgentMount>()
+  const serviceLabel = typeof service === 'string' ? service : service.join(',')
   let disposed = false
-  const warn = (error: unknown): void => ctx.logger?.warn(`[dsh-agent-plugins-market] project ${service}: ${String(error)}`)
+  const warn = (error: unknown): void => ctx.logger?.warn(`[dsh-agent-plugins-market] project ${serviceLabel}: ${String(error)}`)
   const attach = (agent: ProjectAgent): void => {
     const cwd = agent.session.header.cwd
     if (disposed || (cwd === undefined && !withoutProject) || mounts.has(agent)) return
@@ -130,7 +131,7 @@ function mountProjectSurface(
           active = false
           await registry.disposeAll()
         },
-        `dsh-agent-plugins-market: project ${service}`
+        `dsh-agent-plugins-market: project ${serviceLabel}`
       )
       void refresh().catch(warn)
     })
@@ -145,9 +146,9 @@ function mountProjectSurface(
   const unwatchDisposed = ctx.on('agent/disposed', ({ agent }) => {
     void detach(agent as unknown as ProjectAgent).catch(warn)
   })
-  const unwatchStart = ctx.on('agent/session-start', async ({ agent }) => {
-    attach(agent as unknown as ProjectAgent)
-    await mounts.get(agent as unknown as ProjectAgent)?.refresh()
+  const unwatchStart = ctx.on('agent/session-start', ({ agent }) => {
+    attach(agent)
+    void mounts.get(agent)?.refresh()
   })
   for (const agent of host.agents.list()) attach(agent)
   return {

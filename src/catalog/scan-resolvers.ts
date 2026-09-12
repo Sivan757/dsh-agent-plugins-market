@@ -25,7 +25,7 @@ import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
 import type { DiscoveredSuite, SuiteComponents, SuiteDimension, SuiteManifest } from '../model/types.js'
 import { componentDeclarations, hasSuiteManifest, readManifest, readMarketplaces, syntheticManifestName, type MarketplaceEntry } from './manifests.js'
 import { countSurfaces, discoverMcp, discoverSkills, listMdFiles } from './surfaces.js'
-import { discoverMarkdownResources } from './component-files.js'
+import { discoverMarkdownResources, isUnknownArray } from './component-files.js'
 import { discoverSuiteHooks, discoverSuiteLsp, discoverSystemPrompt } from './suite-components.js'
 import type { ScanChain, ScanContext, ScanFilter, ScanResolution, ScanResult } from './scan-pipeline.js'
 import { runScanChain } from './scan-pipeline.js'
@@ -329,7 +329,9 @@ export async function scanSource(checkoutDir: string, sourceId: string, dimensio
 async function readSuites(roots: readonly SuiteRoot[], context: ScanContext): Promise<DiscoveredSuite[]> {
   const suites = await Promise.all(
     roots.map(root =>
-      root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
+      root.dir === undefined
+        ? Promise.resolve(remoteSuite(context.sourceId, context.dimension, root))
+        : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
     )
   )
   return suites.filter((suite): suite is DiscoveredSuite => suite !== undefined)
@@ -399,7 +401,7 @@ export async function readSuite(
   if (manifest === undefined) return undefined
   let declared = manifest.components?.skills
   if (declared !== undefined && (manifest.layout === 'claude-code' || manifest.layout === 'codex') && (await isDirectory(join(root, 'skills')))) {
-    declared = ['skills', ...(Array.isArray(declared) ? declared : [declared])]
+    declared = ['skills', ...(isUnknownArray(declared) ? declared : [declared])]
   }
   const skills = await discoverSkills(root, errors, declared)
   if (manifest.layout === 'skill-collection' && skills.length === 0) {

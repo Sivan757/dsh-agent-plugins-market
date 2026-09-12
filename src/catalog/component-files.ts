@@ -10,6 +10,16 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** `Array.isArray` narrows to `any[]`; declarations are untrusted, so the elements stay `unknown`. */
+export function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value)
+}
+
+/** True only for an array whose every element is a string. */
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(entry => typeof entry === 'string')
+}
+
 /** Reject both lexical and symlink escapes. Optional defaults may be absent without a diagnostic. */
 export async function componentPath(root: string, value: string, errors: string[], required = true): Promise<string | undefined> {
   const clean = value.replace(/^\$\{([A-Z_]+)\}\//, (match, name: string) => (PLUGIN_ROOT_VARIABLES.has(name) ? './' : match))

@@ -324,7 +324,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                       onChange: event =>
                         setConfirm({
                           ...confirm,
-                          deleteCheckout: (event.target as HTMLInputElement).checked
+                          deleteCheckout: (event.target).checked
                         })
                     }),
                     confirm.deleteCheckout ? t('removeSourceDeleteFiles') : t('removeSourceKeepFiles')
@@ -393,7 +393,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
               if (ok) setEditor(undefined)
               return ok
             },
-            onRemove: async id => {
+            onRemove: id => {
               setConfirm({ kind: 'removeSource', sourceId: id, deleteCheckout: true })
               setEditor(undefined)
             }

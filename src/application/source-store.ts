@@ -170,7 +170,7 @@ export class SourceStore {
     return this.context.enqueue(async () => {
       const index = this.context.state.sources.findIndex(source => source.id === sourceId)
       if (index === -1) throw new Error(`unknown source "${sourceId}"`)
-      const current = this.context.state.sources[index]!
+      const current = this.context.state.sources[index]
       const nextLocal = patch.local !== undefined ? patch.local : current.local === true
       // A local source carries the legacy flag only; `kind` stays unwritten
       // so the persisted shape matches the pre-kind records.

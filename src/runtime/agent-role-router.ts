@@ -78,7 +78,7 @@ export function parseAgentRole(text: string): AgentRolePolicy {
     if (/^(?:\uFEFF)?---(?:\r?\n|$)/.test(text)) throw new Error('agent frontmatter is not closed')
     return { content: text, disabled: false }
   }
-  const parsed: unknown = parseYaml(match[1]!)
+  const parsed: unknown = parseYaml(match[1])
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('agent frontmatter must be a YAML object')
   const metadata = parsed as Record<string, unknown>
   if (metadata.disabled !== undefined && typeof metadata.disabled !== 'boolean') throw new Error('agent metadata disabled must be a boolean')
@@ -237,7 +237,7 @@ export async function executeAgentRole(
   signal.throwIfAborted()
   const entries = namedAgentRoles(await listRoles(parent)).filter(entry => entry.callName === agentName)
   if (entries.length !== 1) throw new Error(`agent "${agentName}" is unavailable or ambiguous`)
-  const entry = entries[0]!
+  const entry = entries[0]
   if (entry.disabled) throw new Error(`agent "${agentName}" is disabled`)
   const policy = await readAgentRole(entry)
   if (policy.disabled) throw new Error(`agent "${agentName}" is disabled`)

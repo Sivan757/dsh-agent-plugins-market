@@ -9,8 +9,8 @@ export function namedAgentRoles<T extends { name: string }>(entries: readonly T[
     } catch {
       /* User-authored role names are plain strings. */
     }
-    const identity = Array.isArray(parts) && parts.length === 4 && parts.every(part => typeof part === 'string') ? (parts as string[]) : undefined
-    const base = identity ? identity[3]!.replace(/\.agent$/, '') : entry.name
+    const identity = Array.isArray(parts) && parts.length === 4 && parts.every(part => typeof part === 'string') ? parts : undefined
+    const base = identity ? identity[3].replace(/\.agent$/, '') : entry.name
     return { entry, base, suite: identity?.[1] ?? 'user', source: identity?.[0] ?? 'user', level: 0 }
   })
   const baseCounts = new Map<string, number>()
@@ -19,7 +19,7 @@ export function namedAgentRoles<T extends { name: string }>(entries: readonly T[
   const candidate = (role: (typeof roles)[number]): string => {
     if (role.level === 0) return role.base
     const parts = [role.base, `${role.suite}/${role.base}`, `${role.source}/${role.suite}/${role.base}`]
-    return role.level < 3 ? parts[role.level]! : `${parts[2]}~${createHash('sha256').update(role.entry.name).digest('hex')}`
+    return role.level < 3 ? parts[role.level] : `${parts[2]}~${createHash('sha256').update(role.entry.name).digest('hex')}`
   }
   // Recheck all names: a qualified collision may overlap another role's literal name.
   for (;;) {

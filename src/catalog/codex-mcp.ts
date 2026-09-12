@@ -29,7 +29,7 @@ function text(value: unknown, field: string): string {
 function strings(value: unknown, field: string): string[] | undefined {
   if (value === undefined) return undefined
   if (!Array.isArray(value) || !value.every(item => typeof item === 'string')) throw new Error(`${field} must be an array of strings`)
-  return value as string[]
+  return value
 }
 function table(value: unknown, field: string): Record<string, string> {
   if (value === undefined) return {}

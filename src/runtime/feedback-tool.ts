@@ -115,6 +115,15 @@ async function createIssue(token: string, title: string, body: string): Promise<
   return payload.html_url
 }
 
+/**
+ * Render one tool argument as text. Arguments arrive as untrusted values, so
+ * `String` keeps the coercion the report has always applied for anything the
+ * declared `type: 'string'` schema does not already cover.
+ */
+function textOf(value: unknown): string {
+  return String(value)
+}
+
 /** Render the model's structured report into a deterministic issue body. */
 export function renderFeedbackBody(report: FeedbackReport): string {
   const lines = ['## Experience feedback', '', `**Problem:** ${report.description.trim()}`, '']
@@ -202,8 +211,8 @@ export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: s
       async execute(args: unknown) {
         const input = args as { title?: unknown; description?: unknown; expected?: unknown; actual?: unknown }
         const report: FeedbackReport = {
-          title: String(input['title'] ?? ''),
-          description: String(input['description'] ?? ''),
+          title: textOf(input['title'] ?? ''),
+          description: textOf(input['description'] ?? ''),
           ...(typeof input['expected'] === 'string' ? { expected: input['expected'] } : {}),
           ...(typeof input['actual'] === 'string' ? { actual: input['actual'] } : {})
         }

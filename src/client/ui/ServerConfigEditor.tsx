@@ -79,7 +79,7 @@ export function ServerConfigEditor(props: {
         onIssue: bad => issue(key, bad)
       })
     )
-  const type = String(config?.type ?? 'stdio')
+  const type = typeof config?.type === 'string' ? config.type : 'stdio'
   const auth = (config?.auth ?? {}) as Record<string, unknown>
   return h(
     'div',

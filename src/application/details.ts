@@ -5,9 +5,9 @@ import { discoverLspEntries } from '../catalog/surfaces.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { credentialRefsInServer } from '../runtime/mcp-config.js'
 import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
-import { applyOverride, type McpServerOverride } from '../runtime/mcp-overrides.js'
+import { applyOverride } from '../runtime/mcp-overrides.js'
 import type { LspSurfaceDetail, McpServerDetail, SkillContent, SuiteDetail } from '../contracts/market.js'
-import { effectiveSurfaces, type InstalledEntry, type McpServerStdio, type McpServerStreamableHttp, type Suite, type SuiteMarkdownResource } from '../model/types.js'
+import { effectiveSurfaces, type InstalledEntry, type Suite, type SuiteMarkdownResource } from '../model/types.js'
 import type { McpMountDiagnostic as McpDiagnostic } from '../runtime/mcp-mounts.js'
 
 /** Build the detail response for one normalized suite. */
@@ -44,7 +44,7 @@ export async function buildSuiteDetail(
       suite.mcp === undefined
         ? []
         : Object.entries(suite.mcp.servers).map(([key, server]) => {
-            const effective = applyOverride(server as McpServerStdio | McpServerStreamableHttp, mcpOverrides[key] as McpServerOverride | undefined)
+            const effective = applyOverride(server, mcpOverrides[key])
             return {
               key,
               ...(redactMcpConfig(server) as Omit<McpServerDetail, 'key' | 'credentialRefs'>),
@@ -93,7 +93,7 @@ async function markdownPreviews(resources: SuiteMarkdownResource[]): Promise<Arr
       const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)
       let description: string | undefined
       if (match !== null) {
-        const yaml = parseYaml(match[1])
+        const yaml: unknown = parseYaml(match[1])
         if (typeof yaml === 'object' && yaml !== null) {
           const desc = (yaml as Record<string, unknown>)['description']
           if (typeof desc === 'string') description = desc

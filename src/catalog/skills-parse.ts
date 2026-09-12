@@ -77,10 +77,11 @@ export function parseSkillFrontmatter(text: string, expectedName: string | undef
   const record = raw as Record<string, unknown>
   const rawName = record['name']
   const description = record['description']
+  if (typeof rawName !== 'string') return 'frontmatter name is missing or not kebab-case'
   // Codex plugins ship display names in `name` (e.g. "Presentations"); the
   // skill identity is its kebab form, so normalize instead of dropping.
-  const name = typeof rawName === 'string' && !isSkillName(rawName) ? normalizeSkillName(rawName) : rawName
-  if (name === undefined || typeof name !== 'string') return 'frontmatter name is missing or not kebab-case'
+  const name = isSkillName(rawName) ? rawName : normalizeSkillName(rawName)
+  if (name === undefined) return 'frontmatter name is missing or not kebab-case'
   if (expectedName !== undefined && name !== expectedName) return `frontmatter name "${rawName}" does not match skill directory "${expectedName}"`
   if (typeof description !== 'string' || description.trim() === '') return 'frontmatter description is missing or empty'
 
@@ -111,8 +112,8 @@ function lenientFrontmatter(body: string): Record<string, unknown> {
   for (const line of body.split(/\r?\n/)) {
     const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line)
     if (match === null) continue
-    const key = match[1]!
-    if (record[key] === undefined) record[key] = match[2]!.trim()
+    const key = match[1]
+    if (record[key] === undefined) record[key] = match[2].trim()
   }
   return record
 }

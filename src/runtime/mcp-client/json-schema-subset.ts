@@ -166,7 +166,7 @@ function checkSchemaNode(node: unknown, path: string, violations: string[], seen
         violations.push(`${path}.required must be an array of property names`)
       } else {
         const properties = isRecord(node.properties) ? node.properties : undefined
-        for (const name of required as string[]) {
+        for (const name of required) {
           if (properties === undefined || !Object.hasOwn(properties, name)) {
             violations.push(`${path}.required lists "${name}" which has no declared property`)
           }

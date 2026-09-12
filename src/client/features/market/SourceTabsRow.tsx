@@ -112,7 +112,7 @@ export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
       },
       onBlur: (event: FocusEvent<HTMLDivElement>) => {
         // Focus left the strip entirely (the clicked pill keeps focus inside).
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
           cancelLeave()
           setPicked(false)
         }

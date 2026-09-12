@@ -140,7 +140,7 @@ interface ConfigFields extends McpServerPolicy {
 export function validateConfig(config: Config): Config {
   const fields = config as ConfigFields
   for (const field of ['enabledTools', 'disabledTools'] as const) {
-    if (fields[field] !== undefined && (!Array.isArray(fields[field]) || !fields[field]!.every(name => typeof name === 'string')))
+    if (fields[field] !== undefined && (!Array.isArray(fields[field]) || !fields[field].every(name => typeof name === 'string')))
       throw new Error(`bridge config ${field} must be an array of strings`)
   }
   if (fields.startupTimeoutMs !== undefined && (!Number.isFinite(fields.startupTimeoutMs) || fields.startupTimeoutMs <= 0 || fields.startupTimeoutMs > 2_147_483_647))

@@ -29,7 +29,7 @@ export function serverFormCompatible(config: ServerConfig, kind: ServerKind): bo
   if (!['command', 'url', 'cwd'].every(key => config[key] === undefined || typeof config[key] === 'string')) return false
   if (config.args !== undefined && (!Array.isArray(config.args) || config.args.some(value => typeof value !== 'string'))) return false
   if (!isMap(config.env) || !isMap(config.headers) || !isMap(config.extensionToLanguage)) return false
-  if (kind === 'mcp' && config.type !== undefined && !['stdio', 'streamable-http', 'sse'].includes(String(config.type))) return false
+  if (kind === 'mcp' && config.type !== undefined && (typeof config.type !== 'string' || !['stdio', 'streamable-http', 'sse'].includes(config.type))) return false
   if (config.auth !== undefined && (config.auth === null || typeof config.auth !== 'object' || Array.isArray(config.auth))) return false
   const auth = config.auth as Record<string, unknown> | undefined
   if (auth?.enabled !== undefined && typeof auth.enabled !== 'boolean') return false

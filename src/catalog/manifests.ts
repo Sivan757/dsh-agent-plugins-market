@@ -22,6 +22,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sanitizeId } from './paths.js'
 import { isFile } from './fs-probes.js'
+import { isRecord } from './component-files.js'
 import { isRecognizedSchema, validatePluginManifest } from './validate.js'
 import type { SuiteManifest, SuiteComponents } from '../model/types.js'
 import { PLUGIN_LAYOUTS, MANIFEST_ALIASES, MARKETPLACE_PATHS, type ManifestKind } from '../model/layouts.js'
@@ -129,7 +130,7 @@ export async function readManifest(
   const description = pickString(record.description) ?? hint?.description
   const author = record.author as { name?: string; url?: string } | undefined
   return {
-    components: { ...componentDeclarations(hint ?? {}), ...fallbackComponents, ...componentDeclarations(raw as Record<string, unknown>) },
+    components: { ...componentDeclarations(hint ?? {}), ...fallbackComponents, ...componentDeclarations(raw) },
     ...(typeof (raw as Record<string, unknown>).skillInstructions === 'string' ? { skillInstructions: (raw as Record<string, unknown>).skillInstructions as string } : {}),
     ...(typeof (raw as Record<string, unknown>).systemPrompt === 'string' ? { systemPrompt: (raw as Record<string, unknown>).systemPrompt as string } : {}),
     ...(typeof (raw as Record<string, unknown>).systemPromptPath === 'string' ? { systemPromptPath: (raw as Record<string, unknown>).systemPromptPath as string } : {}),
@@ -204,10 +205,10 @@ async function readOneMarketplace(path: string, errors: string[]): Promise<ReadM
   }
   const record = parsed as Record<string, unknown>
   const rawPlugins = record['plugins']
-  const plugins = Array.isArray(rawPlugins)
+  const plugins: unknown[] | undefined = Array.isArray(rawPlugins)
     ? rawPlugins
-    : typeof rawPlugins === 'object' && rawPlugins !== null
-      ? Object.entries(rawPlugins).map(([name, entry]) => (typeof entry === 'object' && entry !== null && !Array.isArray(entry) ? { ...entry, name } : entry))
+    : isRecord(rawPlugins)
+      ? Object.entries(rawPlugins).map(([name, entry]) => (isRecord(entry) ? { ...entry, name } : entry))
       : undefined
   if (plugins === undefined) {
     errors.push(`marketplace ${path}: "plugins" is not an array`)
@@ -284,7 +285,7 @@ export async function repoName(checkoutDir: string): Promise<string> {
     const entries = marketplace.entries
     if (entries.length === 1) {
       // A single-suite marketplace: the plugin entry names the repo (vercel → vercel-plugin).
-      const entryName = pickString(entries[0]!.name)
+      const entryName = pickString(entries[0].name)
       if (entryName !== undefined) return entryName
     }
     const marketplaceName = pickString(marketplace.name)

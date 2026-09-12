@@ -66,7 +66,7 @@ export class InstallStore {
     return this.context.enqueue(async () => {
       const entry = this.context.installed(sourceId, suiteId)
       if (entry === undefined) throw new Error(`suite "${suiteId}" is not installed`)
-      if (!SUITE_SURFACE_KEYS.includes(surface as SuiteSurfaceKey)) throw new Error(`surface "${surface}" is not toggleable`)
+      if (!SUITE_SURFACE_KEYS.includes(surface)) throw new Error(`surface "${surface}" is not toggleable`)
       const surfaces: SurfaceOverrides = { ...(entry.surfaces ?? {}), [surface]: enabled }
       await this.setInstalled(sourceId, suiteId, { ...entry, surfaces })
       await this.context.notifyChanged(true)

@@ -185,7 +185,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                               checked: detail.surfaceToggles![key],
                               disabled: surfaceBusy,
                               onChange: event => {
-                                void toggleSurface(key, (event.target as HTMLInputElement).checked)
+                                void toggleSurface(key, (event.target).checked)
                               }
                             }), t(labelKey))
                           )

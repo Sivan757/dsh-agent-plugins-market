@@ -84,7 +84,7 @@ export class RetryScheduler {
       this.options.log(`${target.label}: giving up after ${MAX_RETRY_ATTEMPTS} attempts — ${target.reason}`)
       return
     }
-    const delay = RETRY_SCHEDULE_MS[attempt - 1] ?? RETRY_SCHEDULE_MS[RETRY_SCHEDULE_MS.length - 1]!
+    const delay = RETRY_SCHEDULE_MS[attempt - 1] ?? RETRY_SCHEDULE_MS[RETRY_SCHEDULE_MS.length - 1]
     const timer = setTimeout(() => {
       this.timers.delete(target.key)
       // Replay the surface's last known input: a retry must not resurrect a

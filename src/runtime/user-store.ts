@@ -28,7 +28,7 @@ export function parseFrontmatterRecord(text: string): Record<string, unknown> {
     return {}
   }
   const doc = parseDocument(match[1])
-  if (doc.errors.length > 0) throw new Error(`Invalid frontmatter: ${doc.errors[0]!.message}`)
+  if (doc.errors.length > 0) throw new Error(`Invalid frontmatter: ${doc.errors[0].message}`)
   const value: unknown = doc.toJS({ maxAliasCount: 100 })
   if (value === null) return {}
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('Frontmatter must be a mapping')

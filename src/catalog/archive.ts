@@ -82,7 +82,7 @@ export async function downloadArchive(url: string, tempFile: string, options: Ar
   const handle = await open(tempFile, 'w')
   try {
     let size = 0
-    const reader = body.getReader()
+    const reader: ReadableStreamDefaultReader<Uint8Array> = body.getReader()
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
@@ -317,7 +317,7 @@ async function assertNoEscapingSymlinks(root: string): Promise<void> {
 /** If the extraction produced exactly one top-level directory and nothing else, use it as the root. */
 async function unwrapSingleRoot(extractDir: string): Promise<string> {
   const entries = await readdir(extractDir, { withFileTypes: true })
-  if (entries.length === 1 && entries[0]!.isDirectory()) return join(extractDir, entries[0]!.name)
+  if (entries.length === 1 && entries[0].isDirectory()) return join(extractDir, entries[0].name)
   return extractDir
 }
 

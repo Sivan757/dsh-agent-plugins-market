@@ -87,7 +87,7 @@ export function sanitizeOverrides(raw: unknown): McpSuiteOverrides {
     const env = stringMap(record['env'])
     if (env !== undefined) override.env = env
     if (Array.isArray(record['args']) && record['args'].every(entry => typeof entry === 'string')) {
-      override.args = record['args'] as string[]
+      override.args = record['args']
     }
     if (Object.keys(override).length > 0) result[serverKey] = override
   }

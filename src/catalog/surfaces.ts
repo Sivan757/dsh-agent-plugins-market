@@ -16,7 +16,7 @@ import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
 import { validateMcpJson } from './validate.js'
 import { readManifest } from './manifests.js'
 import type { LspSuiteConfig, McpServer, McpSuiteConfig, SuiteManifest, SuiteSkill, SuiteSurfaceCounts } from '../model/types.js'
-import { componentDocuments, componentPath, firstComponentFile } from './component-files.js'
+import { componentDocuments, componentPath, firstComponentFile, isUnknownArray } from './component-files.js'
 
 /**
  * Resolve a manifest-declared skills path into absolute directories (string or
@@ -165,7 +165,7 @@ export async function discoverMcp(root: string, errors: string[], manifest?: Sui
       ? fallback === undefined
         ? []
         : [fallback]
-      : [...(additive && fallback !== undefined ? [fallback] : []), ...(Array.isArray(declared) ? declared : [declared])]
+      : [...(additive && fallback !== undefined ? [fallback] : []), ...(isUnknownArray(declared) ? declared : [declared])]
   if (values.length === 0) return undefined
   const documents = await componentDocuments(root, values, errors)
   if (documents === undefined) return undefined

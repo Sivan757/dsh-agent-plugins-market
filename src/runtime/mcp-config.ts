@@ -76,7 +76,7 @@ export function effectiveMcpServers(suite: Suite, overrides: McpSuiteOverrides =
   const rows: EffectiveMcpServer[] = []
   for (const [serverKey, source] of Object.entries(suite.mcp?.servers ?? {})) {
     const override = overrides[serverKey]
-    const server = applyOverride(source as McpServerStdio | McpServerStreamableHttp | McpServerSse, override)
+    const server = applyOverride(source, override)
     rows.push({ serverKey, server, override, enabled: override?.enabled !== false, credentialRefs: credentialRefsInServer(server) })
   }
   return rows

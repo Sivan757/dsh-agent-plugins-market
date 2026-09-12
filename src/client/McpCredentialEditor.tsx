@@ -113,7 +113,7 @@ export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; 
                       value: drafts[ref] ?? '',
                       placeholder: t('mcpCredentialPlaceholder'),
                       disabled: refBusy,
-                      onChange: event => setDrafts(current => ({ ...current, [ref]: (event.target as HTMLInputElement).value }))
+                      onChange: event => setDrafts(current => ({ ...current, [ref]: (event.target).value }))
                     }),
                     h(
                       'div',

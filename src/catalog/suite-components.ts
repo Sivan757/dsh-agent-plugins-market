@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 import type { ProjectHooks, SuiteManifest, LspSuiteConfig } from '../model/types.js'
-import { componentDocuments, componentPath, firstComponentFile, isRecord } from './component-files.js'
+import { componentDocuments, componentPath, firstComponentFile, isRecord, isStringArray, isUnknownArray } from './component-files.js'
 import { parseLspServers } from './lsp-spec.js'
 import { normalizeHookDocuments } from './project-hooks.js'
 import { PLUGIN_ROOT_VARIABLES } from '../model/layouts.js'
@@ -70,27 +70,26 @@ export async function discoverSuiteHooks(root: string, manifest: SuiteManifest, 
     const output: Record<string, unknown> = {}
     for (const [event, groups] of Object.entries(events)) {
       const canonicalEvent = EVENT_ALIASES[event] ?? event
-      if (!Array.isArray(groups)) {
+      if (!isUnknownArray(groups)) {
         output[canonicalEvent] = groups
         continue
       }
       output[canonicalEvent] = groups.map(rawGroup => {
         const group =
-          isRecord(rawGroup) && !Array.isArray(rawGroup.hooks) && (typeof rawGroup.command === 'string' || typeof rawGroup.bash === 'string')
+          isRecord(rawGroup) && !isUnknownArray(rawGroup.hooks) && (typeof rawGroup.command === 'string' || typeof rawGroup.bash === 'string')
             ? {
                 matcher: rawGroup.matcher,
                 hooks: [{ ...rawGroup, type: rawGroup.type ?? 'command', command: rawGroup.command ?? rawGroup.bash, timeout: rawGroup.timeout ?? rawGroup.timeoutSec }]
               }
             : rawGroup
-        if (!isRecord(group) || !Array.isArray(group.hooks)) return group
+        if (!isRecord(group) || !isUnknownArray(group.hooks)) return group
         return {
           ...group,
           hooks: group.hooks.map(hook => {
             if (!isRecord(hook)) return hook
             if (hook.type !== 'process') return typeof hook.command === 'string' ? { ...hook, command: rootVariables(hook.command, root) } : hook
-            if (typeof hook.command !== 'string' || (hook.args !== undefined && (!Array.isArray(hook.args) || !hook.args.every(arg => typeof arg === 'string'))))
-              return { ...hook, type: 'command', command: undefined }
-            const argv = [hook.command, ...((hook.args ?? []) as string[])].map(arg => quote(rootVariables(arg, root)))
+            if (typeof hook.command !== 'string' || (hook.args !== undefined && !isStringArray(hook.args))) return { ...hook, type: 'command', command: undefined }
+            const argv = [hook.command, ...(hook.args ?? [])].map(arg => quote(rootVariables(arg, root)))
             return { ...hook, type: 'command', command: argv.join(' '), ...(typeof hook.timeoutMs === 'number' ? { timeout: hook.timeoutMs / 1000 } : {}) }
           })
         }

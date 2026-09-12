@@ -155,7 +155,7 @@ export function mountSuiteRoutes(
   })
 
   post(MARKET_ROUTES.addSource, async body => {
-    const url = String(body['url'] ?? '').trim()
+    const url = textOf(body['url'] ?? '').trim()
     if (url === '') throw new Error('missing source url')
     const local = body['local'] === true
     if (local) {
@@ -184,11 +184,11 @@ export function mountSuiteRoutes(
     if (typeof id !== 'string' || id === '') throw new Error('missing source id')
     const patch: SourcePatch = {}
     if (body['url'] !== undefined) {
-      const url = String(body['url']).trim()
+      const url = textOf(body['url']).trim()
       if (url === '') throw new Error('missing source url')
       patch.url = url
     }
-    if (body['branch'] !== undefined) patch.branch = String(body['branch']).trim()
+    if (body['branch'] !== undefined) patch.branch = textOf(body['branch']).trim()
     if (body['local'] !== undefined) patch.local = body['local'] === true
     const kind = parseSourceKind(body['kind'])
     if (kind !== undefined) patch.kind = kind
@@ -319,7 +319,7 @@ export function mountSuiteRoutes(
     return {}
   })
   post(`${MARKET_ROUTES.lspServers}/enabled`, async body => {
-    const id = String(body['id'] ?? '')
+    const id = textOf(body['id'] ?? '')
     if (id === '') throw new Error('missing LSP server id')
     await manager.setLspServerEnabled(id, body['enabled'] !== false)
     return {}
@@ -350,8 +350,8 @@ export function mountSuiteRoutes(
       })
 
       post(`${userPanelRoute(kind)}/create`, async body => {
-        const name = String(body['name'] ?? '').trim()
-        const text = String(body['text'] ?? '')
+        const name = textOf(body['name'] ?? '').trim()
+        const text = textOf(body['text'] ?? '')
         if (name === '') throw new Error('missing entry name')
         const entry = await storeOf(kind).create(name, text)
         await manager.notifyPanelsChanged()
@@ -360,7 +360,7 @@ export function mountSuiteRoutes(
 
       post(`${userPanelRoute(kind)}/update`, async (body, request) => {
         const name = queryOf(request).get('name') ?? ''
-        const text = String(body['text'] ?? '')
+        const text = textOf(body['text'] ?? '')
         if (name === '') throw new Error('missing entry name')
         await storeOf(kind).update(name, text)
         await manager.notifyPanelsChanged()
@@ -368,7 +368,7 @@ export function mountSuiteRoutes(
       })
 
       post(`${userPanelRoute(kind)}/delete`, async body => {
-        const name = String(body['name'] ?? '')
+        const name = textOf(body['name'] ?? '')
         if (name === '') throw new Error('missing entry name')
         await storeOf(kind).remove(name)
         await manager.notifyPanelsChanged()
@@ -380,6 +380,16 @@ export function mountSuiteRoutes(
   return () => {
     for (const dispose of disposers) dispose()
   }
+}
+
+/**
+ * Render an untrusted request field as text. Bodies are arbitrary JSON, so a
+ * field a route documents as a string may arrive as any value; `String` keeps
+ * the coercion these routes have always applied, and the check that follows
+ * owns rejection.
+ */
+function textOf(value: unknown): string {
+  return String(value)
 }
 
 type RouteHandler = (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
@@ -397,13 +407,13 @@ function parseTarget(body: Record<string, unknown>): { sourceId: string; suiteId
 function parseSourceKind(raw: unknown): SourceKind | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined
   if (raw === 'git' || raw === 'local' || raw === 'archive') return raw
-  throw new Error(`invalid source kind "${String(raw)}"`)
+  throw new Error(`invalid source kind "${textOf(raw)}"`)
 }
 
 /** Parse an optional SHA-256 hex digest; rejects malformed values. */
 function parseSha256(raw: unknown): string | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined
-  const value = String(raw).trim().toLowerCase()
+  const value = textOf(raw).trim().toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error('sha256 must be a 64-character hex digest')
   return value
 }
@@ -418,7 +428,8 @@ function sameOrigin(request: IncomingMessage): boolean {
   }
 }
 
-function readJsonBody(request: IncomingMessage): Promise<unknown | undefined> {
+/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
+function readJsonBody(request: IncomingMessage): Promise<unknown> {
   return new Promise(resolve => {
     let size = 0
     const chunks: Buffer[] = []

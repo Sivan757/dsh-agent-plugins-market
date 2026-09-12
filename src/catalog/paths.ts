@@ -124,7 +124,7 @@ export function deriveSourceIdCandidates(url: string): string[] {
     const hostPath = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^[\w.-]+@([\w.-]+):/, '$1/')
     const segments = hostPath.split(/[/\\]/).filter(Boolean)
     if (segments.length >= 2) {
-      const owner = sanitizeId(segments[segments.length - 2]!)
+      const owner = sanitizeId(segments[segments.length - 2])
       if (owner !== '' && owner !== primary) candidates.push(`${owner}-${primary}`)
     }
   }

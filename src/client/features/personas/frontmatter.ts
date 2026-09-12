@@ -5,7 +5,7 @@ export function frontmatter(text: string) {
   const match = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text)
   if (/^(?:\uFEFF)?---\r?\n/.test(text) && match === null) throw new Error('Unclosed YAML frontmatter')
   const document = parseDocument(match?.[1] ?? '')
-  if (document.errors.length > 0) throw new Error(document.errors[0]!.message)
+  if (document.errors.length > 0) throw new Error(document.errors[0].message)
   if (document.contents !== null && !isMap(document.contents)) throw new Error('Frontmatter must be a YAML mapping')
   return { document, body: match === null ? text : text.slice(match[0].length), matched: match !== null }
 }
@@ -14,7 +14,7 @@ export function readRoleFields(text: string): { model: string; provider: string;
   const { document } = frontmatter(text)
   const fields = (document.toJS() ?? {}) as Record<string, unknown>
   for (const key of ['reasoning_effort', 'reasoningEffort']) {
-    if (fields[key] !== undefined && (typeof fields[key] !== 'string' || (fields[key] as string).trim() === '')) throw new Error(`${key} must be a non-empty string`)
+    if (fields[key] !== undefined && (typeof fields[key] !== 'string' || fields[key].trim() === '')) throw new Error(`${key} must be a non-empty string`)
   }
   const effort = typeof fields.reasoning_effort === 'string' ? fields.reasoning_effort.trim() : undefined
   const alias = typeof fields.reasoningEffort === 'string' ? fields.reasoningEffort.trim() : undefined
