@@ -89,6 +89,19 @@ async function mountSection(): Promise<HTMLDivElement> {
   return host
 }
 
+/** Point the mocked overview resource at a payload before the section mounts. */
+async function stubOverview(payload: unknown): Promise<void> {
+  const resource = await import('../src/client/features/market/market-resource.js')
+  vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+}
+
+/** The suite card's install button; scoped to the card because the toolbar's own "uninstalled" filter label also contains the substring `install`. */
+function installButton(): HTMLButtonElement {
+  const buttons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
+  expect(buttons.length).toBe(1)
+  return buttons[0]!
+}
+
 describe('MarketSection rendering', () => {
   it('renders the section title, source tabs, and suite cards after load', async () => {
     const el = await mountSection()
@@ -108,16 +121,10 @@ describe('MarketSection rendering', () => {
   it('opens the install confirmation dialog and does NOT install on cancel', async () => {
     await mountSection()
 
-    // The suite card's install button (primary action in the card actions row).
-    // Scoped to the card: the toolbar's own "uninstalled" filter label also
-    // contains the substring `install`.
-    const installButtons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
-    expect(installButtons.length).toBe(1)
+    const install = installButton()
     const probe = vi.fn()
-    installButtons[0]!.addEventListener('click', probe)
-    act(() => {
-      installButtons[0]!.click()
-    })
+    install.addEventListener('click', probe)
+    act(() => install.click())
     expect(probe).toHaveBeenCalledTimes(1)
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -141,20 +148,9 @@ describe('MarketSection rendering', () => {
   })
 
   it('shows the local-working-tree note when the source has no locked commit', async () => {
-    const payload = {
-      ...overviewPayload,
-      sources: [{ ...overviewPayload.sources[0]!, lockCommit: undefined, local: true }]
-    }
-    const resource = await import('../src/client/features/market/market-resource.js')
-    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    await stubOverview({ ...overviewPayload, sources: [{ ...overviewPayload.sources[0]!, lockCommit: undefined, local: true }] })
     await mountSection()
-    // Scoped to the card: the toolbar's own "uninstalled" filter label also
-    // contains the substring `install`.
-    const installButtons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
-    expect(installButtons.length).toBe(1)
-    act(() => {
-      installButtons[0]!.click()
-    })
+    act(() => installButton().click())
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
@@ -164,15 +160,13 @@ describe('MarketSection rendering', () => {
   })
 
   it('renders an adopted source like any other chip, without an adoption badge', async () => {
-    const payload = {
+    await stubOverview({
       ...overviewPayload,
       sources: [
         { ...overviewPayload.sources[0]!, adopted: true },
         { ...overviewPayload.sources[0]!, id: 'second', url: 'https://example.com/second.git', suiteIds: [] }
       ]
-    }
-    const resource = await import('../src/client/features/market/market-resource.js')
-    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    })
     const el = await mountSection()
     const text = el.textContent ?? ''
     // jsdom reports no content height, so the strip never folds and every chip renders.
@@ -183,15 +177,13 @@ describe('MarketSection rendering', () => {
   })
 
   it('moves the picked source next to 全部 and leaves the rest in id order', async () => {
-    const payload = {
+    await stubOverview({
       ...overviewPayload,
       sources: [
         { ...overviewPayload.sources[0]!, id: 'zeta', url: 'https://example.com/zeta.git', suiteIds: [] },
         { ...overviewPayload.sources[0]!, id: 'alpha', url: 'https://example.com/alpha.git', suiteIds: [] }
       ]
-    }
-    const resource = await import('../src/client/features/market/market-resource.js')
-    vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
+    })
     await mountSection()
     const chips = (): string[] =>
       [...host!.querySelectorAll('button')]

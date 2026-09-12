@@ -2,7 +2,7 @@
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Translate } from '../src/client/index.js'
+import { stubTranslate as t } from './helpers/translate.js'
 import { parse } from 'yaml'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -16,7 +16,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async importOriginal => ({
     h('section', { role: 'dialog' }, h('h2', null, title), children, footer)
 }))
 import { UserPanelSurface } from '../src/client/ui/UserPanelSurface.js'
-const t: Translate = key => key
 let root: Root
 let host: HTMLDivElement
 const plugin = {
@@ -37,6 +36,13 @@ async function click(text: string) {
   expect(button, text).toBeDefined()
   await act(async () => button!.click())
 }
+/** Mount the panel into a fresh host; both cases start from a blank document. */
+async function mountPanel() {
+  host = document.createElement('div')
+  document.body.append(host)
+  root = createRoot(host)
+  await act(async () => root.render(h(UserPanelSurface, { t, kind: 'agents' })))
+}
 afterEach(async () => {
   await act(async () => root?.unmount())
   host?.remove()
@@ -55,10 +61,7 @@ describe('unified Markdown resource panel', () => {
       models: provider === 'second' ? [{ id: 'model-b', name: 'Model B' }] : [{ id: 'model', name: 'Model' }]
     }))
     api.updateUserPanelEntry.mockResolvedValue(undefined)
-    host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'agents' })))
+    await mountPanel()
     expect(api.fetchModelCatalog).not.toHaveBeenCalled()
     await click('reviewer')
     const select = async (index: number, value: string) => {
@@ -85,10 +88,7 @@ describe('unified Markdown resource panel', () => {
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
     api.updateUserPanelEntry.mockResolvedValue(undefined)
-    host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'agents' })))
+    await mountPanel()
     expect(host.textContent).toContain('workspaceTabPersonas')
     expect(host.textContent).toContain('personasPanelDescription')
     expect(host.querySelectorAll('input').length).toBeGreaterThan(0)
