@@ -81,7 +81,7 @@ Run the focused checks that match your change, then run the full gate before ope
 
 | Command                         | Purpose / 用途                                                                                  |
 | ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `pnpm run typecheck`            | TypeScript host and client type checks / TypeScript 宿主与客户端类型检查                        |
+| `pnpm run typecheck`            | TypeScript host, client and test type checks / TypeScript 宿主、客户端与测试类型检查            |
 | `pnpm run lint`                 | ESLint checks / ESLint 检查                                                                     |
 | `pnpm run format:check`         | Prettier formatting check / Prettier 格式检查                                                   |
 | `pnpm run check:architecture`   | Dependency-boundary check / 依赖边界检查                                                        |

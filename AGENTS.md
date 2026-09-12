@@ -23,7 +23,7 @@ scripts/        build helpers (client banner, lifecycle verification)
 ## Commands
 
 ```sh
-pnpm run typecheck           # both tsconfig.json and tsconfig.client.json
+pnpm run typecheck           # src, client, and both test projects
 pnpm run lint                # eslint src tests
 pnpm run format:check        # prettier — tracked text except the paths in .prettierignore
 pnpm run test                # vitest run (full suite)
