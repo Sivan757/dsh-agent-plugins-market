@@ -11,8 +11,6 @@
 
 import type { ReconnectConfig } from './connection.js'
 import type { McpServerPolicy } from '../../model/types.js'
-export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.js'
-export { RECONNECT_DEFAULTS } from './connection.js'
 
 /** Default timeout for individual MCP tool calls (ms). */
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
