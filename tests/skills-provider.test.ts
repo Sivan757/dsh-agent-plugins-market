@@ -42,8 +42,8 @@ describe('SuiteSkillProvider', () => {
     expect(isModelInvocable(candidate)).toBe(true)
     const definition = await provider.get(candidate, {})
     expect(definition).toBeDefined()
-    expect(definition!.content).toContain(`node ${manager.userRoot}/.sources/demo/scripts/greet.mjs`)
-    const resourcePath: unknown = expect.stringContaining('skills/greet')
+    expect(definition!.content).toContain(`node ${join(manager.userRoot, '.sources', 'demo')}/scripts/greet.mjs`)
+    const resourcePath: unknown = expect.stringContaining(join('skills', 'greet'))
     expect(definition!.resourceBase).toEqual({ kind: 'directory', path: resourcePath })
   })
 

@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { deriveServerName, toMcpMounts } from '../src/runtime/mcp-config.js'
 import { expectTransport } from './helpers/bridge-config.js'
@@ -41,7 +42,8 @@ describe('mcp-config: suite mcp.json → bridge rows', () => {
     expect(db.command).toBe('/tmp/my-suite/bin/db')
     expect(db.args).toEqual(['--root', '/tmp/my-suite'])
     expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
-    expect(db.cwd).toBe('/tmp/my-suite/data')
+    // `cwd` is resolved against the suite root, so it carries the host's spelling.
+    expect(db.cwd).toBe(resolve('/tmp/my-suite', 'data'))
     expectTransport(web, 'streamable-http')
     expect(web.headers).toEqual({ Authorization: 'Bearer resolved' })
     expectTransport(legacy, 'sse')

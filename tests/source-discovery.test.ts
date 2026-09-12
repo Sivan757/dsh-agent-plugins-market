@@ -1,4 +1,5 @@
 import { cp, mkdtemp, mkdir } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -10,7 +11,7 @@ const fixture = join(here, 'fixtures', 'v1-suite')
 
 describe('configured source discovery', () => {
   async function createUserRoot(): Promise<string> {
-    const root = await mkdtemp(join('/tmp', 'dsh-agent-plugins-sources-'))
+    const root = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-sources-'))
     await mkdir(join(root, '.sources'), { recursive: true })
     await cp(fixture, join(root, '.sources', 'configured'), { recursive: true })
     await cp(fixture, join(root, '.sources', 'stale-checkout'), { recursive: true })

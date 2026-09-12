@@ -5,6 +5,7 @@ name: windows
 # the same suite on Windows, where the host binds the win32 ones.
 on:
   push:
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
   workflow_dispatch:

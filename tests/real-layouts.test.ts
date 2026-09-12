@@ -130,7 +130,7 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     expect(result.suites.length).toBeGreaterThan(0)
     expect(result.suites.some(suite => Object.values(suite.surfaces).some(count => count > 0))).toBe(true)
     if (sample.dialect === 'qoder') {
-      expect(result.suites[0]?.manifest.path).toMatch(/\/plugin\.json$/)
+      expect(result.suites[0]?.manifest.path).toMatch(/[\\/]plugin\.json$/)
       expect(result.suites[0]?.surfaces.hooks).toBe(3)
     }
   })
@@ -227,7 +227,7 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     if (sample.dialect === 'zcode') {
       const resources = required(suite.resources, 'the zcode fixture suite to declare resources')
       expect(resources.commands.length).toBeGreaterThan(0)
-      expect(resources.commands.every(resource => resource.file.includes('references/zcode/commands/'))).toBe(true)
+      expect(resources.commands.every(resource => resource.file.includes(join('references', 'zcode', 'commands')))).toBe(true)
       expect((await readCommands(root, resources.commands)).length).toBeGreaterThan(0)
       expect(suite.surfaces.hooks).toBe(4)
     }
