@@ -4,7 +4,7 @@
 
 ## 宿主要求
 
-插件设置卡提供**扫描项目 Agent 布局**（`scanProjectLayouts`，默认开启），变更立即失效项目原生发现缓存。[项目布局章节](../../README.zh.md#项目布局开关)列出当前目录与执行边界；配置源的安装不受此开关影响。
+插件配置卡承载本插件的全部开关：**扫描项目 Agent 布局**（`scanProjectLayouts`，默认开启，见[项目布局](#项目布局)）、**MCP 增强**、**下载区域**、**后台自动更新来源**（`autoUpdateSources`，默认关闭，每 6 小时刷新一次全部已配置来源）与**体验反馈工具**。
 
 Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量引用、工具白名单/黑名单及超时；不支持的字段给出诊断。宿主 LSP 注册表是全局的，因此项目 LSP 不挂载，本插件不修改宿主 API。
 
@@ -22,6 +22,8 @@ Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量�
 ```sh
 pnpm add dsh-agent-plugins-market
 ```
+
+当前 DSH 外壳中，市场是设置页的一个区块（**设置 → Agent Plugins 市场**）；未提供插件设置席位的旧版外壳会把它显示为顶层页面入口。
 
 从 GitHub 安装：
 
@@ -48,7 +50,7 @@ npm 包包含构建后的 `lib/` 和 `client/`。GitHub 安装通过 `prepare` �
       - { id: knowledge-work-plugins, url: 'https://github.com/anthropics/knowledge-work-plugins' }
 ```
 
-`local: true` 的源直接读取本地目录（实时反映工作树，移除源时不会删除目录）。扫描结果会缓存最多 30 秒，并在安装/启用/面板切换等操作间复用，因此本地源的工作树改动会在下一次缓存刷新时可见（任何源变更、刷新按钮，或 30 秒 TTL 到期）。启动挂载和用户技能枚举只扫描包含已启用安装的源；浏览市场仍发现全部配置源。并发读取共享扫描任务。启动不会拉取 Git 更新，来源刷新需显式触发。`archive` 源下载 HTTPS 压缩包（`.zip` / `.tar.gz` / `.tgz` / `.tar`，256 MiB 上限，可选 `sha256` 完整性校验）并解压为 checkout。
+`local: true` 的源直接读取本地目录（实时反映工作树，移除源时不会删除目录）。扫描结果会缓存最多 30 秒，并在安装/启用/面板切换等操作间复用，因此本地源的工作树改动会在下一次缓存刷新时可见（任何源变更、刷新按钮，或 30 秒 TTL 到期）。启动挂载和用户技能枚举只扫描包含已启用安装的源；浏览市场仍发现全部配置源。并发读取共享扫描任务。启动不会拉取 Git 更新；来源刷新需显式触发，除非开启**后台自动更新来源**。`archive` 源下载 HTTPS 压缩包（`.zip` / `.tar.gz` / `.tgz` / `.tar`，256 MiB 上限，可选 `sha256` 完整性校验）并解压为 checkout。
 
 ### 手动克隆、收编与网络调优
 
@@ -72,20 +74,37 @@ git/压缩包获取可通过宿主配置调优：
 
 ## 存储与发现
 
-默认根目录为 `~/.dsh/agent-plugins/`；设置 `DSH_HOME` 后改为 `$DSH_HOME/agent-plugins/`。
+插件状态位于 `~/.dsh/agent-plugins/`；设置 `DSH_HOME` 后改为 `$DSH_HOME/agent-plugins/`。
 
-| 根目录下的路径         | 内容                           |
-| ---------------------- | ------------------------------ |
-| `state.json`           | 已配置来源和安装状态           |
-| `.sources/<sourceId>/` | 来源 checkout                  |
-| `user/skills/`         | 自建技能 Markdown 文件         |
-| `user/commands/`       | 自建命令 Markdown 文件         |
-| `user/agents/`         | 自建角色 Markdown 文件         |
-| `data/`                | 运行时数据、覆盖配置与反馈记录 |
+| 根目录下的路径         | 内容                                                 |
+| ---------------------- | ---------------------------------------------------- |
+| `state.json`           | 已配置来源和安装状态                                 |
+| `.sources/<sourceId>/` | 来源 checkout                                        |
+| `data/`                | 覆盖配置、套件 `${PLUGIN_DATA}` 目录、反馈限流时间戳 |
+
+你自己创作的内容位于共用的 Agent 布局根目录 `~/.agents/`（`$DSH_AGENTS_HOME` 可覆盖）——与项目管理维度读取的 `.agents/` 目录形态一致：
+
+| 路径        | 内容                                  |
+| ----------- | ------------------------------------- |
+| `skills/`   | 自建技能 Markdown 文件                |
+| `commands/` | 自建命令 Markdown 文件                |
+| `agents/`   | 自建角色 Markdown 文件                |
+| `mcp.json`  | 工作区新增的 MCP 服务（`mcpServers`） |
+| `lsp.json`  | 工作区新增的 LSP 服务（`lspServers`） |
 
 自建条目支持 frontmatter `disabled: true`，停止注册但保留文件。命令将正文转交给模型，并把 `$ARGUMENTS` 替换为调用时的文本。自建角色进入动态[子代理目录](agent-roles.zh.md)，不再进入技能或斜杠命令菜单。
 
-项目维度的状态和 checkout 位于 `<project>/.dsh/agent-plugins/`。[项目布局章节](../../README.zh.md#项目布局开关)列出的原生布局直接读取，无需安装状态。命令、受支持的 MCP 和 hooks 挂载在各 Agent 作用域。hooks 归一化使用私有运行时临时文件，不改写项目设置。同名时，项目技能优先于已安装的用户套件技能，自建面板技能优先级低于套件技能。条目被遮蔽时可通过改名解决。
+项目维度的状态和 checkout 位于 `<project>/.dsh/agent-plugins/`。[项目布局](#项目布局)列出的原生布局直接读取，无需安装状态。同名时，项目技能优先于已安装的用户套件技能，自建面板技能优先级低于套件技能。条目被遮蔽时可通过改名解决。
+
+### 项目布局
+
+开启**扫描项目 Agent 布局**后，会话所在项目会贡献自己的资源。关闭该开关会立即移除下列全部候选；配置源与已安装套件不受影响。文件原位只读，不安装、不改写、不删除。
+
+技能目录在 `.claude`、`.agents`、`.codex`、`.cursor`、`.kimi`、`.zcode`、`.qoder`、`.github` 下读取。除 `.codex` 与 `.kimi` 外启用可移植 Markdown 代理；两者的 TOML/YAML 格式需要独立适配器。角色执行按调用会话确定项目。项目 commands、受支持的 MCP 服务和已映射命令 hooks 注册在各 Agent 独立作用域，会话启动或目录变更通知时刷新。
+
+MCP 读取根 `.mcp.json`、`.cursor/mcp.json`，以及 `.qoder/settings.json`、`.qoder/settings.local.json` 的 `mcpServers` 表（本机配置覆盖同名项目配置）。ZCode 读取 `zcode.json`、`.zcode/config.json` 的 `mcp.servers`，原生表为空时回退到 `.agents/mcp.json`。Codex 通过 `smol-toml` 读取 `.codex/config.toml` 的 `[mcp_servers.*]`，保留 stdio/HTTP 配置、环境变量/请求头引用、启停、工具过滤和超时；不支持的服务字段会报诊断。相对可执行路径从项目根解析。
+
+Claude/Qoder 设置 hooks 与明确启用的 ZCode 配置 hooks 使用桥支持的命令事件子集。校验后的 hooks 写入私有运行时临时文件，销毁时删除，项目原文件保持不变。项目 LSP 给出诊断且不挂载，修改宿主不属于本插件范围。
 
 未登记的用户 checkout 不会因为存在于磁盘上就自动参与运行，需要显式收编和安装。没有文件监听；项目发现快照缓存五秒。
 
@@ -119,9 +138,9 @@ Git 获取通过 `execFile` 执行，不经过 shell；刷新使用 shallow fetc
 
 ### 体验反馈
 
-`feedbackEnabled` 默认 `true`。宿主提供 tools 和 settings 时，启用面向模型的 `report_market_issue` 工具。有 `GITHUB_TOKEN` 或 `GH_TOKEN` 时，提交会在本插件 GitHub 仓库创建 issue；否则保存到 `data/feedback/`。两次提交间隔至少 60 秒。在插件配置卡片中关闭该设置即可注销工具。
+`feedbackEnabled` 默认 `true`。宿主提供 tools 和 settings 时，启用面向模型的 `report_market_issue` 工具，在本插件的 GitHub 仓库提交 issue：装有并已登录 `gh` 命令时用 `gh`，否则用 `GITHUB_TOKEN` / `GH_TOKEN`。两者都不可用时不会提交任何东西：工具会在浏览器中打开预填好的「新建 issue」页面，并把完整 issue 文本与链接返回给模型转交给你。成功提交后 60 秒内不会再次提交。在插件配置卡片中关闭该设置即可注销工具。
 
-工作区 Tab 共用持久化的卡片/列表偏好，搜索与筛选按资源独立。新增、刷新统一位于页头。MCP 新增入口校验 JSON 服务配置，写入 `~/.dsh/agent-plugins/data/mcp-servers.json`，再通过插件自己的 bridge 挂载；非法配置和重名服务会被拒绝。宿主自行管理的 MCP 服务仍只读观察。
+工作区 Tab 共用持久化的卡片/列表偏好，搜索与筛选按资源独立。新增、刷新统一位于页头。MCP 新增入口校验 JSON 服务配置，写入 `~/.agents/mcp.json`，再通过插件自己的 bridge 挂载；LSP 新增写入 `~/.agents/lsp.json`。非法配置和重名服务会被拒绝。宿主自行管理的 MCP 服务仍只读观察。
 
 ### 资源详情编辑
 
@@ -137,6 +156,6 @@ Git 获取通过 `execFile` 执行，不经过 shell；刷新使用 shallow fetc
 
 工作区请求、凭据修改和设置修改共用 `withBusyOperation`（`src/client/ui/busy-operation.ts`）。操作还包含刷新时应包裹完整流程；嵌套计数确保全部操作结束才撤掉遮罩。唯一的 `BusyOverlay` 挂载在 body 下，跟随当前窗口边界，设置 inert，阻止背景点击和键盘操作，并在结束后恢复焦点。提示每 3.2 秒轮换，尊重减少动态效果设置。来源进度、模型目录后台加载和 LSP 自动轮询不显示遮罩。遮罩不占列表行，也不虚构百分比进度。
 
-一个来源可以包含多种布局方言。套件清单与 Marketplace 目录索引遵循[同一布局优先级](../../README.zh.md#布局识别优先级)。清单选择第一个存在的文件，无效时给出诊断，不会尝试低优先级清单。索引扫描采用第一个能产出套件的索引，并按支持的规则补充发现；无效或空索引允许继续尝试后续候选。根 `marketplace.json` 是最后的共享回退。远程引用卡片不能直接安装，需要先添加对应仓库为来源。
+一个来源可以包含多种布局方言。套件清单与 Marketplace 目录索引遵循[同一布局优先级](../../README.zh.md#布局识别优先级)。清单按优先级逐个尝试：读不出或校验不通过的会给出诊断并尝试下一项，全部失败则拒绝该套件。索引扫描采用第一个能产出套件的索引，并按支持的规则补充发现；无效或空索引允许继续尝试后续候选。根 `marketplace.json` 是最后的共享回退。远程引用卡片不能直接安装，需要先添加对应仓库为来源。
 
 `schemas/1.0.0/` 的 schema 内置自 [agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)，校验时不在线下载。领域用语和开发检查见[领域词汇](../../CONTEXT.md)与[贡献指南](../../CONTRIBUTING.md)。

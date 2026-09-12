@@ -9,7 +9,7 @@ const markets = [
   {
     name: 'vercel/vercel-plugin',
     url: 'https://github.com/vercel/vercel-plugin',
-    note: 'Multi-client repo that ships agent-plugins.org v1, .claude-plugin, .cursor-plugin and .kimi-plugin manifests at once — a good stress test for dialect precedence.',
+    note: 'Multi-client repo that ships agent-plugins, .claude-plugin, .cursor-plugin and .kimi-plugin manifests at once — a good stress test for dialect precedence.',
   },
   {
     name: 'agentplugins/agent-plugins-spec',
@@ -54,7 +54,7 @@ const skills = [
   <p>Suite manifests and Marketplace catalogs follow the same layout order. Catalog lookup skips layouts without a dedicated catalog; aliases follow the order shown.</p>
   <table>
     <tr><th>Layout (highest priority first)</th><th>Suite manifest</th><th>Marketplace catalog</th></tr>
-    <tr><td>agent-plugins.org v1 / root compatibility</td><td><code>plugin.json</code></td><td>No dedicated catalog</td></tr>
+    <tr><td><a href="https://agent-plugins.org">agent-plugins</a> / root compatibility</td><td><code>plugin.json</code></td><td>No dedicated catalog</td></tr>
     <tr><td>Universal</td><td><code>.plugin/plugin.json</code></td><td><code>.plugin/marketplace.json</code></td></tr>
     <tr><td>Claude Code</td><td><code>.claude-plugin/plugin.json</code></td><td><code>.claude-plugin/marketplace.json</code></td></tr>
     <tr><td>Cursor</td><td><code>.cursor-plugin/plugin.json</code></td><td><code>.cursor-plugin/marketplace.json</code></td></tr>

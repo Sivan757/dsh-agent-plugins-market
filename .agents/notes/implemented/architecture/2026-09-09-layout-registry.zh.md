@@ -14,7 +14,7 @@ Status: implemented
 
 保留源扫描策略链，集中纯布局声明，并从注册表派生清单类型。项目原生发现使用持久化总开关 `scanProjectLayouts`，默认开启，变更时立即失效快照。运行时保留明确的能力面掩码，并通过调用 Agent 的会话确定项目资源。
 
-注册表、三种新方言、项目角色查找和 Agent 作用域命令/MCP/hooks 生命周期已实现。原生 JSON 和 Codex TOML MCP 明确项目执行根目录。经用户批准的 `smol-toml` 负责解析 TOML；工具过滤与超时传递到桥，不被丢弃。无效清单拒绝回退，marketplace 路径按 realpath 检查归属。[ADR](../../../../docs/adr/2026-09-09-layout-registry.md)记录受支持格式、证据与边界。
+注册表、三种新方言、项目角色查找和 Agent 作用域命令/MCP/hooks 生命周期已实现。原生 JSON 和 Codex TOML MCP 明确项目执行根目录。经用户批准的 `smol-toml` 负责解析 TOML；工具过滤与超时传递到桥，不被丢弃。无效清单按候选逐个拒绝回退：被拒绝的清单给出诊断后尝试下一优先级（见[清单回退决策](2026-09-12-manifest-priority-fallback.zh.md)）；marketplace 路径按 realpath 检查归属。[ADR](../../../../docs/adr/2026-09-09-layout-registry.md)记录受支持格式、证据与边界。
 
 ## Alternatives considered
 

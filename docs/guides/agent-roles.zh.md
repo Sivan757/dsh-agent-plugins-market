@@ -27,6 +27,6 @@ tools: [read_file, search_files]
 
 角色不再注册为 `agent-*` 或 `persona-*` 技能、斜杠命令。普通技能或命令本身以这些前缀命名的，不受影响。只有本插件的准确 `subagent_run` 工具在当前作用域可见时才展示目录；工具被隐藏或替换后清空已发布目录。项目角色从调用会话的工作目录解析，并遵循 `scanProjectLayouts`。界面编辑、启停变更在下一次模型 step 生效，不会修改已发送的请求。外部文件发现仍使用现有扫描缓存 TTL 或手动刷新，本次没有添加文件监听。
 
-插件管理的用户级存储统一位于 `$DSH_HOME/agent-plugins`，默认 `~/.dsh/agent-plugins`：`.sources` 保存 checkout，`state.json` 保存安装状态，`user/{skills,commands,agents}` 保存自建资源，`data` 保存 suite 可变数据与配置。旧 `userRoot`、`dataRoot` 仅作为迁移来源。启动等待旧目录、`agent-plugins-data` 以及 `data/user` 迁移完成；冲突文件保留原位，并报告路径、阻止激活，解决后重启。项目级和显式外部本地 source 仍按原有就地读取约定处理。
+插件状态位于 `$DSH_HOME/agent-plugins`，默认 `~/.dsh/agent-plugins`：`.sources` 保存 checkout，`state.json` 保存安装状态，`data` 保存 suite 可变数据与配置。自建资源位于共用的 Agent 布局根目录 `~/.agents/{skills,commands,agents}/`，与 `~/.agents/mcp.json`、`~/.agents/lsp.json` 的服务声明同级。旧 `userRoot`、`dataRoot` 仅作为迁移来源。启动时迁移旧目录、`agent-plugins-data`、`data/user`、`user/<kind>` 条目，以及旧的 `mcp-servers.json` / `lsp-servers.json` 声明；冲突文件保留原位，并报告路径、阻止激活，解决后重启。项目级和显式外部本地 source 仍按原有就地读取约定处理。
 
 模型路由参考 [DSH Subagent Model Router](https://github.com/CypherNaught-0x/DSH-Subagent-Model-Router)，frontmatter 遵循 [Claude Code subagent 定义](https://code.claude.com/docs/en/sub-agents)。

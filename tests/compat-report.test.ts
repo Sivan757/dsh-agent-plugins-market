@@ -1,9 +1,10 @@
 /**
  * Guards the compatibility report: every schema in `schemas/` must have a
- * pinned sample, the checked-in report must stay structurally valid, and both
- * READMEs must cite the sampled repositories and link the report. The network
- * harness (`scripts/compat-report.mjs`) is not run here — this test keeps the
- * checked-in evidence honest between regenerations.
+ * pinned sample, the checked-in report must stay structurally valid, both
+ * READMEs must link the report and the audit, and the evidence docs must cite
+ * every sampled repository. The network harness (`scripts/compat-report.mjs`)
+ * is not run here — this test keeps the checked-in evidence honest between
+ * regenerations.
  */
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -126,10 +127,15 @@ describe('compatibility report', () => {
     }
   })
 
-  it('cites the sampled repositories in both READMEs and links the report', async () => {
+  it('links the report and audit from both READMEs and cites every sample in the evidence docs', async () => {
     for (const file of ['README.md', 'README.zh.md']) {
       const text = await readFile(join(ROOT, file), 'utf8')
       expect(text, `${file} must link the compatibility report`).toContain('docs/compat-report.md')
+      expect(text, `${file} must link the layout audit`).toContain('docs/layout-coverage')
+    }
+    // Per-sample evidence lives with the report and the audit, not in the READMEs.
+    for (const file of ['docs/compat-report.md', 'docs/layout-coverage.md', 'docs/layout-coverage.zh.md']) {
+      const text = await readFile(join(ROOT, file), 'utf8')
       for (const sample of report.samples) {
         if (sample.verdict === 'error') continue
         expect(text, `${file} must cite ${sample.repo}`).toContain(sample.repo)

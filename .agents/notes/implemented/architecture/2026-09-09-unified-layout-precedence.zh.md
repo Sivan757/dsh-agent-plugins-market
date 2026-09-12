@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-从 `PLUGIN_LAYOUTS` 按声明顺序直接派生 marketplace 路径，各布局的索引别名保持相邻并按顺序排列。没有专属索引的布局不添加路径；根 `marketplace.json` 不代表某个方言，仍作为最后回退。套件清单顺序保持不变。
+从 `PLUGIN_LAYOUTS` 按声明顺序直接派生 marketplace 路径，各布局的索引别名保持相邻并按顺序排列。没有专属索引的布局不添加路径；根 `marketplace.json` 不代表某个方言，仍作为最后回退。套件清单顺序保持不变，且在清单被拒绝时按该顺序继续向下尝试——见[清单回退决策](2026-09-12-manifest-priority-fallback.zh.md)。
 
 仍采用第一个能产出套件的 marketplace；空索引或无效索引允许回退。本决策补充[布局注册表决策](2026-09-09-layout-registry.zh.md)，后者继续负责来源身份与项目作用域，仅 marketplace 顺序在此细化。
 

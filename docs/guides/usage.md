@@ -4,7 +4,7 @@ English | [简体中文](usage.zh.md) | [README](../../README.md)
 
 ## Host requirements
 
-The plugin settings card includes **Scan project Agent layouts** (`scanProjectLayouts`, default on). Changes immediately invalidate native project discovery. The [project layout section](../../README.md#project-layout-switch) lists current directories and execution boundaries; configured source installation is independent of this switch.
+The plugin configuration card carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default on; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), and the **experience feedback tool**.
 
 Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environment references, tool allow/deny lists and timeouts are preserved; unsupported fields are diagnosed. Project LSP is not mounted because the host registry is global; this plugin does not modify host APIs.
 
@@ -22,6 +22,8 @@ The recommended CLI command is in the [quick start](../../README.md#quick-start)
 ```sh
 pnpm add dsh-agent-plugins-market
 ```
+
+On current DSH shells the market is a section of the settings page (**Settings → Agent Plugins Market**); an older shell that does not expose the plugin-settings seat shows it as a top-level page entry instead.
 
 For a GitHub installation:
 
@@ -48,7 +50,7 @@ Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (
       - { id: knowledge-work-plugins, url: 'https://github.com/anthropics/knowledge-work-plugins' }
 ```
 
-A `local: true` source reads the directory in place (live working tree; never deleted on removal). Discovery results are cached for up to 30 seconds and reused across install/enable/panel actions, so working-tree edits of local sources appear on the next cache refresh (any source mutation, the refresh button, or the 30 s TTL). Startup mounts and user skill listing scan only sources containing enabled installs; browsing the market still discovers all configured sources. Concurrent reads share discovery work. Startup does not fetch Git updates; source refresh is explicit. An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
+A `local: true` source reads the directory in place (live working tree; never deleted on removal). Discovery results are cached for up to 30 seconds and reused across install/enable/panel actions, so working-tree edits of local sources appear on the next cache refresh (any source mutation, the refresh button, or the 30 s TTL). Startup mounts and user skill listing scan only sources containing enabled installs; browsing the market still discovers all configured sources. Concurrent reads share discovery work. Startup does not fetch Git updates; source refresh is explicit unless **Background source updates** is on. An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
 
 ### Manual clones, adoption, and network tuning
 
@@ -72,20 +74,37 @@ Git/archive acquisition is tunable through the host config:
 
 ## Storage and discovery
 
-The default root is `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it to `$DSH_HOME/agent-plugins/`.
+Plugin state lives under `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it to `$DSH_HOME/agent-plugins/`.
 
-| Path under the root    | Contents                                     |
-| ---------------------- | -------------------------------------------- |
-| `state.json`           | Configured sources and install state         |
-| `.sources/<sourceId>/` | Source checkouts                             |
-| `user/skills/`         | User-authored skill Markdown files           |
-| `user/commands/`       | User-authored command Markdown files         |
-| `user/agents/`         | User-authored persona Markdown files         |
-| `data/`                | Runtime data, overrides and feedback records |
+| Path under the root    | Contents                                                                 |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `state.json`           | Configured sources and install state                                     |
+| `.sources/<sourceId>/` | Source checkouts                                                         |
+| `data/`                | Overrides, suite `${PLUGIN_DATA}` directories, feedback rate-limit stamp |
+
+Content you author yourself lives in the shared Agent layout root, `~/.agents/` (`$DSH_AGENTS_HOME` overrides it) — the same directory shape this plugin reads from a project's `.agents/`:
+
+| Path        | Contents                                           |
+| ----------- | -------------------------------------------------- |
+| `skills/`   | Your skill Markdown files                          |
+| `commands/` | Your command Markdown files                        |
+| `agents/`   | Your persona Markdown files                        |
+| `mcp.json`  | MCP services added in the workspace (`mcpServers`) |
+| `lsp.json`  | LSP servers added in the workspace (`lspServers`)  |
 
 User entries support `disabled: true` frontmatter to stop registration without deleting the file. Commands forward their body to the model, replacing `$ARGUMENTS` with the invocation text. User personas appear in the dynamic [subagent catalog](agent-roles.md), not the skill or slash-command menus.
 
-Project-dimension state and checkouts live under `<project>/.dsh/agent-plugins/`. Native layouts listed in the [project layout section](../../README.md#project-layout-switch) are read in place without install state. Commands, supported MCP and hooks mount under each agent. Hook normalization uses private temporary runtime files and never rewrites project settings. Project skills win same-name conflicts with installed user suites; user-panel skills have lower precedence than suite skills. Rename an entry if it is shadowed.
+Project-dimension state and checkouts live under `<project>/.dsh/agent-plugins/`. Native layouts listed under [project layouts](#project-layouts) are read in place without install state. Project skills win same-name conflicts with installed user suites; user-panel skills have lower precedence than suite skills. Rename an entry if it is shadowed.
+
+### Project layouts
+
+With **Scan project Agent layouts** on, the project a session runs in contributes its own resources. Turning the switch off removes every candidate below immediately; configured sources and installed suites are unaffected. Files are read in place and are never installed, rewritten or deleted.
+
+Skill directories are read under `.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder` and `.github`. Portable Markdown agents are enabled for all of them except `.codex` and `.kimi`, whose TOML/YAML formats need separate adapters. Role execution resolves the calling session's project. Project commands, supported MCP servers and mapped command hooks register in each agent's scoped context and refresh on session startup or catalog changes.
+
+MCP reads root `.mcp.json`, `.cursor/mcp.json`, and the `mcpServers` tables in `.qoder/settings.json` and `.qoder/settings.local.json` (local keys override project keys). ZCode reads `mcp.servers` from `zcode.json` and `.zcode/config.json`, with `.agents/mcp.json` as an empty-native-table fallback. Codex reads `[mcp_servers.*]` from `.codex/config.toml` through `smol-toml`, preserving stdio/HTTP configuration, environment and header references, enabled flags, tool filters and timeouts; unsupported server options are diagnosed. Relative executables resolve from the project root.
+
+Claude/Qoder settings hooks and enabled ZCode configuration hooks use the bridge's supported command-event subset. Validated hooks become private temporary runtime files that are removed on teardown; project files stay unchanged. Project LSP is diagnosed and not mounted: the host LSP registry does not isolate projects.
 
 Unmanaged user checkouts do not become runtime installations just because they exist on disk. Adopt and install them explicitly. There is no file watcher; project discovery snapshots are cached for five seconds.
 
@@ -119,9 +138,9 @@ For vulnerability reports, follow the [security policy](../../SECURITY.md).
 
 ### Experience feedback
 
-The `feedbackEnabled` setting defaults to `true`. When the host provides tools and settings, it enables the model-facing `report_market_issue` tool. With `GITHUB_TOKEN` or `GH_TOKEN`, submissions create issues in this plugin's GitHub repository; otherwise they are saved under `data/feedback/`. Submissions have a 60-second cooldown. Disable the setting in the plugin configuration card to unregister the tool.
+The `feedbackEnabled` setting defaults to `true`. When the host provides tools and settings, it enables the model-facing `report_market_issue` tool, which files an issue in this plugin's GitHub repository — through the `gh` CLI when it is installed and authenticated, otherwise through `GITHUB_TOKEN` / `GH_TOKEN`. With none of those available nothing is filed: the tool opens a prefilled "new issue" page in the browser and returns the complete issue text and link to the model, which hands them to you. Accepted submissions have a 60-second cooldown. Disable the setting in the plugin configuration card to unregister the tool.
 
-The workspace tabs share a saved grid/list preference; search and filters remain resource-specific. Add and refresh are header actions. MCP Add validates a JSON server declaration and persists it under `~/.dsh/agent-plugins/data/mcp-servers.json`, then mounts it through the plugin bridge. Invalid declarations and duplicate names are rejected. Existing host-owned MCP services remain observation-only.
+The workspace tabs share a saved grid/list preference; search and filters remain resource-specific. Add and refresh are header actions. MCP Add validates a JSON server declaration and persists it under `~/.agents/mcp.json`, then mounts it through the plugin bridge; LSP Add does the same into `~/.agents/lsp.json`. Invalid declarations and duplicate names are rejected. Existing host-owned MCP services remain observation-only.
 
 ### Resource detail editing
 
@@ -137,6 +156,6 @@ Visual feedback waits 200 ms, then stays visible for at least 400 ms. A 100 ms s
 
 Workspace requests and credential/settings writes share `withBusyOperation` (`src/client/ui/busy-operation.ts`). Wrap a complete workflow when it also refreshes data afterward; nested leases keep the mask until every operation settles. A single body-level `BusyOverlay` tracks the active dialog rectangle, marks it inert, blocks backdrop/keyboard interaction and restores focus afterward. Tips rotate every 3.2 seconds; reduced-motion preferences disable the scrolling transition. Source-progress, model-catalog background loading and automatic LSP polling remain silent. The mask never occupies a row in the resource list and does not fabricate percentage progress.
 
-A source may contain multiple layout dialects. Suite manifests and Marketplace catalogs follow the [same layout priority](../../README.md#layout-detection-precedence). Manifest selection uses the first existing file; invalid manifests produce diagnostics without trying a lower-priority manifest. Catalog scanning uses the first catalog that produces suites, with supported supplemental discovery; invalid or empty catalogs allow later candidates. Root `marketplace.json` is the final shared fallback. Remote-reference cards are not directly installable: add their repository as a source first.
+A source may contain multiple layout dialects. Suite manifests and Marketplace catalogs follow the [same layout priority](../../README.md#layout-detection-precedence). Manifest selection tries the manifests in priority order; one that cannot be read or validated is diagnosed and the next one is tried, and a suite whose every candidate fails is rejected. Catalog scanning uses the first catalog that produces suites, with supported supplemental discovery; invalid or empty catalogs allow later candidates. Root `marketplace.json` is the final shared fallback. Remote-reference cards are not directly installable: add their repository as a source first.
 
 The schemas in `schemas/1.0.0/` are vendored from [agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec), so validation does not download schemas at load time. See the [domain glossary](../../CONTEXT.md) and [contribution guide](../../CONTRIBUTING.md) for vocabulary and development checks.

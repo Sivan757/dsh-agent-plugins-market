@@ -26,11 +26,11 @@ MCP 详情移除启用控件，将重试与 OAuth 重置分开。后端能力决
 - **一个工作区页、六个顶部 Tab**（`PluginWorkspace`）：`settings.section` 从三条注册收敛为一条，内部承载 Tab 行（市场 / 技能 / 命令 / 代理角色 / MCP / LSP）。Tab 状态为组件局部；深链走 `#/agent-plugins/<tab>`。每个 Tab 在自己的区域内滚动（从 workspace 链路到 market/mcp CSS 统一 `overflow-y: auto; scrollbar-gutter: stable`），宿主 `.options` 容器不再是滚动者，滚动条显隐不再移动布局。
 - **套件详情 MCP 区域只读。** 凭据编辑器与覆盖表单移出 `SuiteDetailModal`；展开后仅展示校验过的配置 JSON 与停用徽标。`McpStatusPanel` 的详情弹窗仍是编辑凭据/覆盖的唯一入口。
 - **物理删除是可选的、逐次确认的。** `removeSource(id, deleteCheckout)` 仅在确认对话框勾选「同时删除市场目录」时删除 checkout（默认勾选）。`.sources/<id>` 下的目录属于管理器存储，即使来源是收编的也会被删除；只有 URL 指向 `.sources/` 之外的 `local` 源是仅取消登记、目录永不删除。删除 checkout 正是真正删除的市场不再出现在「未登记」提示里的原因。
-- **用户面板以 Markdown 持久化，而非 state JSON。** 技能 / 命令 / 代理角色存于 `userRoot/user/{skills,commands,agents}/*.md`，沿用与套件相同的 frontmatter 语法（`description`、`argument-hint`、invocation 开关）外加面板控制键 `disabled: true`。一个 `UserPanelStore` CRUD 类服务三个面板；第二个技能提供者（`UserPanelSkillProvider`，rank 600，来源 `user-panel`）仅把技能送进技能注册表；角色使用[持久化子代理目录](../architecture/2026-09-09-subagent-catalog.zh.md)，`UserCommandMountRegistry` 在同一条变更管线里把用户命令调和为斜杠命令。禁用条目在发现阶段即被跳过——禁用即卸载，而非状态翻转。
-- **用户存储统一到一个根目录。** `userRoot` 固定解析为 `$DSH_HOME/agent-plugins`（默认 `~/.dsh/agent-plugins`），可变数据位于其 `data/` 下。旧根目录配置仅作为迁移输入。激活等待旧目录、同级 `agent-plugins-data` 和 `data/user` 条目迁移完成；冲突文件保留原路径并阻止激活，拒绝符号链接根目录，在移动 checkout 前检测旧安装状态的格式错误。项目维度和显式登记的外部本地来源保留就地读取语义。
+- **用户面板以 Markdown 持久化，而非 state JSON。** 技能 / 命令 / 代理角色是与套件同语法的扁平 Markdown（`description`、`argument-hint`、invocation 开关）外加面板控制键 `disabled: true`。其目录已在[Agent 布局根目录决策](../architecture/2026-09-12-agent-layout-root-for-user-content.zh.md)中迁至共用的 `~/.agents/{skills,commands,agents}/`；下述存储、提供者与挂载机制不变。一个 `UserPanelStore` CRUD 类服务三个面板；第二个技能提供者（`UserPanelSkillProvider`，rank 600，来源 `user-panel`）仅把技能送进技能注册表；角色使用[持久化子代理目录](../architecture/2026-09-09-subagent-catalog.zh.md)，`UserCommandMountRegistry` 在同一条变更管线里把用户命令调和为斜杠命令。禁用条目在发现阶段即被跳过——禁用即卸载，而非状态翻转。
+- **插件状态统一到一个根目录。** `userRoot` 固定解析为 `$DSH_HOME/agent-plugins`（默认 `~/.dsh/agent-plugins`），可变数据位于其 `data/` 下。旧根目录配置仅作为迁移输入。激活等待旧目录、同级 `agent-plugins-data`、`data/user` 条目，以及旧 `user/<kind>` 面板与 `mcp-servers.json` / `lsp-servers.json` 声明迁入共用 Agent 布局根目录（见[Agent 布局根目录决策](../architecture/2026-09-12-agent-layout-root-for-user-content.zh.md)）；冲突文件保留原路径并阻止激活，拒绝符号链接根目录，在移动 checkout 前检测旧安装状态的格式错误。项目维度和显式登记的外部本地来源保留就地读取语义。
 - **代理角色按保存的策略执行。** 详情编辑器把路由配置放在正文上方，并保存到同一 frontmatter。`subagent_run` 在运行时重新读取该 frontmatter，将角色正文作为 `persona` 传入，并启动一个可继续的后台子代理。路由只有"精确"或"继承"：仅 `provider` + `model` 组合会生效，并经宿主预检校验；其余声明一律忽略并给出诊断。`tools` 与 `disallowedTools` 保留在文件中但不再生效——当前执行与路由决策见[基于宿主 continuation seam 的角色委派](../architecture/2026-09-10-agent-role-delegation-via-host-continuation.zh.md)。
 - **公共构件优先于逐面板复制**（`client/ui/panel.tsx`）：`PanelShell`（标题/操作/滚动体）、`BusyIndicator`（全局进行中加载动画，含浮层变体）、`EntryEditorModal`、`ConfirmModal`、`SourceBadge` 与共享的 `panel.module.css`。三个用户面板在字面上是同一个组件（`UserPanelSurface`）按 kind 参数化；市场与 MCP 面板嵌入同一加载动画，`SearchFilterToolbar` 增加统一的 `＋ 新增` 席位。
-- **反馈工具是 model 工具，不是命令。** `report_market_issue` 通过 `ctx.tools` 注册，受既有 `dsh-agent-plugins-market` 命名空间中 `feedbackEnabled` 设置字段（默认 true）控制；watcher 实时挂载/卸载。存在 `GITHUB_TOKEN`/`GH_TOKEN` 时直接开 GitHub Issue，否则追加 JSONL 到 `data/feedback/` 本地卷宗；时间戳文件以 60 秒为限防止连发。`@deepseek-ai/dsh-tools` 以可选身份加入 peer/dev 依赖——包缺失处工具 simply 不挂载。
+- **反馈工具是 model 工具，不是命令。** `report_market_issue` 通过 `ctx.tools` 注册，受既有 `dsh-agent-plugins-market` 命名空间中 `feedbackEnabled` 设置字段（默认 true）控制；watcher 实时挂载/卸载。提交顺序为 `gh` 命令、`GITHUB_TOKEN`/`GH_TOKEN`，两者都不可用时把预填好的 issue 页面与完整 issue 文本交回调用方；时间戳文件以 60 秒为限防止连发——见[反馈提交决策](../feature/2026-09-12-feedback-filing-without-a-token.zh.md)。`@deepseek-ai/dsh-tools` 以可选身份加入 peer/dev 依赖——包缺失处工具 simply 不挂载。
 
 供应商和模型使用联动下拉，读取 DSH 当前 LLM 注册表。`model-catalog` 只返回公开身份字段，每次只读取选中供应商的模型，等待上限为十秒。切换供应商时取消或忽略旧请求；未在目录中的已保存模型仍展示并保留，直到用户主动选择替换。插件启动时不读取模型目录。
 
@@ -54,7 +54,7 @@ MCP 详情移除启用控件，将重试与 OAuth 重置分开。后端能力决
 ## 验证
 
 - `pnpm run check:refactor`（typecheck、lint、format、routes+contracts 测试、dependency-cruiser）全绿。
-- 新增测试：`tests/user-panels.test.ts`（存储 CRUD、禁用往返、提供者发现、frontmatter 助手）、`tests/feedback-tool.test.ts`（本地卷宗、冷却、正文渲染）、条件面板路由与 `deleteCheckout` 透传的路由测试，以及证明收编的 `.sources` 检出在 `deleteCheckout: true` 下被删除、而外部 `local` 目录存活下来的 source-acquisition 用例。
+- 新增测试：`tests/user-panels.test.ts`（存储 CRUD、禁用往返、提供者发现、frontmatter 助手）、`tests/feedback-tool.test.ts`（提交路径、冷却、正文渲染）、条件面板路由与 `deleteCheckout` 透传的路由测试，以及证明收编的 `.sources` 检出在 `deleteCheckout: true` 下被删除、而外部 `local` 目录存活下来的 source-acquisition 用例。
 - 全量 `pnpm run test`：46 个文件、300+ 测试全绿。
 
 ## 关联

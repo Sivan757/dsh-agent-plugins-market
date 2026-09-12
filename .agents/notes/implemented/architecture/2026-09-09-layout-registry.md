@@ -14,7 +14,7 @@ The [schema component decision](2026-09-09-schema-components.md) extends the reg
 
 Keep the source strategy chain, centralize pure layout declarations, and derive manifest kinds from that registry. Native project discovery has one persisted `scanProjectLayouts` switch, default on, with immediate snapshot invalidation. Runtime consumers preserve explicit surface masks and resolve project resources through the calling agent's session.
 
-The registry, three new dialects, project role lookup and agent-scoped command/MCP/hook lifecycle are implemented. Native JSON and Codex TOML MCP configurations have explicit project execution roots. The user-approved `smol-toml` dependency parses TOML; tool filters and timeouts reach the bridge instead of being discarded. Invalid manifests fail closed and marketplace paths require realpath containment. [The ADR](../../../../docs/adr/2026-09-09-layout-registry.md) records the supported formats, evidence and boundaries.
+The registry, three new dialects, project role lookup and agent-scoped command/MCP/hook lifecycle are implemented. Native JSON and Codex TOML MCP configurations have explicit project execution roots. The user-approved `smol-toml` dependency parses TOML; tool filters and timeouts reach the bridge instead of being discarded. Invalid manifests fail closed per candidate: a rejected manifest is diagnosed and the next manifest by priority is tried, per the [manifest fallback decision](2026-09-12-manifest-priority-fallback.md). Marketplace paths require realpath containment. [The ADR](../../../../docs/adr/2026-09-09-layout-registry.md) records the supported formats, evidence and boundaries.
 
 ## Alternatives considered
 

@@ -8,7 +8,7 @@ Suite manifests follow the layout registry, while marketplace paths separately p
 
 ## Decision
 
-Derive marketplace paths directly from `PLUGIN_LAYOUTS` in declaration order. Keep each layout's catalog aliases adjacent and ordered. Layouts without dedicated catalogs add no paths; shared root `marketplace.json` remains last because it does not identify a dialect. Suite manifest order stays unchanged.
+Derive marketplace paths directly from `PLUGIN_LAYOUTS` in declaration order. Keep each layout's catalog aliases adjacent and ordered. Layouts without dedicated catalogs add no paths; shared root `marketplace.json` remains last because it does not identify a dialect. Suite manifest order stays unchanged, and selection now walks that order when a manifest is rejected — see the [manifest fallback decision](2026-09-12-manifest-priority-fallback.md).
 
 The first productive marketplace still wins; empty or invalid catalogs permit fallback. This extends the [layout registry decision](2026-09-09-layout-registry.md), which continues to own source identity and project scope. Only its marketplace ordering is refined.
 
