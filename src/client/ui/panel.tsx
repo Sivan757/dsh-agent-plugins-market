@@ -194,13 +194,14 @@ export function ConfirmModal(props: { state: PanelConfirmState | undefined; conf
     setChecked(props.state?.checkbox?.checked === true)
   }, [props.state])
   if (props.state === undefined) return null
+  const state = props.state
   return h(
     Modal,
     {
       open: true,
       onClose: props.onClose,
-      title: props.state.title,
-      description: props.state.description,
+      title: state.title,
+      description: state.description,
       closeLabel: props.cancelLabel,
       footer: h(
         'div',
@@ -212,7 +213,7 @@ export function ConfirmModal(props: { state: PanelConfirmState | undefined; conf
             variant: 'primary',
             disabled: props.busy === true,
             onClick: () => {
-              void Promise.resolve(props.state!.onConfirm(checked)).then(() => props.onClose())
+              void Promise.resolve(state.onConfirm(checked)).then(() => props.onClose())
             }
           },
           props.confirmLabel

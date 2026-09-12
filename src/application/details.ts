@@ -7,7 +7,7 @@ import { credentialRefsInServer } from '../runtime/mcp-config.js'
 import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
 import { applyOverride } from '../runtime/mcp-overrides.js'
 import type { LspSurfaceDetail, McpServerDetail, SkillContent, SuiteDetail } from '../contracts/market.js'
-import { effectiveSurfaces, type InstalledEntry, type Suite, type SuiteMarkdownResource } from '../model/types.js'
+import { effectiveSurfaces, type InstalledEntry, type ProjectHooks, type Suite, type SuiteMarkdownResource } from '../model/types.js'
 import type { McpMountDiagnostic as McpDiagnostic } from '../runtime/mcp-mounts.js'
 
 /** Build the detail response for one normalized suite. */
@@ -57,7 +57,7 @@ export async function buildSuiteDetail(
           ? suite.resources === undefined
             ? await hooksPreviews(suite.root)
             : { count: 0, entries: [] }
-          : normalizedHookPreviews(suite)
+          : normalizedHookPreviews(suite.hooks)
         : { count: 0, entries: [] },
     commands: remoteUrl === undefined ? await markdownPreviews(suite.resources?.commands ?? (await defaultMarkdownResources(suite.root, 'commands'))) : [],
     agents: remoteUrl === undefined ? await markdownPreviews(suite.resources?.agents ?? (await defaultMarkdownResources(suite.root, 'agents'))) : [],
@@ -107,8 +107,8 @@ async function markdownPreviews(resources: SuiteMarkdownResource[]): Promise<Arr
   return previews
 }
 
-function normalizedHookPreviews(suite: Suite) {
-  const entries = Object.entries(suite.hooks!.events).flatMap(([event, groups]) =>
+function normalizedHookPreviews(hooks: ProjectHooks) {
+  const entries = Object.entries(hooks.events).flatMap(([event, groups]) =>
     groups.flatMap(group => group.hooks.map(hook => ({ event, ...(group.matcher === undefined ? {} : { matcher: group.matcher }), command: hook.command })))
   )
   return { count: entries.length, entries }

@@ -203,7 +203,8 @@ export class LspMountRegistry {
     // The last remaining server releases the capability seam; the first one mounts it.
     if (wanted.size === 0) await this.releaseCapability()
     for (const [key, live] of [...this.live]) {
-      if (!wanted.has(key) || live.fingerprint !== JSON.stringify(wanted.get(key)!.config)) {
+      const target = wanted.get(key)
+      if (target === undefined || live.fingerprint !== JSON.stringify(target.config)) {
         const reason = await this.unmount(key, live)
         this.lastDiagnostics.delete(key)
         if (reason !== undefined) diagnostics.push({ suiteId: key, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })

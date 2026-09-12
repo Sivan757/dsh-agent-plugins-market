@@ -175,11 +175,12 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
         if (reason !== undefined) problems.push(reason)
       }
     }
-    if (stdioServer.cwd !== undefined && typeof stdioServer.cwd !== 'string') {
+    const declaredCwd = stdioServer.cwd
+    if (declaredCwd !== undefined && typeof declaredCwd !== 'string') {
       problems.push('cwd must be a string')
-    } else if (options?.pathMode !== 'project' && stdioServer.cwd !== undefined && ![...PLUGIN_DATA_VARIABLES].some(name => stdioServer.cwd!.startsWith(`\${${name}}`))) {
+    } else if (options?.pathMode !== 'project' && declaredCwd !== undefined && ![...PLUGIN_DATA_VARIABLES].some(name => declaredCwd.startsWith(`\${${name}}`))) {
       // `.` is the Codex dialect spelling for the plugin root.
-      const cwd = stdioServer.cwd === '.' ? './' : stdioServer.cwd
+      const cwd = declaredCwd === '.' ? './' : declaredCwd
       const reason = await pathContainmentError(pluginRoot, cwd)
       if (reason !== undefined) problems.push(reason)
     }

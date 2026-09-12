@@ -15,13 +15,16 @@ export function ServerConfigEditor(props: {
 }): ReactNode {
   const [mode, setMode] = useState<'form' | 'json'>('form')
   const [issues, setIssues] = useState<Record<string, boolean>>({})
-  let config: ServerConfig | undefined
+  let parsed: ServerConfig | undefined
   let parseError: string | undefined
   try {
-    config = parseServerConfig(props.text)
+    parsed = parseServerConfig(props.text)
   } catch (error) {
     parseError = error instanceof Error ? error.message : String(error)
   }
+  // A `const` binding: the form body reads it from inside field callbacks, where
+  // the narrowing of a reassignable binding would be discarded.
+  const config = parsed
   const compatible = config !== undefined && serverFormCompatible(config, props.kind)
   const hasIssue = Object.values(issues).some(Boolean)
   const requiredValid =
@@ -128,7 +131,7 @@ export function ServerConfigEditor(props: {
                       value: type,
                       'aria-label': props.t('detailTransport'),
                       disabled: hasIssue,
-                      onChange: (event: { target: HTMLSelectElement }) => update(changeTransport(config!, event.target.value))
+                      onChange: (event: { target: HTMLSelectElement }) => update(changeTransport(config, event.target.value))
                     },
                     ['stdio', 'streamable-http', 'sse'].map(value => h('option', { key: value, value }, value))
                   )
@@ -145,7 +148,7 @@ export function ServerConfigEditor(props: {
                       label: props.t('detailArgs'),
                       t: props.t,
                       map: false,
-                      value: config!.args as string[] | undefined,
+                      value: config.args as string[] | undefined,
                       onChange: value => field('args', value),
                       onIssue: bad => issue('args', bad)
                     })
@@ -187,7 +190,7 @@ export function ServerConfigEditor(props: {
               ? [
                   mapField('extensionToLanguage', props.t('detailExtensions')),
                   ...(['initializationOptions', 'configuration'] as const).map(key =>
-                    h(JsonField, { key, label: key, value: config![key], onChange: value => field(key, value), onIssue: bad => issue(key, bad) })
+                    h(JsonField, { key, label: key, value: config[key], onChange: value => field(key, value), onIssue: bad => issue(key, bad) })
                   )
                 ]
               : null

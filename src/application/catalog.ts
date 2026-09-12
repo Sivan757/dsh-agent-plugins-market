@@ -117,7 +117,7 @@ export class Catalog implements MarketService {
     const sources = state.sources.filter(source => enabledSources.has(source.id))
     const suites = sources.length === 0 ? [] : (await this.snapshots.build({ ...state, sources }, 'user', this.context.userRoot)).enabledSuites
     const direct = await loadUserMcpSuite(this.context.dataRoot)
-    return applyLspOverrides(this.context.dataRoot, Object.keys(direct.mcp!.servers).length === 0 ? suites : [...suites, direct])
+    return applyLspOverrides(this.context.dataRoot, Object.keys(direct.mcp.servers).length === 0 ? suites : [...suites, direct])
   }
 
   /** The full market overview from one user snapshot. */

@@ -43,7 +43,8 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
   ).filter(([, count]) => count > 0)
   const layoutLabel = suiteLayoutLabel(suite.layout, t)
   const isRemote = suite.remoteUrl !== undefined
-  const hasTagRow = tags.length > 0 || suite.errors.length > 0 || (suite.mcpErrors?.length ?? 0) > 0
+  const mcpErrors = suite.mcpErrors ?? []
+  const hasTagRow = tags.length > 0 || suite.errors.length > 0 || mcpErrors.length > 0
   const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
     event.stopPropagation()
     callback()
@@ -152,11 +153,11 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
                 label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')),
                 children: warnAnchor(`⚠ ${t('errors')} ${suite.errors.length}`)
               }),
-          (suite.mcpErrors?.length ?? 0) === 0
+          mcpErrors.length === 0
             ? null
             : h(Tooltip, {
-                label: suite.mcpErrors!.slice(0, 8).join(t('sourceErrorSeparator')),
-                children: warnAnchor(`⚠ ${t('mcpSection')} ${suite.mcpErrors!.length}`)
+                label: mcpErrors.slice(0, 8).join(t('sourceErrorSeparator')),
+                children: warnAnchor(`⚠ ${t('mcpSection')} ${mcpErrors.length}`)
               })
         )
       : null

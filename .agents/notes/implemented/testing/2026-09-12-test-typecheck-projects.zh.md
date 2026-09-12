@@ -68,8 +68,9 @@ tests/  →  tsconfig.test.json         NodeNext · ES2024 · 无 DOM        53 
 
 - **每个写路由都在用 `String()` 强转不可信 JSON。** `{"url": {"href": "x"}}` 会注册一个 url 为字面量 `"[object Object]"` 的来源，`{"id": {}}` 能通过 `id === ''` 检查并抵达注册表。相关位置现在用 `typeof` 收窄（在行为不变的前提下）；其余改严格校验属于行为变更，不在本决策范围内。
 - **一个被丢掉的 rejection。** `src/runtime/project-runtime.ts` 里的 `mounts.get(agent)?.refresh()` 可能 reject——它的队列主体会重读项目目录——而宿主派发 `agent/session-start` 时不等待监听器，因此每次会话启动都可能产生未处理的 rejection。现在它会像相邻两个处理器一样记录警告。
-- **一个声称了不存在否定的测试名。** 是打开类型感知规则这个动作，促使人足够仔细地读那个文件从而发现它。
-- **四个工程都没有开 `noUncheckedIndexedAccess`**，这也是约一百处被删掉的非空断言纯属装饰的原因：`arr[0]` 的类型就是 `T`，`arr[0]!` 什么都没守住。开启它是一个独立改动——实测**仅测试工程就会新增 255 个错误**。
+- **一个声称了不存在否定的测试名。** 是打开类型感知规则这个动作，促使人足够仔细地读那个文件从而发现它。 **四个工程现在都让索引访问返回 `T | undefined`。** 正是这一点让 lint 阶段删掉的那一百余处非空断言看起来无害：`arr[0]` 的类型是 `T`，所以 `arr[0]!` 什么都没守住，而缺失的元素会以 `undefined` 抵达后续代码、编译器一言不发。开启该标志共报出 **269 处——`src/` 32 处、测试 237 处**。`src/` 现在不含任何非空断言；测试里每个 fixture 取值都经过具名守卫（`tests/helpers/fixture.ts`），fixture 不对时会说出它期望什么。**没有任何 fixture 真的缺东西**——守卫全部成立——因此标志暴露的是未经证实的前提，而不是活着的缺陷。唯一一处"缺失值被静默吸收而非失败"的地方是遗留 page mode 的 CSS 类查找；它现在发出警告且不赋类名，而不是赋字面量字符串 "undefined"。
+
+- **该标志管不到可选属性上的断言。** `mcp?:` 字段上的 `suite.mcp!.servers` 与 `arr[0]!` 是两类东西，转换后 `src/` 里还剩十二处。它们都不是靠断言而是靠把保证变成结构性的来消除的——把值提到 `const`（参数属性的收窄在回调里会失效），或收窄产出函数的返回类型。`src/` 里没有 `!`，是因为代码本身持有该值，而不是因为该标志检查过。
 
 `Simulate` 随测试修复一起消失了。两个用到它的测试不再引入 `react-dom/test-utils`，因为 `@types/react-dom` 19 对应已安装的 React 18 运行时不导出它——也因为它做的事并不是测试 DOM。`Simulate.change(node, { target: { value } })` 把伪造的 target 挂到合成事件上并直接穿过 React 的 dispatcher 派发；节点的值从未改变，React 的变更检测从未运行，处理器收到的是浏览器永远不会产生的对象。`tests/helpers/dom-events.ts` 走元素原生的 `value` setter——React 自己的 tracker 拦截实例属性，所以直接赋值会让随后的事件看起来"没有变化"——然后派发 React 监听的 `input`/`change` 事件。把两个处理器改坏会让 3 个原本通过的测试失败。
 
@@ -82,7 +83,7 @@ tests/  →  tsconfig.test.json         NodeNext · ES2024 · 无 DOM        53 
 
 ## Testing
 
-- `pnpm run typecheck` 跑全部四个工程；两道关卡是 `check:quick` 与 `check:refactor`。
+- `pnpm run typecheck` 跑全部四个工程；两道关卡是 `check:quick` 与 `check:refactor`。四个工程都开启 `noUncheckedIndexedAccess`，因此发布代码与测试两侧的索引访问都是 `T | undefined`。
 - `tests/` 在 lint 修复前后都是 70 个文件、506 个测试。
 - 每个测试文件恰好属于一个工程（53 + 17），用 `tsc --listFilesOnly` 断言。
 - 边界从另一侧也被断言：一个使用 `document` 的探针文件在 `tsconfig.test.json` 下失败、在 `tsconfig.test.client.json` 下通过。

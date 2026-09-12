@@ -6,8 +6,14 @@ import { effectiveSurfaces, type McpSuiteConfig, type Suite } from '../model/typ
 export const USER_MCP_SOURCE = '@user-mcp'
 export const USER_MCP_SUITE = 'user-mcp'
 
-/** User-created services reuse the owned bridge lifecycle without changing host configuration. */
-export async function loadUserMcpSuite(dataRoot: string): Promise<Suite> {
+/**
+ * User-created services reuse the owned bridge lifecycle without changing host configuration.
+ *
+ * The suite always carries an `mcp` document — an absent or malformed
+ * `mcp-servers.json` leaves an empty one — so callers read `.mcp.servers`
+ * directly instead of re-checking the optional field.
+ */
+export async function loadUserMcpSuite(dataRoot: string): Promise<Suite & { mcp: McpSuiteConfig }> {
   const path = join(dataRoot, 'mcp-servers.json')
   let mcp: McpSuiteConfig = { schema: MCP_SCHEMA_ID, servers: {} }
   const errors: string[] = []
@@ -47,8 +53,8 @@ export async function addUserMcpServer(dataRoot: string, name: string, server: u
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name)) throw new Error('invalid MCP server name')
   const suite = await loadUserMcpSuite(dataRoot)
   if (suite.errors.length > 0) throw new Error(suite.errors.join('; '))
-  if (Object.hasOwn(suite.mcp!.servers, name)) throw new Error(`MCP server "${name}" already exists`)
-  const document = { $schema: MCP_SCHEMA_ID, mcpServers: { ...suite.mcp!.servers, [name]: server } }
+  if (Object.hasOwn(suite.mcp.servers, name)) throw new Error(`MCP server "${name}" already exists`)
+  const document = { $schema: MCP_SCHEMA_ID, mcpServers: { ...suite.mcp.servers, [name]: server } }
   await validateUserMcp(dataRoot, document)
   await mkdir(dataRoot, { recursive: true })
   const path = join(dataRoot, 'mcp-servers.json')

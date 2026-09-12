@@ -139,18 +139,18 @@ export async function resolveAgentOptions(
   subject: string,
   diagnose: (message: string) => void
 ): Promise<AgentRoleOptions | undefined> {
-  const exact = policy.provider !== undefined && policy.model !== undefined
-  if (!exact && (policy.provider !== undefined || policy.model !== undefined)) {
+  // One value, so a half-specified route can never be forwarded downstream.
+  const requested = policy.provider === undefined || policy.model === undefined ? undefined : { provider: policy.provider, model: policy.model }
+  if (requested === undefined && (policy.provider !== undefined || policy.model !== undefined)) {
     const declared = [policy.provider, policy.model].filter(value => value !== undefined).join('/')
     diagnose(`agent "${subject}": route "${declared}" needs an exact provider and model pair; it is ignored and the child inherits the parent route`)
   }
-  const requested: AgentRoleOptions = exact ? { provider: policy.provider, model: policy.model } : {}
   const effort = policy.reasoningEffort
-  if (effort === undefined && requested.provider === undefined) return undefined
+  if (effort === undefined && requested === undefined) return undefined
 
   const inherited = parentRouteOf(parent)
-  const provider = requested.provider ?? inherited.provider
-  const model = requested.model ?? inherited.model
+  const provider = requested?.provider ?? inherited.provider
+  const model = requested?.model ?? inherited.model
   if (provider === undefined || model === undefined) {
     /* v8 ignore next 3 -- an effective route is always known once a parent Agent ran a request. */
     if (effort !== undefined) diagnose(`agent "${subject}": reasoning effort "${effort}" has no effective route to validate against; it is ignored`)
@@ -168,7 +168,7 @@ export async function resolveAgentOptions(
   // Cancellation raised during the adapter lookup must not create a child.
   signal.throwIfAborted()
   return {
-    ...(requested.provider === undefined ? {} : { provider: requested.provider, model: requested.model! }),
+    ...(requested ?? {}),
     ...(effort === undefined ? {} : { reasoningEffort: effort })
   }
 }

@@ -106,6 +106,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
   }
 
   const layoutLabel = detail === undefined ? '' : suiteLayoutLabel(detail.layout, t)
+  const surfaceToggles = detail === undefined ? null : detail.surfaceToggles
 
   return h(DetailModal, {
     open: true,
@@ -170,7 +171,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   ),
                   detail.description === null ? null : h('p', { className: css.detailDesc }, detail.description),
                   h('div', { className: css.detailCell }, h('span', { className: css.detailKey }, t('rootLabel')), h('span', { className: css.mono }, detail.root)),
-                  detail.installed === false || detail.surfaceToggles === null
+                  detail.installed === false || surfaceToggles === null
                     ? null
                     : h(
                         'div',
@@ -182,7 +183,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                           ...SURFACE_TOGGLE_ROWS.map(([key, labelKey]) =>
                             h('label', { key, className: css.surfaceToggle }, h('input', {
                               type: 'checkbox',
-                              checked: detail.surfaceToggles![key],
+                              checked: surfaceToggles[key],
                               disabled: surfaceBusy,
                               onChange: event => {
                                 void toggleSurface(key, (event.target).checked)
