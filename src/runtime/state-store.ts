@@ -2,13 +2,14 @@
  * Persisted suite state: configured sources and per-suite install entries.
  *
  * State is a plain JSON file at `<dimensionRoot>/state.json`. The host is the
- * only writer (through manager actions and the HTTP routes); the manager
- * re-reads the file whenever a mutation races, keeping the on-disk copy
- * authoritative like the market profile state this pattern follows.
+ * only writer (through catalog actions and the HTTP routes), and it re-reads
+ * the file whenever a mutation races, keeping the on-disk copy authoritative
+ * like the market profile state this pattern follows. The record shapes live
+ * in `src/model/types.ts`; only the reading and writing live here.
  */
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { SUITE_SURFACE_KEYS, type InstalledEntry, type SourceRef, type SuiteState, type SurfaceOverrides } from './types.js'
+import { SUITE_SURFACE_KEYS, type InstalledEntry, type SourceRef, type SuiteState, type SurfaceOverrides } from '../model/types.js'
 
 export const EMPTY_STATE: SuiteState = { version: 1, sources: [], installed: {} }
 

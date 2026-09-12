@@ -10,7 +10,7 @@ import { Catalog } from '../src/application/catalog.js'
  * Exercises the complete Catalog lifecycle across every layer touched by the
  * ADR-0001 refactor: catalog/source-catalog (source discovery),
  * catalog/suite-scanner (suite scanning), application/catalog (state +
- * install mutation), model/state (persistence), and enabled-suite derivation.
+ * install mutation), runtime/state-store (persistence), and enabled-suite derivation.
  *
  * Uses a local fixture (no git clone) so the test is hermetic.
  */

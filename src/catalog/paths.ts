@@ -15,9 +15,6 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { stripArchiveSuffix } from '../model/types.js'
 
-/** Path-existence probes for callers that already resolve their paths here. */
-export { isDirectory, pathExists } from './fs-probes.js'
-
 /** Source checkouts live under `<dimensionRoot>/.sources/<sourceId>/`. */
 export const SOURCES_DIR_NAME = '.sources'
 

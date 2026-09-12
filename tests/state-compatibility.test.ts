@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { loadState, saveState, EMPTY_STATE, type SuiteState } from '../src/model/state.js'
+import { loadState, saveState, EMPTY_STATE, type SuiteState } from '../src/runtime/state-store.js'
 
 /**
  * Regression tests for state.json backward/forward compatibility.

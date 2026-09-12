@@ -10,7 +10,7 @@
 import { join } from 'node:path'
 import type { GitOptions } from '../catalog/git.js'
 import { STATE_FILE_NAME } from '../catalog/paths.js'
-import { EMPTY_STATE, loadState, saveState } from '../model/state.js'
+import { EMPTY_STATE, loadState, saveState } from '../runtime/state-store.js'
 import { effectiveSurfaces, type InstalledEntry, type Suite, type SuiteDimension, type SuiteState } from '../model/types.js'
 import type { CatalogPortsOverride } from './ports.js'
 import { SCAN_CACHE_TTL_MS, SnapshotCache, type SnapshotHost } from './snapshot-cache.js'

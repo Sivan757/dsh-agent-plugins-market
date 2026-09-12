@@ -9,7 +9,8 @@
  */
 import { readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { expandHome, isDirectory, sourcesDir } from './paths.js'
+import { expandHome, sourcesDir } from './paths.js'
+import { isDirectory } from './fs-probes.js'
 import type { SourceRef, Suite, SuiteDimension } from '../model/types.js'
 import { scanSource as scanSourceWithNotes } from './suite-scanner.js'
 import { discoverNativeProjectSuites } from './native-project.js'

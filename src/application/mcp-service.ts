@@ -6,7 +6,8 @@
  * Server configuration is edited through saved overrides — a suite's own
  * `mcp.json` stays source-owned and is never rewritten.
  */
-import { isDirectory, qualifiedSuiteId } from '../catalog/paths.js'
+import { qualifiedSuiteId } from '../catalog/paths.js'
+import { isDirectory } from '../catalog/fs-probes.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { ServerConfigPayload } from '../contracts/market.js'

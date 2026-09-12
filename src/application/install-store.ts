@@ -6,7 +6,7 @@
  * The checkout a suite is read from stays source-owned: installing writes an
  * entry, never a file inside the source.
  */
-import { isDirectory } from '../catalog/paths.js'
+import { isDirectory } from '../catalog/fs-probes.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import { SUITE_SURFACE_KEYS, type InstalledEntry, type SourceRef, type SuiteSurfaceKey, type SurfaceOverrides } from '../model/types.js'
 import { installKey, type CatalogContext } from './catalog-context.js'
