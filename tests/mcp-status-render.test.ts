@@ -111,8 +111,9 @@ async function mountPanel(credentials?: CredentialApi): Promise<HTMLDivElement> 
 
 describe('MCP status actions', () => {
   it('exposes a credential action inside the detail dialog instead of on the card', async () => {
+    const describeCredentials = vi.fn().mockResolvedValue({ result: { ok: true, value: { credentials: { API_TOKEN: { configured: false, writable: true } } } } })
     const credentials: CredentialApi = {
-      describe: vi.fn().mockResolvedValue({ result: { ok: true, value: { credentials: { API_TOKEN: { configured: false, writable: true } } } } }),
+      describe: describeCredentials,
       set: vi.fn().mockResolvedValue({ result: { ok: true, value: {} } }),
       unset: vi.fn().mockResolvedValue({ result: { ok: true, value: {} } })
     }
@@ -131,7 +132,7 @@ describe('MCP status actions', () => {
     // The editor is embedded in the dialog itself (no intermediate toggle).
     expect(document.body.textContent).toContain('mcpCredentialTitle')
     expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
-    expect(credentials.describe).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
+    expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 
   it('offers retry in the dialog footer and echoes the outcome in place', async () => {

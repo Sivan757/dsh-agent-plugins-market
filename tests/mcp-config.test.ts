@@ -35,16 +35,16 @@ describe('mcp-config: suite mcp.json → bridge rows', () => {
     const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
     expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web', 'my-suite__legacy'])
     expect(failures).toEqual([])
-    const db = mounts[0]!.config
+    const db = mounts[0].config
     expectTransport(db, 'stdio')
     expect(db.command).toBe('/tmp/my-suite/bin/db')
     expect(db.args).toEqual(['--root', '/tmp/my-suite'])
     expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
     expect(db.cwd).toBe('/tmp/my-suite/data')
-    const web = mounts[1]!.config
+    const web = mounts[1].config
     expectTransport(web, 'streamable-http')
     expect(web.headers).toEqual({ Authorization: 'Bearer resolved' })
-    const legacy = mounts[2]!.config
+    const legacy = mounts[2].config
     expectTransport(legacy, 'sse')
     expect(legacy.url).toBe('https://example.com/sse')
   })
@@ -67,7 +67,7 @@ describe('mcp-config: credential references', () => {
     })
     const { mounts, failures } = await toMcpMounts(source, '/tmp/data')
     expect(failures).toEqual([])
-    expect(mounts[0]!.config).toMatchObject({ args: ['/tmp/my-suite'], env: { DATA: '/tmp/data/demo/my-suite' } })
+    expect(mounts[0].config).toMatchObject({ args: ['/tmp/my-suite'], env: { DATA: '/tmp/data/demo/my-suite' } })
   })
   it('resolves env and header placeholders through the credential resolver', async () => {
     const result = await toMcpMounts(
@@ -154,7 +154,7 @@ describe('mcp-config: credential references', () => {
         }
       }
     )
-    const db = result.mounts[0]!.config
+    const db = result.mounts[0].config
     expectTransport(db, 'stdio')
     expect(db.args).toEqual(['v', 'v'])
     expect(lookups).toBe(1)
@@ -198,10 +198,10 @@ describe('mcp-config: source-scoped identity', () => {
     expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
     expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
     // Per-suite PLUGIN_DATA directories are qualified too.
-    const dbA = first.mounts[0]!.config
+    const dbA = first.mounts[0].config
     expectTransport(dbA, 'stdio')
     expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
-    const dbB = second.mounts[0]!.config
+    const dbB = second.mounts[0].config
     expectTransport(dbB, 'stdio')
     expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
   })

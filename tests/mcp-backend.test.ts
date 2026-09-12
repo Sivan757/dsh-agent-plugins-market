@@ -14,7 +14,7 @@ import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 // The hoisted switch lets one mock serve both the available and the missing
 // host-client scenarios.
-const hostClientState = vi.hoisted(() => ({ mode: 'available' as 'available' | 'missing' }))
+const hostClientState = vi.hoisted((): { mode: 'available' | 'missing' } => ({ mode: 'available' }))
 
 vi.mock('@deepseek-ai/dsh-mcp-client', () => {
   if (hostClientState.mode === 'missing') throw new Error('Cannot find package')
@@ -105,8 +105,8 @@ describe('MCP backend dispatch at mount time', () => {
     await registry.reconcile([suite('alpha', 'db')])
     expect(mounted).toHaveLength(1)
     // The mounted module's plugin name marks which backend served the mount.
-    expect((mounted[0]!.module as { name?: string }).name).toBe(expectedModule)
-    expect(mounted[0]!.config['transport']).toBe('stdio')
+    expect((mounted[0].module as { name?: string }).name).toBe(expectedModule)
+    expect(mounted[0].config['transport']).toBe('stdio')
     await registry.disposeAll()
   })
 
@@ -123,11 +123,12 @@ describe('MCP backend dispatch at mount time', () => {
     registry.setBackendProvider(async () => 'host')
     const diagnostics = await registry.reconcile([suite('alpha', 'db')])
     expect(mounted).toHaveLength(0)
+    const reason: unknown = expect.stringContaining('not installed in this profile')
     expect(diagnostics).toContainEqual({
       suiteId: 'demo/alpha',
       serverKey: 'db',
       code: 'mount-failed',
-      reason: expect.stringContaining('not installed in this profile')
+      reason
     })
     vi.doUnmock('@deepseek-ai/dsh-mcp-client')
     vi.resetModules()
@@ -141,11 +142,12 @@ describe('MCP backend dispatch at mount time', () => {
     registry.setBackendProvider(async () => 'host')
     const diagnostics = await registry.reconcile([suite('alpha', 'web', 'sse')])
     expect(mounted).toHaveLength(0)
+    const reason: unknown = expect.stringContaining('does not support the legacy SSE transport')
     expect(diagnostics).toContainEqual({
       suiteId: 'demo/alpha',
       serverKey: 'web',
       code: 'mount-failed',
-      reason: expect.stringContaining('does not support the legacy SSE transport')
+      reason
     })
   })
 })

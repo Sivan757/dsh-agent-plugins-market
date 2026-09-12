@@ -13,13 +13,17 @@ afterEach(async () => {
 function hostFixture() {
   // Typed against the host contract so `mock.calls` records the real argument
   // tuple; an untyped spy records `[]` and the argument assertions below are unchecked.
+  // The spies are returned alongside the host because a host method read as a
+  // value detaches from its receiver, and these assertions need the mock itself.
   const startContinuable = vi.fn<AgentRoleHost['subagents']['startContinuable']>(async () => ({ childId: 'child-1', messageId: 'message-1' }))
+  const resolveCallConfig = vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config)
+  const register = vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn())
   const host: AgentRoleHost = {
-    tools: { register: vi.fn(() => vi.fn()) },
-    llm: { resolveCallConfig: vi.fn(async config => config) },
+    tools: { register },
+    llm: { resolveCallConfig },
     subagents: { startContinuable }
   }
-  return { host, startContinuable }
+  return { host, startContinuable, resolveCallConfig, register }
 }
 
 async function roleFile(text: string) {
@@ -64,45 +68,45 @@ describe('agent role metadata and runtime routing', () => {
   })
 
   it('applies an exact provider and model pair through host preflight', async () => {
-    const { host } = hostFixture()
+    const { host, resolveCallConfig } = hostFixture()
     const call = signal()
     expect(
       await resolveAgentOptions(parseAgentRole('---\nprovider: deepseek\nmodel: deepseek-chat\nreasoning_effort: high\n---\nbody'), parent, host.llm, call, 'reviewer', vi.fn())
     ).toEqual({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' })
-    expect(host.llm.resolveCallConfig).toHaveBeenCalledWith({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' }, call)
+    expect(resolveCallConfig).toHaveBeenCalledWith({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'high' }, call)
   })
 
   it('degrades every inexact route to inheritance and reports why', async () => {
-    const { host } = hostFixture()
+    const { host, resolveCallConfig } = hostFixture()
     for (const metadata of ['model: sonnet', 'model: deepseek/deepseek-chat', 'model: GPT-4.1', 'provider: deepseek']) {
       const diagnose = vi.fn()
       const declared = parseAgentRole(`---\n${metadata}\n---\nbody`)
       expect(await resolveAgentOptions(declared, parent, host.llm, signal(), 'reviewer', diagnose)).toBeUndefined()
       expect(diagnose).toHaveBeenCalled()
     }
-    expect(host.llm.resolveCallConfig).not.toHaveBeenCalled()
+    expect(resolveCallConfig).not.toHaveBeenCalled()
   })
 
   it('inherits silently when the card declares no route at all', async () => {
-    const { host } = hostFixture()
+    const { host, resolveCallConfig } = hostFixture()
     const diagnose = vi.fn()
     expect(await resolveAgentOptions(parseAgentRole('---\nmodel: inherit\n---\nbody'), parent, host.llm, signal(), 'reviewer', diagnose)).toBeUndefined()
     expect(await resolveAgentOptions(parseAgentRole('body only'), parent, host.llm, signal(), 'reviewer', diagnose)).toBeUndefined()
     expect(diagnose).not.toHaveBeenCalled()
-    expect(host.llm.resolveCallConfig).not.toHaveBeenCalled()
+    expect(resolveCallConfig).not.toHaveBeenCalled()
   })
 
   it('validates a lone reasoning effort against the inherited route', async () => {
-    const { host } = hostFixture()
+    const { host, resolveCallConfig } = hostFixture()
     const call = signal()
     expect(await resolveAgentOptions(parseAgentRole('---\nreasoning_effort: low\n---\nbody'), parent, host.llm, call, 'reviewer', vi.fn())).toEqual({ reasoningEffort: 'low' })
-    expect(host.llm.resolveCallConfig).toHaveBeenCalledWith({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'low' }, call)
+    expect(resolveCallConfig).toHaveBeenCalledWith({ provider: 'deepseek', model: 'deepseek-chat', reasoningEffort: 'low' }, call)
   })
 
   it('degrades an unusable route instead of failing the call', async () => {
-    const { host } = hostFixture()
+    const { host, resolveCallConfig } = hostFixture()
     const diagnose = vi.fn()
-    vi.mocked(host.llm.resolveCallConfig).mockRejectedValueOnce(new Error('unsupported reasoning effort'))
+    resolveCallConfig.mockRejectedValueOnce(new Error('unsupported reasoning effort'))
     expect(
       await resolveAgentOptions(
         parseAgentRole('---\nprovider: deepseek\nmodel: deepseek-chat\nreasoning_effort: nope\n---\nbody'),
@@ -117,9 +121,9 @@ describe('agent role metadata and runtime routing', () => {
   })
 
   it('propagates cancellation raised during preflight', async () => {
-    const { host } = hostFixture()
+    const { host, resolveCallConfig } = hostFixture()
     const controller = new AbortController()
-    vi.mocked(host.llm.resolveCallConfig).mockImplementationOnce(async () => {
+    resolveCallConfig.mockImplementationOnce(async () => {
       controller.abort()
       return {}
     })
@@ -161,19 +165,19 @@ describe('agent role metadata and runtime routing', () => {
   })
 
   it('registers subagent_run(agent, prompt) with a real host tool and a disposer', () => {
-    const { host } = hostFixture()
+    const { host, register } = hostFixture()
     const disposeListener = vi.fn()
     const on = vi.fn(() => disposeListener)
     const dispose = mountAgentRoleTool({ ...host, on } as unknown as Context, async () => [])
-    expect(host.tools.register).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'subagent_run',
-        parameters: expect.objectContaining({
-          properties: expect.objectContaining({ agent: expect.anything(), prompt: expect.anything() }),
-          required: ['agent', 'prompt']
-        })
-      })
-    )
+    // The call shape is asserted first, then the definition by path: the tool
+    // schema is the contract the model sees, and `register` records it as an
+    // opaque value, so a nested matcher cannot be typed there.
+    expect(register).toHaveBeenCalledWith(expect.anything())
+    const [definition] = register.mock.calls[0]
+    expect(definition).toHaveProperty('name', 'subagent_run')
+    expect(definition).toHaveProperty('parameters.required', ['agent', 'prompt'])
+    expect(definition).toHaveProperty('parameters.properties.agent', expect.anything())
+    expect(definition).toHaveProperty('parameters.properties.prompt', expect.anything())
     expect(on).toHaveBeenCalledWith('agent/pre-step', expect.any(Function))
     dispose()
     expect(disposeListener).toHaveBeenCalledOnce()

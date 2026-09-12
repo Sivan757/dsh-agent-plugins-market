@@ -9,9 +9,10 @@
  * what makes the dispatched event a real edit.
  */
 function setNativeValue(element: Element, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set
-  if (setter === undefined) throw new Error(`${element.tagName.toLowerCase()} has no native value setter`)
-  setter.call(element, value)
+  const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')
+  if (descriptor?.set === undefined) throw new Error(`${element.tagName.toLowerCase()} has no native value setter`)
+  // The accessor has to run against the element, so it stays attached to its receiver.
+  descriptor.set.call(element, value)
 }
 
 /** Edit a text field or textarea and fire the `input` event React's `onChange` listens to. */

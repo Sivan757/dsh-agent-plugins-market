@@ -66,7 +66,7 @@ describe('unified Markdown resource panel', () => {
     await click('reviewer')
     const select = async (index: number, value: string) => {
       await act(async () => {
-        const input = host.querySelectorAll('select')[index]!
+        const input = host.querySelectorAll('select')[index]
         input.value = value
         input.dispatchEvent(new Event('change', { bubbles: true }))
       })
@@ -78,9 +78,10 @@ describe('unified Markdown resource panel', () => {
     await select(1, 'model-b')
     await click('panelSave')
     expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', user.id, expect.stringContaining('provider: second'))
-    const raw = api.updateUserPanelEntry.mock.calls[0]![2] as string
+    const raw = api.updateUserPanelEntry.mock.calls[0][2] as string
     expect(raw).toContain('model: model-b')
-    expect(parse(raw.split('---\n')[1]!).tools).toEqual(['Read'])
+    const frontmatter: unknown = parse(raw.split('---\n')[1])
+    expect(frontmatter).toHaveProperty('tools', ['Read'])
     expect(raw).toContain('Review code')
   })
 

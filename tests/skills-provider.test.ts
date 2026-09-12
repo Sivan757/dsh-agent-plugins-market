@@ -33,7 +33,7 @@ describe('SuiteSkillProvider', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({})
     expect(candidates).toHaveLength(1)
-    const candidate = candidates[0]!
+    const candidate = candidates[0]
     expect(candidate.name).toBe('greet')
     expect(candidate.description).toBe('[v1-suite] Greet the user and resolve bundled resources.')
     expect(candidate.source).toBe(SUITE_USER_SOURCE)
@@ -42,7 +42,8 @@ describe('SuiteSkillProvider', () => {
     const definition = await provider.get(candidate, {})
     expect(definition).toBeDefined()
     expect(definition!.content).toContain(`node ${manager.userRoot}/.sources/demo/scripts/greet.mjs`)
-    expect(definition!.resourceBase).toEqual({ kind: 'directory', path: expect.stringContaining('skills/greet') })
+    const resourcePath: unknown = expect.stringContaining('skills/greet')
+    expect(definition!.resourceBase).toEqual({ kind: 'directory', path: resourcePath })
   })
 
   it('does not list suites from disabled sources', async () => {
@@ -66,8 +67,8 @@ describe('SuiteSkillProvider', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
-    expect(candidates[0]!.source).toBe(SUITE_PROJECT_SOURCE)
-    expect(candidates[0]!.rank).toBe(250)
+    expect(candidates[0].source).toBe(SUITE_PROJECT_SOURCE)
+    expect(candidates[0].rank).toBe(250)
   })
 })
 
@@ -101,8 +102,8 @@ describe('local-directory sources (local: true)', () => {
     const manager = await emptyCatalog('dsh-agent-plugins-local2-')
     await manager.mergeSources([{ id: 'gone', url: join(tmpdir(), 'does-not-exist-xyz'), local: true }])
     const overview = await manager.overview()
-    expect(overview.sources[0]!.cloned).toBe(false)
-    expect(overview.sources[0]!.error).toContain('missing')
+    expect(overview.sources[0].cloned).toBe(false)
+    expect(overview.sources[0].error).toContain('missing')
     await expect(manager.install('gone', 'anything')).rejects.toThrow('missing')
   })
 })
@@ -115,8 +116,8 @@ describe('source editing (updateSource)', () => {
     const sources = manager.sources
     expect(sources).toEqual([{ id: 'demo', url: join(fixtures, 'v1-suite'), local: true }])
     const overview = await manager.overview()
-    expect(overview.sources[0]!.local).toBe(true)
-    expect(overview.sources[0]!.cloned).toBe(true)
+    expect(overview.sources[0].local).toBe(true)
+    expect(overview.sources[0].cloned).toBe(true)
   })
 
   it('rejects unknown source ids', async () => {

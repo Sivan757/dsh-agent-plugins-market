@@ -142,14 +142,16 @@ describe('dsh-agent-plugins-market host entry', () => {
     await apply(context as never)
 
     expect(registrations.map(tool => tool.name)).toContain('report_market_issue')
-    expect(logs).toContainEqual({ level: 'info', message: expect.stringContaining('report_market_issue mounted') })
+    const mounted: unknown = expect.stringContaining('report_market_issue mounted')
+    expect(logs).toContainEqual({ level: 'info', message: mounted })
     // An unrelated settings change must not re-log the same state.
     watchers.forEach(watcher => watcher())
     expect(logs.filter(entry => entry.message.includes('report_market_issue'))).toHaveLength(1)
 
     state.feedbackEnabled = false
     watchers.forEach(watcher => watcher())
-    expect(logs).toContainEqual({ level: 'info', message: expect.stringContaining('not mounted: feedbackEnabled is off') })
+    const off: unknown = expect.stringContaining('not mounted: feedbackEnabled is off')
+    expect(logs).toContainEqual({ level: 'info', message: off })
     cleanups.forEach(cleanup => cleanup())
   })
 
@@ -168,7 +170,8 @@ describe('dsh-agent-plugins-market host entry', () => {
 
     await apply(context as never)
 
-    expect(logs).toContainEqual({ level: 'warn', message: expect.stringContaining('not mounted: the host exposes no tools registry') })
+    const missingRegistry: unknown = expect.stringContaining('not mounted: the host exposes no tools registry')
+    expect(logs).toContainEqual({ level: 'warn', message: missingRegistry })
     watchers.forEach(watcher => watcher())
     expect(logs.filter(entry => entry.message.includes('report_market_issue'))).toHaveLength(1)
     cleanups.forEach(cleanup => cleanup())

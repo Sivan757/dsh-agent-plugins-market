@@ -33,8 +33,8 @@ describe('schema component declarations', () => {
     await put(dir, '.qoder/agents/team/reviewer.agent.md', '---\ndescription: Review code\n---\nReview')
     const [suite] = await discoverNativeProjectSuites(dir, 'project')
     expect(suite?.surfaces).toMatchObject({ commands: 1, agents: 1 })
-    expect((await readCommands(suite!.root, suite?.resources?.commands))[0]?.name).toBe('git-review')
-    const role = suite!.resources!.agents[0]!
+    expect((await readCommands(suite.root, suite?.resources?.commands))[0]?.name).toBe('git-review')
+    const role = suite.resources!.agents[0]
     expect((await agentRoleCatalog([{ name: role.name, path: role.file, description: '', disabled: false }], new AbortController().signal))[0]).toMatchObject({
       name: 'team/reviewer.agent',
       description: 'Review code'
@@ -50,7 +50,7 @@ describe('schema component declarations', () => {
     expect(suite?.errors).toEqual([])
     expect(suite?.skills[0]?.name).toBe('check')
     expect((await readCommands(dir, suite?.resources?.commands))[0]?.name).toBe('nested-check')
-    const role = suite!.resources!.agents[0]!
+    const role = suite.resources!.agents[0]
     expect((await agentRoleCatalog([{ name: role.name, path: role.file, description: '', disabled: false }], new AbortController().signal))[0]).toMatchObject({
       name: 'review.agent',
       description: 'Review changes'
@@ -65,7 +65,7 @@ describe('schema component declarations', () => {
     await put(dir, 'config/services.json', { mcpServers: { custom: { command: 'custom' } } })
     await put(dir, 'prompts/explain.mdc', 'Explain code')
     const [suite] = (await scanSource(dir, 's', 'user')).suites
-    expect(Object.keys(suite!.mcp!.servers)).toEqual(['custom', 'remote'])
+    expect(Object.keys(suite.mcp!.servers)).toEqual(['custom', 'remote'])
     expect((await readCommands(dir, suite?.resources?.commands))[0]?.name).toBe('explain')
   })
   it('supports file LSP tables and inline commands without writing manifest content as Markdown', async () => {
@@ -106,7 +106,7 @@ describe('schema component declarations', () => {
     const [suite] = (await scanSource(dir, 's', 'user')).suites
     expect(suite?.manifest.author).toBe('Author')
     expect(suite?.surfaces.hooks).toBe(1)
-    expect((await suiteInstructions([withDefaultSurfaces({ ...suite!, enabled: true })])).text).toBe('System\n\nAdditional system text')
+    expect((await suiteInstructions([withDefaultSurfaces({ ...suite, enabled: true })])).text).toBe('System\n\nAdditional system text')
     await put(dir, 'marketplace.json', { plugins: [{ id: 'remote', downloadUrl: 'https://example.test/repo.git' }] })
     expect((await scanSource(dir, 's', 'user')).suites[0]?.remote?.url).toBe('https://example.test/repo.git')
   })
@@ -137,7 +137,7 @@ describe('schema component declarations', () => {
         throw new Error('must not mount')
       }
     } as never)
-    await registry.reconcile([withDefaultSurfaces({ ...suite!, enabled: true })])
+    await registry.reconcile([withDefaultSurfaces({ ...suite, enabled: true })])
     expect(mounts).toBe(0)
   })
 })

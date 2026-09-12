@@ -9,7 +9,7 @@ describe('role metadata editing', () => {
     const updated = updateFrontmatter(original, 'model', 'deepseek/deepseek-chat')
     expect(updated).toContain('# keep this')
     expect(updated.endsWith(body)).toBe(true)
-    expect(parse(updated.split('---\n')[1]!)).toEqual({ name: 'reviewer', tools: ['Read', 'Grep'], metadata: { tier: 2, flags: [true, false] }, model: 'deepseek/deepseek-chat' })
+    expect(parse(updated.split('---\n')[1])).toEqual({ name: 'reviewer', tools: ['Read', 'Grep'], metadata: { tier: 2, flags: [true, false] }, model: 'deepseek/deepseek-chat' })
     // `tools` stays in the document but is no longer surfaced: the executor never applies it.
     expect(readRoleFields(updated)).toEqual({ model: 'deepseek/deepseek-chat', provider: '', reasoningEffort: '' })
   })
@@ -24,7 +24,7 @@ describe('role metadata editing', () => {
   it('toggles disabled without rewriting nested keys or a sequence into strings', () => {
     const original = '---\nmetadata:\n  disabled: no\ntools: [Read, Grep]\ndisabled: false\n---\nBody\n'
     const changed = updateFrontmatter(original, 'disabled', true)
-    expect(parse(changed.split('---\n')[1]!)).toEqual({ metadata: { disabled: 'no' }, tools: ['Read', 'Grep'], disabled: true })
+    expect(parse(changed.split('---\n')[1])).toEqual({ metadata: { disabled: 'no' }, tools: ['Read', 'Grep'], disabled: true })
   })
 
   it('fails closed on malformed metadata', () => {
@@ -39,7 +39,7 @@ describe('role metadata editing', () => {
     const updated = updateRoleReasoning(original, 'low')
     expect(updated).toContain('# retain')
     expect(updated.endsWith('Role body\n')).toBe(true)
-    expect(parse(updated.split('---\n')[1]!)).toEqual({ model: 'p/m', reasoning_effort: 'low', metadata: { tier: 2 } })
+    expect(parse(updated.split('---\n')[1])).toEqual({ model: 'p/m', reasoning_effort: 'low', metadata: { tier: 2 } })
     expect(readRoleFields(updateRoleReasoning(updated, '')).reasoningEffort).toBe('')
     expect(updateRoleReasoning('Role body', '')).toBe('Role body')
     expect(() => readRoleFields('---\nreasoning_effort: low\nreasoningEffort: high\n---\nRole')).toThrow('conflict')

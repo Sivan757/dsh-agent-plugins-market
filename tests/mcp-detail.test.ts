@@ -33,7 +33,7 @@ describe('suite detail MCP redaction', () => {
     const detail = await buildSuiteDetail(suite(), undefined, [], {
       service: { env: { API_TOKEN: '${API_TOKEN}' } }
     })
-    const server = detail.mcpServers[0]!
+    const server = detail.mcpServers[0]
 
     expect(server.credentialRefs).toEqual(['API_TOKEN'])
     expect(JSON.stringify(detail)).not.toContain('literal-secret')

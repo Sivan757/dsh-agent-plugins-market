@@ -8,7 +8,7 @@
  * patch series `docs/upstream-proposal/patches/`); the host is faked
  * structurally because the bridge must not depend on host test packages.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
 import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../src/runtime/mcp-client/tools.js'
 import { createTransport } from '../src/runtime/mcp-client/transport.js'
 import { apply } from '../src/runtime/mcp-client/bridge.js'
@@ -46,7 +46,15 @@ function createMockClient(tools: MockTool[], callResult: Record<string, unknown>
 
 // ---- Structural fake host ----
 
-function createFakeHost(): ToolHost & { registered: Map<string, ToolDefinition> } {
+// The logger spies are declared as properties rather than the contract's
+// methods, so `host.logger.error` can be handed to an assertion directly
+// instead of being read as a detached method.
+type FakeHost = Omit<ToolHost, 'logger'> & {
+  registered: Map<string, ToolDefinition>
+  logger: { error: Mock; warn: Mock; info: Mock }
+}
+
+function createFakeHost(): FakeHost {
   const registered = new Map<string, ToolDefinition>()
   return {
     registered,
@@ -180,7 +188,7 @@ describe('syncTools', () => {
       output: { schema: { type: 'object' }, render: () => [] },
       execute: async () => ({})
     })
-    const register = host.tools.register
+    const register = host.tools.register.bind(host.tools)
     host.tools.register = definition => {
       if (definition.name === 'mcp__srv__squatted') throw new Error('name already registered')
       return register(definition)
@@ -338,7 +346,7 @@ describe('transport construction with auth', () => {
   })
 
   it('skips the provider on an explicit opt-out', () => {
-    const { oauthProvider } = createTransport({ ...httpConfig(), auth: { enabled: false } } as Config)
+    const { oauthProvider } = createTransport({ ...httpConfig(), auth: { enabled: false } })
     expect(oauthProvider).toBeUndefined()
   })
 
@@ -422,7 +430,8 @@ describe('bridge apply', () => {
     await apply(ctx, httpConfig({ enabled: true }))
     expect(constructedUrls[0]).toBe('https://mcp.example/mcp')
     expect(constructedOptions[0]).toHaveProperty('authProvider')
-    await Promise.all(ctx.effects.map(dispose => dispose()))
+    // Teardowns are synchronous and return nothing, so there is no aggregator to await.
+    for (const dispose of ctx.effects) dispose()
   })
 
   it('fails the instance when failOnStartupError is set and the initial connection fails', async () => {
@@ -437,11 +446,12 @@ describe('bridge apply', () => {
     const ctx = fakeContext()
     await apply(ctx, httpConfig())
     await expect(apply(ctx, httpConfig())).rejects.toThrow(/already in use/)
-    await Promise.all(ctx.effects.map(dispose => dispose()))
+    // Teardowns are synchronous and return nothing, so there is no aggregator to await.
+    for (const dispose of ctx.effects) dispose()
   })
 
   it('rejects a misconfigured serverName before any connection work', async () => {
     const ctx = fakeContext()
-    await expect(apply(ctx, { ...httpConfig(), serverName: 'not valid!' } as Config)).rejects.toThrow(/serverName/)
+    await expect(apply(ctx, { ...httpConfig(), serverName: 'not valid!' })).rejects.toThrow(/serverName/)
   })
 })

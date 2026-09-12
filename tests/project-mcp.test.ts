@@ -50,7 +50,7 @@ command = "never-run"
     const [suite] = await discoverNativeProjectSuites(project, 'project')
     expect(suite?.errors).toEqual([])
     expect(suite?.surfaces.mcp).toBe(2)
-    const { mounts, failures } = await toMcpMounts(withDefaultSurfaces(suite!), '/runtime', {}, { resolve: async ref => ({ value: `resolved-${ref}` }) })
+    const { mounts, failures } = await toMcpMounts(withDefaultSurfaces(suite), '/runtime', {}, { resolve: async ref => ({ value: `resolved-${ref}` }) })
     expect(failures).toEqual([])
     expect(mounts[0]?.config).toMatchObject({
       command: '/usr/bin/example',
@@ -231,9 +231,9 @@ describe('project MCP runtime scope', () => {
     const runtime = mountProjectMcp(host as unknown as Context, catalog, join(userRoot, 'data'))
     try {
       await runtime.refresh()
-      expect([...scopes[0]!.values()]).toEqual([expect.objectContaining({ command: 'server-0', cwd: first })])
-      expect([...scopes[1]!.values()]).toEqual([expect.objectContaining({ command: 'server-1', cwd: second })])
-      expect([...scopes[0]!.keys()]).not.toEqual([...scopes[1]!.keys()])
+      expect([...scopes[0].values()]).toEqual([expect.objectContaining({ command: 'server-0', cwd: first })])
+      expect([...scopes[1].values()]).toEqual([expect.objectContaining({ command: 'server-1', cwd: second })])
+      expect([...scopes[0].keys()]).not.toEqual([...scopes[1].keys()])
       await catalog.setScanProjectLayouts(false)
       expect(scopes.map(scope => scope.size)).toEqual([0, 0])
       await catalog.setScanProjectLayouts(true)
