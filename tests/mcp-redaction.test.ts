@@ -26,11 +26,33 @@ describe('MCP config redaction', () => {
     expect(redacted.env.API_TOKEN).toBe('${API_TOKEN}')
   })
 
+  it('preserves every reference when several sensitive keys carry one', () => {
+    // Each value is judged on its own: one placeholder must not hide the next.
+    const redacted = redactMcpConfig({ env: { API_TOKEN: '${A}', OTHER_SECRET: '${B}', THIRD_KEY: '${C}' } }) as Record<string, Record<string, string>>
+    expect(redacted.env).toEqual({ API_TOKEN: '${A}', OTHER_SECRET: '${B}', THIRD_KEY: '${C}' })
+  })
+
   it('redacts secret-bearing query values in an endpoint url', () => {
     expect(redactUrl('https://example.com/mcp?key=abc123&other=1')).toBe('https://example.com/mcp?key=[redacted]&other=1')
     // A placeholder in a URL is a reference, not a secret.
     expect(redactUrl('https://example.com/mcp?key=${TOKEN}')).toBe('https://example.com/mcp?key=${TOKEN}')
     expect(redactUrl('https://example.com/mcp')).toBe('https://example.com/mcp')
+  })
+
+  it('preserves every reference in one url query', () => {
+    // Three sensitive names, three references: none may be erased.
+    expect(redactUrl('https://example.com/mcp?key=${A}&auth=${B}&token=${C}')).toBe('https://example.com/mcp?key=${A}&auth=${B}&token=${C}')
+  })
+
+  it('preserves references across the urls of several servers in one config', () => {
+    // Redaction walks server entries in order: the second url is checked after
+    // the first, and its reference must survive that.
+    const redacted = redactMcpConfig({
+      a: { url: 'https://a.example/mcp?key=${A}' },
+      b: { url: 'https://b.example/mcp?auth=${B}' }
+    }) as Record<string, { url: string }>
+    expect(redacted.a.url).toBe('https://a.example/mcp?key=${A}')
+    expect(redacted.b.url).toBe('https://b.example/mcp?auth=${B}')
   })
 
   it('recognises the widened sensitive-key vocabulary', () => {
