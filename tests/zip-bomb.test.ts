@@ -11,13 +11,14 @@ import { archiveInstall, ARCHIVE_MAX_ENTRIES } from '../src/catalog/archive.js'
 const run = promisify(execFile)
 
 describe('archive pre-extraction bounds', () => {
-  it('rejects a tar member count over the limit during the bounded walk', async () => {
+  it('extracts a multi-entry tar through the write-then-walk path', async () => {
     const stage = await mkdtemp(join(tmpdir(), 'dsh-archive-tarbomb-'))
     const top = join(stage, 'top')
     await mkdir(top, { recursive: true })
-    // ARCHIVE_MAX_ENTRIES is 20k; creating that many files is slow — build
-    // 300 entries and pin the walk limit through a zip path instead, keeping
-    // this tar test for the write-then-walk contract.
+    // ARCHIVE_MAX_ENTRIES is 20k; creating that many files is slow, and the
+    // tar walk limit shares no code with the zip entry limit, which the test
+    // below pins. This test covers the walk itself: every member is written
+    // and the digest is taken from the extracted tree.
     for (let i = 0; i < 300; i++) await writeFile(join(top, `f${i}.txt`), 'x'.repeat(10))
     const tarball = join(stage, 'payload.tar')
     await run('tar', ['-cf', tarball, '-C', stage, 'top'])
