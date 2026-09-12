@@ -17,7 +17,7 @@ schemas/        versioned mcp.schema.json and friends (strict validation contrac
 tests/          vitest suites mirroring src/; fixtures under tests/fixtures
 docs/           adr/, design/, release/, promotion/, research/, standards/
 docs-site/      Astro docs site
-scripts/        build helpers (client banner, npm token, lifecycle verification)
+scripts/        build helpers (client banner, lifecycle verification)
 ```
 
 ## Commands
@@ -25,7 +25,7 @@ scripts/        build helpers (client banner, npm token, lifecycle verification)
 ```sh
 pnpm run typecheck           # both tsconfig.json and tsconfig.client.json
 pnpm run lint                # eslint src tests
-pnpm run format:check        # prettier — covers ALL files including docs/ and HTML
+pnpm run format:check        # prettier — tracked text except the paths in .prettierignore
 pnpm run test                # vitest run (full suite)
 pnpm run test:contract       # routes + market contracts only
 pnpm run check:architecture  # dependency-cruiser over src/
@@ -33,7 +33,7 @@ pnpm run check:refactor      # typecheck + lint + format:check + test:contract +
 pnpm run build               # tsc emits lib/, tsdown bundles client/
 ```
 
-`check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not — after writing docs, HTML, or fixtures, run `format:check` before claiming a green tree.
+`check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not, except the paths in `.prettierignore` (`docs-site/`, `lib/`, `client/`, `tests/fixtures/`, `CHANGELOG.md`, `docs/compat-report.*`) — run `format:check` after writing docs or HTML before claiming a green tree.
 
 ## Conventions
 

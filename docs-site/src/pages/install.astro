@@ -12,7 +12,7 @@ import Base from '../layouts/Base.astro';
 
   <h2>Prerequisites</h2>
   <ul>
-    <li>Node.js 22+ and a DSH Web profile with the skill service; current DSH peer declarations use ^0.1.2-rc.1</li>
+    <li>Node.js 22+ and a DSH Web profile with the skill service; the <a href="https://github.com/Sivan757/dsh-agent-plugins-market#quick-start">README</a> lists the DSH host packages this plugin declares</li>
     <li>A terminal with <code>dsh</code>; Git for Git sources, and pnpm for GitHub or manual installation</li>
   </ul>
 
@@ -48,7 +48,7 @@ dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market</code></pre>
   <ul>
     <li>For a suite with skills, check the Skills tab, then type <code>/</code> in chat to find its user-invocable skills.</li>
     <li>For MCP, open MCP services and resolve connection or credential notices. Credentials and overrides are edited here; suite previews are read-only.</li>
-    <li>Commands become slash entries. Role delegation through <code>subagents_run</code> uses a dynamic role catalog and requires host agents, tools, LLM and subagent services.</li>
+    <li>Commands become slash entries. Role delegation through <code>subagent_run</code> uses a dynamic role catalog and requires host agents, tools, LLM and subagent services.</li>
     <li>LSP requires host LSP packages and a profile exposing the LSP tool; check LSP servers for diagnostics.</li>
   </ul>
   <p>See the <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/guides/usage.md">usage guide</a> for host requirements and configuration.</p>
