@@ -160,7 +160,21 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
   }
   const unzip = new Unzip()
   unzip.register(UnzipInflate)
-  const writes: Array<Promise<void>> = []
+  // Entry writes go through a fixed set of slots. The stream drives `onfile`
+  // synchronously, so an unbounded fan-out opens one descriptor per entry and
+  // hits the process limit before the entry cap does — on Windows, around the
+  // 8192nd member of a whole-archive zip. A failure recorded during the stream
+  // turns writes that have not started yet into no-ops, and a failed write lands
+  // in the same `failure` slot, so the first error is the one reported.
+  const WRITE_SLOTS = 32
+  const writes: Array<Promise<void>> = Array.from({ length: WRITE_SLOTS }, () => Promise.resolve())
+  let writeSlot = 0
+  const queueWrite = (target: string, chunks: Buffer[]): void => {
+    const slot = writeSlot++ % WRITE_SLOTS
+    writes[slot] = writes[slot]!.then(() => (failure === undefined ? writeZipEntry(target, chunks) : undefined)).catch((error: unknown) => {
+      fail(error instanceof Error ? error : new Error(String(error)))
+    })
+  }
   unzip.onfile = file => {
     if (failure !== undefined) return
     entryCount += 1
@@ -199,7 +213,7 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
         return
       }
       chunks.push(Buffer.from(data))
-      if (final) writes.push(writeZipEntry(target, chunks))
+      if (final) queueWrite(target, chunks)
     }
     file.start()
   }
@@ -209,8 +223,12 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
   for (let offset = 0; offset < view.length && failure === undefined; offset += slice) {
     unzip.push(view.subarray(offset, Math.min(offset + slice, view.length)), offset + slice >= view.length)
   }
-  if (failure !== undefined) throw failure
+  // Report only once every write has settled: the caller removes the staging
+  // directory in its own cleanup, and a write still in flight would recreate
+  // entries underneath that removal. A failure set during the stream makes the
+  // writes that have not started yet no-ops.
   await Promise.all(writes)
+  if (failure !== undefined) throw failure
 }
 
 /** Write one buffered zip entry to disk after its data completed inflating. */
