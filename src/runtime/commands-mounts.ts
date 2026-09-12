@@ -154,10 +154,10 @@ interface CommandMeta {
 }
 
 function commandMeta(text: string): CommandMeta | undefined {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)
-  if (match === null) return undefined
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+  if (frontmatter === undefined) return undefined
   try {
-    const raw: unknown = parseYaml(match[1])
+    const raw: unknown = parseYaml(frontmatter)
     if (typeof raw !== 'object' || raw === null) return undefined
     const record = raw as Record<string, unknown>
     const meta: CommandMeta = {}

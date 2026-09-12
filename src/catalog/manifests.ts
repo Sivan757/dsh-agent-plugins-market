@@ -283,9 +283,10 @@ export async function repoName(checkoutDir: string): Promise<string> {
   const marketplace = await readMarketplace(checkoutDir)
   if (marketplace !== undefined) {
     const entries = marketplace.entries
-    if (entries.length === 1) {
+    const soleEntry = entries.length === 1 ? entries[0] : undefined
+    if (soleEntry !== undefined) {
       // A single-suite marketplace: the plugin entry names the repo (vercel → vercel-plugin).
-      const entryName = pickString(entries[0].name)
+      const entryName = pickString(soleEntry.name)
       if (entryName !== undefined) return entryName
     }
     const marketplaceName = pickString(marketplace.name)

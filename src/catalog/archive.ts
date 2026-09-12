@@ -250,7 +250,8 @@ async function assertBoundedTree(root: string): Promise<void> {
   let entriesSeen = 0
   let totalBytes = 0
   while (stack.length > 0) {
-    const dir = stack.pop()!
+    const dir = stack.pop()
+    if (dir === undefined) break
     let dirents: import('node:fs').Dirent[]
     try {
       dirents = await readdir(dir, { withFileTypes: true })
@@ -289,7 +290,8 @@ async function assertBoundedTree(root: string): Promise<void> {
 async function assertNoEscapingSymlinks(root: string): Promise<void> {
   const stack = [root]
   while (stack.length > 0) {
-    const dir = stack.pop()!
+    const dir = stack.pop()
+    if (dir === undefined) break
     let entries: import('node:fs').Dirent[]
     try {
       entries = await readdir(dir, { withFileTypes: true })
@@ -317,7 +319,8 @@ async function assertNoEscapingSymlinks(root: string): Promise<void> {
 /** If the extraction produced exactly one top-level directory and nothing else, use it as the root. */
 async function unwrapSingleRoot(extractDir: string): Promise<string> {
   const entries = await readdir(extractDir, { withFileTypes: true })
-  if (entries.length === 1 && entries[0].isDirectory()) return join(extractDir, entries[0].name)
+  const soleEntry = entries.length === 1 ? entries[0] : undefined
+  if (soleEntry !== undefined && soleEntry.isDirectory()) return join(extractDir, soleEntry.name)
   return extractDir
 }
 

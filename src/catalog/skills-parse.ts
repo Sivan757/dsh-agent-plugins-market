@@ -61,17 +61,17 @@ function parseBoolean(value: unknown): boolean | undefined {
  *   skill must be dropped from discovery.
  */
 export function parseSkillFrontmatter(text: string, expectedName: string | undefined): ParsedSkillFrontmatter | string {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)
-  if (match === null) return 'missing YAML frontmatter'
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+  if (frontmatter === undefined) return 'missing YAML frontmatter'
   let raw: unknown
   try {
-    raw = parseYaml(match[1])
+    raw = parseYaml(frontmatter)
   } catch {
     // Claude Code-authored frontmatter sometimes carries unquoted `: `
     // sequences in prose fields, which strict YAML rejects. A lenient
     // line-based fallback recovers the standard fields first-occurrence
     // wins; values that still fail the field checks below drop the skill.
-    raw = lenientFrontmatter(match[1])
+    raw = lenientFrontmatter(frontmatter)
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'frontmatter is not an object'
   const record = raw as Record<string, unknown>
@@ -112,8 +112,9 @@ function lenientFrontmatter(body: string): Record<string, unknown> {
   for (const line of body.split(/\r?\n/)) {
     const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line)
     if (match === null) continue
-    const key = match[1]
-    if (record[key] === undefined) record[key] = match[2].trim()
+    const [, key, value] = match
+    if (key === undefined || value === undefined) continue
+    if (record[key] === undefined) record[key] = value.trim()
   }
   return record
 }

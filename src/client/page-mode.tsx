@@ -114,7 +114,7 @@ export function mountLegacyPageMode(options: LegacyPageModeOptions): () => void 
     container?.remove()
     container = document.createElement('div')
     container.setAttribute(VIEW_ATTRIBUTE, '')
-    container.className = css.pageView
+    container.className = cssClass('pageView')
     column.appendChild(container)
     root = createRoot(container)
     renderView()
@@ -221,11 +221,25 @@ function conversationColumn(): HTMLElement | undefined {
   return document.querySelector<HTMLElement>(CONVERSATION_COLUMN_SELECTOR) ?? undefined
 }
 
+/**
+ * One class of the page-mode stylesheet. The generated module is an unchecked
+ * string map, so a renamed class would otherwise reach the DOM as the literal
+ * `undefined`; the surface renders unstyled and says so instead of failing.
+ */
+function cssClass(name: string): string {
+  const value = css[name]
+  if (value === undefined) {
+    console.warn(`[dsh-agent-plugins-market] market.module.css has no class "${name}" — the page-mode surface renders unstyled`)
+    return ''
+  }
+  return value
+}
+
 function createEntry(onClick: () => void): HTMLButtonElement {
   const button = document.createElement('button')
   button.type = 'button'
   button.setAttribute(ENTRY_ATTRIBUTE, '')
-  button.className = css.pageEntry
+  button.className = cssClass('pageEntry')
   button.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>'
   const label = document.createElement('span')
   label.dataset.dshAgentPluginsMarketLabel = ''

@@ -22,13 +22,14 @@ export const USER_ENTRY_NAME = /^[a-z][a-z0-9_-]*$/
 
 /** Parse full YAML metadata without flattening arrays, mappings, or multiline strings. */
 export function parseFrontmatterRecord(text: string): Record<string, unknown> {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)
-  if (match === null) {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+  if (frontmatter === undefined) {
     if (/^---(?:\r?\n|$)/.test(text)) throw new Error('Invalid frontmatter: missing closing delimiter')
     return {}
   }
-  const doc = parseDocument(match[1])
-  if (doc.errors.length > 0) throw new Error(`Invalid frontmatter: ${doc.errors[0].message}`)
+  const doc = parseDocument(frontmatter)
+  const error = doc.errors[0]
+  if (error !== undefined) throw new Error(`Invalid frontmatter: ${error.message}`)
   const value: unknown = doc.toJS({ maxAliasCount: 100 })
   if (value === null) return {}
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('Frontmatter must be a mapping')

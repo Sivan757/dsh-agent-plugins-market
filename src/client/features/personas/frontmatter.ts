@@ -5,7 +5,8 @@ export function frontmatter(text: string) {
   const match = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text)
   if (/^(?:\uFEFF)?---\r?\n/.test(text) && match === null) throw new Error('Unclosed YAML frontmatter')
   const document = parseDocument(match?.[1] ?? '')
-  if (document.errors.length > 0) throw new Error(document.errors[0].message)
+  const error = document.errors[0]
+  if (error !== undefined) throw new Error(error.message)
   if (document.contents !== null && !isMap(document.contents)) throw new Error('Frontmatter must be a YAML mapping')
   return { document, body: match === null ? text : text.slice(match[0].length), matched: match !== null }
 }

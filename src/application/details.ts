@@ -90,10 +90,10 @@ async function markdownPreviews(resources: SuiteMarkdownResource[]): Promise<Arr
   for (const resource of resources) {
     try {
       const content = (await resourceText(resource)).slice(0, 64 * 1024)
-      const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)
+      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)?.[1]
       let description: string | undefined
-      if (match !== null) {
-        const yaml: unknown = parseYaml(match[1])
+      if (frontmatter !== undefined) {
+        const yaml: unknown = parseYaml(frontmatter)
         if (typeof yaml === 'object' && yaml !== null) {
           const desc = (yaml as Record<string, unknown>)['description']
           if (typeof desc === 'string') description = desc
