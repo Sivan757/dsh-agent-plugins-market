@@ -14,7 +14,7 @@ describe('discovery: agent-plugins.org v1 layout', () => {
   it('normalizes a single portable suite with skills and mcp', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'v1-suite'), 'demo', 'user')
     expect(suites).toHaveLength(1)
-    const suite = suites[0]!
+    const suite = suites[0]
     expect(suite.manifest.layout).toBe('agent-plugin-v1')
     expect(suite.manifest.name).toBe('v1-suite')
     expect(suite.manifest.version).toBe('1.2.3')
@@ -31,18 +31,18 @@ describe('discovery: Claude Code marketplace layout', () => {
   it('uses the marketplace manifest, keeps local entries and remote references', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'cc-marketplace'), 'cc', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['demo-one', 'demo-two', 'demo-three', 'external-one', 'typescript-lsp', 'extra-plugin'])
-    expect(suites[0]!.manifest.layout).toBe('claude-code')
-    expect(suites[0]!.skills[0]!.name).toBe('demo-one')
+    expect(suites[0].manifest.layout).toBe('claude-code')
+    expect(suites[0].skills[0].name).toBe('demo-one')
     // A manifest-less marketplace entry still surfaces as a skill collection.
-    expect(suites[2]!.manifest.layout).toBe('skill-collection')
-    expect(suites[2]!.skills[0]!.name).toBe('demo-three')
+    expect(suites[2].manifest.layout).toBe('skill-collection')
+    expect(suites[2].skills[0].name).toBe('demo-three')
     // Remote-URL entries surface as metadata-only remote suites.
-    expect(suites[3]!.manifest.layout).toBe('remote')
-    expect(suites[3]!.remote).toEqual({ url: 'https://github.com/example/external.git' })
-    expect(suites[3]!.root).toBe('')
+    expect(suites[3].manifest.layout).toBe('remote')
+    expect(suites[3].remote).toEqual({ url: 'https://github.com/example/external.git' })
+    expect(suites[3].root).toBe('')
     // A manifest-bearing container dir the marketplace did not list is supplemented.
-    expect(suites[5]!.manifest.layout).toBe('claude-code')
-    expect(suites[5]!.manifest.name).toBe('extra-plugin')
+    expect(suites[5].manifest.layout).toBe('claude-code')
+    expect(suites[5].manifest.name).toBe('extra-plugin')
   })
 
   it('surfaces inline lspServers declared on a marketplace entry', async () => {
@@ -52,14 +52,14 @@ describe('discovery: Claude Code marketplace layout', () => {
     // A declaration-only suite: the entry's inline lspServers are its manifest.
     expect(lsp.manifest.layout).toBe('claude-code')
     expect(lsp.lsp).toBeDefined()
-    const spec = lsp.lsp!.servers['typescript']!
+    const spec = lsp.lsp!.servers['typescript']
     expect(spec).toMatchObject({ key: 'typescript', command: 'typescript-language-server', args: ['--stdio'] })
     expect(spec.extensionToLanguage).toEqual({ '.ts': 'typescript', '.tsx': 'typescriptreact', '.js': 'javascript', '.jsx': 'javascriptreact' })
     expect(lsp.surfaces.lsp).toBe(1)
     expect(lsp.errors).toEqual([])
     // Suites without declarations carry no lsp field.
-    expect(suites[0]!.lsp).toBeUndefined()
-    expect(suites[0]!.surfaces.lsp).toBe(0)
+    expect(suites[0].lsp).toBeUndefined()
+    expect(suites[0].surfaces.lsp).toBe(0)
   })
 })
 
@@ -80,22 +80,22 @@ describe('discovery: Codex marketplace and nested bundles', () => {
   it('reads .agents/plugins/marketplace.json with Codex source objects, validating MCP', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'codex-bundled'), 'cb', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['demo-tools', 'remote-thing'])
-    const demo = suites[0]!
+    const demo = suites[0]
     expect(demo.manifest.layout).toBe('codex')
     expect(demo.mcp).toBeDefined()
     expect(Object.keys(demo.mcp!.servers)).toEqual(['demo'])
     expect(demo.mcp!.servers['demo']).toMatchObject({ type: 'streamable-http', url: 'https://mcp.demo.example.com' })
     expect(demo.errors).toEqual([])
-    expect(suites[1]!.manifest.layout).toBe('remote')
-    expect(suites[1]!.remote).toEqual({ url: 'https://github.com/example/remote-thing.git' })
+    expect(suites[1].manifest.layout).toBe('remote')
+    expect(suites[1].remote).toEqual({ url: 'https://github.com/example/remote-thing.git' })
   })
 
   it('recurses nested plugins containers without a marketplace (Codex runtime layout)', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'codex-runtime'), 'cr', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['deep-tools'])
-    expect(suites[0]!.manifest.layout).toBe('codex')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['deep'])
-    expect(suites[0]!.errors).toEqual([])
+    expect(suites[0].manifest.layout).toBe('codex')
+    expect(suites[0].skills.map(skill => skill.name)).toEqual(['deep'])
+    expect(suites[0].errors).toEqual([])
   })
 })
 
@@ -103,7 +103,7 @@ describe('discovery: containment of broken content', () => {
   it('keeps valid skills when mcp.json has escaping paths, invalidating only that server', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'bad-mcp'), 'bad', 'user')
     expect(suites).toHaveLength(1)
-    const suite = suites[0]!
+    const suite = suites[0]
     expect(suite.skills.map(skill => skill.name)).toEqual(['ok-skill'])
     expect(Object.keys(suite.mcp!.servers)).toEqual(['good'])
     expect(suite.errors.some(error => error.includes('escape'))).toBe(true)
@@ -112,15 +112,15 @@ describe('discovery: containment of broken content', () => {
   it('drops skills with non-normalizable frontmatter names', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'bad-skill'), 'bs', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.skills).toEqual([])
-    expect(suites[0]!.errors.some(error => error.includes('bad-name'))).toBe(true)
+    expect(suites[0].skills).toEqual([])
+    expect(suites[0].errors.some(error => error.includes('bad-name'))).toBe(true)
   })
 
   it('normalizes display-style frontmatter names to kebab-case (codex plugins)', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'display-name-skill'), 'ds', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['presentations'])
-    expect(suites[0]!.errors).toEqual([])
+    expect(suites[0].skills.map(skill => skill.name)).toEqual(['presentations'])
+    expect(suites[0].errors).toEqual([])
   })
 
   it('rejects manifest-declared skills paths that escape the suite root', async () => {
@@ -136,17 +136,17 @@ describe('discovery: containment of broken content', () => {
     await writeFile(join(evil, 'SKILL.md'), '---\nname: evil\ndescription: outside\n---\n')
     await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: '../suite-evil' }))
     const suites = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
-    expect(suites[0]!.skills).toEqual([])
+    expect(suites[0].skills).toEqual([])
     // A `../` escape is rejected the same way.
     await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: '../../out' }))
     const suites2 = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
-    expect(suites2[0]!.skills).toEqual([])
+    expect(suites2[0].skills).toEqual([])
     // A legitimate declared subdirectory still scans.
     await mkdir(join(suiteRoot, 'skills', 'real'), { recursive: true })
     await writeFile(join(suiteRoot, 'skills', 'real', 'SKILL.md'), '---\nname: real\ndescription: r\n---\n')
     await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: 'skills' }))
     const suites3 = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
-    expect(suites3[0]!.skills.map(skill => skill.name)).toEqual(['real'])
+    expect(suites3[0].skills.map(skill => skill.name)).toEqual(['real'])
     await rm(stage, { recursive: true, force: true })
     await rm(evil, { recursive: true, force: true })
   })
@@ -238,9 +238,9 @@ describe('discovery: manifest-less skill collection layout', () => {
   it('treats flat SKILL.md directories as synthetic suites', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'flat-skills'), 'flat', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['order-crud'])
-    expect(suites[0]!.manifest.layout).toBe('skill-collection')
-    expect(suites[0]!.skills[0]!.name).toBe('order-crud')
-    expect(suites[0]!.skills[0]!.description).toContain('order CRUD code')
+    expect(suites[0].manifest.layout).toBe('skill-collection')
+    expect(suites[0].skills[0].name).toBe('order-crud')
+    expect(suites[0].skills[0].description).toContain('order CRUD code')
   })
 })
 
@@ -264,7 +264,7 @@ describe('category-nested skill collections', () => {
   it('finds skills at skills/<category>/<name>/SKILL.md', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'cc-commands'), 'cc', 'user')
     expect(suites).toHaveLength(1)
-    const names = suites[0]!.skills.map(skill => skill.name)
+    const names = suites[0].skills.map(skill => skill.name)
     expect(names).toContain('ask-matt')
     expect(names).toContain('plain')
   })
@@ -277,7 +277,7 @@ describe('suite detail: hooks preview entries', () => {
     await manager.load()
     await manager.mergeSources([{ id: 'cc', url: join(fixtures, 'cc-commands'), local: true }])
     const detail = await manager.suiteDetail('cc', 'cc-commands')
-    const hooks = detail['hooks'] as { count: number; entries: Array<{ event: string; matcher?: string; command: string }> }
+    const hooks = detail['hooks']
     expect(hooks.count).toBe(1)
     expect(hooks.entries[0]).toMatchObject({ event: 'PreToolUse', matcher: 'Bash', command: 'echo hi' })
   })
@@ -290,27 +290,27 @@ describe('multi-client manifest paradigms (vercel-style)', () => {
   ])('discovers a %s repo and honors its declared skills path', async (dir, layout, skillName) => {
     const suites = await discoverSuitesInSource(join(fixtures, dir), dir, 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe(layout)
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual([skillName])
+    expect(suites[0].manifest.layout).toBe(layout)
+    expect(suites[0].skills.map(skill => skill.name)).toEqual([skillName])
   })
 
   it('discovers a kimi-only repo, honoring declared skills and mapping http to streamable-http', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'kimi-only'), 'k', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe('kimi')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['bar'])
-    expect(suites[0]!.mcp).toBeDefined()
-    expect(Object.keys(suites[0]!.mcp!.servers)).toEqual(['k'])
-    expect(suites[0]!.mcp!.servers['k']).toMatchObject({ type: 'streamable-http', url: 'https://x' })
-    expect(suites[0]!.errors).toEqual([])
+    expect(suites[0].manifest.layout).toBe('kimi')
+    expect(suites[0].skills.map(skill => skill.name)).toEqual(['bar'])
+    expect(suites[0].mcp).toBeDefined()
+    expect(Object.keys(suites[0].mcp!.servers)).toEqual(['k'])
+    expect(suites[0].mcp!.servers['k']).toMatchObject({ type: 'streamable-http', url: 'https://x' })
+    expect(suites[0].errors).toEqual([])
   })
 
   it('reads .mcp.json leniently: maps http to streamable-http and keeps known transports', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'dot-mcp'), 'd', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.mcp).toBeDefined()
-    expect(Object.keys(suites[0]!.mcp!.servers)).toEqual(['httpSrv', 'good'])
-    expect(suites[0]!.mcp!.servers['httpSrv']).toMatchObject({ type: 'streamable-http', url: 'https://mcp.example.com' })
-    expect(suites[0]!.errors).toEqual([])
+    expect(suites[0].mcp).toBeDefined()
+    expect(Object.keys(suites[0].mcp!.servers)).toEqual(['httpSrv', 'good'])
+    expect(suites[0].mcp!.servers['httpSrv']).toMatchObject({ type: 'streamable-http', url: 'https://mcp.example.com' })
+    expect(suites[0].errors).toEqual([])
   })
 })
