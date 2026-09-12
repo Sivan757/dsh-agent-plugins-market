@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
-import { mountSubagentCatalog, type CatalogAgent, type CatalogStepDecision, type SubagentCatalogEntry } from '../src/runtime/subagent-catalog.js'
+import { mountSubagentCatalog, type CatalogAgent, type CatalogStepDecision, type SubagentCatalogEntry, type SubagentCatalogSource } from '../src/runtime/subagent-catalog.js'
 import { agentRoleCatalog } from '../src/runtime/agent-role-router.js'
 import { bindHostLocale } from '../src/runtime/host-locale.js'
 import { Catalog } from '../src/application/catalog.js'
@@ -71,6 +71,13 @@ function publish(agent: ReturnType<typeof newAgent>, decision: CatalogStepDecisi
   const batch = messages(decision)
   for (const message of batch) agent.session.append('user/message', message, { surfaceOp: 'append' })
   return batch
+}
+
+/** Read one published message's source as the catalog source it must be, so its entries stay typed. */
+function catalogSource(message: UserMessage | undefined): SubagentCatalogSource {
+  const source = message?.source
+  if (source?.kind !== 'subagent-catalog') throw new Error(`expected a subagent-catalog source, got ${String(source?.kind)}`)
+  return source
 }
 
 const reviewer: SubagentCatalogEntry = {
@@ -264,7 +271,7 @@ describe('durable subagent catalog on the real host session and tool registries'
       entries: expect.arrayContaining([expect.objectContaining({ provider: 'custom', model: 'selected', reasoningEffort: 'high' })])
     })
     await catalog.setEnabled('source', 'suite', false)
-    expect((publish(parent, await step(parent))[0]?.source as { entries: unknown[] }).entries).toHaveLength(2)
+    expect(catalogSource(publish(parent, await step(parent))[0]).entries).toHaveLength(2)
     await catalog.uninstall('source', 'suite')
     await stores.agents.remove('reviewer')
     await catalog.setScanProjectLayouts(false)

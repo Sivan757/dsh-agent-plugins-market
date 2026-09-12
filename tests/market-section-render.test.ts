@@ -97,7 +97,7 @@ async function stubOverview(payload: unknown): Promise<void> {
 
 /** The suite card's install button; scoped to the card because the toolbar's own "uninstalled" filter label also contains the substring `install`. */
 function installButton(): HTMLButtonElement {
-  const buttons = [...host!.querySelectorAll('article button')].filter(button => (button.textContent ?? '').includes('install'))
+  const buttons = [...host!.querySelectorAll<HTMLButtonElement>('article button')].filter(button => (button.textContent ?? '').includes('install'))
   expect(buttons.length).toBe(1)
   return buttons[0]!
 }

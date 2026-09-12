@@ -12,7 +12,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../src/runtime/mcp-client/tools.js'
 import { createTransport } from '../src/runtime/mcp-client/transport.js'
 import { apply } from '../src/runtime/mcp-client/bridge.js'
-import type { Config } from '../src/runtime/mcp-client/config.js'
+import type { Config, StreamableHttpConfig } from '../src/runtime/mcp-client/config.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const testToolSignal = new AbortController().signal
@@ -297,7 +297,9 @@ vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   }
 }))
 
-function httpConfig(auth?: { enabled: boolean; scope?: string }): Config {
+// Streamable HTTP specifically, not the `Config` union: spreading a union-typed
+// value makes every override an excess property on the other constituents.
+function httpConfig(auth?: { enabled: boolean; scope?: string }): StreamableHttpConfig {
   return {
     transport: 'streamable-http',
     serverName: 'srv',
@@ -402,14 +404,16 @@ function fakeContext(options: { credentials?: unknown } = {}): Context & { effec
   const ctx = {
     root: {},
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-    effect(fn: () => unknown) {
+    effect(fn: () => void | (() => void)) {
       const teardown = fn()
       if (typeof teardown === 'function') effects.push(teardown)
     },
     tools,
     ...(options.credentials === undefined ? {} : { get: (name: string) => (name === 'credentials' ? options.credentials : undefined) })
   }
-  return Object.assign(ctx, { effects }) as Context & { effects: Array<() => void> }
+  // Deliberate partial stub of the host's Context: only the members `apply`
+  // touches exist, so the conversion has to pass through `unknown`.
+  return Object.assign(ctx, { effects }) as unknown as Context & { effects: Array<() => void> }
 }
 
 describe('bridge apply', () => {

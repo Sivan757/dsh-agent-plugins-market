@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { deriveServerName, toMcpMounts } from '../src/runtime/mcp-config.js'
+import { expectTransport } from './helpers/bridge-config.js'
 import type { Suite } from '../src/model/types.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
@@ -33,18 +34,18 @@ describe('mcp-config: suite mcp.json → bridge rows', () => {
     const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
     expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web', 'my-suite__legacy'])
     expect(failures).toEqual([])
-    const db = mounts[0]!.config as Record<string, unknown>
-    expect(db['transport']).toBe('stdio')
-    expect(db['command']).toBe('/tmp/my-suite/bin/db')
-    expect(db['args']).toEqual(['--root', '/tmp/my-suite'])
-    expect(db['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
-    expect(db['cwd']).toBe('/tmp/my-suite/data')
-    const web = mounts[1]!.config as Record<string, unknown>
-    expect(web['transport']).toBe('streamable-http')
-    expect(web['headers']).toEqual({ Authorization: 'Bearer resolved' })
-    const legacy = mounts[2]!.config as Record<string, unknown>
-    expect(legacy['transport']).toBe('sse')
-    expect(legacy['url']).toBe('https://example.com/sse')
+    const db = mounts[0]!.config
+    expectTransport(db, 'stdio')
+    expect(db.command).toBe('/tmp/my-suite/bin/db')
+    expect(db.args).toEqual(['--root', '/tmp/my-suite'])
+    expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    expect(db.cwd).toBe('/tmp/my-suite/data')
+    const web = mounts[1]!.config
+    expectTransport(web, 'streamable-http')
+    expect(web.headers).toEqual({ Authorization: 'Bearer resolved' })
+    const legacy = mounts[2]!.config
+    expectTransport(legacy, 'sse')
+    expect(legacy.url).toBe('https://example.com/sse')
   })
 })
 
@@ -76,8 +77,9 @@ describe('mcp-config: credential references', () => {
         resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'resolved-secret', source: 'file' } : undefined)
       }
     )
-    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config as Record<string, unknown>
-    expect((web['headers'] as Record<string, string>)['Authorization']).toBe('Bearer resolved-secret')
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config
+    expectTransport(web, 'streamable-http')
+    expect(web.headers['Authorization']).toBe('Bearer resolved-secret')
     expect(result.failures).toEqual([])
   })
 
@@ -96,8 +98,9 @@ describe('mcp-config: credential references', () => {
     const target = suite()
     target.mcp!.servers.web = { type: 'streamable-http', url: 'https://example.com/mcp?key=${MCP_TOKEN}' }
     const result = await toMcpMounts(target, '/tmp/data', {}, { resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'abc123' } : undefined) })
-    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config as Record<string, unknown>
-    expect(web['url']).toBe('https://example.com/mcp?key=abc123')
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config
+    expectTransport(web, 'streamable-http')
+    expect(web.url).toBe('https://example.com/mcp?key=abc123')
   })
 
   it('honors an explicit non-empty fallback but still fails closed on an empty one', async () => {
@@ -108,8 +111,9 @@ describe('mcp-config: credential references', () => {
       db: { type: 'stdio', command: 'db', args: ['--root', '${MISSING:-/default}'] }
     }
     const resolved = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
-    const db = resolved.mounts.find(mount => mount.serverKey === 'db')!.config as Record<string, unknown>
-    expect(db['args']).toEqual(['--root', '/default'])
+    const db = resolved.mounts.find(mount => mount.serverKey === 'db')!.config
+    expectTransport(db, 'stdio')
+    expect(db.args).toEqual(['--root', '/default'])
     expect(resolved.failures).toEqual([])
 
     // `${REF:-}` supplies an empty fallback, so an unresolved value stays empty
@@ -149,8 +153,9 @@ describe('mcp-config: credential references', () => {
         }
       }
     )
-    const db = result.mounts[0]!.config as Record<string, unknown>
-    expect(db['args']).toEqual(['v', 'v'])
+    const db = result.mounts[0]!.config
+    expectTransport(db, 'stdio')
+    expect(db.args).toEqual(['v', 'v'])
     expect(lookups).toBe(1)
   })
 })
@@ -192,9 +197,11 @@ describe('mcp-config: source-scoped identity', () => {
     expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
     expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
     // Per-suite PLUGIN_DATA directories are qualified too.
-    const dbA = first.mounts[0]!.config as Record<string, unknown>
-    expect(dbA['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
-    const dbB = second.mounts[0]!.config as Record<string, unknown>
-    expect(dbB['env']).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
+    const dbA = first.mounts[0]!.config
+    expectTransport(dbA, 'stdio')
+    expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    const dbB = second.mounts[0]!.config
+    expectTransport(dbB, 'stdio')
+    expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
   })
 })

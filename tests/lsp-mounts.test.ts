@@ -54,7 +54,7 @@ function hostLoader(behavior: 'ok' | 'fail-startup' | 'conflict' | 'missing', mo
  * builder wires two no-op loaders for it and the assertions stay about provider mounting.
  */
 function mountCtx(
-  handleBehavior: 'ok' | 'await-rejects',
+  handleBehavior: 'ok' | 'await-rejects' = 'ok',
   applyThrows = false
 ): { ctx: unknown; disposed: () => boolean; build: (loadHost: () => Promise<unknown>) => LspMountRegistry } {
   let disposed = false

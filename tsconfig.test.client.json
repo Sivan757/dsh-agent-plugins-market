@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noImplicitAny": true,
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node", "react"]
+  },
+  "include": [
+    "src/client/**/*.ts",
+    "src/client/**/*.tsx",
+    "tests/globals.d.ts",
+    "tests/jsdom.d.ts",
+    "tests/client-busy-overlay.test.ts",
+    "tests/client-credentials.test.ts",
+    "tests/client-detail-editors.test.ts",
+    "tests/client-locales.test.ts",
+    "tests/client-mcp-detail-actions.test.ts",
+    "tests/client-mcp-detail.test.ts",
+    "tests/client-page-mode.test.ts",
+    "tests/client-role-reasoning.test.ts",
+    "tests/client-view-models.test.ts",
+    "tests/client-workspace-view.test.ts",
+    "tests/filter-toolbar.test.ts",
+    "tests/markdown-crash.test.ts",
+    "tests/market-section-render.test.ts",
+    "tests/mcp-status-render.test.ts",
+    "tests/role-frontmatter.test.ts",
+    "tests/suite-detail-resource.test.ts",
+    "tests/user-panel-surface.test.ts"
+  ]
+}

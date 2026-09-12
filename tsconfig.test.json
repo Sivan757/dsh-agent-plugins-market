@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["tests/**/*.ts"],
+  // Client-owned artifacts under `tests/`. The include above is deliberately
+  // broad so a new server test is checked without registering it anywhere; a
+  // new client test lands here and fails on `document` until it is listed.
+  "exclude": [
+    "tests/helpers/dom-events.ts",
+    "tests/helpers/translate.ts",
+    "tests/jsdom.d.ts",
+    "tests/client-busy-overlay.test.ts",
+    "tests/client-credentials.test.ts",
+    "tests/client-detail-editors.test.ts",
+    "tests/client-locales.test.ts",
+    "tests/client-mcp-detail-actions.test.ts",
+    "tests/client-mcp-detail.test.ts",
+    "tests/client-page-mode.test.ts",
+    "tests/client-role-reasoning.test.ts",
+    "tests/client-view-models.test.ts",
+    "tests/client-workspace-view.test.ts",
+    "tests/filter-toolbar.test.ts",
+    "tests/markdown-crash.test.ts",
+    "tests/market-section-render.test.ts",
+    "tests/mcp-status-render.test.ts",
+    "tests/role-frontmatter.test.ts",
+    "tests/suite-detail-resource.test.ts",
+    "tests/user-panel-surface.test.ts"
+  ]
+}

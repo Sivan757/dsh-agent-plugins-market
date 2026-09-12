@@ -11,7 +11,9 @@ afterEach(async () => {
 })
 
 function hostFixture() {
-  const startContinuable = vi.fn(async () => ({ childId: 'child-1', messageId: 'message-1' }))
+  // Typed against the host contract so `mock.calls` records the real argument
+  // tuple; an untyped spy records `[]` and the argument assertions below are unchecked.
+  const startContinuable = vi.fn<AgentRoleHost['subagents']['startContinuable']>(async () => ({ childId: 'child-1', messageId: 'message-1' }))
   const host: AgentRoleHost = {
     tools: { register: vi.fn(() => vi.fn()) },
     llm: { resolveCallConfig: vi.fn(async config => config) },

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { act, createElement as h, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Simulate } from 'react-dom/test-utils'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
 import { MarkdownDocument } from '../src/client/ui/MarkdownDocument.js'
+import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -41,9 +41,9 @@ async function click(label: string) {
   await act(async () => button!.click())
 }
 async function change(label: string, value: string) {
-  const input = host.querySelector(`[aria-label="${label}"]`)!
+  const input = host.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[aria-label="${label}"]`)!
   expect(input).not.toBeNull()
-  await act(async () => Simulate.change(input, { target: { value } } as never))
+  await act(async () => typeInto(input, value))
 }
 const value = () => JSON.parse(host.querySelector('[data-value]')!.textContent!) as Record<string, unknown>
 
