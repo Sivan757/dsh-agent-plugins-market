@@ -206,28 +206,13 @@ describe('validate: manifest and mcp.json', () => {
     expect(config!.servers['github']).toMatchObject({ type: 'streamable-http', url: 'https://api.example.com/mcp' })
   })
 
-  it('treats a command-only server as stdio (Claude Code default)', async () => {
-    const { config, errors } = await validateMcpJson(
-      '/tmp/fixture-root',
-      {
-        mcpServers: { local: { command: 'bun', args: ['start'] } }
-      },
-      { strict: false }
-    )
+  it.each([
+    ['a command-only server (Claude Code default)', 'local', { command: 'bun', args: ['start'] }, 'bun'],
+    ['the Claude Code local transport', 'script', { type: 'local', command: 'node', args: ['server.js'] }, 'node']
+  ])('normalizes %s to stdio', async (_label, name, server, command) => {
+    const { config, errors } = await validateMcpJson('/tmp/fixture-root', { mcpServers: { [name]: server } }, { strict: false })
     expect(errors).toEqual([])
-    expect(config!.servers['local']).toMatchObject({ type: 'stdio', command: 'bun' })
-  })
-
-  it('normalizes the Claude Code local transport to stdio', async () => {
-    const { config, errors } = await validateMcpJson(
-      '/tmp/fixture-root',
-      {
-        mcpServers: { script: { type: 'local', command: 'node', args: ['server.js'] } }
-      },
-      { strict: false }
-    )
-    expect(errors).toEqual([])
-    expect(config!.servers['script']).toMatchObject({ type: 'stdio', command: 'node' })
+    expect(config!.servers[name]).toMatchObject({ type: 'stdio', command })
   })
 })
 
@@ -299,11 +284,14 @@ describe('suite detail: hooks preview entries', () => {
 })
 
 describe('multi-client manifest paradigms (vercel-style)', () => {
-  it('discovers a cursor-only repo and honors its declared skills path', async () => {
-    const suites = await discoverSuitesInSource(join(fixtures, 'cursor-only'), 'c', 'user')
+  it.each([
+    ['cursor-only', 'cursor', 'foo'],
+    ['universal-only', 'universal', 'baz']
+  ])('discovers a %s repo and honors its declared skills path', async (dir, layout, skillName) => {
+    const suites = await discoverSuitesInSource(join(fixtures, dir), dir, 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe('cursor')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['foo'])
+    expect(suites[0]!.manifest.layout).toBe(layout)
+    expect(suites[0]!.skills.map(skill => skill.name)).toEqual([skillName])
   })
 
   it('discovers a kimi-only repo, honoring declared skills and mapping http to streamable-http', async () => {
@@ -315,13 +303,6 @@ describe('multi-client manifest paradigms (vercel-style)', () => {
     expect(Object.keys(suites[0]!.mcp!.servers)).toEqual(['k'])
     expect(suites[0]!.mcp!.servers['k']).toMatchObject({ type: 'streamable-http', url: 'https://x' })
     expect(suites[0]!.errors).toEqual([])
-  })
-
-  it('discovers a universal-only repo', async () => {
-    const suites = await discoverSuitesInSource(join(fixtures, 'universal-only'), 'u', 'user')
-    expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe('universal')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['baz'])
   })
 
   it('reads .mcp.json leniently: maps http to streamable-http and keeps known transports', async () => {

@@ -106,19 +106,13 @@ describe('native project-layout discovery', () => {
     expect(candidates[0]!.rank).toBe(250)
   })
 
-  it('projects without native directories discover nothing extra', async () => {
+  it.each([
+    ['a project without native directories', undefined],
+    ['a .claude directory holding no content subdirectories', 'settings']
+  ])('%s discovers nothing extra', async (_label, onlySubdir) => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-empty-'))
     await mkdir(join(projectRoot, '.git'), { recursive: true })
-    const dimensionRoot = join(projectRoot, '.dsh', 'agent-plugins')
-
-    const suites = await discoverSourceList([], 'project', dimensionRoot)
-    expect(suites).toEqual([])
-  })
-
-  it('an empty .claude directory with no content subdirectories is skipped', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-bare-'))
-    await mkdir(join(projectRoot, '.git'), { recursive: true })
-    await mkdir(join(projectRoot, '.claude', 'settings'), { recursive: true })
+    if (onlySubdir !== undefined) await mkdir(join(projectRoot, '.claude', onlySubdir), { recursive: true })
     const dimensionRoot = join(projectRoot, '.dsh', 'agent-plugins')
 
     const suites = await discoverSourceList([], 'project', dimensionRoot)

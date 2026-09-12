@@ -32,7 +32,6 @@ describe('live-like native discovery through a real project tree', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: join(repo, 'packages', 'app') })
     const names = candidates.map(c => c.name).sort()
-    expect(names).toContain('deploy')
     expect(names).toEqual(['deploy'])
     expect(candidates.every(c => c.rank === 250)).toBe(true)
   })
