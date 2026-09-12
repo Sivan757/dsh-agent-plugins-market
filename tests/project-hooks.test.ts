@@ -88,7 +88,9 @@ describe('native hook bridge lifecycle', () => {
       if (first === undefined) throw new Error('expected the hook config to mount once')
       expect(first.projectDir).toBe(project)
       expect(first.configPath.startsWith(project)).toBe(false)
-      expect((await stat(first.configPath)).mode & 0o777).toBe(0o600)
+      // Windows has no POSIX permission bits — `chmod` there only toggles the
+      // read-only attribute — so the private-file mode is a POSIX guarantee.
+      if (process.platform !== 'win32') expect((await stat(first.configPath)).mode & 0o777).toBe(0o600)
       expect(await readFile(first.configPath, 'utf8')).not.toContain('not copied')
       expect(await readFile(settingsPath, 'utf8')).toBe(original)
       await writeFile(settingsPath, JSON.stringify({ hooks: { PreToolUse: [hook('echo changed')] } }))

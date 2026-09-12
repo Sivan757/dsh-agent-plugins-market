@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -23,7 +24,7 @@ let userRoot: string
 let dataRoot: string
 
 beforeEach(async () => {
-  tmpRoot = await mkdtemp(join('/tmp', 'dsh-agent-pipeline-'))
+  tmpRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-pipeline-'))
   userRoot = await mkdtemp(join(tmpRoot, 'user'))
   dataRoot = join(tmpRoot, 'data')
   await mkdir(join(userRoot, '.sources'), { recursive: true })

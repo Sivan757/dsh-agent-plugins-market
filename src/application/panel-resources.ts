@@ -1,8 +1,8 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
 import { realpath, unlink, writeFile } from 'node:fs/promises'
-import { isAbsolute, relative } from 'node:path'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
+import { isWithin } from '../catalog/paths.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from '../runtime/user-store.js'
 import type { UserPanelStore } from '../runtime/user-panels.js'
@@ -106,8 +106,7 @@ class PanelResources implements PanelResourceStore {
     if (entry.path.endsWith('.json')) throw new Error('Inline manifest resources are read-only; edit their source manifest')
     const root = await realpath(this.catalog.userRoot)
     const path = await realpath(entry.path)
-    const rel = relative(root, path)
-    if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) throw new Error('External source files are read-only; create a user resource to customize them')
+    if (!isWithin(root, path)) throw new Error('External source files are read-only; create a user resource to customize them')
     return path
   }
 

@@ -98,7 +98,7 @@ describe('layout registry', () => {
     await put(dir, '.cursor-plugin/marketplace.json', JSON.stringify({ name: 'cursor', plugins: [{ name: 'usable', source: { source: 'github', repo: 'example/usable' } }] }))
     const result = await scanSource(dir, 'market', 'user')
     expect(result.suites.map(suite => suite.id)).toEqual(['usable'])
-    expect(result.notes.join('\n')).toContain('.plugin/marketplace.json')
+    expect(result.notes.join('\n')).toContain(join('.plugin', 'marketplace.json'))
     expect(result.notes.join('\n')).toContain('no entry resolved')
   })
 
