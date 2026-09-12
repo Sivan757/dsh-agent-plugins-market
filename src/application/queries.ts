@@ -4,8 +4,9 @@ import type { LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from '../contracts/market.js'
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../runtime/mcp-overrides.js'
-import type { HostMcpClientProbe, McpBackend } from '../runtime/mcp-backend.js'
+import type { McpBackend } from '../runtime/mcp-backend.js'
 import type { ServerConfigPayload } from '../contracts/market.js'
+import type { LspServerTable, McpBackendInfo, SourceInput, SourcePatch } from './ports.js'
 
 /** Read-only market operations required by HTTP routes. */
 export interface MarketQueries {
@@ -14,7 +15,7 @@ export interface MarketQueries {
   overview(): Promise<OverviewPayload>
   mcpStatus(): Promise<McpStatusPayload>
   lspStatus(): Promise<LspStatusPayload>
-  lspServers(): Promise<Record<string, import('../model/types.js').LspServerSpec>>
+  lspServers(): Promise<LspServerTable>
   sourceProgress(): SourceProgress
   suiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail>
   skillContent(sourceId: string, suiteId: string, skillName: string): Promise<SkillContent>
@@ -26,8 +27,8 @@ export interface MarketMutations {
   saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown): Promise<void>
   addMcpServer(name: string, server: unknown): Promise<void>
   addLspServer(name: string, config: unknown): Promise<void>
-  addSource(input: { url: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<SourceRef>
-  updateSource(sourceId: string, patch: { url?: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string }): Promise<void>
+  addSource(input: SourceInput): Promise<SourceRef>
+  updateSource(sourceId: string, patch: SourcePatch): Promise<void>
   /**
    * Remove a source registration; `deleteCheckout` also physically deletes
    * its managed `.sources/<id>` checkout. External local paths are never deleted.
@@ -42,18 +43,14 @@ export interface MarketMutations {
   setSurface(sourceId: string, suiteId: string, surface: SuiteSurfaceKey, enabled: boolean): Promise<void>
   setMcpOverride(sourceId: string, suiteId: string, serverKey: string, override: McpServerOverride | null): Promise<void>
   /** Validate and persist the user's direct LSP server table. */
-  setLspServers(raw: unknown): Promise<Record<string, import('../model/types.js').LspServerSpec>>
+  setLspServers(raw: unknown): Promise<LspServerTable>
   setLspServerEnabled(id: string, enabled: boolean): Promise<void>
   /** Re-run the MCP reconcile pass: retries failed mounts and clears residual tools. */
   retryMounts(): Promise<void>
   reauthorizeMcpServer(serverName: string): Promise<void>
   mcpReauthorizeAvailable(): boolean
   /** The active MCP backend, host-client probe, and download region. */
-  mcpBackendInfo(): Promise<{
-    backend: McpBackend
-    hostClient: HostMcpClientProbe
-    downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
-  }>
+  mcpBackendInfo(): Promise<McpBackendInfo>
   /** Switch the MCP mount backend and remount every suite server through it. */
   setMcpBackend(backend: McpBackend): Promise<void>
   /**

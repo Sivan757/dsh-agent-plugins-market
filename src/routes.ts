@@ -12,7 +12,8 @@ import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from './contracts/m
 import { expandHome } from './catalog/paths.js'
 import { sanitizeOverridePatch } from './runtime/mcp-overrides.js'
 import type { MarketService } from './application/queries.js'
-import type { SuiteSurfaceKey } from './model/types.js'
+import type { SourcePatch } from './application/ports.js'
+import type { SourceKind, SuiteSurfaceKey } from './model/types.js'
 import type { PanelResourceStore } from './application/panel-resources.js'
 import { readModelCatalog } from './runtime/model-catalog.js'
 
@@ -181,7 +182,7 @@ export function mountSuiteRoutes(
   post(MARKET_ROUTES.updateSource, async body => {
     const id = body['id']
     if (typeof id !== 'string' || id === '') throw new Error('missing source id')
-    const patch: { url?: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string } = {}
+    const patch: SourcePatch = {}
     if (body['url'] !== undefined) {
       const url = String(body['url']).trim()
       if (url === '') throw new Error('missing source url')
@@ -393,7 +394,7 @@ function parseTarget(body: Record<string, unknown>): { sourceId: string; suiteId
 }
 
 /** Parse an optional acquisition-kind field; rejects unknown values. */
-function parseSourceKind(raw: unknown): 'git' | 'local' | 'archive' | undefined {
+function parseSourceKind(raw: unknown): SourceKind | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined
   if (raw === 'git' || raw === 'local' || raw === 'archive') return raw
   throw new Error(`invalid source kind "${String(raw)}"`)
