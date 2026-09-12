@@ -199,7 +199,6 @@ describe('LspMountRegistry', () => {
       expect(conflicts.every(diagnostic => diagnostic.code === 'seam-conflict')).toBe(true)
       await conflictRegistry.disposeAll()
 
-      const retries: number[] = []
       const failRegistry = build(hostLoader('fail-startup'))
       const failures = await failRegistry.reconcile([lspSuite('ts')])
       expect(failures[0]!.code).toBe('mount-failed')
@@ -208,7 +207,6 @@ describe('LspMountRegistry', () => {
       const retryPass = vi.spyOn(failRegistry, 'reconcile')
       await vi.advanceTimersByTimeAsync(200_000)
       expect(retryPass).toHaveBeenCalled()
-      retries.push(retryPass.mock.calls.length)
       await failRegistry.disposeAll()
     } finally {
       vi.useRealTimers()
