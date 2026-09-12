@@ -9,7 +9,7 @@ The plugin will remain one published npm package with stable host/client entry p
 
 ## Status
 
-The `SuiteManager` facade was deleted after its deletion condition was met — routes, the skill provider, the context tool, and host composition no longer depend on it. The `discovery.ts` compat facade was deleted at the same time. The module map is realized: `model/`, `catalog/`, `application/`, `runtime/`, `contracts/`, and `client/features/` + `client/ui/` layers are in place. Host entry points (`index.ts`, `routes.ts`, `context.ts`) remain at the `src/` root deliberately; moving them into `host/` would require entry-point path adjustments that add risk without behavioral value.
+The `SuiteManager` facade was deleted after its deletion condition was met — routes, the skill provider, and host composition no longer depend on it. The `discovery.ts` compat facade was deleted at the same time. The layer directories `model/`, `catalog/`, `application/`, `runtime/`, `contracts/`, and `client/features/` + `client/ui/` are in place. Host entry points (`index.ts`, `routes.ts`) remain at the `src/` root deliberately; moving them into `host/` would require entry-point path adjustments that add risk without behavioral value.
 
 ## Consequences
 

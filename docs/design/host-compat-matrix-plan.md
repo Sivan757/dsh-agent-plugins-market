@@ -36,7 +36,7 @@
 | 无头启动 | `dsh --profile <p> web --no-open --port 0` | 全量 Cordis 启动 + 插件 `apply()` 真实执行（skills provider、路由挂载、可选 peer 降级） |
 | 功能探针 | HTTP `/api/agent-plugins/*`                | 插件 HTTP 面可用，catalog 扫描产出可断言结果                                            |
 
-**本机已实测 / 待 CI 复测**（dsh 0.1.2-rc.1，无 LLM 凭证）：
+**本机已实测 / 待 CI 复测**（无 LLM 凭证）：
 
 - 已实测：`dsh web --no-open --port 0` 正常启动；对 `http://127.0.0.1:<port>/api/agent-plugins/overview` 裸 curl 返回 200 与完整 sources JSON。
 - 待 CI 复测：评审依据 `dsh-client-connection` 源码认为 API 需先 `GET /?token=...` 完成 303 跳转换取签名 Cookie，无 Cookie 应 401。与本机裸 curl 200 矛盾——可能 browser-trust fence 只拦带浏览器指纹的请求，**结论以 CI 环境实测裁定**。探针实现上先完成 token→cookie 交换再调 API（成本一行，兼容两种行为）。
@@ -57,13 +57,13 @@
 评审指出 `latest/next/alpha` 是 **npm 移动渠道**，不是支持下限。两套轴分开：
 
 - **PR 必需门（硬）**：显式钉住的两个版本——
-  - 受支持下限：当前为 **dsh 0.1.2-rc.1**（与 `peerDependencies` `^0.1.2-rc.1` 一致；下限抬升随 peer 抬升同步改此值）；
+  - 受支持下限：当前为 **dsh 0.1.5-rc.2**（与 `peerDependencies` `^0.1.5-rc.2` 一致；下限抬升随 peer 抬升同步改此值）；
   - 当前稳定版：npm `latest` 解析结果。
 - **schedule / workflow_dispatch 渠道轴（advisory）**：`next`、`alpha`（以及随时校准的 `latest`）。宿主渠道漂移导致的失败**不阻塞发布**，但必须留痕。
 
 每次运行把解析出的实际版本（`dsh -V`、各官方包版本、OS、Node）写进 job summary，让「代码回归」与「宿主渠道漂移」两类失败可区分。
 
-**alpha 特殊性**：npm `alpha`（如 0.1.2-alpha.5）不满足 `^0.1.2-rc.1` 的 semver 范围，peer 解析可能直接失败——这不是「预期宿主断裂」而是 peer 合约表达的问题。alpha 轴的判定政策见 §7 决策点 D2；在 D2 拍板前 alpha 轴只 advisory 且结果旁标注「peer 范围外」。
+**alpha 特殊性**：npm `alpha`（如 0.1.5-alpha.5）不满足 `^0.1.5-rc.2` 的 semver 范围，peer 解析可能直接失败——这不是「预期宿主断裂」而是 peer 合约表达的问题。alpha 轴的判定政策见 §7 决策点 D2；在 D2 拍板前 alpha 轴只 advisory 且结果旁标注「peer 范围外」。
 
 - **Node**：22（engines `>=22` 主力线）；24 待 advisory 轴验证后再考虑入硬门。
 - **OS**：仅 ubuntu-latest；macOS 后续按需。
@@ -141,7 +141,7 @@ jobs:
       max-parallel: 2
       matrix:
         include:
-          - dsh: '0.1.2-rc.1' # 受支持下限（随 peer 抬升同步维护）
+          - dsh: '0.1.5-rc.2' # 受支持下限（随 peer 抬升同步维护）
             gate: true
           - dsh: 'latest' # 当前稳定版
             gate: true
@@ -231,7 +231,7 @@ compose check 失败 → `compose.txt`（layer 栈缺行）；boot 失败 → pr
 
 1. **profile 最小依赖集（含 E3 规范冲突，待拍板 D1）**：v1 假设官方 peer 包手钉进 profile dependencies；评审指出这违反规范 E3（profile node_modules 只放插件与其依赖），且本机 web profile 实用 `nodeLinker: hoisted` + `autoInstallPeers: false` + 大量额外包，不能证明三依赖即最小闭包。v2 基线改为：只装插件包，依赖 pnpm auto-install-peers 解析 peer，用 `pnpm why` + `require.resolve` 核查没有第二份 Cordis/官方 runtime 被加载；若实测必须手钉，按 P6 走「更新 E3 规范 + ADR」后再改。
 2. **minimumReleaseAge（评审 #10 事实修正）**：本仓库 `pnpm-workspace.yaml` 只有 `minimumReleaseAgeExclude`，没有全局 `minimumReleaseAge`；且 compat profile 是独立 pnpm 工程（`--no-frozen-lockfile`），workspace 策略不自动约束它。风险仍存在但机制不同于 v1 表述：夜间装刚发布的 dsh 版本时，主要风险是包刚发布未同步/rate limit，属环境性红灯，应在 runbook 中归类为可重试故障。profile lockfile 生成后留存（artifact）供复现。
-3. **E1/E2 运行时基线冲突（待拍板 D3）**：规范 E1 写「本机 dsh 0.1.1-rc.2」，实机已是 0.1.2-rc.1。本方案所有本机实测均基于 rc.1，评审确认 workspace 源码 checkout 仍不作 API 依据（E2 维持）。按 P6 报告：规范基线需要一次显式更新，或本文档声明 as-of 基线为 rc.1。
+3. **E1/E2 运行时基线（E2 维持）**：规范 E1 的运行时基线取本仓库 `package.json` 的 `peerDependencies`（当前 `^0.1.5-rc.2`）与本机 `dsh -V` 实测值；评审确认 workspace 源码 checkout 仍不作 API 依据（E2 维持）。
 4. **alpha 轴政策（待拍板 D2）**：见 §3.1。
 5. **Release PR check 可见性**：见 §3.2 第 4 条，首次真实 Release PR 上验证。
 6. **Client 面（浏览器）验证缺席**：HTTP 探针不覆盖 `__ModuleLoader__` bundle 装载、React 渲染、CSS 注入。评审建议把浏览器 smoke 提为发布前必需 job——**本方案维持阶段化**：第一期门只宣称覆盖 host/API 面（文档与 gate 命名如实表述，不宣称「功能全部正常」），Playwright job 作为第二期单独评审后再定是否入硬门。理由：client 面断裂先例（MarkdownText labels）可被现有 render 冒烟测试部分拦截，且浏览器矩阵的维护成本需先论证。
@@ -246,10 +246,9 @@ compose check 失败 → `compose.txt`（layer 栈缺行）；boot 失败 → pr
 4. 提 PR 观察首轮矩阵结果，回填 §5.8 的 runner 环境事实。
 5. **仓库设置动作（人工）**：branch protection 将 `host-compat-gate` 配为 `main` required check；下一个真实 Release PR 上验证 check 出现并阻塞合并。
 6. 启用 schedule 前先定 §5.7 的通知与失败分类，否则 schedule 先不开（避免无人认领的夜间红灯）。
-7. 文档同步：本文档 v2 事实 + README（双语）Development/CI 小节 + release runbook 加入 host-compat 门 + Agent Note（双语，记录矩阵轴语义与 D1–D3 决策）；CI 行为本身非安装者可感知，不用 `feat:`/`fix:` 提交。
+7. 文档同步：本文档 v2 事实 + README（双语）Development/CI 小节 + release runbook 加入 host-compat 门 + Agent Note（双语，记录矩阵轴语义与 D1–D2 决策）；CI 行为本身非安装者可感知，不用 `feat:`/`fix:` 提交。
 
 ## 7. 待用户拍板的决策点
 
 - **D1（E3 冲突）**：compat profile 允许手钉官方 peer 包（违反现行 E3，需修规范 + ADR），还是坚持纯插件安装、依赖 auto-install-peers（可能装出双份官方包）？方案基线取后者，实测后回填。
 - **D2（alpha 政策）**：alpha 轴定位为「peer 范围外的探索性观察」仅 advisory（基线），还是把 peer 范围扩到 alpha 线？
-- **D3（E1 基线漂移）**：规范 E1 的 rc.2 基线何时更新为 rc.1？（影响所有后续 API 调研的锚点）

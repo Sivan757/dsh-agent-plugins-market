@@ -1,7 +1,7 @@
 # DSH 插件开发规范（DeepSeek Harness Plugin Development Standard）
 
-- 版本：1.0.0 · 运行时基线：**本机实际运行的 dsh CLI 0.1.1-rc.2**（全局安装）
-- 参考实现：本仓库 `dsh-agent-plugins-market` v0.5.2（已发布的成熟 DSH 插件）
+- 版本：1.0.0 · 运行时基线：**本机实际运行的 dsh CLI**（全局安装，`dsh -V` 实测）；宿主依赖范围见本仓库 `package.json` 的 `peerDependencies`。文中「rc.2 实测」事实取自 dsh `0.1.1-rc.2`。
+- 参考实现：本仓库 `dsh-agent-plugins-market`（已发布的成熟 DSH 插件）
 - 受众优先级：**AI Agent 执行优先，人类复核友好**。条款为祈使句，用 MUST / SHOULD / MAY（RFC 2119 语义）；多数小节附「依据」，指向真实文件或命令供人抽查。
 - 配套脚手架：独立项目 [`dsh-plugin-scaffold`](../../../dsh-plugin-scaffold/)（`~/workspace/dsh-plugin-scaffold`，从零起步复制即用）；其根目录 `AGENTS.md` 是本规范的**自包含执行投影**（复制出去后无需携带本文即可执行）。
 
@@ -45,7 +45,7 @@ Web GUI(浏览器) ──window.__ModuleLoader__──▶ 插件 client 面(单�
 - `dsh.bundle.patch` 指向包内 `cordis.patch.yml`，后者用 `insert: [{id, name}]` 把插件行插入 profile layer 栈。
 - `dsh.client.inject` 列出 client 面要 `require()` 的官方客户端模块（常用：`dsh-client-connection / -runtime / -locale / -ui-settings / -ui-theme`）。注意：inject 列表不含 ui-primitives，但它可以直接 require（附录 A）。
 - `peerDependencies` 声明 `@deepseek-ai/cordis` 及用到的官方能力包；可选能力加 `peerDependenciesMeta.optional` 并优雅降级。注意安装包**不会**替你安装任何 peer（dsh profile 设 `autoInstallPeers: false`）：本插件要自己保证可用的能力必须放进 `dependencies` 并由插件自行挂载，而安装包已共享供给的服务包必须留作 peer——自带副本会遮蔽安装包那份并产生第二个服务实例。动态 `import()` 的官方包同样必须声明：只 import 不声明，缺包时该 surface 只剩一行诊断，没有任何版本契约可对齐（`pnpm run check:host-alignment` 会拦下这种漏声明）。
-- 构建产物（`lib/`、`client/`）由 `prepack` 生成；是否随 git 提交属于发布策略（参考实现选择提交，让 GitHub 安装免构建），SHOULD 用 ADR 记录该选择。
+- 构建产物（`lib/`、`client/`）由 `prepare`、`prepack` 生成，随 `files` 进入发布包；不纳入版本管理。
 
 ### 2.2 Host 入口（src/index.ts）
 
@@ -78,7 +78,7 @@ Web GUI(浏览器) ──window.__ModuleLoader__──▶ 插件 client 面(单�
 | Contracts   | `src/contracts`   | 浏览器安全 wire DTO + 集中 route builders | model                           |
 | Client      | `src/client`      | React UI（features + 共享控件）           | contracts、经 inject 的官方模块 |
 
-Host 入口（`index.ts` / `routes.ts` / `context.ts`）**留在 `src/` 根**作组装点，不强行归层（ADR-0001 结论）。
+Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不强行归层（ADR-0001 结论）。
 
 ### 3.2 禁边 = 适应度函数（CI 强制）
 
@@ -154,7 +154,7 @@ Host 入口（`index.ts` / `routes.ts` / `context.ts`）**留在 `src/` 根**作
 
 **环境事实（开工前核对，不凭记忆假设）：**
 
-- **E1** 运行时基线 = 本机全局 dsh CLI `0.1.1-rc.2`（`/opt/homebrew/bin/dsh`）；官方运行时包全部在其 `node_modules/@deepseek-ai/` 下。
+- **E1** 运行时基线 = 本机全局 dsh CLI（`/opt/homebrew/bin/dsh`，`dsh -V` 实测）；宿主依赖范围见本仓库 `package.json` 的 `peerDependencies`；官方运行时包全部在其 `node_modules/@deepseek-ai/` 下。
 - **E2** API 调研只认 E1 目录的实际 lib 与 `.d.ts`；workspace 里的 deepseek-harness 源码 checkout 与运行环境版本不同步，**禁止**作为 API 依据。
 - **E3** profile 的 node_modules 只放插件与其依赖；不要把官方运行时包装进 profile。
 
