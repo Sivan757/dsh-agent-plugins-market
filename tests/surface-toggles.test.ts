@@ -20,6 +20,18 @@ async function installFixture(manager: Catalog, sourceId = 'demo', suiteId = 'v1
   await manager.install(sourceId, suiteId)
 }
 
+function catalogAt(userRoot: string): Catalog {
+  return new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+}
+
+/** A loaded Catalog holding one installed fixture suite, backed by its own temp user root. */
+async function installedCatalog(): Promise<Catalog> {
+  const manager = catalogAt(await mkdtemp(join(tmpdir(), 'dsh-surface-')))
+  await manager.load()
+  await installFixture(manager)
+  return manager
+}
+
 describe('effectiveSurfaces', () => {
   it('defaults every surface to enabled without overrides', () => {
     expect(effectiveSurfaces(undefined)).toEqual({ skills: true, mcp: true, hooks: true, commands: true, agents: true, lsp: true })
@@ -32,10 +44,7 @@ describe('effectiveSurfaces', () => {
 
 describe('Catalog.setSurface', () => {
   it('persists per-surface overrides and reflects them in the snapshot', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-surface-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
-    await installFixture(manager)
+    const manager = await installedCatalog()
 
     await manager.setSurface('demo', 'v1-suite', 'mcp', false)
     const suites = (await manager.readUserCatalog()).suites
@@ -46,20 +55,14 @@ describe('Catalog.setSurface', () => {
   })
 
   it('rejects unknown surfaces and uninstalled suites', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-surface-bad-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
-    await installFixture(manager)
+    const manager = await installedCatalog()
 
     await expect(manager.setSurface('demo', 'v1-suite', 'nope' as never, false)).rejects.toThrow('not toggleable')
     await expect(manager.setSurface('demo', 'missing', 'mcp', false)).rejects.toThrow('not installed')
   })
 
   it('shows surface toggles on installed overview cards only', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-surface-overview-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
-    await installFixture(manager)
+    const manager = await installedCatalog()
     await manager.setSurface('demo', 'v1-suite', 'hooks', false)
 
     const overview = await manager.overview()
@@ -69,13 +72,10 @@ describe('Catalog.setSurface', () => {
   })
 
   it('survives state reload (persisted overrides)', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-surface-persist-'))
-    const first = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await first.load()
-    await installFixture(first)
+    const first = await installedCatalog()
     await first.setSurface('demo', 'v1-suite', 'commands', false)
 
-    const second = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const second = catalogAt(first.userRoot)
     await second.load()
     const suite = (await second.readUserCatalog()).suites.find(entry => entry.id === 'v1-suite')!
     expect(suite.activeSurfaces.commands).toBe(false)
@@ -85,10 +85,7 @@ describe('Catalog.setSurface', () => {
 
 describe('surface filtering at runtime', () => {
   it('hides skills of a suite with skills disabled', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-surface-skills-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
-    await installFixture(manager)
+    const manager = await installedCatalog()
     await manager.setSurface('demo', 'v1-suite', 'skills', false)
 
     const provider = new SuiteSkillProvider(manager)
@@ -96,10 +93,7 @@ describe('surface filtering at runtime', () => {
   })
 
   it('keeps skills when other surfaces are disabled', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-surface-mixed-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
-    await installFixture(manager)
+    const manager = await installedCatalog()
     await manager.setSurface('demo', 'v1-suite', 'mcp', false)
     await manager.setSurface('demo', 'v1-suite', 'hooks', false)
 
@@ -109,13 +103,10 @@ describe('surface filtering at runtime', () => {
   })
 
   it('skips MCP mounting for suites with mcp disabled', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-surface-mcp-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
-    await installFixture(manager)
+    const manager = await installedCatalog()
     await manager.setSurface('demo', 'v1-suite', 'mcp', false)
 
-    const reconciler = new RuntimeReconciler({} as Context, join(userRoot, 'data'))
+    const reconciler = new RuntimeReconciler({} as Context, join(manager.userRoot, 'data'))
     const enabled = (await manager.readUserCatalog()).enabledSuites
     const diagnostics = await reconciler.reconcile(enabled)
     // The disabled suite's servers never even reach the mount adapter.
