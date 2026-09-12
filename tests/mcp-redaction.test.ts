@@ -21,11 +21,6 @@ describe('MCP config redaction', () => {
     expect(redacted.headers['x-trace-id']).toBe('abc123')
   })
 
-  it('preserves credential references so the UI can still name them', () => {
-    const redacted = redactMcpConfig({ env: { API_TOKEN: '${API_TOKEN}' } }) as Record<string, Record<string, string>>
-    expect(redacted.env.API_TOKEN).toBe('${API_TOKEN}')
-  })
-
   it('preserves every reference when several sensitive keys carry one', () => {
     // Each value is judged on its own: one placeholder must not hide the next.
     const redacted = redactMcpConfig({ env: { API_TOKEN: '${A}', OTHER_SECRET: '${B}', THIRD_KEY: '${C}' } }) as Record<string, Record<string, string>>

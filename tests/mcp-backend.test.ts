@@ -92,28 +92,20 @@ describe('MCP backend persistence', () => {
 })
 
 describe('MCP backend dispatch at mount time', () => {
-  it('mounts through the built-in bridge by default', async () => {
+  it.each([
+    ['the built-in bridge by default', undefined, 'market-mcp-client'],
+    ['the host client in compat mode', async () => 'host' as const, 'mcp-client']
+  ])('mounts through %s', async (_label, backend, expectedModule) => {
     vi.resetModules()
     hostClientState.mode = 'available'
     const { ctx, mounted } = fakeContext()
     const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    if (backend !== undefined) registry.setBackendProvider(backend)
     await registry.reconcile([suite('alpha', 'db')])
     expect(mounted).toHaveLength(1)
-    // The bridge module's plugin name marks the built-in backend.
-    expect((mounted[0]!.module as { name?: string }).name).toBe('market-mcp-client')
+    // The mounted module's plugin name marks which backend served the mount.
+    expect((mounted[0]!.module as { name?: string }).name).toBe(expectedModule)
     expect(mounted[0]!.config['transport']).toBe('stdio')
-    await registry.disposeAll()
-  })
-
-  it('mounts through the host client in compat mode', async () => {
-    vi.resetModules()
-    hostClientState.mode = 'available'
-    const { ctx, mounted } = fakeContext()
-    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
-    registry.setBackendProvider(async () => 'host')
-    await registry.reconcile([suite('alpha', 'db')])
-    expect(mounted).toHaveLength(1)
-    expect((mounted[0]!.module as { name?: string }).name).toBe('mcp-client')
     await registry.disposeAll()
   })
 
