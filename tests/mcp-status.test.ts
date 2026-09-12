@@ -102,6 +102,20 @@ describe('MCP status aggregation', () => {
     expect(payload.totals.orphaned).toBe(1)
   })
 
+  it('keeps an override-disabled server on the inventory as disabled', () => {
+    // The panel shows what a suite ships next to how the user changed it, so
+    // the declaration survives an override that turns the mount off.
+    const overrides = new Map([['codex-plugin/codex', { app: { enabled: false } }]])
+    const payload = buildMcpStatus([suite()], [], [], overrides)
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.state).toBe('disabled')
+    expect(app.reason).toBe('disabled by override')
+    // The server beside it is untouched: one override must not hide the other.
+    const docs = payload.entries.find(entry => entry.serverKey === 'docs')!
+    expect(docs.state).toBe('degraded')
+    expect(payload.totals).toMatchObject({ all: 2, disabled: 1 })
+  })
+
   it('reports missing credential references without exposing values', () => {
     const payload = buildMcpStatus(
       [suite()],
