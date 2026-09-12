@@ -2,8 +2,9 @@
  * The host settings namespace this plugin registers.
  *
  * The registration is also what makes the host's plugin-config tab serve this
- * plugin's card, and it carries three settings: the MCP mount backend, the
- * download region, and the experience-feedback tool switch. `settings.register`
+ * plugin's card, and it carries the MCP mount backend, the download region,
+ * the project-layout switch, the experience-feedback tool switch, and the
+ * background source-update switch. `settings.register`
  * throws on a duplicate namespace, so there is exactly one inject block and one
  * registration.
  *
@@ -27,6 +28,7 @@ export interface MarketSettings {
   scanProjectLayouts?: boolean
   downloadRegion?: unknown
   feedbackEnabled?: boolean
+  autoUpdateSources?: boolean
 }
 
 /** The scope the host hands back for a registered namespace. */
@@ -42,6 +44,8 @@ export interface SettingsNamespaceHost {
   setScanProjectLayouts(enabled: boolean): Promise<void>
   /** Remount every MCP server after the backend switch flips. */
   refreshMcpMounts(): void
+  /** Arm or disarm the background source updater. */
+  setAutoUpdateSources(enabled: boolean): void
 }
 
 export class MarketSettingsNamespace {
@@ -111,6 +115,8 @@ export class MarketSettingsNamespace {
       this.ctx.logger?.info?.('[dsh-agent-plugins-market] settings namespace registered — plugin-config card will serve')
       this.syncProjectLayouts()
       this.watchers.push(scope.watch(() => this.syncProjectLayouts()))
+      this.syncAutoUpdateSources()
+      this.watchers.push(scope.watch(() => this.syncAutoUpdateSources()))
       // One-time migration from the earlier data-root settings.json choice.
       void readMcpBackend(this.dataRoot).then(backend => {
         if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})
@@ -136,6 +142,15 @@ export class MarketSettingsNamespace {
       this.ctx.logger?.error?.(
         `[dsh-agent-plugins-market] settings namespace registration failed — the plugin-config card will be hidden this boot: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       )
+    }
+  }
+
+  /** Apply the background source-update switch; OFF is the default. */
+  private syncAutoUpdateSources(): void {
+    try {
+      this.host.setAutoUpdateSources(this.scope?.get().autoUpdateSources === true)
+    } catch (error) {
+      this.ctx.logger?.error?.(`[dsh-agent-plugins-market] background source update switch failed: ${String(error)}`)
     }
   }
 

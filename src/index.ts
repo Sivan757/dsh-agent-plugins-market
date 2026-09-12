@@ -34,6 +34,7 @@ import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
 import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
 import { createUserPanelStores } from './runtime/user-panels.js'
+import { SourceAutoUpdater } from './runtime/source-auto-update.js'
 import { UserPanelSkillProvider } from './runtime/user-panels.js'
 import { UserCommandMountRegistry } from './runtime/user-commands.js'
 import type { SourceRef } from './model/types.js'
@@ -126,11 +127,15 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     await scheduler.request()
   }
 
+  // Background source updates: off until the settings switch says otherwise.
+  const autoUpdate = new SourceAutoUpdater(ctx, () => catalog.refreshSource())
+
   const settings = new MarketSettingsNamespace(ctx, dataRoot, hostLocale, {
     setScanProjectLayouts: enabled => catalog.setScanProjectLayouts(enabled),
     refreshMcpMounts: () => {
       void Promise.all([scheduler.request(), projectMcp?.refresh()]).catch(() => {})
-    }
+    },
+    setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled)
   })
 
   // The credentials store powers the MCP re-authorize action (dropping a grant
@@ -242,6 +247,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     () => () => {
       disposed = true
       scheduler.dispose()
+      autoUpdate.dispose()
       settings.dispose()
       userCommands.disposeAll()
       void runtime.dispose()

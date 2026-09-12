@@ -272,6 +272,9 @@ export const zh = {
   removeSourceKeepFiles: '仅取消登记，保留本地目录',
   feedbackToggleLabel: '体验反馈工具',
   projectLayoutsLabel: '扫描项目 Agent 布局',
+  projectLayoutsDesc: '读取项目里 .claude、.agents 等目录中的技能、命令、角色、MCP 与 hooks；关闭后只用已安装的套件。',
+  autoUpdateLabel: '后台自动更新来源',
+  autoUpdateDesc: '每 6 小时在后台刷新全部已配置来源；默认关闭。',
   feedbackToggleDescOn: '已开启：Agent 遇到本插件的问题时可自动提交 issue 反馈。',
   feedbackToggleDescOff: '已关闭：Agent 无法自动提交反馈。'
 }
@@ -546,6 +549,9 @@ export const en: Record<LocaleKey, string> = {
   removeSourceKeepFiles: 'Unregister only; keep the local directory',
   feedbackToggleLabel: 'Experience feedback tool',
   projectLayoutsLabel: 'Scan project Agent layouts',
+  projectLayoutsDesc: 'Reads skills, commands, roles, MCP servers and hooks from the project .claude, .agents and similar directories; off means installed suites only.',
+  autoUpdateLabel: 'Background source updates',
+  autoUpdateDesc: 'Refreshes every configured source in the background every 6 hours. Off by default.',
   feedbackToggleDescOn: 'On: the agent may auto-file an issue when it hits a problem in this plugin.',
   feedbackToggleDescOff: 'Off: the agent cannot auto-file feedback.'
 }

@@ -38,7 +38,7 @@ interface SlotsService {
 /** The subset of the host settings-scope service this plugin touches. */
 interface SettingsScopeService {
   bind(options: { namespace: string }): {
-    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean; scanProjectLayouts?: boolean }; writable: boolean }
+    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean; scanProjectLayouts?: boolean; autoUpdateSources?: boolean }; writable: boolean }
     subscribe(listener: () => void): () => void
     set(field: string, value: unknown): Promise<void>
   }
@@ -129,7 +129,9 @@ export function apply(ctx: SuiteClientContext): void {
           feedbackEnabled: () => scope.getSnapshot().value?.feedbackEnabled !== false,
           setFeedbackEnabled: next => withBusyOperation(() => scope.set('feedbackEnabled', next)),
           scanProjectLayouts: () => scope.getSnapshot().value?.scanProjectLayouts !== false,
-          setScanProjectLayouts: next => withBusyOperation(() => scope.set('scanProjectLayouts', next))
+          setScanProjectLayouts: next => withBusyOperation(() => scope.set('scanProjectLayouts', next)),
+          autoUpdateSources: () => scope.getSnapshot().value?.autoUpdateSources === true,
+          setAutoUpdateSources: next => withBusyOperation(() => scope.set('autoUpdateSources', next))
         },
         probe: () => fetchMcpBackend(),
       })),

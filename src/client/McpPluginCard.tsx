@@ -42,6 +42,9 @@ export interface McpEnhanceScopeFace {
   setScanProjectLayouts?(next: boolean): Promise<void>
   /** Register/unregister the experience-feedback model tool. */
   setFeedbackEnabled?(next: boolean): Promise<void>
+  /** Whether sources refresh in the background (default false). */
+  autoUpdateSources?(): boolean
+  setAutoUpdateSources?(next: boolean): Promise<void>
 }
 
 export interface McpPluginCardProps {
@@ -184,7 +187,12 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
           ),
           scope.scanProjectLayouts !== undefined && scope.setScanProjectLayouts !== undefined
             ? h('div', { className: css.pluginCardRow },
-                h('div', { className: css.pluginCardText }, h('div', { className: css.pluginCardRowLabel }, t('projectLayoutsLabel'))),
+                h(
+                  'div',
+                  { className: css.pluginCardText },
+                  h('div', { className: css.pluginCardRowLabel }, t('projectLayoutsLabel')),
+                  h('div', { className: css.pluginCardDesc }, t('projectLayoutsDesc'))
+                ),
                 h(ToggleSwitch, {
                   on: scope.scanProjectLayouts(),
                   title: t('projectLayoutsLabel'),
@@ -194,6 +202,28 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                     setBusy(true)
                     setError(undefined)
                     void scope.setScanProjectLayouts!(!scope.scanProjectLayouts!()).catch((cause: unknown) => {
+                      setError(cause instanceof Error ? cause.message : String(cause))
+                    }).finally(() => setBusy(false))
+                  }
+                }))
+            : null,
+          scope.autoUpdateSources !== undefined && scope.setAutoUpdateSources !== undefined
+            ? h('div', { className: css.pluginCardRow },
+                h(
+                  'div',
+                  { className: css.pluginCardText },
+                  h('div', { className: css.pluginCardRowLabel }, t('autoUpdateLabel')),
+                  h('div', { className: css.pluginCardDesc }, t('autoUpdateDesc'))
+                ),
+                h(ToggleSwitch, {
+                  on: scope.autoUpdateSources(),
+                  title: t('autoUpdateLabel'),
+                  disabled: busy || !writable,
+                  onChange: () => {
+                    if (busy || !writable) return
+                    setBusy(true)
+                    setError(undefined)
+                    void scope.setAutoUpdateSources!(!scope.autoUpdateSources!()).catch((cause: unknown) => {
                       setError(cause instanceof Error ? cause.message : String(cause))
                     }).finally(() => setBusy(false))
                   }
