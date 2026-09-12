@@ -237,7 +237,18 @@ describe('README repository layout compatibility (offline snapshots)', () => {
       expect(suite.surfaces.hooks).toBe(2)
     }
     const detail = await buildSuiteDetail(withDefaultSurfaces(suite), { enabled: true, installedAt: '2026-09-09T00:00:00Z' }, [])
-    expect(detail.commands.length).toBe(suite.resources?.commands.length ?? 0)
+    // `detail` is built from `suite`, so pairing its row count with the suite's
+    // own resource list only ever compares the builder to its input, and reads
+    // `0 === 0` for a dialect that declares no commands. Anchor the rows to the
+    // fixture snapshot and to the files it actually materialized instead.
+    const declared = suite.resources?.commands ?? []
+    if (declared.length > 0) {
+      expect(detail.commands.map(command => command.name)).toEqual(declared.map(resource => resource.name))
+      for (const command of detail.commands) expect(command.content.trim(), command.name).not.toBe('')
+      for (const resource of declared) expect(Object.hasOwn(data.files, relative(root, resource.file).replace(/\\/g, '/')), resource.file).toBe(true)
+    } else {
+      expect(detail.commands).toEqual([])
+    }
     expect(detail.hooks.count).toBe(suite.surfaces.hooks)
   })
   it('skill-collection: real skills remain usable with no plugin manifests', async () => {

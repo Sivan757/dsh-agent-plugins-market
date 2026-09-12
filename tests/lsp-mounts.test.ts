@@ -57,8 +57,16 @@ function hostLoader(behavior: 'ok' | 'fail-startup' | 'conflict' | 'missing', mo
 function mountCtx(
   handleBehavior: 'ok' | 'await-rejects' = 'ok',
   applyThrows = false
-): { ctx: unknown; disposed: () => boolean; build: (loadHost: () => Promise<unknown>) => LspMountRegistry } {
+): {
+  ctx: unknown
+  disposed: () => boolean
+  disposedConfigs: () => MountedConfig[]
+  build: (loadHost: () => Promise<unknown>) => LspMountRegistry
+} {
   let disposed = false
+  // Every handle — the provider mount and the capability seam — disposes
+  // through this one ctx, so a bare boolean cannot say which one was released.
+  const disposedConfigs: MountedConfig[] = []
   const ctx = {
     logger: { warn: () => {} },
     plugin(plugin: unknown, config: MountedConfig) {
@@ -70,6 +78,7 @@ function mountCtx(
         },
         dispose(): void {
           disposed = true
+          disposedConfigs.push(config)
         }
       }
     }
@@ -78,6 +87,7 @@ function mountCtx(
   return {
     ctx,
     disposed: () => disposed,
+    disposedConfigs: () => disposedConfigs,
     build: (loadHost: () => Promise<unknown>) => new LspMountRegistry(ctx as never, loadHost as never, capability(), capability())
   }
 }
@@ -182,16 +192,27 @@ describe('LspMountRegistry', () => {
     }
   })
 
-  it('skips individually disabled servers and removes an existing mount', async () => {
+  it('releases the provider mount when its only server is disabled', async () => {
     const mounted: MountedConfig[] = []
-    const { build } = mountCtx('ok', true)
+    const { build, disposedConfigs } = mountCtx('ok', true)
     const registry = build(hostLoader('ok', mounted))
     await registry.reconcile([lspSuite('ts')])
     expect(mounted).toHaveLength(1)
+    expect(disposedConfigs()).toEqual([])
+
+    // Disabling the only server leaves the suite with nothing to mount, so the
+    // pass has to release the live provider mount rather than merely skip a new
+    // one — `mounted` alone cannot tell those apart, it only records applies.
     registry.setDisabledProvider(async () => new Set(['src/ts/typescript']))
-    await registry.reconcile([lspSuite('ts')])
+    expect(await registry.reconcile([lspSuite('ts')])).toEqual([])
+    expect(disposedConfigs().filter(config => Object.hasOwn(config, 'servers'))).toHaveLength(1)
     expect(mounted).toHaveLength(1)
     expect(registry.disabledServers()).toEqual(new Set(['src/ts/typescript']))
+
+    // Re-enabling mounts it again instead of leaving the key latched as dead.
+    registry.setDisabledProvider(async () => new Set())
+    await registry.reconcile([lspSuite('ts')])
+    expect(mounted).toHaveLength(2)
     await registry.disposeAll()
   })
 

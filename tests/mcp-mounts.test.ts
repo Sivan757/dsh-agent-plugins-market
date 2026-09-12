@@ -437,7 +437,7 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
     expect(mounted).toHaveLength(1)
   })
 
-  it('disposes the bridge when the suite is disabled or uninstalled (reconcile shrinks)', async () => {
+  it('disposes the bridge a suite loses, whether from leaving the list or its hooks surface turning off', async () => {
     const handles: Array<{ disposed: boolean }> = []
     const ctx = {
       plugin: () => {
@@ -457,26 +457,26 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
     const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const ccSuite = required(suites[0], 'the cc-commands fixture to yield one suite')
 
-    // Mounted while enabled.
+    // Mounted while the suite is listed with its hooks surface on.
     await registry.reconcile(suites)
     expect(handles).toHaveLength(1)
-    const first = required(handles[0], 'the enabled suite to mount one hooks bridge')
+    const first = required(handles[0], 'the listed suite to mount one hooks bridge')
     expect(first.disposed).toBe(false)
 
-    // Disabling the suite: the caller reconciles with the enabled list only
-    // (the disabled suite is absent from it) → bridge disposed.
-    ccSuite.enabled = false
-    await registry.reconcile([])
+    // Its hooks surface off, the suite still listed: the registry owns this
+    // decision, and drops the bridge rather than leaving it mounted.
+    await registry.reconcile([{ ...ccSuite, activeSurfaces: { ...ccSuite.activeSurfaces, hooks: false } }])
     expect(first.disposed).toBe(true)
 
-    // Re-enabling mounts a fresh bridge.
-    ccSuite.enabled = true
+    // Surface back on: a fresh bridge.
     await registry.reconcile(suites)
     expect(handles).toHaveLength(2)
-    const second = required(handles[1], 'the re-enabled suite to mount a second hooks bridge')
+    const second = required(handles[1], 'the suite to remount one hooks bridge')
     expect(second.disposed).toBe(false)
 
-    // Uninstalling (suite absent) disposes the live bridge again.
+    // Absent from the list — the caller passes the enabled suites only, so an
+    // installed entry that was disabled or uninstalled never appears here.
+    // The registry cannot tell those two apart, and does not need to.
     await registry.reconcile([])
     expect(second.disposed).toBe(true)
   })

@@ -72,6 +72,8 @@ tests/  →  tsconfig.test.json         NodeNext · ES2024 · 无 DOM        53 
 
 - **该标志管不到可选属性上的断言。** `mcp?:` 字段上的 `suite.mcp!.servers` 与 `arr[0]!` 是两类东西，转换后 `src/` 里还剩十二处。它们都不是靠断言而是靠把保证变成结构性的来消除的——把值提到 `const`（参数属性的收窄在回调里会失效），或收窄产出函数的返回类型。`src/` 里没有 `!`，是因为代码本身持有该值，而不是因为该标志检查过。
 
+- **还有四处测试名声称了断言没覆盖的东西。** 上面读文件的过程把它们翻了出来；现在每一处要么有断言支撑，要么改名到实际成立的说法。`lsp-mounts` 承诺"移除已有挂载"，但只数了 apply 次数——而它当时想用的那个共享 `disposed` 布尔量，capability seam 也会置位，所以它本来就分不清 provider 挂载和 seam；现在它记录每个 handle 被 dispose 时带的 config，并在 provider 的 disposer 被去掉时失败。`mcp-mounts` 用"disabled 或 uninstalled"描述一个两个分支都在调 `reconcile([])` 的用例，还改动了一个这条路径根本不读的 `enabled` 标志；现在它覆盖注册表真正拥有的判断——套件仍在列表里但 `activeSurfaces.hooks` 关闭时会失去它的 bridge。`mcp-config` 说"两个来源永不碰撞"，却对 server name 断言了相反的事实——它按设计就与来源无关，好让注册表跳过重复项；只有注册表 key 与 `PLUGIN_DATA` 目录是按来源区分的。`real-layouts` 把 detail 的命令数与套件自己的资源列表配对——那是拿构建器比它自己的输入，且对不声明命令的方言就是 `0 === 0`；现在断言逐行名字、内容非空，且每个声明路径都存在于 fixture 快照中。
+
 `Simulate` 随测试修复一起消失了。两个用到它的测试不再引入 `react-dom/test-utils`，因为 `@types/react-dom` 19 对应已安装的 React 18 运行时不导出它——也因为它做的事并不是测试 DOM。`Simulate.change(node, { target: { value } })` 把伪造的 target 挂到合成事件上并直接穿过 React 的 dispatcher 派发；节点的值从未改变，React 的变更检测从未运行，处理器收到的是浏览器永远不会产生的对象。`tests/helpers/dom-events.ts` 走元素原生的 `value` setter——React 自己的 tracker 拦截实例属性，所以直接赋值会让随后的事件看起来"没有变化"——然后派发 React 监听的 `input`/`change` 事件。把两个处理器改坏会让 3 个原本通过的测试失败。
 
 有两个类型层面的模式值得记住，因为它们会复现：

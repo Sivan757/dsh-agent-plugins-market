@@ -181,7 +181,7 @@ describe('mcp-config: serverName derivation', () => {
 })
 
 describe('mcp-config: source-scoped identity', () => {
-  it('derives serverNames and mount keys from the qualified suite id so two sources never collide', async () => {
+  it('qualifies the suite id so same-named suites from two sources keep separate mounts and data dirs', async () => {
     // Regression: mount requests keyed by the bare suite id let two sources'
     // same-named suites shadow each other's mounts, data dirs, and status.
     const a = suite()
@@ -190,9 +190,10 @@ describe('mcp-config: source-scoped identity', () => {
     const second = await toMcpMounts(b, '/tmp/data', {}, alwaysResolves)
     const firstNames = first.mounts.map(mount => mount.config.serverName)
     const secondNames = second.mounts.map(mount => mount.config.serverName)
-    // Qualified ids differ, so every derived serverName differs.
-    // Same suite/server pair across sources derives ONE name by design:
-    // the mount registry skips the second as a duplicate-mount.
+    // The derived serverName is deliberately source-independent: the same
+    // suite/server pair in two sources resolves to ONE name, and the mount
+    // registry skips the second as a duplicate-mount. What stays per-source is
+    // the registry key and the data dir, asserted below.
     expect(firstNames.some(name => secondNames.includes(name))).toBe(true)
     expect(firstNames.every(name => name.startsWith('my-suite__'))).toBe(true)
     expect(secondNames.every(name => name.startsWith('my-suite__'))).toBe(true)
