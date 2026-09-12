@@ -16,9 +16,11 @@ describe('MCP config redaction', () => {
 
   it('redacts non-obvious secret keys such as X-Auth', () => {
     const redacted = redactMcpConfig({ headers: { 'X-Auth': 'super-secret', 'x-trace-id': 'abc123' } }) as Record<string, Record<string, string>>
-    expect(redacted.headers['X-Auth']).toBe('[redacted]')
+    const headers = redacted.headers
+    if (headers === undefined) throw new Error('expected redaction to keep the headers block')
+    expect(headers['X-Auth']).toBe('[redacted]')
     // Unrelated headers survive so the config stays diagnosable.
-    expect(redacted.headers['x-trace-id']).toBe('abc123')
+    expect(headers['x-trace-id']).toBe('abc123')
   })
 
   it('preserves every reference when several sensitive keys carry one', () => {
@@ -46,8 +48,11 @@ describe('MCP config redaction', () => {
       a: { url: 'https://a.example/mcp?key=${A}' },
       b: { url: 'https://b.example/mcp?auth=${B}' }
     }) as Record<string, { url: string }>
-    expect(redacted.a.url).toBe('https://a.example/mcp?key=${A}')
-    expect(redacted.b.url).toBe('https://b.example/mcp?auth=${B}')
+    const a = redacted.a
+    const b = redacted.b
+    if (a === undefined || b === undefined) throw new Error('expected redaction to keep both server entries')
+    expect(a.url).toBe('https://a.example/mcp?key=${A}')
+    expect(b.url).toBe('https://b.example/mcp?auth=${B}')
   })
 
   it('recognises the widened sensitive-key vocabulary', () => {

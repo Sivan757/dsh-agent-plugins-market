@@ -33,7 +33,8 @@ describe('suite detail MCP redaction', () => {
     const detail = await buildSuiteDetail(suite(), undefined, [], {
       service: { env: { API_TOKEN: '${API_TOKEN}' } }
     })
-    const server = detail.mcpServers[0]
+    const [server] = detail.mcpServers
+    if (server === undefined) throw new Error('expected the fixture server to appear in the suite detail')
 
     expect(server.credentialRefs).toEqual(['API_TOKEN'])
     expect(JSON.stringify(detail)).not.toContain('literal-secret')

@@ -67,6 +67,7 @@ describe('unified Markdown resource panel', () => {
     const select = async (index: number, value: string) => {
       await act(async () => {
         const input = host.querySelectorAll('select')[index]
+        if (input === undefined) throw new Error(`expected a select at index ${index}`)
         input.value = value
         input.dispatchEvent(new Event('change', { bubbles: true }))
       })
@@ -78,9 +79,13 @@ describe('unified Markdown resource panel', () => {
     await select(1, 'model-b')
     await click('panelSave')
     expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', user.id, expect.stringContaining('provider: second'))
-    const raw = api.updateUserPanelEntry.mock.calls[0][2] as string
+    const [saveCall] = api.updateUserPanelEntry.mock.calls
+    if (saveCall === undefined) throw new Error('expected the panel save to post the changed entry')
+    const raw = saveCall[2] as string
     expect(raw).toContain('model: model-b')
-    const frontmatter: unknown = parse(raw.split('---\n')[1])
+    const [, frontmatterBlock] = raw.split('---\n')
+    if (frontmatterBlock === undefined) throw new Error('expected the posted body to keep its frontmatter block')
+    const frontmatter: unknown = parse(frontmatterBlock)
     expect(frontmatter).toHaveProperty('tools', ['Read'])
     expect(raw).toContain('Review code')
   })

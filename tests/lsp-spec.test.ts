@@ -27,14 +27,18 @@ describe('parseLspServers', () => {
     const errors: string[] = []
     const specs = parseLspServers({ lua: { command: 'lua-language-server', extensionToLanguage: { '.LUA': 'lua', txt: 'text' } } }, errors)
     expect(errors).toEqual([])
-    expect(specs['lua'].extensionToLanguage).toEqual({ '.lua': 'lua', '.txt': 'text' })
+    const lua = specs['lua']
+    if (lua === undefined) throw new Error('expected the lua server to survive parsing')
+    expect(lua.extensionToLanguage).toEqual({ '.lua': 'lua', '.txt': 'text' })
   })
 
   it('collapses case-variant extensions silently (clangd .c/.C)', () => {
     const errors: string[] = []
     const specs = parseLspServers({ clangd: { command: 'clangd', extensionToLanguage: { '.c': 'c', '.C': 'cpp', '.cpp': 'cpp' } } }, errors)
     expect(errors).toEqual([])
-    expect(specs['clangd'].extensionToLanguage).toEqual({ '.c': 'c', '.cpp': 'cpp' })
+    const clangd = specs['clangd']
+    if (clangd === undefined) throw new Error('expected the clangd server to survive parsing')
+    expect(clangd.extensionToLanguage).toEqual({ '.c': 'c', '.cpp': 'cpp' })
   })
 
   it('drops broken servers fail-closed and reports each cause', () => {

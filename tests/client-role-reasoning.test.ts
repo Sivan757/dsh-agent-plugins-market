@@ -114,7 +114,9 @@ describe('role reasoning effort selector', () => {
     expect(host.querySelector('[role="alert"]')).not.toBeNull()
     failed = false
     await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
-    expect(select('personaReasoningEffort').selectedOptions[0].textContent).toContain('personaUnavailable')
+    const [selected] = select('personaReasoningEffort').selectedOptions
+    if (selected === undefined) throw new Error('expected the reasoning select to keep a selected option')
+    expect(selected.textContent).toContain('personaUnavailable')
     expect(host.querySelector('[role="alert"]')).toBeNull()
     await change('personaReasoningEffort', '')
     expect(readRoleFields(value()).reasoningEffort).toBe('')

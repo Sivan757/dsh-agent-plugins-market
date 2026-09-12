@@ -32,9 +32,11 @@ describe('schema component declarations', () => {
     await put(dir, '.qoder/commands/git/review.md', 'Review changes')
     await put(dir, '.qoder/agents/team/reviewer.agent.md', '---\ndescription: Review code\n---\nReview')
     const [suite] = await discoverNativeProjectSuites(dir, 'project')
+    if (suite === undefined) throw new Error('expected the nested native resources to resolve to one suite')
     expect(suite?.surfaces).toMatchObject({ commands: 1, agents: 1 })
-    expect((await readCommands(suite.root, suite?.resources?.commands))[0]?.name).toBe('git-review')
-    const role = suite.resources!.agents[0]
+    expect((await readCommands(suite.root, suite.resources?.commands))[0]?.name).toBe('git-review')
+    const [role] = suite.resources?.agents ?? []
+    if (role === undefined) throw new Error('expected the nested agent declaration to resolve to one role')
     expect((await agentRoleCatalog([{ name: role.name, path: role.file, description: '', disabled: false }], new AbortController().signal))[0]).toMatchObject({
       name: 'team/reviewer.agent',
       description: 'Review code'
@@ -47,10 +49,12 @@ describe('schema component declarations', () => {
     await put(dir, 'roles/review.agent.md', '---\ndescription: Review changes\n---\nReview')
     await put(dir, 'knowledge/check/SKILL.md', skill('check'))
     const [suite] = (await scanSource(dir, 'schema', 'user')).suites
+    if (suite === undefined) throw new Error(`expected ${layout.kind} to resolve its declared resources into one suite`)
     expect(suite?.errors).toEqual([])
     expect(suite?.skills[0]?.name).toBe('check')
-    expect((await readCommands(dir, suite?.resources?.commands))[0]?.name).toBe('nested-check')
-    const role = suite.resources!.agents[0]
+    expect((await readCommands(dir, suite.resources?.commands))[0]?.name).toBe('nested-check')
+    const [role] = suite.resources?.agents ?? []
+    if (role === undefined) throw new Error(`expected ${layout.kind} to resolve its declared agent into one role`)
     expect((await agentRoleCatalog([{ name: role.name, path: role.file, description: '', disabled: false }], new AbortController().signal))[0]).toMatchObject({
       name: 'review.agent',
       description: 'Review changes'
@@ -65,6 +69,7 @@ describe('schema component declarations', () => {
     await put(dir, 'config/services.json', { mcpServers: { custom: { command: 'custom' } } })
     await put(dir, 'prompts/explain.mdc', 'Explain code')
     const [suite] = (await scanSource(dir, 's', 'user')).suites
+    if (suite === undefined) throw new Error('expected the cursor declaration overrides to resolve to one suite')
     expect(Object.keys(suite.mcp!.servers)).toEqual(['custom', 'remote'])
     expect((await readCommands(dir, suite?.resources?.commands))[0]?.name).toBe('explain')
   })
@@ -104,6 +109,7 @@ describe('schema component declarations', () => {
     })
     await put(dir, 'SYSTEM.md', 'Additional system text')
     const [suite] = (await scanSource(dir, 's', 'user')).suites
+    if (suite === undefined) throw new Error('expected the kimi manifest to resolve to one suite')
     expect(suite?.manifest.author).toBe('Author')
     expect(suite?.surfaces.hooks).toBe(1)
     expect((await suiteInstructions([withDefaultSurfaces({ ...suite, enabled: true })])).text).toBe('System\n\nAdditional system text')
@@ -128,6 +134,7 @@ describe('schema component declarations', () => {
     await put(dir, '.claude-plugin/plugin.json', { name: 'bad', commands: 'escape', hooks: './missing.json' })
     await put(dir, 'hooks/hooks.json', { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'must-not-run' }] }] } })
     const [suite] = (await scanSource(dir, 's', 'user')).suites
+    if (suite === undefined) throw new Error('expected the invalid explicit declarations to still yield one suite')
     expect(suite?.resources?.commands).toEqual([])
     expect(suite?.errors.join('\n')).toContain('symlink')
     let mounts = 0

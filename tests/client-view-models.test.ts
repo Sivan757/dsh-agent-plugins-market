@@ -77,13 +77,14 @@ describe('client catalog view models', () => {
   })
 
   it('records a repeat-filtering baseline for a 5,000-card payload', () => {
+    const { suites } = overview
     const large: OverviewData = {
       ...overview,
-      suites: Array.from({ length: 5_000 }, (_, index) => ({
-        ...overview.suites[index % overview.suites.length],
-        suiteId: `suite-${index}`,
-        name: `Suite ${index}`
-      }))
+      suites: Array.from({ length: 5_000 }, (_, index) => {
+        const template = suites[index % suites.length]
+        if (template === undefined) throw new Error('expected the overview fixture to carry at least one suite')
+        return { ...template, suiteId: `suite-${index}`, name: `Suite ${index}` }
+      })
     }
     const started = performance.now()
     let visible = 0

@@ -103,7 +103,8 @@ describe('toMcpMounts with overrides', () => {
         resolver
       )
       expect(result.mounts).toHaveLength(1)
-      const config = result.mounts[0].config
+      const [config] = result.mounts.map(mount => mount.config)
+      if (config === undefined) throw new Error('expected the header override to mount one server')
       expectTransport(config, 'streamable-http')
       expect(config.url).toBe('https://override.example/mcp')
       // The secret never needs to persist: the override stores only the
@@ -131,7 +132,9 @@ describe('toMcpMounts with source-declared auth', () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-auth-'))
     const { mounts } = await toMcpMounts(suite, dataRoot, {}, { resolve: async () => undefined })
     expect(mounts).toHaveLength(1)
-    expect(mounts[0].config).toMatchObject({ transport: 'streamable-http', auth: { enabled: true, scope: 'user' } })
+    const [config] = mounts.map(mount => mount.config)
+    if (config === undefined) throw new Error('expected the source-declared auth to mount one server')
+    expect(config).toMatchObject({ transport: 'streamable-http', auth: { enabled: true, scope: 'user' } })
   })
 
   it('forwards auth from a disk override through to the mount config', async () => {
@@ -143,7 +146,9 @@ describe('toMcpMounts with source-declared auth', () => {
     const overrides = await loadSuiteOverrides(dataRoot, suite.id)
     const { mounts } = await toMcpMounts(suite, dataRoot, overrides, { resolve: async () => undefined })
     expect(mounts).toHaveLength(1)
-    expect(mounts[0].config).toMatchObject({ auth: { enabled: true } })
+    const [config] = mounts.map(mount => mount.config)
+    if (config === undefined) throw new Error('expected the stored auth override to mount one server')
+    expect(config).toMatchObject({ auth: { enabled: true } })
   })
 })
 

@@ -380,9 +380,12 @@ describe('transport construction with auth', () => {
       failOnStartupError: true
     }
     const { transport, oauthProvider } = createTransport(config, undefined)
-    expect(constructedUrls[0]).toBe('https://mcp.example/sse')
-    expect((constructedOptions[0]['requestInit'] as Record<string, unknown>)['headers']).toEqual({ 'x-custom': 'yes' })
-    expect(constructedOptions[0]).toHaveProperty('authProvider')
+    const [url] = constructedUrls
+    const [options] = constructedOptions
+    if (url === undefined || options === undefined) throw new Error('expected the sse transport to be constructed once')
+    expect(url).toBe('https://mcp.example/sse')
+    expect((options['requestInit'] as Record<string, unknown>)['headers']).toEqual({ 'x-custom': 'yes' })
+    expect(options).toHaveProperty('authProvider')
     expect(oauthProvider).toBeDefined()
     expect(transport).toBeDefined()
   })
