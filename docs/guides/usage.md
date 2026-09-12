@@ -107,7 +107,7 @@ Use references such as `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. Missing referen
 
 Hooks use the bridge's mapped command-hook subset at SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart and SubagentStop. This is not full Claude Code runtime compatibility.
 
-LSP supports enabled suite declarations and directly configured servers through the same mount lifecycle. Missing host packages, executables or invalid declarations appear as diagnostics. Previewing a declaration alone does not prove the server is running.
+LSP supports enabled suite declarations and directly configured servers through the same mount lifecycle. The plugin carries its own LSP packages, so the only thing a user supplies is the language-server executable; a missing executable, an invalid declaration, or an installation whose LSP packages fail to load each appear as a diagnostic. Previewing a declaration alone does not prove the server is running.
 
 ### Validation and execution
 

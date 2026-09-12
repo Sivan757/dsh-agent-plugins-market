@@ -107,7 +107,7 @@ MCP 详情仅为失败的托管服务或残留挂载显示重试；当前后端�
 
 Hooks 使用桥接映射支持的 command-hook 子集，接入 SessionStart、UserPromptSubmit、PreToolUse、PostToolUse、Stop、SubagentStart、SubagentStop。这不代表完整兼容 Claude Code 运行时。
 
-LSP 的启用套件声明和直接配置的服务使用同一挂载生命周期。缺少宿主包、可执行程序或声明无效时会展示诊断。能够预览声明不代表服务已经运行。
+LSP 的启用套件声明和直接配置的服务使用同一挂载生命周期。LSP 支持包随插件自带，用户只需自备语言服务器可执行程序；可执行程序缺失、声明无效，或安装损坏导致 LSP 支持包无法加载，都会展示诊断。能够预览声明不代表服务已经运行。
 
 ### 校验与执行
 
