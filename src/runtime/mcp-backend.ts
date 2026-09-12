@@ -22,8 +22,6 @@ import z from '@deepseek-ai/schemastery'
 /** The MCP mount backend the market uses for suite servers. */
 export type McpBackend = 'builtin' | 'host'
 
-export const MCP_BACKENDS: readonly McpBackend[] = ['builtin', 'host']
-
 /** Settings namespace this plugin registers; the key the plugin-config tab pairs our card by. */
 export const MCP_SETTINGS_NAMESPACE = 'dsh-agent-plugins-market'
 

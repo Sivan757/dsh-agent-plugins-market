@@ -20,9 +20,6 @@ export function userEntryDir(dataRoot: string, kind: 'skills' | 'commands' | 'ag
 /** `[a-z][a-z0-9_-]*` — the grammar every panel entry name must satisfy. */
 export const USER_ENTRY_NAME = /^[a-z][a-z0-9_-]*$/
 
-/** The enablement frontmatter key shared by skills and commands. */
-export const DISABLED_KEY = 'disabled'
-
 /** Parse full YAML metadata without flattening arrays, mappings, or multiline strings. */
 export function parseFrontmatterRecord(text: string): Record<string, unknown> {
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)

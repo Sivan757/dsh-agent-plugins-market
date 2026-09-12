@@ -118,8 +118,10 @@ async function createIssue(token: string, title: string, body: string): Promise<
 /** Render the model's structured report into a deterministic issue body. */
 export function renderFeedbackBody(report: FeedbackReport): string {
   const lines = ['## Experience feedback', '', `**Problem:** ${report.description.trim()}`, '']
-  if (report.expected?.trim() !== undefined && report.expected.trim() !== '') lines.push(`**Expected:** ${report.expected.trim()}`, '')
-  if (report.actual?.trim() !== undefined && report.actual.trim() !== '') lines.push(`**Actual:** ${report.actual.trim()}`, '')
+  const expected = report.expected?.trim()
+  const actual = report.actual?.trim()
+  if (expected !== undefined && expected !== '') lines.push(`**Expected:** ${expected}`, '')
+  if (actual !== undefined && actual !== '') lines.push(`**Actual:** ${actual}`, '')
   lines.push('---', `Filed automatically by the dsh-agent-plugins-market \`${FEEDBACK_TOOL_NAME}\` tool.`)
   return lines.join('\n')
 }

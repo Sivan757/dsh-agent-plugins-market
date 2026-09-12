@@ -24,6 +24,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { MAX_TIMER_DELAY_MS } from './host-seams.js'
+import { PLUGIN_NAME, PLUGIN_VERSION } from './plugin-identity.js'
 import { createTransport } from './transport.js'
 import { syncTools } from './tools.js'
 import type { ToolBridgeOptions, ToolDisposers, ToolHost } from './tools.js'
@@ -245,7 +246,7 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
    * @param startup - Whether this is the bridge's activation attempt.
    */
   async function connectGeneration(startup: boolean): Promise<void> {
-    const generation = new Client({ name: 'dsh-agent-plugins-market', version: '0.1.0' }, { capabilities: {} })
+    const generation = new Client({ name: PLUGIN_NAME, version: PLUGIN_VERSION }, { capabilities: {} })
     const closed: PromiseWithResolvers<void> = Promise.withResolvers()
     let attemptSettled = false
     let closeObserved = false
@@ -272,6 +273,31 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
         if (!disposed) host.logger.error(`${label}: tool re-sync failed: ${String(error)}`)
       }
     })
+    /**
+     * Retire a generation whose attempt failed: close it, wait for the
+     * transport's own close signal, then hand it to the disconnect path. A
+     * generation that will not close stops reconnection outright — respawning
+     * would overlap the server process still running behind it.
+     */
+    async function teardownFailedAttempt(): Promise<void> {
+      try {
+        await generation.close()
+      } catch {
+        /* transport already gone */
+      }
+      const quiesced = hasClosed() || (await waitForClose(closed.promise))
+      attemptSettled = true
+      if (!isCurrent(generation)) return
+      if (quiesced) {
+        generationDown(generation)
+        return
+      }
+      client = undefined
+      clientClosed = undefined
+      host.logger.error(
+        `${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`
+      )
+    }
     const { transport, oauthProvider } = createTransport(config, credentials, (message: string) => {
       host.logger.info(message)
     })
@@ -299,11 +325,9 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
         const legSettled = await leg
         attemptSettled = true
         if (!isCurrent(generation)) return
-        if (hasClosed()) {
-          generationDown(generation)
-          return
-        }
-        if (!legSettled) {
+        // The leg failed, or the transport closed while it ran: no generation
+        // is left to finish establishing.
+        if (hasClosed() || !legSettled) {
           generationDown(generation)
           return
         }
@@ -313,19 +337,7 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
           await enqueueSync(generation, startup ? startupOpts : opts)
         } catch (syncError) {
           if (isCurrent(generation)) host.logger.warn(`${label}: tool sync after authorization failed: ${String(syncError)}`)
-          try {
-            await generation.close()
-          } catch {
-            /* transport already gone */
-          }
-          const quiescedSync = hasClosed() || (await waitForClose(closed.promise))
-          if (!quiescedSync) {
-            client = undefined
-            clientClosed = undefined
-            host.logger.error(`${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes`)
-            return
-          }
-          generationDown(generation)
+          await teardownFailedAttempt()
           return
         }
         if (hasClosed()) {
@@ -337,23 +349,7 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
         if (failedAttempts > 0) host.logger.info(`${label}: authorized and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
         return
       }
-      try {
-        await generation.close()
-      } catch {
-        /* transport already gone */
-      }
-      const quiesced = hasClosed() || (await waitForClose(closed.promise))
-      attemptSettled = true
-      if (!isCurrent(generation)) return
-      if (!quiesced) {
-        client = undefined
-        clientClosed = undefined
-        host.logger.error(
-          `${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`
-        )
-        return
-      }
-      generationDown(generation)
+      await teardownFailedAttempt()
       return
     }
     attemptSettled = true
