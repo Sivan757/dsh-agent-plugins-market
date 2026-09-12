@@ -11,8 +11,9 @@
  * resolved by the Host credentials service (or launch-environment fallback)
  * so keys never persist in plain text.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { isSensitiveKey } from './mcp-redaction.js'
 import type { McpServerSse, McpServerStreamableHttp, McpServerStdio } from '../model/types.js'
 
@@ -62,11 +63,10 @@ export async function loadSuiteOverrides(dataRoot: string, suiteId: string): Pro
   }
 }
 
-/** Persist one suite's overrides atomically-ish (single writer, small file). */
+/** Persist one suite's overrides through the harness atomic write. */
 export async function saveSuiteOverrides(dataRoot: string, suiteId: string, overrides: McpSuiteOverrides): Promise<void> {
   const path = suiteOverridePath(dataRoot, suiteId)
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, `${JSON.stringify(overrides, null, 2)}\n`, { mode: 0o600 })
+  await writeFileAtomic(path, `${JSON.stringify(overrides, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
 }
 
 /** Keep only recognized fields with correct shapes; drop everything else. */

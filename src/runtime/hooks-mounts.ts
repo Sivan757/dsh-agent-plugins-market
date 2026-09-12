@@ -10,7 +10,8 @@
  * on every enable/disable/install/uninstall; a missing bridge package, a
  * broken hook file, or a mount failure is contained per suite.
  */
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -96,7 +97,7 @@ export class HooksMountRegistry {
       if (configPath === undefined) {
         temporary = await mkdtemp(join(tmpdir(), 'dsh-project-hooks-'))
         configPath = join(temporary, 'hooks.json')
-        await writeFile(configPath, content, { mode: 0o600 })
+        await writeFileAtomic(configPath, content, { mode: 0o600 })
       }
       handle = mountCtx.plugin(bridge, {
         configPath,

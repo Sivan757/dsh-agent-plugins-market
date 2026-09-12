@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
@@ -57,10 +58,11 @@ export async function loadLspOverrides(root: string): Promise<Record<string, Lsp
 export async function saveLspOverride(root: string, id: string, config: LspServerSpec): Promise<void> {
   const overrides = await loadLspOverrides(root)
   overrides[id] = config
-  await mkdir(root, { recursive: true })
   const path = join(root, 'lsp-overrides.json')
-  await writeFile(`${path}.tmp`, JSON.stringify(Object.fromEntries(Object.entries(overrides).map(([key, value]) => [key, lspConfig(value)])), null, 2), { mode: 0o600 })
-  await rename(`${path}.tmp`, path)
+  await writeFileAtomic(path, JSON.stringify(Object.fromEntries(Object.entries(overrides).map(([key, value]) => [key, lspConfig(value)])), null, 2), {
+    mode: 0o600,
+    dirMode: 0o700
+  })
 }
 
 export async function applyLspOverrides(root: string, suites: Suite[]): Promise<Suite[]> {

@@ -8,8 +8,9 @@
  * `lsp-spec` rules as suite declarations; a broken file degrades to no direct
  * servers plus a diagnostic, never a thrown discovery.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import type { LspServerSpec } from '../model/types.js'
 
@@ -42,8 +43,7 @@ export async function saveLspServers(agentsRoot: string, raw: unknown): Promise<
     throw new Error(`invalid lspServers: ${errors[0]}`)
   }
   const path = lspServersPath(agentsRoot)
-  await mkdir(dirname(path), { recursive: true })
   const persisted = Object.fromEntries(Object.entries(servers).map(([name, { key: _key, ...config }]) => [name, config]))
-  await writeFile(path, `${JSON.stringify({ lspServers: persisted }, null, 2)}\n`, { mode: 0o600 })
+  await writeFileAtomic(path, `${JSON.stringify({ lspServers: persisted }, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
   return { servers }
 }

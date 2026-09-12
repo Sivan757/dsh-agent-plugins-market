@@ -1,5 +1,6 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
-import { realpath, unlink, writeFile } from 'node:fs/promises'
+import { realpath, unlink } from 'node:fs/promises'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { isWithin } from '../catalog/paths.js'
@@ -113,7 +114,7 @@ class PanelResources implements PanelResourceStore {
   async update(id: string, text: string): Promise<void> {
     if (!isPluginResourceId(id)) return this.users.update(id, text)
     parseFrontmatterRecord(text)
-    await writeFile(await this.pluginPath(id), text, 'utf8')
+    await writeFileAtomic(await this.pluginPath(id), text, { mode: 0o644 })
   }
 
   async remove(id: string): Promise<void> {

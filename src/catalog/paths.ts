@@ -18,6 +18,7 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { expandHomePath, resolveDshHome as resolveHarnessHome } from '@deepseek-ai/dsh-home-paths'
 import { stripArchiveSuffix } from '../model/types.js'
 
 /** Source checkouts live under `<dimensionRoot>/.sources/<sourceId>/`. */
@@ -25,15 +26,21 @@ export const SOURCES_DIR_NAME = '.sources'
 
 export const STATE_FILE_NAME = 'state.json'
 
-/** Expand a leading `~/` (or `~\` on Windows) to the home directory; other values pass through. */
-export function expandHome(path: string): string {
-  if (path === '~' || path.startsWith('~/') || path.startsWith('~\\')) return join(homedir(), path.slice(2))
-  return path
-}
+/**
+ * Expand a leading `~`, `~/`, or `~\` to the OS home; other values pass
+ * through. The harness helper owns the platform rules, so a configured path is
+ * read back the same way on every host.
+ */
+export const expandHome = expandHomePath
 
-/** Resolve the harness home (`$DSH_HOME` or `~/.dsh`). */
+/**
+ * Resolve the harness home (`$DSH_HOME` or `~/.dsh`) through the harness
+ * helper: precedence and tilde expansion stay the harness's, and a blank
+ * `$DSH_HOME` reads as unset rather than resolving the home to the current
+ * working directory.
+ */
 export function resolveDshHome(): string {
-  return process.env.DSH_HOME === undefined ? join(homedir(), '.dsh') : resolve(process.env.DSH_HOME)
+  return resolveHarnessHome()
 }
 
 /** Resolve the canonical user-dimension root. Legacy overrides are migration inputs only. */
@@ -44,10 +51,12 @@ export function resolveUserRoot(_configUserRoot?: string): string {
 /**
  * Resolve the shared user-level Agent layout root (`$DSH_AGENTS_HOME` or
  * `~/.agents`): where this plugin stores the resources and service
- * declarations the user authors by hand.
+ * declarations the user authors by hand. A blank override reads as unset, the
+ * same rule the harness applies to its own home.
  */
 export function resolveAgentsRoot(): string {
-  return process.env.DSH_AGENTS_HOME === undefined ? join(homedir(), '.agents') : resolve(process.env.DSH_AGENTS_HOME)
+  const configured = process.env.DSH_AGENTS_HOME
+  return configured === undefined || configured.trim().length === 0 ? join(homedir(), '.agents') : resolve(expandHome(configured))
 }
 
 /**

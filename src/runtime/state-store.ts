@@ -7,8 +7,8 @@
  * like the market profile state this pattern follows. The record shapes live
  * in `src/model/types.ts`; only the reading and writing live here.
  */
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { SUITE_SURFACE_KEYS, type InstalledEntry, type SourceRef, type SuiteState, type SurfaceOverrides } from '../model/types.js'
 
 export const EMPTY_STATE: SuiteState = { version: 1, sources: [], installed: {} }
@@ -85,10 +85,7 @@ function parseSurfaceOverrides(raw: unknown): { surfaces?: SurfaceOverrides } {
   return hasAny ? { surfaces: overrides } : {}
 }
 
-/** Persist state atomically through a sibling-temp rename. */
+/** Persist state atomically through the harness's atomic-write helper. */
 export async function saveState(statePath: string, state: SuiteState): Promise<void> {
-  await mkdir(dirname(statePath), { recursive: true })
-  const temp = `${statePath}.${process.pid}.tmp`
-  await writeFile(temp, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
-  await rename(temp, statePath)
+  await writeFileAtomic(statePath, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
 }

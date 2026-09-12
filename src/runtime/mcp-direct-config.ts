@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
 import { effectiveSurfaces, type McpSuiteConfig, type Suite } from '../model/types.js'
 
@@ -61,9 +62,7 @@ export async function addUserMcpServer(agentsRoot: string, name: string, server:
   const document = { $schema: MCP_SCHEMA_ID, mcpServers: { ...suite.mcp.servers, [name]: server } }
   await validateUserMcp(agentsRoot, document)
   const path = userMcpPath(agentsRoot)
-  await mkdir(agentsRoot, { recursive: true })
-  await writeFile(`${path}.tmp`, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600 })
-  await rename(`${path}.tmp`, path)
+  await writeFileAtomic(path, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
 }
 
 /** The user's hand-written MCP declaration file: `<agentsRoot>/mcp.json`. */

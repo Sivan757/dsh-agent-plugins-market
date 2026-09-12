@@ -7,8 +7,9 @@
  * @module runtime/user-store
  */
 
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { parseDocument, stringify } from 'yaml'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 
@@ -116,8 +117,7 @@ export async function listEntryFiles(dir: string, strict = false): Promise<UserE
 export async function writeEntryFile(dir: string, name: string, text: string): Promise<void> {
   assertEntryName(name)
   parseFrontmatterRecord(text)
-  await mkdir(dir, { recursive: true })
-  await writeFile(join(dir, `${name}.md`), text, 'utf8')
+  await writeFileAtomic(join(dir, `${name}.md`), text, { mode: 0o644, dirMode: 0o700 })
 }
 
 /**
