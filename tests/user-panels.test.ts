@@ -115,6 +115,23 @@ describe('user panel skill provider', () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  it('ranks ahead of the harness reader of this same directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const stores = createUserPanelStores(root)
+      await stores.skills.create('notes', '---\ndescription: take notes\n---\nBody')
+      const provider = new UserPanelSkillProvider(stores.skills, tStub)
+      const [candidate] = await provider.list({})
+      if (candidate === undefined) throw new Error('expected the panel skill to list one candidate')
+      // `dsh-skill-filesystem` maps `~/.agents/skills` at rank 500 and a lower
+      // rank wins a duplicate name. At or above that, the host's reader serves
+      // these files instead and the panel's `disabled` flag stops applying.
+      expect(candidate.rank).toBeLessThan(500)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('frontmatter helpers', () => {

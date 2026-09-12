@@ -17,6 +17,8 @@ Status: implemented
 
 编辑已安装套件内资源时的包含性判断改为对照 catalog 的用户根目录，而不再对照面板目录——面板已不在托管 checkout 的那棵树里。
 
+宿主自己的 `dsh-skill-filesystem` 把同一个 `~/.agents/skills` 目录映射为它的 `user-agents` 根，rank 500；同名技能由 rank 小者胜。因此面板 provider 定在 450：高到能继续服务它自己拥有的条目——面板的 `disabled` frontmatter 与本地化描述才真正生效——又低到让项目根（100-300）与用户 `~/.dsh` 技能（400）仍然压过它。该值与 suite 的用户 rank 相同，因此 suite 与面板同时发布的同名技能由 provider 注册顺序决定，而 suite provider 注册在前。
+
 启动时在读取任何存储之前完成迁移：`user/{skills,commands,agents}` 与 `data/user/...` 迁入 `~/.agents/<kind>`，`data/mcp-servers.json` 与 `data/lsp-servers.json` 迁入 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。搬空的旧面板目录会被删除；内容冲突则保留在原路径并阻止激活，报出该路径。
 
 ## 已考虑的替代方案
@@ -31,6 +33,8 @@ Status: implemented
 
 自建内容在卸载插件后仍然保留，这正是迁移的目的。`~/.agents` 是共享目录：插件不得删除它或挪用不认识的条目，迁移只写入自己拥有的子目录与文件。配置出的 `~/.agents` 若与插件存储重叠，启动时直接拒绝。测试会 stub `DSH_AGENTS_HOME`，因此激活过程不会迁移或写入开发者真实家目录。
 
+与宿主自己的读取器共用 `skills/` 的代价是：每个条目多一份被遮蔽的候选，每个被遮蔽的名字多一条宿主 warning——方向由 rank 决定。面板赢下这次取舍，因为它是唯一知道用户已禁用该条目的读取器。
+
 ## 验证
 
-`tests/storage-migration.test.ts` 覆盖面板与服务声明的迁移、搬空目录、冲突与重复执行；`tests/user-panels.test.ts`、`tests/mcp-direct-config.test.ts`、`tests/lsp-direct-config.test.ts` 与 `tests/server-config.test.ts` 覆盖新根目录下的增删改与校验；`tests/panel-resources.test.ts` 覆盖已安装套件的编辑包含性。
+`tests/storage-migration.test.ts` 覆盖面板与服务声明的迁移、搬空目录、冲突与重复执行；`tests/user-panels.test.ts`、`tests/mcp-direct-config.test.ts`、`tests/lsp-direct-config.test.ts` 与 `tests/server-config.test.ts` 覆盖新根目录下的增删改与校验；`tests/panel-resources.test.ts` 覆盖已安装套件的编辑包含性。`tests/user-panels.test.ts` 还钉住面板 provider 的 rank 低于宿主读取器的 500——一旦优先级被悄悄改动，这条断言会失败。
