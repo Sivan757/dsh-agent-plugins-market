@@ -122,12 +122,12 @@ describe('McpMountRegistry', () => {
     await registry.disposeAll()
   })
 
-  // No dedicated "duplicate derived serverName" test: since serverNames hash
-  // over (sourceId, suiteId), two different suites can no longer derive the
-  // same name, and the identical suite listed twice is deduped by the wanted
-  // map before mounting. The owner guard in mountWith stays as
-  // defense-in-depth; the observable collision path is the foreign-mount
-  // test below.
+  // No dedicated "duplicate derived serverName" test: a suite/server pair
+  // derives one name regardless of which source ships it, so the owner guard
+  // needs two sources carrying the same suite id to collide on one name (that
+  // collapse is pinned in mcp-config.test.ts). The guard in mountWith stays as
+  // defense-in-depth; the observable collision path in this file is the
+  // foreign-mount test below.
 
   it('surfaces a failed startup as `failed` and leaves no orphan child behind', async () => {
     const disposed: string[] = []

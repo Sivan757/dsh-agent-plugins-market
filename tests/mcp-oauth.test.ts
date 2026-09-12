@@ -212,7 +212,7 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
     expect(provider.awaitingBrowser).toBe(false)
   }, 15_000)
 
-  it('resolves the gate false when the authorization server returns an error', async () => {
+  it('rejects and closes the gate when the authorization server redirects with an OAuth error', async () => {
     const port = await freePort()
     const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
     provider.bindTransport({ finishAuth: async () => {} })
@@ -222,8 +222,10 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
     const rejection = expect(redirect).rejects.toThrow(/access_denied/)
     await vi.waitFor(() => {
       expect(provider.awaitingBrowser).toBe(true)
+      expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`)
     })
-    await fetch(`http://127.0.0.1:${port}/callback?error=access_denied`)
+    const response = await fetch(`http://127.0.0.1:${port}/callback?error=access_denied&error_description=nope`)
+    expect(response.status).toBe(400)
     await rejection
     expect(provider.awaitingBrowser).toBe(false)
   }, 15_000)
@@ -253,21 +255,6 @@ describe('LoopbackOAuthClientProvider callback leg', () => {
 
     // The listener is one-use: the socket no longer answers.
     await expect(fetch(`http://127.0.0.1:${port}/callback?code=abc`)).rejects.toThrow()
-  }, 15_000)
-
-  it('rejects when the authorization server redirects with an OAuth error', async () => {
-    const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
-    provider.bindTransport({ finishAuth: async () => {} })
-    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
-    const rejection = expect(redirect).rejects.toThrow(/access_denied/)
-    await vi.waitFor(() => {
-      expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`)
-    })
-
-    const response = await fetch(`http://127.0.0.1:${port}/callback?error=access_denied&error_description=nope`)
-    expect(response.status).toBe(400)
-    await rejection
   }, 15_000)
 
   it('rejects when no transport generation is bound', async () => {

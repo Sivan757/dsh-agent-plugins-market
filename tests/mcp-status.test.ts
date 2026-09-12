@@ -72,17 +72,12 @@ describe('MCP status aggregation', () => {
     expect(buildMcpStatus([disabled, uninstalled], [], []).entries).toEqual([])
   })
 
-  it('reports enabled plugin servers with no observed tools as degraded', () => {
-    const payload = buildMcpStatus([suite({ mcp: { schema: 'native-client', servers: { app: { type: 'stdio', command: 'node' } } } })], [], [])
-    expect(payload.entries[0]?.state).toBe('degraded')
-    expect(payload.entries[0]?.tools).toEqual([])
-  })
-
   it('distinguishes a zero-tool server from a mount failure', () => {
     const healthy = buildMcpStatus([suite({ mcp: { schema: 'native-client', servers: { app: { type: 'stdio', command: 'node' } } } })], [], [])
     // No tool observed and no diagnostic: a legitimate zero-tool server is
     // reported as degraded but never retryable.
     expect(healthy.entries[0]?.state).toBe('degraded')
+    expect(healthy.entries[0]?.tools).toEqual([])
     expect(healthy.entries[0]?.advertisedTools).toBe(false)
     expect(healthy.entries[0]?.retryable).toBe(false)
 
