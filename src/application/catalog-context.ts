@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import type { GitOptions } from '../catalog/git.js'
 import { STATE_FILE_NAME } from '../catalog/paths.js'
 import { EMPTY_STATE, loadState, saveState } from '../runtime/state-store.js'
-import { effectiveSurfaces, type InstalledEntry, type Suite, type SuiteDimension, type SuiteState } from '../model/types.js'
+import { effectiveSurfaces, type DiscoveredSuite, type InstalledEntry, type Suite, type SuiteDimension, type SuiteState } from '../model/types.js'
 import type { CatalogPortsOverride } from './ports.js'
 import { SCAN_CACHE_TTL_MS, SnapshotCache, type SnapshotHost } from './snapshot-cache.js'
 
@@ -135,7 +135,7 @@ export class CatalogContext implements SnapshotHost {
    * effective surface toggles, and the lock/install timestamps the market
    * cards report.
    */
-  project(discovered: readonly Suite[], state: SuiteState, dimension: SuiteDimension): Suite[] {
+  project(discovered: readonly DiscoveredSuite[], state: SuiteState, dimension: SuiteDimension): Suite[] {
     return discovered.map(suite => {
       const installed = state.installed[installKey(suite.sourceId, suite.id)]
       // Native project layouts (`.claude/`, `.agents/`) are the repository's

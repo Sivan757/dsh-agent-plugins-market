@@ -27,7 +27,7 @@ function lspSuite(id: string, lsp = true, active = true): Suite {
     surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: lsp ? 1 : 0 },
     dimension: 'user',
     enabled: true,
-    ...(active ? {} : { activeSurfaces: { skills: true, mcp: true, hooks: true, commands: true, agents: true, lsp: false } }),
+    activeSurfaces: { skills: true, mcp: true, hooks: true, commands: true, agents: true, lsp: active },
     errors: []
   }
 }

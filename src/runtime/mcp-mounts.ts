@@ -121,7 +121,7 @@ export class McpMountRegistry {
   /** Mount/unmount MCP servers to match the enabled suites exactly. */
   private async reconcileNow(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
     this.lastEnabled = [...enabledSuites]
-    const active = enabledSuites.filter(suite => suite.activeSurfaces?.mcp !== false)
+    const active = enabledSuites.filter(suite => suite.activeSurfaces.mcp !== false)
     const overrides = await this.overridesProvider()
     const resolver = mcpCredentialResolver(this.ctx)
     const wanted = new Map<string, { suite: Suite; serverKey: string; request: McpMountRequest }>()

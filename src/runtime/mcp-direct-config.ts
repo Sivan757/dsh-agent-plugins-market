@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
-import type { McpSuiteConfig, Suite } from '../model/types.js'
+import { effectiveSurfaces, type McpSuiteConfig, type Suite } from '../model/types.js'
 
 export const USER_MCP_SOURCE = '@user-mcp'
 export const USER_MCP_SUITE = 'user-mcp'
@@ -26,6 +26,9 @@ export async function loadUserMcpSuite(dataRoot: string): Promise<Suite> {
     surfaces: { skills: 0, mcp: Object.keys(mcp.servers).length, commands: 0, agents: 0, hooks: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    // A user-created suite has no install entry and no overrides, so every
+    // surface keeps its enabled default.
+    activeSurfaces: effectiveSurfaces(undefined),
     installedAt: 'user',
     errors
   }

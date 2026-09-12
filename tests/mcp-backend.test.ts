@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { marketSettingsPath, MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 // The hoisted switch lets one mock serve both the available and the missing
 // host-client scenarios.
@@ -40,6 +40,7 @@ function suite(id: string, serverKey: string, transport: 'stdio' | 'sse' = 'stdi
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: []
   }
 }

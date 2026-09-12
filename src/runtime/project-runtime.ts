@@ -70,7 +70,7 @@ export async function suiteInstructions(suites: readonly Suite[]): Promise<{ tex
   const chunks: string[] = []
   const errors: Array<{ suiteId: string; reason: string }> = []
   for (const suite of suites) {
-    if (!suite.enabled || suite.activeSurfaces?.skills === false) continue
+    if (!suite.enabled || suite.activeSurfaces.skills === false) continue
     if (suite.systemPrompt !== undefined) chunks.push(suite.systemPrompt)
     if (suite.manifest.startupSkill === undefined) continue
     const skill = suite.skills.find(skill => skill.name === suite.manifest.startupSkill)

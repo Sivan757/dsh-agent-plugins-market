@@ -55,7 +55,7 @@ export function buildMcpStatus(
       const credentialRefs = [...new Set([...refs, ...(diagnostic?.credentialRefs ?? [])])].sort()
       // The declaration stays on the inventory when an override disables it:
       // the panel shows what the suite ships and how the user changed it.
-      const disabled = !enabled || suite.activeSurfaces?.mcp === false
+      const disabled = !enabled || suite.activeSurfaces.mcp === false
       const orphaned = disabled && tools.length > 0
       // A duplicate copy shares the live serverName, so observed tools land
       // on it too — that does not make it connected: its own diagnostic says

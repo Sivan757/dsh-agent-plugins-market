@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildSuiteDetail } from '../src/application/details.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 function suite(): Suite {
   return {
@@ -23,6 +23,7 @@ function suite(): Suite {
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: []
   }
 }

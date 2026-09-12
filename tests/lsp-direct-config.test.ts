@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { loadLspServers, saveLspServers } from '../src/runtime/lsp-direct-config.js'
 import { buildLspStatus, DIRECT_LSP_SUITE_ID } from '../src/runtime/lsp-status.js'
 import type { LspMountDiagnostic } from '../src/runtime/lsp-mounts.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 const tempRoots: string[] = []
 async function tempRoot(): Promise<string> {
@@ -66,6 +66,7 @@ function lspSuite(id: string): Suite {
     surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: 1 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     installedAt: '2026-08-30T00:00:00.000Z',
     errors: []
   }

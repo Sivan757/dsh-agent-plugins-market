@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { deriveServerName, toMcpMounts } from '../src/runtime/mcp-config.js'
 import { expectTransport } from './helpers/bridge-config.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {
@@ -13,6 +13,7 @@ function suite(overrides: Partial<Suite> = {}): Suite {
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: [],
     mcp: {
       schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',

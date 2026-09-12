@@ -118,7 +118,7 @@ export class SuiteSkillProvider implements SkillProvider {
     const located: LocatedSkill[] = []
     const userSuites = await this.manager.enabledUserSuites()
     for (const suite of userSuites) {
-      for (const skill of suite.activeSurfaces?.skills === false ? [] : suite.skills) {
+      for (const skill of suite.activeSurfaces.skills === false ? [] : suite.skills) {
         try {
           if (parseFrontmatterRecord(await readFile(skill.file, 'utf8')).disabled === true) continue
         } catch {
@@ -137,7 +137,7 @@ export class SuiteSkillProvider implements SkillProvider {
     const snapshot = await this.manager.readProjectCatalog(cwd)
     const located: LocatedSkill[] = []
     for (const suite of snapshot.enabledSuites) {
-      for (const skill of suite.activeSurfaces?.skills === false ? [] : suite.skills) {
+      for (const skill of suite.activeSurfaces.skills === false ? [] : suite.skills) {
         try {
           if (parseFrontmatterRecord(await readFile(skill.file, 'utf8')).disabled === true) continue
         } catch {

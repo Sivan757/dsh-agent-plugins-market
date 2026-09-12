@@ -212,8 +212,13 @@ export interface LspSuiteConfig {
 /** Install dimension of a suite. */
 export type SuiteDimension = 'user' | 'project'
 
-/** One discovered suite with runtime-relevant fields resolved. */
-export interface Suite {
+/**
+ * One suite as scanning produced it, with runtime-relevant fields resolved:
+ * no install entry has been merged in, so there is no lock commit, install
+ * timestamp, or effective surface set — except where the layout describes the
+ * set itself (project-native). Runtime consumers take {@link Suite}.
+ */
+export interface DiscoveredSuite {
   resources?: { commands: SuiteMarkdownResource[]; agents: SuiteMarkdownResource[] }
   systemPrompt?: string
   /** Validated native settings hooks; serialized only into a runtime-owned temporary file. */
@@ -230,7 +235,7 @@ export interface Suite {
   surfaces: SuiteSurfaceCounts
   dimension: SuiteDimension
   enabled: boolean
-  /** Effective per-surface enablement (overrides merged over enabled defaults). */
+  /** Effective per-surface enablement, declared only by a self-describing layout. */
   activeSurfaces?: Record<SuiteSurfaceKey, boolean>
   lockCommit?: string
   installedAt?: string
@@ -239,6 +244,16 @@ export interface Suite {
   remote?: { url: string }
   /** Surface diagnostics on a surviving suite; invalid declared manifests are rejected before discovery returns a suite. */
   errors: string[]
+}
+
+/**
+ * A suite with its install state applied: the shape `CatalogContext.project()`
+ * returns and every runtime consumer takes. The effective surface set is
+ * always present, so no consumer has to interpret its absence.
+ */
+export interface Suite extends DiscoveredSuite {
+  /** Effective per-surface enablement (overrides merged over enabled defaults). */
+  activeSurfaces: Record<SuiteSurfaceKey, boolean>
 }
 
 export interface ProjectHooks {

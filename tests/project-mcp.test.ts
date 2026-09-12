@@ -8,6 +8,7 @@ import { discoverProjectMcp } from '../src/catalog/project-config.js'
 import { mountProjectMcp } from '../src/runtime/project-runtime.js'
 import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
+import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -49,7 +50,7 @@ command = "never-run"
     const [suite] = await discoverNativeProjectSuites(project, 'project')
     expect(suite?.errors).toEqual([])
     expect(suite?.surfaces.mcp).toBe(2)
-    const { mounts, failures } = await toMcpMounts(suite!, '/runtime', {}, { resolve: async ref => ({ value: `resolved-${ref}` }) })
+    const { mounts, failures } = await toMcpMounts(withDefaultSurfaces(suite!), '/runtime', {}, { resolve: async ref => ({ value: `resolved-${ref}` }) })
     expect(failures).toEqual([])
     expect(mounts[0]?.config).toMatchObject({
       command: '/usr/bin/example',
@@ -129,7 +130,7 @@ tool_timeout_sec = nan
     const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
     await catalog.load()
     const snapshot = await catalog.readProjectCatalog(project)
-    expect(snapshot.enabledSuites[0]?.activeSurfaces?.lsp).toBe(false)
+    expect(snapshot.enabledSuites[0]?.activeSurfaces.lsp).toBe(false)
     expect(snapshot.scanNotes?.local?.join('\n')).toContain('project LSP declarations are not mounted')
   })
   it('reads ZCode nested servers and uses the agents fallback only when no native server exists', async () => {

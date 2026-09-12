@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { resolveProjectRoot, STATE_FILE_NAME } from '../catalog/paths.js'
 import { discoverSourceListWithNotes } from '../catalog/source-catalog.js'
 import { loadState } from '../runtime/state-store.js'
-import type { SourceRef, Suite, SuiteDimension, SuiteState } from '../model/types.js'
+import type { DiscoveredSuite, SourceRef, Suite, SuiteDimension, SuiteState } from '../model/types.js'
 
 export const SCAN_CACHE_TTL_MS = 30_000
 const SCAN_CACHE_MAX_ENTRIES = 8
@@ -39,12 +39,12 @@ export interface SnapshotHost {
   /** Bumped by every content-changing mutation; an older scan never repopulates the cache. */
   readonly scanGeneration: number
   /** Apply the install state to freshly discovered suites. */
-  project(discovered: readonly Suite[], state: SuiteState, dimension: SuiteDimension): Suite[]
+  project(discovered: readonly DiscoveredSuite[], state: SuiteState, dimension: SuiteDimension): Suite[]
 }
 
 export class SnapshotCache {
-  private readonly scanCache = new Map<string, { at: number; discovered: Suite[]; scanNotes: Record<string, string[]> }>()
-  private readonly scanPromises = new Map<string, Promise<{ suites: Suite[]; scanNotes: Record<string, string[]> }>>()
+  private readonly scanCache = new Map<string, { at: number; discovered: DiscoveredSuite[]; scanNotes: Record<string, string[]> }>()
+  private readonly scanPromises = new Map<string, Promise<{ suites: DiscoveredSuite[]; scanNotes: Record<string, string[]> }>>()
   private userSnapshot: CatalogSnapshot | undefined
   private userSnapshotExpiresAt = 0
   private userSnapshotPromise: Promise<CatalogSnapshot> | undefined
@@ -113,7 +113,7 @@ export class SnapshotCache {
     // replays a 30s scan cache would silently outlive its own staleness bound.
     const scanCacheTtl = dimension === 'user' ? Math.min(this.ttls.user, SCAN_CACHE_TTL_MS) : SCAN_CACHE_TTL_MS
     const cacheFresh = !skipScanCache && cached !== undefined && Date.now() - cached.at < scanCacheTtl
-    let discovered: Suite[]
+    let discovered: DiscoveredSuite[]
     let scanNotes: Record<string, string[]>
     if (cacheFresh && cached !== undefined) {
       discovered = cached.discovered

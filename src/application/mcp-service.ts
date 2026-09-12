@@ -11,7 +11,7 @@ import { isDirectory } from '../catalog/fs-probes.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { ServerConfigPayload } from '../contracts/market.js'
-import type { Suite } from '../model/types.js'
+import type { DiscoveredSuite, Suite } from '../model/types.js'
 import { readLocalePreference } from '../runtime/host-locale.js'
 import { probeHostMcpClient, type McpBackend } from '../runtime/mcp-backend.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
@@ -114,7 +114,9 @@ export class McpService {
     return this.context.enqueue(async () => {
       const suiteKey = qualifiedSuiteId(sourceId, suiteId)
       const source = this.context.state.sources.find(entry => entry.id === sourceId)
-      let suites: Suite[]
+      // Only the suite's declared servers matter here, and one branch reads
+      // freshly scanned suites — the scan shape covers both.
+      let suites: DiscoveredSuite[]
       if (sourceId === USER_MCP_SOURCE && suiteId === USER_MCP_SUITE) {
         suites = [await loadUserMcpSuite(this.context.dataRoot)]
       } else {

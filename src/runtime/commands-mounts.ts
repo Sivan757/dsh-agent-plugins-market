@@ -63,7 +63,7 @@ export class CommandMountRegistry {
     const diagnostics: CommandMountDiagnostic[] = []
     const wanted = new Map<string, CommandSpec & { suiteId: string; suiteName: string }>()
     for (const suite of enabledSuites) {
-      const specs = suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root, suite.resources?.commands)
+      const specs = suite.activeSurfaces.commands === false ? [] : await readCommands(suite.root, suite.resources?.commands)
       for (const spec of specs) {
         // The registry key is source-qualified: bare suite ids are unique per
         // source only, so two sources' same-named suites would collide.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildMcpStatus, inspectToolRegistry } from '../src/runtime/mcp-status.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {
@@ -19,6 +19,7 @@ function suite(overrides: Partial<Suite> = {}): Suite {
     surfaces: { skills: 0, mcp: 2, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     installedAt: new Date().toISOString(),
     errors: [],
     ...overrides

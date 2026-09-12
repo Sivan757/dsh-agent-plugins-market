@@ -9,6 +9,7 @@ import { agentRoleCatalog } from '../src/runtime/agent-role-router.js'
 import { suiteInstructions } from '../src/runtime/project-runtime.js'
 import { HooksMountRegistry } from '../src/runtime/hooks-mounts.js'
 import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
+import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []
 async function root() {
@@ -105,7 +106,7 @@ describe('schema component declarations', () => {
     const [suite] = (await scanSource(dir, 's', 'user')).suites
     expect(suite?.manifest.author).toBe('Author')
     expect(suite?.surfaces.hooks).toBe(1)
-    expect((await suiteInstructions([{ ...suite!, enabled: true }])).text).toBe('System\n\nAdditional system text')
+    expect((await suiteInstructions([withDefaultSurfaces({ ...suite!, enabled: true })])).text).toBe('System\n\nAdditional system text')
     await put(dir, 'marketplace.json', { plugins: [{ id: 'remote', downloadUrl: 'https://example.test/repo.git' }] })
     expect((await scanSource(dir, 's', 'user')).suites[0]?.remote?.url).toBe('https://example.test/repo.git')
   })
@@ -136,7 +137,7 @@ describe('schema component declarations', () => {
         throw new Error('must not mount')
       }
     } as never)
-    await registry.reconcile([{ ...suite!, enabled: true }])
+    await registry.reconcile([withDefaultSurfaces({ ...suite!, enabled: true })])
     expect(mounts).toBe(0)
   })
 })

@@ -22,7 +22,7 @@ import { realpath } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { isWithin, sanitizeId } from './paths.js'
 import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
-import type { Suite, SuiteComponents, SuiteDimension, SuiteManifest } from '../model/types.js'
+import type { DiscoveredSuite, SuiteComponents, SuiteDimension, SuiteManifest } from '../model/types.js'
 import { componentDeclarations, hasSuiteManifest, readManifest, readMarketplaces, syntheticManifestName, type MarketplaceEntry } from './manifests.js'
 import { countSurfaces, discoverMcp, discoverSkills, listMdFiles } from './surfaces.js'
 import { discoverMarkdownResources } from './component-files.js'
@@ -326,13 +326,13 @@ export async function scanSource(checkoutDir: string, sourceId: string, dimensio
  * Materialize resolved suite roots into suites: a remote root becomes a
  * metadata-only suite, a local root that fails to parse drops out.
  */
-async function readSuites(roots: readonly SuiteRoot[], context: ScanContext): Promise<Suite[]> {
+async function readSuites(roots: readonly SuiteRoot[], context: ScanContext): Promise<DiscoveredSuite[]> {
   const suites = await Promise.all(
     roots.map(root =>
       root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
     )
   )
-  return suites.filter((suite): suite is Suite => suite !== undefined)
+  return suites.filter((suite): suite is DiscoveredSuite => suite !== undefined)
 }
 
 /**
@@ -368,7 +368,13 @@ export async function hasSkillFiles(dir: string): Promise<boolean> {
 }
 
 /** Read one suite root into the normalized shape, or undefined when no manifest parses. */
-export async function readSuite(root: string, sourceId: string, dimension: SuiteDimension, hint: SuiteHint | undefined, notes: string[] = []): Promise<Suite | undefined> {
+export async function readSuite(
+  root: string,
+  sourceId: string,
+  dimension: SuiteDimension,
+  hint: SuiteHint | undefined,
+  notes: string[] = []
+): Promise<DiscoveredSuite | undefined> {
   const errors: string[] = []
   const declaredManifest = await hasSuiteManifest(root)
   let manifest = declaredManifest ? await readManifest(root, errors, hint) : await syntheticManifest(root)
@@ -439,7 +445,7 @@ export async function readSuite(root: string, sourceId: string, dimension: Suite
 }
 
 /** Metadata-only suite for a marketplace entry whose content is remote. */
-function remoteSuite(sourceId: string, dimension: SuiteDimension, root: SuiteRoot): Suite {
+function remoteSuite(sourceId: string, dimension: SuiteDimension, root: SuiteRoot): DiscoveredSuite {
   const name = root.hint?.name ?? 'remote-plugin'
   return {
     sourceId,

@@ -11,6 +11,7 @@ import { readCommands } from '../src/runtime/commands-mounts.js'
 import { buildSuiteDetail } from '../src/application/details.js'
 import { mountSuiteInstructions, suiteInstructions } from '../src/runtime/project-runtime.js'
 import { SuiteSkillProvider } from '../src/runtime/skills-provider.js'
+import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import Ajv2020Default from 'ajv/dist/2020.js'
 
 const fixtures = fileURLToPath(new URL('./fixtures/real-layouts/', import.meta.url))
@@ -107,13 +108,13 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     expect(suite?.manifest.layout).toBe('kimi')
     expect(suite?.manifest.path).toBe(join(root, 'kimi.plugin.json'))
     suite!.enabled = true
-    const instructions = await suiteInstructions([suite!])
+    const instructions = await suiteInstructions([withDefaultSurfaces(suite!)])
     expect(instructions.errors).toEqual([])
     expect(instructions.text).toContain('Kimi Code tool mapping')
-    const provider = new SuiteSkillProvider({ enabledUserSuites: async () => [suite!] } as never)
+    const provider = new SuiteSkillProvider({ enabledUserSuites: async () => [withDefaultSurfaces(suite!)] } as never)
     const candidate = (await provider.list({})).find(candidate => candidate.name === 'using-superpowers')!
     expect((await provider.get(candidate, {}))?.content).toContain('Kimi Code tool mapping')
-    expect((await suiteInstructions([{ ...suite!, enabled: false }])).text).toBe('')
+    expect((await suiteInstructions([withDefaultSurfaces({ ...suite!, enabled: false })])).text).toBe('')
   })
   it('Kimi startup instructions mount and withdraw through the scoped host interface without a cwd', async () => {
     const data = await snapshot(samples.find(sample => sample.dialect === 'kimi')!)
@@ -150,7 +151,7 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     }
     const runtime = mountSuiteInstructions(
       { agents: { list: () => [agent] }, on: () => () => {} } as never,
-      { enabledUserSuites: async () => (suite!.enabled ? [suite!] : []) } as never
+      { enabledUserSuites: async () => (suite!.enabled ? [withDefaultSurfaces(suite!)] : []) } as never
     )
     await runtime.refresh()
     expect(text()).toContain('Kimi Code tool mapping')
@@ -184,7 +185,7 @@ describe('README repository layout compatibility (offline snapshots)', () => {
       expect(suite.manifest.layout).toBe('github-copilot')
       expect(suite.surfaces.hooks).toBe(2)
     }
-    const detail = await buildSuiteDetail(suite, { enabled: true, installedAt: '2026-09-09T00:00:00Z' }, [])
+    const detail = await buildSuiteDetail(withDefaultSurfaces(suite), { enabled: true, installedAt: '2026-09-09T00:00:00Z' }, [])
     expect(detail.commands.length).toBe(suite.resources?.commands.length ?? 0)
     expect(detail.hooks.count).toBe(suite.surfaces.hooks)
   })

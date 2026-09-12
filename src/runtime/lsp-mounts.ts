@@ -31,7 +31,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { DIRECT_LSP_SUITE_ID } from './lsp-status.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
-import type { Suite } from '../model/types.js'
+import { effectiveSurfaces, type Suite } from '../model/types.js'
 
 export interface LspMountDiagnostic {
   suiteId: string
@@ -157,7 +157,7 @@ export class LspMountRegistry {
   /** Mount/unmount LSP servers to match the enabled suites plus direct config exactly. */
   private async reconcileNow(enabledSuites: Suite[]): Promise<LspMountDiagnostic[]> {
     this.lastEnabled = [...enabledSuites]
-    const active = enabledSuites.filter(suite => suite.activeSurfaces?.lsp !== false)
+    const active = enabledSuites.filter(suite => suite.activeSurfaces.lsp !== false)
     const wanted = new Map<string, { suite: Suite; config: Record<string, LspStdioServerConfig> }>()
     const diagnostics: LspMountDiagnostic[] = []
     const disabled = await this.disabledProvider()
@@ -192,6 +192,9 @@ export class LspMountRegistry {
             surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: directKeys.length },
             dimension: 'user',
             enabled: true,
+            // Direct servers carry no install state and no per-surface
+            // overrides, so every surface keeps its enabled default.
+            activeSurfaces: effectiveSurfaces(undefined),
             errors: []
           },
           config

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const CC_COMMANDS_ROOT = fileURLToPath(new URL('./fixtures/cc-commands', import.meta.url))
 
@@ -58,6 +59,7 @@ function suite(id: string, serverKey: string): Suite {
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: []
   }
 }
@@ -364,8 +366,8 @@ describe('CommandMountRegistry (CC commands compat)', () => {
       }
     }
     const registry = new (await import('../src/runtime/commands-mounts.js')).CommandMountRegistry(ctx as never)
-    const suites = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
-    suites[0]!.enabled = true
+    const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const diagnostics = await registry.reconcile(suites)
     expect(diagnostics).toEqual([])
     // Role definitions are catalog entries, never generated slash commands.
@@ -417,8 +419,8 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
       logger: { warn: () => {} }
     }
     const registry = new (await import('../src/runtime/hooks-mounts.js')).HooksMountRegistry(ctx as never)
-    const suites = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
-    suites[0]!.enabled = true
+    const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const diagnostics = await registry.reconcile(suites)
     expect(diagnostics).toEqual([])
     expect(mounted).toHaveLength(1)
@@ -444,8 +446,8 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
       logger: { warn: () => {} }
     }
     const registry = new (await import('../src/runtime/hooks-mounts.js')).HooksMountRegistry(ctx as never)
-    const suites = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
-    suites[0]!.enabled = true
+    const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
 
     // Mounted while enabled.
     await registry.reconcile(suites)

@@ -67,7 +67,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
     // id, matching the mount registry's wanted key exactly.
     if (suite.lsp === undefined || suite.installedAt === undefined || !suite.enabled) continue
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
-    const disabled = suite.activeSurfaces?.lsp === false
+    const disabled = suite.activeSurfaces.lsp === false
     const diagnostic = diagnostics.get(suiteKey)
     const { state, reason, retryable } = deriveState(disabled, diagnostic, anyLive)
     if (state === 'mounted') mountedSuiteIds.add(suiteKey)

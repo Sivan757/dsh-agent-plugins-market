@@ -9,7 +9,7 @@ export async function projectAgentRoles(catalog: Catalog, parent: unknown): Prom
   const snapshot = await catalog.readProjectCatalog(cwd)
   const entries: AgentRoleEntry[] = []
   for (const suite of snapshot.enabledSuites) {
-    if (suite.activeSurfaces?.agents === false) continue
+    if (suite.activeSurfaces.agents === false) continue
     for (const resource of suite.resources?.agents ?? (await defaultMarkdownResources(suite.root, 'agents'))) {
       const path = resource.file
       const rawText = await resourceText(resource).catch(error => {

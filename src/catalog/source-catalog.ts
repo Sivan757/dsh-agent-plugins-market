@@ -11,12 +11,12 @@ import { readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { expandHome, sourcesDir } from './paths.js'
 import { isDirectory } from './fs-probes.js'
-import type { SourceRef, Suite, SuiteDimension } from '../model/types.js'
+import type { DiscoveredSuite, SourceRef, SuiteDimension } from '../model/types.js'
 import { scanSource as scanSourceWithNotes } from './suite-scanner.js'
 import { discoverNativeProjectSuites } from './native-project.js'
 
 /** Discover suites from the selected configured or project checkouts. */
-export async function discoverSourceList(sources: SourceRef[], dimension: SuiteDimension, dimensionRoot: string): Promise<Suite[]> {
+export async function discoverSourceList(sources: SourceRef[], dimension: SuiteDimension, dimensionRoot: string): Promise<DiscoveredSuite[]> {
   return (await discoverSourceListWithNotes(sources, dimension, dimensionRoot)).suites
 }
 
@@ -26,7 +26,7 @@ export async function discoverSourceListWithNotes(
   dimension: SuiteDimension,
   dimensionRoot: string,
   scanProjectLayouts = true
-): Promise<{ suites: Suite[]; scanNotes: Record<string, string[]> }> {
+): Promise<{ suites: DiscoveredSuite[]; scanNotes: Record<string, string[]> }> {
   const checkoutRoot = sourcesDir(dimensionRoot)
   const listed = new Set(sources.map(source => source.id))
   const checkouts: Array<{ sourceId: string; checkout: string; sourceUrl?: string }> = sources.map(source => ({
@@ -49,7 +49,7 @@ export async function discoverSourceListWithNotes(
   }
   const discovered = await Promise.all(
     checkouts.map(async ({ sourceId, checkout, sourceUrl }) => {
-      if (!(await isDirectory(checkout))) return { sourceId, suites: [] as Suite[], notes: [] as string[] }
+      if (!(await isDirectory(checkout))) return { sourceId, suites: [] as DiscoveredSuite[], notes: [] as string[] }
       const result = await scanSourceWithNotes(checkout, sourceId, dimension, sourceUrl)
       return { sourceId, suites: result.suites, notes: result.notes }
     })

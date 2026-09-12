@@ -7,7 +7,7 @@ import { Catalog } from '../src/application/catalog.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
 import { applyOverride, loadSuiteOverrides, mergeOverridePatch, sanitizeOverridePatch, sanitizeOverrides, saveSuiteOverrides } from '../src/runtime/mcp-overrides.js'
 import { expectTransport } from './helpers/bridge-config.js'
-import type { McpServerStreamableHttp, Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type McpServerStreamableHttp, type Suite } from '../src/model/types.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixture = join(here, 'fixtures', 'v1-suite')
@@ -25,6 +25,7 @@ function httpSuite(): Suite {
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: []
   }
 }

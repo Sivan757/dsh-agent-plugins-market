@@ -6,7 +6,7 @@
  * the historical imports (`discoverSuitesInSource`, `repoName`,
  * `listMdFiles`) stable for callers and tests.
  */
-import type { Suite, SuiteDimension } from '../model/types.js'
+import type { DiscoveredSuite, SuiteDimension } from '../model/types.js'
 import { scanSource } from './scan-resolvers.js'
 
 export { repoName } from './manifests.js'
@@ -18,6 +18,6 @@ export { runScanChain } from './scan-pipeline.js'
 export type { ScanContext, ScanFilter, ScanChain, ScanResolution, ScanAttempt, ScanResult } from './scan-pipeline.js'
 
 /** Discover every suite under one source checkout. */
-export async function discoverSuitesInSource(checkoutDir: string, sourceId: string, dimension: SuiteDimension, sourceUrl?: string): Promise<Suite[]> {
+export async function discoverSuitesInSource(checkoutDir: string, sourceId: string, dimension: SuiteDimension, sourceUrl?: string): Promise<DiscoveredSuite[]> {
   return scanSource(checkoutDir, sourceId, dimension, sourceUrl).then(result => result.suites)
 }

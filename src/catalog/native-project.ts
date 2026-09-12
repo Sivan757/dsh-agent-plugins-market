@@ -12,7 +12,7 @@
 import { join } from 'node:path'
 import { sanitizeId } from './paths.js'
 import { isFile } from './fs-probes.js'
-import type { Suite, SuiteDimension, SuiteManifest } from '../model/types.js'
+import type { DiscoveredSuite, SuiteDimension, SuiteManifest } from '../model/types.js'
 import { countSurfaces, discoverSkills } from './surfaces.js'
 import { PROJECT_LAYOUTS, type ProjectLayout } from '../model/layouts.js'
 import { discoverProjectMcp } from './project-config.js'
@@ -32,8 +32,8 @@ export type NativeProjectDir = ProjectLayout
  * convention directory that carries content becomes one synthetic suite;
  * empty or absent directories contribute nothing.
  */
-export async function discoverNativeProjectSuites(projectRoot: string, dimension: SuiteDimension): Promise<Suite[]> {
-  const suites: Suite[] = []
+export async function discoverNativeProjectSuites(projectRoot: string, dimension: SuiteDimension): Promise<DiscoveredSuite[]> {
+  const suites: DiscoveredSuite[] = []
   for (const native of NATIVE_PROJECT_DIRS) {
     const root = join(projectRoot, native.dirName)
     const id = sanitizeId(`${native.dirName}-native`)

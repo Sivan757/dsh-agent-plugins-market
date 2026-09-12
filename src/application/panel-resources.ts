@@ -74,7 +74,7 @@ class PanelResources implements PanelResourceStore {
           name,
           origin: 'plugin',
           suiteName: suite.manifest.name,
-          disabled: !suite.enabled || suite.activeSurfaces?.[this.kind] === false || metadata.disabled === true,
+          disabled: !suite.enabled || suite.activeSurfaces[this.kind] === false || metadata.disabled === true,
           metadata,
           rawText,
           content: stripFrontmatter(rawText),

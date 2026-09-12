@@ -40,7 +40,7 @@ export class HooksMountRegistry {
 
   private async reconcileNow(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
     const diagnostics: HooksMountDiagnostic[] = []
-    const active = enabledSuites.filter(suite => suite.activeSurfaces?.hooks !== false && (suite.resources === undefined || suite.hooks !== undefined))
+    const active = enabledSuites.filter(suite => suite.activeSurfaces.hooks !== false && (suite.resources === undefined || suite.hooks !== undefined))
     // Keys are the qualified suite id: bare ids are unique per source only.
     const wanted = new Set(active.map(suite => qualifiedSuiteId(suite.sourceId, suite.id)))
     for (const [suiteId, handle] of [...this.live]) {
