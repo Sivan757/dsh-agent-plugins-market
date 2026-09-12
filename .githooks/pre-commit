@@ -7,11 +7,20 @@
 #    commit, so a stale `@deepseek-ai/dsh-*` pin ships a contract that excludes the host line
 #    consumers actually run, and an undeclared dynamic import ships a surface that silently
 #    degrades. Fix with `pnpm run fix:host-alignment`.
-# 2. The quick gate — typecheck and lint, both of which cover the test projects. It costs a few
-#    seconds and it is what CI runs, so a commit that passes here does not come back red.
+# 2. The cheap half of the gate — typecheck and lint, both of which cover the test projects.
+#
+# The checks call the local binaries rather than `pnpm run check:quick`, which is the same set: pnpm
+# verifies the dependency tree before running a script and reconciles `node_modules` when it
+# disagrees, and a hook has no business rewriting the tree from underneath a commit. That is also
+# what makes this hook work in a linked worktree, where `node_modules` is a symlink and pnpm
+# refuses to proceed.
 #
 # Bypass deliberately with `git commit --no-verify`.
 set -e
 node scripts/check-host-alignment.mjs
-pnpm run check:quick
-pnpm run format:check
+./node_modules/.bin/tsc -p tsconfig.json --noEmit
+./node_modules/.bin/tsc -p tsconfig.client.json --noEmit
+./node_modules/.bin/tsc -p tsconfig.test.json --noEmit
+./node_modules/.bin/tsc -p tsconfig.test.client.json --noEmit
+./node_modules/.bin/eslint src tests
+./node_modules/.bin/prettier --check .
