@@ -1,10 +1,17 @@
 #!/bin/sh
-# Host dependency alignment gate.
+# Pre-commit gate.
 #
-# This branch is what release-please cuts the published tarball from, and the tarball carries
-# whatever `package.json` said at that commit. A stale `@deepseek-ai/dsh-*` pin therefore ships a
-# contract that excludes the host line consumers actually run, and an undeclared dynamic import
-# ships a surface that silently degrades. Catch it here, before the commit exists.
+# Two things are worth catching before a commit exists:
 #
-# Bypass deliberately with `git commit --no-verify`; fix with `pnpm run fix:host-alignment`.
-exec node scripts/check-host-alignment.mjs
+# 1. Host dependency alignment. The published tarball carries whatever `package.json` said at this
+#    commit, so a stale `@deepseek-ai/dsh-*` pin ships a contract that excludes the host line
+#    consumers actually run, and an undeclared dynamic import ships a surface that silently
+#    degrades. Fix with `pnpm run fix:host-alignment`.
+# 2. The quick gate — typecheck and lint, both of which cover the test projects. It costs a few
+#    seconds and it is what CI runs, so a commit that passes here does not come back red.
+#
+# Bypass deliberately with `git commit --no-verify`.
+set -e
+node scripts/check-host-alignment.mjs
+pnpm run check:quick
+pnpm run format:check

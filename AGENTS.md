@@ -25,13 +25,16 @@ scripts/        build helpers (client banner, lifecycle verification)
 ```sh
 pnpm run typecheck           # src, client, and both test projects
 pnpm run lint                # eslint src tests
+pnpm run check:quick         # typecheck + lint — also runs before test and build
 pnpm run format:check        # prettier — tracked text except the paths in .prettierignore
 pnpm run test                # vitest run (full suite)
 pnpm run test:contract       # routes + market contracts only
 pnpm run check:architecture  # dependency-cruiser over src/
-pnpm run check:refactor      # typecheck + lint + format:check + test:contract + architecture
+pnpm run check:refactor      # check:quick + format:check + test:contract + architecture
 pnpm run build               # tsc emits lib/, tsdown bundles client/
 ```
+
+`check:quick` is the cheap half of the gate and runs on its own: `pretest` and `prebuild` invoke it, so a type or lint error surfaces the moment someone tests or builds rather than at review. The pre-commit hook runs it plus `format:check` and the host-alignment check — `git commit --no-verify` bypasses all three deliberately.
 
 `check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not, except the paths in `.prettierignore` (`docs-site/`, `lib/`, `client/`, `tests/fixtures/`, `CHANGELOG.md`, `docs/compat-report.*`) — run `format:check` after writing docs or HTML before claiming a green tree.
 

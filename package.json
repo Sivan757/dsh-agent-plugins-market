@@ -26,8 +26,10 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.test.client.json --noEmit",
     "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
+    "prebuild": "pnpm run typecheck",
     "build": "pnpm run clean && tsc -p tsconfig.json && pnpm run build:client",
     "build:client": "tsdown && node scripts/normalize-client-banner.mjs",
+    "pretest": "pnpm run check:quick",
     "test": "vitest run",
     "test:contract": "vitest run tests/market-contracts.test.ts tests/routes.test.ts",
     "test:coverage": "vitest run --coverage",
@@ -37,7 +39,8 @@
     "check:architecture": "depcruise --validate .dependency-cruiser.cjs src",
     "check:host-alignment": "node scripts/check-host-alignment.mjs",
     "fix:host-alignment": "node scripts/check-host-alignment.mjs --fix",
-    "check:refactor": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture",
+    "check:quick": "pnpm run typecheck && pnpm run lint",
+    "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture",
     "prepack": "pnpm run check:host-alignment && pnpm run build",
     "prepare": "node scripts/setup-git-hooks.mjs && pnpm run build"
   },
