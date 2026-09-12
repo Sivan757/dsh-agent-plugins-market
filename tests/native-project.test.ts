@@ -6,6 +6,12 @@ import { discoverSourceList } from '../src/catalog/source-catalog.js'
 import { Catalog } from '../src/application/catalog.js'
 import { SuiteSkillProvider, SUITE_PROJECT_SOURCE } from '../src/runtime/skills-provider.js'
 
+/** A fixture value this suite requires: fails naming what was expected instead of reading `undefined` further on. */
+function required<T>(value: T | undefined, expected: string): T {
+  if (value === undefined) throw new Error(`expected ${expected}`)
+  return value
+}
+
 /** Body for a `greet` skill with one description. */
 const skillMd = (description: string): string => `---
 name: greet
@@ -66,13 +72,13 @@ describe('native project-layout discovery', () => {
 
     const suites = await discoverSourceList([], 'project', dimensionRoot)
     expect(suites).toHaveLength(1)
-    const suite = suites[0]
+    const suite = required(suites[0], 'the native project layout to yield one suite')
     expect(suite.manifest.layout).toBe('project-native')
     expect(suite.dimension).toBe('project')
     expect(suite.enabled).toBe(true)
     expect(suite.root).toBe(join(projectRoot, '.claude'))
     expect(suite.skills.map(skill => skill.name)).toEqual(['greet'])
-    expect(suite.skills[0].file).toBe(join(projectRoot, '.claude', 'skills', 'greet', 'SKILL.md'))
+    expect(required(suite.skills[0], 'the native project to ship a greet skill').file).toBe(join(projectRoot, '.claude', 'skills', 'greet', 'SKILL.md'))
   })
 
   it('lists native project skills through the provider at project rank', async () => {
@@ -85,9 +91,10 @@ describe('native project-layout discovery', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
-    expect(candidates[0].name).toBe('greet')
-    expect(candidates[0].source).toBe(SUITE_PROJECT_SOURCE)
-    expect(candidates[0].rank).toBe(250)
+    const candidate = required(candidates[0], 'the native project greet skill')
+    expect(candidate.name).toBe('greet')
+    expect(candidate.source).toBe(SUITE_PROJECT_SOURCE)
+    expect(candidate.rank).toBe(250)
   })
 
   it('a project skill shadows an enabled user suite skill of the same name', async () => {
@@ -101,9 +108,10 @@ describe('native project-layout discovery', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
-    expect(candidates[0].description).toBe('[Claude Code project files] Native project greet skill.')
-    expect(candidates[0].source).toBe(SUITE_PROJECT_SOURCE)
-    expect(candidates[0].rank).toBe(250)
+    const candidate = required(candidates[0], 'the shadowing project greet skill')
+    expect(candidate.description).toBe('[Claude Code project files] Native project greet skill.')
+    expect(candidate.source).toBe(SUITE_PROJECT_SOURCE)
+    expect(candidate.rank).toBe(250)
   })
 
   it.each([
@@ -142,7 +150,8 @@ describe('project snapshot caching', () => {
     const managerShortTtl = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, projectSnapshotTtlMs: 1 })
     await managerShortTtl.load()
     const fresh = await managerShortTtl.readProjectCatalog(projectRoot)
-    expect(fresh.suites[0].skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
+    const freshSuite = required(fresh.suites[0], 'the re-scanned project snapshot to list one suite')
+    expect(freshSuite.skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
   })
 
   it('mutations invalidate cached project snapshots immediately', async () => {
@@ -171,6 +180,7 @@ describe('project snapshot caching', () => {
     await writeFile(join(projectRoot, '.claude', 'skills', 'second', 'SKILL.md'), secondSkillMd, 'utf8')
     const second = await manager.readProjectCatalog(projectRoot)
     expect(second).not.toBe(first)
-    expect(second.suites[0].skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
+    const rescanned = required(second.suites[0], 'the re-scanned project snapshot to list one suite')
+    expect(rescanned.skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
   })
 })
