@@ -77,7 +77,7 @@ function mountCtx(
   return {
     ctx,
     disposed: () => disposed,
-    build: (loadHost: () => Promise<unknown>) => new LspMountRegistry(ctx as never, loadHost as never, capability() as never, capability() as never)
+    build: (loadHost: () => Promise<unknown>) => new LspMountRegistry(ctx as never, loadHost as never, capability(), capability())
   }
 }
 
@@ -132,11 +132,11 @@ describe('LspMountRegistry', () => {
     const registry = build(hostLoader('ok', mounted))
     const suite = lspSuite('ts')
     await registry.reconcile([suite])
-    suite.lsp!.servers.typescript!.command = 'replacement-language-server'
+    suite.lsp!.servers.typescript.command = 'replacement-language-server'
     await registry.reconcile([suite])
     expect(disposed()).toBe(true)
     expect(mounted).toHaveLength(2)
-    expect(mounted[1]!.servers['src/ts/typescript']!.command).toBe('replacement-language-server')
+    expect(mounted[1].servers['src/ts/typescript'].command).toBe('replacement-language-server')
     await registry.reconcile([suite])
     expect(mounted).toHaveLength(2)
     await registry.disposeAll()
@@ -149,8 +149,8 @@ describe('LspMountRegistry', () => {
     const diagnostics = await registry.reconcile([lspSuite('ts'), lspSuite('plain', false), lspSuite('off', true, false)])
     expect(diagnostics).toEqual([])
     expect(mounted).toHaveLength(1)
-    expect(Object.keys(mounted[0]!.servers)).toEqual(['src/ts/typescript'])
-    expect(mounted[0]!.servers['src/ts/typescript']).toMatchObject({ command: 'typescript-language-server', args: ['--stdio'], extensionToLanguage: { '.ts': 'typescript' } })
+    expect(Object.keys(mounted[0].servers)).toEqual(['src/ts/typescript'])
+    expect(mounted[0].servers['src/ts/typescript']).toMatchObject({ command: 'typescript-language-server', args: ['--stdio'], extensionToLanguage: { '.ts': 'typescript' } })
     // Unmounts when the suite disappears between passes.
     await registry.reconcile([])
     await expect(registry.disposeAll()).resolves.toBeUndefined()
@@ -168,7 +168,7 @@ describe('LspMountRegistry', () => {
       // not a transient error), and no retry timer fires.
       const second = await registry.reconcile([lspSuite('ts')])
       expect(second).toHaveLength(1)
-      expect(second[0]!.code).toBe('host-missing')
+      expect(second[0].code).toBe('host-missing')
       await vi.advanceTimersByTimeAsync(200_000)
       await expect(registry.disposeAll()).resolves.toBeUndefined()
     } finally {
@@ -201,7 +201,7 @@ describe('LspMountRegistry', () => {
 
       const failRegistry = build(hostLoader('fail-startup'))
       const failures = await failRegistry.reconcile([lspSuite('ts')])
-      expect(failures[0]!.code).toBe('mount-failed')
+      expect(failures[0].code).toBe('mount-failed')
       // The bounded retry schedule re-runs reconcile; intercept through the
       // public surface by observing subsequent diagnostics after advancing.
       const retryPass = vi.spyOn(failRegistry, 'reconcile')
@@ -217,7 +217,7 @@ describe('LspMountRegistry', () => {
     const { disposed, build } = mountCtx('await-rejects')
     const registry = build(hostLoader('ok'))
     const diagnostics = await registry.reconcile([lspSuite('ts')])
-    expect(diagnostics[0]!.code).toBe('mount-failed')
+    expect(diagnostics[0].code).toBe('mount-failed')
     expect(disposed()).toBe(true)
     await expect(registry.disposeAll()).resolves.toBeUndefined()
   })
@@ -258,8 +258,8 @@ describe('LspMountRegistry', () => {
     const registry = provisionRegistry(ctx)
     const diagnostics = await registry.reconcile([lspSuite('ts')])
     expect(diagnostics).toHaveLength(1)
-    expect(diagnostics[0]!.code).toBe('seam-conflict')
-    expect(diagnostics[0]!.reason).toContain('remove that layer')
+    expect(diagnostics[0].code).toBe('seam-conflict')
+    expect(diagnostics[0].reason).toContain('remove that layer')
     // Nothing else was mounted: the provider cannot register without the seam it owns.
     expect(mounts).toEqual([])
     await registry.disposeAll()
@@ -270,8 +270,8 @@ describe('LspMountRegistry', () => {
     const registry = provisionRegistry(ctx)
     const diagnostics = await registry.reconcile([lspSuite('ts')])
     expect(diagnostics).toHaveLength(1)
-    expect(diagnostics[0]!.code).toBe('seam-conflict')
-    expect(diagnostics[0]!.reason).toContain('remove that layer')
+    expect(diagnostics[0].code).toBe('seam-conflict')
+    expect(diagnostics[0].reason).toContain('remove that layer')
     // The service mounted before the tool conflicted and must be torn back down with it.
     expect(mounts.map(record => record.label)).toEqual(['lsp-service'])
     await registry.disposeAll()
@@ -298,7 +298,7 @@ describe('LspMountRegistry', () => {
     const diagnostics = await registry.reconcile([lspSuite('ts')])
     expect(diagnostics).toHaveLength(1)
     expect(diagnostics[0]).toMatchObject({ suiteId: 'src/ts', code: 'host-missing' })
-    expect(diagnostics[0]!.reason).toContain('@deepseek-ai/dsh-lsp')
+    expect(diagnostics[0].reason).toContain('@deepseek-ai/dsh-lsp')
     // Nothing was mounted, including the provider that would have registered into a missing seam.
     expect(mounts).toEqual([])
     await registry.disposeAll()
