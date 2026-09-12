@@ -168,11 +168,6 @@
   align-items: baseline;
 }
 
-.editorName {
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .editorPath {
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary, #6b7280);
@@ -252,11 +247,6 @@
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1, #fff);
 }
-
-.entryRowDisabled {
-  opacity: 0.72;
-}
-
 
 .entryMain {
   display: flex;

@@ -18,7 +18,6 @@ import { InstallConfirmModal, type InstallConfirmState } from './features/market
 import { SuiteCard } from './features/market/SuiteCard.js'
 import { StatusIcon } from './ui/StatusIcon.js'
 import type { Translate } from './index.js'
-import type { CredentialApi } from './credentials.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
@@ -37,8 +36,6 @@ const PROGRESS_STEP_LABELS: Record<string, string> = {
 
 export interface MarketSectionProps {
   t: Translate
-  /** Host credentials wire used for write-only MCP env configuration. */
-  credentials?: CredentialApi
   /** The host surface controls only outer spacing; data and actions stay shared. */
   mode?: 'settings' | 'page'
 }
@@ -64,7 +61,7 @@ function progressStepLabel(t: Translate, step: string): string {
   return key === undefined ? step : t(key as Parameters<Translate>[0])
 }
 
-export function MarketSection({ t, credentials, mode = 'settings' }: MarketSectionProps): ReactNode {
+export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): ReactNode {
   const [overview, setOverview] = useState<OverviewData>(() => loadOverview().initial)
   const [loading, setLoading] = useState(() => loadOverview().revalidating)
   const [search, setSearch] = useState('')
@@ -354,7 +351,6 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
         ? null
         : h(SuiteDetailModal, {
             t,
-            credentials,
             sourceId: detail.sourceId,
             suiteId: detail.suiteId,
             onClose: () => setDetail(undefined)

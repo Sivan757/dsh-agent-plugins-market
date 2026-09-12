@@ -73,7 +73,6 @@ describe('client catalog view models', () => {
     const result = deriveMcpStatusViewModel(mcpStatus, 'direct', 'https://two')
     expect(result.activeEntries.map(entry => entry.id)).toEqual(['plugin:one', 'direct:two'])
     expect(result.filterCounts).toEqual({ all: 2, plugin: 1, direct: 1 })
-    expect(result.visibleTotals).toMatchObject({ all: 2, connected: 1, failed: 1 })
     expect(result.filtered.map(entry => entry.id)).toEqual(['direct:two'])
   })
 

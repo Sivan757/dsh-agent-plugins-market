@@ -2,11 +2,10 @@
  * Shared panel building blocks for the plugin workspace surfaces
  * (market / skills / commands / personas / MCP / LSP).
  *
- * Everything the six panels repeat lives here: the surface shell (title +
- * actions + toolbar + scrollable content region), the busy indicator, the
- * entry editor modal, the danger-confirm modal, and the source badge. The
- * pieces are intentionally small and prop-driven so a panel composes them
- * instead of re-implementing the geometry.
+ * Everything the six panels repeat lives here: the header, the trailing header
+ * commands, the busy indicator, the entry editor modal, the danger-confirm
+ * modal, and the source badge. The pieces are intentionally small and
+ * prop-driven so a panel composes them instead of re-implementing the geometry.
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
@@ -17,16 +16,6 @@ import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
 import type { Translate } from '../index.js'
 import detailCss from './detail.module.css'
-
-/** One header action slot (a button + its handler). */
-export interface PanelAction {
-  key: string
-  label: string
-  title?: string
-  danger?: boolean
-  disabled?: boolean
-  onSelect: () => void
-}
 
 /** The trailing header commands have one position and one visual treatment. */
 export function PanelActions(props: { addLabel?: string; onAdd?: () => void; refreshLabel?: string; onRefresh?: () => void; busy?: boolean }): ReactNode {
@@ -42,33 +31,6 @@ export function PanelHeader(props: { title: string; subtitle?: string; actions?:
       h('h2', { className: css.title }, props.title),
       props.subtitle === undefined ? null : h('p', { className: css.subtitle }, props.subtitle)),
     props.actions === undefined ? null : h('div', { className: css.headerActions }, props.actions))
-}
-
-/** Shared panel shell: title, subtitle, actions, and the scroll region body. */
-export function PanelShell(props: { title: string; subtitle?: string; actions?: PanelAction[]; children: ReactNode }): ReactNode {
-  return h(
-    'div',
-    { className: css.shell },
-    h(PanelHeader, {
-      title: props.title,
-      subtitle: props.subtitle,
-      actions: props.actions?.map(action =>
-              h(
-                Button,
-                {
-                  key: action.key,
-                  variant: 'ghost',
-                  size: 'sm',
-                  disabled: action.disabled === true,
-                  title: action.title ?? action.label,
-                  onClick: action.onSelect
-                },
-                action.label
-              )
-            )
-    }),
-    h('div', { className: css.body }, props.children)
-  )
 }
 
 /**

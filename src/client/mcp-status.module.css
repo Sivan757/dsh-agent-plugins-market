@@ -7,85 +7,7 @@
   flex-direction: column;
   color: var(--dsw-alias-label-primary, #1f2328);
 }
-.summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--dsw-alias-label-secondary, #667085);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.errorSummary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-/* Summary bar: one chip per non-healthy state, plus the observation time. */
-.summaryBar {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 10px;
-}
-.summaryChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.chiporphaned, .chipfailed {
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
-}
-.chipneedsCredentials, .chipdegraded {
-  color: var(--dsw-alias-state-warn-primary, #b45309);
-  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
-}
-.chipdisabled {
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  background: var(--dsw-alias-bg-layer-1, #fff);
-}
-.summaryAllGood {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--dsw-alias-state-success-primary, #16a34a);
-  font-size: 12px;
-}
-.summaryCount {
-  font-weight: 700;
-}
-.summaryLabel {
-  color: inherit;
-}
-.observedAt {
-  margin-left: auto;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 11px;
-  white-space: nowrap;
-}
-.summaryDotGreen, .summaryDotRed {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-.summaryDotGreen { background: var(--dsw-alias-state-success-primary, #16a34a); }
-.summaryDotRed { background: var(--dsw-alias-state-error-primary, #dc2626); }
-.summaryDotWarn { background: var(--dsw-alias-state-warn-primary, #b45309); }
-.summaryDotInfo { background: var(--dsw-alias-brand-primary, #4f6ef7); }
+
 .toolbar {
   flex: none;
 }
@@ -197,7 +119,7 @@
   overflow-wrap: anywhere;
 }
 
-.sourcePlugin, .sourceDirect, .transport, .toolCount {
+.sourcePlugin, .sourceDirect, .toolCount {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -223,9 +145,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.transport {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-}
+
 .toolCount {
   flex: none;
   color: var(--dsw-alias-label-primary, #1f2328);
@@ -268,32 +188,10 @@
   background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
 }
 .statedisabled {
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  color: var(--dsw-alias-label-tertiary, #98a2b3);
   background: var(--dsw-alias-bg-layer-2, #f7f8fa);
 }
-/* Card left accent follows the state so scanning the grid is instant. */
-.state, .detailState {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--dsw-alias-state-success-primary, #16a34a);
-  font-size: 11px;
-  white-space: nowrap;
-}
-.state::before, .detailState::before {
-  width: 6px;
-  height: 6px;
-  content: '';
-  background: currentColor;
-  border-radius: 50%;
-}
-.stateconnected, .detailStateconnected { color: var(--dsw-alias-state-success-primary, #16a34a); }
-.statedegraded, .detailStatedegraded { color: var(--dsw-alias-state-warn-primary, #b45309); }
-.statefailed, .detailStatefailed { color: var(--dsw-alias-state-error-primary, #dc2626); }
-.stateneeds-credentials, .detailStateneeds-credentials { color: var(--dsw-alias-state-warn-primary, #b45309); }
-.stateorphaned, .detailStateorphaned { color: var(--dsw-alias-state-error-primary, #dc2626); }
-.statedisabled, .detailStatedisabled { color: var(--dsw-alias-label-tertiary, #98a2b3); }
-.chevron { color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 18px; }
+
 .empty, .detailEmpty {
   padding: 24px;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
@@ -308,20 +206,12 @@
   color: var(--dsw-alias-state-error-primary, #dc2626);
   font-size: 12px;
 }
-.boundary {
-  margin: 10px 0 0;
-  padding: 9px 10px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
-  border-left: 2px solid var(--dsw-alias-border-l3, #d9dde3);
-  font-size: 11px;
-  line-height: 17px;
-}
+
 .detailDialog { width: min(720px, 94vw); }
 .detailBody { max-height: 72vh; overflow-y: auto; }
 .modalFooter { display: flex; justify-content: flex-end; width: 100%; }
 .detail { display: flex; flex-direction: column; gap: 16px; }
-.detailMeta { display: flex; flex-wrap: wrap; gap: 6px; }
+
 /* Modal hero: state + endpoint above the fold. */
 .detailHero {
   display: flex;
@@ -344,14 +234,7 @@
   overflow-wrap: anywhere;
   font: 12px/18px ui-monospace, Menlo, Consolas, monospace;
 }
-.reason {
-  padding: 9px 10px;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
-  border-left: 2px solid currentColor;
-  font-size: 11px;
-  line-height: 16px;
-}
+
 .reasonBox {
   display: flex;
   flex-direction: column;
@@ -376,19 +259,7 @@
   font-size: 12px;
   font-weight: 600;
 }
-.config {
-  max-height: 220px;
-  overflow: auto;
-  margin: 0;
-  padding: 10px;
-  color: var(--dsw-alias-label-primary, #344054);
-  background: var(--dsw-alias-bg-layer-2, #f6f8fc);
-  border: 1px solid var(--dsw-alias-border-l1, #e2e7ef);
-  border-radius: 7px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font: 11px/17px ui-monospace, Menlo, Consolas, monospace;
-}
+
 .toolList { display: flex; flex-direction: column; }
 /* Two columns: the name track sizes to its content (long MCP tool names are
    the identity, never clipped), the description takes the remainder. */
@@ -404,15 +275,11 @@
 .toolName { overflow: hidden; color: var(--dsw-alias-label-primary, #1f2328); text-overflow: ellipsis; white-space: nowrap; font: 11px/16px ui-monospace, Menlo, Consolas, monospace; }
 .toolDescription { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 @media (max-width: 760px) {
-  .header, .toolbar { padding-left: 0; padding-right: 0; }
-  .header { flex-direction: column; }
-  .headerActions { width: 100%; margin-left: 0; justify-content: space-between; }
+  .toolbar { padding-left: 0; padding-right: 0; }
   .grid { grid-template-columns: minmax(0, 1fr); }
   .list .cardTop { max-width: 100%; }
   .tool { grid-template-columns: minmax(0, 1fr); }
   .toolDescription { display: none; }
-  .summaryBar { gap: 6px; padding: 8px 10px; }
-  .observedAt { flex-basis: 100%; margin-left: 0; }
 }
 
 /* ── LSP status states (reuse the MCP pill/accent palette) ──────────────── */
@@ -436,14 +303,6 @@
 }
 .statusconflict {
   color: var(--dsw-alias-state-error-primary, #dc2626);
-}
-.chipmounted { background: var(--dsw-alias-state-success-tertiary, rgb(230, 250, 237)); }
-.chipblocked { background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231)); }
-
-/* Hide the entire summary bar when every row is healthy: the green
-   "all good" confirmation repeated above a green-stamped list is noise. */
-@media (prefers-reduced-data: no-preference) {
-  /* no-op block keeps the section marker above meaningful rules only */
 }
 
 /* Compact list mode: one-line rows (state · name · meta pill on the right). */
@@ -470,50 +329,14 @@
   overflow: hidden;
 }
 
-/* LSP extension-map rows: no index column — extension gets room to breathe. */
-.extRow {
-  display: grid;
-  grid-template-columns: minmax(64px, auto) 20px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--dsw-alias-border-l1, #eef1f5);
-}
-.extRow:last-child { border-bottom: none; }
-.extName { color: var(--dsw-alias-label-primary, #1f2328); font: 12px/18px ui-monospace, Menlo, Consolas, monospace; }
-.extArrow { color: var(--dsw-alias-label-tertiary, #8b93a1); }
-.extLanguage { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font: 12px/18px ui-monospace, Menlo, Consolas, monospace; }
-
-/* ── Detail-dialog retry control: spinner + in-place outcome echo ────── */
-.retryStack {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-right: 4px;
-}
-.retrySpinner {
-  display: inline-flex;
-  font-size: 13px;
-  line-height: 1;
-}
-.spinning {
-  animation: mcp-retry-spin 0.9s linear infinite;
-}
-@keyframes mcp-retry-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .spinning { animation: none; }
-}
-.retryEchoSuccess,
-.retryEchoFailure {
+/* In-place outcome echo beside the detail dialog's retry control. */
+.retryEchoSuccess {
+  color: var(--dsw-alias-state-success-primary, #16a34a);
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
 }
-.retryEchoSuccess { color: var(--dsw-alias-state-success-primary, #16a34a); }
-.retryEchoFailure { color: var(--dsw-alias-state-error-primary, #dc2626); }
+
 .statusstarting {
   color: var(--dsw-alias-state-warn-primary, #b45309);
   animation: lspStartingPulse 1.2s ease-in-out infinite;
@@ -523,7 +346,6 @@
 }
 
 .statusforeign { background: var(--dsw-alias-brand-primary, #4f6ef7); }
-
 
 .reasonRaw {
   margin: 6px 0 0;
