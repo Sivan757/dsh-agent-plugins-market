@@ -148,7 +148,10 @@ function mountProjectSurface(
   })
   const unwatchStart = ctx.on('agent/session-start', ({ agent }) => {
     attach(agent)
-    void mounts.get(agent)?.refresh()
+    // The refresh chain can reject — its queue body re-reads the project
+    // catalog — and the host emits this event without awaiting the listener,
+    // so an unhandled rejection here would surface at every session start.
+    void mounts.get(agent)?.refresh().catch(warn)
   })
   for (const agent of host.agents.list()) attach(agent)
   return {

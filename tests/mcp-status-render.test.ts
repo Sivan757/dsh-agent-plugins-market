@@ -119,8 +119,12 @@ describe('MCP status actions', () => {
     }
     const el = await mountPanel(credentials)
 
-    // The card is a lean identity line now: no inline actions. Opening the
-    // detail dialog is the one interaction a card offers.
+    // The card is a lean identity line: the credential editor is not part of
+    // it, so the panel neither renders the editor nor asks for credentials
+    // until the dialog opens.
+    expect(el.querySelector('input[type="password"]')).toBeNull()
+    expect(describeCredentials).not.toHaveBeenCalled()
+    // Opening the detail dialog is the one interaction a card offers.
     const card = [...el.querySelectorAll('[role="button"]')].find(node => node.textContent?.includes('demo__service'))
     expect(card).toBeDefined()
     await act(async () => {
