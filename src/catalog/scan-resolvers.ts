@@ -378,12 +378,16 @@ export async function readSuite(
   notes: string[] = []
 ): Promise<DiscoveredSuite | undefined> {
   const errors: string[] = []
+  const fallbacks: string[] = []
   const declaredManifest = await hasSuiteManifest(root)
-  let manifest = declaredManifest ? await readManifest(root, errors, hint) : await syntheticManifest(root)
+  let manifest = declaredManifest ? await readManifest(root, errors, hint, fallbacks) : await syntheticManifest(root)
   if (declaredManifest && (manifest === undefined || errors.length > 0)) {
-    notes.push(...errors, `suite ${root}: rejected declared manifest`)
+    notes.push(...errors, ...fallbacks, `suite ${root}: rejected declared manifest`)
     return undefined
   }
+  // A lower-priority manifest carried the suite: keep the reason the
+  // higher-priority declaration was skipped visible without failing the suite.
+  if (fallbacks.length > 0) notes.push(`suite ${root}: a higher-priority manifest was rejected`, ...fallbacks)
   // A declaration-only suite (official CC lsp plugins ship just a README):
   // the marketplace entry's inline lspServers are its manifest.
   if (manifest === undefined && hint !== undefined && Object.keys(componentDeclarations(hint)).length > 0) {

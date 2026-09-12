@@ -35,15 +35,24 @@ export interface ManifestCandidate {
   path: string
 }
 
-/** The highest-precedence manifest file a directory carries, if any. */
-export async function detectManifest(dir: string): Promise<ManifestCandidate | undefined> {
+/**
+ * Every manifest file a directory carries, in selection order: highest
+ * precedence first, aliases of one dialect in their own listed order.
+ */
+export async function detectManifests(dir: string): Promise<ManifestCandidate[]> {
+  const found: ManifestCandidate[] = []
   for (const { kind, manifest } of PLUGIN_LAYOUTS) {
     for (const relative of [...(MANIFEST_ALIASES[kind] ?? []), manifest]) {
       const path = join(dir, relative)
-      if (await isFile(path)) return { kind, path }
+      if (await isFile(path)) found.push({ kind, path })
     }
   }
-  return undefined
+  return found
+}
+
+/** The highest-precedence manifest file a directory carries, if any. */
+export async function detectManifest(dir: string): Promise<ManifestCandidate | undefined> {
+  return (await detectManifests(dir))[0]
 }
 
 /** Whether a directory carries any known suite manifest. */
@@ -72,17 +81,42 @@ export function componentDeclarations(record: object): SuiteComponents {
 }
 
 /**
- * Parse one manifest document into a normalized SuiteManifest. The v1 dialect
- * is schema-validated (fail-closed); the others are structurally read with
- * light tolerance, and `hint` (a marketplace plugin entry) fills in gaps.
+ * Read a suite manifest by walking the layout priority list from the top.
+ *
+ * A candidate that cannot be parsed or validated fails closed *for itself*:
+ * its diagnostics are recorded and the next candidate by priority is tried.
+ * Diagnostics of a rejected candidate that a lower-priority manifest replaced
+ * go to `fallbacks`, so the winner stays usable while the caller can still
+ * report why the higher-priority declaration was ignored. The winner's own
+ * diagnostics stay in `errors` and remain fatal.
  */
 export async function readManifest(
   root: string,
   errors: string[],
+  hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined,
+  fallbacks: string[] = []
+): Promise<SuiteManifest | undefined> {
+  const candidates = await detectManifests(root)
+  for (const [index, candidate] of candidates.entries()) {
+    const attempt: string[] = []
+    const manifest = await readOneManifest(root, candidate, attempt, hint)
+    if (manifest !== undefined) {
+      errors.push(...attempt)
+      return manifest
+    }
+    if (index === candidates.length - 1) errors.push(...attempt)
+    else fallbacks.push(...attempt)
+  }
+  return undefined
+}
+
+/** Parse one manifest candidate; undefined when this candidate is unusable. */
+async function readOneManifest(
+  root: string,
+  candidate: ManifestCandidate,
+  errors: string[],
   hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined
 ): Promise<SuiteManifest | undefined> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
   let raw: unknown
   try {
     raw = JSON.parse(await readFile(candidate.path, 'utf8'))
@@ -124,7 +158,10 @@ export async function readManifest(
     }
   }
   const problems = kind === 'agent-plugin-v1' ? await validatePluginManifest(raw) : []
-  errors.push(...problems.map(problem => `${candidate.path}: ${problem}`))
+  if (problems.length > 0) {
+    errors.push(...problems.map(problem => `${candidate.path}: ${problem}`))
+    return undefined
+  }
   const name = pickString(record.name) ?? hint?.name ?? syntheticManifestName(root)
   const version = pickString(record.version) ?? hint?.version
   const description = pickString(record.description) ?? hint?.description

@@ -136,6 +136,29 @@ describe('layout registry', () => {
     expect(result.notes.join('\n')).toContain('rejected declared manifest')
   })
 
+  it('falls through to the next manifest when a higher-priority one is invalid', async () => {
+    const dir = await root()
+    // Declares the v1 schema but omits the required `name`, so strict v1 validation rejects it.
+    await put(dir, 'plugin.json', JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json' }))
+    await put(dir, '.claude-plugin/plugin.json', JSON.stringify({ name: 'fallback' }))
+    await put(dir, 'skills/test/SKILL.md', skill)
+    const result = await scanSource(dir, 'example', 'user')
+    expect(result.suites.map(suite => suite.id)).toEqual(['fallback'])
+    expect(result.suites[0]?.manifest.layout).toBe('claude-code')
+    expect(result.notes.join('\n')).toContain('a higher-priority manifest was rejected')
+    expect(result.notes.join('\n')).toContain('plugin.json')
+  })
+
+  it('rejects the suite when every manifest candidate is invalid', async () => {
+    const dir = await root()
+    await put(dir, 'plugin.json', '{invalid')
+    await put(dir, '.claude-plugin/plugin.json', '[]')
+    await put(dir, 'skills/test/SKILL.md', skill)
+    const result = await scanSource(dir, 'example', 'user')
+    expect(result.suites).toEqual([])
+    expect(result.notes.join('\n')).toContain('rejected declared manifest')
+  })
+
   it('rejects a marketplace self-reference whose subdirectory is an external symlink', async () => {
     const dir = await root()
     const external = await root()
