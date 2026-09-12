@@ -3,7 +3,7 @@ import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
-import type { Translate } from '../src/client/index.js'
+import { stubTranslate as t } from './helpers/translate.js'
 
 vi.mock('../src/client/ui/ServerConfigDetail.js', () => ({
   ServerConfigDetail: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => h('button', { onClick: () => onDirtyChange(true) }, 'edit-config')
@@ -15,7 +15,6 @@ afterEach(async () => {
   await act(async () => root?.unmount())
   document.body.replaceChildren()
 })
-const t: Translate = key => key
 const base: McpStatusEntry = { id: 'service', name: 'service', kind: 'plugin', state: 'failed', transport: 'streamable-http', tools: [], canReauthorize: true }
 async function mount(entry = base) {
   const host = document.createElement('div')

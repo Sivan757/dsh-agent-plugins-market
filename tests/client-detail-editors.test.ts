@@ -6,10 +6,9 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
 import { MarkdownDocument } from '../src/client/ui/MarkdownDocument.js'
-import type { Translate } from '../src/client/index.js'
+import { stubTranslate as t } from './helpers/translate.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-const t: Translate = key => key
 let root: Root | undefined
 let host: HTMLDivElement
 afterEach(async () => {

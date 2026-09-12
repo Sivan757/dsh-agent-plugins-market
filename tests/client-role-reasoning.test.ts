@@ -6,10 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoleMetadataFields } from '../src/client/features/personas/RoleMetadataFields.js'
 import { readRoleFields } from '../src/client/features/personas/frontmatter.js'
 import { parseAgentRole } from '../src/runtime/agent-role-router.js'
-import type { Translate } from '../src/client/index.js'
+import { stubTranslate as t } from './helpers/translate.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-const t: Translate = key => key
 let root: Root | undefined
 let host: HTMLDivElement
 afterEach(async () => {

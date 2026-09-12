@@ -4,11 +4,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { beginBusyOperation, busySnapshot, withBusyOperation } from '../src/client/ui/busy-operation.js'
 import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_MIN_VISIBLE_MS, BUSY_SETTLE_MS } from '../src/client/ui/BusyOverlay.js'
-import type { Translate } from '../src/client/index.js'
+import { stubTranslate as t } from './helpers/translate.js'
 import { fetchLspStatus, postAction } from '../src/client/api.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-const t: Translate = key => key
 let root: Root | undefined
 const releases: Array<() => void> = []
 afterEach(async () => {
