@@ -16,10 +16,17 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 ## What you can do
 
-- **Reuse ecosystem suites.** Add a Git repository, local directory or archive as a source; browse, preview, install and enable its suites. Supported capabilities become available to DSH at runtime.
-- **Build your own toolkit.** Create skills, reusable slash commands and agent personas. Edit or disable your own entries without deleting them.
-- **Keep project resources in place.** Project `.claude/` and `.agents/` skills and agents are discovered without an installation step or file copying.
-- **Manage services where you use them.** Add your own MCP services and LSP servers, configure credentials and authorization for installed ones, inspect status, and diagnose unavailable services from one workspace.
+- **Read-in-place compatibility.** Ten recognized suite layouts — Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, agent-plugins.org v1 and manifest-less skill collections — plus project-native directories. Manifests are not converted and files are not copied into DSH.
+- **Sources.** Add a Git repository, a local directory or an archive (`.zip` / `.tar.gz` / `.tgz` / `.tar`); adopt a checkout you cloned yourself; refresh on demand; delete a managed checkout when you remove its source.
+- **Network and mirrors.** A download-region setting — default `auto` follows the interface language, or pick global / China mainland — chooses the mirror prefix for `github.com` clones. The host config adds a proxy, `insteadOf` URL rewrites, a per-invocation timeout, an automatic clone retry and an optional GitHub tarball fallback.
+- **Runtime surfaces.** Enabled suites inject into sessions: skills into the catalog and slash menu, commands as `/name`, agent personas into the subagent catalog, MCP tools with an `mcp__` prefix, hooks onto host lifecycle events, and language servers through the `lsp` tool. See [the runtime surface table](#compatibility-and-boundaries) for per-surface conditions.
+- **MCP.** A built-in bridge runs stdio, Streamable HTTP with OAuth and legacy SSE without a host MCP client. `${VAR}` references resolve from the host credential store (or the launch environment); per-server overrides disable or patch a declaration without editing the source; an optional host-client compatibility mode is available without OAuth or legacy SSE. Tools register as `mcp__<suite>__<server>__<tool>`, and a namespace another MCP client already owns is skipped with a diagnostic instead of mounting twice.
+- **LSP.** Self-provisioned: installing the plugin is the whole setup, and the `lsp` tool mounts only while a language server is wanted. The language-server executable itself must be on `PATH`.
+- **Agent personas and delegation.** Role cards save an exact provider, model and reasoning effort; they appear in the session catalog and run through `subagent_run`, which starts a durable background child and returns its id immediately. The runtime reports the outcome when it settles, and `send_message` steers the child while it runs.
+- **Project dimension.** Project-native skills, agents, commands, MCP servers and hooks are discovered in place with no install step; the project-scan switch controls the whole dimension.
+- **Your own resources.** Author skills, commands and agent personas as Markdown under `~/.dsh/agent-plugins/user/`, then edit them or disable them without deleting the files.
+- **Web workspace.** Six tabs — Market, Skills, Commands, Agent personas, MCP services and LSP servers — each with search, filters and a grid/list toggle, plus status panels with diagnostics, credential editing, and an install confirmation that warns before executable third-party content is enabled.
+- **Bilingual interface and feedback.** Workspace strings and injected prompts follow the host language. With feedback enabled, the model can file a `report_market_issue` report to the plugin repository, or save it locally when no token is available.
 
 ## Quick start
 
@@ -73,14 +80,14 @@ All ten active layout contracts in [`schemas/`](schemas/README.md) have independ
 
 Supported **runtime surfaces** describe what DSH can use:
 
-| Surface  | Runtime support and conditions                                                                                                            |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Skills   | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded.                                            |
-| Commands | Slash commands through the host command service.                                                                                          |
-| Agents   | Dynamic subagent catalog and `subagent_run`; requires host agents, tools, LLM, subagent and session-persistence services.                 |
-| MCP      | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available. |
-| Hooks    | The command-hook subset mapped by `dsh-hooks-claude-code`.                                                                                |
-| LSP      | Live mounts when the host provides LSP packages; the profile must expose the LSP tool for agent use.                                      |
+| Surface  | Runtime support and conditions                                                                                                                                |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skills   | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded.                                                                |
+| Commands | Slash commands through the host command service.                                                                                                              |
+| Agents   | Dynamic subagent catalog and `subagent_run`; requires host agents, tools, LLM, subagent and session-persistence services.                                     |
+| MCP      | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available.                     |
+| Hooks    | The command-hook subset mapped by `dsh-hooks-claude-code`.                                                                                                    |
+| LSP      | Self-provisioned: installing the plugin is the whole setup, and `lsp` mounts only while a language server is wanted; the server executable must be on `PATH`. |
 
 Agent roles appear in the session catalog and run through `subagent_run(agent, prompt)`, which starts a durable background child and returns its id immediately; the runtime reports the outcome when it settles and `send_message` steers it while it runs. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/guides/agent-roles.md) for the frontmatter fields and limits.
 
