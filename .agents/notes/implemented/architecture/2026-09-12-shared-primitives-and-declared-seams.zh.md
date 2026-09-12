@@ -8,7 +8,7 @@ Status: implemented
 
 `src/application/catalog.ts` 是一个 1,260 行的类，同时拥有六类互不相关的职责：持久化状态与变更队列、扫描与快照缓存、来源获取、安装状态、MCP 与 LSP 用例，以及展示查询。它依赖七个构造后 setter 加一个公开可变字段注入，由 347 行 `apply()` 中十三处调用点分散接线，因此完整的依赖集合只能靠比对构造函数选项与 setter 名称推出来。它以值导入 `src/runtime/` 十六次，而 `docs/design/engineering-refactor-plan.md` 明确把该方向列为错误，两侧都没有任何门禁把关。
 
-runtime 的五个挂载注册表按 surface 各实现了一遍同一套算法：串行化协调过程、挂载新出现的、卸载消失的、对有界退避内的瞬时失败重试、收集诊断、按序销毁。重试时间表、队列主体与销毁尾部在 MCP 与 LSP 之间是逐字节相同的，并且已经开始漂移。"每个服务器的有效视图"（查 override、跳过被禁用项、套用补丁、收集凭证引用）写了五遍，用了三种不同的类型收窄。
+runtime 的五个挂载注册表里有三个——MCP、LSP 与 hooks——按 surface 各实现了一遍同一套算法：串行化协调过程、挂载新出现的、卸载消失的、对有界退避内的瞬时失败重试、收集诊断、按序销毁。重试时间表、队列主体与销毁尾部在 MCP 与 LSP 之间是逐字节相同的，并且已经开始漂移。另外两个注册表（commands 与 user commands）既无队列也无退避，经检查后保持原样。"每个服务器的有效视图"（查 override、跳过被禁用项、套用补丁、收集凭证引用）写了五遍，用了三种不同的类型收窄。
 
 两处门禁声称覆盖 Node 边界，实际做不到。dependency-cruiser 不把 `node:*` 边放进模块图，因此 `client-cannot-import-node` 是死规则；而 `src/model/state.ts` —— 唯一导入 `node:fs/promises` 的领域模块 —— 被写进 model 规则的例外，而不是被移走。
 
