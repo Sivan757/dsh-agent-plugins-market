@@ -232,7 +232,7 @@ CC 契约与 dsh-lsp-stdio Config 字段几乎一一对应，零转换损耗；�
 
 - `model/types.ts`：`SuiteSurfaceKey` 增 `'lsp'`；`SUITE_SURFACE_KEYS` 尾插；`effectiveSurfaces()` 增 `lsp: overrides?.lsp !== false`。
 - `reconciler.ts`：`RuntimeReconciler` 增 `LspMountRegistry` 成员，`reconcile()` / `dispose()` 并入（独立 try/catch，对齐既有三面）；`RuntimeDiagnostics` 增 `lsp` 槽。
-- 挂载过滤：`suite.activeSurfaces?.lsp === false` 的 suite 不参与 wanted 集。
+- 挂载过滤：`suite.activeSurfaces.lsp === false` 的 suite 不参与 wanted 集（`activeSurfaces` 由 `CatalogContext.project()` 保证存在）。
 - 存量 state.json 兼容：`SurfaceOverrides` 是 Partial，缺省即启用，无需迁移。
 
 ### 3.6 验证
