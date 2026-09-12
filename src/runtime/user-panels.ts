@@ -22,19 +22,19 @@ import type { HostTranslate } from './host-locale.js'
 export const USER_PANEL_SKILL_SOURCE = 'user-panel' satisfies SkillSource
 
 /**
- * Panel skills outrank the harness's own reader of this same directory.
+ * Panel skills outrank both the harness's reader of this directory and the
+ * suite skills an install adds.
  *
  * `dsh-skill-filesystem` maps `~/.agents/skills` as its `user-agents` root at
  * rank 500, and a lower rank wins a duplicated skill name. Sitting behind it
  * handed every entry to that reader, which knows neither this panel's
  * `disabled` frontmatter nor its localized description, so a skill the user
- * disabled stayed loaded. At 450 the panel keeps its own controls while
- * project roots (100-300) and the user's `~/.dsh` skills (400) still outrank
- * it. The value ties the suite user rank, so a name a suite and a panel both
- * publish is decided by provider registration order, where the suite provider
- * registers first.
+ * disabled stayed loaded. At 440 the panel keeps its own controls; project
+ * roots (100-300) and the user's `~/.dsh` skills (400) still outrank it, while
+ * a skill the user wrote by hand now beats one an installed suite ships under
+ * the same name (the suite user rank is 450).
  */
-const USER_PANEL_RANK = 450
+const USER_PANEL_RANK = 440
 
 /** A user panel entry as the HTTP layer serializes it. */
 export interface UserPanelEntry {

@@ -17,7 +17,7 @@ Plugin state stays under `$DSH_HOME/agent-plugins`: `.sources/`, `state.json`, `
 
 Containment for editing resources inside an installed suite is now measured against the catalog's user root instead of the panel directory, because a panel no longer sits inside the tree that owns the checkouts.
 
-The harness's own `dsh-skill-filesystem` maps this same `~/.agents/skills` directory as its `user-agents` root, at rank 500, and a lower rank wins a duplicated skill name. The panel provider therefore sits at 450: high enough to keep serving the entries it owns, so the panel's `disabled` frontmatter and localized description actually apply, and low enough that project roots (100-300) and the user's `~/.dsh` skills (400) still outrank it. The value ties the suite user rank, so a name published by both a suite and a panel is decided by provider registration order, where the suite provider registers first.
+The harness's own `dsh-skill-filesystem` maps this same `~/.agents/skills` directory as its `user-agents` root, at rank 500, and a lower rank wins a duplicated skill name. The panel provider therefore sits at 440: high enough to keep serving the entries it owns, so the panel's `disabled` frontmatter and localized description actually apply, and low enough that project roots (100-300) and the user's `~/.dsh` skills (400) still outrank it — while also beating the suite user rank (450), so a skill the user wrote by hand wins over one an installed suite ships under the same name.
 
 Activation migrates before any store reads: `user/{skills,commands,agents}` and `data/user/...` into `~/.agents/<kind>`, `data/mcp-servers.json` and `data/lsp-servers.json` into `~/.agents/mcp.json` and `~/.agents/lsp.json`. Emptied former panel directories are removed; a content conflict stays at the original path and blocks activation with that path.
 
@@ -34,6 +34,8 @@ Activation migrates before any store reads: `user/{skills,commands,agents}` and 
 User content survives uninstalling the plugin, which is the point of the move. `~/.agents` is shared: the plugin must never delete it or repurpose unknown entries, and migration only writes into the subdirectories and files it owns. A configured `~/.agents` that overlaps plugin storage is rejected at startup. Tests stub `DSH_AGENTS_HOME`, so activation never migrates or writes into a developer's real home directory.
 
 Sharing `skills/` with the harness's own reader costs one duplicated candidate per entry and one host warning per shadowed name, in whichever direction the ranks decide. The panel wins that trade because it is the only reader that knows the user disabled the entry.
+
+That cost is also profile-bounded. The web bundle disables the host's `skill-filesystem` row (`packages/bundle/web-app/cordis.patch.yml`) because presets own local discovery there, so only base-backed profiles run both readers at all. Keeping the entries in this shared directory is still the right side of the trade: moving them into plugin-private storage to avoid one duplicate candidate would put user content back where no other Agent tool reads it, which is the problem this decision exists to fix.
 
 ## Verification
 
