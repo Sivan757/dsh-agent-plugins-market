@@ -17,6 +17,8 @@ Plugin state stays under `$DSH_HOME/agent-plugins`: `.sources/`, `state.json`, `
 
 Containment for editing resources inside an installed suite is now measured against the catalog's user root instead of the panel directory, because a panel no longer sits inside the tree that owns the checkouts.
 
+The harness's own `dsh-skill-filesystem` maps this same `~/.agents/skills` directory as its `user-agents` root, at rank 500, and a lower rank wins a duplicated skill name. The panel provider therefore sits at 450: high enough to keep serving the entries it owns, so the panel's `disabled` frontmatter and localized description actually apply, and low enough that project roots (100-300) and the user's `~/.dsh` skills (400) still outrank it. The value ties the suite user rank, so a name published by both a suite and a panel is decided by provider registration order, where the suite provider registers first.
+
 Activation migrates before any store reads: `user/{skills,commands,agents}` and `data/user/...` into `~/.agents/<kind>`, `data/mcp-servers.json` and `data/lsp-servers.json` into `~/.agents/mcp.json` and `~/.agents/lsp.json`. Emptied former panel directories are removed; a content conflict stays at the original path and blocks activation with that path.
 
 ## Alternatives considered
@@ -31,6 +33,8 @@ Activation migrates before any store reads: `user/{skills,commands,agents}` and 
 
 User content survives uninstalling the plugin, which is the point of the move. `~/.agents` is shared: the plugin must never delete it or repurpose unknown entries, and migration only writes into the subdirectories and files it owns. A configured `~/.agents` that overlaps plugin storage is rejected at startup. Tests stub `DSH_AGENTS_HOME`, so activation never migrates or writes into a developer's real home directory.
 
+Sharing `skills/` with the harness's own reader costs one duplicated candidate per entry and one host warning per shadowed name, in whichever direction the ranks decide. The panel wins that trade because it is the only reader that knows the user disabled the entry.
+
 ## Verification
 
-`tests/storage-migration.test.ts` covers the panel and declaration moves, the emptied directories, conflicts and repeated runs; `tests/user-panels.test.ts`, `tests/mcp-direct-config.test.ts`, `tests/lsp-direct-config.test.ts` and `tests/server-config.test.ts` cover CRUD and validation against the new root; `tests/panel-resources.test.ts` covers installed-suite editing containment.
+`tests/storage-migration.test.ts` covers the panel and declaration moves, the emptied directories, conflicts and repeated runs; `tests/user-panels.test.ts`, `tests/mcp-direct-config.test.ts`, `tests/lsp-direct-config.test.ts` and `tests/server-config.test.ts` cover CRUD and validation against the new root; `tests/panel-resources.test.ts` covers installed-suite editing containment. `tests/user-panels.test.ts` also pins the panel provider's rank below the harness reader's 500, which is the assertion that fails if the precedence is silently retuned.
