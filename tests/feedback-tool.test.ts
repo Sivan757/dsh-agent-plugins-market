@@ -54,6 +54,21 @@ describe('experience feedback tool', () => {
     }
   })
 
+  it('rejects a blank title before spooling anything', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'feedback-'))
+    try {
+      for (const title of ['', '   ']) {
+        const outcome = await submitFeedback(root, { title, description: 'something broke' }, 3_000_000)
+        expect(outcome.ok).toBe(false)
+        expect(outcome.reason).toBe('title is required')
+      }
+      // The guard runs before any write, so the rejected reports leave no spool.
+      await expect(readFile(join(root, 'feedback', 'reports.jsonl'), 'utf8')).rejects.toThrow()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('renders a deterministic body', () => {
     expect(renderFeedbackBody({ title: 'x', description: 'y', actual: 'z' })).toContain('**Actual:** z')
   })

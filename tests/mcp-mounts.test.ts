@@ -122,12 +122,46 @@ describe('McpMountRegistry', () => {
     await registry.disposeAll()
   })
 
-  // No dedicated "duplicate derived serverName" test: a suite/server pair
-  // derives one name regardless of which source ships it, so the owner guard
-  // needs two sources carrying the same suite id to collide on one name (that
-  // collapse is pinned in mcp-config.test.ts). The guard in mountWith stays as
-  // defense-in-depth; the observable collision path in this file is the
-  // foreign-mount test below.
+  it('skips the second mount of a derived serverName another source already mounted', async () => {
+    // Two sources shipping the same suite/server pair derive ONE serverName —
+    // deriveServerName is deliberately not source-qualified — so the later
+    // arrival must report the redundancy instead of registering a shadow copy
+    // of a namespace the model already sees.
+    const mounted: string[] = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config['serverName'] as string)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const fromA = suite('codex', 'app')
+    fromA.sourceId = 'source-a'
+    const fromB = suite('codex', 'app')
+    fromB.sourceId = 'source-b'
+
+    await expect(registry.reconcile([fromA])).resolves.toEqual([])
+    const diagnostics = await registry.reconcile([fromA, fromB])
+
+    // Exactly one live mount, owned by the source that arrived first.
+    expect(mounted).toEqual(['codex__app'])
+    expect(registry.serverOwner('codex__app')).toEqual({ suiteId: 'source-a/codex', serverKey: 'app' })
+    expect(diagnostics).toEqual([
+      {
+        suiteId: 'source-b/codex',
+        serverKey: 'app',
+        code: 'duplicate-mount',
+        // Regression: this used to interpolate the registry's raw
+        // `${suiteId}\u0000${serverKey}` map value instead of the owner it
+        // parses, so a NUL byte and a repeated server key reached a
+        // model-facing diagnostic. Nothing caught it because the only other
+        // consumer feeds a hand-written reason into `buildMcpStatus`.
+        reason: 'server "codex__app" is already mounted from source-a/codex — this suite\'s copy is redundant and was skipped'
+      }
+    ])
+    await registry.disposeAll()
+  })
 
   it('surfaces a failed startup as `failed` and leaves no orphan child behind', async () => {
     const disposed: string[] = []

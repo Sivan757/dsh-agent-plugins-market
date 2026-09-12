@@ -207,13 +207,13 @@ export class McpMountRegistry {
 
   /** Mount one precomputed request (source config merged with overrides). */
   private async mountWith(request: McpMountRequest): Promise<{ reason: string; code: McpMountFailureCode } | undefined> {
-    const owner = this.names.get(request.config.serverName)
+    const owner = this.serverOwner(request.config.serverName)
     if (owner !== undefined) {
       // Two sources shipping the same suite/server pair derive one serverName:
       // the model only needs one copy, so later arrivals skip with an
       // informational diagnostic instead of double-registering.
       return {
-        reason: `server "${request.config.serverName}" is already mounted from ${owner} — this suite's copy is redundant and was skipped`,
+        reason: `server "${request.config.serverName}" is already mounted from ${owner.suiteId} — this suite's copy is redundant and was skipped`,
         code: 'duplicate-mount'
       }
     }
