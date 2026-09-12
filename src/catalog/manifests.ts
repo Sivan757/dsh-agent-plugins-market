@@ -166,9 +166,10 @@ export interface MarketplaceEntry extends SuiteComponents {
   description?: string
   /** Claude Code: inline `lspServers` table declared on the entry itself. */
   lspServers?: unknown
-  /** Claude Code: a relative path string or `{ source: 'url', url }`.
+  /** Claude Code: a relative path string, `{ source: 'url', url }`, or the
+   *  `{ source: 'github', repo: 'owner/name' }` shorthand.
    *  Codex: `{ source: 'local', path }` or `{ source: 'remote', url }`. */
-  source: string | { source?: string; url?: string; path?: string }
+  source: string | { source?: string; url?: string; path?: string; repo?: string }
 }
 
 export interface Marketplace {

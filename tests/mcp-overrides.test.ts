@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
 import { applyOverride, loadSuiteOverrides, mergeOverridePatch, sanitizeOverridePatch, sanitizeOverrides, saveSuiteOverrides } from '../src/runtime/mcp-overrides.js'
+import { expectTransport } from './helpers/bridge-config.js'
 import type { McpServerStreamableHttp, Suite } from '../src/model/types.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -101,11 +102,12 @@ describe('toMcpMounts with overrides', () => {
         resolver
       )
       expect(result.mounts).toHaveLength(1)
-      const config = result.mounts[0]!.config as McpServerStreamableHttp
+      const config = result.mounts[0]!.config
+      expectTransport(config, 'streamable-http')
       expect(config.url).toBe('https://override.example/mcp')
       // The secret never needs to persist: the override stores only the
       // reference, resolved in memory when the mount config is built.
-      expect(config.headers?.authorization).toBe('Bearer secret-value')
+      expect(config.headers['authorization']).toBe('Bearer secret-value')
     } finally {
       delete process.env.DSH_MCP_OVERRIDE_TEST_TOKEN
     }
@@ -126,7 +128,7 @@ describe('toMcpMounts with source-declared auth', () => {
     const suite = httpSuite()
     suite.mcp!.servers.docs = { ...httpServer, auth: { enabled: true, scope: 'user' } }
     const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-auth-'))
-    const { mounts } = await toMcpMounts(suite, dataRoot, new Map(), async () => ({ value: '', missing: [] }))
+    const { mounts } = await toMcpMounts(suite, dataRoot, {}, { resolve: async () => undefined })
     expect(mounts).toHaveLength(1)
     expect(mounts[0]!.config).toMatchObject({ transport: 'streamable-http', auth: { enabled: true, scope: 'user' } })
   })
@@ -138,7 +140,7 @@ describe('toMcpMounts with source-declared auth', () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-auth-override-'))
     await saveSuiteOverrides(dataRoot, suite.id, { docs: { auth: { enabled: true } } })
     const overrides = await loadSuiteOverrides(dataRoot, suite.id)
-    const { mounts } = await toMcpMounts(suite, dataRoot, overrides, async () => ({ value: '', missing: [] }))
+    const { mounts } = await toMcpMounts(suite, dataRoot, overrides, { resolve: async () => undefined })
     expect(mounts).toHaveLength(1)
     expect(mounts[0]!.config).toMatchObject({ auth: { enabled: true } })
   })

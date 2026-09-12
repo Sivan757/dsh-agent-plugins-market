@@ -24,7 +24,7 @@
     "README.zh.md"
   ],
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.test.client.json --noEmit",
     "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
     "build": "pnpm run clean && tsc -p tsconfig.json && pnpm run build:client",
     "build:client": "tsdown && node scripts/normalize-client-banner.mjs",

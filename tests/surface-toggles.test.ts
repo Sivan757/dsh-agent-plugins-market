@@ -7,6 +7,7 @@ import { Catalog } from '../src/application/catalog.js'
 import { SuiteSkillProvider } from '../src/runtime/skills-provider.js'
 import { RuntimeReconciler } from '../src/runtime/reconciler.js'
 import { effectiveSurfaces } from '../src/model/types.js'
+import type { Suite } from '../src/model/types.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -22,6 +23,16 @@ async function installFixture(manager: Catalog, sourceId = 'demo', suiteId = 'v1
 
 function catalogAt(userRoot: string): Catalog {
   return new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+}
+
+/**
+ * Read a catalog suite's effective surface set. `readUserCatalog` projects
+ * install state over every discovered suite, so the set is always there; a
+ * suite that lost it fails this test rather than reading `undefined` later.
+ */
+function surfacesOf(suite: Suite): NonNullable<Suite['activeSurfaces']> {
+  if (suite.activeSurfaces === undefined) throw new Error(`suite ${suite.id} carries no effective surface set`)
+  return suite.activeSurfaces
 }
 
 /** A loaded Catalog holding one installed fixture suite, backed by its own temp user root. */
@@ -51,7 +62,7 @@ describe('Catalog.setSurface', () => {
     expect(suites.find(suite => suite.id === 'v1-suite')!.activeSurfaces).toEqual({ skills: true, mcp: false, hooks: true, commands: true, agents: true, lsp: true })
 
     await manager.setSurface('demo', 'v1-suite', 'mcp', true)
-    expect((await manager.readUserCatalog()).suites.find(suite => suite.id === 'v1-suite')!.activeSurfaces.mcp).toBe(true)
+    expect(surfacesOf((await manager.readUserCatalog()).suites.find(suite => suite.id === 'v1-suite')!).mcp).toBe(true)
   })
 
   it('rejects unknown surfaces and uninstalled suites', async () => {
@@ -78,8 +89,9 @@ describe('Catalog.setSurface', () => {
     const second = catalogAt(first.userRoot)
     await second.load()
     const suite = (await second.readUserCatalog()).suites.find(entry => entry.id === 'v1-suite')!
-    expect(suite.activeSurfaces.commands).toBe(false)
-    expect(suite.activeSurfaces.skills).toBe(true)
+    const surfaces = surfacesOf(suite)
+    expect(surfaces.commands).toBe(false)
+    expect(surfaces.skills).toBe(true)
   })
 })
 

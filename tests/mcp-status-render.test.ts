@@ -25,7 +25,7 @@ const statusPayload = vi.hoisted(() => ({
     }
   ],
   observedAt: '',
-  totals: { all: 1, connected: 0, degraded: 0, failed: 0, needsCredentials: 1, orphaned: 0, disabled: 0 },
+  totals: { all: 1, connected: 0, degraded: 0, failed: 0, needsCredentials: 1, orphaned: 0, disabled: 0, foreign: 0 },
   directObservationOnly: true
 }))
 
@@ -46,7 +46,7 @@ const connectedPayload = vi.hoisted(() => ({
     }
   ],
   observedAt: '',
-  totals: { all: 1, connected: 1, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0 },
+  totals: { all: 1, connected: 1, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
   directObservationOnly: true
 }))
 
@@ -69,7 +69,7 @@ const failedPayload = vi.hoisted(() => ({
     }
   ],
   observedAt: '',
-  totals: { all: 1, connected: 0, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 0 },
+  totals: { all: 1, connected: 0, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
   directObservationOnly: true
 }))
 

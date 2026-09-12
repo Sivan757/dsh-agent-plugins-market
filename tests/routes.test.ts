@@ -16,6 +16,10 @@ function service(): MarketService {
       directObservationOnly: true
     }),
     sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
+    serverConfig: async (kind, id) => ({ kind, id, editable: true, config: {} }),
+    lspStatus: async () => ({ entries: [], observedAt: '', totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 }, hostMissing: false }),
+    lspServers: async () => ({}),
+    mcpOverrides: async () => ({}),
     suiteDetail: async () => {
       throw new Error('not found')
     },
@@ -33,6 +37,10 @@ function service(): MarketService {
     setSurface: async () => {},
     setMcpOverride: async () => {},
     addMcpServer: async () => {},
+    saveServerConfig: async () => {},
+    addLspServer: async () => {},
+    setLspServers: async () => ({}),
+    setLspServerEnabled: async () => {},
     retryMounts: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,

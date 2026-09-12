@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { act, createElement as h, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Simulate } from 'react-dom/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoleMetadataFields } from '../src/client/features/personas/RoleMetadataFields.js'
 import { readRoleFields } from '../src/client/features/personas/frontmatter.js'
 import { parseAgentRole } from '../src/runtime/agent-role-router.js'
+import { selectOption } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -49,13 +49,13 @@ async function mount(text: string, exact: (model: string, signal: AbortSignal) =
 }
 
 function select(label: string): HTMLSelectElement {
-  return host.querySelector(`select[aria-label="${label}"]`)!
+  return host.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!
 }
 function value() {
   return host.querySelector('output')!.textContent!
 }
 async function change(label: string, value: string) {
-  await act(async () => Simulate.change(select(label), { target: { value } } as never))
+  await act(async () => selectOption(select(label), value))
 }
 const metadata = {
   reasoning: {
