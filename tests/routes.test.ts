@@ -281,6 +281,90 @@ describe('market HTTP routes', () => {
     dispose()
   })
 
+  it('rejects a field whose wire type is not the declared one instead of coercing it', async () => {
+    const routes: RouteTable = new Map()
+    const storeInputs: unknown[] = []
+    const spyService: MarketService = {
+      ...service(),
+      addSource: async input => {
+        storeInputs.push(input.url)
+        return { id: 'source', ...input }
+      },
+      updateSource: async (_id, patch) => {
+        storeInputs.push(patch.url, patch.branch, patch.sha256)
+      },
+      setLspServerEnabled: async id => {
+        storeInputs.push(id)
+      },
+      refreshSource: async id => {
+        // Reaching here at all means a wrong-typed id fell back to "all".
+        storeInputs.push(id)
+      }
+    }
+    const store = {
+      list: async () => [],
+      get: async () => undefined,
+      create: async (name: string, text: string) => {
+        storeInputs.push(name, text)
+        return {}
+      },
+      update: async (_name: string, text: string) => {
+        storeInputs.push(text)
+      },
+      remove: async (name: string) => {
+        storeInputs.push(name)
+      }
+    }
+    const panels = { skills: store, commands: store, agents: store } as unknown as Parameters<typeof mountSuiteRoutes>[2]
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, spyService, panels)
+
+    // `String({href})` is "[object Object]": non-empty, so before the routes
+    // required the declared type it survived every downstream check and the
+    // profile stored it as a source url, a branch name, or an entry name.
+    const objectUrl = { href: 'https://example.com/repo' }
+    const panelRoute = `${MARKET_ROUTES.userPanel}/skills`
+    const cases: Array<[string, string, Record<string, unknown>, string]> = [
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: objectUrl }, 'source url must be a string'],
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: ['https://example.com/repo'] }, 'source url must be a string'],
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: 42 }, 'source url must be a string'],
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: 'https://example.com/repo', branch: {} }, 'branch must be a string'],
+      [MARKET_ROUTES.refreshSource, MARKET_ROUTES.refreshSource, { id: {} }, 'source id must be a string'],
+      [MARKET_ROUTES.updateSource, MARKET_ROUTES.updateSource, { id: 'source', url: objectUrl }, 'source url must be a string'],
+      [MARKET_ROUTES.updateSource, MARKET_ROUTES.updateSource, { id: 'source', branch: {} }, 'branch must be a string'],
+      [MARKET_ROUTES.updateSource, MARKET_ROUTES.updateSource, { id: 'source', sha256: { hex: 'a'.repeat(64) } }, 'sha256 must be a string'],
+      [`${MARKET_ROUTES.lspServers}/enabled`, `${MARKET_ROUTES.lspServers}/enabled`, { id: {}, enabled: true }, 'LSP server id must be a string'],
+      [`${MARKET_ROUTES.lspServers}/enabled`, `${MARKET_ROUTES.lspServers}/enabled`, { id: 'x', enabled: 'yes' }, 'missing boolean enabled'],
+      [`${panelRoute}/create`, `${panelRoute}/create`, { name: {}, text: '# body' }, 'entry name must be a string'],
+      [`${panelRoute}/create`, `${panelRoute}/create`, { name: 'demo', text: { body: '# body' } }, 'entry text must be a string'],
+      [`${panelRoute}/update`, `${panelRoute}/update?name=demo`, { text: ['# body'] }, 'entry text must be a string'],
+      [`${panelRoute}/delete`, `${panelRoute}/delete`, { name: [] }, 'entry name must be a string']
+    ]
+    try {
+      for (const [route, requestUrl, body, error] of cases) {
+        const output = response()
+        await routes.get(route)!(postRequest(requestUrl, body), output)
+        await settle()
+        expect(output.value(), `${route} ${JSON.stringify(body)}`).toMatchObject({ ok: false, error })
+      }
+      expect(storeInputs).toEqual([])
+
+      // Absence is still "missing", not a type error: only the declared type changed.
+      const emptyResponse = response()
+      await routes.get(MARKET_ROUTES.addSource)!(postRequest(MARKET_ROUTES.addSource, {}), emptyResponse)
+      await settle()
+      expect(emptyResponse.value()).toMatchObject({ ok: false, error: 'missing source url' })
+
+      // And the same fields as strings still reach the store.
+      const okResponse = response()
+      await routes.get(MARKET_ROUTES.addSource)!(postRequest(MARKET_ROUTES.addSource, { url: 'https://example.com/repo' }), okResponse)
+      await settle()
+      expect(okResponse.value()).toMatchObject({ ok: true })
+      expect(storeInputs).toEqual(['https://example.com/repo'])
+    } finally {
+      dispose()
+    }
+  })
+
   it('passes the delete-checkout flag through to removeSource', async () => {
     const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
