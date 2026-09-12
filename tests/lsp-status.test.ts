@@ -43,15 +43,15 @@ describe('buildLspStatus', () => {
 
   it('reports host-missing from the stored diagnostic', () => {
     const payload = buildLspStatus([lspSuite('ts')], registry([{ suiteId: 'src/ts', serverKey: 'ts/typescript', reason: 'not installed', code: 'host-missing' }]))
-    expect(payload.entries[0]!.state).toBe('host-missing')
-    expect(payload.entries[0]!.reason).toBe('not installed')
+    expect(payload.entries[0].state).toBe('host-missing')
+    expect(payload.entries[0].reason).toBe('not installed')
     expect(payload.hostMissing).toBe(true)
     expect(payload.totals.blocked).toBe(1)
   })
 
   it('falls back to starting when no mounts and no diagnostics exist (mount pass in flight)', () => {
     const payload = buildLspStatus([lspSuite('ts')], registry([], false))
-    expect(payload.entries[0]!.state).toBe('starting')
+    expect(payload.entries[0].state).toBe('starting')
     expect(payload.hostMissing).toBe(false)
   })
 
@@ -63,9 +63,9 @@ describe('buildLspStatus', () => {
         { suiteId: 'src/b', serverKey: 'b/typescript', reason: 'mount failed: executable not found', code: 'mount-failed' }
       ])
     )
-    expect(payload.entries[0]!.state).toBe('conflict')
-    expect(payload.entries[1]!.state).toBe('failed')
-    expect(payload.entries[1]!.retryable).toBe(true)
+    expect(payload.entries[0].state).toBe('conflict')
+    expect(payload.entries[1].state).toBe('failed')
+    expect(payload.entries[1].retryable).toBe(true)
     expect(payload.totals.blocked).toBe(1)
     expect(payload.totals.failed).toBe(1)
   })

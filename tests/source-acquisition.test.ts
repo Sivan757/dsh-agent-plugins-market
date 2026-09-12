@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -56,6 +56,18 @@ function storedZip(entries: Record<string, Uint8Array>): Buffer {
   eocd.writeUInt32LE(centralBuf.length, 12)
   eocd.writeUInt32LE(offset, 16)
   return Buffer.concat([...chunks, centralBuf, eocd])
+}
+
+/**
+ * Serve `file` as the response body. `createServer`'s listener returns `void`,
+ * so the read is dispatched deliberately instead of being an async listener
+ * whose rejected promise nothing observes.
+ */
+function serveFile(response: ServerResponse, file: string): void {
+  void (async () => {
+    response.writeHead(200)
+    response.end(await readFile(file))
+  })()
 }
 
 describe('source kind inference', () => {
@@ -165,10 +177,7 @@ describe('archive acquisition', () => {
     const tarball = join(stage, 'payload.tar.gz')
     await run('tar', ['-czf', tarball, '-C', stage, 'top'])
     const dest = join(stage, 'checkout')
-    const server3 = createServer(async (_request, response) => {
-      response.writeHead(200)
-      response.end(await readFile(tarball))
-    })
+    const server3 = createServer((_request, response) => serveFile(response, tarball))
     await new Promise<void>(resolve => server3.listen(0, '127.0.0.1', resolve))
     const address = server3.address()
     const url = address !== null && typeof address === 'object' ? `http://127.0.0.1:${address.port}/payload.tar.gz` : ''
@@ -203,10 +212,7 @@ describe('archive acquisition', () => {
     const tarball = join(stage, 'payload.tar.gz')
     await run('tar', ['-czf', tarball, '-C', stage, 'top'])
     const dest = join(stage, 'checkout')
-    const server4 = createServer(async (_request, response) => {
-      response.writeHead(200)
-      response.end(await readFile(tarball))
-    })
+    const server4 = createServer((_request, response) => serveFile(response, tarball))
     await new Promise<void>(resolve => server4.listen(0, '127.0.0.1', resolve))
     const address = server4.address()
     const url = address !== null && typeof address === 'object' ? `http://127.0.0.1:${address.port}/tar.gz/refs/heads/main` : ''

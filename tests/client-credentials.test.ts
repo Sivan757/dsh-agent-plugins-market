@@ -6,7 +6,7 @@ describe('client credentials adapter', () => {
     const calls: Array<{ ref: string }> = []
     const api = {
       describe: async (payload: { refs: string[] }) => {
-        calls.push({ ref: payload.refs[0]! })
+        calls.push({ ref: payload.refs[0] })
         return { result: { ok: true, value: { credentials: { API_TOKEN: { configured: true, source: 'file', writable: true } } } } }
       },
       set: async () => ({}),

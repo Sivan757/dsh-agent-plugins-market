@@ -66,13 +66,13 @@ describe('native project-layout discovery', () => {
 
     const suites = await discoverSourceList([], 'project', dimensionRoot)
     expect(suites).toHaveLength(1)
-    const suite = suites[0]!
+    const suite = suites[0]
     expect(suite.manifest.layout).toBe('project-native')
     expect(suite.dimension).toBe('project')
     expect(suite.enabled).toBe(true)
     expect(suite.root).toBe(join(projectRoot, '.claude'))
     expect(suite.skills.map(skill => skill.name)).toEqual(['greet'])
-    expect(suite.skills[0]!.file).toBe(join(projectRoot, '.claude', 'skills', 'greet', 'SKILL.md'))
+    expect(suite.skills[0].file).toBe(join(projectRoot, '.claude', 'skills', 'greet', 'SKILL.md'))
   })
 
   it('lists native project skills through the provider at project rank', async () => {
@@ -85,9 +85,9 @@ describe('native project-layout discovery', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
-    expect(candidates[0]!.name).toBe('greet')
-    expect(candidates[0]!.source).toBe(SUITE_PROJECT_SOURCE)
-    expect(candidates[0]!.rank).toBe(250)
+    expect(candidates[0].name).toBe('greet')
+    expect(candidates[0].source).toBe(SUITE_PROJECT_SOURCE)
+    expect(candidates[0].rank).toBe(250)
   })
 
   it('a project skill shadows an enabled user suite skill of the same name', async () => {
@@ -101,9 +101,9 @@ describe('native project-layout discovery', () => {
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
-    expect(candidates[0]!.description).toBe('[Claude Code project files] Native project greet skill.')
-    expect(candidates[0]!.source).toBe(SUITE_PROJECT_SOURCE)
-    expect(candidates[0]!.rank).toBe(250)
+    expect(candidates[0].description).toBe('[Claude Code project files] Native project greet skill.')
+    expect(candidates[0].source).toBe(SUITE_PROJECT_SOURCE)
+    expect(candidates[0].rank).toBe(250)
   })
 
   it.each([
@@ -142,7 +142,7 @@ describe('project snapshot caching', () => {
     const managerShortTtl = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, projectSnapshotTtlMs: 1 })
     await managerShortTtl.load()
     const fresh = await managerShortTtl.readProjectCatalog(projectRoot)
-    expect(fresh.suites[0]!.skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
+    expect(fresh.suites[0].skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
   })
 
   it('mutations invalidate cached project snapshots immediately', async () => {
@@ -171,6 +171,6 @@ describe('project snapshot caching', () => {
     await writeFile(join(projectRoot, '.claude', 'skills', 'second', 'SKILL.md'), secondSkillMd, 'utf8')
     const second = await manager.readProjectCatalog(projectRoot)
     expect(second).not.toBe(first)
-    expect(second.suites[0]!.skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
+    expect(second.suites[0].skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
   })
 })

@@ -57,7 +57,10 @@ function service(): MarketService {
 function response(): { value: () => unknown; writeHead: (status: number, headers: Record<string, string>) => void; end: (body: string) => void } {
   let body = ''
   return {
-    value: () => JSON.parse(body),
+    value: () => {
+      const parsed: unknown = JSON.parse(body)
+      return parsed
+    },
     writeHead: () => {},
     end: value => {
       body = value

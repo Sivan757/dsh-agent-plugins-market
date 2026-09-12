@@ -99,7 +99,7 @@ async function stubOverview(payload: unknown): Promise<void> {
 function installButton(): HTMLButtonElement {
   const buttons = [...host!.querySelectorAll<HTMLButtonElement>('article button')].filter(button => (button.textContent ?? '').includes('install'))
   expect(buttons.length).toBe(1)
-  return buttons[0]!
+  return buttons[0]
 }
 
 describe('MarketSection rendering', () => {
@@ -148,7 +148,7 @@ describe('MarketSection rendering', () => {
   })
 
   it('shows the local-working-tree note when the source has no locked commit', async () => {
-    await stubOverview({ ...overviewPayload, sources: [{ ...overviewPayload.sources[0]!, lockCommit: undefined, local: true }] })
+    await stubOverview({ ...overviewPayload, sources: [{ ...overviewPayload.sources[0], lockCommit: undefined, local: true }] })
     await mountSection()
     act(() => installButton().click())
     await act(async () => {
@@ -163,8 +163,8 @@ describe('MarketSection rendering', () => {
     await stubOverview({
       ...overviewPayload,
       sources: [
-        { ...overviewPayload.sources[0]!, adopted: true },
-        { ...overviewPayload.sources[0]!, id: 'second', url: 'https://example.com/second.git', suiteIds: [] }
+        { ...overviewPayload.sources[0], adopted: true },
+        { ...overviewPayload.sources[0], id: 'second', url: 'https://example.com/second.git', suiteIds: [] }
       ]
     })
     const el = await mountSection()
@@ -180,8 +180,8 @@ describe('MarketSection rendering', () => {
     await stubOverview({
       ...overviewPayload,
       sources: [
-        { ...overviewPayload.sources[0]!, id: 'zeta', url: 'https://example.com/zeta.git', suiteIds: [] },
-        { ...overviewPayload.sources[0]!, id: 'alpha', url: 'https://example.com/alpha.git', suiteIds: [] }
+        { ...overviewPayload.sources[0], id: 'zeta', url: 'https://example.com/zeta.git', suiteIds: [] },
+        { ...overviewPayload.sources[0], id: 'alpha', url: 'https://example.com/alpha.git', suiteIds: [] }
       ]
     })
     await mountSection()

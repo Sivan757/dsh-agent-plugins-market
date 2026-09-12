@@ -25,10 +25,10 @@ describe('lsp-direct-config', () => {
     })
     expect(Object.keys(servers)).toEqual(['lua'])
     const loaded = await loadLspServers(root)
-    expect(loaded.servers['lua']!.command).toBe('lua-language-server')
+    expect(loaded.servers['lua'].command).toBe('lua-language-server')
     // Persisted file is the Claude Code shape, so users can paste upstream snippets.
-    const raw = JSON.parse(await readFile(join(root, 'lsp-servers.json'), 'utf8'))
-    expect(raw.lspServers.lua.command).toBe('lua-language-server')
+    const raw: unknown = JSON.parse(await readFile(join(root, 'lsp-servers.json'), 'utf8'))
+    expect(raw).toHaveProperty(['lspServers', 'lua', 'command'], 'lua-language-server')
   })
 
   it('rejects an invalid table without writing the file', async () => {
@@ -42,7 +42,7 @@ describe('lsp-direct-config', () => {
     const { servers } = await saveLspServers(root, {
       lspServers: { clangd: { command: 'clangd', extensionToLanguage: { C: 'c' } } }
     })
-    expect(servers['clangd']!.extensionToLanguage).toEqual({ '.c': 'c' })
+    expect(servers['clangd'].extensionToLanguage).toEqual({ '.c': 'c' })
   })
 
   it('tolerates a missing or broken file', async () => {

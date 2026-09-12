@@ -80,7 +80,7 @@ describe('client catalog view models', () => {
     const large: OverviewData = {
       ...overview,
       suites: Array.from({ length: 5_000 }, (_, index) => ({
-        ...overview.suites[index % overview.suites.length]!,
+        ...overview.suites[index % overview.suites.length],
         suiteId: `suite-${index}`,
         name: `Suite ${index}`
       }))

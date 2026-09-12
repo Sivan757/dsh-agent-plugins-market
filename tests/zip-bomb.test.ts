@@ -5,10 +5,22 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { zipSync } from 'fflate'
-import { createServer } from 'node:http'
+import { createServer, type ServerResponse } from 'node:http'
 import { archiveInstall, ARCHIVE_MAX_ENTRIES } from '../src/catalog/archive.js'
 
 const run = promisify(execFile)
+
+/**
+ * Serve `file` as the only response body. `createServer`'s listener returns
+ * `void`, so the read is dispatched deliberately instead of being an async
+ * listener whose rejected promise nothing observes.
+ */
+function serveFile(response: ServerResponse, file: string): void {
+  void (async () => {
+    response.writeHead(200)
+    response.end(await readFile(file))
+  })()
+}
 
 /**
  * One 512-byte POSIX ustar header for a zero-length regular-file member.
@@ -65,10 +77,7 @@ describe('archive pre-extraction bounds', () => {
     const tarball = join(stage, 'payload.tar')
     await run('tar', ['-cf', tarball, '-C', stage, 'top'])
     const dest = join(stage, 'checkout')
-    const server = createServer(async (_q, response) => {
-      response.writeHead(200)
-      response.end(await readFile(tarball))
-    })
+    const server = createServer((_q, response) => serveFile(response, tarball))
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
     const addr = server.address()
     const url = addr !== null && typeof addr === 'object' ? `http://127.0.0.1:${addr.port}/p.tar` : ''
@@ -89,10 +98,7 @@ describe('archive pre-extraction bounds', () => {
     const tarball = join(stage, 'payload.tar')
     await run('tar', ['-cf', tarball, '-C', stage, 'top'])
     const dest = join(stage, 'checkout')
-    const server = createServer(async (_q, response) => {
-      response.writeHead(200)
-      response.end(await readFile(tarball))
-    })
+    const server = createServer((_q, response) => serveFile(response, tarball))
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
     const addr = server.address()
     const url = addr !== null && typeof addr === 'object' ? `http://127.0.0.1:${addr.port}/p.tar` : ''
@@ -108,10 +114,7 @@ describe('archive pre-extraction bounds', () => {
     const payload = join(stage, 'payload.zip')
     await writeFile(payload, zipSync(entries))
     const dest = join(stage, 'checkout')
-    const server = createServer(async (_q, response) => {
-      response.writeHead(200)
-      response.end(await readFile(payload))
-    })
+    const server = createServer((_q, response) => serveFile(response, payload))
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
     const addr = server.address()
     const url = addr !== null && typeof addr === 'object' ? `http://127.0.0.1:${addr.port}/p.zip` : ''
@@ -129,10 +132,7 @@ describe('archive pre-extraction bounds', () => {
     const payload = join(stage, 'payload.tar')
     await writeFile(payload, tarOfEmptyFiles(5))
     const dest = join(stage, 'checkout')
-    const server = createServer(async (_q, response) => {
-      response.writeHead(200)
-      response.end(await readFile(payload))
-    })
+    const server = createServer((_q, response) => serveFile(response, payload))
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
     const addr = server.address()
     const url = addr !== null && typeof addr === 'object' ? `http://127.0.0.1:${addr.port}/p.tar` : ''
@@ -149,10 +149,7 @@ describe('archive pre-extraction bounds', () => {
     const payload = join(stage, 'payload.tar')
     await writeFile(payload, tarOfEmptyFiles(ARCHIVE_MAX_ENTRIES + 1))
     const dest = join(stage, 'checkout')
-    const server = createServer(async (_q, response) => {
-      response.writeHead(200)
-      response.end(await readFile(payload))
-    })
+    const server = createServer((_q, response) => serveFile(response, payload))
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
     const addr = server.address()
     const url = addr !== null && typeof addr === 'object' ? `http://127.0.0.1:${addr.port}/p.tar` : ''

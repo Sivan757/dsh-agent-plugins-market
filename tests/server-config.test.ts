@@ -44,7 +44,7 @@ describe('service configuration editing', () => {
     const detail = await catalog.serverConfig('lsp', id)
     await catalog.saveServerConfig('lsp', id, { ...detail.config, command: 'replacement' })
     expect((await catalog.serverConfig('lsp', id)).config.command).toBe('replacement')
-    expect((await catalog.enabledUserSuites()).find(suite => suite.id === 'typescript-lsp')!.lsp!.servers.typescript!.command).toBe('replacement')
+    expect((await catalog.enabledUserSuites()).find(suite => suite.id === 'typescript-lsp')!.lsp!.servers.typescript.command).toBe('replacement')
     expect((await catalog.lspStatus()).entries.find(entry => entry.id === id)!.command).toBe('replacement')
     expect(await readFile(manifest, 'utf8')).toBe(before)
   })
