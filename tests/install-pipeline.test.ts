@@ -35,7 +35,7 @@ afterEach(async () => {
 
 describe('full install pipeline: addSource → install → setEnabled → enabledUserSuites', () => {
   it('discovers, installs, enables, and lists a suite from a local source', async () => {
-    const catalog = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
 
     // 1. Add a local source pointing at the v1-suite fixture.
@@ -84,7 +84,7 @@ describe('full install pipeline: addSource → install → setEnabled → enable
     const suiteId = 'v1-suite'
 
     // First instance: add source, install, enable.
-    const first = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const first = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await first.load()
     const source = await first.addSource({ url: fixture, local: true })
     await first.install(source.id, suiteId)
@@ -93,7 +93,7 @@ describe('full install pipeline: addSource → install → setEnabled → enable
     expect(enabledBefore.length).toBe(1)
 
     // Second instance: reload from the same state.json on disk.
-    const reloaded = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const reloaded = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await reloaded.load()
     const snapshot = await reloaded.readUserCatalog()
     expect(snapshot.sources.map(s => s.id)).toContain(source.id)

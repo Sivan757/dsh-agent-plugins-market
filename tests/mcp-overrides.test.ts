@@ -167,7 +167,7 @@ describe('mergeOverridePatch', () => {
 describe('Catalog.setMcpOverride', () => {
   async function installedCatalog(): Promise<Catalog> {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-mcpov-cat-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await manager.load()
     const checkout = join(userRoot, '.sources', 'demo')
     await mkdir(checkout, { recursive: true })

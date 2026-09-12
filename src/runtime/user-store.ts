@@ -12,9 +12,9 @@ import { join } from 'node:path'
 import { parseDocument, stringify } from 'yaml'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 
-/** Where user panel entries persist: `<userRoot>/user/<kind>/`. */
-export function userEntryDir(dataRoot: string, kind: 'skills' | 'commands' | 'agents'): string {
-  return join(dataRoot, 'user', kind)
+/** Where user panel entries persist: `<agentsRoot>/<kind>/`. */
+export function userEntryDir(agentsRoot: string, kind: 'skills' | 'commands' | 'agents'): string {
+  return join(agentsRoot, kind)
 }
 
 /** `[a-z][a-z0-9_-]*` — the grammar every panel entry name must satisfy. */

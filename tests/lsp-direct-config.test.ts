@@ -29,7 +29,7 @@ describe('lsp-direct-config', () => {
     if (lua === undefined) throw new Error('expected the saved lua server to load back')
     expect(lua.command).toBe('lua-language-server')
     // Persisted file is the Claude Code shape, so users can paste upstream snippets.
-    const raw: unknown = JSON.parse(await readFile(join(root, 'lsp-servers.json'), 'utf8'))
+    const raw: unknown = JSON.parse(await readFile(join(root, 'lsp.json'), 'utf8'))
     expect(raw).toHaveProperty(['lspServers', 'lua', 'command'], 'lua-language-server')
   })
 
@@ -52,7 +52,7 @@ describe('lsp-direct-config', () => {
   it('tolerates a missing or broken file', async () => {
     const root = await tempRoot()
     await expect(loadLspServers(root)).resolves.toEqual({ servers: {}, errors: [] })
-    await writeFile(join(root, 'lsp-servers.json'), 'not json', 'utf8')
+    await writeFile(join(root, 'lsp.json'), 'not json', 'utf8')
     const broken = await loadLspServers(root)
     expect(broken.servers).toEqual({})
     expect(broken.errors).toHaveLength(1)

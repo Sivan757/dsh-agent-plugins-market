@@ -27,7 +27,7 @@ describe('live-like native discovery through a real project tree', () => {
     await writeFile(join(repo, '.claude', 'skills', 'deploy', 'SKILL.md'), `---\nname: deploy\ndescription: Deploy the app.\n---\n\nDeploy.\n`, 'utf8')
     await writeFile(join(repo, '.claude', 'agents', 'reviewer.md'), `---\nname: reviewer\ndescription: Code reviewer agent.\n---\n\nReview code.\n`, 'utf8')
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-live-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await manager.load()
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: join(repo, 'packages', 'app') })

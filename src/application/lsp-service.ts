@@ -2,9 +2,10 @@
  * LSP use cases: the status surface, the user's direct server table, and the
  * per-server enable switch.
  *
- * Direct servers live in the plugin's data root (`lsp-servers.json`) and are
- * merged with the suites' inline declarations at mount time; a suite's own
- * declaration stays source-owned and is never rewritten.
+ * Direct servers live in the shared Agent layout root (`~/.agents/lsp.json`)
+ * and are merged with the suites' inline declarations at mount time; a
+ * suite's own declaration stays source-owned and is never rewritten. The
+ * per-server enable switch stays plugin state under the data root.
  */
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
@@ -23,24 +24,24 @@ export class LspService {
   /** The LSP status surface: declared servers merged with mount diagnostics. */
   async status(): Promise<LspStatusPayload> {
     const snapshot = await this.context.snapshots.readUserCatalog()
-    const direct = await loadLspServers(this.context.dataRoot)
+    const direct = await loadLspServers(this.context.agentsRoot)
     return buildLspStatus(await applyLspOverrides(this.context.dataRoot, snapshot.suites), this.ports.lspStatusSource, direct)
   }
 
   /** The user's direct LSP server table (normalized specs). */
   async servers(): Promise<LspServerTable> {
-    return (await loadLspServers(this.context.dataRoot)).servers
+    return (await loadLspServers(this.context.agentsRoot)).servers
   }
 
   /** Create one direct LSP declaration without replacing other user servers. */
   async addServer(name: string, config: unknown): Promise<void> {
     return this.context.enqueue(async () => {
       if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name)) throw new Error('invalid LSP server name')
-      const direct = await loadLspServers(this.context.dataRoot)
+      const direct = await loadLspServers(this.context.agentsRoot)
       if (direct.errors.length > 0) throw new Error(direct.errors.join('; '))
       if (Object.hasOwn(direct.servers, name)) throw new Error('LSP server already exists')
       const spec = validateServerLsp(name, config)
-      await saveLspServers(this.context.dataRoot, {
+      await saveLspServers(this.context.agentsRoot, {
         lspServers: { ...Object.fromEntries(Object.entries(direct.servers).map(([key, value]) => [key, lspConfig(value)])), [name]: lspConfig(spec) }
       })
       await this.context.notifyChanged(true)
@@ -50,7 +51,7 @@ export class LspService {
   /** Validate and persist the user's direct LSP server table. */
   async setServers(raw: unknown): Promise<LspServerTable> {
     return this.context.enqueue(async () => {
-      const { servers } = await saveLspServers(this.context.dataRoot, raw)
+      const { servers } = await saveLspServers(this.context.agentsRoot, raw)
       await this.context.notifyChanged(true)
       return servers
     })

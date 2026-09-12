@@ -17,7 +17,7 @@ async function seededUserRoot(prefix: string): Promise<string> {
 describe('Catalog application module', () => {
   it('reuses a coherent user snapshot until a mutation invalidates it', async () => {
     const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
     await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
 
@@ -39,7 +39,7 @@ describe('Catalog application module', () => {
     // dropped into a local source's working tree stayed invisible until the
     // next catalog mutation.
     const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-ttl-')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, userSnapshotTtlMs: 10 })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, userSnapshotTtlMs: 10 })
     await catalog.load()
     await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
     const before = await catalog.readUserCatalog()
@@ -74,6 +74,7 @@ describe('Catalog application module', () => {
     const catalog = new Catalog({
       userRoot,
       dataRoot: join(userRoot, 'data'),
+      agentsRoot: join(userRoot, 'agents'),
       onChanged: async () => {
         if (!hold) return
         callbackStarted = true

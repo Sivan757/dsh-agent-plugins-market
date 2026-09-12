@@ -23,7 +23,7 @@ async function setup(enabled = true): Promise<Catalog> {
       installed: { 'active/v1-suite': { enabled, installedAt: new Date(0).toISOString() } }
     })
   )
-  const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+  const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
   await catalog.load()
   return catalog
 }

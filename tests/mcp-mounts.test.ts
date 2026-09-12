@@ -401,7 +401,7 @@ describe('agent definitions stay separate from skills', () => {
     const { mkdtemp } = await import('node:fs/promises')
     const { tmpdir } = await import('node:os')
     const userRoot = await mkdtemp(`${tmpdir()}/dsh-agent-plugins-agents-`)
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'cc', url: CC_COMMANDS_ROOT, local: true }])
     await manager.install('cc', 'cc-commands')

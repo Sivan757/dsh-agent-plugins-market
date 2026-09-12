@@ -26,7 +26,7 @@ describe('configured source discovery', () => {
 
   it('reports source mutation progress without touching discovery state', async () => {
     const root = await createUserRoot()
-    const manager = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const manager = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
 
     expect(manager.sourceProgress()).toEqual({ active: false, sourceId: '', step: '' })
     manager.beginSourceState('configured', 'cloning', false)
@@ -39,7 +39,7 @@ describe('configured source discovery', () => {
 
   it('keeps overview totals aligned with configured source rows', async () => {
     const root = await createUserRoot()
-    const manager = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const manager = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'configured', url: 'https://example.test/configured.git' }])
 

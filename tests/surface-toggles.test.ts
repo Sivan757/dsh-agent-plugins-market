@@ -21,7 +21,7 @@ async function installFixture(manager: Catalog, sourceId = 'demo', suiteId = 'v1
 }
 
 function catalogAt(userRoot: string): Catalog {
-  return new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+  return new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
 }
 
 /** A loaded Catalog holding one installed fixture suite, backed by its own temp user root. */

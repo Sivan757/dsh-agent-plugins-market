@@ -94,11 +94,17 @@ class PanelResources implements PanelResourceStore {
     return this.users.create(name, text)
   }
 
+  /**
+   * A plugin resource is writable only when it sits inside the user dimension
+   * root; suite checkouts elsewhere on disk stay read-only. The user-panel
+   * store lives in the shared Agent layout root instead, so containment is
+   * measured against the catalog's root, not the panel directory.
+   */
   private async pluginPath(id: string): Promise<string> {
     const entry = await this.get(id)
     if (entry?.origin !== 'plugin') throw new Error('Unknown installed plugin resource')
     if (entry.path.endsWith('.json')) throw new Error('Inline manifest resources are read-only; edit their source manifest')
-    const root = await realpath(this.users.root())
+    const root = await realpath(this.catalog.userRoot)
     const path = await realpath(entry.path)
     const rel = relative(root, path)
     if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) throw new Error('External source files are read-only; create a user resource to customize them')

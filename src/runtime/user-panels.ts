@@ -1,8 +1,9 @@
 /**
  * User panel storage: the persistence layer behind the skills / commands /
  * agent-personas panels. Each surface owns one directory of Markdown files
- * under `<userRoot>/user/<kind>/`, so user-authored entries survive restarts,
- * are trivially hand-editable, and stay outside suite checkouts.
+ * under the shared Agent layout root (`~/.agents/<kind>/`), so user-authored
+ * entries survive restarts, are trivially hand-editable, and stay outside
+ * suite checkouts.
  *
  * Skills entries follow the SKILL.md frontmatter grammar (`name`,
  * `description`, optional `whenToUse`, invocation controls) plus a
@@ -43,20 +44,15 @@ export interface UserPanelEntry {
 /** Throwing CRUD over one panel directory, shared by the three panels. */
 export class UserPanelStore {
   constructor(
-    private readonly dataRoot: string,
+    private readonly agentsRoot: string,
     private readonly kind: 'skills' | 'commands' | 'agents',
     /** Extra name grammar for this panel (runs after USER_ENTRY_NAME). */
     private readonly extraNameCheck: (name: string) => boolean = () => true
   ) {}
 
-  /** The panel's directory under the data root. */
+  /** The panel's directory under the Agent layout root. */
   dirPath(): string {
-    return userEntryDir(this.dataRoot, this.kind)
-  }
-
-  /** The plugin data root the panel lives under. */
-  root(): string {
-    return this.dataRoot
+    return userEntryDir(this.agentsRoot, this.kind)
   }
 
   private get dir(): string {
@@ -123,15 +119,15 @@ export class UserPanelStore {
 }
 
 /** Locate the three stores; constructed once per plugin activation. */
-export function createUserPanelStores(dataRoot: string): {
+export function createUserPanelStores(agentsRoot: string): {
   skills: UserPanelStore
   commands: UserPanelStore
   agents: UserPanelStore
 } {
   return {
-    skills: new UserPanelStore(dataRoot, 'skills', isUserSkillEntryName),
-    commands: new UserPanelStore(dataRoot, 'commands'),
-    agents: new UserPanelStore(dataRoot, 'agents', isUserSkillEntryName)
+    skills: new UserPanelStore(agentsRoot, 'skills', isUserSkillEntryName),
+    commands: new UserPanelStore(agentsRoot, 'commands'),
+    agents: new UserPanelStore(agentsRoot, 'agents', isUserSkillEntryName)
   }
 }
 

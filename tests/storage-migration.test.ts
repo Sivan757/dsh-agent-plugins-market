@@ -3,13 +3,14 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveDataRoot, resolveUserRoot } from '../src/catalog/paths.js'
+import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from '../src/catalog/paths.js'
 import { migratePluginStorage } from '../src/runtime/storage-migration.js'
 
 let root: string
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'market-storage-'))
   vi.stubEnv('DSH_HOME', join(root, 'home'))
+  vi.stubEnv('DSH_AGENTS_HOME', join(root, 'agents'))
 })
 afterEach(async () => {
   vi.unstubAllEnvs()
@@ -35,7 +36,7 @@ describe('canonical plugin storage', () => {
     await file(join(legacy, 'notes.txt'), 'not plugin owned')
     expect(await migratePluginStorage({ userRoot: legacy })).toEqual({ conflicts: [] })
     expect(await readFile(join(resolveUserRoot(), '.sources', 'demo', 'README.md'), 'utf8')).toBe('suite')
-    expect(await readFile(join(resolveUserRoot(), 'user', 'agents', 'reviewer.md'), 'utf8')).toBe('role')
+    expect(await readFile(join(resolveAgentsRoot(), 'agents', 'reviewer.md'), 'utf8')).toBe('role')
     expect(await readFile(join(resolveDataRoot(), 'data', 'demo', 'db'), 'utf8')).toBe('data')
     expect(existsSync(join(legacy, 'state.json'))).toBe(false)
     const migrated: unknown = JSON.parse(await readFile(join(resolveUserRoot(), 'state.json'), 'utf8'))
@@ -69,14 +70,25 @@ describe('canonical plugin storage', () => {
     await file(join(legacy, 'feedback', 'reports.jsonl'), 'report')
     await file(join(legacy, 'user', 'skills', 'example.md'), 'skill')
     await migratePluginStorage({ dataRoot: legacy })
-    expect(await readFile(join(resolveDataRoot(), 'lsp-servers.json'), 'utf8')).toBe('{}')
+    expect(await readFile(join(resolveAgentsRoot(), 'lsp.json'), 'utf8')).toBe('{}')
     expect(await readFile(join(resolveDataRoot(), 'feedback', 'reports.jsonl'), 'utf8')).toBe('report')
-    expect(await readFile(join(resolveUserRoot(), 'user', 'skills', 'example.md'), 'utf8')).toBe('skill')
+    expect(await readFile(join(resolveAgentsRoot(), 'skills', 'example.md'), 'utf8')).toBe('skill')
+  })
+
+  it('moves hand-authored resources and service declarations into the Agent layout root', async () => {
+    await file(join(resolveUserRoot(), 'user', 'commands', 'review.md'), 'command')
+    await file(join(resolveDataRoot(), 'mcp-servers.json'), '{"mcpServers":{}}')
+    expect(await migratePluginStorage()).toEqual({ conflicts: [] })
+    expect(await readFile(join(resolveAgentsRoot(), 'commands', 'review.md'), 'utf8')).toBe('command')
+    expect(await readFile(join(resolveAgentsRoot(), 'mcp.json'), 'utf8')).toBe('{"mcpServers":{}}')
+    expect(existsSync(join(resolveUserRoot(), 'user'))).toBe(false)
+    expect(existsSync(join(resolveDataRoot(), 'mcp-servers.json'))).toBe(false)
+    expect(await migratePluginStorage()).toEqual({ conflicts: [] })
   })
 
   it('preserves both versions of conflicting nested files, including repeated starts', async () => {
     const legacyFile = join(resolveDataRoot(), 'user', 'agents', 'reviewer.md')
-    const target = join(resolveUserRoot(), 'user', 'agents', 'reviewer.md')
+    const target = join(resolveAgentsRoot(), 'agents', 'reviewer.md')
     await file(legacyFile, 'old unique role')
     await file(target, 'current unique role')
     for (let attempt = 0; attempt < 2; attempt++) {

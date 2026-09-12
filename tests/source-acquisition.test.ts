@@ -240,7 +240,7 @@ describe('adopting manually cloned checkouts', () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-list-'))
     await makeManualCheckout(root, 'manual', 'https://github.com/example/manual.git')
     await mkdir(join(root, '.sources', 'plain'), { recursive: true })
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     const unmanaged = await catalog.unmanagedSources()
     expect(unmanaged).toEqual([{ id: 'manual', url: 'https://github.com/example/manual.git' }, { id: 'plain' }])
@@ -250,7 +250,7 @@ describe('adopting manually cloned checkouts', () => {
   it('addSource adopts a matching checkout instead of re-cloning', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-add-'))
     const dir = await makeManualCheckout(root, 'manual', 'https://github.com/example/manual.git')
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     const source = await catalog.addSource({ url: 'https://github.com/example/manual.git' })
     expect(source).toMatchObject({ id: 'manual', adopted: true, kind: 'git' })
@@ -267,7 +267,7 @@ describe('adopting manually cloned checkouts', () => {
     const gitDir = await makeManualCheckout(root, 'gitrepo', 'https://github.com/example/gitrepo.git')
     const plainDir = join(root, '.sources', 'plaindir')
     await mkdir(plainDir, { recursive: true })
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
 
     const gitSource = await catalog.adoptSource('gitrepo')
@@ -295,7 +295,7 @@ describe('adopting manually cloned checkouts', () => {
     // clone the plugin itself made).
     const acquiredDir = join(root, '.sources', 'acquired')
     await mkdir(acquiredDir, { recursive: true })
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     await catalog.adoptSource('adopted')
     await catalog.adoptSource('localdir')
@@ -306,7 +306,7 @@ describe('adopting manually cloned checkouts', () => {
     const state = JSON.parse(await readFile(statePath, 'utf8')) as { sources: Array<Record<string, unknown>> }
     state.sources.push({ id: 'acquired', url: 'https://github.com/example/acquired.git', kind: 'git' })
     await writeFile(statePath, JSON.stringify(state))
-    const reloaded = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const reloaded = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await reloaded.load()
 
     await reloaded.removeSource('acquired', true)
@@ -323,7 +323,7 @@ describe('adopting manually cloned checkouts', () => {
 
   it('rejects adopting an unknown or already registered checkout', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-reject-'))
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     await expect(catalog.adoptSource('missing')).rejects.toThrow(/no checkout directory/)
     await mkdir(join(root, '.sources', 'dup'), { recursive: true })

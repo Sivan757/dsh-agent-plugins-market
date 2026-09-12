@@ -80,6 +80,7 @@ describe('project command lifecycle', () => {
     const catalog = new Catalog({
       userRoot,
       dataRoot: join(userRoot, 'data'),
+      agentsRoot: join(userRoot, 'agents'),
       onChanged: async () => {
         await mounted.refresh()
       }
@@ -116,7 +117,7 @@ describe('project command lifecycle', () => {
       release = resolve
     })
     const userRoot = await project('User directory')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
     const snapshot = await catalog.readProjectCatalog(current.session.header.cwd)
     const delayedCatalog = {

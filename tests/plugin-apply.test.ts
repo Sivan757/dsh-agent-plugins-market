@@ -52,6 +52,7 @@ describe('dsh-agent-plugins-market host entry', () => {
   it('does not register a redundant agent_plugins model tool', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-apply-'))
     vi.stubEnv('DSH_HOME', root)
+    vi.stubEnv('DSH_AGENTS_HOME', join(root, 'agents'))
     const registrations: RegisteredTool[] = []
     const cleanups: Array<() => void> = []
     const tools = {
@@ -86,6 +87,7 @@ describe('dsh-agent-plugins-market host entry', () => {
   it('ignores unrelated settings changes and coalesces backend updates during startup', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-apply-'))
     vi.stubEnv('DSH_HOME', root)
+    vi.stubEnv('DSH_AGENTS_HOME', join(root, 'agents'))
     let release!: () => void
     const pending = new Promise<void>(resolve => {
       release = resolve
@@ -121,6 +123,7 @@ describe('dsh-agent-plugins-market host entry', () => {
   it('logs report_market_issue mounting and unregistering across the switch', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-apply-'))
     vi.stubEnv('DSH_HOME', root)
+    vi.stubEnv('DSH_AGENTS_HOME', join(root, 'agents'))
     const state = { mcpEnhanced: true, feedbackEnabled: true, downloadRegion: 'auto' }
     const registrations: RegisteredTool[] = []
     const logs: Array<{ level: string; message: string }> = []
@@ -158,6 +161,7 @@ describe('dsh-agent-plugins-market host entry', () => {
   it('logs report_market_issue staying unmounted when the host has no tools registry', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-apply-'))
     vi.stubEnv('DSH_HOME', root)
+    vi.stubEnv('DSH_AGENTS_HOME', join(root, 'agents'))
     const logs: Array<{ level: string; message: string }> = []
     const watchers: Array<() => void> = []
     const cleanups: Array<() => void> = []

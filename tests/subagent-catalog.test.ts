@@ -284,7 +284,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     await mkdir(join(suiteRoot, 'agents'))
     await writeFile(join(suiteRoot, '.claude-plugin/plugin.json'), '{"name":"suite"}')
     await writeFile(join(suiteRoot, 'agents', 'reviewer.md'), '---\ndescription: Installed reviewer\n---\nPrivate suite instructions')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
     await catalog.mergeSources([{ id: 'source', url: suiteRoot, local: true }])
     await catalog.install('source', 'suite')

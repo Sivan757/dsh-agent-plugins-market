@@ -80,7 +80,7 @@ describe('native project-layout discovery', () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-list-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await manager.load()
 
     const provider = new SuiteSkillProvider(manager)
@@ -97,7 +97,7 @@ describe('native project-layout discovery', () => {
     await createNativeProject(projectRoot, 'Native project greet skill.')
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-dup-user-'))
     await createUserDimensionWithGreet(userRoot)
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await manager.load()
 
     const provider = new SuiteSkillProvider(manager)
@@ -128,7 +128,7 @@ describe('project snapshot caching', () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-cache-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-cache-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
     await manager.load()
 
     const first = await manager.readProjectCatalog(projectRoot)
@@ -142,7 +142,7 @@ describe('project snapshot caching', () => {
 
     // After expiry, discovery sees the new skill.
     await new Promise(resolve => setTimeout(resolve, 5))
-    const managerShortTtl = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, projectSnapshotTtlMs: 1 })
+    const managerShortTtl = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 1 })
     await managerShortTtl.load()
     const fresh = await managerShortTtl.readProjectCatalog(projectRoot)
     const freshSuite = required(fresh.suites[0], 'the re-scanned project snapshot to list one suite')
@@ -153,7 +153,7 @@ describe('project snapshot caching', () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-inval-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-inval-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
     await manager.load()
 
     const first = await manager.readProjectCatalog(projectRoot)
@@ -167,7 +167,7 @@ describe('project snapshot caching', () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-nocache-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-nocache-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, projectSnapshotTtlMs: 0 })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 0 })
     await manager.load()
 
     const first = await manager.readProjectCatalog(projectRoot)

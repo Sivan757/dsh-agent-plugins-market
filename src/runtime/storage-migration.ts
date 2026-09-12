@@ -2,7 +2,7 @@
 import { constants } from 'node:fs'
 import { copyFile, lstat, mkdir, readdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { expandHome, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
+import { expandHome, resolveAgentsRoot, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
 
 export interface StorageMigrationResult {
   /** Conflicting or symbolic-link entries retained at their original paths. */
@@ -60,16 +60,25 @@ function contains(parent: string, child: string): boolean {
   return path === '' || (!path.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) && path !== '..' && !isAbsolute(path))
 }
 
+/** The three hand-authored resource kinds the market panel owns. */
+const PANEL_KINDS = ['skills', 'commands', 'agents'] as const
+
 /**
- * Migrate former root overrides and data/user panels into the canonical root.
- * Unknown files in override directories remain untouched. Conflicts remain at
- * the old path and are returned to block activation; reruns are safe.
+ * Migrate former root overrides, data-root panels, and hand-authored
+ * resources into their canonical homes: plugin state under the user/data
+ * roots, and user content under the shared Agent layout root. Unknown files in
+ * override directories remain untouched. Conflicts remain at the old path and
+ * are returned to block activation; reruns are safe.
  */
 export async function migratePluginStorage(config: { userRoot?: string; dataRoot?: string } = {}): Promise<StorageMigrationResult> {
   const userRoot = resolveUserRoot()
   const dataRoot = resolveDataRoot()
+  const agentsRoot = resolveAgentsRoot()
   const result: StorageMigrationResult = { conflicts: [] }
-  for (const path of [resolveDshHome(), userRoot, dataRoot, join(userRoot, 'user'), join(userRoot, '.sources')]) {
+  if (contains(userRoot, agentsRoot) || contains(agentsRoot, userRoot) || contains(dataRoot, agentsRoot) || contains(agentsRoot, dataRoot)) {
+    throw new Error('The Agent layout root overlaps canonical plugin storage')
+  }
+  for (const path of [resolveDshHome(), userRoot, dataRoot, agentsRoot, join(userRoot, 'user'), join(userRoot, '.sources')]) {
     if ((await info(path))?.isSymbolicLink() === true) throw new Error(`Plugin storage cannot use a symbolic-link directory: ${path}`)
   }
   const legacyUserRoot = resolve(expandHome(config.userRoot ?? userRoot))
@@ -119,7 +128,21 @@ export async function migratePluginStorage(config: { userRoot?: string; dataRoot
       await mergeStorageTree(join(legacy, entry), join(dataRoot, entry), result)
     }
   }
-  await mergeStorageTree(join(dataRoot, 'user'), join(userRoot, 'user'), result)
+  // Hand-authored resources moved out of plugin storage into the shared Agent
+  // layout root; every former `<root>/user/<kind>` layout maps onto `<kind>`.
+  // Each source is moved straight to its final location so a conflict is
+  // reported at the file the user actually has, not at a hop along the way.
+  for (const kind of PANEL_KINDS) {
+    await mergeStorageTree(join(dataRoot, 'user', kind), join(agentsRoot, kind), result)
+    await mergeStorageTree(join(userRoot, 'user', kind), join(agentsRoot, kind), result)
+  }
+  // Drop the emptied former panel directories; rmdir refuses a non-empty one,
+  // so files retained by a conflict (or an unrecognized kind) keep their home.
+  await rmdir(join(dataRoot, 'user')).catch(() => {})
+  await rmdir(join(userRoot, 'user')).catch(() => {})
+  // Hand-written service declarations moved from data files to Agent-layout files.
+  await mergeStorageTree(join(dataRoot, 'mcp-servers.json'), join(agentsRoot, 'mcp.json'), result)
+  await mergeStorageTree(join(dataRoot, 'lsp-servers.json'), join(agentsRoot, 'lsp.json'), result)
   return result
 }
 

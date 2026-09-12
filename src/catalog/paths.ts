@@ -1,14 +1,19 @@
 /**
- * Root path resolution for the two install dimensions.
+ * Root path resolution for the two install dimensions plus the shared
+ * user-level Agent layout root.
  *
- * User dimension: `~/.dsh/agent-plugins/` (or `$DSH_HOME/agent-plugins`).
+ * User dimension: `~/.dsh/agent-plugins/` (or `$DSH_HOME/agent-plugins`) —
+ * `.sources/` (checkouts), `state.json` (install state), and `data/`
+ * (`overrides/`, suite `${PLUGIN_DATA}` directories, and the LSP enable set
+ * with the feedback rate-limit stamp).
  * Project dimension: `<projectRoot>/.dsh/agent-plugins/`, where the project
  * root is the nearest ancestor containing `.git`.
  *
- * Everything the plugin persists lives under one root per dimension —
- * `.sources/` (checkouts) and `state.json` (install state) alongside `data/`
- * (suite `${PLUGIN_DATA}` directories) and `overrides/` (MCP configuration
- * rewrites) — so no sibling `agent-plugins-data` root exists.
+ * Content the user authors, and the services they declare by hand, live in the
+ * cross-tool Agent layout root instead: `~/.agents/{skills,commands,agents}/`
+ * and `~/.agents/{mcp,lsp}.json`. That is the same directory shape the plugin
+ * already reads from a project's `.agents/`, so user-authored resources are
+ * plain Markdown and ordinary JSON that other Agent tools can consume too.
  */
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -34,6 +39,15 @@ export function resolveDshHome(): string {
 /** Resolve the canonical user-dimension root. Legacy overrides are migration inputs only. */
 export function resolveUserRoot(_configUserRoot?: string): string {
   return join(resolveDshHome(), 'agent-plugins')
+}
+
+/**
+ * Resolve the shared user-level Agent layout root (`$DSH_AGENTS_HOME` or
+ * `~/.agents`): where this plugin stores the resources and service
+ * declarations the user authors by hand.
+ */
+export function resolveAgentsRoot(): string {
+  return process.env.DSH_AGENTS_HOME === undefined ? join(homedir(), '.agents') : resolve(process.env.DSH_AGENTS_HOME)
 }
 
 /**

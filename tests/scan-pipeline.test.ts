@@ -149,7 +149,7 @@ describe('scan pipeline: fixtures', () => {
 describe('scan pipeline: catalog overview surfaces scan notes', () => {
   it('reports per-source scan diagnostics on the source row', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-scan-notes-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'broken', url: join(fixtures, 'marketplace-all-broken'), local: true }])
     const overview = await manager.overview()
@@ -162,7 +162,7 @@ describe('scan pipeline: catalog overview surfaces scan notes', () => {
 
   it('omits scanNotes for clean sources', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-scan-clean-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'v1', url: join(fixtures, 'v1-suite'), local: true }])
     const overview = await manager.overview()

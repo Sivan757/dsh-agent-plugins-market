@@ -128,7 +128,7 @@ tool_timeout_sec = nan
         installed: { 'local/project-language': { enabled: true, installedAt: '2026-09-09T00:00:00Z' } }
       })
     )
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
     const snapshot = await catalog.readProjectCatalog(project)
     expect(snapshot.enabledSuites[0]?.activeSurfaces.lsp).toBe(false)
@@ -224,6 +224,7 @@ describe('project MCP runtime scope', () => {
     const catalog = new Catalog({
       userRoot,
       dataRoot: join(userRoot, 'data'),
+      agentsRoot: join(userRoot, 'agents'),
       onChanged: async () => {
         await runtime.refresh()
       }

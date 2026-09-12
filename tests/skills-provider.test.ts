@@ -13,7 +13,7 @@ const fixtures = join(here, 'fixtures')
 /** A loaded Catalog over a fresh temp user root. */
 async function emptyCatalog(prefix = 'dsh-agent-plugins-'): Promise<Catalog> {
   const userRoot = await mkdtemp(join(tmpdir(), prefix))
-  const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+  const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
   await manager.load()
   return manager
 }

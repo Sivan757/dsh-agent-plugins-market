@@ -94,7 +94,7 @@ describe('user panel skill provider', () => {
       // A stray underscored file on disk (written out-of-band) never reaches
       // discovery: the registry would drop or reject it.
       const { writeFile } = await import('node:fs/promises')
-      await writeFile(join(root, 'user', 'skills', 'my_skill.md'), '---\ndescription: underscored\n---\nBody', 'utf8')
+      await writeFile(join(root, 'skills', 'my_skill.md'), '---\ndescription: underscored\n---\nBody', 'utf8')
       const provider = new UserPanelSkillProvider(stores.skills, tStub)
       const names = (await provider.list({})).map(entry => entry.name)
       expect(names).toEqual(['ok-name'])

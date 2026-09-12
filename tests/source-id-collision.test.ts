@@ -52,7 +52,7 @@ describe('source id collision handling', () => {
     await writeFile(join(root, '.sources', 'skills', 'junk.txt'), 'foreign data')
     const url = await makeGitRepo(join(root, 'repos', 'cloudflare', 'skills'), 'cloudflare')
 
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     const source = await catalog.addSource({ url })
 
@@ -71,7 +71,7 @@ describe('source id collision handling', () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-rename-'))
     const url = await makeGitRepo(join(root, 'repos', 'owner', 'repo-name'), 'renamed-source')
 
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     const source = await catalog.addSource({ url })
 
@@ -88,7 +88,7 @@ describe('source id collision handling', () => {
     const aliceUrl = await makeGitRepo(join(root, 'repos', 'alice', 'skills'))
     const bobUrl = await makeGitRepo(join(root, 'repos', 'bob', 'skills'))
 
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     const first = await catalog.addSource({ url: aliceUrl })
     const second = await catalog.addSource({ url: bobUrl })
@@ -110,7 +110,7 @@ describe('source id collision handling', () => {
     const aliceUrl = await makeGitRepo(join(root, 'repos', 'alice', 'skills'), 'skills')
     const bobUrl = await makeGitRepo(join(root, 'repos', 'bob', 'skills'), 'skills')
 
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     await catalog.addSource({ url: aliceUrl })
     await catalog.addSource({ url: bobUrl })
@@ -132,7 +132,7 @@ describe('source id collision handling', () => {
     // Regression: adoptSource only rejected empty and dot-prefixed ids, so
     // `x/../../outside` could register a directory outside the checkouts root.
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-traversal-'))
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     await expect(catalog.adoptSource('x/../../outside')).rejects.toThrow(/invalid checkout id/)
     await expect(catalog.adoptSource('../outside')).rejects.toThrow(/invalid checkout id/)

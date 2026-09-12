@@ -39,7 +39,7 @@ export class McpService {
   /** Build the flat MCP service inventory for the status surface. */
   async status(): Promise<McpStatusPayload> {
     const snapshot = await this.context.snapshots.readUserCatalog()
-    const suites = [...snapshot.suites, await loadUserMcpSuite(this.context.dataRoot)]
+    const suites = [...snapshot.suites, await loadUserMcpSuite(this.context.agentsRoot)]
     const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites))
     for (const entry of payload.entries)
       if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
@@ -62,7 +62,7 @@ export class McpService {
   /** Persist a user-owned MCP service and reconcile its bridge mount. */
   async addServer(name: string, server: unknown): Promise<void> {
     return this.context.enqueue(async () => {
-      await addUserMcpServer(this.context.dataRoot, name, server)
+      await addUserMcpServer(this.context.agentsRoot, name, server)
       await this.context.notifyChanged(true)
     })
   }
@@ -87,10 +87,10 @@ export class McpService {
       } else {
         const server = validateServerLsp(current.key, value)
         if (current.suiteKey === 'direct') {
-          const direct = await loadLspServers(this.context.dataRoot)
+          const direct = await loadLspServers(this.context.agentsRoot)
           if (direct.errors.length > 0) throw new Error(direct.errors.join('; '))
           direct.servers[current.key] = server
-          await saveLspServers(this.context.dataRoot, { lspServers: Object.fromEntries(Object.entries(direct.servers).map(([key, spec]) => [key, lspConfig(spec)])) })
+          await saveLspServers(this.context.agentsRoot, { lspServers: Object.fromEntries(Object.entries(direct.servers).map(([key, spec]) => [key, lspConfig(spec)])) })
         } else await saveLspOverride(this.context.dataRoot, id, server)
       }
       await this.context.notifyChanged(true)
@@ -118,7 +118,7 @@ export class McpService {
       // freshly scanned suites — the scan shape covers both.
       let suites: DiscoveredSuite[]
       if (sourceId === USER_MCP_SOURCE && suiteId === USER_MCP_SUITE) {
-        suites = [await loadUserMcpSuite(this.context.dataRoot)]
+        suites = [await loadUserMcpSuite(this.context.agentsRoot)]
       } else {
         if (source === undefined) throw new Error(`unknown source "${sourceId}"`)
         const checkout = this.sources.checkoutPath(source)
@@ -217,11 +217,11 @@ export class McpService {
   private async resolveServerConfig(kind: 'mcp' | 'lsp', id: string) {
     if (kind === 'lsp' && id.startsWith('direct/')) {
       const key = id.slice(7)
-      const server = (await loadLspServers(this.context.dataRoot)).servers[key]
+      const server = (await loadLspServers(this.context.agentsRoot)).servers[key]
       if (server === undefined) throw new Error('LSP server not found')
-      return { key, suiteKey: 'direct', root: this.context.dataRoot, value: lspConfig(server) }
+      return { key, suiteKey: 'direct', root: this.context.agentsRoot, value: lspConfig(server) }
     }
-    const suites = [...(await this.context.snapshots.readUserCatalog()).suites, await loadUserMcpSuite(this.context.dataRoot)]
+    const suites = [...(await this.context.snapshots.readUserCatalog()).suites, await loadUserMcpSuite(this.context.agentsRoot)]
     for (const suite of await applyLspOverrides(this.context.dataRoot, suites)) {
       const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
       if (kind === 'mcp') {

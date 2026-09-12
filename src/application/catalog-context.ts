@@ -32,6 +32,8 @@ export interface CatalogGitOptions extends GitOptions {
 export interface CatalogOptions {
   userRoot: string
   dataRoot: string
+  /** Shared Agent layout root holding the user's hand-authored resources and service declarations. */
+  agentsRoot: string
   onChanged: () => void | Promise<void>
   /** Git/archive acquisition tuning. */
   git?: CatalogGitOptions
@@ -69,6 +71,7 @@ export class CatalogContext implements SnapshotHost {
   readonly statePath: string
   readonly userRoot: string
   readonly dataRoot: string
+  readonly agentsRoot: string
   readonly git: CatalogGitOptions
   /** Discovery scans and dimension snapshots derived from {@link state}. */
   readonly snapshots: SnapshotCache
@@ -78,6 +81,7 @@ export class CatalogContext implements SnapshotHost {
     this.statePath = join(options.userRoot, STATE_FILE_NAME)
     this.userRoot = options.userRoot
     this.dataRoot = options.dataRoot
+    this.agentsRoot = options.agentsRoot
     this.git = options.git ?? {}
     this.onChanged = options.onChanged
     this.snapshots = new SnapshotCache(this, {

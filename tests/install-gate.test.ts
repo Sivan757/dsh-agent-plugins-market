@@ -32,7 +32,7 @@ afterEach(async () => {
 
 /** A loaded Catalog over the shared temp roots, with the fixture added as one local source. */
 async function catalogWithFixture(): Promise<{ catalog: Catalog; sourceId: string; suiteId: string }> {
-  const catalog = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+  const catalog = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
   await catalog.load()
   const source = await catalog.addSource({ url: fixture, local: true })
   const suiteId = (await catalog.readUserCatalog()).suites.find(s => s.sourceId === source.id)!.id
@@ -97,7 +97,7 @@ describe('install lifecycle: install enables, disable stops, uninstall clears', 
     const { catalog: first, sourceId, suiteId } = await catalogWithFixture()
     await first.install(sourceId, suiteId)
 
-    const reloaded = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const reloaded = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await reloaded.load()
     expect((await reloaded.enabledUserSuites()).map(s => `${s.sourceId}/${s.id}`)).toContain(`${sourceId}/${suiteId}`)
   })
@@ -107,7 +107,7 @@ describe('install lifecycle: install enables, disable stops, uninstall clears', 
     await first.install(sourceId, suiteId)
     await first.setEnabled(sourceId, suiteId, false)
 
-    const reloaded = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const reloaded = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await reloaded.load()
     expect(await reloaded.enabledUserSuites()).toEqual([])
     const snapshot = await reloaded.readUserCatalog()

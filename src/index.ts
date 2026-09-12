@@ -27,7 +27,7 @@ import { mountAgentRoleTool } from './runtime/agent-role-router.js'
 import { projectAgentRoles } from './application/project-agent-roles.js'
 import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/project-runtime.js'
 import { createPanelResources } from './application/panel-resources.js'
-import { resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
+import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
@@ -70,6 +70,7 @@ export interface Config {
 export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
+  const agentsRoot = resolveAgentsRoot()
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
 
@@ -88,7 +89,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
 
   // User panel stores (skills / commands / agent personas) and their runtime
   // contributions: one extra skill provider plus one command mount registry.
-  const panels = createUserPanelStores(userRoot)
+  const panels = createUserPanelStores(agentsRoot)
   const userCommands = new UserCommandMountRegistry(ctx, panels.commands, key => hostLocale.t(key))
 
   let disposed = false
@@ -163,12 +164,12 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     downloadRegion: () => settings.downloadRegion()
   }
 
-  const catalog = new Catalog({ userRoot, dataRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
+  const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
   await catalog.mergeSources(config.sources ?? [])
   const resources = createPanelResources(catalog, panels)
   runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides(await catalog.enabledUserSuites()))
-  runtime.lsp.setDirectProvider(async () => (await loadLspServers(dataRoot)).servers)
+  runtime.lsp.setDirectProvider(async () => (await loadLspServers(agentsRoot)).servers)
   runtime.lsp.setDisabledProvider(() => loadDisabledLspServers(dataRoot))
   runtime.setMcpBackendProvider(() => catalog.mcpBackend())
 
