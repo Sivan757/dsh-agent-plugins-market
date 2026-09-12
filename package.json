@@ -93,19 +93,15 @@
     "ai-agents"
   ],
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-hooks-claude-code": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-llm": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-lsp-stdio": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-mcp-client": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-skill": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "^0.1.5-rc.2"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-hooks-claude-code": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-lsp-stdio": {
       "optional": true
     },
     "@deepseek-ai/dsh-mcp-client": {
@@ -116,7 +112,10 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1",
+    "@deepseek-ai/dsh-lsp": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-lsp-stdio": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-tool-lsp": "^0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.2",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "ajv": "^8.17.1",
     "fflate": "^0.8.3",
@@ -125,11 +124,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.1.5-rc.2",
     "@deepseek-ai/dsh-hooks-claude-code": "0.1.5-rc.2",
     "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-lsp-stdio": "0.1.5-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.1.5-rc.2",
     "@deepseek-ai/dsh-skill": "0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",

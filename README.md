@@ -23,7 +23,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 ## Quick start
 
-You need Node.js 22+, Git for Git sources, and a DSH Web profile with the skill service enabled. This repository declares DSH peer packages in the `^0.1.2-rc.1` range; individual capabilities also depend on the services in your profile. See [host requirements](docs/guides/usage.md#host-requirements).
+You need Node.js 22+, Git for Git sources, and a DSH Web profile with the skill service enabled. This repository declares the DSH host packages it needs in the `^0.1.5-rc.2` range; individual capabilities also depend on the services in your profile. See [host requirements](docs/guides/usage.md#host-requirements).
 
 Install into your profile, replacing `<name>` with its name:
 

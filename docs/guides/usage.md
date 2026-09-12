@@ -9,10 +9,10 @@ The plugin settings card includes **Scan project Agent layouts** (`scanProjectLa
 Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environment references, tool allow/deny lists and timeouts are preserved; unsupported fields are diagnosed. Project LSP is not mounted because the host registry is global; this plugin does not modify host APIs.
 
 - Node.js 22 or later, a DSH Web profile and the host skill service (`ctx.skills`). Git sources require Git.
-- The current package declares DSH peer packages in the `^0.1.2-rc.1` range. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
+- The current package declares the DSH host packages it needs in the `^0.1.5-rc.2` range. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
 - Slash commands require the host command service. `subagent_run` role delegation requires agents, tools, LLM, subagent and session-persistence services; it starts a durable background child, applies the saved persona and any exact route the role declares, and returns the child id without waiting.
 - MCP uses the built-in bridge by default. Host-client compatibility mode additionally needs `@deepseek-ai/dsh-mcp-client`; hooks need `@deepseek-ai/dsh-hooks-claude-code`.
-- LSP mounting needs `@deepseek-ai/dsh-lsp` and `@deepseek-ai/dsh-lsp-stdio`; expose `@deepseek-ai/dsh-tool-lsp` in the profile to let the agent call the tool. Language-server executables must also be available.
+- LSP support installs and mounts its own `@deepseek-ai/dsh-lsp`, `dsh-lsp-stdio` and `dsh-tool-lsp` packages as soon as an enabled suite declares language servers, so no profile step is needed. The language-server executables themselves must be available on the machine.
 - Host credentials are optional. Without that service, environment references resolve from the launch environment, and changes require a restart.
 
 ## Installation options

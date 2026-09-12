@@ -181,7 +181,7 @@ lsp: { servers: LspServerPreview[]; raw: LspPreview[] }
 
 **详情页诊断条**（宿主无 LSP 能力时，挂载注册表回报）：
 
-> 此套件声明了语言服务器，但当前 DSH 安装未携带 LSP 组件。将 DSH 升级到携带 `@deepseek-ai/dsh-lsp` / `dsh-lsp-stdio` / `dsh-tool-lsp` 的版本后，启用该套件即可为会话提供 `lsp` 工具（goToDefinition / findReferences / goToImplementation / hover）。
+> 此套件声明了语言服务器，但 LSP 组件未能加载。重新安装插件（`dsh plugin --profile <profile> add dsh-agent-plugins-market`）即可补齐其随包安装的 LSP 依赖。
 
 ### 3.4 运行挂载层（Phase 2，同仓实现，宿主 feature-detect）
 
@@ -220,11 +220,11 @@ CC 契约与 dsh-lsp-stdio Config 字段几乎一一对应，零转换损耗；�
 
 **挂载机制**：一个 suite 的全部 server 合并为**一个** `lsp-stdio` Config（一次 `ctx.plugin(lspStdioPkg, { servers })` 挂载），suite 粒度 reconcile/dispose，避免碎 mount。动态导入 `@deepseek-ai/dsh-lsp-stdio`：
 
-- 导入失败 → 该 suite 一条 `{ code: 'host-missing', reason: '宿主未安装 @deepseek-ai/dsh-lsp-stdio…' }` 诊断，**不进重试调度**（包不存在不是瞬态故障——与 mcp 凭证缺失不同类）；
+- 导入失败 → 该 suite 一条 `{ code: 'host-missing', reason: '…' }` 诊断，**不进重试调度**（包不存在不是瞬态故障——与 mcp 凭证缺失不同类）。这三个包现在是插件的 `dependencies`，随安装进入 profile，所以这条只在安装被破坏时出现；
 - `ctx.plugin` 挂载失败（含 `resolveExecutable` 找不到 command、extension 冲突、Config 校验失败）→ `mount-failed` 诊断，进既有 RETRY_SCHEDULE（`resolveExecutable` 在 load 时解析，用户 npm i -g 后重试即可恢复，重试有真实收益）；
 - 失败粒度是整个 suite 挂载（Config 级），诊断中列出受影响 serverKey。
 
-**工具可用性**：`lsp` 模型工具由宿主 `tool-lsp` 插件提供，市场不注册、不复制其 prompt/语义。市场唯一责任是保证 provider 在 `ctx.lsp` 就位。**组合前提**：宿主 profile 必须挂 `tool-lsp`（+ `tool-call-timeout-policy`、`lsp` seam），否则 provider 注册成功但模型无工具。市场在 `host-missing` / 诊断文案中同时提示这一组合要求。
+**工具可用性**：`lsp` 模型工具由宿主 `tool-lsp` 插件提供，市场不复制其 prompt/语义。市场自己保证这条组合链：`@deepseek-ai/dsh-lsp`、`dsh-lsp-stdio`、`dsh-tool-lsp` 作为插件的 `dependencies` 随安装进入 profile（dsh profile 设 `autoInstallPeers: false`，peer 不会被安装），第一个需要挂载的 server 触发 `ctx.lsp` 与 `lsp` 工具的挂载、最后一个 server 移除时释放，因此不需要用户改 profile。**市场不探测 profile 已有什么**：版本由插件的依赖声明决定，让位给别的层注册的 seam 就等于跑那一层的版本；被占用的 seam 报 `seam-conflict` 诊断并点名要移除的那一层（手工 `cordis.patch.yml` 行，或 profile 对该包的依赖）。语言服务器可执行程序仍由用户在本机提供。
 
 **超时/生命周期**：全部沿用宿主默认（tool-lsp 60s 工具预算、lsp-stdio shutdown/kill grace），市场零新增计时器。挂载实例生命周期 = suite enable/disable，由 reconciler 统一驱动。
 

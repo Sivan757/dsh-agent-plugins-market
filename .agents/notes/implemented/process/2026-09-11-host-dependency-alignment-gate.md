@@ -17,15 +17,18 @@ Nothing detected either one: `check:refactor` reads the tree, and the tree was i
 
 **The baseline is resolved, not stored.** The script asks the registry for the `next` dist-tag of every `@deepseek-ai/dsh-*` package the manifest declares or the source imports, and requires the family to agree on one version — the family publishes in lockstep, so a disagreement is an error, not a vote. `latest` is deliberately not the default: the `dsh` family publishes to `next` while `latest` lags several minor lines behind. `--host-version` pins a baseline explicitly and skips the network; `--channel` selects another dist-tag; a five-minute cache under `node_modules/.cache/` keeps the pre-commit path fast, and `--offline` refuses rather than guessing.
 
-**Five rules, each a distinct way the config drifts:**
+**Six rules, each a distinct way the config drifts:**
 
 | Rule | Checks |
 | --- | --- |
-| `peer-stale` / `dev-stale` | every declared host package carries peer `^<baseline>` and dev `<baseline>` |
-| `peer-missing` / `dev-missing` | every host package referenced from `src/` is declared, and every peer has a dev mirror |
-| `optional-undeclared` | a package reached _only_ through `import(...)` is an optional peer — a static import carries a compile-time contract and stays required |
+| `dependency-stale` | a host package this plugin provisions itself carries `^<baseline>` |
+| `peer-stale` / `dev-stale` | a host package the deployment supplies carries peer `^<baseline>` and exact dev `<baseline>` |
+| `undeclared` / `dev-missing` | every host package referenced from `src/` is declared in `dependencies` or `peerDependencies`, and every peer has a dev mirror |
+| `optional-undeclared` | a host-supplied package reached _only_ through `import(...)` is an optional peer — a static import carries a compile-time contract and stays required, while a self-provisioned package needs no optional marker because nothing can go missing |
 | `cordis-mirror` | `@deepseek-ai/cordis` carries one identical range in peer and dev, since it tracks its own 4.x line |
 | `exclusion-missing` / `exclusion-stale` | `pnpm-workspace.yaml` `minimumReleaseAgeExclude` admits the baseline for every aligned package |
+
+The two dependency sections are two different provisioning answers, and the gate keeps them apart: a `dependencies` entry means this plugin installs that capability into the consuming profile, a `peerDependencies` entry means the deployment already supplies it. `--fix` never moves a package between the sections — that is an author decision ([self-provisioned LSP capability](../architecture/2026-09-11-self-provisioned-lsp-capability.md)) — it only aligns the pinned value. See [§ the baseline](#the-012-rc1--015-rc2-alignment-this-produced).
 
 `@deepseek-ai/dsh-client-*` is exempt from the peer rules: those are host-supplied bundle externals, pinned through devDependencies only, and never installable capabilities.
 

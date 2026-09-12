@@ -23,7 +23,7 @@
 
 ## 快速开始
 
-需要 Node.js 22+、启用了技能服务的 DSH Web profile；使用 Git 来源还需要 Git。当前仓库声明的 DSH peer 包版本范围为 `^0.1.2-rc.1`，各项能力还取决于 profile 提供的宿主服务，详见[宿主要求](docs/guides/usage.zh.md#宿主要求)。
+需要 Node.js 22+、启用了技能服务的 DSH Web profile；使用 Git 来源还需要 Git。当前仓库声明的 DSH 宿主包版本范围为 `^0.1.5-rc.2`，各项能力还取决于 profile 提供的宿主服务，详见[宿主要求](docs/guides/usage.zh.md#宿主要求)。
 
 将 `<name>` 替换为你的 profile 名称后安装：
 

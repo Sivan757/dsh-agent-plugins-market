@@ -16,10 +16,13 @@
  * `@deepseek-ai/dsh-*` family publishes to `next`, while `latest` lags), then fails unless every
  * declared and referenced host dependency matches that one baseline:
  *
- * - a declared host package carries peer `^<baseline>` and dev `<baseline>`;
- * - anything `src/` imports is declared, and every peer has a dev mirror;
+ * - a `dependencies` entry carries `^<baseline>`: this plugin provisions that capability itself,
+ *   so pnpm installs it into the consuming profile (a dsh profile sets `autoInstallPeers: false`,
+ *   which makes a peer contract a declaration the host has to satisfy on its own);
+ * - a `peerDependencies` entry carries `^<baseline>` and an exact `<baseline>` dev mirror;
+ * - anything `src/` imports is declared in one of the two sections above;
  * - a package reached only through `import(...)` is an optional peer, because it is mounted
- *   lazily and must degrade instead of failing;
+ *   lazily and must degrade instead of failing — unless this plugin provisions it itself;
  * - `@deepseek-ai/cordis` carries one identical range in peer and dev (it tracks its own 4.x line);
  * - `pnpm-workspace.yaml` `minimumReleaseAgeExclude` admits the baseline for every aligned package.
  *
@@ -111,12 +114,6 @@ function scanHostSurface(dir) {
 
   for (const path of files) {
     const source = readFileSync(path, 'utf8')
-    const aliases = new Map()
-    for (const match of source.matchAll(/const\s+([A-Za-z_$][\w$]*)\s*=\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) {
-      aliases.set(match[1], match[2])
-    }
-
-    const sloppy = /\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*/g
     const record = (name, kind) => {
       if (isClientPackage(name)) return
       const entry = found.get(name) ?? { reference: relative(ROOT, path), static: false, dynamic: false }
@@ -126,12 +123,10 @@ function scanHostSurface(dir) {
     for (const match of source.matchAll(/(?:from|require\s*\()\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'static')
     for (const match of source.matchAll(/(?:^|[;\s])import\s+'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'static')
     for (const match of source.matchAll(/import\(\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'dynamic')
-    // The optional mount spells its specifier through a const, and often guards the call with a
-    // bundler hint comment, so strip comments before resolving the identifier.
-    for (const match of source.replace(sloppy, ' ').matchAll(/import\(\s*([A-Za-z_$][\w$]*)\s*\)/g)) {
-      const name = aliases.get(match[1])
-      if (name !== undefined) record(name, 'dynamic')
-    }
+    // A host specifier held in a top-level `const` exists to be imported dynamically — possibly
+    // through a helper that takes the literal as an argument — so the reference is recorded where
+    // the literal is declared rather than only where the `import(...)` call appears.
+    for (const match of source.matchAll(/const\s+[A-Za-z_$][\w$]*\s*=\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'dynamic')
   }
   return found
 }
@@ -188,11 +183,12 @@ function baselineFrom(tags) {
   return [...versions.keys()][0]
 }
 
-/** Every `name@version` an aligned devDependency pin requires the escape hatch to carry. */
+/** Every host package whose aligned pin requires the supply-chain escape hatch to carry the baseline. */
 function requiredExclusions(manifest, baseline, hostNames) {
   const required = new Set()
   for (const name of hostNames) {
     if (manifest.devDependencies?.[name] === baseline) required.add(name)
+    else if (manifest.dependencies?.[name] === `^${baseline}`) required.add(name)
   }
   return required
 }
@@ -205,9 +201,10 @@ function inspect(manifest, surface, baseline, exclusions) {
   const violations = []
   const peer = manifest.peerDependencies ?? {}
   const dev = manifest.devDependencies ?? {}
+  const deps = manifest.dependencies ?? {}
   const meta = manifest.peerDependenciesMeta ?? {}
 
-  const names = new Set([...Object.keys(peer).filter(isHostPackage), ...Object.keys(dev).filter(isHostPackage), ...surface.keys()])
+  const names = new Set([...Object.keys(peer).filter(isHostPackage), ...Object.keys(dev).filter(isHostPackage), ...Object.keys(deps).filter(isHostPackage), ...surface.keys()])
   const hostNames = [...names].sort()
   const expectedPeer = `^${baseline}`
 
@@ -217,23 +214,31 @@ function inspect(manifest, surface, baseline, exclusions) {
     // A package reached only through `import(...)` is mounted lazily and must degrade, so it is
     // an optional peer; a static import carries a compile-time contract and is a required peer.
     const lazyOnly = entry !== undefined && entry.dynamic && !entry.static
+    // `dependencies` and `peerDependencies` are two different provisioning answers: a dependency
+    // is installed into the consuming profile by pnpm, a peer must already be supplied by the host.
+    // A self-provisioned package therefore needs no peer contract and no dev mirror.
+    const selfProvisioned = deps[name] !== undefined
     // A client module is a host-supplied bundle external, never an installable capability:
     // it is pinned through devDependencies only, and only if the manifest already does so.
-    const isDevOnlyClient = isClientPackage(name) && peer[name] === undefined
-    if (!isDevOnlyClient && peer[name] === undefined) {
-      violations.push({
-        code: 'peer-missing',
-        message: `${name} is imported${where === undefined ? '' : ` by ${where}`} but not declared in peerDependencies`
-      })
-    } else if (peer[name] !== undefined && peer[name] !== expectedPeer) {
+    const isDevOnlyClient = isClientPackage(name) && peer[name] === undefined && !selfProvisioned
+
+    if (selfProvisioned && deps[name] !== expectedPeer) {
+      violations.push({ code: 'dependency-stale', message: `dependencies["${name}"] is ${deps[name]}, expected ${expectedPeer}` })
+    }
+    if (peer[name] !== undefined && peer[name] !== expectedPeer) {
       violations.push({ code: 'peer-stale', message: `peerDependencies["${name}"] is ${peer[name]}, expected ${expectedPeer}` })
+    } else if (!isDevOnlyClient && !selfProvisioned && peer[name] === undefined) {
+      violations.push({
+        code: 'undeclared',
+        message: `${name} is imported${where === undefined ? '' : ` by ${where}`} but declared in neither dependencies nor peerDependencies`
+      })
     }
-    if (!isDevOnlyClient && dev[name] === undefined) {
-      violations.push({ code: 'dev-missing', message: `${name} has no devDependencies mirror (the host line this repo builds and tests against)` })
-    } else if (dev[name] !== undefined && dev[name] !== baseline) {
+    if (dev[name] !== undefined && dev[name] !== baseline) {
       violations.push({ code: 'dev-stale', message: `devDependencies["${name}"] is ${dev[name]}, expected exact ${baseline}` })
+    } else if (!isDevOnlyClient && !selfProvisioned && dev[name] === undefined) {
+      violations.push({ code: 'dev-missing', message: `${name} has no devDependencies mirror (the host line this repo builds and tests against)` })
     }
-    if (lazyOnly && meta[name]?.optional !== true) {
+    if (lazyOnly && !selfProvisioned && meta[name]?.optional !== true) {
       violations.push({ code: 'optional-undeclared', message: `${name} is reached only through import(...) (${where}) but peerDependenciesMeta does not mark it optional` })
     }
   }
@@ -309,7 +314,7 @@ function withExclusions(text, entries) {
 
 /** Write the manifest back with dependency sections re-sorted, matching the file's own style. */
 function writeManifest(manifest) {
-  for (const section of ['peerDependencies', 'devDependencies', 'peerDependenciesMeta']) {
+  for (const section of ['dependencies', 'peerDependencies', 'devDependencies', 'peerDependenciesMeta']) {
     const table = manifest[section]
     if (table === undefined) continue
     manifest[section] = Object.fromEntries(Object.entries(table).sort(([a], [b]) => a.localeCompare(b)))
@@ -322,13 +327,21 @@ function repair(manifest, surface, baseline, exclusionText) {
   const peer = (manifest.peerDependencies ??= {})
   const dev = (manifest.devDependencies ??= {})
   const meta = (manifest.peerDependenciesMeta ??= {})
-  const names = new Set([...Object.keys(peer).filter(isHostPackage), ...Object.keys(dev).filter(isHostPackage), ...surface.keys()])
+  const deps = manifest.dependencies ?? {}
+  const names = new Set([...Object.keys(peer).filter(isHostPackage), ...Object.keys(dev).filter(isHostPackage), ...Object.keys(deps).filter(isHostPackage), ...surface.keys()])
+  const expected = `^${baseline}`
 
   for (const name of names) {
-    if (peer[name] !== undefined || !isClientPackage(name)) peer[name] = `^${baseline}`
-    dev[name] = baseline
-    const entry = surface.get(name)
-    if (entry?.dynamic && !entry.static) meta[name] = { optional: true }
+    // Repair never moves a package between sections: declaring a capability as a dependency is an
+    // author decision about who provisions it, and this script only keeps the pinned value aligned.
+    const selfProvisioned = deps[name] !== undefined
+    if (selfProvisioned) deps[name] = expected
+    else if (peer[name] !== undefined || !isClientPackage(name)) peer[name] = expected
+    if (!selfProvisioned) {
+      dev[name] = baseline
+      const entry = surface.get(name)
+      if (entry?.dynamic && !entry.static) meta[name] = { optional: true }
+    }
   }
 
   const entries = new Map(parseExclusions(exclusionText).map(entry => [entry.name, entry]))

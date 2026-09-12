@@ -17,15 +17,18 @@ Status: implemented
 
 **基线是解析出来的，不是存下来的。** 脚本向 registry 查询 manifest 声明的、或源码引入的每个 `@deepseek-ai/dsh-*` 包的 `next` dist-tag，并要求整个家族收敛到同一个版本——家族是同步发版的，出现分歧属于错误而非投票。默认刻意不用 `latest`：dsh 家族发布在 `next`，而 `latest` 落后好几个 minor。`--host-version` 显式指定基线并跳过网络；`--channel` 选择其他 dist-tag；`node_modules/.cache/` 下五分钟缓存让提交路径保持轻快，`--offline` 宁可拒绝也不猜。
 
-**五条规则，对应配置漂移的五种方式：**
+**六条规则，对应配置漂移的六种方式：**
 
-| 规则                                    | 检查内容                                                                             |
-| --------------------------------------- | ------------------------------------------------------------------------------------ |
-| `peer-stale` / `dev-stale`              | 每个已声明的宿主包 peer 为 `^<baseline>`、dev 为 `<baseline>`                        |
-| `peer-missing` / `dev-missing`          | 源码引入的每个宿主包都已声明，且每个 peer 都有 dev 镜像                              |
-| `optional-undeclared`                   | **只**经 `import(...)` 到达的包必须是可选 peer——静态 import 携带编译期契约，保持必需 |
-| `cordis-mirror`                         | `@deepseek-ai/cordis` 在 peer 与 dev 中携带同一个范围，它自成 4.x 线                 |
-| `exclusion-missing` / `exclusion-stale` | `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 对每个已对齐的包都接受该基线     |
+| 规则 | 检查内容 |
+| --- | --- |
+| `dependency-stale` | 由本插件自行供给的宿主包携带 `^<baseline>` |
+| `peer-stale` / `dev-stale` | 由部署方供给的宿主包 peer 为 `^<baseline>`、dev 精确为 `<baseline>` |
+| `undeclared` / `dev-missing` | 源码引入的每个宿主包都声明在 `dependencies` 或 `peerDependencies`，且每个 peer 都有 dev 镜像 |
+| `optional-undeclared` | 宿主供给且**只**经 `import(...)` 到达的包必须是可选 peer——静态 import 携带编译期契约，保持必需；自行供给的包不需要该标记，因为它不可能缺失 |
+| `cordis-mirror` | `@deepseek-ai/cordis` 在 peer 与 dev 中携带同一个范围，它自成 4.x 线 |
+| `exclusion-missing` / `exclusion-stale` | `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 对每个已对齐的包都接受该基线 |
+
+两个依赖段是两种不同的供给答案，门禁把二者严格分开：`dependencies` 表示本插件把该能力装进消费方 profile，`peerDependencies` 表示部署方已经提供。`--fix` 从不在两段之间搬动包——那是作者决定（见[自供 LSP 能力](../architecture/2026-09-11-self-provisioned-lsp-capability.zh.md)）——它只把钉住的值对齐。
 
 `@deepseek-ai/dsh-client-*` 豁免 peer 规则：它们是宿主提供的 bundle external，只通过 devDependencies 钉版，从来不是可安装能力。
 
