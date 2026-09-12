@@ -6,15 +6,10 @@ import { fileURLToPath } from 'node:url'
 import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
 import { Catalog } from '../src/application/catalog.js'
 import { validateMcpJson, validatePluginManifest, expandPlaceholders, pathContainmentError } from '../src/catalog/validate.js'
+import { required } from './helpers/fixture.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = join(here, 'fixtures')
-
-/** A fixture value this suite requires: fails naming what was expected instead of reading `undefined` further on. */
-function required<T>(value: T | undefined, expected: string): T {
-  if (value === undefined) throw new Error(`expected ${expected}`)
-  return value
-}
 
 describe('discovery: agent-plugins.org v1 layout', () => {
   it('normalizes a single portable suite with skills and mcp', async () => {

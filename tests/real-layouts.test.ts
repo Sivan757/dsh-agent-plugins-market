@@ -14,6 +14,7 @@ import { SuiteSkillProvider } from '../src/runtime/skills-provider.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { isRecord } from '../src/catalog/component-files.js'
 import Ajv2020Default from 'ajv/dist/2020.js'
+import { required } from './helpers/fixture.js'
 
 const fixtures = fileURLToPath(new URL('./fixtures/real-layouts/', import.meta.url))
 interface Sample {
@@ -57,12 +58,6 @@ function isSnapshot(value: unknown): value is Snapshot {
     isStringRecord(value['hashes']) &&
     isStringRecord(value['files'])
   )
-}
-
-/** A fixture value this suite requires: fails naming what was expected instead of reading `undefined` further on. */
-function required<T>(value: T | undefined, expected: string): T {
-  if (value === undefined) throw new Error(`expected ${expected}`)
-  return value
 }
 
 const parsedIndex: unknown = JSON.parse(await readFile(join(fixtures, 'index.json'), 'utf8'))

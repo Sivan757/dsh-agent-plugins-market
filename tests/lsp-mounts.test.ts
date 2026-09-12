@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { LspMountRegistry, toLspServerConfig, type LspStdioServerConfig } from '../src/runtime/lsp-mounts.js'
 import type { Suite } from '../src/model/types.js'
-
-/** A fixture value this suite requires: fails naming what was expected instead of reading `undefined` further on. */
-function required<T>(value: T | undefined, expected: string): T {
-  if (value === undefined) throw new Error(`expected ${expected}`)
-  return value
-}
+import { required } from './helpers/fixture.js'
 
 /** A suite carrying one inline typescript server. */
 function lspSuite(id: string, lsp = true, active = true): Suite {

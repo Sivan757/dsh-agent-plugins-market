@@ -5,12 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { discoverSourceList } from '../src/catalog/source-catalog.js'
 import { Catalog } from '../src/application/catalog.js'
 import { SuiteSkillProvider, SUITE_PROJECT_SOURCE } from '../src/runtime/skills-provider.js'
-
-/** A fixture value this suite requires: fails naming what was expected instead of reading `undefined` further on. */
-function required<T>(value: T | undefined, expected: string): T {
-  if (value === undefined) throw new Error(`expected ${expected}`)
-  return value
-}
+import { required } from './helpers/fixture.js'
 
 /** Body for a `greet` skill with one description. */
 const skillMd = (description: string): string => `---

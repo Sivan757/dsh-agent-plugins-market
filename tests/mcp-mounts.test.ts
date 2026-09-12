@@ -3,14 +3,9 @@ import { fileURLToPath } from 'node:url'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { required } from './helpers/fixture.js'
 
 const CC_COMMANDS_ROOT = fileURLToPath(new URL('./fixtures/cc-commands', import.meta.url))
-
-/** A fixture value this suite requires: fails naming what was expected instead of reading `undefined` further on. */
-function required<T>(value: T | undefined, expected: string): T {
-  if (value === undefined) throw new Error(`expected ${expected}`)
-  return value
-}
 
 it('does not pass native tool restrictions to a host backend that cannot enforce them', async () => {
   const { ctx, mounts } = fakeContext()
