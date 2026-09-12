@@ -18,7 +18,7 @@ export interface ParsedSkillFrontmatter {
 }
 
 /** Kebab-case skill names only, matching the shipped provider's rule. */
-export function isSkillName(name: string): boolean {
+function isSkillName(name: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)
 }
 
@@ -26,7 +26,7 @@ export function isSkillName(name: string): boolean {
  * Normalize a display-style skill name into kebab-case (e.g. "Presentations"
  * → "presentations"), or `undefined` when nothing usable remains.
  */
-export function normalizeSkillName(name: string): string | undefined {
+function normalizeSkillName(name: string): string | undefined {
   const normalized = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')

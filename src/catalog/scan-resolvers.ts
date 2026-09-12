@@ -18,23 +18,19 @@
  * 3. `FlatCollectionsStrategy` — the terminal fallback: manifest-less
  *    `<root>/<name>/SKILL.md` collections.
  */
-import { readdir, realpath, stat } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { isDirectory, sanitizeId } from './paths.js'
+import { isWithin, sanitizeId } from './paths.js'
+import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
 import type { Suite, SuiteComponents, SuiteDimension, SuiteManifest } from '../model/types.js'
-import { componentDeclarations, detectManifest, readManifest, readMarketplaces, syntheticManifestName, type MarketplaceEntry } from './manifests.js'
+import { componentDeclarations, hasSuiteManifest, readManifest, readMarketplaces, syntheticManifestName, type MarketplaceEntry } from './manifests.js'
 import { countSurfaces, discoverMcp, discoverSkills, listMdFiles } from './surfaces.js'
 import { discoverMarkdownResources } from './component-files.js'
 import { discoverSuiteHooks, discoverSuiteLsp, discoverSystemPrompt } from './suite-components.js'
 import type { ScanChain, ScanContext, ScanFilter, ScanResolution, ScanResult } from './scan-pipeline.js'
 import { runScanChain } from './scan-pipeline.js'
 
-export { repoName } from './manifests.js'
-export { listMdFiles, discoverLspEntries, type LspEntry } from './surfaces.js'
-export type { MarketplaceEntry } from './manifests.js'
-
 const CONTAINER_DIRS = ['plugins', 'external_plugins', 'skills'] as const
-const DOT_DIRS = new Set(['.git', '.github', '.claude', '.cursor', '.kimi', '.plugin', '.sources', 'node_modules'])
 
 export interface SuiteHint extends SuiteComponents {
   layout?: import('../model/layouts.js').ManifestKind
@@ -114,7 +110,7 @@ export function entryRemoteUrl(entry: MarketplaceEntry): string | undefined {
 async function claimLocal(checkout: string, declaredPath: string): Promise<EntryResolution> {
   const dir = resolve(checkout, declaredPath)
   // Containment guard: a relative entry must stay inside the checkout.
-  if (dir !== checkout && !dir.startsWith(`${checkout}/`)) {
+  if (!isWithin(checkout, dir)) {
     // `rejected`: the handler positively identified a local path, but the
     // path escapes the checkout. Its verdict is authoritative — later
     // handlers must not reinterpret it as something else.
@@ -122,7 +118,7 @@ async function claimLocal(checkout: string, declaredPath: string): Promise<Entry
   }
   try {
     const [realCheckout, realDir] = await Promise.all([realpath(checkout), realpath(dir)])
-    if (realDir !== realCheckout && !realDir.startsWith(`${realCheckout}/`)) {
+    if (!isWithin(realCheckout, realDir)) {
       return { kind: 'rejected', reason: `path "${declaredPath}" escapes the checkout through a symlink` }
     }
   } catch {
@@ -208,12 +204,7 @@ export class MarketplaceStrategy implements ScanFilter {
         context.notes.push(`marketplace ${marketplace.path}: no entry resolved (all ${marketplace.entries.length} dropped or remote)`)
         continue
       }
-      const suites = await Promise.all(
-        roots.map(async root =>
-          root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
-        )
-      )
-      const resolved = suites.filter((suite): suite is Suite => suite !== undefined)
+      const resolved = await readSuites(roots, context)
       if (resolved.length === 0) {
         context.notes.push(`marketplace ${marketplace.path}: every resolved entry failed to parse a manifest`)
         continue
@@ -287,12 +278,7 @@ export class RootedStrategy implements ScanFilter {
     }
     const found = await collectRoots(context.checkout, undefined, new Set())
     if (found.length === 0) return chain.next(context)
-    const suites = await Promise.all(
-      found.map(async root =>
-        root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
-      )
-    )
-    const resolved = suites.filter((suite): suite is Suite => suite !== undefined)
+    const resolved = await readSuites(found, context)
     return resolved.length === 0 ? chain.next(context) : { kind: 'resolved', suites: resolved }
   }
 }
@@ -313,12 +299,8 @@ export class FlatCollectionsStrategy implements ScanFilter {
       context.notes.push('checkout declares no recognizable plugin shape')
       return { kind: 'resolved', suites: [] }
     }
-    const suites = await Promise.all(
-      collection.map(async root =>
-        root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
-      )
-    )
-    return { kind: 'resolved', suites: suites.filter((suite): suite is Suite => suite !== undefined) }
+    const suites = await readSuites(collection, context)
+    return { kind: 'resolved', suites }
   }
 }
 
@@ -331,12 +313,6 @@ export function defaultScanFilters(): readonly ScanFilter[] {
 // Public entry points
 // ---------------------------------------------------------------------------
 
-/** Discover every suite under one source checkout. */
-export async function discoverSuitesInSource(checkoutDir: string, sourceId: string, dimension: SuiteDimension, sourceUrl?: string): Promise<Suite[]> {
-  const result = await scanSource(checkoutDir, sourceId, dimension, sourceUrl)
-  return result.suites
-}
-
 /** Scan one checkout through the filter chain with full diagnostics. */
 export async function scanSource(checkoutDir: string, sourceId: string, dimension: SuiteDimension, sourceUrl?: string): Promise<ScanResult> {
   return runScanChain(defaultScanFilters(), { checkout: checkoutDir, sourceId, dimension, ...(sourceUrl !== undefined ? { sourceUrl } : {}), notes: [] })
@@ -345,6 +321,19 @@ export async function scanSource(checkoutDir: string, sourceId: string, dimensio
 // ---------------------------------------------------------------------------
 // Shared root/manifest plumbing
 // ---------------------------------------------------------------------------
+
+/**
+ * Materialize resolved suite roots into suites: a remote root becomes a
+ * metadata-only suite, a local root that fails to parse drops out.
+ */
+async function readSuites(roots: readonly SuiteRoot[], context: ScanContext): Promise<Suite[]> {
+  const suites = await Promise.all(
+    roots.map(root =>
+      root.dir === undefined ? remoteSuite(context.sourceId, context.dimension, root) : readSuite(root.dir, context.sourceId, context.dimension, root.hint, context.notes)
+    )
+  )
+  return suites.filter((suite): suite is Suite => suite !== undefined)
+}
 
 /**
  * Collect nested plugin roots up to four levels deep. Sibling subtrees are
@@ -366,11 +355,6 @@ async function collectRoots(dir: string, hint: SuiteHint | undefined, seen: Set<
   return nested.flat()
 }
 
-/** Whether a directory carries any known suite manifest. */
-export async function hasSuiteManifest(dir: string): Promise<boolean> {
-  return (await detectManifest(dir)) !== undefined
-}
-
 /** Whether a directory carries skill files in the flat or bundled shape. */
 export async function hasSkillFiles(dir: string): Promise<boolean> {
   if (await isFile(join(dir, 'SKILL.md'))) return true
@@ -381,16 +365,6 @@ export async function hasSkillFiles(dir: string): Promise<boolean> {
     if (await isFile(join(child, 'SKILL.md'))) return true
   }
   return false
-}
-
-async function listChildDirs(dir: string): Promise<string[]> {
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return []
-  }
-  return entries.filter(entry => entry.isDirectory() && !DOT_DIRS.has(entry.name) && !entry.name.startsWith('.')).map(entry => join(dir, entry.name))
 }
 
 /** Read one suite root into the normalized shape, or undefined when no manifest parses. */
@@ -497,13 +471,5 @@ async function syntheticManifest(root: string): Promise<SuiteManifest | undefine
     path: join(root, 'SKILL.md'),
     id: sanitizeId(name),
     name
-  }
-}
-
-async function isFile(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isFile()
-  } catch {
-    return false
   }
 }

@@ -10,8 +10,8 @@
  * installed, uninstalled, or mutated by this manager.
  */
 import { join } from 'node:path'
-import { stat } from 'node:fs/promises'
 import { sanitizeId } from './paths.js'
+import { isFile } from './fs-probes.js'
 import type { Suite, SuiteDimension, SuiteManifest } from '../model/types.js'
 import { countSurfaces, discoverSkills } from './surfaces.js'
 import { PROJECT_LAYOUTS, type ProjectLayout } from '../model/layouts.js'
@@ -49,7 +49,7 @@ export async function discoverNativeProjectSuites(projectRoot: string, dimension
     if (native.dirName === '.claude') lspFiles.push('.lsp.json')
     if (native.dirName === '.github') lspFiles.push('lsp.json')
     for (const path of lspFiles) {
-      if ((await stat(join(projectRoot, path)).catch(() => undefined))?.isFile()) {
+      if (await isFile(join(projectRoot, path))) {
         errors.push(`${path}: project LSP configuration is not mounted; the host LSP registry does not isolate projects`)
       }
     }

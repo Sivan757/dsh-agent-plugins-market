@@ -19,6 +19,8 @@ import { mkdir, open, readdir, readFile, readlink, rename, rm, stat } from 'node
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { Unzip, UnzipInflate, type FlateError } from 'fflate'
+import { archiveFormatOf, type ArchiveFormat } from '../model/types.js'
+import { isWithin } from './paths.js'
 
 const run = promisify(execFile)
 
@@ -58,17 +60,8 @@ export interface ArchiveInstallResult {
   sha256: string
 }
 
-/** Recognized archive payload kinds. */
-export type ArchiveFormat = 'zip' | 'tar' | 'targz'
-
-/** Classify an archive URL by extension; undefined when unsupported. */
-export function archiveFormatOf(url: string): ArchiveFormat | undefined {
-  const clean = url.trim().toLowerCase()
-  if (clean.endsWith('.zip')) return 'zip'
-  if (clean.endsWith('.tar.gz') || clean.endsWith('.tgz')) return 'targz'
-  if (clean.endsWith('.tar')) return 'tar'
-  return undefined
-}
+/** Archive vocabulary (format kinds and URL classification) shared with the model layer. */
+export { archiveFormatOf, type ArchiveFormat }
 
 /** Download the payload to a temp file, enforcing the size cap and digest. */
 export async function downloadArchive(url: string, tempFile: string, options: ArchiveOptions = {}): Promise<string> {
@@ -184,7 +177,7 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
       return
     }
     const target = join(dest, normalized)
-    if (target !== dest && !target.startsWith(`${dest}/`)) {
+    if (!isWithin(dest, target)) {
       fail(new Error(`zip entry escapes the extraction root: ${file.name}`))
       return
     }
@@ -311,7 +304,7 @@ async function assertNoEscapingSymlinks(root: string): Promise<void> {
         // bogus in-root path and the escape survives extraction.
         const target = await readlink(path, 'utf8').catch(() => '')
         const resolved = resolve(dir, target)
-        if (resolved !== root && !resolved.startsWith(`${root}/`)) {
+        if (!isWithin(root, resolved)) {
           throw new Error(`archive contains a symlink escaping the extraction root: ${entry.name} -> ${target}`)
         }
         continue
@@ -320,9 +313,6 @@ async function assertNoEscapingSymlinks(root: string): Promise<void> {
     }
   }
 }
-
-/** Test seam: run the symlink-containment walk against a prepared tree. */
-export const assertNoEscapingSymlinksForTest = assertNoEscapingSymlinks
 
 /** If the extraction produced exactly one top-level directory and nothing else, use it as the root. */
 async function unwrapSingleRoot(extractDir: string): Promise<string> {
@@ -345,14 +335,5 @@ async function copyTree(from: string, to: string): Promise<void> {
         await handle.close()
       }
     }
-  }
-}
-
-/** Probe whether a path exists and is a directory. */
-export async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory()
-  } catch {
-    return false
   }
 }

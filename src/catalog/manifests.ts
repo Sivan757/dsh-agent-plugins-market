@@ -18,9 +18,10 @@
  * present, while surfaces (skills/commands/agents/hooks/mcp) are scanned from
  * the directories regardless of which dialect won.
  */
-import { readFile, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { sanitizeId } from './paths.js'
+import { isFile } from './fs-probes.js'
 import { isRecognizedSchema, validatePluginManifest } from './validate.js'
 import type { SuiteManifest, SuiteComponents } from '../model/types.js'
 import { PLUGIN_LAYOUTS, MANIFEST_ALIASES, MARKETPLACE_PATHS, type ManifestKind } from '../model/layouts.js'
@@ -38,11 +39,7 @@ export async function detectManifest(dir: string): Promise<ManifestCandidate | u
   for (const { kind, manifest } of PLUGIN_LAYOUTS) {
     for (const relative of [...(MANIFEST_ALIASES[kind] ?? []), manifest]) {
       const path = join(dir, relative)
-      try {
-        if ((await stat(path)).isFile()) return { kind, path }
-      } catch {
-        // try the next candidate
-      }
+      if (await isFile(path)) return { kind, path }
     }
   }
   return undefined
@@ -269,18 +266,9 @@ export async function readMarketplaces(checkoutDir: string, errors: string[] = [
 }
 
 /** Read the highest-precedence marketplace manifest, or undefined when absent. */
-export async function readMarketplace(checkoutDir: string): Promise<Marketplace | undefined> {
+async function readMarketplace(checkoutDir: string): Promise<Marketplace | undefined> {
   const results = await readMarketplaces(checkoutDir)
   return results[0]
-}
-
-/** Resolve one marketplace entry to a local checkout-relative directory, or
- *  `undefined` for remote-URL entries that are not present in the clone. */
-export function marketplaceEntryDir(checkoutDir: string, entry: MarketplaceEntry): string | undefined {
-  const source = entry.source
-  if (typeof source === 'string') return resolve(checkoutDir, source)
-  if (source?.path !== undefined) return resolve(checkoutDir, source.path)
-  return undefined
 }
 
 /**
@@ -300,10 +288,6 @@ export async function repoName(checkoutDir: string): Promise<string> {
     }
     const marketplaceName = pickString(marketplace.name)
     if (marketplaceName !== undefined) return marketplaceName
-    if (entries.length === 1) {
-      const entryName = pickString(entries[0]!.name)
-      if (entryName !== undefined) return entryName
-    }
   }
   const candidate = await detectManifest(checkoutDir)
   if (candidate !== undefined) {
@@ -318,51 +302,4 @@ export async function repoName(checkoutDir: string): Promise<string> {
     }
   }
   return syntheticManifestName(checkoutDir)
-}
-
-/** The winning manifest's declared `skills` path (string or array), or undefined. */
-export async function declaredSkillsPath(root: string): Promise<unknown> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
-  try {
-    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
-    if (typeof raw === 'object' && raw !== null) {
-      return (raw as Record<string, unknown>)['skills']
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
-}
-
-/** The winning manifest's inline `mcpServers`, or undefined. */
-export async function declaredMcpServers(root: string): Promise<Record<string, unknown> | undefined> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
-  try {
-    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
-    if (typeof raw === 'object' && raw !== null) {
-      const servers = (raw as Record<string, unknown>)['mcpServers']
-      if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
-}
-
-/** The winning manifest's inline `lspServers`, or undefined. */
-export async function declaredLspServers(root: string): Promise<Record<string, unknown> | undefined> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
-  try {
-    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
-    if (typeof raw === 'object' && raw !== null) {
-      const servers = (raw as Record<string, unknown>)['lspServers']
-      if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
 }

@@ -5,6 +5,7 @@ import type { McpSuiteConfig } from '../model/types.js'
 import { validateMcpJson } from './validate.js'
 import { parse as parseToml } from 'smol-toml'
 import { normalizeCodexMcp } from './codex-mcp.js'
+import { isWithin } from './paths.js'
 import type { ProjectMcpFormat } from '../model/layouts.js'
 
 /** Later files override earlier keys; a malformed layer invalidates the whole layout's table. */
@@ -68,7 +69,7 @@ export async function readProjectDocument(
   let text: string
   try {
     const [base, target] = await Promise.all([realpath(projectRoot), realpath(path)])
-    if (!target.startsWith(`${base}/`)) {
+    if (!isWithin(base, target)) {
       errors.push(`${file}: project configuration escapes the project root`)
       return null
     }

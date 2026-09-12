@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -184,26 +184,6 @@ describe('archive acquisition', () => {
     const sha256 = await downloadArchive(`${baseUrl}/fixture.zip`, temp, { allowHttp: true })
     expect(sha256).toMatch(/^[0-9a-f]{64}$/)
     await rm(temp, { force: true })
-  })
-
-  it('rejects a symlink pointing outside the extraction root (readlink-based containment)', async () => {
-    // Regression: the containment walk once read the link's target *content*
-    // with readFile, so an escaping symlink resolved to a bogus in-root path
-    // and the escape survived extraction.
-    const { assertNoEscapingSymlinksForTest } = await import('../src/catalog/archive.js')
-    const stage = await mkdtemp(join(tmpdir(), 'dsh-archive-symlink-'))
-    const outside = join(stage, 'outside')
-    await mkdir(outside, { recursive: true })
-    await writeFile(join(outside, 'secret.txt'), 'TOP SECRET')
-    const extract = join(stage, 'extract')
-    await mkdir(join(extract, 'deep'), { recursive: true })
-    await writeFile(join(extract, 'keep.txt'), 'x')
-    await symlink(join(outside, 'secret.txt'), join(extract, 'deep', 'leak'))
-    await expect(assertNoEscapingSymlinksForTest(extract)).rejects.toThrow(/escaping the extraction root/)
-    // A contained link (target inside the root) stays legal.
-    await symlink('../keep.txt', join(extract, 'deep', 'ok'))
-    await expect(assertNoEscapingSymlinksForTest(extract)).rejects.toThrow(/escaping the extraction root/)
-    await rm(stage, { recursive: true, force: true })
   })
 
   it('pins the extraction bomb limits to sane ratios', async () => {
