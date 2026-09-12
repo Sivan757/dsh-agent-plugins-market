@@ -3,6 +3,8 @@ import { MARKET_ROUTES } from '../src/contracts/market.js'
 import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
 import type { MarketService } from '../src/application/queries.js'
 
+type RouteTable = Map<string, (request: unknown, response: unknown) => void | Promise<void>>
+
 function service(): MarketService {
   return {
     sources: [],
@@ -56,7 +58,7 @@ function response(): { value: () => unknown; writeHead: (status: number, headers
 }
 
 /** A strict webserver mock: mirrors the host's duplicate-throw contract. */
-function strictWebServer(routes: Map<string, (request: unknown, response: unknown) => void | Promise<void>>): WebServerService {
+function strictWebServer(routes: RouteTable): WebServerService {
   return {
     register: route => {
       if (routes.has(route.path)) throw new Error(`webserver: duplicate exact route "${route.path}"`)
@@ -66,12 +68,12 @@ function strictWebServer(routes: Map<string, (request: unknown, response: unknow
   }
 }
 
-/** A POST request stub with a JSON body and same-origin headers. */
-function postRequest(url: string, body: Record<string, unknown>): unknown {
+/** A POST request stub with a JSON body and same-origin headers unless `origin` overrides them. */
+function postRequest(url: string, body: Record<string, unknown>, origin = 'http://127.0.0.1'): unknown {
   return {
     method: 'POST',
     url,
-    headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+    headers: { host: '127.0.0.1', origin },
     on: (event: string, listener: (chunk?: unknown) => void) => {
       if (event === 'data') listener(Buffer.from(JSON.stringify(body), 'utf8'))
       if (event === 'end') listener()
@@ -85,7 +87,7 @@ const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0
 
 describe('market HTTP routes', () => {
   it('forwards exact model queries and returns reasoning options without provider configuration', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const calls: string[][] = []
     const llm = {
       listProviders: () => [{ id: 'p', apiKey: 'private' }],
@@ -109,7 +111,7 @@ describe('market HTTP routes', () => {
     }
   })
   it('registers the shared route constants and disposes them together', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
 
@@ -141,7 +143,7 @@ describe('market HTTP routes', () => {
     }
     // The second mount gets its own table: the strict mock enforces the
     // duplicate-throw contract per webserver instance, as the host does.
-    const reauthRoutes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const reauthRoutes: RouteTable = new Map()
     const disposeReauth = mountSuiteRoutes({ webServer: strictWebServer(reauthRoutes) }, reauthService)
     const reauthResponse = response()
     await reauthRoutes.get(MARKET_ROUTES.mcpReauthorize)?.(postRequest(MARKET_ROUTES.mcpReauthorize, { serverName: 'cloudflare__cloudflare-api' }), reauthResponse)
@@ -160,7 +162,7 @@ describe('market HTTP routes', () => {
   })
 
   it('serves the MCP backend block and validates backend switches', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
 
@@ -184,7 +186,7 @@ describe('market HTTP routes', () => {
   })
 
   it('registers user-panel routes only when panel stores are provided', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const created: Array<{ kind: string; name: string; text: string }> = []
     const store = (kind: string) => ({
@@ -229,7 +231,7 @@ describe('market HTTP routes', () => {
   })
 
   it('rejects panel entry names outside the grammar without filesystem effect', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const removals: string[] = []
     // The mock mirrors the real UserPanelStore's guard: a name outside the
@@ -259,18 +261,8 @@ describe('market HTTP routes', () => {
     expect(removals).toEqual([])
 
     // Same-origin enforcement still guards every mutation.
-    const crossOrigin = {
-      method: 'POST',
-      url: deletePath,
-      headers: { host: '127.0.0.1', origin: 'http://evil.example' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from('{"name":"ok"}', 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
     const corsResponse = response()
-    await routes.get(deletePath)?.(crossOrigin, corsResponse)
+    await routes.get(deletePath)?.(postRequest(deletePath, { name: 'ok' }, 'http://evil.example'), corsResponse)
     await settle()
     expect(corsResponse.value()).toMatchObject({ ok: false })
     expect(removals).toEqual([])
@@ -279,7 +271,7 @@ describe('market HTTP routes', () => {
   })
 
   it('passes the delete-checkout flag through to removeSource', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const removals: Array<{ id: string; deleteCheckout: boolean }> = []
     const removeService = {
@@ -290,18 +282,9 @@ describe('market HTTP routes', () => {
     }
     const dispose = mountSuiteRoutes({ webServer }, removeService)
 
-    const postRequest = {
-      method: 'POST',
-      url: MARKET_ROUTES.removeSource,
-      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from(JSON.stringify({ id: 'duckdb-skills', deleteCheckout: true }), 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
-    await routes.get(MARKET_ROUTES.removeSource)?.(postRequest, response())
-    await new Promise(resolve => setTimeout(resolve, 0))
+    const removeRequest = postRequest(MARKET_ROUTES.removeSource, { id: 'duckdb-skills', deleteCheckout: true })
+    await routes.get(MARKET_ROUTES.removeSource)?.(removeRequest, response())
+    await settle()
     expect(removals).toEqual([{ id: 'duckdb-skills', deleteCheckout: true }])
 
     dispose()

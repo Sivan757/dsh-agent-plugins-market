@@ -72,11 +72,9 @@ describe('agent role metadata and runtime routing', () => {
 
   it('degrades every inexact route to inheritance and reports why', async () => {
     const { host } = hostFixture()
-    for (const metadata of ['model: sonnet', 'model: deepseek/deepseek-chat', 'model: GPT-4.1', 'provider: deepseek', 'provider: deepseek\nmodel: inherit']) {
-      if (metadata.includes('model: inherit')) continue
+    for (const metadata of ['model: sonnet', 'model: deepseek/deepseek-chat', 'model: GPT-4.1', 'provider: deepseek']) {
       const diagnose = vi.fn()
-      const declared =
-        metadata.includes('provider: deepseek') && !metadata.includes('model:') ? parseAgentRole(`---\n${metadata}\n---\nbody`) : parseAgentRole(`---\n${metadata}\n---\nbody`)
+      const declared = parseAgentRole(`---\n${metadata}\n---\nbody`)
       expect(await resolveAgentOptions(declared, parent, host.llm, signal(), 'reviewer', diagnose)).toBeUndefined()
       expect(diagnose).toHaveBeenCalled()
     }
