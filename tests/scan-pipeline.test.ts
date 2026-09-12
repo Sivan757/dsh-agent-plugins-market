@@ -59,6 +59,16 @@ describe('scan pipeline: marketplace entry handler chain', () => {
     expect(resolution.kind).toBe('rejected')
     expect((resolution as { reason: string }).reason).toContain('escapes the checkout')
   })
+
+  it('resolves a local entry when the checkout is spelled with forward slashes', async () => {
+    // A local source keeps its path exactly as configured, so on Windows a
+    // `C:/…` checkout sits beside the backslash path `resolve()` derives from
+    // an entry, and the two spellings must still compare as one location.
+    // No-op on POSIX; this is the spelling the Windows job exists to cover.
+    const entry: MarketplaceEntry = { name: 'one', source: './skills/one' }
+    const resolution = await resolveMarketplaceEntry(checkout.replaceAll('\\', '/'), entry, undefined)
+    expect(resolution).toEqual({ kind: 'local', dir: join(checkout, 'skills', 'one') })
+  })
 })
 
 describe('scan pipeline: chain semantics', () => {

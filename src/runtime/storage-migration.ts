@@ -1,8 +1,8 @@
 /** Consolidate plugin-owned storage before stores, routes, or providers are exposed. */
 import { constants } from 'node:fs'
 import { copyFile, lstat, mkdir, readdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { expandHome, resolveAgentsRoot, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
+import { dirname, join, relative, resolve } from 'node:path'
+import { expandHome, isWithin, resolveAgentsRoot, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
 
 export interface StorageMigrationResult {
   /** Conflicting or symbolic-link entries retained at their original paths. */
@@ -55,11 +55,6 @@ export async function mergeStorageTree(from: string, to: string, result: Storage
   await unlink(from)
 }
 
-function contains(parent: string, child: string): boolean {
-  const path = relative(parent, child)
-  return path === '' || (!path.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) && path !== '..' && !isAbsolute(path))
-}
-
 /** The three hand-authored resource kinds the market panel owns. */
 const PANEL_KINDS = ['skills', 'commands', 'agents'] as const
 
@@ -75,7 +70,7 @@ export async function migratePluginStorage(config: { userRoot?: string; dataRoot
   const dataRoot = resolveDataRoot()
   const agentsRoot = resolveAgentsRoot()
   const result: StorageMigrationResult = { conflicts: [] }
-  if (contains(userRoot, agentsRoot) || contains(agentsRoot, userRoot) || contains(dataRoot, agentsRoot) || contains(agentsRoot, dataRoot)) {
+  if (isWithin(userRoot, agentsRoot) || isWithin(agentsRoot, userRoot) || isWithin(dataRoot, agentsRoot) || isWithin(agentsRoot, dataRoot)) {
     throw new Error('The Agent layout root overlaps canonical plugin storage')
   }
   for (const path of [resolveDshHome(), userRoot, dataRoot, agentsRoot, join(userRoot, 'user'), join(userRoot, '.sources')]) {
@@ -87,7 +82,7 @@ export async function migratePluginStorage(config: { userRoot?: string; dataRoot
     if ((await info(path))?.isSymbolicLink() === true) throw new Error(`Plugin storage migration cannot traverse a symbolic-link root: ${path}`)
   }
   if (legacyUserRoot !== userRoot) {
-    if (contains(legacyUserRoot, userRoot) || contains(userRoot, legacyUserRoot)) throw new Error('Legacy userRoot overlaps canonical plugin storage')
+    if (isWithin(legacyUserRoot, userRoot) || isWithin(userRoot, legacyUserRoot)) throw new Error('Legacy userRoot overlaps canonical plugin storage')
     const legacySources = join(legacyUserRoot, '.sources')
     const sourceInfo = await info(legacySources)
     const sourceNames = sourceInfo?.isDirectory() === true ? await readdir(legacySources) : []
@@ -123,7 +118,7 @@ export async function migratePluginStorage(config: { userRoot?: string; dataRoot
   }
   for (const legacy of new Set([legacyDataRoot, join(resolveDshHome(), 'agent-plugins-data')])) {
     if (legacy === dataRoot) continue
-    if (contains(legacy, dataRoot) || contains(dataRoot, legacy)) throw new Error('Legacy dataRoot overlaps canonical plugin data storage')
+    if (isWithin(legacy, dataRoot) || isWithin(dataRoot, legacy)) throw new Error('Legacy dataRoot overlaps canonical plugin data storage')
     for (const entry of ['data', 'overrides', 'user', 'settings.json', 'lsp-servers.json', 'feedback']) {
       await mergeStorageTree(join(legacy, entry), join(dataRoot, entry), result)
     }
@@ -156,7 +151,7 @@ async function relocateManagedSourceUrls(userRoot: string, legacyUserRoot: strin
   for (const source of state.sources as unknown[]) {
     if (typeof source !== 'object' || source === null || !('local' in source) || source.local !== true || !('url' in source) || typeof source.url !== 'string') continue
     const oldCheckout = join(legacyUserRoot, '.sources')
-    if (!contains(oldCheckout, resolve(expandHome(source.url)))) continue
+    if (!isWithin(oldCheckout, resolve(expandHome(source.url)))) continue
     source.url = join(userRoot, '.sources', relative(oldCheckout, resolve(expandHome(source.url))))
     changed = true
   }

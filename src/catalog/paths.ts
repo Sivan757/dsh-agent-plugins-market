@@ -17,7 +17,7 @@
  */
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { stripArchiveSuffix } from '../model/types.js'
 
 /** Source checkouts live under `<dimensionRoot>/.sources/<sourceId>/`. */
@@ -95,14 +95,37 @@ export function qualifiedSuiteId(sourceId: string, suiteId: string): string {
   return `${sourceId}/${suiteId}`
 }
 
+/** The slice of a `node:path` implementation a containment test needs. */
+export interface PathFlavor {
+  relative(from: string, to: string): string
+  isAbsolute(path: string): boolean
+  sep: string
+}
+
 /**
- * Whether `candidate` is `root` itself or a path below it, compared lexically
- * on whole path segments so a sibling whose name merely starts with the root's
- * (`/a/bc` against `/a/b`) does not count as contained.
+ * Whether `candidate` is `root` itself or a path below it, compared on whole
+ * path segments by `flavor`'s rules so a sibling whose name merely starts with
+ * the root's (`/a/bc` against `/a/b`) does not count as contained.
+ *
+ * `relative` resolves both operands with those rules before comparing, so the
+ * answer never depends on how each side was spelled: a checkout read from
+ * configuration as `C:/x/y` and an entry resolved to `C:\x\y\plugins\a` stay
+ * contained, Windows compares drive letters and segments case-insensitively,
+ * and an unnormalized `..` inside the candidate is resolved rather than
+ * trusted as text. On POSIX a backslash stays the ordinary filename character
+ * it is — folding separators there would invent containment that does not
+ * exist.
+ *
+ * `flavor` is injectable so the win32 rules stay covered by a POSIX test run.
  */
+export function isWithinUnder(flavor: PathFlavor, root: string, candidate: string): boolean {
+  const rel = flavor.relative(root, candidate)
+  return rel === '' || (!rel.startsWith(`..${flavor.sep}`) && rel !== '..' && !flavor.isAbsolute(rel))
+}
+
+/** Whether `candidate` is `root` itself or a path below it, by the host's path rules. */
 export function isWithin(root: string, candidate: string): boolean {
-  if (candidate === root) return true
-  return candidate.startsWith(root.endsWith(sep) ? root : `${root}${sep}`)
+  return isWithinUnder({ relative, isAbsolute, sep }, root, candidate)
 }
 
 /** Sanitize a plugin or server id into `[a-z0-9-]` (lowercased). */
