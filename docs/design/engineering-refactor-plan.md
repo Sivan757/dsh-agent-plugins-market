@@ -55,89 +55,69 @@ The `Catalog` module is the seam after normalized suite discovery and before hos
 - [x] Stage 6: SuiteManager + discovery facades deleted; callers migrated to `application/Catalog` directly.
 - [x] Stage 7: directory alignment — runtime mounts, model, and catalog modules relocated into their target layers; MarketSection split into feature components and shared `ui/` controls.
 - [x] Stage 8: test stability — React `act` environment configured, parallel-test interference eliminated via serial file execution, MarketSection render smoke tests, coverage baseline established.
+- [x] Stage 9: Catalog split into a facade over collaborators; one mount lifecycle and one per-server projection; the composition root reduced to wiring; layer gates made enforceable. See the [shared primitives note](../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md).
 
-The `SuiteManager` facade has been deleted; all callers (routes, skill provider, context tool, host composition) now use `application/Catalog` directly. Browser Performance-panel and React Profiler measurements remain a release follow-up because the current automated baseline measures pure view-model work, not browser paint or React commits.
+The `SuiteManager` facade has been deleted; all callers (routes, skill provider, host composition) now use `application/Catalog` directly. Browser Performance-panel and React Profiler measurements remain a release follow-up because the current automated baseline measures pure view-model work, not browser paint or React commits.
 
-## Target module map
+## Module map
 
 ```text
 src/
-  model/
-    source.ts
-    suite.ts
-    install-state.ts
+  model/          records only (types.ts, layouts.ts) — no Node APIs
+  contracts/      market.ts, mcp-status.ts, lsp-status.ts — no imports at all
 
-  contracts/
-    market.ts
-    mcp-status.ts
-
-  catalog/
-    state-file.ts
-    checkout.ts
-    source-catalog.ts
-    suite-scanner.ts
-    manifests.ts
-    surfaces.ts
+  catalog/        pure scanning: manifests, surfaces, scan-pipeline, scan-resolvers,
+                  suite-scanner, source-catalog, fs-probes, paths, validate
 
   application/
-    catalog.ts
-    queries.ts
-    details.ts
+    catalog.ts          facade: state, mutation queue, revisions, snapshot assembly, queries
+    catalog-context.ts  the shared invariants every collaborator reaches through
+    ports.ts            CatalogPorts — the declared host seams
+    snapshot-cache.ts   scan cache and the user/project snapshot caches
+    source-store.ts     source CRUD, acquisition, adoption, progress
+    install-store.ts    install, uninstall, enable and surface mutations
+    mcp-service.ts      MCP use cases
+    lsp-service.ts      LSP use cases
+    queries.ts, details.ts, panel-resources.ts, project-agent-roles.ts
 
-  runtime/
-    reconciler.ts
-    mcp-status-model.ts
-    tool-registry-observer.ts
-    mcp-mounts.ts
-    commands-mounts.ts
-    hooks-mounts.ts
-    skills-provider.ts
+  runtime/        harness-facing effects: surface mounts + mount-lifecycle.ts, reconciler,
+                  reconcile-scheduler, settings-namespace, MCP client bridge and its projection,
+                  skill/command/agent-role providers, persisted user-data stores, state-store.ts
 
-  host/
-    compose.ts
-    routes.ts
-    context-tool.ts
+  client/         Web market page: features/ (market, mcp-status, lsp-status, personas,
+                  suite-detail), shared ui/, bilingual locales.ts
 
-  client/
-    transport/
-    features/
-      market/
-      mcp-status/
-      suite-detail/
-    ui/
-    compat/
-      legacy-page-mode.tsx
-
-  manager.ts
+  index.ts        plugin entry — the composition root
+  routes.ts       HTTP surface
 ```
 
 `model/` contains normalized records and business invariants. It must not import Node APIs, Cordis, HTTP types, or React.
 
 `contracts/` contains browser-safe request, response, error, and route-constant declarations. It must not expose filesystem paths or host implementation types.
 
-`catalog/` owns state-file access, local and Git checkout selection, normalized discovery, manifest/layout detection, and surface scanning.
+`catalog/` owns local and Git checkout selection, normalized discovery, manifest/layout detection, and surface scanning. It is pure: no filesystem, process, or harness access.
 
-`application/` owns the catalog lifecycle, serialized mutations, query projections, suite detail and preview projections, and the single source of truth for enabled suites.
+`application/` owns the catalog lifecycle, its serialized mutations, the persisted user-data stores it is built from, query projections, and the single source of truth for enabled suites.
 
-`runtime/` converts enabled suites into harness runtime effects. It owns reconciliation, dynamic mount diagnostics, and host-private tool observation.
+`runtime/` converts enabled suites into harness runtime effects. It owns reconciliation and its scheduling, the surface mounts and their shared lifecycle, dynamic mount diagnostics, host-private tool observation, host adapters, and the persisted state file.
 
-`host/` adapts Cordis and HTTP to application modules. It owns composition, route parsing, same-origin protection, and tool registration.
+`index.ts` and `routes.ts` adapt Cordis and HTTP to application modules. They own composition, route parsing, same-origin protection, and tool registration, and stay at the `src/` root.
 
 `client/` owns fetch transport, view models, state, and rendering. It must not import host, runtime, Node, or catalog implementations.
-
-`manager.ts` becomes a short compatibility facade during migration and contains no new business logic.
 
 ## Dependency rules
 
 ```text
-model       -> no internal product dependency
-contracts   -> model types only when browser-safe
+model       -> nothing outside itself, and no Node APIs
+contracts   -> nothing at all
 catalog     -> model
-application -> model, catalog, contracts
+application -> model, catalog, contracts, and the runtime effects it drives
 runtime     -> model, application
-host        -> application, runtime, contracts
+index/routes-> application, runtime, contracts
 client      -> contracts and client-only modules
 ```
+
+`model`, `contracts` and `client` are also checked for `node:` imports, which dependency-cruiser cannot see; that rule lives in `eslint.config.mjs`.
 
 `catalog/` must not import host, runtime, routes, or client modules.
 

@@ -8,7 +8,7 @@ Startup, credential changes and settings updates can request overlapping runtime
 
 ## Decision
 
-The host entry coalesces event bursts into one active reconciliation and at most one requested follow-up using a fresh catalog snapshot. Only a changed MCP backend setting triggers mount reconciliation. Teardown prevents new requests and ignores a discovery result that arrives after disposal.
+The host entry coalesces event bursts into one active reconciliation and at most one requested follow-up using a fresh catalog snapshot; that coalescing lives in `src/runtime/reconcile-scheduler.ts`. Only a changed MCP backend setting triggers mount reconciliation. Teardown prevents new requests and ignores a discovery result that arrives after disposal.
 
 The runtime reconciler executes independent surfaces concurrently while preserving ordering within each surface. Each surface waits for its in-flight work before disposal, skips queued work after teardown and contains its own failures. MCP connection latency therefore does not delay local registrations or their independent teardown.
 

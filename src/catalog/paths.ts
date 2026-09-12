@@ -18,9 +18,6 @@ import { stripArchiveSuffix } from '../model/types.js'
 /** Source checkouts live under `<dimensionRoot>/.sources/<sourceId>/`. */
 export const SOURCES_DIR_NAME = '.sources'
 
-/** Per-suite mutable data directory (the `${PLUGIN_DATA}` placeholder). */
-export const DATA_DIR_NAME = 'data'
-
 export const STATE_FILE_NAME = 'state.json'
 
 /** Expand a leading `~/` (or `~\` on Windows) to the home directory; other values pass through. */

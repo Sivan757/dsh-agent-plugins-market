@@ -108,7 +108,7 @@ dsh-agent-plugins-market.compat = {
 
 - **粒度从哪来**：per-layout/per-suite 的启停**不新建设置**——每个原生布局落地为合成套件后，天然携带既有 `set-enabled` / per-surface 开关链（`state.json` `InstalledEntry`），用户在套件卡片上关掉任何一个布局即可。
 - **默认值**（2026-09-02 评审）：只读发现面与 MCP 随主开关默认**开**；hooks 默认**关**，开启是显式动作。
-- **生效链**：翻转 → `Catalog` 兼容配置 writer（仿 `setMcpBackendProvider/Writer`，`catalog.ts:268-276`）→ 重扫快照 + reconciler 重挂载；诊断进 `RuntimeDiagnostics`，绝不静默半挂载。
+- **生效链**：翻转 → `Catalog` 的 ports 绑定（`src/index.ts` 里 `CatalogPorts` 的 `mcpBackend` / `setMcpBackend` 闭包）→ 重扫快照 + reconciler 重挂载；诊断进 `RuntimeDiagnostics`，绝不静默半挂载。
 - **降级策略**：settings 读取失败 → 全部按默认值运行（mcpEnhanced 同款 fail-closed）。
 
 ### 4.2 兼容性表格（只读，主开关 + hooks 开关所在卡片内）

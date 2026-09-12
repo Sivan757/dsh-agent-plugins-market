@@ -6,13 +6,13 @@
 
 ```
 src/
-  application/  use-case layer: catalog assembly, queries, install orchestration
-  catalog/      source scanning: manifests, dialects, scan pipeline, lsp-spec validation
+  application/  use cases: Catalog facade, ports, source/snapshot/install stores, MCP + LSP services, queries
+  catalog/      pure source scanning: manifests, dialects, scan pipeline, fs probes, lsp-spec validation
   client/       Web market page (React + CSS modules), bilingual locales.ts
-  contracts/    API request/response types shared by routes and client
-  model/        domain types (suite, source, surfaces)
-  runtime/      harness-facing effects: reconciler, MCP client bridge, MCP/LSP mounts, status builders
-  index.ts      plugin entry; routes.ts  API surface
+  contracts/    API request/response types shared by routes and client (imports nothing)
+  model/        domain records only (suite, source, surfaces) — no Node APIs
+  runtime/      harness-facing effects: reconciler + scheduling, surface mounts and their shared lifecycle, MCP client bridge, status builders, persisted stores
+  index.ts      plugin entry (composition root); routes.ts  API surface
 schemas/        versioned mcp.schema.json and friends (strict validation contracts)
 tests/          vitest suites mirroring src/; fixtures under tests/fixtures
 docs/           adr/, design/, release/, promotion/, research/, standards/
