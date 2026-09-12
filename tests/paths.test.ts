@@ -3,10 +3,14 @@
  * The win32 rows drive `isWithinUnder` with `path.win32`, so the rules that once
  * rejected every local marketplace entry on Windows stay covered by a POSIX run
  * — `isWithin` itself reads the host's path rules and cannot reach them here.
+ *
+ * The home rows pin the harness helper's precedence: a configured path is read
+ * back through the same platform rules it will be expanded with.
  */
+import { homedir } from 'node:os'
 import { join, posix, resolve, win32 } from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { isWithin, isWithinUnder } from '../src/catalog/paths.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { expandHome, isWithin, isWithinUnder, resolveAgentsRoot, resolveDshHome } from '../src/catalog/paths.js'
 
 const win32Cases: Array<{ name: string; root: string; candidate: string; contained: boolean }> = [
   {
@@ -87,5 +91,38 @@ describe('isWithin', () => {
     expect(isWithin(root, root)).toBe(true)
     expect(isWithin(root, resolve(root, '..', 'outside'))).toBe(false)
     expect(isWithin(root, `${root}sibling`)).toBe(false)
+  })
+})
+
+describe('home resolution', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it.each([
+    ['a bare tilde', '~', homedir()],
+    ['a POSIX tilde prefix', '~/plugins', join(homedir(), 'plugins')],
+    ['a Windows tilde prefix', '~\\plugins', join(homedir(), 'plugins')],
+    ['an absolute path', '/opt/plugins', '/opt/plugins'],
+    ['a relative path', 'plugins', 'plugins']
+  ])('expands %s against the OS home', (_name, configured, expected) => {
+    expect(expandHome(configured)).toBe(expected)
+  })
+
+  it('resolves the default harness home and a configured override', () => {
+    vi.stubEnv('DSH_HOME', '/custom/home')
+    expect(resolveDshHome()).toBe(resolve('/custom/home'))
+  })
+
+  it('treats a blank harness home as unset instead of the working directory', () => {
+    vi.stubEnv('DSH_HOME', '   ')
+    expect(resolveDshHome()).toBe(join(homedir(), '.dsh'))
+  })
+
+  it('treats a blank Agent layout root as unset and expands a configured one', () => {
+    vi.stubEnv('DSH_AGENTS_HOME', '')
+    expect(resolveAgentsRoot()).toBe(join(homedir(), '.agents'))
+    vi.stubEnv('DSH_AGENTS_HOME', '~/agents-shared')
+    expect(resolveAgentsRoot()).toBe(join(homedir(), 'agents-shared'))
   })
 })

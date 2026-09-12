@@ -1,7 +1,8 @@
 /** Consolidate plugin-owned storage before stores, routes, or providers are exposed. */
 import { constants } from 'node:fs'
-import { copyFile, lstat, mkdir, readdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, readdir, readFile, rmdir, unlink } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { expandHome, isWithin, resolveAgentsRoot, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
 
 export interface StorageMigrationResult {
@@ -156,9 +157,7 @@ async function relocateManagedSourceUrls(userRoot: string, legacyUserRoot: strin
     changed = true
   }
   if (changed) {
-    const temp = `${path}.migration-${process.pid}.tmp`
-    await writeFile(temp, `${JSON.stringify(state, null, 2)}\n`, { flag: 'wx' })
-    await rename(temp, path)
+    await writeFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
   }
 }
 

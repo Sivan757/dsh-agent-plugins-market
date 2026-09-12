@@ -19,9 +19,10 @@
  */
 
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
@@ -211,11 +212,9 @@ async function readLastSubmitAt(dataRoot: string): Promise<number> {
 }
 
 async function stampSubmitAt(dataRoot: string, now: number): Promise<void> {
-  const dir = join(dataRoot, 'feedback')
-  await mkdir(dir, { recursive: true })
   // Overwrite, not append: an appending stamp concatenates timestamps and
   // parseInt on the merged digits disables the cooldown permanently.
-  await writeFile(join(dir, 'last-submit-at'), String(now), 'utf8')
+  await writeFileAtomic(join(dataRoot, 'feedback', 'last-submit-at'), String(now), { mode: 0o600, dirMode: 0o700 })
 }
 
 export const FEEDBACK_TOOL_NAME = 'report_market_issue' as const

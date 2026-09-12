@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 
 export function lspServerStatePath(dataRoot: string): string {
   return join(dataRoot, 'lsp-server-state.json')
@@ -14,6 +15,5 @@ export async function loadDisabledLspServers(dataRoot: string): Promise<Set<stri
 }
 export async function saveDisabledLspServers(dataRoot: string, disabled: Iterable<string>): Promise<void> {
   const path = lspServerStatePath(dataRoot)
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, `${JSON.stringify({ disabled: [...new Set(disabled)].sort() }, null, 2)}\n`, 'utf8')
+  await writeFileAtomic(path, `${JSON.stringify({ disabled: [...new Set(disabled)].sort() }, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
 }
