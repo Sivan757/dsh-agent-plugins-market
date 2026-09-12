@@ -16,6 +16,7 @@ import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type * as HooksBridge from '@deepseek-ai/dsh-hooks-claude-code'
+import { SerialPassQueue, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { Suite } from '../model/types.js'
 
@@ -24,31 +25,17 @@ export interface HooksMountDiagnostic {
   reason: string
 }
 
-interface MountHandle {
-  await(): Promise<unknown>
-  dispose(): void | Promise<void>
-}
-
-interface PluginMountContext {
-  plugin(plugin: unknown, config: unknown): MountHandle
-}
-
 export class HooksMountRegistry {
-  private readonly live = new Map<string, MountHandle>()
+  private readonly live = new Map<string, MountPluginHandle>()
   private readonly fingerprints = new Map<string, string>()
   private readonly temporary = new Map<string, string>()
-  private queue: Promise<void> = Promise.resolve()
+  private readonly passes = new SerialPassQueue()
 
   constructor(private readonly ctx: Context) {}
 
   /** Mount/unmount one bridge per suite to match the enabled suites exactly. */
-  async reconcile(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
-    const run = this.queue.then(() => this.reconcileNow(enabledSuites))
-    this.queue = run.then(
-      () => {},
-      () => {}
-    )
-    return run
+  reconcile(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
+    return this.passes.run(() => this.reconcileNow(enabledSuites))
   }
 
   private async reconcileNow(enabledSuites: Suite[]): Promise<HooksMountDiagnostic[]> {
@@ -88,11 +75,9 @@ export class HooksMountRegistry {
 
   /** Dispose every live bridge; used at plugin teardown. */
   async disposeAll(): Promise<void> {
-    const run = this.queue.then(async () => {
+    await this.passes.run(async () => {
       for (const [suiteId, handle] of [...this.live]) await this.unmount(suiteId, handle)
     })
-    this.queue = run.catch(() => {})
-    await run
   }
 
   private async mount(key: string, suite: Suite, content: string, fingerprint: string, originalPath?: string): Promise<string | undefined> {
@@ -105,7 +90,7 @@ export class HooksMountRegistry {
     const mountCtx = this.ctx as unknown as PluginMountContext
     if (typeof mountCtx.plugin !== 'function') return 'the host context does not support dynamic plugin mounting'
     let temporary: string | undefined
-    let handle: MountHandle | undefined
+    let handle: MountPluginHandle | undefined
     try {
       let configPath = originalPath
       if (configPath === undefined) {
@@ -134,7 +119,7 @@ export class HooksMountRegistry {
     }
   }
 
-  private async unmount(suiteId: string, handle: MountHandle): Promise<void> {
+  private async unmount(suiteId: string, handle: MountPluginHandle): Promise<void> {
     this.live.delete(suiteId)
     this.fingerprints.delete(suiteId)
     try {

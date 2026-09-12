@@ -29,6 +29,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { DIRECT_LSP_SUITE_ID } from './lsp-status.js'
+import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { Suite } from '../model/types.js'
 
@@ -45,14 +46,6 @@ interface LiveMount {
   serverKeys: string[]
   disposer: () => void | Promise<void>
 }
-
-/**
- * Bounded retry schedule for a failed mount/unmount, mirroring the MCP
- * mounts: a permanently broken server must stop consuming attempt budget,
- * and the schedule resets with every reconcile pass.
- */
-const RETRY_SCHEDULE_MS = [1_500, 5_000, 15_000, 45_000, 120_000]
-const MAX_RETRY_ATTEMPTS = RETRY_SCHEDULE_MS.length
 
 /** One dsh-lsp-stdio server configuration row (its Config.servers entry). */
 export interface LspStdioServerConfig {
@@ -81,16 +74,6 @@ export function toLspServerConfig(spec: {
     ...(spec.initializationOptions === undefined ? {} : { initializationOptions: spec.initializationOptions }),
     ...(spec.configuration === undefined ? {} : { configuration: spec.configuration })
   }
-}
-
-interface MountPluginHandle {
-  await(): Promise<unknown>
-  dispose(): void | Promise<void>
-}
-
-/** Structural `ctx.plugin` surface for mounting one plugin instance. */
-interface PluginMountContext {
-  plugin(plugin: unknown, config: unknown): MountPluginHandle
 }
 
 /** Minimal structural shape of a dynamically imported host plugin module. */
@@ -127,11 +110,9 @@ function lazyImport(specifier: string): () => Promise<HostModule | undefined> {
 export class LspMountRegistry {
   private readonly live = new Map<string, LiveMount>()
   /** Serialize mount and unmount passes so a disable cannot race an in-flight spawn. */
-  private reconcileQueue: Promise<void> = Promise.resolve()
-  /** Pending retry timers keyed by mount key, so a teardown can cancel them. */
-  private readonly retries = new Map<string, ReturnType<typeof setTimeout>>()
-  /** Attempt count per mount key; reset whenever a retry succeeds. */
-  private readonly attempts = new Map<string, number>()
+  private readonly passes = new SerialPassQueue()
+  /** Delayed re-attempts for mounts that are not live yet. */
+  private readonly retries: RetryScheduler
   /** Snapshot of the last reconciled suite set, replayed by retry passes. */
   private lastEnabled: Suite[] = []
   /** Host module loader; overridable for tests. */
@@ -162,16 +143,15 @@ export class LspMountRegistry {
     this.loadHost = loadHost ?? lazyImport(LSP_STDIO_IMPORT)
     this.loadService = loadService ?? lazyImport(LSP_SERVICE_IMPORT)
     this.loadTool = loadTool ?? lazyImport(LSP_TOOL_IMPORT)
+    this.retries = new RetryScheduler({
+      replay: () => this.reconcile(this.lastEnabled),
+      log: message => this.ctx.logger?.warn?.(`[dsh-agent-plugins-market] ${message}`)
+    })
   }
 
   /** Queue one reconciliation behind any in-flight mount/unmount pass. */
   reconcile(enabledSuites: Suite[]): Promise<LspMountDiagnostic[]> {
-    const run = this.reconcileQueue.then(() => this.reconcileNow(enabledSuites))
-    this.reconcileQueue = run.then(
-      () => undefined,
-      () => undefined
-    )
-    return run
+    return this.passes.run(() => this.reconcileNow(enabledSuites))
   }
 
   /** Mount/unmount LSP servers to match the enabled suites plus direct config exactly. */
@@ -239,7 +219,7 @@ export class LspMountRegistry {
       if (failure !== undefined) {
         diagnostics.push(failure)
         this.lastDiagnostics.set(key, failure)
-        this.scheduleRetry(key, failure.code === 'host-missing' ? undefined : failure)
+        this.retries.schedule({ key, label: failure.suiteId, ...(failure.code === 'host-missing' ? {} : { reason: failure.reason }) })
       } else {
         this.lastDiagnostics.delete(key)
       }
@@ -395,52 +375,15 @@ export class LspMountRegistry {
     }
   }
 
-  /**
-   * Schedule a delayed re-attempt for a mount that still is not live. A
-   * `host-missing` failure passes no diagnostic and is never retried; the
-   * schedule is bounded and resets with every reconcile pass.
-   */
-  private scheduleRetry(key: string, failure: LspMountDiagnostic | undefined): void {
-    const pending = this.retries.get(key)
-    if (pending !== undefined) clearTimeout(pending)
-    this.retries.delete(key)
-    if (failure === undefined || failure.code === 'host-missing') {
-      this.attempts.delete(key)
-      return
-    }
-    const attempt = (this.attempts.get(key) ?? 0) + 1
-    this.attempts.set(key, attempt)
-    if (attempt > MAX_RETRY_ATTEMPTS) {
-      this.ctx.logger?.warn?.(`[dsh-agent-plugins-market] ${failure.suiteId}: giving up after ${MAX_RETRY_ATTEMPTS} attempts — ${failure.reason}`)
-      return
-    }
-    const delay = RETRY_SCHEDULE_MS[attempt - 1] ?? RETRY_SCHEDULE_MS[RETRY_SCHEDULE_MS.length - 1]!
-    const timer = setTimeout(() => {
-      this.retries.delete(key)
-      // Re-run against the last known suite set: a retry must not resurrect
-      // servers of a suite that has since been disabled or uninstalled.
-      void this.reconcile(this.lastEnabled).catch(() => {})
-    }, delay)
-    timer.unref?.()
-    this.retries.set(key, timer)
-  }
-
   /** Dispose every live mount after queued reconciliation passes settle. */
   async disposeAll(): Promise<void> {
-    const run = this.reconcileQueue.then(async () => {
+    await this.passes.run(async () => {
       for (const [key, live] of [...this.live]) {
         await this.unmount(key, live)
       }
       await this.releaseCapability()
     })
-    this.reconcileQueue = run.then(
-      () => undefined,
-      () => undefined
-    )
-    await run
-    for (const timer of this.retries.values()) clearTimeout(timer)
     this.retries.clear()
-    this.attempts.clear()
   }
 }
 

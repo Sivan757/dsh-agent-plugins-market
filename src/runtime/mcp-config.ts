@@ -15,7 +15,7 @@ import type { Config, SseConfig } from './mcp-client/config.js'
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-client/config.js'
 import { resolveCwd } from '../catalog/validate.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
-import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
+import { applyOverride, type McpServerOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'
 
@@ -28,6 +28,18 @@ export interface McpMountRequest {
   suiteId: string
   serverKey: string
   config: Config
+}
+
+/** One `mcp.json` server as it will actually be used, with the user's override applied. */
+export interface EffectiveMcpServer {
+  serverKey: string
+  server: McpServerStdio | McpServerStreamableHttp | McpServerSse
+  /** The override that produced this view; consumers render its state from it. */
+  override: McpServerOverride | undefined
+  /** Whether the server is used at all — an override can disable a declaration without removing it. */
+  enabled: boolean
+  /** External credential references the effective definition needs. */
+  credentialRefs: string[]
 }
 
 export type McpMountFailureCode =
@@ -54,6 +66,23 @@ export interface McpCredentialResolver {
 }
 
 /**
+ * The effective view of one suite's `mcp.json` servers: the user's per-server
+ * overrides applied, every row flagged with whether it is used at all, and each
+ * row's credential references read off the effective shape. Mounting, status
+ * and detail rendering read this one projection, so a server cannot be listed
+ * as enabled while mounting something else.
+ */
+export function effectiveMcpServers(suite: Suite, overrides: McpSuiteOverrides = {}): EffectiveMcpServer[] {
+  const rows: EffectiveMcpServer[] = []
+  for (const [serverKey, source] of Object.entries(suite.mcp?.servers ?? {})) {
+    const override = overrides[serverKey]
+    const server = applyOverride(source as McpServerStdio | McpServerStreamableHttp | McpServerSse, override)
+    rows.push({ serverKey, server, override, enabled: override?.enabled !== false, credentialRefs: credentialRefsInServer(server) })
+  }
+  return rows
+}
+
+/**
  * Build one mount request per supported mcp.json server, resolving every
  * `${NAME}` through the credential resolver before a child process or HTTP
  * request is created. Missing references fail closed per server instead of
@@ -62,31 +91,33 @@ export interface McpCredentialResolver {
  * @param overrides user-owned per-server overrides (url/headers/env/args
  *   replacement plus enable/disable); applied before mount. Disabled servers
  *   are omitted entirely.
- * @returns mount requests plus per-server failures. serverName collisions are
- *   reported by the mount registry, not here.
+ * @returns mount requests, per-server failures, and the credential references
+ *   the effective servers need. serverName collisions are reported by the
+ *   mount registry, not here.
  */
 export async function toMcpMounts(
   suite: Suite,
   pluginDataRoot: string,
   overrides: McpSuiteOverrides = {},
   resolver: McpCredentialResolver = { resolve: async () => undefined }
-): Promise<{ mounts: McpMountRequest[]; failures: McpMountFailure[] }> {
-  if (suite.mcp === undefined) return { mounts: [], failures: [] }
+): Promise<{ mounts: McpMountRequest[]; failures: McpMountFailure[]; credentialRefs: string[] }> {
+  if (suite.mcp === undefined) return { mounts: [], failures: [], credentialRefs: [] }
   const mounts: McpMountRequest[] = []
   const failures: McpMountFailure[] = []
-  for (const [serverKey, source] of Object.entries(suite.mcp.servers)) {
-    const override = overrides[serverKey]
-    if (override?.enabled === false) continue
-    const server = applyOverride(source as McpServerStdio | McpServerStreamableHttp | McpServerSse, override)
+  const credentialRefs = new Set<string>()
+  for (const row of effectiveMcpServers(suite, overrides)) {
+    if (!row.enabled) continue
+    for (const ref of row.credentialRefs) credentialRefs.add(ref)
     try {
-      const result = await toResolvedMount(suite.mcp.root === undefined ? suite : { ...suite, root: suite.mcp.root }, serverKey, server, pluginDataRoot, resolver)
+      const target = suite.mcp.root === undefined ? suite : { ...suite, root: suite.mcp.root }
+      const result = await toResolvedMount(target, row.serverKey, row.server, pluginDataRoot, resolver)
       if (result.failure !== undefined) failures.push(result.failure)
       if (result.request !== undefined) mounts.push(result.request)
     } catch {
-      failures.push({ serverKey, code: 'credential-error', credentialRefs: credentialRefsInServer(server), reason: 'credential lookup failed' })
+      failures.push({ serverKey: row.serverKey, code: 'credential-error', credentialRefs: row.credentialRefs, reason: 'credential lookup failed' })
     }
   }
-  return { mounts, failures }
+  return { mounts, failures, credentialRefs: [...credentialRefs] }
 }
 
 /** Find external credential references used by one MCP server definition. */

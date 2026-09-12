@@ -1,10 +1,10 @@
-import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
-import { credentialRefsInServer, deriveServerName } from './mcp-config.js'
+import type { McpSuiteOverrides } from './mcp-overrides.js'
+import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
 import type { McpStatusEntry, McpStatusPayload, McpStatusState } from '../contracts/mcp-status.js'
 import { inspectToolRegistry, type McpToolSnapshot } from './tool-registry-observer.js'
 import { redactMcpConfig, redactUrl } from './mcp-redaction.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
-import type { McpServer, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
+import type { McpServer, Suite } from '../model/types.js'
 
 export type { McpStatusEntry, McpStatusPayload, McpStatusKind, McpStatusState } from '../contracts/mcp-status.js'
 export { inspectToolRegistry }
@@ -47,16 +47,15 @@ export function buildMcpStatus(
     // definitions only appear after their suite is both installed and enabled.
     if (suite.mcp === undefined || suite.installedAt === undefined || !suite.enabled) continue
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
-    const suiteOverrides = overrides.get(suiteKey)
-    for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
-      const override = suiteOverrides?.[serverKey]
+    for (const { serverKey, server: effective, override, enabled, credentialRefs: refs } of effectiveMcpServers(suite, overrides.get(suiteKey))) {
       const serverName = deriveServerName(suite.id, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
       const diagnostic = diagnosticsByKey.get(`${suiteKey}\u0000${serverKey}`)
-      const effective = applyOverride(server as McpServerStdio | McpServerStreamableHttp, override)
-      const credentialRefs = [...new Set([...credentialRefsInServer(effective), ...(diagnostic?.credentialRefs ?? [])])].sort()
-      const disabled = override?.enabled === false || suite.activeSurfaces?.mcp === false
+      const credentialRefs = [...new Set([...refs, ...(diagnostic?.credentialRefs ?? [])])].sort()
+      // The declaration stays on the inventory when an override disables it:
+      // the panel shows what the suite ships and how the user changed it.
+      const disabled = !enabled || suite.activeSurfaces?.mcp === false
       const orphaned = disabled && tools.length > 0
       // A duplicate copy shares the live serverName, so observed tools land
       // on it too — that does not make it connected: its own diagnostic says
