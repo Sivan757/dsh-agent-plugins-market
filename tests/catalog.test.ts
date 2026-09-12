@@ -6,11 +6,17 @@ import { Catalog } from '../src/application/catalog.js'
 
 const fixture = join(process.cwd(), 'tests', 'fixtures', 'v1-suite')
 
+/** A temp user root with the v1-suite fixture checked out as local source `demo`. */
+async function seededUserRoot(prefix: string): Promise<string> {
+  const userRoot = await mkdtemp(join(tmpdir(), prefix))
+  await mkdir(join(userRoot, '.sources', 'demo'), { recursive: true })
+  await cp(fixture, join(userRoot, '.sources', 'demo'), { recursive: true })
+  return userRoot
+}
+
 describe('Catalog application module', () => {
   it('reuses a coherent user snapshot until a mutation invalidates it', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-catalog-'))
-    await mkdir(join(userRoot, '.sources', 'demo'), { recursive: true })
-    await cp(fixture, join(userRoot, '.sources', 'demo'), { recursive: true })
+    const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-')
     const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
     await catalog.load()
     await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
@@ -32,9 +38,7 @@ describe('Catalog application module', () => {
     // Regression: the user snapshot was cached without a TTL, so a skill
     // dropped into a local source's working tree stayed invisible until the
     // next catalog mutation.
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-catalog-ttl-'))
-    await mkdir(join(userRoot, '.sources', 'demo'), { recursive: true })
-    await cp(fixture, join(userRoot, '.sources', 'demo'), { recursive: true })
+    const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-ttl-')
     const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, userSnapshotTtlMs: 10 })
     await catalog.load()
     await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
@@ -52,9 +56,7 @@ describe('Catalog application module', () => {
   })
 
   it('waits for the runtime change callback before a mutation resolves', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-catalog-await-'))
-    await mkdir(join(userRoot, '.sources', 'demo'), { recursive: true })
-    await cp(fixture, join(userRoot, '.sources', 'demo'), { recursive: true })
+    const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-await-')
     let hold = false
     let callbackStarted = false
     let callbackEntered!: () => void

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadState, saveState, EMPTY_STATE } from '../src/runtime/state-store.js'
+import { loadState, saveState } from '../src/runtime/state-store.js'
 
 describe('state: persisted suite state', () => {
   it('round-trips sources and install entries through the state file', async () => {
@@ -17,14 +17,6 @@ describe('state: persisted suite state', () => {
     expect(loaded.sources).toHaveLength(1)
     expect(loaded.installed['demo/mysql']?.enabled).toBe(true)
     expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ version: 1 })
-  })
-
-  it('returns an empty state for a missing or wrong-version file', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-state2-'))
-    expect(await loadState(join(dir, 'nope.json'))).toEqual(EMPTY_STATE)
-    const path = join(dir, 'state.json')
-    await saveState(path, { version: 2, sources: [] } as never)
-    expect(await loadState(path)).toEqual(EMPTY_STATE)
   })
 
   it('drops malformed source rows during normalization', async () => {

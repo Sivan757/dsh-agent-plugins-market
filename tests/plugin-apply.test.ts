@@ -97,26 +97,7 @@ describe('dsh-agent-plugins-market host entry', () => {
     const watchers: Array<() => void> = []
     const state = { mcpEnhanced: true, feedbackEnabled: false, downloadRegion: 'auto' }
     const cleanups: Array<() => void> = []
-    const context = {
-      inject: (services: string[], callback: (value: unknown) => void) => {
-        if (services.includes('settings')) {
-          callback({
-            settings: {
-              register: () => ({
-                get: () => state,
-                watch: (watcher: () => void) => {
-                  watchers.push(watcher)
-                  return () => {}
-                }
-              })
-            }
-          })
-        }
-      },
-      skills: { registerProvider: () => {} },
-      effect: (effect: () => () => void) => cleanups.push(effect()),
-      logger: { warn: () => {} }
-    }
+    const context = createContext({ state, watchers, logs: [], cleanups })
     await apply(context as never)
     await vi.waitFor(() => expect(reconcile).toHaveBeenCalledOnce())
     state.downloadRegion = 'china'

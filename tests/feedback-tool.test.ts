@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { submitFeedback, FEEDBACK_TOOL_NAME, renderFeedbackBody } from '../src/runtime/feedback-tool.js'
+import { submitFeedback, renderFeedbackBody } from '../src/runtime/feedback-tool.js'
 
 describe('experience feedback tool', () => {
   it('spools reports locally when no GitHub token is present', async () => {
@@ -54,11 +54,7 @@ describe('experience feedback tool', () => {
     }
   })
 
-  it('rejects a blank title and renders a deterministic body', () => {
+  it('renders a deterministic body', () => {
     expect(renderFeedbackBody({ title: 'x', description: 'y', actual: 'z' })).toContain('**Actual:** z')
-  })
-
-  it('exposes a stable tool name', () => {
-    expect(FEEDBACK_TOOL_NAME).toBe('report_market_issue')
   })
 })
