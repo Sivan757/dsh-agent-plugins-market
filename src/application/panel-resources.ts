@@ -18,6 +18,20 @@ export interface PanelResourceStore {
   remove(id: string): Promise<void>
 }
 
+/**
+ * Id of one panel entry backed by a file inside an installed suite's checkout.
+ * The leading `[` is what distinguishes a plugin entry from a user-authored
+ * one; `update`/`remove` use {@link isPluginResourceId} to tell them apart.
+ */
+export function pluginResourceId(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): string {
+  return JSON.stringify([sourceId, suiteId, kind, name])
+}
+
+/** Whether a panel entry id addresses a file inside an installed suite. */
+export function isPluginResourceId(id: string): boolean {
+  return id.startsWith('[')
+}
+
 export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelStore>): Record<UserPanelKind, PanelResourceStore> {
   return {
     skills: new PanelResources(catalog, users.skills, 'skills'),
@@ -36,9 +50,8 @@ class PanelResources implements PanelResourceStore {
   async list(strict = false): Promise<UserPanelEntryWire[]> {
     const entries: UserPanelEntryWire[] = await this.users.list(strict)
     const snapshot = await this.catalog.readUserCatalog()
-    const installed = new Set((await this.catalog.overview()).suites.filter(suite => suite.installed).map(suite => JSON.stringify([suite.sourceId, suite.suiteId])))
     for (const suite of snapshot.suites) {
-      if (!installed.has(JSON.stringify([suite.sourceId, suite.id])) || suite.remote !== undefined) continue
+      if (!this.catalog.isInstalled(suite.sourceId, suite.id) || suite.remote !== undefined) continue
       const files =
         this.kind === 'skills'
           ? suite.skills.map(skill => ({ name: skill.name, file: skill.file }))
@@ -57,7 +70,7 @@ class PanelResources implements PanelResourceStore {
           metadata = { disabled: true, validationError: String(error) }
         }
         entries.push({
-          id: JSON.stringify([suite.sourceId, suite.id, this.kind, name]),
+          id: pluginResourceId(suite.sourceId, suite.id, this.kind, name),
           name,
           origin: 'plugin',
           suiteName: suite.manifest.name,
@@ -93,13 +106,13 @@ class PanelResources implements PanelResourceStore {
   }
 
   async update(id: string, text: string): Promise<void> {
-    if (!id.startsWith('[')) return this.users.update(id, text)
+    if (!isPluginResourceId(id)) return this.users.update(id, text)
     parseFrontmatterRecord(text)
     await writeFile(await this.pluginPath(id), text, 'utf8')
   }
 
   async remove(id: string): Promise<void> {
-    if (!id.startsWith('[')) return this.users.remove(id)
+    if (!isPluginResourceId(id)) return this.users.remove(id)
     await unlink(await this.pluginPath(id))
   }
 }

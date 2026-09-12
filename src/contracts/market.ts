@@ -70,15 +70,6 @@ export function userPanelMutationRoute(kind: UserPanelKind, mutation: UserPanelM
   return name === undefined ? base : `${base}?name=${encodeURIComponent(name)}`
 }
 
-/** The MCP mount backend state reported to the settings page. */
-export interface McpBackendPayload {
-  backend: 'builtin' | 'host'
-  /** Whether the host `dsh-mcp-client` resolves from the plugin context. */
-  hostClient: { available: boolean; version?: string }
-  /** Download region: the persisted setting and its locale-resolved route. */
-  downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
-}
-
 /** One unmanaged `.sources/` checkout the user can adopt as a source. */
 export interface UnmanagedSource {
   id: string
