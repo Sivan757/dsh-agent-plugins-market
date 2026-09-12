@@ -25,7 +25,8 @@
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-    "build": "tsc -p tsconfig.json && pnpm run build:client",
+    "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
+    "build": "pnpm run clean && tsc -p tsconfig.json && pnpm run build:client",
     "build:client": "tsdown && node scripts/normalize-client-banner.mjs",
     "test": "vitest run",
     "test:contract": "vitest run tests/market-contracts.test.ts tests/routes.test.ts",

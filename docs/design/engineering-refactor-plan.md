@@ -282,8 +282,6 @@ pnpm build
 
 Use an established dependency rule tool instead of maintaining a custom import scanner.
 
-Build validation must run on a clean worktree or a disposable copy.
-
 ## Acceptance criteria
 
 - A user adds a Git or local catalog source without code changes.

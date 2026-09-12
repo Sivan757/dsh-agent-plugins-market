@@ -47,6 +47,10 @@ runtime 的五个挂载注册表里有三个——MCP、LSP 与 hooks——按 s
 - LSP 面板新增的视图模型目前只由面板渲染测试覆盖，单元测试会是更强的保障。
 - `src/application/` 仍然可以导入 `src/runtime/`；该方向保持"已声明、待处理"，而不是被禁止。
 
+## Consequences
+
+打包问题不是读代码发现的，而是把构建产物真正装进一个新 profile 时暴露的：`tsc` 从不清理输出目录，因此只要一个模块被搬过位置，构建产物里就会留下它的旧副本——tarball 里带上了 13 个没有源文件对应的模块，其中一个正是本次搬走的 state 编解码器。现在 `pnpm run build` 会先清空 `lib/`，顺带让"必须在干净工作区验证构建"这一变通做法不再必要。
+
 ## Verification
 
 - `pnpm run check:refactor` —— 两个 TypeScript 工程、ESLint、Prettier、契约测试与 dependency-cruiser —— 全绿。

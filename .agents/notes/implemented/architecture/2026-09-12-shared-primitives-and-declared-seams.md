@@ -47,6 +47,10 @@ Alongside the structure: seven catalog exports with no consumer (including three
 - The LSP panel's new view model is covered by the panel render tests rather than a unit test; a unit test would be the stronger guard.
 - `src/application/` may still import `src/runtime/`; that direction stays declared-and-deferred rather than banned.
 
+## Consequences
+
+Fixing the packaging came out of installing the built package into a fresh profile rather than from reading it: `tsc` never prunes its output directory, so a tree that had ever moved a module shipped the stale compiled copy — the tarball carried thirteen modules with no source counterpart, one of them the state codec this work relocated. `pnpm run build` now clears `lib/` first, which also makes the "validate the build on a clean worktree" workaround unnecessary.
+
 ## Verification
 
 - `pnpm run check:refactor` — both TypeScript projects, ESLint, Prettier, the contract suites and dependency-cruiser — green.
