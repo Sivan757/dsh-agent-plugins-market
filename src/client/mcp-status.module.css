@@ -355,3 +355,52 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   word-break: break-all;
 }
+
+/* Legacy profile LSP layer: a one-action upgrade repair above the inventory.
+   Warn-toned rather than error-toned — nothing is broken, one file needs a row
+   removed — and it carries the exact path so the edit is verifiable by hand. */
+.seamBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309);
+  border-radius: 8px;
+  background: var(--dsw-alias-state-warn-tertiary, rgba(180, 83, 9, 0.08));
+}
+.seamTitle {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #1f2329);
+}
+.seamBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary, #4e5969);
+}
+.seamPathLabel {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+}
+.seamPath {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary, #4e5969);
+  overflow-wrap: anywhere;
+}
+.seamOther {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+}
+.seamDone {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-success-primary, #15803d);
+}

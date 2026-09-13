@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { LspMountRegistry, toLspServerConfig, type LspStdioServerConfig } from '../src/runtime/lsp-mounts.js'
+import type { LegacyLspSeam } from '../src/runtime/profile-seam.js'
 import type { Suite } from '../src/model/types.js'
 import { required } from './helpers/fixture.js'
 
@@ -88,7 +89,7 @@ function mountCtx(
     ctx,
     disposed: () => disposed,
     disposedConfigs: () => disposedConfigs,
-    build: (loadHost: () => Promise<unknown>) => new LspMountRegistry(ctx as never, loadHost as never, capability(), capability())
+    build: (loadHost: () => Promise<unknown>) => new LspMountRegistry(ctx as never, loadHost as never, capability(), capability(), noProfiles)
   }
 }
 
@@ -131,9 +132,22 @@ function provisionCtx(options: { failOn?: 'lsp-service' | 'lsp-tool'; message?: 
   return { ctx, mounts }
 }
 
+/**
+ * No profile carries a legacy LSP layer in these tests. The real locator reads
+ * the machine's own `$DSH_HOME`, which would make a conflict message depend on
+ * whatever the developer running the suite happens to have configured.
+ */
+const noProfiles = async (): Promise<LegacyLspSeam[]> => []
+
 /** Build a registry whose three host loaders are instrumented stubs. */
-function provisionRegistry(ctx: unknown, mounted: MountedConfig[] = [], service: unknown = moduleLoader('lsp-service'), tool: unknown = moduleLoader('lsp-tool')) {
-  return new LspMountRegistry(ctx as never, hostLoader('ok', mounted) as never, service as never, tool as never)
+function provisionRegistry(
+  ctx: unknown,
+  mounted: MountedConfig[] = [],
+  service: unknown = moduleLoader('lsp-service'),
+  tool: unknown = moduleLoader('lsp-tool'),
+  locateSeams: () => Promise<LegacyLspSeam[]> = noProfiles
+) {
+  return new LspMountRegistry(ctx as never, hostLoader('ok', mounted) as never, service as never, tool as never, locateSeams)
 }
 
 describe('LspMountRegistry', () => {
@@ -290,6 +304,36 @@ describe('LspMountRegistry', () => {
     expect(serviceConflict.reason).toContain('remove that layer')
     // Nothing else was mounted: the provider cannot register without the seam it owns.
     expect(mounts).toEqual([])
+    await registry.disposeAll()
+  })
+
+  it('names the profile and the file to edit when a legacy layer is found', async () => {
+    const { ctx } = provisionCtx({ failOn: 'lsp-service' })
+    const registry = provisionRegistry(ctx, [], moduleLoader('lsp-service'), moduleLoader('lsp-tool'), async () => [
+      {
+        profile: 'web',
+        dir: '/home/u/.dsh/profiles/web',
+        patchPath: '/home/u/.dsh/profiles/web/cordis.patch.yml',
+        rows: [{ id: 'lsp', name: '@deepseek-ai/dsh-lsp' }],
+        bundles: [],
+        dependencies: ['@deepseek-ai/dsh-lsp'],
+        patchReload: 'live' as const
+      }
+    ])
+    const conflict = required((await registry.reconcile([lspSuite('ts')]))[0], 'the taken lsp service to report one conflict')
+    expect(conflict.reason).toContain('profile "web"')
+    expect(conflict.reason).toContain('cordis.patch.yml')
+    await registry.disposeAll()
+  })
+
+  it('still explains the conflict when the machine cannot be read', async () => {
+    const { ctx } = provisionCtx({ failOn: 'lsp-service' })
+    const registry = provisionRegistry(ctx, [], moduleLoader('lsp-service'), moduleLoader('lsp-tool'), async () => {
+      throw new Error('unreadable')
+    })
+    const conflict = required((await registry.reconcile([lspSuite('ts')]))[0], 'the taken lsp service to report one conflict')
+    expect(conflict.code).toBe('seam-conflict')
+    expect(conflict.reason).toContain('remove that layer')
     await registry.disposeAll()
   })
 

@@ -10,7 +10,7 @@
  * know which collaborator owns a given invariant.
  */
 import { qualifiedSuiteId } from '../catalog/paths.js'
-import type { LspStatusPayload } from '../contracts/lsp-status.js'
+import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, ServerConfigPayload, SkillContent, SourceOverview, SourceProgress, SuiteDetail } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { SourceRef, Suite, SuiteSurfaceKey } from '../model/types.js'
@@ -355,6 +355,15 @@ export class Catalog implements MarketService {
   /** Enable or disable one declared language server by row id. */
   async setLspServerEnabled(id: string, enabled: boolean): Promise<void> {
     await this.lsp.setEnabled(id, enabled)
+  }
+
+  /**
+   * Remove one profile's legacy LSP layer — the hand-written
+   * `cordis.patch.yml` rows an older release told users to add, which now
+   * register a seam this plugin owns.
+   */
+  async migrateLegacyLspSeam(profile: string): Promise<LspLegacySeamMigration> {
+    return this.lsp.migrateLegacySeam(profile)
   }
 }
 

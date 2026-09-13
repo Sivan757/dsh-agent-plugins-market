@@ -22,6 +22,8 @@ The plugin owns the whole capability chain: it installs the three packages and m
 
 **Nothing asks what the profile already carries.** Provisioning is a property of the plugin, not of the deployment: this package's dependency declaration decides the version, so deferring to a seam another layer registered would silently run that layer's version instead. Both mounts are therefore unconditional, and a seam that is already taken comes back as a `seam-conflict` diagnostic naming the layer to remove — a manual `cordis.patch.yml` row, or a profile dependency on the package. Failing loudly is the only way the aligned copy becomes the one that runs.
 
+Because this change turns the layer the previous documentation told users to add by hand into a conflict, the removal is a supported action rather than only a message: see [upgrading past the hand-written profile LSP layer](../../bug-fix/2026-09-13-legacy-profile-lsp-layer-removal.md).
+
 **Failure stays a diagnostic, not a retry.** A capability package that cannot be loaded reports `host-missing` with the reinstall command and never enters the retry schedule; the failure is re-attempted on the next reconcile pass, so repairing a profile recovers without a restart of the plugin.
 
 The alignment gate ([host dependency alignment gate](../process/2026-09-11-host-dependency-alignment-gate.md)) grew the matching rule: a `dependencies` entry must carry `^<baseline>`, a host package referenced from `src/` may be declared in either section, and `--fix` never moves a package between them.

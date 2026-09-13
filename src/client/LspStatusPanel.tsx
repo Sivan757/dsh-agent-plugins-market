@@ -18,7 +18,16 @@ import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
 import { parseServerConfig } from './ui/server-form.js'
 import { PanelHeader, PanelActions } from './ui/panel.js'
 import type { Translate } from './index.js'
-import { addLspServer, fetchLspStatus, type LspStatusEntry, type LspStatusPayload, type LspStatusState } from './api.js'
+import {
+  addLspServer,
+  fetchLspStatus,
+  migrateLspSeam,
+  type LspLegacySeam,
+  type LspLegacySeamMigration,
+  type LspStatusEntry,
+  type LspStatusPayload,
+  type LspStatusState
+} from './api.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
@@ -60,6 +69,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<LspStatusEntry | undefined>(undefined)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [seamMigration, setSeamMigration] = useState<LspLegacySeamMigration | undefined>(undefined)
 
   const refresh = (): void => {
     setLoading(true)
@@ -109,6 +119,18 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     'div',
     { className: css.surface },
     h(PanelHeader, { title: t('lspStatusTitle'), subtitle: t('lspStatusSubtitle'), actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setEditorOpen(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading }) }),
+    payload.legacySeam === undefined
+      ? seamMigration === undefined
+        ? null
+        : h(SeamResult, { result: seamMigration, t })
+      : h(SeamBanner, {
+          seam: payload.legacySeam,
+          t,
+          onMigrated: result => {
+            setSeamMigration(result)
+            refresh()
+          }
+        }),
     h(SearchFilterToolbar, {
       className: css.toolbar,
       search,
@@ -151,6 +173,59 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
           }
         })
       : null
+  )
+}
+
+/**
+ * One-action upgrade repair for a profile that still carries the hand-written
+ * LSP layer the pre-self-provisioning instructions asked for. The panel only
+ * offers this while a `seam-conflict` is actually reported, and the action
+ * edits exactly the one profile named here.
+ */
+function SeamBanner({ seam, t, onMigrated }: { seam: LspLegacySeam; t: Translate; onMigrated: (result: LspLegacySeamMigration) => void }): ReactNode {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | undefined>(undefined)
+
+  const migrate = async (): Promise<void> => {
+    setBusy(true)
+    setError(undefined)
+    try {
+      onMigrated(await migrateLspSeam(seam.profile))
+    } catch (reason) {
+      setError(clientErrorMessage(t, reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return h(
+    'div',
+    { className: css.seamBanner, role: 'status' },
+    h('span', { className: css.seamTitle }, t('lspSeamTitle')),
+    h('p', { className: css.seamBody }, t('lspSeamBody')),
+    h('span', { className: css.seamPathLabel }, t('lspSeamFile')),
+    h('p', { className: css.seamPath }, seam.patchPath),
+    seam.otherProfiles.length === 0 ? null : h('p', { className: css.seamOther }, `${t('lspSeamOther')} ${seam.otherProfiles.join(', ')}`),
+    error === undefined ? null : h('div', { className: css.error }, error),
+    h(
+      'div',
+      { className: css.modalFooter },
+      h(Button, { variant: 'primary', size: 'sm', disabled: busy, onClick: () => void migrate() }, busy ? t('lspSeamRemoving') : t('lspSeamRemove'))
+    )
+  )
+}
+
+/**
+ * The outcome of a removal, held by the panel rather than the banner: the
+ * refresh that follows takes the banner away, and the confirmation — with the
+ * backup path that makes the edit reversible — must outlive it.
+ */
+function SeamResult({ result, t }: { result: LspLegacySeamMigration; t: Translate }): ReactNode {
+  return h(
+    'div',
+    { className: css.seamBanner, role: 'status' },
+    h('p', { className: css.seamDone }, result.restartRequired ? t('lspSeamRestart') : t('lspSeamDone')),
+    h('p', { className: css.seamPath }, `${t('lspSeamBackup')} ${result.backupPath}`)
   )
 }
 

@@ -22,6 +22,8 @@ Status: implemented
 
 **不去问 profile 里已经有什么。** 供给是插件的属性，不是部署方的属性：版本由本包的依赖声明决定，让位给别的层注册的 seam 就等于静默运行那一层的版本。因此两次挂载都是无条件的，而被占用的 seam 会以 `seam-conflict` 诊断返回，并点名要移除的那一层——手工的 `cordis.patch.yml` 行，或 profile 对该包的依赖。只有响亮地失败，才是让对齐后的副本真正运行起来的唯一途径。
 
+由于这次改动把「旧文档让用户手工添加的那一层」变成了冲突，移除它是一项受支持的动作，而不再只是一句提示：见[升级时清理 profile 里手工添加的 LSP 层](../../bug-fix/2026-09-13-legacy-profile-lsp-layer-removal.zh.md)。
+
 **失败仍是诊断，不是重试。** 加载不到能力包时报告 `host-missing` 并给出重装命令，且永不进入重试调度；该失败会在下一次 reconcile 时重试，因此修好 profile 无需重启插件即可恢复。
 
 对齐门禁（[宿主依赖对齐门禁](../process/2026-09-11-host-dependency-alignment-gate.md)）增加了配套规则：`dependencies` 条目必须携带 `^<baseline>`，源码引入的宿主包可声明在两个段中的任意一个，而 `--fix` 从不在两段之间搬动包。

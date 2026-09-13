@@ -29,6 +29,7 @@
     "tests/client-view-models.test.ts",
     "tests/client-workspace-view.test.ts",
     "tests/filter-toolbar.test.ts",
+    "tests/lsp-seam-render.test.ts",
     "tests/markdown-crash.test.ts",
     "tests/market-section-render.test.ts",
     "tests/mcp-status-render.test.ts",

@@ -326,6 +326,14 @@ export function mountSuiteRoutes(
     await manager.setLspServerEnabled(id, enabled)
     return {}
   })
+  // Upgrade repair: drop the hand-written profile layer an older release told
+  // the user to add for LSP. It edits a file the user owns, so the profile
+  // name is matched against what is on disk and nothing else is touched.
+  post(MARKET_ROUTES.migrateLspSeam, async body => {
+    const profile = textField(body['profile'] ?? '', 'profile name').trim()
+    if (profile === '') throw new Error('missing profile name')
+    return { migration: await manager.migrateLegacyLspSeam(profile) }
+  })
 
   // User panel CRUD (skills / commands / agent personas). The host web
   // server matches exact pathnames, so the entry name rides the `name` query

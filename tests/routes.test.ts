@@ -41,6 +41,7 @@ function service(): MarketService {
     addLspServer: async () => {},
     setLspServers: async () => ({}),
     setLspServerEnabled: async () => {},
+    migrateLegacyLspSeam: async profile => ({ profile, patchPath: '/p/cordis.patch.yml', backupPath: '/p/cordis.patch.yml.bak', restartRequired: false }),
     retryMounts: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
@@ -334,6 +335,8 @@ describe('market HTTP routes', () => {
       [MARKET_ROUTES.updateSource, MARKET_ROUTES.updateSource, { id: 'source', sha256: { hex: 'a'.repeat(64) } }, 'sha256 must be a string'],
       [`${MARKET_ROUTES.lspServers}/enabled`, `${MARKET_ROUTES.lspServers}/enabled`, { id: {}, enabled: true }, 'LSP server id must be a string'],
       [`${MARKET_ROUTES.lspServers}/enabled`, `${MARKET_ROUTES.lspServers}/enabled`, { id: 'x', enabled: 'yes' }, 'missing boolean enabled'],
+      [MARKET_ROUTES.migrateLspSeam, MARKET_ROUTES.migrateLspSeam, { profile: {} }, 'profile name must be a string'],
+      [MARKET_ROUTES.migrateLspSeam, MARKET_ROUTES.migrateLspSeam, { profile: '  ' }, 'missing profile name'],
       [`${panelRoute}/create`, `${panelRoute}/create`, { name: {}, text: '# body' }, 'entry name must be a string'],
       [`${panelRoute}/create`, `${panelRoute}/create`, { name: 'demo', text: { body: '# body' } }, 'entry text must be a string'],
       [`${panelRoute}/update`, `${panelRoute}/update?name=demo`, { text: ['# body'] }, 'entry text must be a string'],
@@ -360,6 +363,28 @@ describe('market HTTP routes', () => {
       await settle()
       expect(okResponse.value()).toMatchObject({ ok: true })
       expect(storeInputs).toEqual(['https://example.com/repo'])
+    } finally {
+      dispose()
+    }
+  })
+
+  it('removes the legacy LSP layer for the named profile only', async () => {
+    const routes: RouteTable = new Map()
+    const requested: string[] = []
+    const withMigration: MarketService = {
+      ...service(),
+      migrateLegacyLspSeam: async profile => {
+        requested.push(profile)
+        return { profile, patchPath: '/p/cordis.patch.yml', backupPath: '/p/cordis.patch.yml.bak-lsp-seam', restartRequired: false }
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, withMigration)
+    try {
+      const output = response()
+      await routes.get(MARKET_ROUTES.migrateLspSeam)!(postRequest(MARKET_ROUTES.migrateLspSeam, { profile: '  web  ' }), output)
+      await settle()
+      expect(output.value()).toMatchObject({ ok: true, migration: { profile: 'web' } })
+      expect(requested).toEqual(['web'])
     } finally {
       dispose()
     }

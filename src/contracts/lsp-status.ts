@@ -48,4 +48,38 @@ export interface LspStatusPayload {
   totals: { all: number; mounted: number; failed: number; blocked: number; disabled: number }
   /** True when the host lacks the LSP packages, so every declaration is blocked. */
   hostMissing: boolean
+  /**
+   * A profile layer that still registers the seam this plugin owns, present
+   * only while a `seam-conflict` is actually being reported. Releases before
+   * the plugin provisioned LSP itself told users to add such a layer by hand,
+   * so an upgrade can land here and the panel offers to remove it.
+   */
+  legacySeam?: LspLegacySeam
+}
+
+/** One profile layer that must be removed before this plugin can own the LSP seam. */
+export interface LspLegacySeam {
+  /** Profile name, as passed to `dsh --profile`. */
+  profile: string
+  /** Absolute path of the profile's patch file. */
+  patchPath: string
+  /** The conflicting `insert` rows, as `id` plus package name. */
+  rows: Array<{ id: string; name: string }>
+  /** Other profiles carrying a legacy layer, which this action does not touch. */
+  otherProfiles: string[]
+  /** Whether the host must restart before the removal takes effect. */
+  restartRequired: boolean
+  /** Human-readable summary of the layer, used in the panel copy. */
+  summary: string
+}
+
+/** The outcome of removing one profile's legacy LSP layer. */
+export interface LspLegacySeamMigration {
+  profile: string
+  /** Absolute path of the patch file that was edited. */
+  patchPath: string
+  /** Where the pre-edit content was kept. */
+  backupPath: string
+  /** True when the host must restart before the removal takes effect. */
+  restartRequired: boolean
 }

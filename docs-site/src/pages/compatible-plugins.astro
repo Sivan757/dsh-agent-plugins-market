@@ -22,7 +22,7 @@ const skills = [
   'Valid MCP declarations use the built-in bridge by default; optional host-client compatibility mode is available.',
   'hooks/hooks.json bridges to DSH interception points: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop.',
   'Commands use the host slash registry. Roles enter a dynamic subagent catalog and run through subagent_run with their saved provider, model, reasoning effort and tool restrictions; this requires host agents, tools, LLM and subagents.',
-  'LSP declarations mount when host LSP packages are available; agent use also needs the LSP tool in the profile.',
+  'LSP declarations mount through the LSP packages the plugin installs itself; only the language-server executable has to be on PATH.',
 ];
 ---
 <Base

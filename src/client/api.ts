@@ -25,7 +25,7 @@ export type {
   UserPanelKind
 } from '../contracts/market.js'
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../contracts/mcp-status.js'
-export type { LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
+export type { LspStatusEntry, LspStatusPayload, LspStatusState, LspLegacySeam, LspLegacySeamMigration } from '../contracts/lsp-status.js'
 export type { McpBackendInfo }
 
 /** The market overview wire, under the name the client surfaces use. */
@@ -153,6 +153,17 @@ export async function fetchLspStatus(background = false): Promise<LspStatusPaylo
 export async function addLspServer(name: string, config: Record<string, unknown>): Promise<void> {
   return withBusyOperation(async () => {
     await postAction('lsp-servers/add', { name, config })
+  })
+}
+
+/**
+ * Remove a profile's hand-written LSP layer — the `cordis.patch.yml` rows an
+ * older release told users to add, which now claim the seam this plugin owns.
+ */
+export async function migrateLspSeam(profile: string): Promise<import('../contracts/lsp-status.js').LspLegacySeamMigration> {
+  return withBusyOperation(async () => {
+    const payload = await postAction('lsp-servers/migrate-seam', { profile })
+    return payload.migration as import('../contracts/lsp-status.js').LspLegacySeamMigration
   })
 }
 

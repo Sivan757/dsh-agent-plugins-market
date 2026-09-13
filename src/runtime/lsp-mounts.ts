@@ -30,6 +30,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { DIRECT_LSP_SUITE_ID } from './lsp-status.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
+import { describeLegacySeam, findLegacyLspSeams, type LegacyLspSeam } from './profile-seam.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { effectiveSurfaces, type Suite } from '../model/types.js'
 
@@ -117,6 +118,12 @@ export class LspMountRegistry {
   private lastEnabled: Suite[] = []
   /** Host module loader; overridable for tests. */
   private loadHost: () => Promise<HostModule | undefined>
+  /**
+   * Reads the profile files when a seam conflict needs explaining. Injectable
+   * because it touches the machine's own `$DSH_HOME`, so a test must not
+   * inherit whatever the developer running it happens to have configured.
+   */
+  private readonly locateSeams: () => Promise<LegacyLspSeam[]>
   /** `ctx.lsp` seam loader, mounted only when the profile supplies no service. */
   private loadService: () => Promise<HostModule | undefined>
   /** `lsp` tool loader, mounted only when the profile publishes no such tool. */
@@ -138,11 +145,13 @@ export class LspMountRegistry {
     private readonly ctx: Context,
     loadHost?: () => Promise<HostModule | undefined>,
     loadService?: () => Promise<HostModule | undefined>,
-    loadTool?: () => Promise<HostModule | undefined>
+    loadTool?: () => Promise<HostModule | undefined>,
+    locateSeams?: () => Promise<LegacyLspSeam[]>
   ) {
     this.loadHost = loadHost ?? lazyImport(LSP_STDIO_IMPORT)
     this.loadService = loadService ?? lazyImport(LSP_SERVICE_IMPORT)
     this.loadTool = loadTool ?? lazyImport(LSP_TOOL_IMPORT)
+    this.locateSeams = locateSeams ?? findLegacyLspSeams
     this.retries = new RetryScheduler({
       replay: () => this.reconcile(this.lastEnabled),
       log: message => this.ctx.logger?.warn?.(`[dsh-agent-plugins-market] ${message}`)
@@ -282,15 +291,28 @@ export class LspMountRegistry {
       // `service "lsp" has been registered` / `tool "lsp" is already registered`: another layer
       // owns the seam. Report the layer to drop rather than falling back to its version.
       if (/already registered|has been registered/.test(message)) {
-        return {
-          reason: `the profile already registers its own ${specifier} (${message}); remove that layer from the profile (a manual \`cordis.patch.yml\` row, or a profile dependency on the package) so this plugin's aligned copy owns the seam`,
-          code: 'seam-conflict'
-        }
+        return { reason: await this.seamConflictReason(specifier, message), code: 'seam-conflict' }
       }
       return { reason: `mount failed: ${message}`, code: 'mount-failed' }
     }
     this.capability.push(handle)
     return undefined
+  }
+
+  /**
+   * Explain a taken seam, naming the profile layer to remove when one can be
+   * found on disk. Releases before the plugin provisioned LSP itself told users
+   * to add that layer by hand, so the message points at the exact file and rows
+   * rather than at "the profile" in general.
+   */
+  private async seamConflictReason(specifier: string, message: string): Promise<string> {
+    const head = `the profile already registers its own ${specifier} (${message})`
+    const seams = await this.locateSeams().catch(() => [])
+    const seam = seams[0]
+    if (seam === undefined) {
+      return `${head}; remove that layer from the profile (a manual \`cordis.patch.yml\` row, or a profile dependency on the package) so this plugin's aligned copy owns the seam`
+    }
+    return `${head}; ${describeLegacySeam(seam)} — remove those rows (the LSP panel offers a one-click removal) so this plugin's aligned copy owns the seam`
   }
 
   /** Dispose the capability seam this registry mounted, once no wanted server needs it. */

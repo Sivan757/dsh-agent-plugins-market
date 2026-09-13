@@ -224,7 +224,7 @@ CC 契约与 dsh-lsp-stdio Config 字段几乎一一对应，零转换损耗；�
 - `ctx.plugin` 挂载失败（含 `resolveExecutable` 找不到 command、extension 冲突、Config 校验失败）→ `mount-failed` 诊断，进既有 RETRY_SCHEDULE（`resolveExecutable` 在 load 时解析，用户 npm i -g 后重试即可恢复，重试有真实收益）；
 - 失败粒度是整个 suite 挂载（Config 级），诊断中列出受影响 serverKey。
 
-**工具可用性**：`lsp` 模型工具由宿主 `tool-lsp` 插件提供，市场不复制其 prompt/语义。市场自己保证这条组合链：`@deepseek-ai/dsh-lsp`、`dsh-lsp-stdio`、`dsh-tool-lsp` 作为插件的 `dependencies` 随安装进入 profile（dsh profile 设 `autoInstallPeers: false`，peer 不会被安装），第一个需要挂载的 server 触发 `ctx.lsp` 与 `lsp` 工具的挂载、最后一个 server 移除时释放，因此不需要用户改 profile。**市场不探测 profile 已有什么**：版本由插件的依赖声明决定，让位给别的层注册的 seam 就等于跑那一层的版本；被占用的 seam 报 `seam-conflict` 诊断并点名要移除的那一层（手工 `cordis.patch.yml` 行，或 profile 对该包的依赖）。语言服务器可执行程序仍由用户在本机提供。
+**工具可用性**：`lsp` 模型工具由宿主 `tool-lsp` 插件提供，市场不复制其 prompt/语义。市场自己保证这条组合链：`@deepseek-ai/dsh-lsp`、`dsh-lsp-stdio`、`dsh-tool-lsp` 作为插件的 `dependencies` 随安装进入 profile（dsh profile 设 `autoInstallPeers: false`，peer 不会被安装），第一个需要挂载的 server 触发 `ctx.lsp` 与 `lsp` 工具的挂载、最后一个 server 移除时释放，因此不需要用户改 profile。**市场不探测 profile 已有什么**：版本由插件的依赖声明决定，让位给别的层注册的 seam 就等于跑那一层的版本；被占用的 seam 报 `seam-conflict` 诊断并点名要移除的那一层（手工 `cordis.patch.yml` 行，或 profile 对该包的依赖）。语言服务器可执行程序仍由用户在本机提供。由于旧文档曾要求用户手工加这一层，升级用户必然会撞上它，因此移除是一项受支持的动作：`src/runtime/profile-seam.ts` 在 `$DSH_HOME/profiles/*` 中定位该层，LSP 面板据此给出一次性移除入口（写入前先备份并重解析校验），诊断本身也会点名 profile 与文件路径。见 `.agents/notes/implemented/bug-fix/2026-09-13-legacy-profile-lsp-layer-removal.md`。
 
 **超时/生命周期**：全部沿用宿主默认（tool-lsp 60s 工具预算、lsp-stdio shutdown/kill grace），市场零新增计时器。挂载实例生命周期 = suite enable/disable，由 reconciler 统一驱动。
 

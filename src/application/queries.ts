@@ -1,6 +1,6 @@
 /** Narrow application interfaces consumed by the HTTP transport adapter. */
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
-import type { LspStatusPayload } from '../contracts/lsp-status.js'
+import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from '../contracts/market.js'
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../runtime/mcp-overrides.js'
@@ -45,6 +45,11 @@ export interface MarketMutations {
   /** Validate and persist the user's direct LSP server table. */
   setLspServers(raw: unknown): Promise<LspServerTable>
   setLspServerEnabled(id: string, enabled: boolean): Promise<void>
+  /**
+   * Remove the hand-written profile layer an earlier release told the user to
+   * add for LSP; it now registers a seam this plugin owns.
+   */
+  migrateLegacyLspSeam(profile: string): Promise<LspLegacySeamMigration>
   /** Re-run the MCP reconcile pass: retries failed mounts and clears residual tools. */
   retryMounts(): Promise<void>
   reauthorizeMcpServer(serverName: string): Promise<void>
