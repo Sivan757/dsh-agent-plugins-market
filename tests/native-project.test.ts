@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { discoverSourceList } from '../src/catalog/source-catalog.js'
+import { discoverSourceListWithNotes } from '../src/catalog/source-catalog.js'
 import { Catalog } from '../src/application/catalog.js'
 import { SuiteSkillProvider, SUITE_PROJECT_SOURCE } from '../src/runtime/skills-provider.js'
 import { required } from './helpers/fixture.js'
@@ -30,6 +30,19 @@ async function createNativeProject(projectRoot: string, description = 'Native pr
   await mkdir(join(projectRoot, '.git'), { recursive: true })
   await mkdir(join(projectRoot, '.claude', 'skills', 'greet'), { recursive: true })
   await writeFile(join(projectRoot, '.claude', 'skills', 'greet', 'SKILL.md'), skillMd(description), 'utf8')
+}
+
+/** Discover a project dimension with native layouts on; these tests exercise that switch. */
+async function discoverWithLayouts(dimensionRoot: string) {
+  return (await discoverSourceListWithNotes([], 'project', dimensionRoot, true)).suites
+}
+
+/** Load a catalog with native project layouts enabled and return it. */
+async function layoutCatalog(options: ConstructorParameters<typeof Catalog>[0]): Promise<Catalog> {
+  const catalog = new Catalog(options)
+  await catalog.load()
+  await catalog.setScanProjectLayouts(true)
+  return catalog
 }
 
 /** Create a user dimension with one enabled suite shipping a skill of the same name. */
@@ -65,7 +78,7 @@ describe('native project-layout discovery', () => {
     await createNativeProject(projectRoot)
     const dimensionRoot = join(projectRoot, '.dsh', 'agent-plugins')
 
-    const suites = await discoverSourceList([], 'project', dimensionRoot)
+    const suites = await discoverWithLayouts(dimensionRoot)
     expect(suites).toHaveLength(1)
     const suite = required(suites[0], 'the native project layout to yield one suite')
     expect(suite.manifest.layout).toBe('project-native')
@@ -76,12 +89,27 @@ describe('native project-layout discovery', () => {
     expect(required(suite.skills[0], 'the native project to ship a greet skill').file).toBe(join(projectRoot, '.claude', 'skills', 'greet', 'SKILL.md'))
   })
 
+  it('contributes nothing until the project-layout switch is on', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-optin-'))
+    await createNativeProject(projectRoot)
+    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-optin-user-'))
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
+    await manager.load()
+
+    // Off is the default: the same project that yields a suite once the switch
+    // is on (the test above) is invisible before the user asks for it.
+    expect((await manager.readProjectCatalog(projectRoot)).suites).toEqual([])
+    expect(await new SuiteSkillProvider(manager).list({ cwd: projectRoot })).toEqual([])
+
+    await manager.setScanProjectLayouts(true)
+    expect((await manager.readProjectCatalog(projectRoot)).suites).toHaveLength(1)
+  })
+
   it('lists native project skills through the provider at project rank', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-list-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
-    await manager.load()
+    const manager = await layoutCatalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
 
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
@@ -97,8 +125,7 @@ describe('native project-layout discovery', () => {
     await createNativeProject(projectRoot, 'Native project greet skill.')
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-dup-user-'))
     await createUserDimensionWithGreet(userRoot)
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
-    await manager.load()
+    const manager = await layoutCatalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
 
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
@@ -118,7 +145,7 @@ describe('native project-layout discovery', () => {
     if (onlySubdir !== undefined) await mkdir(join(projectRoot, '.claude', onlySubdir), { recursive: true })
     const dimensionRoot = join(projectRoot, '.dsh', 'agent-plugins')
 
-    const suites = await discoverSourceList([], 'project', dimensionRoot)
+    const suites = await discoverWithLayouts(dimensionRoot)
     expect(suites).toEqual([])
   })
 })
@@ -128,8 +155,7 @@ describe('project snapshot caching', () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-cache-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-cache-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
-    await manager.load()
+    const manager = await layoutCatalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
 
     const first = await manager.readProjectCatalog(projectRoot)
     expect(first.suites).toHaveLength(1)
@@ -142,8 +168,7 @@ describe('project snapshot caching', () => {
 
     // After expiry, discovery sees the new skill.
     await new Promise(resolve => setTimeout(resolve, 5))
-    const managerShortTtl = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 1 })
-    await managerShortTtl.load()
+    const managerShortTtl = await layoutCatalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 1 })
     const fresh = await managerShortTtl.readProjectCatalog(projectRoot)
     const freshSuite = required(fresh.suites[0], 'the re-scanned project snapshot to list one suite')
     expect(freshSuite.skills.map(skill => skill.name).sort()).toEqual(['greet', 'second'])
@@ -153,8 +178,7 @@ describe('project snapshot caching', () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-inval-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-inval-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
-    await manager.load()
+    const manager = await layoutCatalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
 
     const first = await manager.readProjectCatalog(projectRoot)
     await mkdir(join(userRoot, '.sources', 'demo', 'greet-suite'), { recursive: true })
@@ -167,8 +191,7 @@ describe('project snapshot caching', () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-native-nocache-'))
     await createNativeProject(projectRoot)
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-native-nocache-user-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 0 })
-    await manager.load()
+    const manager = await layoutCatalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 0 })
 
     const first = await manager.readProjectCatalog(projectRoot)
     await mkdir(join(projectRoot, '.claude', 'skills', 'second'), { recursive: true })

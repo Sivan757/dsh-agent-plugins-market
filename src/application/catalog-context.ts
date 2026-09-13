@@ -73,7 +73,7 @@ export class CatalogContext implements SnapshotHost {
   private mutationQueue: Promise<unknown> = Promise.resolve()
   private currentRevision = 0
   private currentScanGeneration = 0
-  private scanProjectLayoutsEnabled = true
+  private scanProjectLayoutsEnabled = false
   /** The derived refresh in flight, shared by every change that lands while it runs. */
   private refreshPass: Promise<void> | undefined
   /** Whether a change landed after the running pass started; it earns one more pass. */

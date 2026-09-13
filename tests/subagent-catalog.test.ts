@@ -286,6 +286,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     await writeFile(join(suiteRoot, 'agents', 'reviewer.md'), '---\ndescription: Installed reviewer\n---\nPrivate suite instructions')
     const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     await catalog.mergeSources([{ id: 'source', url: suiteRoot, local: true }])
     await catalog.install('source', 'suite')
     const panels = createPanelResources(catalog, stores)

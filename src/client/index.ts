@@ -128,7 +128,7 @@ export function apply(ctx: SuiteClientContext): void {
           setRegion: next => withBusyOperation(() => scope.set('downloadRegion', next)),
           feedbackEnabled: () => scope.getSnapshot().value?.feedbackEnabled !== false,
           setFeedbackEnabled: next => withBusyOperation(() => scope.set('feedbackEnabled', next)),
-          scanProjectLayouts: () => scope.getSnapshot().value?.scanProjectLayouts !== false,
+          scanProjectLayouts: () => scope.getSnapshot().value?.scanProjectLayouts === true,
           setScanProjectLayouts: next => withBusyOperation(() => scope.set('scanProjectLayouts', next)),
           autoUpdateSources: () => scope.getSnapshot().value?.autoUpdateSources === true,
           setAutoUpdateSources: next => withBusyOperation(() => scope.set('autoUpdateSources', next))

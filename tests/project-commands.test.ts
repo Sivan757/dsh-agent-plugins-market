@@ -86,6 +86,7 @@ describe('project command lifecycle', () => {
       }
     })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const mounted = mountProjectCommands(context as unknown as Context, catalog, bindHostLocale(undefined))
     await mounted.refresh()
     for (const current of [first, second]) {

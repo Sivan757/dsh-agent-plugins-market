@@ -60,6 +60,8 @@ describe('live-like native discovery through a real project tree', () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-live-user-'))
     const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await manager.load()
+    // Native project layouts are off by default; this test covers the on state.
+    await manager.setScanProjectLayouts(true)
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: join(repo, 'packages', 'app') })
     const names = candidates.map(c => c.name).sort()

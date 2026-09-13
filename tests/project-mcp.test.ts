@@ -230,6 +230,7 @@ describe('project MCP runtime scope', () => {
       }
     })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const runtime = mountProjectMcp(host as unknown as Context, catalog, join(userRoot, 'data'))
     try {
       await runtime.refresh()

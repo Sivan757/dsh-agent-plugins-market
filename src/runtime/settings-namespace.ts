@@ -109,7 +109,7 @@ export class MarketSettingsNamespace {
         }
       ).settings
       const scope = settings.register(MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, {
-        base: { mcpEnhanced: true, downloadRegion: 'auto', feedbackEnabled: true, scanProjectLayouts: true }
+        base: { mcpEnhanced: true, downloadRegion: 'auto', feedbackEnabled: true, scanProjectLayouts: false }
       })
       this.scope = scope
       this.ctx.logger?.info?.('[dsh-agent-plugins-market] settings namespace registered — plugin-config card will serve')
@@ -155,7 +155,7 @@ export class MarketSettingsNamespace {
   }
 
   private syncProjectLayouts(): void {
-    void this.host.setScanProjectLayouts(this.scope?.get().scanProjectLayouts !== false).catch(error => {
+    void this.host.setScanProjectLayouts(this.scope?.get().scanProjectLayouts === true).catch(error => {
       this.ctx.logger?.error?.(`[dsh-agent-plugins-market] project layout reconciliation failed: ${String(error)}`)
     })
   }

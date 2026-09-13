@@ -85,6 +85,13 @@ describe('MCP backend persistence', () => {
     expect(off.downloadRegion).toBe('china')
   })
 
+  it('reads a missing scanProjectLayouts as off so a project joins only on an explicit opt-in', () => {
+    const resolved = MarketSettingsSchema({}) as { scanProjectLayouts?: boolean }
+    expect(resolved.scanProjectLayouts).toBe(false)
+    const on = MarketSettingsSchema({ scanProjectLayouts: true }) as { scanProjectLayouts?: boolean }
+    expect(on.scanProjectLayouts).toBe(true)
+  })
+
   it('probes the host client with a boolean availability and optional version', async () => {
     const probe = await probeHostMcpClient()
     expect(typeof probe.available).toBe('boolean')

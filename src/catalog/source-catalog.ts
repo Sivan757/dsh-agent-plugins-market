@@ -25,7 +25,7 @@ export async function discoverSourceListWithNotes(
   sources: SourceRef[],
   dimension: SuiteDimension,
   dimensionRoot: string,
-  scanProjectLayouts = true
+  scanProjectLayouts = false
 ): Promise<{ suites: DiscoveredSuite[]; scanNotes: Record<string, string[]> }> {
   const checkoutRoot = sourcesDir(dimensionRoot)
   const listed = new Set(sources.map(source => source.id))
