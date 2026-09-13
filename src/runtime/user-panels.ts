@@ -17,7 +17,6 @@
 import { join } from 'node:path'
 import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillSource } from '@deepseek-ai/dsh-skill'
 import { deleteEntryFile, entryExists, listEntryFiles, readEntryFile, USER_ENTRY_NAME, userEntryDir, writeEntryFile, type UserEntryFile } from './user-store.js'
-import type { HostTranslate } from './host-locale.js'
 /** The skill-source label user-panel entries carry into the skill registry. */
 export const USER_PANEL_SKILL_SOURCE = 'user-panel' satisfies SkillSource
 
@@ -165,10 +164,7 @@ interface UserSkillLocator {
 export class UserPanelSkillProvider implements SkillProvider {
   readonly name = 'user-panel'
 
-  constructor(
-    private readonly skills: UserPanelStore,
-    private readonly t: HostTranslate
-  ) {}
+  constructor(private readonly skills: UserPanelStore) {}
 
   async list(_options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const candidates: SkillCandidate[] = []
@@ -177,7 +173,10 @@ export class UserPanelSkillProvider implements SkillProvider {
       if (entry.disabled || !isUserSkillEntryName(entry.name)) continue
       candidates.push({
         name: entry.name,
-        description: this.t('userSkillDescription', { description: entry.description === '' ? entry.name : entry.description }),
+        // The entry's own description verbatim; a user-entry label is our
+        // packaging, and this description reaches the same model-facing
+        // catalog a suite skill does.
+        description: entry.description === '' ? entry.name : entry.description,
         ...(typeof entry.metadata['whenToUse'] === 'string' && entry.metadata['whenToUse'] !== '' ? { whenToUse: entry.metadata['whenToUse'] } : {}),
         invocation: {
           modelInvocable: entry.metadata['disable-model-invocation'] !== true,

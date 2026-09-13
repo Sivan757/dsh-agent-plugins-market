@@ -48,19 +48,6 @@ describe('user panel stores', () => {
   })
 })
 
-/** Bilingual-stub host translator for user-panel catalog strings. */
-const tStub = (key: string, params?: Record<string, string>): string => {
-  const dict: Record<string, string> = {
-    userSkillDescription: '[user skill] {description}',
-    userPersonaDescription: '[user persona] {description}'
-  }
-  let text = dict[key] ?? key
-  if (params !== undefined) {
-    for (const [name, value] of Object.entries(params)) text = text.replaceAll(`{${name}}`, value)
-  }
-  return text
-}
-
 describe('user panel skill provider', () => {
   it('surfaces only enabled skills, keeping personas out of the skill registry', async () => {
     const root = await mkdtemp(join(tmpdir(), 'panels-'))
@@ -70,11 +57,11 @@ describe('user panel skill provider', () => {
       await stores.skills.create('gone', '---\nname: gone\ndescription: vanished\ndisabled: true\n---\nBody')
       await stores.agents.create('reviewer', '---\ndescription: reviews code\n---\nPersona body')
 
-      const provider = new UserPanelSkillProvider(stores.skills, tStub)
+      const provider = new UserPanelSkillProvider(stores.skills)
       const candidates = await provider.list({})
       const names = candidates.map(entry => entry.name).sort()
       expect(names).toEqual(['notes'])
-      expect(candidates.find(entry => entry.name === 'notes')?.description).toBe('[user skill] take notes')
+      expect(candidates.find(entry => entry.name === 'notes')?.description).toBe('take notes')
 
       const loaded = await provider.get(
         candidates.find(entry => entry.name === 'notes')!,
@@ -95,7 +82,7 @@ describe('user panel skill provider', () => {
       // discovery: the registry would drop or reject it.
       const { writeFile } = await import('node:fs/promises')
       await writeFile(join(root, 'skills', 'my_skill.md'), '---\ndescription: underscored\n---\nBody', 'utf8')
-      const provider = new UserPanelSkillProvider(stores.skills, tStub)
+      const provider = new UserPanelSkillProvider(stores.skills)
       const names = (await provider.list({})).map(entry => entry.name)
       expect(names).toEqual(['ok-name'])
     } finally {
@@ -121,7 +108,7 @@ describe('user panel skill provider', () => {
     try {
       const stores = createUserPanelStores(root)
       await stores.skills.create('notes', '---\ndescription: take notes\n---\nBody')
-      const provider = new UserPanelSkillProvider(stores.skills, tStub)
+      const provider = new UserPanelSkillProvider(stores.skills)
       const [candidate] = await provider.list({})
       if (candidate === undefined) throw new Error('expected the panel skill to list one candidate')
       // `dsh-skill-filesystem` maps `~/.agents/skills` at rank 500 and a lower

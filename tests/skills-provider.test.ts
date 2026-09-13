@@ -36,7 +36,7 @@ describe('SuiteSkillProvider', () => {
     const [candidate] = candidates
     if (candidate === undefined) throw new Error('expected the installed fixture suite to list one skill')
     expect(candidate.name).toBe('greet')
-    expect(candidate.description).toBe('[v1-suite] Greet the user and resolve bundled resources.')
+    expect(candidate.description).toBe('Greet the user and resolve bundled resources.')
     expect(candidate.source).toBe(SUITE_USER_SOURCE)
     expect(candidate.rank).toBe(450)
     expect(isModelInvocable(candidate)).toBe(true)

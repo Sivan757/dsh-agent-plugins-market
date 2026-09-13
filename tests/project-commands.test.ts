@@ -92,7 +92,9 @@ describe('project command lifecycle', () => {
       expect([...current.definitions.keys()]).toEqual(['review'])
       expect(current.definitions.get('review')!.handler({ agent: current, rawInput: ' my diff' }).kind).toBe('success')
     }
-    expect(JSON.stringify(first.messages)).toContain('First project my diff')
+    // The forward is the template verbatim: no plugin or suite decorator line,
+    // which would be text the command author never wrote.
+    expect(first.messages).toEqual([{ content: [{ type: 'text', text: 'First project my diff' }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } }])
     expect(JSON.stringify(first.messages)).not.toContain('Second project')
     expect(JSON.stringify(second.messages)).toContain('Second project my diff')
 

@@ -389,7 +389,9 @@ describe('CommandMountRegistry (CC commands compat)', () => {
     })
     expect(result).toMatchObject({ kind: 'success' })
     const forwarded = required(followup, 'the review command handler to forward a follow-up')
-    expect(required(forwarded.content[0], 'the forwarded follow-up to carry one content part').text).toContain('Raw arguments: `--wait focus`')
+    // The authored template verbatim — no plugin or suite decorator line, and
+    // the file's own trailing newline intact.
+    expect(required(forwarded.content[0], 'the forwarded follow-up to carry one content part').text).toBe('Run an adversarial review. Raw arguments: `--wait focus`.\n')
     registry.disposeAll()
     expect(registered.length).toBe(0)
   })

@@ -96,7 +96,9 @@ export class SuiteSkillProvider implements SkillProvider {
   private candidateFor(entry: LocatedSkill): SkillCandidate {
     return {
       name: entry.skill.name,
-      description: `[${entry.suite.manifest.name}] ${entry.skill.description}`,
+      // The author's description verbatim — the harness renders it into the
+      // model's skill catalog, where a suite-name prefix is our packaging.
+      description: entry.skill.description,
       ...(entry.skill.whenToUse === undefined ? {} : { whenToUse: entry.skill.whenToUse }),
       invocation: entry.skill.invocation,
       source: entry.source,

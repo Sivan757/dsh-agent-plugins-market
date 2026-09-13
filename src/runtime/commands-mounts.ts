@@ -100,9 +100,12 @@ export class CommandMountRegistry {
           ...(spec.hint === undefined ? {} : { input: { hint: spec.hint } }),
           handler: invocation => {
             const agent = invocation.agent as InboxAgent
-            const text = [this.t('commandForwardTitle', { command: spec.name, suite: spec.suiteId }), '', spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())].join('\n')
+            // The template rides the agent verbatim: a decorator line naming
+            // this plugin or the suite would be text the command author never
+            // wrote, and the follow-up's `source` already records provenance.
+            const text = spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())
             agent.followup({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } })
-            return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name, suite: spec.suiteId }) }
+            return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
           }
         })
         this.live.set(key, disposer)

@@ -4,12 +4,12 @@ import { bindHostLocale, readLocalePreference } from '../src/runtime/host-locale
 describe('host locale', () => {
   it('defaults to zh copy', () => {
     const t = bindHostLocale(undefined)
-    expect(t('commandAcknowledged', { command: 'review', suite: 'demo' })).toBe('/review 已转交模型执行（demo）')
+    expect(t('commandAcknowledged', { command: 'review' })).toBe('/review 已转交模型执行')
   })
 
   it('resolves en for en-prefixed preferences', () => {
     const t = bindHostLocale('en-US')
-    expect(t('commandAcknowledged', { command: 'review', suite: 'demo' })).toBe('/review forwarded to the model for execution (demo)')
+    expect(t('commandAcknowledged', { command: 'review' })).toBe('/review forwarded to the model for execution')
     expect(t('subagentCatalogCall')).toContain('subagent_run')
   })
 

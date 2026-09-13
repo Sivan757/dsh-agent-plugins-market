@@ -104,7 +104,7 @@ describe('native project-layout discovery', () => {
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
     const candidate = required(candidates[0], 'the shadowing project greet skill')
-    expect(candidate.description).toBe('[Claude Code project files] Native project greet skill.')
+    expect(candidate.description).toBe('Native project greet skill.')
     expect(candidate.source).toBe(SUITE_PROJECT_SOURCE)
     expect(candidate.rank).toBe(250)
   })

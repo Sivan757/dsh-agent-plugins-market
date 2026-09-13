@@ -202,7 +202,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   // edit invalidates only its own catalog contribution.
   ctx.skills.registerProvider(control => {
     userPanelControl = control
-    return new UserPanelSkillProvider(panels.skills, key => hostLocale.t(key))
+    return new UserPanelSkillProvider(panels.skills)
   })
 
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
