@@ -93,7 +93,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       searchLabel: t('mcpSearch'),
       searchPlaceholder: t('mcpSearch'),
       onSearchChange: setSearch,
-      filters: (['all', 'plugin', 'direct'] as Filter[]).map(kind => ({
+      filters: (['all', 'direct', 'plugin'] as Filter[]).map(kind => ({
         id: kind,
         label: filterLabel(t, kind),
         count: filterCounts[kind],

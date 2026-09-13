@@ -12,7 +12,7 @@ export interface LspStatusViewModel {
 }
 
 /** Filter tabs in display order. */
-export const LSP_FILTERS: readonly LspStatusFilter[] = ['all', 'plugin', 'direct']
+export const LSP_FILTERS: readonly LspStatusFilter[] = ['all', 'direct', 'plugin']
 
 /**
  * Derive per-filter counts and the visible rows in one pass over the payload.
