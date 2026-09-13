@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { describeLegacySeam, findLegacyLspSeams, migrateLegacyLspSeam } from '../src/runtime/profile-seam.js'
 import { required } from './helpers/fixture.js'
@@ -123,8 +123,11 @@ describe('migrateLegacyLspSeam', () => {
     const seam = required((await findLegacyLspSeams(home))[0], 'a legacy LSP seam')
     const result = await migrateLegacyLspSeam(seam, new Date(2026, 8, 13, 16, 30, 5))
     expect(result.backupPath).toBe(`${seam.patchPath}.bak-lsp-seam-20260913-163005`)
-    // A filename-safe stamp: Windows rejects ':' in a path segment.
-    expect(result.backupPath).not.toContain(':')
+    // The stamp itself must stay filename-safe: Windows rejects ':' in a path
+    // segment, and a `toLocaleString`-style timestamp would carry two of them.
+    // Only the segment this code adds is checked — a Windows path legitimately
+    // has a colon in its drive letter.
+    expect(basename(result.backupPath)).not.toContain(':')
     expect(await readFile(result.backupPath, 'utf8')).toBe(LEGACY_PATCH)
     const siblings = await readdir(seam.dir)
     expect(siblings).toContain('cordis.patch.yml.bak-lsp-seam-20260913-163005')
