@@ -1,15 +1,14 @@
 // @vitest-environment jsdom
 import { act, createElement as h, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Simulate } from 'react-dom/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoleMetadataFields } from '../src/client/features/personas/RoleMetadataFields.js'
 import { readRoleFields } from '../src/client/features/personas/frontmatter.js'
 import { parseAgentRole } from '../src/runtime/agent-role-router.js'
-import type { Translate } from '../src/client/index.js'
+import { selectOption } from './helpers/dom-events.js'
+import { stubTranslate as t } from './helpers/translate.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-const t: Translate = key => key
 let root: Root | undefined
 let host: HTMLDivElement
 afterEach(async () => {
@@ -50,13 +49,13 @@ async function mount(text: string, exact: (model: string, signal: AbortSignal) =
 }
 
 function select(label: string): HTMLSelectElement {
-  return host.querySelector(`select[aria-label="${label}"]`)!
+  return host.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!
 }
 function value() {
-  return host.querySelector('output')!.textContent!
+  return host.querySelector('output')!.textContent
 }
 async function change(label: string, value: string) {
-  await act(async () => Simulate.change(select(label), { target: { value } } as never))
+  await act(async () => selectOption(select(label), value))
 }
 const metadata = {
   reasoning: {
@@ -69,7 +68,7 @@ const metadata = {
 }
 
 describe('role reasoning effort selector', () => {
-  it('loads exact-model options, preserves saved aliases and saves the value consumed by subagents_run', async () => {
+  it('loads exact-model options, preserves saved aliases and saves the value consumed by subagent_run', async () => {
     await mount('---\nprovider: p\nmodel: a\nreasoningEffort: high\nmetadata: {tier: 2}\n---\nRole body', async () => metadata)
     expect([...select('personaReasoningEffort').options].map(option => option.value)).toEqual(['', 'low', 'high'])
     expect(select('personaReasoningEffort').value).toBe('high')
@@ -115,7 +114,9 @@ describe('role reasoning effort selector', () => {
     expect(host.querySelector('[role="alert"]')).not.toBeNull()
     failed = false
     await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
-    expect(select('personaReasoningEffort').selectedOptions[0]!.textContent).toContain('personaUnavailable')
+    const [selected] = select('personaReasoningEffort').selectedOptions
+    if (selected === undefined) throw new Error('expected the reasoning select to keep a selected option')
+    expect(selected.textContent).toContain('personaUnavailable')
     expect(host.querySelector('[role="alert"]')).toBeNull()
     await change('personaReasoningEffort', '')
     expect(readRoleFields(value()).reasoningEffort).toBe('')
@@ -125,5 +126,23 @@ describe('role reasoning effort selector', () => {
     await mount('---\nprovider: p\nmodel: a\n---\nRole', async () => ({}), true)
     expect([...select('personaReasoningEffort').options].map(option => option.value)).toEqual([''])
     expect(select('personaReasoningEffort').closest('fieldset')!.disabled).toBe(true)
+  })
+
+  it('warns about a stored route the executor would ignore and offers no tools control', async () => {
+    const warn = () => host.querySelector('[role="status"]')?.textContent ?? ''
+    // Exact pair: nothing to warn about, and the dead tools field is gone.
+    await mount('---\nprovider: p\nmodel: a\ntools: [Read, Grep]\n---\nRole', async () => metadata)
+    expect(warn()).toBe('')
+    expect(host.querySelector('input')).toBeNull()
+    // A bare model, a qualified string and a lone provider are all ignored at execution.
+    await mount('---\nmodel: sonnet\n---\nRole', async () => metadata)
+    expect(warn()).toBe('personaRouteIgnored')
+    await mount('---\nmodel: p/a\n---\nRole', async () => metadata)
+    expect(warn()).toBe('personaRouteIgnored')
+    await mount('---\nprovider: p\n---\nRole', async () => metadata)
+    expect(warn()).toBe('personaRouteIgnored')
+    // Inheritance is a valid declaration, not an ignored one.
+    await mount('---\nmodel: inherit\n---\nRole', async () => metadata)
+    expect(warn()).toBe('')
   })
 })

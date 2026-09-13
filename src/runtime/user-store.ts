@@ -7,31 +7,30 @@
  * @module runtime/user-store
  */
 
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { parseDocument, stringify } from 'yaml'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 
-/** Where user panel entries persist: `<userRoot>/user/<kind>/`. */
-export function userEntryDir(dataRoot: string, kind: 'skills' | 'commands' | 'agents'): string {
-  return join(dataRoot, 'user', kind)
+/** Where user panel entries persist: `<agentsRoot>/<kind>/`. */
+export function userEntryDir(agentsRoot: string, kind: 'skills' | 'commands' | 'agents'): string {
+  return join(agentsRoot, kind)
 }
 
 /** `[a-z][a-z0-9_-]*` — the grammar every panel entry name must satisfy. */
 export const USER_ENTRY_NAME = /^[a-z][a-z0-9_-]*$/
 
-/** The enablement frontmatter key shared by skills and commands. */
-export const DISABLED_KEY = 'disabled'
-
 /** Parse full YAML metadata without flattening arrays, mappings, or multiline strings. */
 export function parseFrontmatterRecord(text: string): Record<string, unknown> {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)
-  if (match === null) {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+  if (frontmatter === undefined) {
     if (/^---(?:\r?\n|$)/.test(text)) throw new Error('Invalid frontmatter: missing closing delimiter')
     return {}
   }
-  const doc = parseDocument(match[1])
-  if (doc.errors.length > 0) throw new Error(`Invalid frontmatter: ${doc.errors[0]!.message}`)
+  const doc = parseDocument(frontmatter)
+  const error = doc.errors[0]
+  if (error !== undefined) throw new Error(`Invalid frontmatter: ${error.message}`)
   const value: unknown = doc.toJS({ maxAliasCount: 100 })
   if (value === null) return {}
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('Frontmatter must be a mapping')
@@ -118,8 +117,7 @@ export async function listEntryFiles(dir: string, strict = false): Promise<UserE
 export async function writeEntryFile(dir: string, name: string, text: string): Promise<void> {
   assertEntryName(name)
   parseFrontmatterRecord(text)
-  await mkdir(dir, { recursive: true })
-  await writeFile(join(dir, `${name}.md`), text, 'utf8')
+  await writeFileAtomic(join(dir, `${name}.md`), text, { mode: 0o644, dirMode: 0o700 })
 }
 
 /**

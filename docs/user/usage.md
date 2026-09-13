@@ -1,0 +1,167 @@
+# Usage guide
+
+English | [简体中文](usage.zh.md) | [README](../../README.md)
+
+## Host requirements
+
+The plugin configuration card carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), and the **experience feedback tool**.
+
+Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environment references, tool allow/deny lists and timeouts are preserved; unsupported fields are diagnosed. Project LSP is not mounted because the host registry is global; this plugin does not modify host APIs.
+
+- Node.js 22 or later, a DSH Web profile and the host skill service (`ctx.skills`). Git sources require Git.
+- The current package declares the DSH host packages it needs in the `^0.1.5-rc.2` range. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
+- Slash commands require the host command service. `subagent_run` role delegation requires agents, tools, LLM, subagent and session-persistence services; it starts a durable background child, applies the saved persona and any exact route the role declares, and returns the child id without waiting.
+- MCP uses the built-in bridge by default. Host-client compatibility mode additionally needs `@deepseek-ai/dsh-mcp-client`; hooks need `@deepseek-ai/dsh-hooks-claude-code`.
+- LSP support installs and mounts its own `@deepseek-ai/dsh-lsp`, `dsh-lsp-stdio` and `dsh-tool-lsp` packages as soon as an enabled suite declares language servers, so no profile step is needed. The language-server executables themselves must be available on the machine.
+- Host credentials are optional. Without that service, environment references resolve from the launch environment, and changes require a restart.
+
+## Installation options
+
+The recommended CLI command is in the [quick start](../../README.md#quick-start). Alternatively, install inside the profile:
+
+```sh
+pnpm add dsh-agent-plugins-market
+```
+
+On current DSH shells the market is a section of the settings page (**Settings → Agent Plugins Market**); an older shell that does not expose the plugin-settings seat shows it as a top-level page entry instead.
+
+For a GitHub installation:
+
+```sh
+dsh plugin --profile <name> add github:Sivan757/dsh-agent-plugins-market
+```
+
+npm packages contain built `lib/` and `client/` artifacts. GitHub installs build them through `prepare` and require Node.js and pnpm on the installing machine.
+
+If managing the profile manually, install the package and include `dsh-agent-plugins-market` in the profile's `dsh.profile.bundles` array, alongside its existing bundles. The package's `cordis.patch.yml` supplies the plugin row. Keep the dependency version written by your package manager.
+
+## Configure marketplace sources
+
+The published bundle does not preconfigure sources. The following is an optional example for your own profile.
+
+Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (and re-adds missing ids on every boot):
+
+```yaml
+- id: dsh-agent-plugins-market
+  config:
+    sources:
+      - { id: agent-plugins, url: 'https://github.com/Sivan757/agent-plugins.git' }
+      - { id: claude-plugins-official, url: 'https://github.com/anthropics/claude-plugins-official' }
+      - { id: knowledge-work-plugins, url: 'https://github.com/anthropics/knowledge-work-plugins' }
+```
+
+A `local: true` source reads the directory in place (live working tree; never deleted on removal). Discovery results are cached for up to 30 seconds and reused across install/enable/panel actions, so working-tree edits of local sources appear on the next cache refresh (any source mutation, the refresh button, or the 30 s TTL). Startup mounts and user skill listing scan only sources containing enabled installs; browsing the market still discovers all configured sources. Concurrent reads share discovery work. Startup does not fetch Git updates; source refresh is explicit unless **Background source updates** is on. An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
+
+Install, enable and surface switches answer as soon as their state is saved. The mounts that follow — MCP servers, hooks, commands, LSP servers — reconcile in the background and report through the status panels, so a switch is never held open by a service that is slow to start.
+
+### Manual clones, adoption, and network tuning
+
+Cloning from the UI times out on a restricted network? Clone the repository yourself into the checkout root (`~/.dsh/agent-plugins/.sources/<id>/`) — the market page lists it under **unregistered local checkouts** with a one-click **adopt** action that registers it in place, no re-clone and no rename. The directory itself is removed only if you later delete the source and tick the delete-files option. Adding a URL whose checkout already exists with a matching `origin` remote adopts it automatically instead of cloning a second copy. Adopted sources are ordinary sources in the UI — they carry no extra badge.
+
+The source strip at the top of the market page is an equal-width grid of pills: it folds to two rows with a bottom fade and expands as an overlay on hover or keyboard focus, so the card grid never moves; picking a source folds it again right away. The picked source moves next to `全部` so it stays visible while folded, and the rest keep their id order.
+
+Git/archive acquisition is tunable through the host config:
+
+```yaml
+- id: dsh-agent-plugins-market
+  config:
+    git:
+      proxy: 'http://127.0.0.1:7890' # injected as git http/https proxy
+      insteadOf: { 'https://github.com/': 'https://mirror.example/https://github.com/' }
+      timeoutMs: 300000 # per git invocation (default 120000)
+      cloneRetry: true # one automatic retry (default)
+      fallbackTarball: false # retry a failed github.com clone as a codeload tarball download
+      allowHttpArchives: false # permit plain-http archive URLs (intranet mirrors)
+```
+
+## Storage and discovery
+
+Plugin state lives under `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it to `$DSH_HOME/agent-plugins/`.
+
+| Path under the root    | Contents                                                                 |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `state.json`           | Configured sources and install state                                     |
+| `.sources/<sourceId>/` | Source checkouts                                                         |
+| `data/`                | Overrides, suite `${PLUGIN_DATA}` directories, feedback rate-limit stamp |
+
+Content you author yourself lives in the shared Agent layout root, `~/.agents/` (`$DSH_AGENTS_HOME` overrides it) — the same directory shape this plugin reads from a project's `.agents/`:
+
+| Path        | Contents                                           |
+| ----------- | -------------------------------------------------- |
+| `skills/`   | Your skill Markdown files                          |
+| `commands/` | Your command Markdown files                        |
+| `agents/`   | Your persona Markdown files                        |
+| `mcp.json`  | MCP services added in the workspace (`mcpServers`) |
+| `lsp.json`  | LSP servers added in the workspace (`lspServers`)  |
+
+User entries support `disabled: true` frontmatter to stop registration without deleting the file. Commands forward their body to the model, replacing `$ARGUMENTS` with the invocation text. User personas appear in the dynamic [subagent catalog](agent-roles.md), not the skill or slash-command menus.
+
+Project-dimension state and checkouts live under `<project>/.dsh/agent-plugins/`. Native layouts listed under [project layouts](#project-layouts) are read in place without install state. Project skills win same-name conflicts with installed user suites, and a skill you author under the Agent layout root wins over a suite skill of the same name. Rename an entry if it is shadowed.
+
+### Project layouts
+
+**Scan project Agent layouts** is off by default. With it on, the project a session runs in contributes its own resources; turning it off removes every candidate below immediately. Configured sources and installed suites are unaffected. Files are read in place and are never installed, rewritten or deleted.
+
+Skill directories are read under `.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder` and `.github`. Portable Markdown agents are enabled for all of them except `.codex` and `.kimi`, whose TOML/YAML formats need separate adapters. Role execution resolves the calling session's project. Project commands, supported MCP servers and mapped command hooks register in each agent's scoped context and refresh on session startup or catalog changes.
+
+MCP reads root `.mcp.json`, `.cursor/mcp.json`, and the `mcpServers` tables in `.qoder/settings.json` and `.qoder/settings.local.json` (local keys override project keys). ZCode reads `mcp.servers` from `zcode.json` and `.zcode/config.json`, with `.agents/mcp.json` as an empty-native-table fallback. Codex reads `[mcp_servers.*]` from `.codex/config.toml` through `smol-toml`, preserving stdio/HTTP configuration, environment and header references, enabled flags, tool filters and timeouts; unsupported server options are diagnosed. Relative executables resolve from the project root.
+
+Claude/Qoder settings hooks and enabled ZCode configuration hooks use the bridge's supported command-event subset. Validated hooks become private temporary runtime files that are removed on teardown; project files stay unchanged. Project LSP is diagnosed and not mounted: the host LSP registry does not isolate projects.
+
+Unmanaged user checkouts do not become runtime installations just because they exist on disk. Adopt and install them explicitly. There is no file watcher; project discovery snapshots are cached for five seconds.
+
+## Runtime and security
+
+MCP details offer retry only for failed managed services or residual mounts, and OAuth reset only when the active backend supports it. Retrying checks all managed services without clearing credentials, and rebuilds every live bridge so a service that stopped answering after being reported connected is re-verified. Reauthorization explicitly confirms grant removal and possible interruption. Unsaved configuration disables connection actions. Results are based on refreshed status, not HTTP success; missing credentials must be configured first.
+
+### MCP configuration
+
+Open **MCP services** for service configuration, credentials, overrides, authorization and retry actions. Suite details are read-only previews.
+
+Remote services authorize on demand: a declaration that says nothing about `auth` still runs OAuth, and only when the server challenges the connection. Service details mark those rows **OAuth on by default**.
+
+The **MCP enhancement** setting (`mcpEnhanced`, default `true`) selects the built-in bridge with stdio, Streamable HTTP / OAuth and legacy SSE. Turning it off selects the host client compatibility backend, which does not provide OAuth or SSE through this integration. Changing the setting remounts services.
+
+Use references such as `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. Missing references block startup with `needs-credentials`. Host credential writes are write-only and do not put literal tokens into suite state or override JSON. Read-only launch-environment values must be changed before restarting DSH.
+
+`mcp.json` uses strict schema validation. `.mcp.json` supports common compatibility forms: top-level server maps, `http` / `local` transport aliases, omitted type inferred from `command`, and `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${NAME:-default}` placeholders. Invalid servers are diagnosed and skipped rather than started with partial configuration.
+
+### Hooks and LSP
+
+Hooks use the bridge's mapped command-hook subset at SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart and SubagentStop. This is not full Claude Code runtime compatibility.
+
+LSP supports enabled suite declarations and directly configured servers through the same mount lifecycle. The plugin carries its own LSP packages, so the only thing a user supplies is the language-server executable; a missing executable, an invalid declaration, or an installation whose LSP packages fail to load each appear as a diagnostic. Previewing a declaration alone does not prove the server is running.
+
+### Validation and execution
+
+Source acquisition and manifest scanning do not establish that third-party code is trustworthy. Installing an enabled suite can start services or register executable hooks; review its contents first.
+
+Git acquisition uses `execFile` without a shell; refresh uses shallow fetch/reset. A local-directory source pointing outside `.sources/` is never deleted; a checkout under `.sources/<id>` — adopted or self-acquired — is removed only when you delete the source and tick the delete-files option. Archives default to HTTPS, a 256 MiB limit and guarded extraction, with optional SHA-256 verification. Portable paths must stay inside the suite root, including after symlink resolution. Invalid manifests and mount failures are exposed as diagnostics.
+
+For vulnerability reports, follow the [security policy](../../SECURITY.md).
+
+### Experience feedback
+
+The `feedbackEnabled` setting defaults to `true`. When the host provides tools and settings, it enables the model-facing `report_market_issue` tool, which files an issue in this plugin's GitHub repository — through the `gh` CLI when it is installed and authenticated, otherwise through `GITHUB_TOKEN` / `GH_TOKEN`. With none of those available nothing is filed: the tool opens a prefilled "new issue" page in the browser and returns the complete issue text and link to the model, which hands them to you. Accepted submissions have a 60-second cooldown. Disable the setting in the plugin configuration card to unregister the tool.
+
+The workspace tabs share a saved grid/list preference; search and filters remain resource-specific. Add and refresh are header actions. MCP Add validates a JSON server declaration and persists it under `~/.agents/mcp.json`, then mounts it through the plugin bridge; LSP Add does the same into `~/.agents/lsp.json`. Invalid declarations and duplicate names are rejected. Existing host-owned MCP services remain observation-only.
+
+### Resource detail editing
+
+Details use a shared 1120px maximum-width dialog, constrained to the viewport. Markdown preview separates YAML frontmatter from the rendered body; raw editing preserves unknown keys and comments. MCP forms cover transport, command, arguments, working directory, environment, URL, headers and OAuth; LSP forms cover command, arguments, environment, extension mapping, initialization options and configuration. Invalid JSON and incomplete map rows remain editable but cannot be saved.
+
+`GET /api/agent-plugins/server-config?kind=mcp|lsp&id=...` returns the full editable configuration; `POST /api/agent-plugins/server-config/save` replaces that service config. Plugin MCP replacements persist in its existing override file; plugin LSP replacements persist in `data/lsp-overrides.json`. Checkouts stay untouched. Unchanged `[redacted]` fields preserve original secrets. Modified config remounts through the plugin runtime. Host-observed MCP remains read-only. `POST /api/agent-plugins/lsp-servers/add` creates one named direct service without replacing others.
+
+## Format details and development
+
+### Operation overlay
+
+Visual feedback waits 200 ms, then stays visible for at least 400 ms. A 100 ms settling window bridges consecutive requests. Interaction locks immediately, including during the invisible delay; short operations therefore finish without a flash.
+
+Workspace requests and credential/settings writes share `withBusyOperation` (`src/client/ui/busy-operation.ts`). Wrap a complete workflow when it also refreshes data afterward; nested leases keep the mask until every operation settles. A single body-level `BusyOverlay` tracks the active dialog rectangle, marks it inert, blocks backdrop/keyboard interaction and restores focus afterward. Tips rotate every 3.2 seconds; reduced-motion preferences disable the scrolling transition. Source-progress, model-catalog background loading and automatic LSP polling remain silent. The mask never occupies a row in the resource list and does not fabricate percentage progress.
+
+Waiting never ends in silence: a mask that outlives 20 seconds says a local service may not be answering, reads stop waiting after 15 seconds, and mutations after a 10-minute backstop — a request that ran out of time is reported as such instead of holding the page.
+
+A source may contain multiple layout dialects. Suite manifests and Marketplace catalogs follow the [same layout priority](../../README.md#layout-detection-precedence). Manifest selection tries the manifests in priority order; one that cannot be read or validated is diagnosed and the next one is tried, and a suite whose every candidate fails is rejected. Catalog scanning uses the first catalog that produces suites, with supported supplemental discovery; invalid or empty catalogs allow later candidates. Root `marketplace.json` is the final shared fallback. Remote-reference cards are not directly installable: add their repository as a source first.
+
+The schemas in `schemas/1.0.0/` are vendored from [agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec), so validation does not download schemas at load time. See the [domain glossary](../../CONTEXT.md) and [contribution guide](../../CONTRIBUTING.md) for vocabulary and development checks.

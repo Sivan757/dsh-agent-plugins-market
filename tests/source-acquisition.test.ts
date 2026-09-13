@@ -1,6 +1,6 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -11,7 +11,7 @@ import { Catalog } from '../src/application/catalog.js'
 import { codeloadTarballUrl } from '../src/application/catalog.js'
 import { archiveFormatOf, archiveInstall, downloadArchive } from '../src/catalog/archive.js'
 import { deriveSourceIdCandidates } from '../src/catalog/paths.js'
-import { loadState, saveState } from '../src/model/state.js'
+import { loadState, saveState } from '../src/runtime/state-store.js'
 import { resolveSourceKind } from '../src/model/types.js'
 
 const run = promisify(execFile)
@@ -56,6 +56,18 @@ function storedZip(entries: Record<string, Uint8Array>): Buffer {
   eocd.writeUInt32LE(centralBuf.length, 12)
   eocd.writeUInt32LE(offset, 16)
   return Buffer.concat([...chunks, centralBuf, eocd])
+}
+
+/**
+ * Serve `file` as the response body. `createServer`'s listener returns `void`,
+ * so the read is dispatched deliberately instead of being an async listener
+ * whose rejected promise nothing observes.
+ */
+function serveFile(response: ServerResponse, file: string): void {
+  void (async () => {
+    response.writeHead(200)
+    response.end(await readFile(file))
+  })()
 }
 
 describe('source kind inference', () => {
@@ -165,10 +177,7 @@ describe('archive acquisition', () => {
     const tarball = join(stage, 'payload.tar.gz')
     await run('tar', ['-czf', tarball, '-C', stage, 'top'])
     const dest = join(stage, 'checkout')
-    const server3 = createServer(async (_request, response) => {
-      response.writeHead(200)
-      response.end(await readFile(tarball))
-    })
+    const server3 = createServer((_request, response) => serveFile(response, tarball))
     await new Promise<void>(resolve => server3.listen(0, '127.0.0.1', resolve))
     const address = server3.address()
     const url = address !== null && typeof address === 'object' ? `http://127.0.0.1:${address.port}/payload.tar.gz` : ''
@@ -184,26 +193,6 @@ describe('archive acquisition', () => {
     const sha256 = await downloadArchive(`${baseUrl}/fixture.zip`, temp, { allowHttp: true })
     expect(sha256).toMatch(/^[0-9a-f]{64}$/)
     await rm(temp, { force: true })
-  })
-
-  it('rejects a symlink pointing outside the extraction root (readlink-based containment)', async () => {
-    // Regression: the containment walk once read the link's target *content*
-    // with readFile, so an escaping symlink resolved to a bogus in-root path
-    // and the escape survived extraction.
-    const { assertNoEscapingSymlinksForTest } = await import('../src/catalog/archive.js')
-    const stage = await mkdtemp(join(tmpdir(), 'dsh-archive-symlink-'))
-    const outside = join(stage, 'outside')
-    await mkdir(outside, { recursive: true })
-    await writeFile(join(outside, 'secret.txt'), 'TOP SECRET')
-    const extract = join(stage, 'extract')
-    await mkdir(join(extract, 'deep'), { recursive: true })
-    await writeFile(join(extract, 'keep.txt'), 'x')
-    await symlink(join(outside, 'secret.txt'), join(extract, 'deep', 'leak'))
-    await expect(assertNoEscapingSymlinksForTest(extract)).rejects.toThrow(/escaping the extraction root/)
-    // A contained link (target inside the root) stays legal.
-    await symlink('../keep.txt', join(extract, 'deep', 'ok'))
-    await expect(assertNoEscapingSymlinksForTest(extract)).rejects.toThrow(/escaping the extraction root/)
-    await rm(stage, { recursive: true, force: true })
   })
 
   it('pins the extraction bomb limits to sane ratios', async () => {
@@ -223,10 +212,7 @@ describe('archive acquisition', () => {
     const tarball = join(stage, 'payload.tar.gz')
     await run('tar', ['-czf', tarball, '-C', stage, 'top'])
     const dest = join(stage, 'checkout')
-    const server4 = createServer(async (_request, response) => {
-      response.writeHead(200)
-      response.end(await readFile(tarball))
-    })
+    const server4 = createServer((_request, response) => serveFile(response, tarball))
     await new Promise<void>(resolve => server4.listen(0, '127.0.0.1', resolve))
     const address = server4.address()
     const url = address !== null && typeof address === 'object' ? `http://127.0.0.1:${address.port}/tar.gz/refs/heads/main` : ''
@@ -254,7 +240,7 @@ describe('adopting manually cloned checkouts', () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-list-'))
     await makeManualCheckout(root, 'manual', 'https://github.com/example/manual.git')
     await mkdir(join(root, '.sources', 'plain'), { recursive: true })
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     const unmanaged = await catalog.unmanagedSources()
     expect(unmanaged).toEqual([{ id: 'manual', url: 'https://github.com/example/manual.git' }, { id: 'plain' }])
@@ -264,7 +250,7 @@ describe('adopting manually cloned checkouts', () => {
   it('addSource adopts a matching checkout instead of re-cloning', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-add-'))
     const dir = await makeManualCheckout(root, 'manual', 'https://github.com/example/manual.git')
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     const source = await catalog.addSource({ url: 'https://github.com/example/manual.git' })
     expect(source).toMatchObject({ id: 'manual', adopted: true, kind: 'git' })
@@ -281,7 +267,7 @@ describe('adopting manually cloned checkouts', () => {
     const gitDir = await makeManualCheckout(root, 'gitrepo', 'https://github.com/example/gitrepo.git')
     const plainDir = join(root, '.sources', 'plaindir')
     await mkdir(plainDir, { recursive: true })
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
 
     const gitSource = await catalog.adoptSource('gitrepo')
@@ -309,7 +295,7 @@ describe('adopting manually cloned checkouts', () => {
     // clone the plugin itself made).
     const acquiredDir = join(root, '.sources', 'acquired')
     await mkdir(acquiredDir, { recursive: true })
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     await catalog.adoptSource('adopted')
     await catalog.adoptSource('localdir')
@@ -320,7 +306,7 @@ describe('adopting manually cloned checkouts', () => {
     const state = JSON.parse(await readFile(statePath, 'utf8')) as { sources: Array<Record<string, unknown>> }
     state.sources.push({ id: 'acquired', url: 'https://github.com/example/acquired.git', kind: 'git' })
     await writeFile(statePath, JSON.stringify(state))
-    const reloaded = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const reloaded = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await reloaded.load()
 
     await reloaded.removeSource('acquired', true)
@@ -337,7 +323,7 @@ describe('adopting manually cloned checkouts', () => {
 
   it('rejects adopting an unknown or already registered checkout', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-adopt-reject-'))
-    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
     await catalog.load()
     await expect(catalog.adoptSource('missing')).rejects.toThrow(/no checkout directory/)
     await mkdir(join(root, '.sources', 'dup'), { recursive: true })

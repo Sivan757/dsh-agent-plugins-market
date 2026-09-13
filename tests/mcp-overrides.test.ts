@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
 import { applyOverride, loadSuiteOverrides, mergeOverridePatch, sanitizeOverridePatch, sanitizeOverrides, saveSuiteOverrides } from '../src/runtime/mcp-overrides.js'
-import type { McpServerStreamableHttp, Suite } from '../src/model/types.js'
+import { expectTransport } from './helpers/bridge-config.js'
+import { effectiveSurfaces, type McpServerStreamableHttp, type Suite } from '../src/model/types.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixture = join(here, 'fixtures', 'v1-suite')
@@ -24,6 +25,7 @@ function httpSuite(): Suite {
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: []
   }
 }
@@ -101,11 +103,13 @@ describe('toMcpMounts with overrides', () => {
         resolver
       )
       expect(result.mounts).toHaveLength(1)
-      const config = result.mounts[0]!.config as McpServerStreamableHttp
+      const [config] = result.mounts.map(mount => mount.config)
+      if (config === undefined) throw new Error('expected the header override to mount one server')
+      expectTransport(config, 'streamable-http')
       expect(config.url).toBe('https://override.example/mcp')
       // The secret never needs to persist: the override stores only the
       // reference, resolved in memory when the mount config is built.
-      expect(config.headers?.authorization).toBe('Bearer secret-value')
+      expect(config.headers['authorization']).toBe('Bearer secret-value')
     } finally {
       delete process.env.DSH_MCP_OVERRIDE_TEST_TOKEN
     }
@@ -126,9 +130,11 @@ describe('toMcpMounts with source-declared auth', () => {
     const suite = httpSuite()
     suite.mcp!.servers.docs = { ...httpServer, auth: { enabled: true, scope: 'user' } }
     const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-auth-'))
-    const { mounts } = await toMcpMounts(suite, dataRoot, new Map(), async () => ({ value: '', missing: [] }))
+    const { mounts } = await toMcpMounts(suite, dataRoot, {}, { resolve: async () => undefined })
     expect(mounts).toHaveLength(1)
-    expect(mounts[0]!.config).toMatchObject({ transport: 'streamable-http', auth: { enabled: true, scope: 'user' } })
+    const [config] = mounts.map(mount => mount.config)
+    if (config === undefined) throw new Error('expected the source-declared auth to mount one server')
+    expect(config).toMatchObject({ transport: 'streamable-http', auth: { enabled: true, scope: 'user' } })
   })
 
   it('forwards auth from a disk override through to the mount config', async () => {
@@ -138,9 +144,11 @@ describe('toMcpMounts with source-declared auth', () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-auth-override-'))
     await saveSuiteOverrides(dataRoot, suite.id, { docs: { auth: { enabled: true } } })
     const overrides = await loadSuiteOverrides(dataRoot, suite.id)
-    const { mounts } = await toMcpMounts(suite, dataRoot, overrides, async () => ({ value: '', missing: [] }))
+    const { mounts } = await toMcpMounts(suite, dataRoot, overrides, { resolve: async () => undefined })
     expect(mounts).toHaveLength(1)
-    expect(mounts[0]!.config).toMatchObject({ auth: { enabled: true } })
+    const [config] = mounts.map(mount => mount.config)
+    if (config === undefined) throw new Error('expected the stored auth override to mount one server')
+    expect(config).toMatchObject({ auth: { enabled: true } })
   })
 })
 
@@ -159,7 +167,7 @@ describe('mergeOverridePatch', () => {
 describe('Catalog.setMcpOverride', () => {
   async function installedCatalog(): Promise<Catalog> {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-mcpov-cat-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await manager.load()
     const checkout = join(userRoot, '.sources', 'demo')
     await mkdir(checkout, { recursive: true })

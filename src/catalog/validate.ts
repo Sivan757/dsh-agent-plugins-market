@@ -9,13 +9,14 @@
  * the `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` expansion the spec makes mandatory.
  */
 import { readFile, realpath } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // The 2020-12 dist build's d.ts resolves to a CJS namespace under NodeNext;
 // the runtime default export is the class itself (module.exports = Ajv2020).
 import Ajv2020Default from 'ajv/dist/2020.js'
 import type { McpServer, McpSuiteConfig } from '../model/types.js'
 import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'
+import { isWithin } from './paths.js'
 
 const SCHEMAS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'schemas', '1.0.0')
 
@@ -75,14 +76,13 @@ export async function pathContainmentError(pluginRoot: string, value: string): P
   } catch {
     rootResolved = resolve(pluginRoot)
   }
-  const rootPrefix = rootResolved.endsWith(sep) ? rootResolved : `${rootResolved}${sep}`
   let candidateResolved: string
   try {
     candidateResolved = await realpath(candidate)
   } catch {
     candidateResolved = candidate
   }
-  if (candidateResolved !== rootResolved && !candidateResolved.startsWith(rootPrefix)) {
+  if (!isWithin(rootResolved, candidateResolved)) {
     return `path "${value}" resolves outside the plugin root`
   }
   return undefined
@@ -175,11 +175,12 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
         if (reason !== undefined) problems.push(reason)
       }
     }
-    if (stdioServer.cwd !== undefined && typeof stdioServer.cwd !== 'string') {
+    const declaredCwd = stdioServer.cwd
+    if (declaredCwd !== undefined && typeof declaredCwd !== 'string') {
       problems.push('cwd must be a string')
-    } else if (options?.pathMode !== 'project' && stdioServer.cwd !== undefined && ![...PLUGIN_DATA_VARIABLES].some(name => stdioServer.cwd!.startsWith(`\${${name}}`))) {
+    } else if (options?.pathMode !== 'project' && declaredCwd !== undefined && ![...PLUGIN_DATA_VARIABLES].some(name => declaredCwd.startsWith(`\${${name}}`))) {
       // `.` is the Codex dialect spelling for the plugin root.
-      const cwd = stdioServer.cwd === '.' ? './' : stdioServer.cwd
+      const cwd = declaredCwd === '.' ? './' : declaredCwd
       const reason = await pathContainmentError(pluginRoot, cwd)
       if (reason !== undefined) problems.push(reason)
     }
@@ -208,10 +209,4 @@ export function resolveCwd(value: string, pluginRoot: string, pluginData: string
   if (value.startsWith('${PLUGIN_DATA}')) return resolve(pluginData, value.slice('${PLUGIN_DATA}'.length).replace(/^\/+/, ''))
   if (value.startsWith('${PLUGIN_ROOT}')) return resolve(pluginRoot, value.slice('${PLUGIN_ROOT}'.length).replace(/^\/+/, ''))
   return resolve(pluginRoot, value.replace(/^\.\//, ''))
-}
-
-/** Whether one absolute path equals or lies under another absolute path. */
-export function isWithin(root: string, candidate: string): boolean {
-  const relativePath = relative(root, candidate)
-  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath))
 }

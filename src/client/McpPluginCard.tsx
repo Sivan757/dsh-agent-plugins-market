@@ -16,6 +16,7 @@ import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import type { McpBackendInfo } from './api.js'
 import { ToggleSwitch } from './ui/ToggleSwitch.js'
 import css from './market.module.css'
+import { clientErrorMessage } from './ui/error-message.js'
 
 /** Locale subset the card needs (structural — the host binds the real one). */
 type CardTranslate = (key: string, params?: Record<string, unknown>) => string
@@ -38,10 +39,14 @@ export interface McpEnhanceScopeFace {
   setRegion(next: 'global' | 'china'): Promise<void>
   /** Whether the experience-feedback model tool is registered (default true). */
   feedbackEnabled?(): boolean
+  /** Whether native project Agent layouts are scanned (default false). */
   scanProjectLayouts?(): boolean
   setScanProjectLayouts?(next: boolean): Promise<void>
   /** Register/unregister the experience-feedback model tool. */
   setFeedbackEnabled?(next: boolean): Promise<void>
+  /** Whether sources refresh in the background (default false). */
+  autoUpdateSources?(): boolean
+  setAutoUpdateSources?(next: boolean): Promise<void>
 }
 
 export interface McpPluginCardProps {
@@ -92,7 +97,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
     void scope.setEnhanced(next).then(() => {
       setBusy(false)
     }).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setError(clientErrorMessage(t, cause))
       setBusy(false)
     })
   }
@@ -133,7 +138,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
               'div',
               { className: css.pluginCardText },
               h('div', { className: css.pluginCardRowLabel }, t('mcpCardTitle')),
-              h('div', { className: css.pluginCardDesc }, enhanced ? t('mcpCardDescOn') : t('mcpCardDescOff'))
+              h('div', { className: css.pluginCardDesc }, t('mcpCardDesc'))
             ),
             h(ToggleSwitch, {
               on: enhanced,
@@ -172,7 +177,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                       void scope.setRegion(region).then(() => {
                         setBusy(false)
                       }).catch((cause: unknown) => {
-                        setError(cause instanceof Error ? cause.message : String(cause))
+                        setError(clientErrorMessage(t, cause))
                         setBusy(false)
                       })
                     }
@@ -184,7 +189,12 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
           ),
           scope.scanProjectLayouts !== undefined && scope.setScanProjectLayouts !== undefined
             ? h('div', { className: css.pluginCardRow },
-                h('div', { className: css.pluginCardText }, h('div', { className: css.pluginCardRowLabel }, t('projectLayoutsLabel'))),
+                h(
+                  'div',
+                  { className: css.pluginCardText },
+                  h('div', { className: css.pluginCardRowLabel }, t('projectLayoutsLabel')),
+                  h('div', { className: css.pluginCardDesc }, t('projectLayoutsDesc'))
+                ),
                 h(ToggleSwitch, {
                   on: scope.scanProjectLayouts(),
                   title: t('projectLayoutsLabel'),
@@ -194,7 +204,29 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                     setBusy(true)
                     setError(undefined)
                     void scope.setScanProjectLayouts!(!scope.scanProjectLayouts!()).catch((cause: unknown) => {
-                      setError(cause instanceof Error ? cause.message : String(cause))
+                      setError(clientErrorMessage(t, cause))
+                    }).finally(() => setBusy(false))
+                  }
+                }))
+            : null,
+          scope.autoUpdateSources !== undefined && scope.setAutoUpdateSources !== undefined
+            ? h('div', { className: css.pluginCardRow },
+                h(
+                  'div',
+                  { className: css.pluginCardText },
+                  h('div', { className: css.pluginCardRowLabel }, t('autoUpdateLabel')),
+                  h('div', { className: css.pluginCardDesc }, t('autoUpdateDesc'))
+                ),
+                h(ToggleSwitch, {
+                  on: scope.autoUpdateSources(),
+                  title: t('autoUpdateLabel'),
+                  disabled: busy || !writable,
+                  onChange: () => {
+                    if (busy || !writable) return
+                    setBusy(true)
+                    setError(undefined)
+                    void scope.setAutoUpdateSources!(!scope.autoUpdateSources!()).catch((cause: unknown) => {
+                      setError(clientErrorMessage(t, cause))
                     }).finally(() => setBusy(false))
                   }
                 }))
@@ -207,7 +239,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                   'div',
                   { className: css.pluginCardText },
                   h('div', { className: css.pluginCardRowLabel }, t('feedbackToggleLabel')),
-                  h('div', { className: css.pluginCardDesc }, scope.feedbackEnabled() ? t('feedbackToggleDescOn') : t('feedbackToggleDescOff'))
+                  h('div', { className: css.pluginCardDesc }, t('feedbackToggleDesc'))
                 ),
                 h(ToggleSwitch, {
                   on: scope.feedbackEnabled(),
@@ -219,7 +251,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                     void scope.setFeedbackEnabled!(!scope.feedbackEnabled!()).then(() => {
                       setBusy(false)
                     }).catch((cause: unknown) => {
-                      setError(cause instanceof Error ? cause.message : String(cause))
+                      setError(clientErrorMessage(t, cause))
                       setBusy(false)
                     })
                   }

@@ -1,8 +1,9 @@
 /** Consolidate plugin-owned storage before stores, routes, or providers are exposed. */
 import { constants } from 'node:fs'
-import { copyFile, lstat, mkdir, readdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { expandHome, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
+import { copyFile, lstat, mkdir, readdir, readFile, rmdir, unlink } from 'node:fs/promises'
+import { dirname, join, relative, resolve } from 'node:path'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { expandHome, isWithin, resolveAgentsRoot, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
 
 export interface StorageMigrationResult {
   /** Conflicting or symbolic-link entries retained at their original paths. */
@@ -55,21 +56,25 @@ export async function mergeStorageTree(from: string, to: string, result: Storage
   await unlink(from)
 }
 
-function contains(parent: string, child: string): boolean {
-  const path = relative(parent, child)
-  return path === '' || (!path.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) && path !== '..' && !isAbsolute(path))
-}
+/** The three hand-authored resource kinds the market panel owns. */
+const PANEL_KINDS = ['skills', 'commands', 'agents'] as const
 
 /**
- * Migrate former root overrides and data/user panels into the canonical root.
- * Unknown files in override directories remain untouched. Conflicts remain at
- * the old path and are returned to block activation; reruns are safe.
+ * Migrate former root overrides, data-root panels, and hand-authored
+ * resources into their canonical homes: plugin state under the user/data
+ * roots, and user content under the shared Agent layout root. Unknown files in
+ * override directories remain untouched. Conflicts remain at the old path and
+ * are returned to block activation; reruns are safe.
  */
 export async function migratePluginStorage(config: { userRoot?: string; dataRoot?: string } = {}): Promise<StorageMigrationResult> {
   const userRoot = resolveUserRoot()
   const dataRoot = resolveDataRoot()
+  const agentsRoot = resolveAgentsRoot()
   const result: StorageMigrationResult = { conflicts: [] }
-  for (const path of [resolveDshHome(), userRoot, dataRoot, join(userRoot, 'user'), join(userRoot, '.sources')]) {
+  if (isWithin(userRoot, agentsRoot) || isWithin(agentsRoot, userRoot) || isWithin(dataRoot, agentsRoot) || isWithin(agentsRoot, dataRoot)) {
+    throw new Error('The Agent layout root overlaps canonical plugin storage')
+  }
+  for (const path of [resolveDshHome(), userRoot, dataRoot, agentsRoot, join(userRoot, 'user'), join(userRoot, '.sources')]) {
     if ((await info(path))?.isSymbolicLink() === true) throw new Error(`Plugin storage cannot use a symbolic-link directory: ${path}`)
   }
   const legacyUserRoot = resolve(expandHome(config.userRoot ?? userRoot))
@@ -78,7 +83,7 @@ export async function migratePluginStorage(config: { userRoot?: string; dataRoot
     if ((await info(path))?.isSymbolicLink() === true) throw new Error(`Plugin storage migration cannot traverse a symbolic-link root: ${path}`)
   }
   if (legacyUserRoot !== userRoot) {
-    if (contains(legacyUserRoot, userRoot) || contains(userRoot, legacyUserRoot)) throw new Error('Legacy userRoot overlaps canonical plugin storage')
+    if (isWithin(legacyUserRoot, userRoot) || isWithin(userRoot, legacyUserRoot)) throw new Error('Legacy userRoot overlaps canonical plugin storage')
     const legacySources = join(legacyUserRoot, '.sources')
     const sourceInfo = await info(legacySources)
     const sourceNames = sourceInfo?.isDirectory() === true ? await readdir(legacySources) : []
@@ -114,12 +119,26 @@ export async function migratePluginStorage(config: { userRoot?: string; dataRoot
   }
   for (const legacy of new Set([legacyDataRoot, join(resolveDshHome(), 'agent-plugins-data')])) {
     if (legacy === dataRoot) continue
-    if (contains(legacy, dataRoot) || contains(dataRoot, legacy)) throw new Error('Legacy dataRoot overlaps canonical plugin data storage')
+    if (isWithin(legacy, dataRoot) || isWithin(dataRoot, legacy)) throw new Error('Legacy dataRoot overlaps canonical plugin data storage')
     for (const entry of ['data', 'overrides', 'user', 'settings.json', 'lsp-servers.json', 'feedback']) {
       await mergeStorageTree(join(legacy, entry), join(dataRoot, entry), result)
     }
   }
-  await mergeStorageTree(join(dataRoot, 'user'), join(userRoot, 'user'), result)
+  // Hand-authored resources moved out of plugin storage into the shared Agent
+  // layout root; every former `<root>/user/<kind>` layout maps onto `<kind>`.
+  // Each source is moved straight to its final location so a conflict is
+  // reported at the file the user actually has, not at a hop along the way.
+  for (const kind of PANEL_KINDS) {
+    await mergeStorageTree(join(dataRoot, 'user', kind), join(agentsRoot, kind), result)
+    await mergeStorageTree(join(userRoot, 'user', kind), join(agentsRoot, kind), result)
+  }
+  // Drop the emptied former panel directories; rmdir refuses a non-empty one,
+  // so files retained by a conflict (or an unrecognized kind) keep their home.
+  await rmdir(join(dataRoot, 'user')).catch(() => {})
+  await rmdir(join(userRoot, 'user')).catch(() => {})
+  // Hand-written service declarations moved from data files to Agent-layout files.
+  await mergeStorageTree(join(dataRoot, 'mcp-servers.json'), join(agentsRoot, 'mcp.json'), result)
+  await mergeStorageTree(join(dataRoot, 'lsp-servers.json'), join(agentsRoot, 'lsp.json'), result)
   return result
 }
 
@@ -133,14 +152,12 @@ async function relocateManagedSourceUrls(userRoot: string, legacyUserRoot: strin
   for (const source of state.sources as unknown[]) {
     if (typeof source !== 'object' || source === null || !('local' in source) || source.local !== true || !('url' in source) || typeof source.url !== 'string') continue
     const oldCheckout = join(legacyUserRoot, '.sources')
-    if (!contains(oldCheckout, resolve(expandHome(source.url)))) continue
+    if (!isWithin(oldCheckout, resolve(expandHome(source.url)))) continue
     source.url = join(userRoot, '.sources', relative(oldCheckout, resolve(expandHome(source.url))))
     changed = true
   }
   if (changed) {
-    const temp = `${path}.migration-${process.pid}.tmp`
-    await writeFile(temp, `${JSON.stringify(state, null, 2)}\n`, { flag: 'wx' })
-    await rename(temp, path)
+    await writeFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
   }
 }
 

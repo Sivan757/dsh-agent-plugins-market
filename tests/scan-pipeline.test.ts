@@ -59,6 +59,16 @@ describe('scan pipeline: marketplace entry handler chain', () => {
     expect(resolution.kind).toBe('rejected')
     expect((resolution as { reason: string }).reason).toContain('escapes the checkout')
   })
+
+  it('resolves a local entry when the checkout is spelled with forward slashes', async () => {
+    // A local source keeps its path exactly as configured, so on Windows a
+    // `C:/…` checkout sits beside the backslash path `resolve()` derives from
+    // an entry, and the two spellings must still compare as one location.
+    // No-op on POSIX; this is the spelling the Windows job exists to cover.
+    const entry: MarketplaceEntry = { name: 'one', source: './skills/one' }
+    const resolution = await resolveMarketplaceEntry(checkout.replaceAll('\\', '/'), entry, undefined)
+    expect(resolution).toEqual({ kind: 'local', dir: join(checkout, 'skills', 'one') })
+  })
 })
 
 describe('scan pipeline: chain semantics', () => {
@@ -99,7 +109,8 @@ describe('scan pipeline: fixtures', () => {
   it('dual-dialect-selfref: self-reference entry scans the local repo (25-skill class)', async () => {
     const result = await scanSource(join(fixtures, 'dual-dialect-selfref'), 'dual', 'user', 'https://github.com/example/dual-selfref')
     expect(result.suites).toHaveLength(1)
-    const suite = result.suites[0]!
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error('expected the fixture to resolve to one suite')
     // The root metadata manifest (no $schema) is read leniently, not strict v1.
     expect(suite.errors).toEqual([])
     expect(suite.skills.map(skill => skill.name).sort()).toEqual(['one', 'two'])
@@ -109,16 +120,20 @@ describe('scan pipeline: fixtures', () => {
   it('marketplace-github-remote: github shorthand yields a remote card with the URL', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'marketplace-github-remote'), 'ghr', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe('remote')
-    expect(suites[0]!.remote).toEqual({ url: 'https://github.com/example/external-gh' })
-    expect(suites[0]!.root).toBe('')
+    const [suite] = suites
+    if (suite === undefined) throw new Error('expected the github shorthand entry to yield one suite')
+    expect(suite.manifest.layout).toBe('remote')
+    expect(suite.remote).toEqual({ url: 'https://github.com/example/external-gh' })
+    expect(suite.root).toBe('')
   })
 
   it('marketplace-all-broken: every entry unresolvable falls back to the root manifest with notes', async () => {
     const result = await scanSource(join(fixtures, 'marketplace-all-broken'), 'broken', 'user')
     expect(result.suites).toHaveLength(1)
-    expect(result.suites[0]!.id).toBe('broken-root')
-    expect(result.suites[0]!.skills.map(skill => skill.name)).toEqual(['root-skill'])
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error('expected the all-broken fixture to fall back to its root manifest')
+    expect(suite.id).toBe('broken-root')
+    expect(suite.skills.map(skill => skill.name)).toEqual(['root-skill'])
     expect(result.notes.some(note => note.includes('escaper'))).toBe(true)
     expect(result.notes.some(note => note.includes('void-one'))).toBe(true)
     expect(result.notes.some(note => note.includes('no marketplace dialect produced suites'))).toBe(true)
@@ -133,16 +148,18 @@ describe('scan pipeline: fixtures', () => {
   it('dual-dialect-codex-fallback: an unproductive claude dialect defers to the codex dialect', async () => {
     const result = await scanSource(join(fixtures, 'dual-dialect-codex-fallback'), 'dialects', 'user')
     expect(result.suites).toHaveLength(1)
-    expect(result.suites[0]!.id).toBe('x-plugin')
-    expect(result.suites[0]!.manifest.layout).toBe('codex')
-    expect(result.suites[0]!.skills.map(skill => skill.name)).toEqual(['xskill'])
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error('expected the codex fallback fixture to resolve to one suite')
+    expect(suite.id).toBe('x-plugin')
+    expect(suite.manifest.layout).toBe('codex')
+    expect(suite.skills.map(skill => skill.name)).toEqual(['xskill'])
   })
 })
 
 describe('scan pipeline: catalog overview surfaces scan notes', () => {
   it('reports per-source scan diagnostics on the source row', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-scan-notes-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'broken', url: join(fixtures, 'marketplace-all-broken'), local: true }])
     const overview = await manager.overview()
@@ -155,7 +172,7 @@ describe('scan pipeline: catalog overview surfaces scan notes', () => {
 
   it('omits scanNotes for clean sources', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-scan-clean-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'v1', url: join(fixtures, 'v1-suite'), local: true }])
     const overview = await manager.overview()

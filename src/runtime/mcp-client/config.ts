@@ -11,8 +11,6 @@
 
 import type { ReconnectConfig } from './connection.js'
 import type { McpServerPolicy } from '../../model/types.js'
-export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.js'
-export { RECONNECT_DEFAULTS } from './connection.js'
 
 /** Default timeout for individual MCP tool calls (ms). */
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
@@ -142,7 +140,7 @@ interface ConfigFields extends McpServerPolicy {
 export function validateConfig(config: Config): Config {
   const fields = config as ConfigFields
   for (const field of ['enabledTools', 'disabledTools'] as const) {
-    if (fields[field] !== undefined && (!Array.isArray(fields[field]) || !fields[field]!.every(name => typeof name === 'string')))
+    if (fields[field] !== undefined && (!Array.isArray(fields[field]) || !fields[field].every(name => typeof name === 'string')))
       throw new Error(`bridge config ${field} must be an array of strings`)
   }
   if (fields.startupTimeoutMs !== undefined && (!Number.isFinite(fields.startupTimeoutMs) || fields.startupTimeoutMs <= 0 || fields.startupTimeoutMs > 2_147_483_647))

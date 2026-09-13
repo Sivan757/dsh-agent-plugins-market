@@ -25,7 +25,7 @@ const statusPayload = vi.hoisted(() => ({
     }
   ],
   observedAt: '',
-  totals: { all: 1, connected: 0, degraded: 0, failed: 0, needsCredentials: 1, orphaned: 0, disabled: 0 },
+  totals: { all: 1, connected: 0, degraded: 0, failed: 0, needsCredentials: 1, orphaned: 0, disabled: 0, foreign: 0 },
   directObservationOnly: true
 }))
 
@@ -46,7 +46,7 @@ const connectedPayload = vi.hoisted(() => ({
     }
   ],
   observedAt: '',
-  totals: { all: 1, connected: 1, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0 },
+  totals: { all: 1, connected: 1, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
   directObservationOnly: true
 }))
 
@@ -69,7 +69,7 @@ const failedPayload = vi.hoisted(() => ({
     }
   ],
   observedAt: '',
-  totals: { all: 1, connected: 0, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 0 },
+  totals: { all: 1, connected: 0, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
   directObservationOnly: true
 }))
 
@@ -111,15 +111,20 @@ async function mountPanel(credentials?: CredentialApi): Promise<HTMLDivElement> 
 
 describe('MCP status actions', () => {
   it('exposes a credential action inside the detail dialog instead of on the card', async () => {
+    const describeCredentials = vi.fn().mockResolvedValue({ result: { ok: true, value: { credentials: { API_TOKEN: { configured: false, writable: true } } } } })
     const credentials: CredentialApi = {
-      describe: vi.fn().mockResolvedValue({ result: { ok: true, value: { credentials: { API_TOKEN: { configured: false, writable: true } } } } }),
+      describe: describeCredentials,
       set: vi.fn().mockResolvedValue({ result: { ok: true, value: {} } }),
       unset: vi.fn().mockResolvedValue({ result: { ok: true, value: {} } })
     }
     const el = await mountPanel(credentials)
 
-    // The card is a lean identity line now: no inline actions. Opening the
-    // detail dialog is the one interaction a card offers.
+    // The card is a lean identity line: the credential editor is not part of
+    // it, so the panel neither renders the editor nor asks for credentials
+    // until the dialog opens.
+    expect(el.querySelector('input[type="password"]')).toBeNull()
+    expect(describeCredentials).not.toHaveBeenCalled()
+    // Opening the detail dialog is the one interaction a card offers.
     const card = [...el.querySelectorAll('[role="button"]')].find(node => node.textContent?.includes('demo__service'))
     expect(card).toBeDefined()
     await act(async () => {
@@ -131,7 +136,7 @@ describe('MCP status actions', () => {
     // The editor is embedded in the dialog itself (no intermediate toggle).
     expect(document.body.textContent).toContain('mcpCredentialTitle')
     expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
-    expect(credentials.describe).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
+    expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 
   it('offers retry in the dialog footer and echoes the outcome in place', async () => {

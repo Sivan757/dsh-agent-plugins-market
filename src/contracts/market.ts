@@ -11,6 +11,7 @@ export const MARKET_ROUTES = {
   lspStatus: `${MARKET_API_PREFIX}lsp-status`,
   lspServers: `${MARKET_API_PREFIX}lsp-servers`,
   addLspServer: `${MARKET_API_PREFIX}lsp-servers/add`,
+  migrateLspSeam: `${MARKET_API_PREFIX}lsp-servers/migrate-seam`,
   serverConfig: `${MARKET_API_PREFIX}server-config`,
   saveServerConfig: `${MARKET_API_PREFIX}server-config/save`,
   progress: `${MARKET_API_PREFIX}progress`,
@@ -71,7 +72,7 @@ export function userPanelMutationRoute(kind: UserPanelKind, mutation: UserPanelM
 }
 
 /** The MCP mount backend state reported to the settings page. */
-export interface McpBackendPayload {
+export type McpBackendInfo = {
   backend: 'builtin' | 'host'
   /** Whether the host `dsh-mcp-client` resolves from the plugin context. */
   hostClient: { available: boolean; version?: string }

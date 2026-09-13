@@ -1,8 +1,9 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
-import { realpath, unlink, writeFile } from 'node:fs/promises'
-import { isAbsolute, relative } from 'node:path'
+import { realpath, unlink } from 'node:fs/promises'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
+import { isWithin } from '../catalog/paths.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from '../runtime/user-store.js'
 import type { UserPanelStore } from '../runtime/user-panels.js'
@@ -16,6 +17,20 @@ export interface PanelResourceStore {
   create(name: string, text: string): Promise<UserPanelEntryWire>
   update(id: string, text: string): Promise<void>
   remove(id: string): Promise<void>
+}
+
+/**
+ * Id of one panel entry backed by a file inside an installed suite's checkout.
+ * The leading `[` is what distinguishes a plugin entry from a user-authored
+ * one; `update`/`remove` use {@link isPluginResourceId} to tell them apart.
+ */
+export function pluginResourceId(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): string {
+  return JSON.stringify([sourceId, suiteId, kind, name])
+}
+
+/** Whether a panel entry id addresses a file inside an installed suite. */
+export function isPluginResourceId(id: string): boolean {
+  return id.startsWith('[')
 }
 
 export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelStore>): Record<UserPanelKind, PanelResourceStore> {
@@ -36,9 +51,8 @@ class PanelResources implements PanelResourceStore {
   async list(strict = false): Promise<UserPanelEntryWire[]> {
     const entries: UserPanelEntryWire[] = await this.users.list(strict)
     const snapshot = await this.catalog.readUserCatalog()
-    const installed = new Set((await this.catalog.overview()).suites.filter(suite => suite.installed).map(suite => JSON.stringify([suite.sourceId, suite.suiteId])))
     for (const suite of snapshot.suites) {
-      if (!installed.has(JSON.stringify([suite.sourceId, suite.id])) || suite.remote !== undefined) continue
+      if (!this.catalog.isInstalled(suite.sourceId, suite.id) || suite.remote !== undefined) continue
       const files =
         this.kind === 'skills'
           ? suite.skills.map(skill => ({ name: skill.name, file: skill.file }))
@@ -57,11 +71,11 @@ class PanelResources implements PanelResourceStore {
           metadata = { disabled: true, validationError: String(error) }
         }
         entries.push({
-          id: JSON.stringify([suite.sourceId, suite.id, this.kind, name]),
+          id: pluginResourceId(suite.sourceId, suite.id, this.kind, name),
           name,
           origin: 'plugin',
           suiteName: suite.manifest.name,
-          disabled: !suite.enabled || suite.activeSurfaces?.[this.kind] === false || metadata.disabled === true,
+          disabled: !suite.enabled || suite.activeSurfaces[this.kind] === false || metadata.disabled === true,
           metadata,
           rawText,
           content: stripFrontmatter(rawText),
@@ -81,25 +95,30 @@ class PanelResources implements PanelResourceStore {
     return this.users.create(name, text)
   }
 
+  /**
+   * A plugin resource is writable only when it sits inside the user dimension
+   * root; suite checkouts elsewhere on disk stay read-only. The user-panel
+   * store lives in the shared Agent layout root instead, so containment is
+   * measured against the catalog's root, not the panel directory.
+   */
   private async pluginPath(id: string): Promise<string> {
     const entry = await this.get(id)
     if (entry?.origin !== 'plugin') throw new Error('Unknown installed plugin resource')
     if (entry.path.endsWith('.json')) throw new Error('Inline manifest resources are read-only; edit their source manifest')
-    const root = await realpath(this.users.root())
+    const root = await realpath(this.catalog.userRoot)
     const path = await realpath(entry.path)
-    const rel = relative(root, path)
-    if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) throw new Error('External source files are read-only; create a user resource to customize them')
+    if (!isWithin(root, path)) throw new Error('External source files are read-only; create a user resource to customize them')
     return path
   }
 
   async update(id: string, text: string): Promise<void> {
-    if (!id.startsWith('[')) return this.users.update(id, text)
+    if (!isPluginResourceId(id)) return this.users.update(id, text)
     parseFrontmatterRecord(text)
-    await writeFile(await this.pluginPath(id), text, 'utf8')
+    await writeFileAtomic(await this.pluginPath(id), text, { mode: 0o644 })
   }
 
   async remove(id: string): Promise<void> {
-    if (!id.startsWith('[')) return this.users.remove(id)
+    if (!isPluginResourceId(id)) return this.users.remove(id)
     await unlink(await this.pluginPath(id))
   }
 }

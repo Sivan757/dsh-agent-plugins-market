@@ -18,9 +18,11 @@
  * present, while surfaces (skills/commands/agents/hooks/mcp) are scanned from
  * the directories regardless of which dialect won.
  */
-import { readFile, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { sanitizeId } from './paths.js'
+import { isFile } from './fs-probes.js'
+import { isRecord } from './component-files.js'
 import { isRecognizedSchema, validatePluginManifest } from './validate.js'
 import type { SuiteManifest, SuiteComponents } from '../model/types.js'
 import { PLUGIN_LAYOUTS, MANIFEST_ALIASES, MARKETPLACE_PATHS, type ManifestKind } from '../model/layouts.js'
@@ -33,19 +35,24 @@ export interface ManifestCandidate {
   path: string
 }
 
-/** The highest-precedence manifest file a directory carries, if any. */
-export async function detectManifest(dir: string): Promise<ManifestCandidate | undefined> {
+/**
+ * Every manifest file a directory carries, in selection order: highest
+ * precedence first, aliases of one dialect in their own listed order.
+ */
+export async function detectManifests(dir: string): Promise<ManifestCandidate[]> {
+  const found: ManifestCandidate[] = []
   for (const { kind, manifest } of PLUGIN_LAYOUTS) {
     for (const relative of [...(MANIFEST_ALIASES[kind] ?? []), manifest]) {
       const path = join(dir, relative)
-      try {
-        if ((await stat(path)).isFile()) return { kind, path }
-      } catch {
-        // try the next candidate
-      }
+      if (await isFile(path)) found.push({ kind, path })
     }
   }
-  return undefined
+  return found
+}
+
+/** The highest-precedence manifest file a directory carries, if any. */
+export async function detectManifest(dir: string): Promise<ManifestCandidate | undefined> {
+  return (await detectManifests(dir))[0]
 }
 
 /** Whether a directory carries any known suite manifest. */
@@ -74,17 +81,42 @@ export function componentDeclarations(record: object): SuiteComponents {
 }
 
 /**
- * Parse one manifest document into a normalized SuiteManifest. The v1 dialect
- * is schema-validated (fail-closed); the others are structurally read with
- * light tolerance, and `hint` (a marketplace plugin entry) fills in gaps.
+ * Read a suite manifest by walking the layout priority list from the top.
+ *
+ * A candidate that cannot be parsed or validated fails closed *for itself*:
+ * its diagnostics are recorded and the next candidate by priority is tried.
+ * Diagnostics of a rejected candidate that a lower-priority manifest replaced
+ * go to `fallbacks`, so the winner stays usable while the caller can still
+ * report why the higher-priority declaration was ignored. The winner's own
+ * diagnostics stay in `errors` and remain fatal.
  */
 export async function readManifest(
   root: string,
   errors: string[],
+  hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined,
+  fallbacks: string[] = []
+): Promise<SuiteManifest | undefined> {
+  const candidates = await detectManifests(root)
+  for (const [index, candidate] of candidates.entries()) {
+    const attempt: string[] = []
+    const manifest = await readOneManifest(root, candidate, attempt, hint)
+    if (manifest !== undefined) {
+      errors.push(...attempt)
+      return manifest
+    }
+    if (index === candidates.length - 1) errors.push(...attempt)
+    else fallbacks.push(...attempt)
+  }
+  return undefined
+}
+
+/** Parse one manifest candidate; undefined when this candidate is unusable. */
+async function readOneManifest(
+  root: string,
+  candidate: ManifestCandidate,
+  errors: string[],
   hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined
 ): Promise<SuiteManifest | undefined> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
   let raw: unknown
   try {
     raw = JSON.parse(await readFile(candidate.path, 'utf8'))
@@ -126,13 +158,16 @@ export async function readManifest(
     }
   }
   const problems = kind === 'agent-plugin-v1' ? await validatePluginManifest(raw) : []
-  errors.push(...problems.map(problem => `${candidate.path}: ${problem}`))
+  if (problems.length > 0) {
+    errors.push(...problems.map(problem => `${candidate.path}: ${problem}`))
+    return undefined
+  }
   const name = pickString(record.name) ?? hint?.name ?? syntheticManifestName(root)
   const version = pickString(record.version) ?? hint?.version
   const description = pickString(record.description) ?? hint?.description
   const author = record.author as { name?: string; url?: string } | undefined
   return {
-    components: { ...componentDeclarations(hint ?? {}), ...fallbackComponents, ...componentDeclarations(raw as Record<string, unknown>) },
+    components: { ...componentDeclarations(hint ?? {}), ...fallbackComponents, ...componentDeclarations(raw) },
     ...(typeof (raw as Record<string, unknown>).skillInstructions === 'string' ? { skillInstructions: (raw as Record<string, unknown>).skillInstructions as string } : {}),
     ...(typeof (raw as Record<string, unknown>).systemPrompt === 'string' ? { systemPrompt: (raw as Record<string, unknown>).systemPrompt as string } : {}),
     ...(typeof (raw as Record<string, unknown>).systemPromptPath === 'string' ? { systemPromptPath: (raw as Record<string, unknown>).systemPromptPath as string } : {}),
@@ -169,9 +204,10 @@ export interface MarketplaceEntry extends SuiteComponents {
   description?: string
   /** Claude Code: inline `lspServers` table declared on the entry itself. */
   lspServers?: unknown
-  /** Claude Code: a relative path string or `{ source: 'url', url }`.
+  /** Claude Code: a relative path string, `{ source: 'url', url }`, or the
+   *  `{ source: 'github', repo: 'owner/name' }` shorthand.
    *  Codex: `{ source: 'local', path }` or `{ source: 'remote', url }`. */
-  source: string | { source?: string; url?: string; path?: string }
+  source: string | { source?: string; url?: string; path?: string; repo?: string }
 }
 
 export interface Marketplace {
@@ -206,10 +242,10 @@ async function readOneMarketplace(path: string, errors: string[]): Promise<ReadM
   }
   const record = parsed as Record<string, unknown>
   const rawPlugins = record['plugins']
-  const plugins = Array.isArray(rawPlugins)
+  const plugins: unknown[] | undefined = Array.isArray(rawPlugins)
     ? rawPlugins
-    : typeof rawPlugins === 'object' && rawPlugins !== null
-      ? Object.entries(rawPlugins).map(([name, entry]) => (typeof entry === 'object' && entry !== null && !Array.isArray(entry) ? { ...entry, name } : entry))
+    : isRecord(rawPlugins)
+      ? Object.entries(rawPlugins).map(([name, entry]) => (isRecord(entry) ? { ...entry, name } : entry))
       : undefined
   if (plugins === undefined) {
     errors.push(`marketplace ${path}: "plugins" is not an array`)
@@ -269,18 +305,9 @@ export async function readMarketplaces(checkoutDir: string, errors: string[] = [
 }
 
 /** Read the highest-precedence marketplace manifest, or undefined when absent. */
-export async function readMarketplace(checkoutDir: string): Promise<Marketplace | undefined> {
+async function readMarketplace(checkoutDir: string): Promise<Marketplace | undefined> {
   const results = await readMarketplaces(checkoutDir)
   return results[0]
-}
-
-/** Resolve one marketplace entry to a local checkout-relative directory, or
- *  `undefined` for remote-URL entries that are not present in the clone. */
-export function marketplaceEntryDir(checkoutDir: string, entry: MarketplaceEntry): string | undefined {
-  const source = entry.source
-  if (typeof source === 'string') return resolve(checkoutDir, source)
-  if (source?.path !== undefined) return resolve(checkoutDir, source.path)
-  return undefined
 }
 
 /**
@@ -293,17 +320,14 @@ export async function repoName(checkoutDir: string): Promise<string> {
   const marketplace = await readMarketplace(checkoutDir)
   if (marketplace !== undefined) {
     const entries = marketplace.entries
-    if (entries.length === 1) {
+    const soleEntry = entries.length === 1 ? entries[0] : undefined
+    if (soleEntry !== undefined) {
       // A single-suite marketplace: the plugin entry names the repo (vercel → vercel-plugin).
-      const entryName = pickString(entries[0]!.name)
+      const entryName = pickString(soleEntry.name)
       if (entryName !== undefined) return entryName
     }
     const marketplaceName = pickString(marketplace.name)
     if (marketplaceName !== undefined) return marketplaceName
-    if (entries.length === 1) {
-      const entryName = pickString(entries[0]!.name)
-      if (entryName !== undefined) return entryName
-    }
   }
   const candidate = await detectManifest(checkoutDir)
   if (candidate !== undefined) {
@@ -318,51 +342,4 @@ export async function repoName(checkoutDir: string): Promise<string> {
     }
   }
   return syntheticManifestName(checkoutDir)
-}
-
-/** The winning manifest's declared `skills` path (string or array), or undefined. */
-export async function declaredSkillsPath(root: string): Promise<unknown> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
-  try {
-    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
-    if (typeof raw === 'object' && raw !== null) {
-      return (raw as Record<string, unknown>)['skills']
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
-}
-
-/** The winning manifest's inline `mcpServers`, or undefined. */
-export async function declaredMcpServers(root: string): Promise<Record<string, unknown> | undefined> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
-  try {
-    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
-    if (typeof raw === 'object' && raw !== null) {
-      const servers = (raw as Record<string, unknown>)['mcpServers']
-      if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
-}
-
-/** The winning manifest's inline `lspServers`, or undefined. */
-export async function declaredLspServers(root: string): Promise<Record<string, unknown> | undefined> {
-  const candidate = await detectManifest(root)
-  if (candidate === undefined) return undefined
-  try {
-    const raw: unknown = JSON.parse(await readFile(candidate.path, 'utf8'))
-    if (typeof raw === 'object' && raw !== null) {
-      const servers = (raw as Record<string, unknown>)['lspServers']
-      if (typeof servers === 'object' && servers !== null) return servers as Record<string, unknown>
-    }
-  } catch {
-    return undefined
-  }
-  return undefined
 }

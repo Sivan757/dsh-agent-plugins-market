@@ -3,8 +3,8 @@ import type { OverviewData, SuiteCardData } from '../../api.js'
 
 /** Market status filter. */
 export type MarketFilter = 'all' | 'installed' | 'uninstalled'
-/** Market source scope. */
-export type MarketCategory = 'all' | string
+/** Market source scope; `all` selects every source. */
+export type MarketCategory = string
 
 /** Derived market view data used by the screen and its toolbar. */
 export interface MarketViewModel {

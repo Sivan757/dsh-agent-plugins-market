@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { loadLspServers, saveLspServers } from '../src/runtime/lsp-direct-config.js'
 import { buildLspStatus, DIRECT_LSP_SUITE_ID } from '../src/runtime/lsp-status.js'
 import type { LspMountDiagnostic } from '../src/runtime/lsp-mounts.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 const tempRoots: string[] = []
 async function tempRoot(): Promise<string> {
@@ -25,10 +25,12 @@ describe('lsp-direct-config', () => {
     })
     expect(Object.keys(servers)).toEqual(['lua'])
     const loaded = await loadLspServers(root)
-    expect(loaded.servers['lua']!.command).toBe('lua-language-server')
+    const lua = loaded.servers['lua']
+    if (lua === undefined) throw new Error('expected the saved lua server to load back')
+    expect(lua.command).toBe('lua-language-server')
     // Persisted file is the Claude Code shape, so users can paste upstream snippets.
-    const raw = JSON.parse(await readFile(join(root, 'lsp-servers.json'), 'utf8'))
-    expect(raw.lspServers.lua.command).toBe('lua-language-server')
+    const raw: unknown = JSON.parse(await readFile(join(root, 'lsp.json'), 'utf8'))
+    expect(raw).toHaveProperty(['lspServers', 'lua', 'command'], 'lua-language-server')
   })
 
   it('rejects an invalid table without writing the file', async () => {
@@ -42,13 +44,15 @@ describe('lsp-direct-config', () => {
     const { servers } = await saveLspServers(root, {
       lspServers: { clangd: { command: 'clangd', extensionToLanguage: { C: 'c' } } }
     })
-    expect(servers['clangd']!.extensionToLanguage).toEqual({ '.c': 'c' })
+    const clangd = servers['clangd']
+    if (clangd === undefined) throw new Error('expected the saved clangd server to be returned')
+    expect(clangd.extensionToLanguage).toEqual({ '.c': 'c' })
   })
 
   it('tolerates a missing or broken file', async () => {
     const root = await tempRoot()
     await expect(loadLspServers(root)).resolves.toEqual({ servers: {}, errors: [] })
-    await writeFile(join(root, 'lsp-servers.json'), 'not json', 'utf8')
+    await writeFile(join(root, 'lsp.json'), 'not json', 'utf8')
     const broken = await loadLspServers(root)
     expect(broken.servers).toEqual({})
     expect(broken.errors).toHaveLength(1)
@@ -66,6 +70,7 @@ function lspSuite(id: string): Suite {
     surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: 1 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     installedAt: '2026-08-30T00:00:00.000Z',
     errors: []
   }

@@ -6,14 +6,13 @@ import type { HostTranslate } from './host-locale.js'
 import { McpMountRegistry } from './mcp-mounts.js'
 import { HooksMountRegistry } from './hooks-mounts.js'
 import type { Suite } from '../model/types.js'
-import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from './user-store.js'
 
 interface ProjectAgent {
   ctx: Context
-  session: { id?: string; header: { cwd?: string } }
+  session: { header: { cwd?: string } }
 }
 
 interface AgentMount {
@@ -28,8 +27,8 @@ export function mountProjectCommands(ctx: Context, catalog: Catalog, t: HostTran
 
 /** MCP uses a separate injected child so network startup cannot delay local commands. */
 export function mountProjectMcp(ctx: Context, catalog: Catalog, dataRoot: string): { refresh(): Promise<void>; dispose(): Promise<void> } {
-  return mountProjectSurface(ctx, catalog, 'tools', (scope, agent) => {
-    const registry = new McpMountRegistry(scope, dataRoot, agent.session.id ?? randomUUID())
+  return mountProjectSurface(ctx, catalog, 'tools', scope => {
+    const registry = new McpMountRegistry(scope, dataRoot)
     registry.setBackendProvider(() => catalog.mcpBackend())
     return registry
   })
@@ -70,7 +69,7 @@ export async function suiteInstructions(suites: readonly Suite[]): Promise<{ tex
   const chunks: string[] = []
   const errors: Array<{ suiteId: string; reason: string }> = []
   for (const suite of suites) {
-    if (!suite.enabled || suite.activeSurfaces?.skills === false) continue
+    if (!suite.enabled || suite.activeSurfaces.skills === false) continue
     if (suite.systemPrompt !== undefined) chunks.push(suite.systemPrompt)
     if (suite.manifest.startupSkill === undefined) continue
     const skill = suite.skills.find(skill => skill.name === suite.manifest.startupSkill)
@@ -104,8 +103,9 @@ function mountProjectSurface(
 ): { refresh(): Promise<void>; dispose(): Promise<void> } {
   const host = ctx as unknown as { agents: { list(): ProjectAgent[] } }
   const mounts = new Map<ProjectAgent, AgentMount>()
+  const serviceLabel = typeof service === 'string' ? service : service.join(',')
   let disposed = false
-  const warn = (error: unknown): void => ctx.logger?.warn(`[dsh-agent-plugins-market] project ${service}: ${String(error)}`)
+  const warn = (error: unknown): void => ctx.logger?.warn(`[dsh-agent-plugins-market] project ${serviceLabel}: ${String(error)}`)
   const attach = (agent: ProjectAgent): void => {
     const cwd = agent.session.header.cwd
     if (disposed || (cwd === undefined && !withoutProject) || mounts.has(agent)) return
@@ -130,7 +130,7 @@ function mountProjectSurface(
           active = false
           await registry.disposeAll()
         },
-        `dsh-agent-plugins-market: project ${service}`
+        `dsh-agent-plugins-market: project ${serviceLabel}`
       )
       void refresh().catch(warn)
     })
@@ -145,9 +145,12 @@ function mountProjectSurface(
   const unwatchDisposed = ctx.on('agent/disposed', ({ agent }) => {
     void detach(agent as unknown as ProjectAgent).catch(warn)
   })
-  const unwatchStart = ctx.on('agent/session-start', async ({ agent }) => {
-    attach(agent as unknown as ProjectAgent)
-    await mounts.get(agent as unknown as ProjectAgent)?.refresh()
+  const unwatchStart = ctx.on('agent/session-start', ({ agent }) => {
+    attach(agent)
+    // The refresh chain can reject — its queue body re-reads the project
+    // catalog — and the host emits this event without awaiting the listener,
+    // so an unhandled rejection here would surface at every session start.
+    void mounts.get(agent)?.refresh().catch(warn)
   })
   for (const agent of host.agents.list()) attach(agent)
   return {

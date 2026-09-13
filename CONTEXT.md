@@ -23,3 +23,7 @@ The user-owned record that says whether a suite is installed and enabled, togeth
 ## User and project dimensions
 
 The user dimension applies across sessions. The project dimension applies to a workspace project. The two dimensions can use the same layout dialects but have different ownership and precedence rules.
+
+## Agent layout root
+
+The shared `~/.agents` directory (or `$DSH_AGENTS_HOME`) holding the resources the user authors by hand: `skills/`, `commands/`, `agents/`, and the `mcp.json` / `lsp.json` service declarations. It is distinct from the plugin state root, `~/.dsh/agent-plugins`, which holds checkouts, install state and overrides.

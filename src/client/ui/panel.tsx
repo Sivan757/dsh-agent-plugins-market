@@ -2,11 +2,10 @@
  * Shared panel building blocks for the plugin workspace surfaces
  * (market / skills / commands / personas / MCP / LSP).
  *
- * Everything the six panels repeat lives here: the surface shell (title +
- * actions + toolbar + scrollable content region), the busy indicator, the
- * entry editor modal, the danger-confirm modal, and the source badge. The
- * pieces are intentionally small and prop-driven so a panel composes them
- * instead of re-implementing the geometry.
+ * Everything the six panels repeat lives here: the header, the trailing header
+ * commands, the busy indicator, the entry editor modal, the danger-confirm
+ * modal, and the source badge. The pieces are intentionally small and
+ * prop-driven so a panel composes them instead of re-implementing the geometry.
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
@@ -17,16 +16,7 @@ import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
 import type { Translate } from '../index.js'
 import detailCss from './detail.module.css'
-
-/** One header action slot (a button + its handler). */
-export interface PanelAction {
-  key: string
-  label: string
-  title?: string
-  danger?: boolean
-  disabled?: boolean
-  onSelect: () => void
-}
+import { clientErrorMessage } from './error-message.js'
 
 /** The trailing header commands have one position and one visual treatment. */
 export function PanelActions(props: { addLabel?: string; onAdd?: () => void; refreshLabel?: string; onRefresh?: () => void; busy?: boolean }): ReactNode {
@@ -42,33 +32,6 @@ export function PanelHeader(props: { title: string; subtitle?: string; actions?:
       h('h2', { className: css.title }, props.title),
       props.subtitle === undefined ? null : h('p', { className: css.subtitle }, props.subtitle)),
     props.actions === undefined ? null : h('div', { className: css.headerActions }, props.actions))
-}
-
-/** Shared panel shell: title, subtitle, actions, and the scroll region body. */
-export function PanelShell(props: { title: string; subtitle?: string; actions?: PanelAction[]; children: ReactNode }): ReactNode {
-  return h(
-    'div',
-    { className: css.shell },
-    h(PanelHeader, {
-      title: props.title,
-      subtitle: props.subtitle,
-      actions: props.actions?.map(action =>
-              h(
-                Button,
-                {
-                  key: action.key,
-                  variant: 'ghost',
-                  size: 'sm',
-                  disabled: action.disabled === true,
-                  title: action.title ?? action.label,
-                  onClick: action.onSelect
-                },
-                action.label
-              )
-            )
-    }),
-    h('div', { className: css.body }, props.children)
-  )
 }
 
 /**
@@ -167,7 +130,7 @@ export function EntryEditorModal(props: {
                   // stale inline validation error here.
                   if (ok) setError(undefined)
                 })
-                .catch(reason => setError(reason instanceof Error ? reason.message : String(reason)))
+                .catch(reason => setError(clientErrorMessage(props.t, reason)))
             }
           },
           props.saveLabel ?? '✓'
@@ -232,13 +195,14 @@ export function ConfirmModal(props: { state: PanelConfirmState | undefined; conf
     setChecked(props.state?.checkbox?.checked === true)
   }, [props.state])
   if (props.state === undefined) return null
+  const state = props.state
   return h(
     Modal,
     {
       open: true,
       onClose: props.onClose,
-      title: props.state.title,
-      description: props.state.description,
+      title: state.title,
+      description: state.description,
       closeLabel: props.cancelLabel,
       footer: h(
         'div',
@@ -250,7 +214,7 @@ export function ConfirmModal(props: { state: PanelConfirmState | undefined; conf
             variant: 'primary',
             disabled: props.busy === true,
             onClick: () => {
-              void Promise.resolve(props.state!.onConfirm(checked)).then(() => props.onClose())
+              void Promise.resolve(state.onConfirm(checked)).then(() => props.onClose())
             }
           },
           props.confirmLabel

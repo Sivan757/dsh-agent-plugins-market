@@ -68,6 +68,11 @@ export class RuntimeReconciler {
     this.mcp.forceRemount(suiteId, serverKey)
   }
 
+  /** Flag every live MCP mount for a rebuild on the next reconcile. */
+  forceMcpRemountAll(): void {
+    this.mcp.forceRemountAll()
+  }
+
   /** The mount key owning one derived serverName; undefined when not mounted here. */
   mcpServerOwner(serverName: string): { suiteId: string; serverKey: string } | undefined {
     return this.mcp.serverOwner(serverName)

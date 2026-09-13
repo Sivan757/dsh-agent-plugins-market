@@ -86,9 +86,9 @@ export class UserCommandMountRegistry {
           ...(spec.hint === undefined ? {} : { input: { hint: spec.hint } }),
           handler: invocation => {
             const agent = invocation.agent as InboxAgent
-            const text = [this.t('userCommandForwardTitle', { command: spec.name }), '', spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())].join('\n')
+            const text = spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())
             agent.followup({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } })
-            return { kind: 'success', text: this.t('userCommandAcknowledged', { command: spec.name }) }
+            return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
           }
         })
         this.live.set(key, disposer)

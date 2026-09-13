@@ -4,8 +4,8 @@
  * `ctx.lsp` seam has no provider snapshot, so "mounted" means the mount
  * registration succeeded, not that a process probe ran.
  *
- * Visual language mirrors McpStatusPanel: the same shared SearchFilterToolbar,
- * the same summary chips, cards, and state pills from mcp-status.module.css.
+ * Visual language mirrors McpStatusPanel: the same shared SearchFilterToolbar
+ * and the same cards, state pills, and detail dialog from mcp-status.module.css.
  * Cards stay lean (state dot + name + command + one state pill); the source
  * suite and the full extension map live in the detail dialog.
  */
@@ -18,11 +18,22 @@ import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
 import { parseServerConfig } from './ui/server-form.js'
 import { PanelHeader, PanelActions } from './ui/panel.js'
 import type { Translate } from './index.js'
-import { addLspServer, fetchLspStatus, type LspStatusEntry, type LspStatusPayload, type LspStatusState } from './api.js'
+import {
+  addLspServer,
+  fetchLspStatus,
+  migrateLspSeam,
+  type LspLegacySeam,
+  type LspLegacySeamMigration,
+  type LspStatusEntry,
+  type LspStatusPayload,
+  type LspStatusState
+} from './api.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
+import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './features/lsp-status/lsp-status-view-model.js'
 import css from './mcp-status.module.css'
+import { clientErrorMessage } from './ui/error-message.js'
 
 interface LspStatusPanelProps {
   t: Translate
@@ -35,35 +46,17 @@ const EMPTY_STATUS: LspStatusPayload = {
   hostMissing: true
 }
 
-type Filter = 'all' | 'plugin' | 'direct'
-
-const FILTER_KEYS: Filter[] = ['all', 'plugin', 'direct']
-
-const FILTER_LABEL_KEYS: Record<Filter, 'lspAll' | 'lspPlugin' | 'lspDirect'> = {
+const FILTER_LABEL_KEYS: Record<LspStatusFilter, 'lspAll' | 'lspPlugin' | 'lspDirect'> = {
   all: 'lspAll',
   plugin: 'lspPlugin',
-  direct: 'lspDirect',
+  direct: 'lspDirect'
 }
 
 /** Tooltip text per filter: the counts alone do not explain the grouping. */
-const FILTER_HINT_KEYS: Partial<Record<Filter, 'lspFilterAllHint' | 'lspFilterPluginHint' | 'lspFilterDirectHint'>> = {
+const FILTER_HINT_KEYS: Record<LspStatusFilter, 'lspFilterAllHint' | 'lspFilterPluginHint' | 'lspFilterDirectHint'> = {
   all: 'lspFilterAllHint',
   plugin: 'lspFilterPluginHint',
-  direct: 'lspFilterDirectHint',
-}
-function matches(entry: LspStatusEntry, filter: Filter): boolean {
-  if (filter === 'all') return true
-  if (filter === 'plugin' || filter === 'direct') return entry.kind === filter
-  return false
-}
-
-function severity(entry: LspStatusEntry): number {
-  if (entry.state === 'failed') return 0
-  if (entry.state === 'conflict') return 1
-  if (entry.state === 'host-missing') return 2
-  if (entry.state === 'starting') return 3
-  if (entry.state === 'disabled') return 4
-  return 5
+  direct: 'lspFilterDirectHint'
 }
 
 /** Language-server inventory with per-state overview and per-server detail. */
@@ -71,11 +64,12 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const [payload, setPayload] = useState<LspStatusPayload>(EMPTY_STATUS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<LspStatusFilter>('all')
   const [search, setSearch] = useState('')
   const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<LspStatusEntry | undefined>(undefined)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [seamMigration, setSeamMigration] = useState<LspLegacySeamMigration | undefined>(undefined)
 
   const refresh = (): void => {
     setLoading(true)
@@ -83,7 +77,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     fetchLspStatus()
       .then(setPayload)
       .catch(caught => {
-        setError(caught instanceof Error ? caught.message : String(caught))
+        setError(clientErrorMessage(t, caught))
       })
       .finally(() => setLoading(false))
   }
@@ -119,33 +113,38 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     }
   }, [anyStarting])
 
-  const needle = search.trim().toLowerCase()
-  const counts = FILTER_KEYS.reduce<Record<string, number>>((acc, key) => {
-    acc[key] = payload.entries.filter(entry => matches(entry, key)).length
-    return acc
-  }, {})
-  const visible = payload.entries
-    .filter(entry => matches(entry, filter))
-    .filter(entry => needle === '' || `${entry.serverKey} ${entry.suiteName} ${entry.command}`.toLowerCase().includes(needle))
+  const { filtered, filterCounts } = deriveLspStatusViewModel(payload, filter, search)
 
   return h(
     'div',
     { className: css.surface },
     h(PanelHeader, { title: t('lspStatusTitle'), subtitle: t('lspStatusSubtitle'), actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setEditorOpen(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading }) }),
+    payload.legacySeam === undefined
+      ? seamMigration === undefined
+        ? null
+        : h(SeamResult, { result: seamMigration, t })
+      : h(SeamBanner, {
+          seam: payload.legacySeam,
+          t,
+          onMigrated: result => {
+            setSeamMigration(result)
+            refresh()
+          }
+        }),
     h(SearchFilterToolbar, {
       className: css.toolbar,
       search,
       searchLabel: t('lspSearch'),
       searchPlaceholder: t('lspSearch'),
       onSearchChange: setSearch,
-      filters: FILTER_KEYS.map(key => ({
+      filters: LSP_FILTERS.map(key => ({
         id: key,
         label: t(FILTER_LABEL_KEYS[key]),
-        count: counts[key] ?? 0,
+        count: filterCounts[key],
         icon: h(LspFilterIcon, { k: key }),
         active: filter === key,
         onSelect: () => setFilter(key),
-        hint: FILTER_HINT_KEYS[key] === undefined ? undefined : t(FILTER_HINT_KEYS[key]!)
+        hint: t(FILTER_HINT_KEYS[key])
       })),
       view,
       gridLabel: t('grid'),
@@ -156,12 +155,12 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       ? h('div', { className: css.error }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
       : loading && payload.entries.length === 0
         ? h('div', { className: css.empty }, t('loading'))
-        : visible.length === 0
+        : filtered.length === 0
           ? h('div', { className: css.empty }, t('lspEmpty'))
           : h(
               ResourceCollection,
               { view, className: view === 'grid' ? css.grid : css.list },
-              [...visible].sort((left, right) => severity(left) - severity(right)).map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry) }))
+              filtered.map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry) }))
             ),
     selected === undefined ? null : h(LspDetailModal, { entry: selected, t, onClose: () => { setSelected(undefined); refresh() } }),
     editorOpen
@@ -174,6 +173,59 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
           }
         })
       : null
+  )
+}
+
+/**
+ * One-action upgrade repair for a profile that still carries the hand-written
+ * LSP layer the pre-self-provisioning instructions asked for. The panel only
+ * offers this while a `seam-conflict` is actually reported, and the action
+ * edits exactly the one profile named here.
+ */
+function SeamBanner({ seam, t, onMigrated }: { seam: LspLegacySeam; t: Translate; onMigrated: (result: LspLegacySeamMigration) => void }): ReactNode {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | undefined>(undefined)
+
+  const migrate = async (): Promise<void> => {
+    setBusy(true)
+    setError(undefined)
+    try {
+      onMigrated(await migrateLspSeam(seam.profile))
+    } catch (reason) {
+      setError(clientErrorMessage(t, reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return h(
+    'div',
+    { className: css.seamBanner, role: 'status' },
+    h('span', { className: css.seamTitle }, t('lspSeamTitle')),
+    h('p', { className: css.seamBody }, t('lspSeamBody')),
+    h('span', { className: css.seamPathLabel }, t('lspSeamFile')),
+    h('p', { className: css.seamPath }, seam.patchPath),
+    seam.otherProfiles.length === 0 ? null : h('p', { className: css.seamOther }, `${t('lspSeamOther')} ${seam.otherProfiles.join(', ')}`),
+    error === undefined ? null : h('div', { className: css.error }, error),
+    h(
+      'div',
+      { className: css.modalFooter },
+      h(Button, { variant: 'primary', size: 'sm', disabled: busy, onClick: () => void migrate() }, busy ? t('lspSeamRemoving') : t('lspSeamRemove'))
+    )
+  )
+}
+
+/**
+ * The outcome of a removal, held by the panel rather than the banner: the
+ * refresh that follows takes the banner away, and the confirmation — with the
+ * backup path that makes the edit reversible — must outlive it.
+ */
+function SeamResult({ result, t }: { result: LspLegacySeamMigration; t: Translate }): ReactNode {
+  return h(
+    'div',
+    { className: css.seamBanner, role: 'status' },
+    h('p', { className: css.seamDone }, result.restartRequired ? t('lspSeamRestart') : t('lspSeamDone')),
+    h('p', { className: css.seamPath }, `${t('lspSeamBackup')} ${result.backupPath}`)
   )
 }
 
@@ -197,7 +249,7 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
       await addLspServer(name.trim(), parseServerConfig(text))
       onSaved()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(clientErrorMessage(t, reason))
     } finally {
       setBusy(false)
     }
@@ -302,18 +354,14 @@ function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Trans
 }
 
 /** Filter icons mirroring McpFilterIcon's language: shared glyph shapes for
- *  all/plugin/direct so the two panels read as one system, plus a warning
- *  triangle for the blocked state. */
-function LspFilterIcon({ k }: { k: string }): ReactNode {
+ *  all/plugin/direct so the two panels read as one system. */
+function LspFilterIcon({ k }: { k: LspStatusFilter }): ReactNode {
   const common = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
   if (k === 'plugin') {
     return h('svg', common, h('path', { d: 'M6 2.5v2H4A1.5 1.5 0 0 0 2.5 6v2h2a1.5 1.5 0 1 1 0 3h-2v2A1.5 1.5 0 0 0 4 14.5h2v-2a1.5 1.5 0 1 1 3 0v2h2a1.5 1.5 0 0 0 1.5-1.5v-2h-2a1.5 1.5 0 1 1 0-3h2V6A1.5 1.5 0 0 0 11 4.5H9v-2a1.5 1.5 0 1 0-3 0Z' }))
   }
   if (k === 'direct') {
     return h('svg', common, h('circle', { cx: 8, cy: 5, r: 2.2 }), h('path', { d: 'M3.5 13c.6-2.2 2.1-3.3 4.5-3.3s3.9 1.1 4.5 3.3' }))
-  }
-  if (k === 'blocked') {
-    return h('svg', common, h('path', { d: 'M8 2.5 14 13H2L8 2.5Z', stroke: 'currentColor', strokeLinejoin: 'round' }), h('path', { d: 'M8 6.5v3M8 11.2v.3', stroke: 'currentColor', strokeLinecap: 'round' }))
   }
   return h('svg', common, h('path', { d: 'M2.5 5 8 2.5 13.5 5 8 7.5 2.5 5Zm0 3L8 10.5 13.5 8M2.5 11 8 13.5 13.5 11' }))
 }

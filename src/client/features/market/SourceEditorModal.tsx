@@ -87,7 +87,7 @@ export function SourceEditorModal(props: SourceEditorModalProps): ReactNode {
         'div',
         { className: css.fieldGroup },
         h('label', { className: css.fieldLabel }, urlPlaceholder),
-        h(Input, { placeholder: urlPlaceholder, value: url, onChange: event => setUrl((event.target as HTMLInputElement).value) }),
+        h(Input, { placeholder: urlPlaceholder, value: url, onChange: event => setUrl(event.target.value) }),
         h('span', { className: css.fieldHint }, urlHint)
       ),
       kind === 'git'
@@ -95,7 +95,7 @@ export function SourceEditorModal(props: SourceEditorModalProps): ReactNode {
             'div',
             { className: css.fieldGroup },
             h('label', { className: css.fieldLabel }, t('branchPh')),
-            h(Input, { placeholder: t('branchPh'), value: branch, onChange: event => setBranch((event.target as HTMLInputElement).value) }),
+            h(Input, { placeholder: t('branchPh'), value: branch, onChange: event => setBranch(event.target.value) }),
             h('span', { className: css.fieldHint }, t('branchHint'))
           )
         : null,
@@ -104,7 +104,7 @@ export function SourceEditorModal(props: SourceEditorModalProps): ReactNode {
             'div',
             { className: css.fieldGroup },
             h('label', { className: css.fieldLabel }, t('sha256Ph')),
-            h(Input, { placeholder: t('sha256Ph'), value: sha256, onChange: event => setSha256((event.target as HTMLInputElement).value) }),
+            h(Input, { placeholder: t('sha256Ph'), value: sha256, onChange: event => setSha256(event.target.value) }),
             h('span', { className: css.fieldHint }, t('sha256Hint'))
           )
         : null,

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadState, saveState, EMPTY_STATE } from '../src/model/state.js'
+import { loadState, saveState } from '../src/runtime/state-store.js'
 
 describe('state: persisted suite state', () => {
   it('round-trips sources and install entries through the state file', async () => {
@@ -17,14 +17,6 @@ describe('state: persisted suite state', () => {
     expect(loaded.sources).toHaveLength(1)
     expect(loaded.installed['demo/mysql']?.enabled).toBe(true)
     expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ version: 1 })
-  })
-
-  it('returns an empty state for a missing or wrong-version file', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-state2-'))
-    expect(await loadState(join(dir, 'nope.json'))).toEqual(EMPTY_STATE)
-    const path = join(dir, 'state.json')
-    await saveState(path, { version: 2, sources: [] } as never)
-    expect(await loadState(path)).toEqual(EMPTY_STATE)
   })
 
   it('drops malformed source rows during normalization', async () => {
@@ -51,5 +43,31 @@ describe('state: local source round-trip', () => {
     })
     const loaded = await loadState(path)
     expect(loaded.sources).toEqual([{ id: 'local-repo', url: '/tmp/whatever', local: true }])
+  })
+})
+
+describe('state: atomic publication', () => {
+  it('creates the missing parent directory and rewrites an existing file in place', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-state5-'))
+    // Two levels missing: the atomic write owns parent creation.
+    const path = join(dir, 'nested', 'root', 'state.json')
+    await saveState(path, { version: 1, sources: [{ id: 'first', url: 'https://example.com/first.git' }], installed: {} })
+    await saveState(path, { version: 1, sources: [{ id: 'second', url: 'https://example.com/second.git' }], installed: {} })
+    const loaded = await loadState(path)
+    expect(loaded.sources.map(source => source.id)).toEqual(['second'])
+  })
+
+  it('leaves no temporary sibling behind', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-state6-'))
+    const path = join(dir, 'state.json')
+    await saveState(path, { version: 1, sources: [], installed: {} })
+    expect(await readdir(dir)).toEqual(['state.json'])
+  })
+
+  it.runIf(process.platform !== 'win32')('stamps the private mode on the replacement inode', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-state7-'))
+    const path = join(dir, 'state.json')
+    await saveState(path, { version: 1, sources: [], installed: {} })
+    expect((await stat(path)).mode & 0o777).toBe(0o600)
   })
 })

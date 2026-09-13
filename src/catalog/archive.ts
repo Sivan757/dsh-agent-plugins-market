@@ -19,6 +19,8 @@ import { mkdir, open, readdir, readFile, readlink, rename, rm, stat } from 'node
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { Unzip, UnzipInflate, type FlateError } from 'fflate'
+import { archiveFormatOf, type ArchiveFormat } from '../model/types.js'
+import { isWithin } from './paths.js'
 
 const run = promisify(execFile)
 
@@ -58,17 +60,8 @@ export interface ArchiveInstallResult {
   sha256: string
 }
 
-/** Recognized archive payload kinds. */
-export type ArchiveFormat = 'zip' | 'tar' | 'targz'
-
-/** Classify an archive URL by extension; undefined when unsupported. */
-export function archiveFormatOf(url: string): ArchiveFormat | undefined {
-  const clean = url.trim().toLowerCase()
-  if (clean.endsWith('.zip')) return 'zip'
-  if (clean.endsWith('.tar.gz') || clean.endsWith('.tgz')) return 'targz'
-  if (clean.endsWith('.tar')) return 'tar'
-  return undefined
-}
+/** Archive vocabulary (format kinds and URL classification) shared with the model layer. */
+export { archiveFormatOf, type ArchiveFormat }
 
 /** Download the payload to a temp file, enforcing the size cap and digest. */
 export async function downloadArchive(url: string, tempFile: string, options: ArchiveOptions = {}): Promise<string> {
@@ -89,7 +82,7 @@ export async function downloadArchive(url: string, tempFile: string, options: Ar
   const handle = await open(tempFile, 'w')
   try {
     let size = 0
-    const reader = body.getReader()
+    const reader: ReadableStreamDefaultReader<Uint8Array> = body.getReader()
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
@@ -167,7 +160,21 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
   }
   const unzip = new Unzip()
   unzip.register(UnzipInflate)
-  const writes: Array<Promise<void>> = []
+  // Entry writes go through a fixed set of slots. The stream drives `onfile`
+  // synchronously, so an unbounded fan-out opens one descriptor per entry and
+  // hits the process limit before the entry cap does — on Windows, around the
+  // 8192nd member of a whole-archive zip. A failure recorded during the stream
+  // turns writes that have not started yet into no-ops, and a failed write lands
+  // in the same `failure` slot, so the first error is the one reported.
+  const WRITE_SLOTS = 32
+  const writes: Array<Promise<void>> = Array.from({ length: WRITE_SLOTS }, () => Promise.resolve())
+  let writeSlot = 0
+  const queueWrite = (target: string, chunks: Buffer[]): void => {
+    const slot = writeSlot++ % WRITE_SLOTS
+    writes[slot] = writes[slot]!.then(() => (failure === undefined ? writeZipEntry(target, chunks) : undefined)).catch((error: unknown) => {
+      fail(error instanceof Error ? error : new Error(String(error)))
+    })
+  }
   unzip.onfile = file => {
     if (failure !== undefined) return
     entryCount += 1
@@ -184,7 +191,7 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
       return
     }
     const target = join(dest, normalized)
-    if (target !== dest && !target.startsWith(`${dest}/`)) {
+    if (!isWithin(dest, target)) {
       fail(new Error(`zip entry escapes the extraction root: ${file.name}`))
       return
     }
@@ -206,7 +213,7 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
         return
       }
       chunks.push(Buffer.from(data))
-      if (final) writes.push(writeZipEntry(target, chunks))
+      if (final) queueWrite(target, chunks)
     }
     file.start()
   }
@@ -216,8 +223,12 @@ async function extractZip(archiveFile: string, dest: string): Promise<void> {
   for (let offset = 0; offset < view.length && failure === undefined; offset += slice) {
     unzip.push(view.subarray(offset, Math.min(offset + slice, view.length)), offset + slice >= view.length)
   }
-  if (failure !== undefined) throw failure
+  // Report only once every write has settled: the caller removes the staging
+  // directory in its own cleanup, and a write still in flight would recreate
+  // entries underneath that removal. A failure set during the stream makes the
+  // writes that have not started yet no-ops.
   await Promise.all(writes)
+  if (failure !== undefined) throw failure
 }
 
 /** Write one buffered zip entry to disk after its data completed inflating. */
@@ -257,7 +268,8 @@ async function assertBoundedTree(root: string): Promise<void> {
   let entriesSeen = 0
   let totalBytes = 0
   while (stack.length > 0) {
-    const dir = stack.pop()!
+    const dir = stack.pop()
+    if (dir === undefined) break
     let dirents: import('node:fs').Dirent[]
     try {
       dirents = await readdir(dir, { withFileTypes: true })
@@ -296,7 +308,8 @@ async function assertBoundedTree(root: string): Promise<void> {
 async function assertNoEscapingSymlinks(root: string): Promise<void> {
   const stack = [root]
   while (stack.length > 0) {
-    const dir = stack.pop()!
+    const dir = stack.pop()
+    if (dir === undefined) break
     let entries: import('node:fs').Dirent[]
     try {
       entries = await readdir(dir, { withFileTypes: true })
@@ -311,7 +324,7 @@ async function assertNoEscapingSymlinks(root: string): Promise<void> {
         // bogus in-root path and the escape survives extraction.
         const target = await readlink(path, 'utf8').catch(() => '')
         const resolved = resolve(dir, target)
-        if (resolved !== root && !resolved.startsWith(`${root}/`)) {
+        if (!isWithin(root, resolved)) {
           throw new Error(`archive contains a symlink escaping the extraction root: ${entry.name} -> ${target}`)
         }
         continue
@@ -321,13 +334,11 @@ async function assertNoEscapingSymlinks(root: string): Promise<void> {
   }
 }
 
-/** Test seam: run the symlink-containment walk against a prepared tree. */
-export const assertNoEscapingSymlinksForTest = assertNoEscapingSymlinks
-
 /** If the extraction produced exactly one top-level directory and nothing else, use it as the root. */
 async function unwrapSingleRoot(extractDir: string): Promise<string> {
   const entries = await readdir(extractDir, { withFileTypes: true })
-  if (entries.length === 1 && entries[0]!.isDirectory()) return join(extractDir, entries[0]!.name)
+  const soleEntry = entries.length === 1 ? entries[0] : undefined
+  if (soleEntry !== undefined && soleEntry.isDirectory()) return join(extractDir, soleEntry.name)
   return extractDir
 }
 
@@ -345,14 +356,5 @@ async function copyTree(from: string, to: string): Promise<void> {
         await handle.close()
       }
     }
-  }
-}
-
-/** Probe whether a path exists and is a directory. */
-export async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory()
-  } catch {
-    return false
   }
 }

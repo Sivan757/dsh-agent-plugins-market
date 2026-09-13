@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildMcpStatus, inspectToolRegistry } from '../src/runtime/mcp-status.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {
@@ -19,6 +19,7 @@ function suite(overrides: Partial<Suite> = {}): Suite {
     surfaces: { skills: 0, mcp: 2, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     installedAt: new Date().toISOString(),
     errors: [],
     ...overrides
@@ -49,6 +50,21 @@ describe('MCP status aggregation', () => {
     expect(direct.tools[0]?.name).toBe('read_file')
   })
 
+  it('flags the remote servers that authorize without declaring it', () => {
+    // The redacted configuration shows only what the suite declared, so a
+    // remote server whose suite omits `auth` still reads as auth-free while the
+    // bridge starts OAuth on the server's 401 challenge.
+    const payload = buildMcpStatus([suite()], [], [])
+    expect(payload.entries.find(entry => entry.serverKey === 'docs')?.oauthDefault).toBe(true)
+    expect(payload.entries.find(entry => entry.serverKey === 'app')?.oauthDefault).toBeUndefined()
+    const declared = buildMcpStatus(
+      [suite({ mcp: { schema: 'native-client', servers: { docs: { type: 'streamable-http', url: 'https://example.test/mcp', auth: { enabled: true } } } } })],
+      [],
+      []
+    )
+    expect(declared.entries[0]?.oauthDefault).toBeUndefined()
+  })
+
   it('reads MCP tools from the optional tool-layer snapshot adapter', () => {
     const runtime = {
       layers: {
@@ -72,17 +88,12 @@ describe('MCP status aggregation', () => {
     expect(buildMcpStatus([disabled, uninstalled], [], []).entries).toEqual([])
   })
 
-  it('reports enabled plugin servers with no observed tools as degraded', () => {
-    const payload = buildMcpStatus([suite({ mcp: { schema: 'native-client', servers: { app: { type: 'stdio', command: 'node' } } } })], [], [])
-    expect(payload.entries[0]?.state).toBe('degraded')
-    expect(payload.entries[0]?.tools).toEqual([])
-  })
-
   it('distinguishes a zero-tool server from a mount failure', () => {
     const healthy = buildMcpStatus([suite({ mcp: { schema: 'native-client', servers: { app: { type: 'stdio', command: 'node' } } } })], [], [])
     // No tool observed and no diagnostic: a legitimate zero-tool server is
     // reported as degraded but never retryable.
     expect(healthy.entries[0]?.state).toBe('degraded')
+    expect(healthy.entries[0]?.tools).toEqual([])
     expect(healthy.entries[0]?.advertisedTools).toBe(false)
     expect(healthy.entries[0]?.retryable).toBe(false)
 
@@ -100,6 +111,20 @@ describe('MCP status aggregation', () => {
     expect(orphaned.state).toBe('orphaned')
     expect(orphaned.reason).toContain('disabled or uninstalled')
     expect(payload.totals.orphaned).toBe(1)
+  })
+
+  it('keeps an override-disabled server on the inventory as disabled', () => {
+    // The panel shows what a suite ships next to how the user changed it, so
+    // the declaration survives an override that turns the mount off.
+    const overrides = new Map([['codex-plugin/codex', { app: { enabled: false } }]])
+    const payload = buildMcpStatus([suite()], [], [], overrides)
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.state).toBe('disabled')
+    expect(app.reason).toBe('disabled by override')
+    // The server beside it is untouched: one override must not hide the other.
+    const docs = payload.entries.find(entry => entry.serverKey === 'docs')!
+    expect(docs.state).toBe('degraded')
+    expect(payload.totals).toMatchObject({ all: 2, disabled: 1 })
   })
 
   it('reports missing credential references without exposing values', () => {

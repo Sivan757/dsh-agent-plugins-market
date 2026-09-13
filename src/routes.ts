@@ -12,7 +12,8 @@ import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from './contracts/m
 import { expandHome } from './catalog/paths.js'
 import { sanitizeOverridePatch } from './runtime/mcp-overrides.js'
 import type { MarketService } from './application/queries.js'
-import type { SuiteSurfaceKey } from './model/types.js'
+import type { SourcePatch } from './application/ports.js'
+import type { SourceKind, SuiteSurfaceKey } from './model/types.js'
 import type { PanelResourceStore } from './application/panel-resources.js'
 import { readModelCatalog } from './runtime/model-catalog.js'
 
@@ -154,7 +155,7 @@ export function mountSuiteRoutes(
   })
 
   post(MARKET_ROUTES.addSource, async body => {
-    const url = String(body['url'] ?? '').trim()
+    const url = textField(body['url'] ?? '', 'source url').trim()
     if (url === '') throw new Error('missing source url')
     const local = body['local'] === true
     if (local) {
@@ -166,11 +167,11 @@ export function mountSuiteRoutes(
       const expanded = expandHome(url)
       if (!url.startsWith('~/') && url !== '~' && !isAbsolute(expanded)) throw new Error('local source url must be an absolute path or start with ~/')
     }
-    const branch = body['branch']
+    const branch = body['branch'] === undefined ? undefined : textField(body['branch'], 'branch')
     const sha256 = parseSha256(body['sha256'])
     const source = await manager.addSource({
       url: local || kind === 'local' ? expandHome(url) : url,
-      ...(typeof branch === 'string' && branch.trim() !== '' ? { branch: branch.trim() } : {}),
+      ...(branch !== undefined && branch.trim() !== '' ? { branch: branch.trim() } : {}),
       ...(local ? { local: true } : {}),
       ...(kind === undefined ? {} : { kind }),
       ...(sha256 === undefined ? {} : { sha256 })
@@ -181,13 +182,13 @@ export function mountSuiteRoutes(
   post(MARKET_ROUTES.updateSource, async body => {
     const id = body['id']
     if (typeof id !== 'string' || id === '') throw new Error('missing source id')
-    const patch: { url?: string; branch?: string; local?: boolean; kind?: 'git' | 'local' | 'archive'; sha256?: string } = {}
+    const patch: SourcePatch = {}
     if (body['url'] !== undefined) {
-      const url = String(body['url']).trim()
+      const url = textField(body['url'], 'source url').trim()
       if (url === '') throw new Error('missing source url')
       patch.url = url
     }
-    if (body['branch'] !== undefined) patch.branch = String(body['branch']).trim()
+    if (body['branch'] !== undefined) patch.branch = textField(body['branch'], 'branch').trim()
     if (body['local'] !== undefined) patch.local = body['local'] === true
     const kind = parseSourceKind(body['kind'])
     if (kind !== undefined) patch.kind = kind
@@ -214,8 +215,8 @@ export function mountSuiteRoutes(
   })
 
   post(MARKET_ROUTES.refreshSource, async body => {
-    const id = body['id']
-    await manager.refreshSource(typeof id === 'string' && id !== '' ? id : undefined)
+    const id = body['id'] === undefined ? undefined : textField(body['id'], 'source id')
+    await manager.refreshSource(id === '' ? undefined : id)
     return {}
   })
 
@@ -318,10 +319,20 @@ export function mountSuiteRoutes(
     return {}
   })
   post(`${MARKET_ROUTES.lspServers}/enabled`, async body => {
-    const id = String(body['id'] ?? '')
+    const id = textField(body['id'] ?? '', 'LSP server id')
     if (id === '') throw new Error('missing LSP server id')
-    await manager.setLspServerEnabled(id, body['enabled'] !== false)
+    const enabled = body['enabled']
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setLspServerEnabled(id, enabled)
     return {}
+  })
+  // Upgrade repair: drop the hand-written profile layer an older release told
+  // the user to add for LSP. It edits a file the user owns, so the profile
+  // name is matched against what is on disk and nothing else is touched.
+  post(MARKET_ROUTES.migrateLspSeam, async body => {
+    const profile = textField(body['profile'] ?? '', 'profile name').trim()
+    if (profile === '') throw new Error('missing profile name')
+    return { migration: await manager.migrateLegacyLspSeam(profile) }
   })
 
   // User panel CRUD (skills / commands / agent personas). The host web
@@ -349,8 +360,8 @@ export function mountSuiteRoutes(
       })
 
       post(`${userPanelRoute(kind)}/create`, async body => {
-        const name = String(body['name'] ?? '').trim()
-        const text = String(body['text'] ?? '')
+        const name = textField(body['name'] ?? '', 'entry name').trim()
+        const text = textField(body['text'] ?? '', 'entry text')
         if (name === '') throw new Error('missing entry name')
         const entry = await storeOf(kind).create(name, text)
         await manager.notifyPanelsChanged()
@@ -359,7 +370,7 @@ export function mountSuiteRoutes(
 
       post(`${userPanelRoute(kind)}/update`, async (body, request) => {
         const name = queryOf(request).get('name') ?? ''
-        const text = String(body['text'] ?? '')
+        const text = textField(body['text'] ?? '', 'entry text')
         if (name === '') throw new Error('missing entry name')
         await storeOf(kind).update(name, text)
         await manager.notifyPanelsChanged()
@@ -367,7 +378,7 @@ export function mountSuiteRoutes(
       })
 
       post(`${userPanelRoute(kind)}/delete`, async body => {
-        const name = String(body['name'] ?? '')
+        const name = textField(body['name'] ?? '', 'entry name')
         if (name === '') throw new Error('missing entry name')
         await storeOf(kind).remove(name)
         await manager.notifyPanelsChanged()
@@ -379,6 +390,24 @@ export function mountSuiteRoutes(
   return () => {
     for (const dispose of disposers) dispose()
   }
+}
+
+/**
+ * Read a request field this route documents as a string. Bodies are arbitrary
+ * JSON, so the field may arrive as any value; anything but a string is
+ * rejected rather than coerced, because `String({})` is `"[object Object]"` —
+ * a non-empty value that every check downstream would accept and store as a
+ * source url, a branch name, or an entry name. Empty stays empty so each
+ * caller keeps owning whether that means "missing".
+ */
+function textField(value: unknown, label: string): string {
+  if (typeof value !== 'string') throw new Error(`${label} must be a string`)
+  return value
+}
+
+/** Render an untrusted field for a diagnostic message. Never a value reader — see `textField`. */
+function describe(value: unknown): string {
+  return String(value)
 }
 
 type RouteHandler = (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
@@ -393,16 +422,16 @@ function parseTarget(body: Record<string, unknown>): { sourceId: string; suiteId
 }
 
 /** Parse an optional acquisition-kind field; rejects unknown values. */
-function parseSourceKind(raw: unknown): 'git' | 'local' | 'archive' | undefined {
+function parseSourceKind(raw: unknown): SourceKind | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined
   if (raw === 'git' || raw === 'local' || raw === 'archive') return raw
-  throw new Error(`invalid source kind "${String(raw)}"`)
+  throw new Error(`invalid source kind "${describe(raw)}"`)
 }
 
 /** Parse an optional SHA-256 hex digest; rejects malformed values. */
 function parseSha256(raw: unknown): string | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined
-  const value = String(raw).trim().toLowerCase()
+  const value = textField(raw, 'sha256').trim().toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error('sha256 must be a 64-character hex digest')
   return value
 }
@@ -417,7 +446,8 @@ function sameOrigin(request: IncomingMessage): boolean {
   }
 }
 
-function readJsonBody(request: IncomingMessage): Promise<unknown | undefined> {
+/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
+function readJsonBody(request: IncomingMessage): Promise<unknown> {
   return new Promise(resolve => {
     let size = 0
     const chunks: Buffer[] = []

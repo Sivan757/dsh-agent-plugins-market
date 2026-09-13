@@ -1,5 +1,5 @@
 /** A suite card in the market grid/list. */
-import { createElement as h, type ReactElement, type ReactNode } from 'react'
+import { createElement as h, type HTMLAttributes, type ReactElement, type ReactNode } from 'react'
 import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../index.js'
@@ -7,6 +7,15 @@ import { ToggleSwitch } from '../../ui/ToggleSwitch.js'
 import css from '../../market.module.css'
 import { ResourceCard } from '../../ui/ResourceCard.js'
 import { suiteLayoutLabel } from '../../layout-label.js'
+
+/**
+ * A tooltip anchor. `Tooltip` clones its child and chains its own hover/focus
+ * handlers onto it, so the anchor must expose a span's handler props.
+ */
+function warnAnchor(text: string): ReactElement<HTMLAttributes<HTMLSpanElement>> {
+  const props: HTMLAttributes<HTMLSpanElement> = { className: css.warnLine }
+  return h('span', props, text)
+}
 
 export interface SuiteCardProps {
   t: Translate
@@ -34,7 +43,8 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
   ).filter(([, count]) => count > 0)
   const layoutLabel = suiteLayoutLabel(suite.layout, t)
   const isRemote = suite.remoteUrl !== undefined
-  const hasTagRow = tags.length > 0 || suite.errors.length > 0 || (suite.mcpErrors?.length ?? 0) > 0
+  const mcpErrors = suite.mcpErrors ?? []
+  const hasTagRow = tags.length > 0 || suite.errors.length > 0 || mcpErrors.length > 0
   const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
     event.stopPropagation()
     callback()
@@ -141,13 +151,13 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
             ? null
             : h(Tooltip, {
                 label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')),
-                children: h('span', { className: css.warnLine }, `⚠ ${t('errors')} ${suite.errors.length}`) as unknown as ReactElement
+                children: warnAnchor(`⚠ ${t('errors')} ${suite.errors.length}`)
               }),
-          (suite.mcpErrors?.length ?? 0) === 0
+          mcpErrors.length === 0
             ? null
             : h(Tooltip, {
-                label: suite.mcpErrors!.slice(0, 8).join(t('sourceErrorSeparator')),
-                children: h('span', { className: css.warnLine }, `⚠ ${t('mcpSection')} ${suite.mcpErrors!.length}`) as unknown as ReactElement
+                label: mcpErrors.slice(0, 8).join(t('sourceErrorSeparator')),
+                children: warnAnchor(`⚠ ${t('mcpSection')} ${mcpErrors.length}`)
               })
         )
       : null

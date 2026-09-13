@@ -4,9 +4,14 @@ import type { Translate } from '../index.js'
 import { frontmatter } from '../features/personas/frontmatter.js'
 import css from './detail.module.css'
 
+/** Metadata leaves render as text; callers pass only values that are not objects. */
+function leafText(value: unknown): string {
+  return String(value)
+}
+
 function metadataValue(value: unknown, depth = 0, parents = new Set<object>()): ReactNode {
   if (value === null || value === undefined) return h('span', null, 'null')
-  if (typeof value !== 'object') return h('span', null, String(value))
+  if (typeof value !== 'object') return h('span', null, leafText(value))
   if (parents.has(value)) return h('span', null, '[Circular]')
   const next = new Set(parents).add(value)
   if (depth >= 12) return h('span', null, '[...]')

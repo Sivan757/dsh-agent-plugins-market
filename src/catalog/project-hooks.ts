@@ -8,6 +8,15 @@ function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Render a declared hook field inside a diagnostic. Declarations are
+ * untrusted JSON, so the value is whatever the file carried — including an
+ * object, which reads as `[object Object]` in the message.
+ */
+function declarationText(value: unknown): string {
+  return String(value)
+}
+
 /** Merge settings layers additively, deduplicating identical event/matcher/command triples. */
 export async function discoverProjectHooks(
   projectRoot: string,
@@ -67,7 +76,7 @@ export function normalizeHookDocuments(
           errors.push(`${file}: invalid ${event} hook group`)
           return undefined
         }
-        const matcher = event === 'Stop' || event === 'UserPromptSubmit' ? undefined : (group.matcher as string | undefined)
+        const matcher = event === 'Stop' || event === 'UserPromptSubmit' ? undefined : group.matcher
         if (matcher !== undefined && matcher !== '*') {
           try {
             new RegExp(matcher)
@@ -84,7 +93,7 @@ export function normalizeHookDocuments(
           }
           if (hook.enabled === false) continue
           if (hook.type !== undefined && hook.type !== 'command') {
-            errors.push(`${file}: unsupported ${event} hook type ${String(hook.type)}`)
+            errors.push(`${file}: unsupported ${event} hook type ${declarationText(hook.type)}`)
             continue
           }
           if (

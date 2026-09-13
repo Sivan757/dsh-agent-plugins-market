@@ -168,11 +168,6 @@
   align-items: baseline;
 }
 
-.editorName {
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .editorPath {
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary, #6b7280);
@@ -216,6 +211,14 @@
   font-size: 12px;
 }
 
+/* Non-blocking notice: the stored value is valid YAML but will not be applied. */
+.editorWarning {
+  margin: 0;
+  color: var(--dsw-alias-state-warn-primary, rgb(180, 120, 0));
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .confirmCheck {
   display: flex;
   flex-direction: row;
@@ -244,11 +247,6 @@
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1, #fff);
 }
-
-.entryRowDisabled {
-  opacity: 0.72;
-}
-
 
 .entryMain {
   display: flex;
@@ -408,6 +406,7 @@
 }
 
 .roleFields .editorHint,
+.roleFields .editorWarning,
 .roleFields .editorError {
   grid-column: 1 / -1;
 }

@@ -12,13 +12,14 @@ Run evidence matched to the outgoing diff once, then report only the commands ru
 1. **Scope the diff.** `git status --short --branch` and `git diff <base> --stat`; the surface list is the completion criterion for this step.
 2. **Map surface to evidence** and run the union once:
 
-| Outgoing surface                     | Evidence                                                                                 |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `src/**` or `tests/**`               | `check:refactor` + the vitest files mirroring the touched areas (`tests/<area>.test.ts`) |
-| `src/client/**` or `locales.ts`      | above + every `tests/client-*.test.ts`                                                   |
-| `schemas/**`                         | above + `tests/mcp-config.test.ts` + `tests/lsp-spec.test.ts`                            |
-| `docs/**`, `README*`, `docs-site/**` | `format:check` (and `docs-site` build when its sources changed)                          |
-| `package.json` / lockfile            | `pnpm install --frozen-lockfile` + `check:refactor`                                      |
+| Outgoing surface                     | Evidence                                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `src/**` or `tests/**`               | `check:refactor` + the vitest files mirroring the touched areas (`tests/<area>.test.ts`)       |
+| `src/client/**` or `locales.ts`      | above + every `tests/client-*.test.ts`                                                         |
+| `schemas/**`                         | above + `tests/mcp-config.test.ts` + `tests/lsp-spec.test.ts`                                  |
+| `docs/**`, `README*`, `docs-site/**` | `format:check` (and `docs-site` build when its sources changed)                                |
+| `package.json` / lockfile            | `pnpm install --frozen-lockfile` + `check:refactor` + `check:host-alignment`                   |
+| a new `import('@deepseek-ai/dsh-*')` | above + `check:host-alignment` (an undeclared host import is a surface that degrades silently) |
 
 3. **Re-verify after fixes.** Any fix reruns the same command set that failed, nothing more.
 4. **Green tree.** `format:check` covers files eslint does not (docs, HTML, fixtures) — include it whenever non-TS files moved, then report the evidence list with the push proposal.

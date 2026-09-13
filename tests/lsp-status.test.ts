@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildLspStatus, type LspMountStatusSource } from '../src/runtime/lsp-status.js'
 import type { LspMountDiagnostic } from '../src/runtime/lsp-mounts.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 function lspSuite(id: string, overrides: Partial<Suite> = {}): Suite {
   return {
@@ -18,6 +18,7 @@ function lspSuite(id: string, overrides: Partial<Suite> = {}): Suite {
     surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: 1 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     installedAt: '2026-08-30T00:00:00.000Z',
     errors: [],
     ...overrides
@@ -42,15 +43,21 @@ describe('buildLspStatus', () => {
 
   it('reports host-missing from the stored diagnostic', () => {
     const payload = buildLspStatus([lspSuite('ts')], registry([{ suiteId: 'src/ts', serverKey: 'ts/typescript', reason: 'not installed', code: 'host-missing' }]))
-    expect(payload.entries[0]!.state).toBe('host-missing')
-    expect(payload.entries[0]!.reason).toBe('not installed')
+    expect(payload.entries).toHaveLength(1)
+    const [entry] = payload.entries
+    if (entry === undefined) throw new Error('expected the stored diagnostic to produce one status row')
+    expect(entry.state).toBe('host-missing')
+    expect(entry.reason).toBe('not installed')
     expect(payload.hostMissing).toBe(true)
     expect(payload.totals.blocked).toBe(1)
   })
 
   it('falls back to starting when no mounts and no diagnostics exist (mount pass in flight)', () => {
     const payload = buildLspStatus([lspSuite('ts')], registry([], false))
-    expect(payload.entries[0]!.state).toBe('starting')
+    expect(payload.entries).toHaveLength(1)
+    const [entry] = payload.entries
+    if (entry === undefined) throw new Error('expected the in-flight mount pass to produce one status row')
+    expect(entry.state).toBe('starting')
     expect(payload.hostMissing).toBe(false)
   })
 
@@ -62,9 +69,11 @@ describe('buildLspStatus', () => {
         { suiteId: 'src/b', serverKey: 'b/typescript', reason: 'mount failed: executable not found', code: 'mount-failed' }
       ])
     )
-    expect(payload.entries[0]!.state).toBe('conflict')
-    expect(payload.entries[1]!.state).toBe('failed')
-    expect(payload.entries[1]!.retryable).toBe(true)
+    const [conflict, failed] = payload.entries
+    if (conflict === undefined || failed === undefined) throw new Error('expected the two declared servers to produce two status rows')
+    expect(conflict.state).toBe('conflict')
+    expect(failed.state).toBe('failed')
+    expect(failed.retryable).toBe(true)
     expect(payload.totals.blocked).toBe(1)
     expect(payload.totals.failed).toBe(1)
   })

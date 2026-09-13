@@ -18,7 +18,6 @@ import { InstallConfirmModal, type InstallConfirmState } from './features/market
 import { SuiteCard } from './features/market/SuiteCard.js'
 import { StatusIcon } from './ui/StatusIcon.js'
 import type { Translate } from './index.js'
-import type { CredentialApi } from './credentials.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
@@ -27,6 +26,7 @@ import css from './market.module.css'
 import { useWorkspaceView } from './ui/workspace-view.js'
 import { PanelHeader, PanelActions } from './ui/panel.js'
 import { ResourceCollection } from './ui/ResourceCard.js'
+import { clientErrorMessage } from './ui/error-message.js'
 
 /** Host step keys -> translation keys, resolved against the active t(). */
 const PROGRESS_STEP_LABELS: Record<string, string> = {
@@ -37,8 +37,6 @@ const PROGRESS_STEP_LABELS: Record<string, string> = {
 
 export interface MarketSectionProps {
   t: Translate
-  /** Host credentials wire used for write-only MCP env configuration. */
-  credentials?: CredentialApi
   /** The host surface controls only outer spacing; data and actions stay shared. */
   mode?: 'settings' | 'page'
 }
@@ -64,7 +62,7 @@ function progressStepLabel(t: Translate, step: string): string {
   return key === undefined ? step : t(key as Parameters<Translate>[0])
 }
 
-export function MarketSection({ t, credentials, mode = 'settings' }: MarketSectionProps): ReactNode {
+export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): ReactNode {
   const [overview, setOverview] = useState<OverviewData>(() => loadOverview().initial)
   const [loading, setLoading] = useState(() => loadOverview().revalidating)
   const [search, setSearch] = useState('')
@@ -104,7 +102,7 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
         await refresh()
         return true
       } catch (error) {
-        setToast({ key: Date.now(), message: `${t('actionFail')}: ${error instanceof Error ? error.message : String(error)}` })
+        setToast({ key: Date.now(), message: `${t('actionFail')}: ${clientErrorMessage(t, error)}` })
         return false
       } finally {
         setBusy(undefined)
@@ -327,7 +325,7 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
                       onChange: event =>
                         setConfirm({
                           ...confirm,
-                          deleteCheckout: (event.target as HTMLInputElement).checked
+                          deleteCheckout: (event.target).checked
                         })
                     }),
                     confirm.deleteCheckout ? t('removeSourceDeleteFiles') : t('removeSourceKeepFiles')
@@ -354,7 +352,6 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
         ? null
         : h(SuiteDetailModal, {
             t,
-            credentials,
             sourceId: detail.sourceId,
             suiteId: detail.suiteId,
             onClose: () => setDetail(undefined)
@@ -385,8 +382,8 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
                   if (derived !== undefined) setCategory(derived)
                   return true
                 } catch (error) {
-                  setToast({ key: Date.now(), message: `${t('actionFail')}: ${error instanceof Error ? error.message : String(error)}` })
-                  setProgress({ step: undefined, error: error instanceof Error ? error.message : String(error) })
+                  setToast({ key: Date.now(), message: `${t('actionFail')}: ${clientErrorMessage(t, error)}` })
+                  setProgress({ step: undefined, error: clientErrorMessage(t, error) })
                   return false
                 } finally {
                   poll.stop()
@@ -397,7 +394,7 @@ export function MarketSection({ t, credentials, mode = 'settings' }: MarketSecti
               if (ok) setEditor(undefined)
               return ok
             },
-            onRemove: async id => {
+            onRemove: id => {
               setConfirm({ kind: 'removeSource', sourceId: id, deleteCheckout: true })
               setEditor(undefined)
             }

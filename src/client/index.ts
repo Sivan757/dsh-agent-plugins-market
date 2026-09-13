@@ -31,13 +31,14 @@ interface LocaleService {
 /** The subset of the slots service this plugin touches. */
 interface SlotsService {
   inject(slot: string, register: () => unknown): void
-  register(meta: Record<string, unknown>, component: () => unknown): unknown
+  /** Returns the registration's disposer; a host that keeps the seat until teardown returns nothing. */
+  register(meta: Record<string, unknown>, component: () => unknown): (() => void) | undefined
 }
 
 /** The subset of the host settings-scope service this plugin touches. */
 interface SettingsScopeService {
   bind(options: { namespace: string }): {
-    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean; scanProjectLayouts?: boolean }; writable: boolean }
+    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean; scanProjectLayouts?: boolean; autoUpdateSources?: boolean }; writable: boolean }
     subscribe(listener: () => void): () => void
     set(field: string, value: unknown): Promise<void>
   }
@@ -74,7 +75,7 @@ export function apply(ctx: SuiteClientContext): void {
   const t = ctx.locale.bind(NS)
   const credentials = credentialApi(ctx.remote.credentials)
 
-  const gaps = missingPrimitives(primitives as unknown as Record<string, unknown>)
+  const gaps = missingPrimitives(primitives)
   if (gaps.length > 0) {
     console.warn(`[dsh-agent-plugins-market] host ui-primitives missing ${gaps.join(', ')} — Agent Plugins Market section disabled (dsh web >= 0.1.0-rc.6 required)`)
     return
@@ -127,8 +128,10 @@ export function apply(ctx: SuiteClientContext): void {
           setRegion: next => withBusyOperation(() => scope.set('downloadRegion', next)),
           feedbackEnabled: () => scope.getSnapshot().value?.feedbackEnabled !== false,
           setFeedbackEnabled: next => withBusyOperation(() => scope.set('feedbackEnabled', next)),
-          scanProjectLayouts: () => scope.getSnapshot().value?.scanProjectLayouts !== false,
-          setScanProjectLayouts: next => withBusyOperation(() => scope.set('scanProjectLayouts', next))
+          scanProjectLayouts: () => scope.getSnapshot().value?.scanProjectLayouts === true,
+          setScanProjectLayouts: next => withBusyOperation(() => scope.set('scanProjectLayouts', next)),
+          autoUpdateSources: () => scope.getSnapshot().value?.autoUpdateSources === true,
+          setAutoUpdateSources: next => withBusyOperation(() => scope.set('autoUpdateSources', next))
         },
         probe: () => fetchMcpBackend(),
       })),

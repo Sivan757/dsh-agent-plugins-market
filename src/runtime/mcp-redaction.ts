@@ -17,7 +17,8 @@ const SENSITIVE_KEY =
  */
 const STRUCTURE_KEY = /^auth$/i
 
-const PLACEHOLDER = /\$\{[^}]+\}/g
+/** A `${NAME}` credential reference. Deliberately not global: it is only ever probed with `test`. */
+const PLACEHOLDER = /\$\{[^}]+\}/
 
 export function redactMcpConfig(value: unknown): unknown {
   return redactValue(value)
@@ -80,7 +81,7 @@ function redactValue(value: unknown, key = ''): unknown {
     return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [childKey, redactValue(childValue, childKey)]))
   }
   if (isSensitiveKey(key)) {
-    if (typeof value === 'string' && PLACEHOLDER.test(value)) return value.replace(PLACEHOLDER, match => match)
+    if (typeof value === 'string' && PLACEHOLDER.test(value)) return value
     return '[redacted]'
   }
   if (key === 'url' && typeof value === 'string') return redactUrl(value)

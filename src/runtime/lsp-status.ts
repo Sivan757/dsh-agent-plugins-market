@@ -7,7 +7,8 @@
  * so a row's state is a declaration-and-diagnostic judgment: a suite whose
  * mount succeeded yields `mounted` (the seam guarantees registration), a
  * stored diagnostic yields its own state, and a declaration with neither
- * mounts nor diagnostics means the host packages are absent (`host-missing`).
+ * mounts nor diagnostics means the capability packages could not be loaded
+ * (`host-missing`).
  * Direct user-configured rows follow the same model under the sentinel suite
  * id `direct` (mirroring mcp-status's `plugin`/`direct` split).
  */
@@ -66,7 +67,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
     // id, matching the mount registry's wanted key exactly.
     if (suite.lsp === undefined || suite.installedAt === undefined || !suite.enabled) continue
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
-    const disabled = suite.activeSurfaces?.lsp === false
+    const disabled = suite.activeSurfaces.lsp === false
     const diagnostic = diagnostics.get(suiteKey)
     const { state, reason, retryable } = deriveState(disabled, diagnostic, anyLive)
     if (state === 'mounted') mountedSuiteIds.add(suiteKey)

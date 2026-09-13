@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
 import { Catalog } from '../src/application/catalog.js'
 import { validateMcpJson, validatePluginManifest, expandPlaceholders, pathContainmentError } from '../src/catalog/validate.js'
+import { required } from './helpers/fixture.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = join(here, 'fixtures')
@@ -14,14 +15,14 @@ describe('discovery: agent-plugins.org v1 layout', () => {
   it('normalizes a single portable suite with skills and mcp', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'v1-suite'), 'demo', 'user')
     expect(suites).toHaveLength(1)
-    const suite = suites[0]!
+    const suite = required(suites[0], 'the v1 fixture to yield one suite')
     expect(suite.manifest.layout).toBe('agent-plugin-v1')
     expect(suite.manifest.name).toBe('v1-suite')
     expect(suite.manifest.version).toBe('1.2.3')
     expect(suite.manifest.keywords).toEqual(['fixture', 'v1'])
     expect(suite.skills.map(skill => skill.name)).toEqual(['greet'])
-    expect(suite.mcp).toBeDefined()
-    expect(Object.keys(suite.mcp!.servers)).toEqual(['toolbox', 'remote'])
+    const mcp = required(suite.mcp, 'the v1 fixture suite to declare mcp servers')
+    expect(Object.keys(mcp.servers)).toEqual(['toolbox', 'remote'])
     expect(suite.surfaces).toMatchObject({ skills: 1, mcp: 2 })
     expect(suite.errors).toEqual([])
   })
@@ -31,42 +32,49 @@ describe('discovery: Claude Code marketplace layout', () => {
   it('uses the marketplace manifest, keeps local entries and remote references', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'cc-marketplace'), 'cc', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['demo-one', 'demo-two', 'demo-three', 'external-one', 'typescript-lsp', 'extra-plugin'])
-    expect(suites[0]!.manifest.layout).toBe('claude-code')
-    expect(suites[0]!.skills[0]!.name).toBe('demo-one')
+    const demoOne = required(suites[0], 'demo-one as the first marketplace entry')
+    expect(demoOne.manifest.layout).toBe('claude-code')
+    expect(required(demoOne.skills[0], 'demo-one to ship one skill').name).toBe('demo-one')
     // A manifest-less marketplace entry still surfaces as a skill collection.
-    expect(suites[2]!.manifest.layout).toBe('skill-collection')
-    expect(suites[2]!.skills[0]!.name).toBe('demo-three')
+    const demoThree = required(suites[2], 'demo-three as the third marketplace entry')
+    expect(demoThree.manifest.layout).toBe('skill-collection')
+    expect(required(demoThree.skills[0], 'demo-three to ship one skill').name).toBe('demo-three')
     // Remote-URL entries surface as metadata-only remote suites.
-    expect(suites[3]!.manifest.layout).toBe('remote')
-    expect(suites[3]!.remote).toEqual({ url: 'https://github.com/example/external.git' })
-    expect(suites[3]!.root).toBe('')
+    const externalOne = required(suites[3], 'external-one as the fourth marketplace entry')
+    expect(externalOne.manifest.layout).toBe('remote')
+    expect(externalOne.remote).toEqual({ url: 'https://github.com/example/external.git' })
+    expect(externalOne.root).toBe('')
     // A manifest-bearing container dir the marketplace did not list is supplemented.
-    expect(suites[5]!.manifest.layout).toBe('claude-code')
-    expect(suites[5]!.manifest.name).toBe('extra-plugin')
+    const extraPlugin = required(suites[5], 'extra-plugin as the sixth marketplace entry')
+    expect(extraPlugin.manifest.layout).toBe('claude-code')
+    expect(extraPlugin.manifest.name).toBe('extra-plugin')
   })
 
   it('surfaces inline lspServers declared on a marketplace entry', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'cc-marketplace'), 'cc', 'user')
-    const lsp = suites.find(suite => suite.id === 'typescript-lsp')!
-    expect(lsp).toBeDefined()
+    const lsp = required(
+      suites.find(suite => suite.id === 'typescript-lsp'),
+      'the cc-marketplace fixture to list a typescript-lsp suite'
+    )
     // A declaration-only suite: the entry's inline lspServers are its manifest.
     expect(lsp.manifest.layout).toBe('claude-code')
-    expect(lsp.lsp).toBeDefined()
-    const spec = lsp.lsp!.servers['typescript']!
+    const declared = required(lsp.lsp, 'the typescript-lsp entry to declare inline lspServers')
+    const spec = required(declared.servers['typescript'], 'a typescript server in the inline lspServers')
     expect(spec).toMatchObject({ key: 'typescript', command: 'typescript-language-server', args: ['--stdio'] })
     expect(spec.extensionToLanguage).toEqual({ '.ts': 'typescript', '.tsx': 'typescriptreact', '.js': 'javascript', '.jsx': 'javascriptreact' })
     expect(lsp.surfaces.lsp).toBe(1)
     expect(lsp.errors).toEqual([])
     // Suites without declarations carry no lsp field.
-    expect(suites[0]!.lsp).toBeUndefined()
-    expect(suites[0]!.surfaces.lsp).toBe(0)
+    const plain = required(suites[0], 'a first marketplace entry without lsp declarations')
+    expect(plain.lsp).toBeUndefined()
+    expect(plain.surfaces.lsp).toBe(0)
   })
 })
 
 describe('overview: remote marketplace references', () => {
   it('includes the remote source URL on remote suite cards', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-remote-overview-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'cc', url: join(fixtures, 'cc-marketplace'), local: true }])
 
@@ -80,22 +88,24 @@ describe('discovery: Codex marketplace and nested bundles', () => {
   it('reads .agents/plugins/marketplace.json with Codex source objects, validating MCP', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'codex-bundled'), 'cb', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['demo-tools', 'remote-thing'])
-    const demo = suites[0]!
+    const demo = required(suites[0], 'demo-tools as the first codex entry')
     expect(demo.manifest.layout).toBe('codex')
-    expect(demo.mcp).toBeDefined()
-    expect(Object.keys(demo.mcp!.servers)).toEqual(['demo'])
-    expect(demo.mcp!.servers['demo']).toMatchObject({ type: 'streamable-http', url: 'https://mcp.demo.example.com' })
+    const demoMcp = required(demo.mcp, 'the codex demo-tools entry to declare mcp servers')
+    expect(Object.keys(demoMcp.servers)).toEqual(['demo'])
+    expect(demoMcp.servers['demo']).toMatchObject({ type: 'streamable-http', url: 'https://mcp.demo.example.com' })
     expect(demo.errors).toEqual([])
-    expect(suites[1]!.manifest.layout).toBe('remote')
-    expect(suites[1]!.remote).toEqual({ url: 'https://github.com/example/remote-thing.git' })
+    const remoteThing = required(suites[1], 'remote-thing as the second codex entry')
+    expect(remoteThing.manifest.layout).toBe('remote')
+    expect(remoteThing.remote).toEqual({ url: 'https://github.com/example/remote-thing.git' })
   })
 
   it('recurses nested plugins containers without a marketplace (Codex runtime layout)', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'codex-runtime'), 'cr', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['deep-tools'])
-    expect(suites[0]!.manifest.layout).toBe('codex')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['deep'])
-    expect(suites[0]!.errors).toEqual([])
+    const deepTools = required(suites[0], 'deep-tools as the only codex runtime suite')
+    expect(deepTools.manifest.layout).toBe('codex')
+    expect(deepTools.skills.map(skill => skill.name)).toEqual(['deep'])
+    expect(deepTools.errors).toEqual([])
   })
 })
 
@@ -103,24 +113,27 @@ describe('discovery: containment of broken content', () => {
   it('keeps valid skills when mcp.json has escaping paths, invalidating only that server', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'bad-mcp'), 'bad', 'user')
     expect(suites).toHaveLength(1)
-    const suite = suites[0]!
+    const suite = required(suites[0], 'the bad-mcp fixture to yield one suite')
     expect(suite.skills.map(skill => skill.name)).toEqual(['ok-skill'])
-    expect(Object.keys(suite.mcp!.servers)).toEqual(['good'])
+    const mcp = required(suite.mcp, 'the suite to keep its valid mcp server')
+    expect(Object.keys(mcp.servers)).toEqual(['good'])
     expect(suite.errors.some(error => error.includes('escape'))).toBe(true)
   })
 
   it('drops skills with non-normalizable frontmatter names', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'bad-skill'), 'bs', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.skills).toEqual([])
-    expect(suites[0]!.errors.some(error => error.includes('bad-name'))).toBe(true)
+    const suite = required(suites[0], 'the bad-skill fixture to yield one suite')
+    expect(suite.skills).toEqual([])
+    expect(suite.errors.some(error => error.includes('bad-name'))).toBe(true)
   })
 
   it('normalizes display-style frontmatter names to kebab-case (codex plugins)', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'display-name-skill'), 'ds', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['presentations'])
-    expect(suites[0]!.errors).toEqual([])
+    const suite = required(suites[0], 'the display-name-skill fixture to yield one suite')
+    expect(suite.skills.map(skill => skill.name)).toEqual(['presentations'])
+    expect(suite.errors).toEqual([])
   })
 
   it('rejects manifest-declared skills paths that escape the suite root', async () => {
@@ -136,17 +149,20 @@ describe('discovery: containment of broken content', () => {
     await writeFile(join(evil, 'SKILL.md'), '---\nname: evil\ndescription: outside\n---\n')
     await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: '../suite-evil' }))
     const suites = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
-    expect(suites[0]!.skills).toEqual([])
+    const escaped = required(suites[0], 'the escaping suite root to yield one suite')
+    expect(escaped.skills).toEqual([])
     // A `../` escape is rejected the same way.
     await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: '../../out' }))
     const suites2 = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
-    expect(suites2[0]!.skills).toEqual([])
+    const relativeEscape = required(suites2[0], 'the escaping suite root to yield one suite')
+    expect(relativeEscape.skills).toEqual([])
     // A legitimate declared subdirectory still scans.
     await mkdir(join(suiteRoot, 'skills', 'real'), { recursive: true })
     await writeFile(join(suiteRoot, 'skills', 'real', 'SKILL.md'), '---\nname: real\ndescription: r\n---\n')
     await writeFile(join(suiteRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'suite', skills: 'skills' }))
     const suites3 = await discoverSuitesInSource(suiteRoot, 'esc', 'user')
-    expect(suites3[0]!.skills.map(skill => skill.name)).toEqual(['real'])
+    const declaredSkills = required(suites3[0], 'the escaping suite root to yield one suite')
+    expect(declaredSkills.skills.map(skill => skill.name)).toEqual(['real'])
     await rm(stage, { recursive: true, force: true })
     await rm(evil, { recursive: true, force: true })
   })
@@ -177,7 +193,8 @@ describe('validate: manifest and mcp.json', () => {
       }
     })
     expect(errors.some(error => error.includes('bad'))).toBe(true)
-    expect(Object.keys(config!.servers)).toEqual(['good'])
+    const valid = required(config, 'a config kept after dropping the escaping server')
+    expect(Object.keys(valid.servers)).toEqual(['good'])
   })
 
   it('rejects unknown mcp.json $schema wholesale', async () => {
@@ -203,31 +220,17 @@ describe('validate: manifest and mcp.json', () => {
       { strict: false }
     )
     expect(errors).toEqual([])
-    expect(config!.servers['github']).toMatchObject({ type: 'streamable-http', url: 'https://api.example.com/mcp' })
+    const lenient = required(config, 'a config for the lenient top-level server map')
+    expect(lenient.servers['github']).toMatchObject({ type: 'streamable-http', url: 'https://api.example.com/mcp' })
   })
 
-  it('treats a command-only server as stdio (Claude Code default)', async () => {
-    const { config, errors } = await validateMcpJson(
-      '/tmp/fixture-root',
-      {
-        mcpServers: { local: { command: 'bun', args: ['start'] } }
-      },
-      { strict: false }
-    )
+  it.each([
+    ['a command-only server (Claude Code default)', 'local', { command: 'bun', args: ['start'] }, 'bun'],
+    ['the Claude Code local transport', 'script', { type: 'local', command: 'node', args: ['server.js'] }, 'node']
+  ])('normalizes %s to stdio', async (_label, name, server, command) => {
+    const { config, errors } = await validateMcpJson('/tmp/fixture-root', { mcpServers: { [name]: server } }, { strict: false })
     expect(errors).toEqual([])
-    expect(config!.servers['local']).toMatchObject({ type: 'stdio', command: 'bun' })
-  })
-
-  it('normalizes the Claude Code local transport to stdio', async () => {
-    const { config, errors } = await validateMcpJson(
-      '/tmp/fixture-root',
-      {
-        mcpServers: { script: { type: 'local', command: 'node', args: ['server.js'] } }
-      },
-      { strict: false }
-    )
-    expect(errors).toEqual([])
-    expect(config!.servers['script']).toMatchObject({ type: 'stdio', command: 'node' })
+    expect(required(config, 'a config for the normalized stdio server').servers[name]).toMatchObject({ type: 'stdio', command })
   })
 })
 
@@ -253,16 +256,18 @@ describe('discovery: manifest-less skill collection layout', () => {
   it('treats flat SKILL.md directories as synthetic suites', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'flat-skills'), 'flat', 'user')
     expect(suites.map(suite => suite.id)).toEqual(['order-crud'])
-    expect(suites[0]!.manifest.layout).toBe('skill-collection')
-    expect(suites[0]!.skills[0]!.name).toBe('order-crud')
-    expect(suites[0]!.skills[0]!.description).toContain('order CRUD code')
+    const suite = required(suites[0], 'order-crud as the only flat-skills suite')
+    expect(suite.manifest.layout).toBe('skill-collection')
+    const skill = required(suite.skills[0], 'order-crud to ship one skill')
+    expect(skill.name).toBe('order-crud')
+    expect(skill.description).toContain('order CRUD code')
   })
 })
 
 describe('suite detail and skill content (market detail endpoints)', () => {
   it('lists skills, mcp servers, and file lists from the v1 fixture', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-det-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'demo', url: join(fixtures, 'v1-suite'), local: true }])
     const detail = await manager.suiteDetail('demo', 'v1-suite')
@@ -279,7 +284,7 @@ describe('category-nested skill collections', () => {
   it('finds skills at skills/<category>/<name>/SKILL.md', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'cc-commands'), 'cc', 'user')
     expect(suites).toHaveLength(1)
-    const names = suites[0]!.skills.map(skill => skill.name)
+    const names = required(suites[0], 'the cc-commands fixture to yield one suite').skills.map(skill => skill.name)
     expect(names).toContain('ask-matt')
     expect(names).toContain('plain')
   })
@@ -288,48 +293,47 @@ describe('category-nested skill collections', () => {
 describe('suite detail: hooks preview entries', () => {
   it('flattens CC hooks.json into event/matcher/command entries', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-hooks-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
     await manager.load()
     await manager.mergeSources([{ id: 'cc', url: join(fixtures, 'cc-commands'), local: true }])
     const detail = await manager.suiteDetail('cc', 'cc-commands')
-    const hooks = detail['hooks'] as { count: number; entries: Array<{ event: string; matcher?: string; command: string }> }
+    const hooks = detail['hooks']
     expect(hooks.count).toBe(1)
     expect(hooks.entries[0]).toMatchObject({ event: 'PreToolUse', matcher: 'Bash', command: 'echo hi' })
   })
 })
 
 describe('multi-client manifest paradigms (vercel-style)', () => {
-  it('discovers a cursor-only repo and honors its declared skills path', async () => {
-    const suites = await discoverSuitesInSource(join(fixtures, 'cursor-only'), 'c', 'user')
+  it.each([
+    ['cursor-only', 'cursor', 'foo'],
+    ['universal-only', 'universal', 'baz']
+  ])('discovers a %s repo and honors its declared skills path', async (dir, layout, skillName) => {
+    const suites = await discoverSuitesInSource(join(fixtures, dir), dir, 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe('cursor')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['foo'])
+    const suite = required(suites[0], `${dir} to yield one suite`)
+    expect(suite.manifest.layout).toBe(layout)
+    expect(suite.skills.map(skill => skill.name)).toEqual([skillName])
   })
 
   it('discovers a kimi-only repo, honoring declared skills and mapping http to streamable-http', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'kimi-only'), 'k', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe('kimi')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['bar'])
-    expect(suites[0]!.mcp).toBeDefined()
-    expect(Object.keys(suites[0]!.mcp!.servers)).toEqual(['k'])
-    expect(suites[0]!.mcp!.servers['k']).toMatchObject({ type: 'streamable-http', url: 'https://x' })
-    expect(suites[0]!.errors).toEqual([])
-  })
-
-  it('discovers a universal-only repo', async () => {
-    const suites = await discoverSuitesInSource(join(fixtures, 'universal-only'), 'u', 'user')
-    expect(suites).toHaveLength(1)
-    expect(suites[0]!.manifest.layout).toBe('universal')
-    expect(suites[0]!.skills.map(skill => skill.name)).toEqual(['baz'])
+    const suite = required(suites[0], 'the kimi-only fixture to yield one suite')
+    expect(suite.manifest.layout).toBe('kimi')
+    expect(suite.skills.map(skill => skill.name)).toEqual(['bar'])
+    const mcp = required(suite.mcp, 'the kimi-only suite to declare an mcp server')
+    expect(Object.keys(mcp.servers)).toEqual(['k'])
+    expect(mcp.servers['k']).toMatchObject({ type: 'streamable-http', url: 'https://x' })
+    expect(suite.errors).toEqual([])
   })
 
   it('reads .mcp.json leniently: maps http to streamable-http and keeps known transports', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'dot-mcp'), 'd', 'user')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.mcp).toBeDefined()
-    expect(Object.keys(suites[0]!.mcp!.servers)).toEqual(['httpSrv', 'good'])
-    expect(suites[0]!.mcp!.servers['httpSrv']).toMatchObject({ type: 'streamable-http', url: 'https://mcp.example.com' })
-    expect(suites[0]!.errors).toEqual([])
+    const suite = required(suites[0], 'the dot-mcp fixture to yield one suite')
+    const mcp = required(suite.mcp, 'the dot-mcp suite to declare mcp servers')
+    expect(Object.keys(mcp.servers)).toEqual(['httpSrv', 'good'])
+    expect(mcp.servers['httpSrv']).toMatchObject({ type: 'streamable-http', url: 'https://mcp.example.com' })
+    expect(suite.errors).toEqual([])
   })
 })

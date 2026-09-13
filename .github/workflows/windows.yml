@@ -1,0 +1,38 @@
+name: windows
+
+# The Linux gate cannot see separator-dependent path handling: there, every
+# `join`, `resolve`, and `relative` is the POSIX implementation. This job runs
+# the same suite on Windows, where the host binds the win32 ones.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        # Version is pinned via packageManager field in package.json.
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # `test` runs `check:quick` (typecheck + lint) through its pretest hook.
+      - name: Run full tests
+        run: pnpm run test

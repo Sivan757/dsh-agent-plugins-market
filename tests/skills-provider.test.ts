@@ -10,43 +10,45 @@ import { isModelInvocable } from '@deepseek-ai/dsh-skill'
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = join(here, 'fixtures')
 
-async function installUserSuite(fixtureDir: string): Promise<{ manager: Catalog; userRoot: string; sourceId: string; suiteId: string }> {
-  const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-user-'))
-  const checkout = join(userRoot, '.sources', 'demo')
-  await cp(fixtureDir, checkout, { recursive: true })
-  const manager = new Catalog({ userRoot, dataRoot: join(userRoot, '..', 'data'), onChanged: () => {} })
+/** A loaded Catalog over a fresh temp user root. */
+async function emptyCatalog(prefix = 'dsh-agent-plugins-'): Promise<Catalog> {
+  const userRoot = await mkdtemp(join(tmpdir(), prefix))
+  const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
   await manager.load()
+  return manager
+}
+
+/** A loaded Catalog whose `.sources/demo` checkout is the fixture suite, already installed. */
+async function installedFixtureCatalog(): Promise<Catalog> {
+  const manager = await emptyCatalog('dsh-agent-plugins-user-')
+  await cp(join(fixtures, 'v1-suite'), join(manager.userRoot, '.sources', 'demo'), { recursive: true })
   await manager.mergeSources([{ id: 'demo', url: 'file:///demo' }])
-  await manager.install('demo', fixtureDir.includes('v1-suite') ? 'v1-suite' : fixtureDir.includes('bad-mcp') ? 'bad-mcp' : 'demo-one')
-  return { manager, userRoot, sourceId: 'demo', suiteId: fixtureDir.includes('v1-suite') ? 'v1-suite' : 'bad-mcp' }
+  await manager.install('demo', 'v1-suite')
+  return manager
 }
 
 describe('SuiteSkillProvider', () => {
   it('lists enabled user suites at rank 450 and loads bodies with ${CLAUDE_PLUGIN_ROOT} substituted', async () => {
-    const { manager } = await installUserSuite(join(fixtures, 'v1-suite'))
+    const manager = await installedFixtureCatalog()
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({})
     expect(candidates).toHaveLength(1)
-    const candidate = candidates[0]!
+    const [candidate] = candidates
+    if (candidate === undefined) throw new Error('expected the installed fixture suite to list one skill')
     expect(candidate.name).toBe('greet')
-    expect(candidate.description).toBe('[v1-suite] Greet the user and resolve bundled resources.')
+    expect(candidate.description).toBe('Greet the user and resolve bundled resources.')
     expect(candidate.source).toBe(SUITE_USER_SOURCE)
     expect(candidate.rank).toBe(450)
     expect(isModelInvocable(candidate)).toBe(true)
     const definition = await provider.get(candidate, {})
     expect(definition).toBeDefined()
-    expect(definition!.content).toContain(`node ${manager.userRoot}/.sources/demo/scripts/greet.mjs`)
-    expect(definition!.resourceBase).toEqual({ kind: 'directory', path: expect.stringContaining('skills/greet') })
+    expect(definition!.content).toContain(`node ${join(manager.userRoot, '.sources', 'demo')}/scripts/greet.mjs`)
+    const resourcePath: unknown = expect.stringContaining(join('skills', 'greet'))
+    expect(definition!.resourceBase).toEqual({ kind: 'directory', path: resourcePath })
   })
 
   it('does not list suites from disabled sources', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-off-'))
-    const checkout = join(userRoot, '.sources', 'demo')
-    await cp(join(fixtures, 'v1-suite'), checkout, { recursive: true })
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
-    await manager.mergeSources([{ id: 'demo', url: 'file:///demo' }])
-    await manager.install('demo', 'v1-suite')
+    const manager = await installedFixtureCatalog()
     await manager.setEnabled('demo', 'v1-suite', false)
     const provider = new SuiteSkillProvider(manager)
     expect(await provider.list({})).toEqual([])
@@ -54,7 +56,6 @@ describe('SuiteSkillProvider', () => {
 
   it('finds project-dimension suites under <project>/.dsh/agent-plugins at rank 250', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-proj-'))
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-u2-'))
     const projectAgentPlugins = join(projectRoot, '.dsh', 'agent-plugins')
     await cp(join(fixtures, 'v1-suite'), join(projectAgentPlugins, '.sources', 'p1', 'v1-suite'), { recursive: true })
     await mkdir(join(projectRoot, '.git'), { recursive: true })
@@ -63,25 +64,24 @@ describe('SuiteSkillProvider', () => {
       JSON.stringify({ version: 1, sources: [], installed: { 'p1/v1-suite': { enabled: true, installedAt: new Date(0).toISOString() } } }),
       'utf8'
     )
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
+    const manager = await emptyCatalog('dsh-agent-plugins-u2-')
     const provider = new SuiteSkillProvider(manager)
     const candidates = await provider.list({ cwd: projectRoot })
     expect(candidates).toHaveLength(1)
-    expect(candidates[0]!.source).toBe(SUITE_PROJECT_SOURCE)
-    expect(candidates[0]!.rank).toBe(250)
+    const [candidate] = candidates
+    if (candidate === undefined) throw new Error('expected the project-dimension suite to list one skill')
+    expect(candidate.source).toBe(SUITE_PROJECT_SOURCE)
+    expect(candidate.rank).toBe(250)
   })
 })
 
 describe('local-directory sources (local: true)', () => {
   it('discovers, installs, injects, and never deletes the local directory', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-local-'))
     const localRepo = join(fixtures, 'v1-suite')
-    const staleCheckout = join(userRoot, '.sources', 'local-repo')
+    const manager = await emptyCatalog('dsh-agent-plugins-local-')
+    const staleCheckout = join(manager.userRoot, '.sources', 'local-repo')
     await mkdir(staleCheckout, { recursive: true })
     await writeFile(join(staleCheckout, 'sentinel'), 'keep')
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
     await manager.mergeSources([{ id: 'local-repo', url: localRepo, local: true }])
     await manager.install('local-repo', 'v1-suite')
     await manager.setEnabled('local-repo', 'v1-suite', true)
@@ -102,52 +102,46 @@ describe('local-directory sources (local: true)', () => {
   })
 
   it('reports a missing local directory instead of cloning it', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-local2-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
+    const manager = await emptyCatalog('dsh-agent-plugins-local2-')
     await manager.mergeSources([{ id: 'gone', url: join(tmpdir(), 'does-not-exist-xyz'), local: true }])
     const overview = await manager.overview()
-    expect(overview.sources[0]!.cloned).toBe(false)
-    expect(overview.sources[0]!.error).toContain('missing')
+    const [source] = overview.sources
+    if (source === undefined) throw new Error('expected the missing local directory to still be listed as a source')
+    expect(source.cloned).toBe(false)
+    expect(source.error).toContain('missing')
     await expect(manager.install('gone', 'anything')).rejects.toThrow('missing')
   })
 })
 
 describe('source editing (updateSource)', () => {
   it('switches a git source to a local path without touching directories', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-edit-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
+    const manager = await emptyCatalog('dsh-agent-plugins-edit-')
     await manager.mergeSources([{ id: 'demo', url: 'https://example.com/demo.git' }])
     await manager.updateSource('demo', { url: join(fixtures, 'v1-suite'), local: true })
     const sources = manager.sources
     expect(sources).toEqual([{ id: 'demo', url: join(fixtures, 'v1-suite'), local: true }])
     const overview = await manager.overview()
-    expect(overview.sources[0]!.local).toBe(true)
-    expect(overview.sources[0]!.cloned).toBe(true)
+    const [source] = overview.sources
+    if (source === undefined) throw new Error('expected the edited source in the overview')
+    expect(source.local).toBe(true)
+    expect(source.cloned).toBe(true)
   })
 
   it('rejects unknown source ids', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-edit2-'))
-    const manager = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
-    await manager.load()
+    const manager = await emptyCatalog('dsh-agent-plugins-edit2-')
     await expect(manager.updateSource('nope', { url: 'https://example.com/x.git' })).rejects.toThrow('unknown source')
   })
 })
 
 describe('source id auto-derivation', () => {
   it('derives a single-suite repo id from its suite manifest name', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-id-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
-    await manager.load()
+    const manager = await emptyCatalog('dsh-agent-plugins-id-')
     const source = await manager.addSource({ url: join(fixtures, 'v1-suite'), local: true })
     expect(source.id).toBe('v1-suite') // manifest name, not the fixtures basename
   })
 
   it('prefers the suite repo JSON name even when the basename differs', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-id3-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
-    await manager.load()
+    const manager = await emptyCatalog('dsh-agent-plugins-id3-')
     // Local dir whose basename (misc-repo) differs from the manifest name (vercel-plugin).
     const parent = await mkdtemp(join(tmpdir(), 'id3-p-'))
     await mkdir(join(parent, 'misc-repo'))
@@ -157,9 +151,7 @@ describe('source id auto-derivation', () => {
   })
 
   it('derives a multi-suite repo id from its basename and dedupes collisions', async () => {
-    const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-id2-'))
-    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, onChanged: () => {} })
-    await manager.load()
+    const manager = await emptyCatalog('dsh-agent-plugins-id2-')
     // Two different parents, same basename -> both derive "agent-plugins"; the second gets a suffix.
     const parentA = await mkdtemp(join(tmpdir(), 'id2-a-'))
     const parentB = await mkdtemp(join(tmpdir(), 'id2-b-'))

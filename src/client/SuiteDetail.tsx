@@ -18,9 +18,9 @@ import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, 
 import type { Translate } from './index.js'
 import { suiteLayoutLabel } from './layout-label.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
-import type { CredentialApi } from './credentials.js'
 import { createLatestRequestGuard } from './features/suite-detail/suite-detail-resource.js'
 import css from './market.module.css'
+import { clientErrorMessage } from './ui/error-message.js'
 
 /** Toggleable surface keys paired with their translation keys. */
 const SURFACE_TOGGLE_ROWS = [
@@ -34,15 +34,12 @@ const SURFACE_TOGGLE_ROWS = [
 
 export interface SuiteDetailModalProps {
   t: Translate
-  credentials?: CredentialApi
   sourceId: string
   suiteId: string
   onClose: () => void
 }
 
 export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailModalProps): ReactNode {
-  // MarkdownText's chrome (code copy buttons, footnotes heading) is
-  // Cordis-free and takes its copy through this labels object.
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [openSkill, setOpenSkill] = useState<string | undefined>(undefined)
@@ -64,7 +61,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
         if (!cancelled) setDetail(value)
       })
       .catch(reason => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason))
+        if (!cancelled) setError(clientErrorMessage(t, reason))
       })
     return () => {
       cancelled = true
@@ -85,7 +82,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
       const content = await fetchSkillContent(sourceId, suiteId, name)
       if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(content.content)
     } catch (reason) {
-      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(`⚠ ${reason instanceof Error ? reason.message : String(reason)}`)
+      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(`⚠ ${clientErrorMessage(t, reason)}`)
     } finally {
       if (skillRequestGuard.current.isCurrent(requestId)) setSkillLoading(false)
     }
@@ -103,13 +100,14 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
       const next = await fetchSuiteDetail(sourceId, suiteId)
       setDetail(next)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(clientErrorMessage(t, reason))
     } finally {
       setSurfaceBusy(false)
     }
   }
 
   const layoutLabel = detail === undefined ? '' : suiteLayoutLabel(detail.layout, t)
+  const surfaceToggles = detail === undefined ? null : detail.surfaceToggles
 
   return h(DetailModal, {
     open: true,
@@ -174,7 +172,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   ),
                   detail.description === null ? null : h('p', { className: css.detailDesc }, detail.description),
                   h('div', { className: css.detailCell }, h('span', { className: css.detailKey }, t('rootLabel')), h('span', { className: css.mono }, detail.root)),
-                  detail.installed === false || detail.surfaceToggles === null
+                  detail.installed === false || surfaceToggles === null
                     ? null
                     : h(
                         'div',
@@ -186,10 +184,10 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                           ...SURFACE_TOGGLE_ROWS.map(([key, labelKey]) =>
                             h('label', { key, className: css.surfaceToggle }, h('input', {
                               type: 'checkbox',
-                              checked: detail.surfaceToggles![key],
+                              checked: surfaceToggles[key],
                               disabled: surfaceBusy,
                               onChange: event => {
-                                void toggleSurface(key, (event.target as HTMLInputElement).checked)
+                                void toggleSurface(key, (event.target).checked)
                               }
                             }), t(labelKey))
                           )
@@ -201,7 +199,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('skillsSection')} (${detail.skills.length})`),
                   detail.skills.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.skills.map(skill =>
                         h(
                           'div',
@@ -231,7 +229,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                     ? null
                     : h('div', { className: css.warnLine, style: { margin: '0 0 6px' } }, `⚠ ${detail.mcpErrors.join(t('sourceErrorSeparator'))}`),
                   detail.mcpServers.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                      : detail.mcpServers.map(server => {
                         const disabled = detail.mcpOverrides?.[server.key]?.enabled === false
                         return h(
@@ -270,7 +268,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('commandsSection')} (${detail.commands.length})`),
                   detail.commands.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.commands.map(command =>
                         h(PreviewRow, {
                           key: `c:${command.name}`,
@@ -288,7 +286,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('agentsSection')} (${detail.agents.length})`),
                   detail.agents.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.agents.map(agent =>
                         h(PreviewRow, {
                           key: `a:${agent.name}`,
@@ -306,7 +304,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('hooksLabel')} (${detail.hooks.count})`),
                   detail.hooks.count === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : detail.hooks.entries.map((hook, index) =>
                         h(PreviewRow, {
                           key: `h:${index}`,
@@ -324,7 +322,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
                   { className: css.detailSection },
                   h('h4', { className: css.detailHead }, `${t('lspSection')} (${detail.lsp.servers.length + detail.lsp.raw.length})`),
                   detail.lsp.servers.length === 0 && detail.lsp.raw.length === 0
-                    ? h('div', { className: css.sidebarEmpty }, '—')
+                    ? h('div', null, '—')
                     : [
                         ...detail.lsp.servers.map(server =>
                           h(PreviewRow, {

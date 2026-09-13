@@ -10,7 +10,7 @@ A multi-layout repository could pass a scan while a lower-priority dialect was n
 
 Normalize declared file/directory/inline components once into suite resources, and let runtime consumers and detail projections use those resources. Keep legacy/native fallback for suites without resource tables; an explicitly empty/invalid component must not revive defaults. Kimi startup/system instructions use the existing agent-scoped prompt API. Config readers enforce realpath containment and diagnose malformed declarations.
 
-Commit-pinned README repository snapshots include original text, hashes and licenses. Tests scan both the original tree and an isolated dialect at every suite root, validate real schemas and exercise component consumers. The scanner reports its productive marketplace directly. See [the audit](../../../../docs/layout-coverage.md).
+Commit-pinned README repository snapshots include original text, hashes and licenses. Tests scan both the original tree and an isolated dialect at every suite root, validate real schemas and exercise component consumers. The scanner reports its productive marketplace directly. See [the audit](../../../../docs/user/layout-coverage.md).
 
 ## Alternatives considered
 

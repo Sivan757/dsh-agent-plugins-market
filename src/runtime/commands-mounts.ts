@@ -63,7 +63,7 @@ export class CommandMountRegistry {
     const diagnostics: CommandMountDiagnostic[] = []
     const wanted = new Map<string, CommandSpec & { suiteId: string; suiteName: string }>()
     for (const suite of enabledSuites) {
-      const specs = suite.activeSurfaces?.commands === false ? [] : await readCommands(suite.root, suite.resources?.commands)
+      const specs = suite.activeSurfaces.commands === false ? [] : await readCommands(suite.root, suite.resources?.commands)
       for (const spec of specs) {
         // The registry key is source-qualified: bare suite ids are unique per
         // source only, so two sources' same-named suites would collide.
@@ -100,9 +100,12 @@ export class CommandMountRegistry {
           ...(spec.hint === undefined ? {} : { input: { hint: spec.hint } }),
           handler: invocation => {
             const agent = invocation.agent as InboxAgent
-            const text = [this.t('commandForwardTitle', { command: spec.name, suite: spec.suiteId }), '', spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())].join('\n')
+            // The template rides the agent verbatim: a decorator line naming
+            // this plugin or the suite would be text the command author never
+            // wrote, and the follow-up's `source` already records provenance.
+            const text = spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())
             agent.followup({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } })
-            return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name, suite: spec.suiteId }) }
+            return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
           }
         })
         this.live.set(key, disposer)
@@ -154,10 +157,10 @@ interface CommandMeta {
 }
 
 function commandMeta(text: string): CommandMeta | undefined {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)
-  if (match === null) return undefined
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+  if (frontmatter === undefined) return undefined
   try {
-    const raw = parseYaml(match[1])
+    const raw: unknown = parseYaml(frontmatter)
     if (typeof raw !== 'object' || raw === null) return undefined
     const record = raw as Record<string, unknown>
     const meta: CommandMeta = {}

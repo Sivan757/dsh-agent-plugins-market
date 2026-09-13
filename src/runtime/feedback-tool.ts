@@ -5,21 +5,30 @@
  * default true), the model can call `report_market_issue` when it concludes a
  * problem it is looking at is caused by dsh-agent-plugins-market — a failed
  * install, a misdetected source, a market UI defect the user just described.
- * The tool files a GitHub issue on the plugin repository through the GitHub
- * REST API, or falls back to appending a local JSONL record under the plugin
- * data root when no repository host context is available.
+ *
+ * Filing happens in three steps, most preferred first: the `gh` CLI when it is
+ * installed and authenticated, the GitHub REST API when the process carries a
+ * `GITHUB_TOKEN` / `GH_TOKEN`, and otherwise nothing is filed — the caller
+ * gets the complete issue text plus a prefilled "new issue" URL that is opened
+ * in the browser and handed back to the user to submit.
  *
  * The tool is deliberately narrow: the title/body must describe the problem,
- * submissions are rate-limited, and the setting switch unregisters the tool
- * on the next reconcile pass.
+ * real submissions are rate-limited, and the setting switch unregisters the
+ * tool on the next reconcile pass.
  * @module runtime/feedback-tool
  */
 
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
+import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
+import { platformBrowserOpener } from './mcp-client/oauth.js'
+
+const execFileAsync = promisify(execFile)
 
 /** The GitHub repository experience feedback files issues against. */
 export const FEEDBACK_REPO_OWNER = 'Sivan757'
@@ -31,6 +40,9 @@ export const FEEDBACK_LABEL = 'agent-feedback'
 /** Minimum milliseconds between two accepted submissions (burst guard). */
 const SUBMIT_COOLDOWN_MS = 60_000
 
+/** Timeout for one `gh issue create` invocation. */
+const GH_TIMEOUT_MS = 30_000
+
 /** Host surface this plugin needs for the feedback tool. */
 interface ToolsHost {
   tools?: {
@@ -41,8 +53,13 @@ interface ToolsHost {
 /** One accepted or rejected submission outcome, mirrored to the model. */
 export interface FeedbackOutcome {
   ok: boolean
-  /** Where the report went: the issue URL, or the local fallback path label. */
+  /**
+   * The created issue URL, or — when nothing could file it — the prefilled
+   * "new issue" URL the user opens to submit the report themselves.
+   */
   location?: string
+  /** The complete issue title and body; present when nothing was filed automatically. */
+  issueText?: string
   reason?: string
 }
 
@@ -56,18 +73,43 @@ export interface FeedbackReport {
   actual?: string
 }
 
+/** Injectable effects, so tests never reach the network or a real browser. */
+export interface FeedbackPorts {
+  /** File the issue through the `gh` CLI; undefined when gh is missing or refused. */
+  ghIssue?: (title: string, body: string) => Promise<string | undefined>
+  /** Open the prefilled issue page; best effort. */
+  openPage?: (url: string) => Promise<void>
+}
+
+/** The public "new issue" page for one report, prefilled with title and body. */
+export function newIssueUrl(title: string, body: string): string {
+  const query = new URLSearchParams({ title, body, labels: FEEDBACK_LABEL })
+  return `https://github.com/${FEEDBACK_REPO_OWNER}/${FEEDBACK_REPO_NAME}/issues/new?${query.toString()}`
+}
+
 /**
- * Submit one experience report. Tries the GitHub issue API first (works when
- * the deployment carries a GITHUB_TOKEN / GH_TOKEN with repo scope), then
- * falls back to the local JSONL spool under `<dataRoot>/feedback/`.
+ * Submit one experience report through `gh`, then the REST API, then a
+ * prefilled issue page the user submits themselves. Only a real submission
+ * advances the burst cooldown.
  */
-export async function submitFeedback(dataRoot: string, report: FeedbackReport, now = Date.now()): Promise<FeedbackOutcome> {
+export async function submitFeedback(dataRoot: string, report: FeedbackReport, now = Date.now(), ports: FeedbackPorts = {}): Promise<FeedbackOutcome> {
   const title = report.title.trim()
   if (title === '') return { ok: false, reason: 'title is required' }
   const body = renderFeedbackBody(report)
   const lastAt = await readLastSubmitAt(dataRoot)
   if (now - lastAt < SUBMIT_COOLDOWN_MS) {
     return { ok: false, reason: 'a feedback report was submitted less than a minute ago; wait and try again' }
+  }
+  const ghIssue = ports.ghIssue ?? createIssueWithGh
+  let ghFailure: string | undefined
+  try {
+    const url = await ghIssue(title, body)
+    if (url !== undefined) {
+      await stampSubmitAt(dataRoot, now)
+      return { ok: true, location: url }
+    }
+  } catch (error) {
+    ghFailure = error instanceof Error ? error.message : String(error)
   }
   const token = process.env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN']
   if (token !== undefined && token !== '') {
@@ -76,23 +118,46 @@ export async function submitFeedback(dataRoot: string, report: FeedbackReport, n
       await stampSubmitAt(dataRoot, now)
       return { ok: true, location: url }
     } catch (error) {
-      // Network or auth failure: fall through to the local spool so the
-      // report is never lost, and say so in the outcome.
-      const local = await spoolLocally(dataRoot, title, body)
-      await stampSubmitAt(dataRoot, now)
-      return {
-        ok: true,
-        location: local,
-        reason: `GitHub issue failed (${error instanceof Error ? error.message : String(error)}); saved locally instead`
-      }
+      ghFailure ??= error instanceof Error ? error.message : String(error)
     }
   }
-  const local = await spoolLocally(dataRoot, title, body)
-  await stampSubmitAt(dataRoot, now)
-  return { ok: true, location: local }
+  const url = newIssueUrl(title, body)
+  let opened = true
+  try {
+    await (ports.openPage ?? openInBrowser)(url)
+  } catch {
+    // A headless host has no browser to open; the link in `location` still works.
+    opened = false
+  }
+  const detail = ghFailure === undefined ? 'nothing could file the issue automatically' : `filing failed (${ghFailure})`
+  return {
+    ok: true,
+    location: url,
+    issueText: `${title}\n\n${body}`,
+    reason: opened ? `${detail}; the prefilled issue page was opened — submit it in the browser` : `${detail}; open the issue page at the returned location to submit it`
+  }
 }
 
-/** POST one issue; returns its html_url. */
+/** Open one URL in the platform browser; a failure is the caller's to report. */
+async function openInBrowser(url: string): Promise<void> {
+  await platformBrowserOpener(new URL(url), 'feedback', () => {})
+}
+
+/**
+ * File the issue with the `gh` CLI. Undefined means gh is absent, not
+ * authenticated, or otherwise unable to create the issue — never a thrown
+ * failure, so the caller can fall through to the REST API.
+ */
+async function createIssueWithGh(title: string, body: string): Promise<string | undefined> {
+  const { stdout } = await execFileAsync(
+    'gh',
+    ['issue', 'create', '--repo', `${FEEDBACK_REPO_OWNER}/${FEEDBACK_REPO_NAME}`, '--title', title, '--body', body, '--label', FEEDBACK_LABEL],
+    { timeout: GH_TIMEOUT_MS }
+  )
+  return /https:\/\/\S+/.exec(stdout)?.[0]
+}
+
+/** POST one issue through the REST API; returns its html_url. */
 async function createIssue(token: string, title: string, body: string): Promise<string> {
   const response = await fetch(`https://api.github.com/repos/${FEEDBACK_REPO_OWNER}/${FEEDBACK_REPO_NAME}/issues`, {
     method: 'POST',
@@ -115,23 +180,24 @@ async function createIssue(token: string, title: string, body: string): Promise<
   return payload.html_url
 }
 
+/**
+ * Render one tool argument as text. Arguments arrive as untrusted values, so
+ * `String` keeps the coercion the report has always applied for anything the
+ * declared `type: 'string'` schema does not already cover.
+ */
+function textOf(value: unknown): string {
+  return String(value)
+}
+
 /** Render the model's structured report into a deterministic issue body. */
 export function renderFeedbackBody(report: FeedbackReport): string {
   const lines = ['## Experience feedback', '', `**Problem:** ${report.description.trim()}`, '']
-  if (report.expected?.trim() !== undefined && report.expected.trim() !== '') lines.push(`**Expected:** ${report.expected.trim()}`, '')
-  if (report.actual?.trim() !== undefined && report.actual.trim() !== '') lines.push(`**Actual:** ${report.actual.trim()}`, '')
+  const expected = report.expected?.trim()
+  const actual = report.actual?.trim()
+  if (expected !== undefined && expected !== '') lines.push(`**Expected:** ${expected}`, '')
+  if (actual !== undefined && actual !== '') lines.push(`**Actual:** ${actual}`, '')
   lines.push('---', `Filed automatically by the dsh-agent-plugins-market \`${FEEDBACK_TOOL_NAME}\` tool.`)
   return lines.join('\n')
-}
-
-/** Append one report to the local spool; returns the spool file path. */
-async function spoolLocally(dataRoot: string, title: string, body: string): Promise<string> {
-  const dir = join(dataRoot, 'feedback')
-  await mkdir(dir, { recursive: true })
-  const file = join(dir, 'reports.jsonl')
-  const record = JSON.stringify({ at: new Date().toISOString(), title, body })
-  await appendFile(file, `${record}\n`, 'utf8')
-  return file
 }
 
 /** The last accepted submission's timestamp; 0 when the stamp file is absent. */
@@ -146,11 +212,9 @@ async function readLastSubmitAt(dataRoot: string): Promise<number> {
 }
 
 async function stampSubmitAt(dataRoot: string, now: number): Promise<void> {
-  const dir = join(dataRoot, 'feedback')
-  await mkdir(dir, { recursive: true })
   // Overwrite, not append: an appending stamp concatenates timestamps and
   // parseInt on the merged digits disables the cooldown permanently.
-  await writeFile(join(dir, 'last-submit-at'), String(now), 'utf8')
+  await writeFileAtomic(join(dataRoot, 'feedback', 'last-submit-at'), String(now), { mode: 0o600, dirMode: 0o700 })
 }
 
 export const FEEDBACK_TOOL_NAME = 'report_market_issue' as const
@@ -161,9 +225,15 @@ const FEEDBACK_DESCRIPTION =
   'stuck install/uninstall, a market source that will not scan, wrong market UI behavior, or a runtime injection ' +
   'defect the user attributes to a market suite. Do not call it for problems in other plugins, in the harness, ' +
   "or in the user's own repositories. Compose a specific title; describe what happened, what was expected, and " +
-  'the exact error text when one appeared.'
+  'the exact error text when one appeared. When the result carries `issueText`, the issue was not filed for you: ' +
+  'show the human that text and the `location` link so they can submit it on GitHub.'
 
-/** Register the feedback tool; returns the disposer. Undefined when the host has no tools service. */
+/**
+ * Register the feedback tool; returns the disposer. Undefined when the host has
+ * no tools service to register on — the caller turns that into a mount-path
+ * diagnostic instead of an error, since the setting can simply have no effect
+ * on this host.
+ */
 export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: string, params?: Record<string, string>) => string): (() => void) | undefined {
   const host = hostCtx as unknown as ToolsHost
   if (typeof host.tools?.register !== 'function') return undefined
@@ -187,6 +257,7 @@ export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: s
           properties: {
             ok: { type: 'boolean', required: true },
             location: { type: 'string' },
+            issueText: { type: 'string' },
             reason: { type: 'string' }
           }
         },
@@ -195,8 +266,8 @@ export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: s
       async execute(args: unknown) {
         const input = args as { title?: unknown; description?: unknown; expected?: unknown; actual?: unknown }
         const report: FeedbackReport = {
-          title: String(input['title'] ?? ''),
-          description: String(input['description'] ?? ''),
+          title: textOf(input['title'] ?? ''),
+          description: textOf(input['description'] ?? ''),
           ...(typeof input['expected'] === 'string' ? { expected: input['expected'] } : {}),
           ...(typeof input['actual'] === 'string' ? { actual: input['actual'] } : {})
         }

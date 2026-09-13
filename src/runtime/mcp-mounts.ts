@@ -12,11 +12,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
 import * as mcpBridge from './mcp-client/bridge.js'
 import type { McpBackend } from './mcp-backend.js'
-import { applyOverride, type McpSuiteOverrides } from './mcp-overrides.js'
-import { credentialRefsInServer, deriveServerName, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
+import type { McpSuiteOverrides } from './mcp-overrides.js'
+import { toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
+import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
-import type { McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
+import type { Suite } from '../model/types.js'
 
 export interface McpMountDiagnostic {
   suiteId: string
@@ -35,24 +36,6 @@ interface LiveMount {
   disposer: () => void | Promise<void>
 }
 
-/**
- * Bounded retry schedule for a failed mount/unmount. A crash-looping or
- * permanently broken server must eventually stop consuming attempt budget, so
- * the schedule is capped and resets with every reconcile pass.
- */
-const RETRY_SCHEDULE_MS = [1_500, 5_000, 15_000, 45_000, 120_000]
-const MAX_RETRY_ATTEMPTS = RETRY_SCHEDULE_MS.length
-
-interface MountPluginHandle {
-  await(): Promise<unknown>
-  dispose(): void | Promise<void>
-}
-
-/** Structural `ctx.plugin` surface for mounting one plugin instance. */
-interface PluginMountContext {
-  plugin(plugin: unknown, config: unknown): MountPluginHandle
-}
-
 export class McpMountRegistry {
   private readonly live = new Map<string, LiveMount>()
   private readonly names = new Map<string, string>()
@@ -63,11 +46,9 @@ export class McpMountRegistry {
   /** The active MCP mount backend ('builtin' bridge or host client compat mode). */
   private backendProvider: () => Promise<McpBackend> = async () => 'builtin'
   /** Serialize mount and unmount passes so a disable cannot race an in-flight spawn. */
-  private reconcileQueue: Promise<void> = Promise.resolve()
-  /** Pending retry timers keyed by mount key, so a teardown can cancel them. */
-  private readonly retries = new Map<string, ReturnType<typeof setTimeout>>()
-  /** Attempt count per mount key; reset whenever a retry succeeds. */
-  private readonly attempts = new Map<string, number>()
+  private readonly passes = new SerialPassQueue()
+  /** Delayed re-attempts for mounts that are not live yet. */
+  private readonly retries: RetryScheduler
   /**
    * Mount keys flagged for an explicit rebuild (re-authorize): the next
    * reconcile must tear down and remount them even when the resolved config
@@ -79,9 +60,13 @@ export class McpMountRegistry {
 
   constructor(
     private readonly ctx: Context,
-    private readonly pluginDataRoot: string,
-    private readonly namespace?: string
-  ) {}
+    private readonly pluginDataRoot: string
+  ) {
+    this.retries = new RetryScheduler({
+      replay: () => this.reconcile(this.lastEnabled),
+      log: message => this.ctx.logger?.warn(`[dsh-agent-plugins-market] ${message}`)
+    })
+  }
 
   /** Install the per-suite overrides provider (suiteId -> overrides). */
   setOverridesProvider(provider: () => Promise<Map<string, McpSuiteOverrides>>): void {
@@ -117,6 +102,15 @@ export class McpMountRegistry {
     this.forcedRemounts.add(mountKey(suiteId, serverKey))
   }
 
+  /**
+   * Flag every live mount for a rebuild on the next reconcile: the manual
+   * retry path. A bridge whose server died underneath it still matches its own
+   * config fingerprint, so nothing else would ever re-verify that mount.
+   */
+  forceRemountAll(): void {
+    for (const key of this.live.keys()) this.forcedRemounts.add(key)
+  }
+
   /** The mount key owning one derived serverName; undefined when not mounted here. */
   serverOwner(serverName: string): { suiteId: string; serverKey: string } | undefined {
     const owner = this.names.get(serverName)
@@ -128,19 +122,14 @@ export class McpMountRegistry {
   }
 
   /** Queue one reconciliation behind any in-flight mount/unmount pass. */
-  async reconcile(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
-    const run = this.reconcileQueue.then(() => this.reconcileNow(enabledSuites))
-    this.reconcileQueue = run.then(
-      () => undefined,
-      () => undefined
-    )
-    return run
+  reconcile(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
+    return this.passes.run(() => this.reconcileNow(enabledSuites))
   }
 
   /** Mount/unmount MCP servers to match the enabled suites exactly. */
   private async reconcileNow(enabledSuites: Suite[]): Promise<McpMountDiagnostic[]> {
     this.lastEnabled = [...enabledSuites]
-    const active = enabledSuites.filter(suite => suite.activeSurfaces?.mcp !== false)
+    const active = enabledSuites.filter(suite => suite.activeSurfaces.mcp !== false)
     const overrides = await this.overridesProvider()
     const resolver = mcpCredentialResolver(this.ctx)
     const wanted = new Map<string, { suite: Suite; serverKey: string; request: McpMountRequest }>()
@@ -148,13 +137,10 @@ export class McpMountRegistry {
     this.credentialRefs.clear()
     for (const suite of active) {
       const suiteOverrides = overrides.get(qualifiedSuiteId(suite.sourceId, suite.id))
-      for (const [serverKey, source] of Object.entries(suite.mcp?.servers ?? {})) {
-        const override = suiteOverrides?.[serverKey]
-        if (override?.enabled === false) continue
-        const effective = applyOverride(source as McpServerStdio | McpServerStreamableHttp, override)
-        for (const ref of credentialRefsInServer(effective)) this.credentialRefs.add(ref)
-      }
-      const { mounts, failures } = await toMcpMounts(suite, this.pluginDataRoot, suiteOverrides, resolver)
+      const { mounts, failures, credentialRefs } = await toMcpMounts(suite, this.pluginDataRoot, suiteOverrides, resolver)
+      // The references ride the same effective view the mounts are built from,
+      // so the credentials panel cannot show one the mounts never use.
+      for (const ref of credentialRefs) this.credentialRefs.add(ref)
       for (const failure of failures) {
         diagnostics.push({
           suiteId: qualifiedSuiteId(suite.sourceId, suite.id),
@@ -165,8 +151,10 @@ export class McpMountRegistry {
         })
       }
       for (const mount of mounts) {
-        // Bridge namespaces are reserved app-wide, even when tools are agent-scoped.
-        if (this.namespace !== undefined) mount.config.serverName = deriveServerName(mount.config.serverName, this.namespace)
+        // One derived serverName per suite/server, whatever the dimension: the
+        // host keeps an agent's registrations in that agent's own scope and lets
+        // them shadow globals, so suffixing a per-session id would only fork the
+        // server's identity — including its stored OAuth grant — per session.
         wanted.set(mountKey(mount.suiteId, mount.serverKey), { suite, serverKey: mount.serverKey, request: mount })
       }
     }
@@ -210,71 +198,32 @@ export class McpMountRegistry {
         // next full reconcile re-checks them anyway, so the self-heal path
         // is intact.
         const informational = failure.code === 'foreign-mount' || failure.code === 'duplicate-mount'
-        this.scheduleRetry(key, entry.suite.id, entry.serverKey, informational ? undefined : failure.reason)
+        this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}`, ...(informational ? {} : { reason: failure.reason }) })
       }
     }
     return diagnostics.filter(diagnostic => diagnostic.reason !== 'unmounted')
   }
 
-  /**
-   * Schedule a delayed re-attempt for a mount that still is not live.
-   *
-   * Mounts are retried because a remote endpoint or a credential may become
-   * available slightly after the suite is enabled. The schedule is bounded, and
-   * a server that keeps failing simply stops retrying until the next reconcile.
-   */
-  private scheduleRetry(key: string, suiteId: string, serverKey: string, reason: string | undefined): void {
-    const pending = this.retries.get(key)
-    if (pending !== undefined) clearTimeout(pending)
-    this.retries.delete(key)
-    if (reason === undefined) {
-      this.attempts.delete(key)
-      return
-    }
-    const attempt = (this.attempts.get(key) ?? 0) + 1
-    this.attempts.set(key, attempt)
-    if (attempt > MAX_RETRY_ATTEMPTS) {
-      this.ctx.logger?.warn(`[dsh-agent-plugins-market] ${suiteId}/${serverKey}: giving up after ${MAX_RETRY_ATTEMPTS} attempts — ${reason}`)
-      return
-    }
-    const delay = RETRY_SCHEDULE_MS[attempt - 1] ?? RETRY_SCHEDULE_MS[RETRY_SCHEDULE_MS.length - 1]!
-    const timer = setTimeout(() => {
-      this.retries.delete(key)
-      // Re-run against the last known suite set: a retry must not resurrect a
-      // server that has since been disabled or uninstalled.
-      void this.reconcile(this.lastEnabled).catch(() => {})
-    }, delay)
-    timer.unref?.()
-    this.retries.set(key, timer)
-  }
-
   /** Dispose every live mount after queued reconciliation passes settle. */
   async disposeAll(): Promise<void> {
-    const run = this.reconcileQueue.then(async () => {
+    await this.passes.run(async () => {
       for (const [key, live] of [...this.live]) {
         await this.unmount(key, live)
       }
     })
-    this.reconcileQueue = run.then(
-      () => undefined,
-      () => undefined
-    )
-    await run
-    for (const timer of this.retries.values()) clearTimeout(timer)
     this.retries.clear()
-    this.attempts.clear()
     this.credentialRefs.clear()
   }
 
   /** Mount one precomputed request (source config merged with overrides). */
   private async mountWith(request: McpMountRequest): Promise<{ reason: string; code: McpMountFailureCode } | undefined> {
-    const owner = this.names.get(request.config.serverName)
+    const owner = this.serverOwner(request.config.serverName)
     if (owner !== undefined) {
       // Two sources shipping the same suite/server pair derive one serverName:
       // the model only needs one copy, so later arrivals skip with an
       // informational diagnostic instead of double-registering.
       return {
-        reason: `server "${request.config.serverName}" is already mounted from ${owner} — this suite's copy is redundant and was skipped`,
+        reason: `server "${request.config.serverName}" is already mounted from ${owner.suiteId} — this suite's copy is redundant and was skipped`,
         code: 'duplicate-mount'
       }
     }

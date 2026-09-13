@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { migrateLegacyDataRoot } from '../src/runtime/legacy-root-migration.js'
 
 describe('legacy data-root migration', () => {
   it('moves data and overrides under the user root and removes the empty legacy root', async () => {
-    const legacy = await mkdtemp(join('/tmp', 'legacy-root-'))
-    const dataRoot = await mkdtemp(join('/tmp', 'data-root-'))
+    const legacy = await mkdtemp(join(tmpdir(), 'legacy-root-'))
+    const dataRoot = await mkdtemp(join(tmpdir(), 'data-root-'))
     await mkdir(join(legacy, 'overrides'), { recursive: true })
     await mkdir(join(legacy, 'data', 'cloudflare'), { recursive: true })
     await writeFile(join(legacy, 'overrides', 'cloudflare.json'), '{"a":1}')
@@ -21,8 +22,8 @@ describe('legacy data-root migration', () => {
   })
 
   it('retains conflicting legacy files instead of deleting uncopied data', async () => {
-    const legacy = await mkdtemp(join('/tmp', 'legacy-root-'))
-    const dataRoot = await mkdtemp(join('/tmp', 'data-root-'))
+    const legacy = await mkdtemp(join(tmpdir(), 'legacy-root-'))
+    const dataRoot = await mkdtemp(join(tmpdir(), 'data-root-'))
     await mkdir(join(legacy, 'overrides'), { recursive: true })
     await mkdir(join(dataRoot, 'overrides'), { recursive: true })
     await writeFile(join(legacy, 'overrides', 'same.json'), 'old credentials')
@@ -35,14 +36,14 @@ describe('legacy data-root migration', () => {
   })
 
   it('is a no-op when the legacy root is absent', async () => {
-    const dataRoot = await mkdtemp(join('/tmp', 'data-root-'))
+    const dataRoot = await mkdtemp(join(tmpdir(), 'data-root-'))
     await migrateLegacyDataRoot(join(dataRoot, 'does-not-exist'), dataRoot)
     expect(existsSync(join(dataRoot, 'data'))).toBe(false)
   })
 
   it('merges into an existing target without clobbering and keeps foreign legacy files', async () => {
-    const legacy = await mkdtemp(join('/tmp', 'legacy-root-'))
-    const dataRoot = await mkdtemp(join('/tmp', 'data-root-'))
+    const legacy = await mkdtemp(join(tmpdir(), 'legacy-root-'))
+    const dataRoot = await mkdtemp(join(tmpdir(), 'data-root-'))
     await mkdir(join(legacy, 'overrides'), { recursive: true })
     await writeFile(join(legacy, 'overrides', 'new.json'), 'new')
     await mkdir(join(dataRoot, 'overrides'), { recursive: true })

@@ -1,42 +1,62 @@
 /**
- * Root path resolution for the two install dimensions.
+ * Root path resolution for the two install dimensions plus the shared
+ * user-level Agent layout root.
  *
- * User dimension: `~/.dsh/agent-plugins/` (or `$DSH_HOME/agent-plugins`).
+ * User dimension: `~/.dsh/agent-plugins/` (or `$DSH_HOME/agent-plugins`) —
+ * `.sources/` (checkouts), `state.json` (install state), and `data/`
+ * (`overrides/`, suite `${PLUGIN_DATA}` directories, and the LSP enable set
+ * with the feedback rate-limit stamp).
  * Project dimension: `<projectRoot>/.dsh/agent-plugins/`, where the project
  * root is the nearest ancestor containing `.git`.
  *
- * Everything the plugin persists lives under one root per dimension —
- * `.sources/` (checkouts) and `state.json` (install state) alongside `data/`
- * (suite `${PLUGIN_DATA}` directories) and `overrides/` (MCP configuration
- * rewrites) — so no sibling `agent-plugins-data` root exists.
+ * Content the user authors, and the services they declare by hand, live in the
+ * cross-tool Agent layout root instead: `~/.agents/{skills,commands,agents}/`
+ * and `~/.agents/{mcp,lsp}.json`. That is the same directory shape the plugin
+ * already reads from a project's `.agents/`, so user-authored resources are
+ * plain Markdown and ordinary JSON that other Agent tools can consume too.
  */
 import { existsSync } from 'node:fs'
-import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { expandHomePath, resolveDshHome as resolveHarnessHome } from '@deepseek-ai/dsh-home-paths'
+import { stripArchiveSuffix } from '../model/types.js'
 
 /** Source checkouts live under `<dimensionRoot>/.sources/<sourceId>/`. */
 export const SOURCES_DIR_NAME = '.sources'
 
-/** Per-suite mutable data directory (the `${PLUGIN_DATA}` placeholder). */
-export const DATA_DIR_NAME = 'data'
-
 export const STATE_FILE_NAME = 'state.json'
 
-/** Expand a leading `~/` (or `~\` on Windows) to the home directory; other values pass through. */
-export function expandHome(path: string): string {
-  if (path === '~' || path.startsWith('~/') || path.startsWith('~\\')) return join(homedir(), path.slice(2))
-  return path
-}
+/**
+ * Expand a leading `~`, `~/`, or `~\` to the OS home; other values pass
+ * through. The harness helper owns the platform rules, so a configured path is
+ * read back the same way on every host.
+ */
+export const expandHome = expandHomePath
 
-/** Resolve the harness home (`$DSH_HOME` or `~/.dsh`). */
+/**
+ * Resolve the harness home (`$DSH_HOME` or `~/.dsh`) through the harness
+ * helper: precedence and tilde expansion stay the harness's, and a blank
+ * `$DSH_HOME` reads as unset rather than resolving the home to the current
+ * working directory.
+ */
 export function resolveDshHome(): string {
-  return process.env.DSH_HOME === undefined ? join(homedir(), '.dsh') : resolve(process.env.DSH_HOME)
+  return resolveHarnessHome()
 }
 
 /** Resolve the canonical user-dimension root. Legacy overrides are migration inputs only. */
 export function resolveUserRoot(_configUserRoot?: string): string {
   return join(resolveDshHome(), 'agent-plugins')
+}
+
+/**
+ * Resolve the shared user-level Agent layout root (`$DSH_AGENTS_HOME` or
+ * `~/.agents`): where this plugin stores the resources and service
+ * declarations the user authors by hand. A blank override reads as unset, the
+ * same rule the harness applies to its own home.
+ */
+export function resolveAgentsRoot(): string {
+  const configured = process.env.DSH_AGENTS_HOME
+  return configured === undefined || configured.trim().length === 0 ? join(homedir(), '.agents') : resolve(expandHome(configured))
 }
 
 /**
@@ -64,19 +84,14 @@ export async function resolveProjectRoot(cwd: string): Promise<string> {
   return join(await findProjectRoot(cwd), '.dsh', 'agent-plugins')
 }
 
-/** Source checkout directory for one source id. */
+/** Directory holding every source checkout of one dimension root. */
 export function sourcesDir(dimensionRoot: string): string {
   return join(dimensionRoot, SOURCES_DIR_NAME)
 }
 
-/** Source checkout directory for one source id. */
+/** Checkout directory of one source inside a dimension root. */
 export function sourceCheckoutDir(dimensionRoot: string, sourceId: string): string {
   return join(sourcesDir(dimensionRoot), sourceId)
-}
-
-/** Per-suite data directory for `${PLUGIN_DATA}`. */
-export function suiteDataDir(dataRoot: string, suiteId: string): string {
-  return join(dataRoot, DATA_DIR_NAME, suiteId)
 }
 
 /**
@@ -89,24 +104,37 @@ export function qualifiedSuiteId(sourceId: string, suiteId: string): string {
   return `${sourceId}/${suiteId}`
 }
 
-/** Async existence probe that follows symlinks for a final component. */
-export async function isDirectory(path: string): Promise<boolean> {
-  try {
-    const info = await stat(path)
-    return info.isDirectory()
-  } catch {
-    return false
-  }
+/** The slice of a `node:path` implementation a containment test needs. */
+export interface PathFlavor {
+  relative(from: string, to: string): string
+  isAbsolute(path: string): boolean
+  sep: string
 }
 
-/** Async existence probe for any entry (file, directory, symlink). */
-export async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch {
-    return false
-  }
+/**
+ * Whether `candidate` is `root` itself or a path below it, compared on whole
+ * path segments by `flavor`'s rules so a sibling whose name merely starts with
+ * the root's (`/a/bc` against `/a/b`) does not count as contained.
+ *
+ * `relative` resolves both operands with those rules before comparing, so the
+ * answer never depends on how each side was spelled: a checkout read from
+ * configuration as `C:/x/y` and an entry resolved to `C:\x\y\plugins\a` stay
+ * contained, Windows compares drive letters and segments case-insensitively,
+ * and an unnormalized `..` inside the candidate is resolved rather than
+ * trusted as text. On POSIX a backslash stays the ordinary filename character
+ * it is — folding separators there would invent containment that does not
+ * exist.
+ *
+ * `flavor` is injectable so the win32 rules stay covered by a POSIX test run.
+ */
+export function isWithinUnder(flavor: PathFlavor, root: string, candidate: string): boolean {
+  const rel = flavor.relative(root, candidate)
+  return rel === '' || (!rel.startsWith(`..${flavor.sep}`) && rel !== '..' && !flavor.isAbsolute(rel))
+}
+
+/** Whether `candidate` is `root` itself or a path below it, by the host's path rules. */
+export function isWithin(root: string, candidate: string): boolean {
+  return isWithinUnder({ relative, isAbsolute, sep }, root, candidate)
 }
 
 /** Sanitize a plugin or server id into `[a-z0-9-]` (lowercased). */
@@ -119,20 +147,10 @@ export function sanitizeId(raw: string): string {
   return cleaned === '' ? 'unnamed' : cleaned
 }
 
-/** Archive extensions stripped from a URL basename before id derivation. */
-const ARCHIVE_SUFFIX_PATTERN = /\.(zip|tgz|tar\.gz|tar)$/i
-
 /** Strip a trailing `.git` or archive suffix (`plugin-0.1.zip` → `plugin-0-1`). */
 function stripSourceSuffix(base: string): string {
-  if (base.endsWith('.git')) base = base.slice(0, -4)
-  return base.replace(ARCHIVE_SUFFIX_PATTERN, '')
-}
-
-/** Derive a source id from a repository URL or local path: last path segment, `.git` stripped. */
-export function deriveSourceId(url: string): string {
-  const trimmed = url.trim().replace(/\/+$/, '')
-  const base = trimmed.split(/[/\\]/).at(-1) ?? ''
-  return sanitizeId(stripSourceSuffix(base))
+  const withoutGit = base.endsWith('.git') ? base.slice(0, -4) : base
+  return stripArchiveSuffix(withoutGit)
 }
 
 /**
@@ -151,8 +169,9 @@ export function deriveSourceIdCandidates(url: string): string[] {
   if (isRemote) {
     const hostPath = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^[\w.-]+@([\w.-]+):/, '$1/')
     const segments = hostPath.split(/[/\\]/).filter(Boolean)
-    if (segments.length >= 2) {
-      const owner = sanitizeId(segments[segments.length - 2]!)
+    const ownerSegment = segments.at(-2)
+    if (ownerSegment !== undefined) {
+      const owner = sanitizeId(ownerSegment)
       if (owner !== '' && owner !== primary) candidates.push(`${owner}-${primary}`)
     }
   }

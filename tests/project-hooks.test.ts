@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { discoverProjectHooks } from '../src/catalog/project-hooks.js'
 import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
 import { HooksMountRegistry } from '../src/runtime/hooks-mounts.js'
+import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -81,22 +82,27 @@ describe('native hook bridge lifecycle', () => {
     }
     const registry = new HooksMountRegistry(host as unknown as Context)
     try {
-      expect(await registry.reconcile(await discoverNativeProjectSuites(project, 'project'))).toEqual([])
+      expect(await registry.reconcile((await discoverNativeProjectSuites(project, 'project')).map(suite => withDefaultSurfaces(suite)))).toEqual([])
       expect(mounts).toHaveLength(1)
-      const first = mounts[0]!
+      const [first] = mounts
+      if (first === undefined) throw new Error('expected the hook config to mount once')
       expect(first.projectDir).toBe(project)
       expect(first.configPath.startsWith(project)).toBe(false)
-      expect((await stat(first.configPath)).mode & 0o777).toBe(0o600)
+      // Windows has no POSIX permission bits — `chmod` there only toggles the
+      // read-only attribute — so the private-file mode is a POSIX guarantee.
+      if (process.platform !== 'win32') expect((await stat(first.configPath)).mode & 0o777).toBe(0o600)
       expect(await readFile(first.configPath, 'utf8')).not.toContain('not copied')
       expect(await readFile(settingsPath, 'utf8')).toBe(original)
       await writeFile(settingsPath, JSON.stringify({ hooks: { PreToolUse: [hook('echo changed')] } }))
-      await registry.reconcile(await discoverNativeProjectSuites(project, 'project'))
+      await registry.reconcile((await discoverNativeProjectSuites(project, 'project')).map(suite => withDefaultSurfaces(suite)))
       expect(mounts).toHaveLength(2)
       expect(first.disposed).toBe(true)
       await expect(stat(dirname(first.configPath))).rejects.toMatchObject({ code: 'ENOENT' })
       await registry.reconcile([])
-      expect(mounts[1]!.disposed).toBe(true)
-      await expect(stat(mounts[1]!.configPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      const second = mounts[1]
+      if (second === undefined) throw new Error('expected the changed hook config to remount')
+      expect(second.disposed).toBe(true)
+      await expect(stat(second.configPath)).rejects.toMatchObject({ code: 'ENOENT' })
     } finally {
       await registry.disposeAll()
     }

@@ -10,9 +10,9 @@
  * installed, uninstalled, or mutated by this manager.
  */
 import { join } from 'node:path'
-import { stat } from 'node:fs/promises'
 import { sanitizeId } from './paths.js'
-import type { Suite, SuiteDimension, SuiteManifest } from '../model/types.js'
+import { isFile } from './fs-probes.js'
+import type { DiscoveredSuite, SuiteDimension, SuiteManifest } from '../model/types.js'
 import { countSurfaces, discoverSkills } from './surfaces.js'
 import { PROJECT_LAYOUTS, type ProjectLayout } from '../model/layouts.js'
 import { discoverProjectMcp } from './project-config.js'
@@ -32,8 +32,8 @@ export type NativeProjectDir = ProjectLayout
  * convention directory that carries content becomes one synthetic suite;
  * empty or absent directories contribute nothing.
  */
-export async function discoverNativeProjectSuites(projectRoot: string, dimension: SuiteDimension): Promise<Suite[]> {
-  const suites: Suite[] = []
+export async function discoverNativeProjectSuites(projectRoot: string, dimension: SuiteDimension): Promise<DiscoveredSuite[]> {
+  const suites: DiscoveredSuite[] = []
   for (const native of NATIVE_PROJECT_DIRS) {
     const root = join(projectRoot, native.dirName)
     const id = sanitizeId(`${native.dirName}-native`)
@@ -49,7 +49,7 @@ export async function discoverNativeProjectSuites(projectRoot: string, dimension
     if (native.dirName === '.claude') lspFiles.push('.lsp.json')
     if (native.dirName === '.github') lspFiles.push('lsp.json')
     for (const path of lspFiles) {
-      if ((await stat(join(projectRoot, path)).catch(() => undefined))?.isFile()) {
+      if (await isFile(join(projectRoot, path))) {
         errors.push(`${path}: project LSP configuration is not mounted; the host LSP registry does not isolate projects`)
       }
     }

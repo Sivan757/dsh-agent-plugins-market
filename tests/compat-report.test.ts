@@ -1,9 +1,10 @@
 /**
  * Guards the compatibility report: every schema in `schemas/` must have a
- * pinned sample, the checked-in report must stay structurally valid, and both
- * READMEs must cite the sampled repositories and link the report. The network
- * harness (`scripts/compat-report.mjs`) is not run here — this test keeps the
- * checked-in evidence honest between regenerations.
+ * pinned sample, the checked-in report must stay structurally valid, both
+ * READMEs must link the report and the audit, and the evidence docs must cite
+ * every sampled repository. The network harness (`scripts/compat-report.mjs`)
+ * is not run here — this test keeps the checked-in evidence honest between
+ * regenerations.
  */
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -59,7 +60,7 @@ interface PinnedSample {
   stars: number
 }
 
-const report = JSON.parse(await readFile(join(ROOT, 'docs', 'compat-report.json'), 'utf8')) as Report
+const report = JSON.parse(await readFile(join(ROOT, 'docs', 'reference', 'compat-report.json'), 'utf8')) as Report
 const config = JSON.parse(await readFile(join(ROOT, 'scripts', 'compat-sources.json'), 'utf8')) as { samples: PinnedSample[] }
 /** Dialect directories that ship a plugin schema; `1.0.0/` is vendored and `skill-collection/` has no manifest. */
 const schemaDirectories: string[] = []
@@ -126,10 +127,15 @@ describe('compatibility report', () => {
     }
   })
 
-  it('cites the sampled repositories in both READMEs and links the report', async () => {
+  it('links the report and audit from both READMEs and cites every sample in the evidence docs', async () => {
     for (const file of ['README.md', 'README.zh.md']) {
       const text = await readFile(join(ROOT, file), 'utf8')
-      expect(text, `${file} must link the compatibility report`).toContain('docs/compat-report.md')
+      expect(text, `${file} must link the compatibility report`).toContain('docs/reference/compat-report.md')
+      expect(text, `${file} must link the layout audit`).toContain('docs/user/layout-coverage')
+    }
+    // Per-sample evidence lives with the report and the audit, not in the READMEs.
+    for (const file of ['docs/reference/compat-report.md', 'docs/user/layout-coverage.md', 'docs/user/layout-coverage.zh.md']) {
+      const text = await readFile(join(ROOT, file), 'utf8')
       for (const sample of report.samples) {
         if (sample.verdict === 'error') continue
         expect(text, `${file} must cite ${sample.repo}`).toContain(sample.repo)

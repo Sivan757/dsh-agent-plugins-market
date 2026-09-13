@@ -8,6 +8,7 @@ import { discoverProjectMcp } from '../src/catalog/project-config.js'
 import { mountProjectMcp } from '../src/runtime/project-runtime.js'
 import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
+import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -47,9 +48,10 @@ command = "never-run"
 `
     )
     const [suite] = await discoverNativeProjectSuites(project, 'project')
+    if (suite === undefined) throw new Error('expected the TOML project MCP file to resolve to one suite')
     expect(suite?.errors).toEqual([])
     expect(suite?.surfaces.mcp).toBe(2)
-    const { mounts, failures } = await toMcpMounts(suite!, '/runtime', {}, { resolve: async ref => ({ value: `resolved-${ref}` }) })
+    const { mounts, failures } = await toMcpMounts(withDefaultSurfaces(suite), '/runtime', {}, { resolve: async ref => ({ value: `resolved-${ref}` }) })
     expect(failures).toEqual([])
     expect(mounts[0]?.config).toMatchObject({
       command: '/usr/bin/example',
@@ -126,10 +128,10 @@ tool_timeout_sec = nan
         installed: { 'local/project-language': { enabled: true, installedAt: '2026-09-09T00:00:00Z' } }
       })
     )
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
     const snapshot = await catalog.readProjectCatalog(project)
-    expect(snapshot.enabledSuites[0]?.activeSurfaces?.lsp).toBe(false)
+    expect(snapshot.enabledSuites[0]?.activeSurfaces.lsp).toBe(false)
     expect(snapshot.scanNotes?.local?.join('\n')).toContain('project LSP declarations are not mounted')
   })
   it('reads ZCode nested servers and uses the agents fallback only when no native server exists', async () => {
@@ -222,20 +224,31 @@ describe('project MCP runtime scope', () => {
     const catalog = new Catalog({
       userRoot,
       dataRoot: join(userRoot, 'data'),
+      agentsRoot: join(userRoot, 'agents'),
       onChanged: async () => {
         await runtime.refresh()
       }
     })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const runtime = mountProjectMcp(host as unknown as Context, catalog, join(userRoot, 'data'))
     try {
       await runtime.refresh()
-      expect([...scopes[0]!.values()]).toEqual([expect.objectContaining({ command: 'server-0', cwd: first })])
-      expect([...scopes[1]!.values()]).toEqual([expect.objectContaining({ command: 'server-1', cwd: second })])
-      expect([...scopes[0]!.keys()]).not.toEqual([...scopes[1]!.keys()])
+      const [firstScope, secondScope] = scopes
+      if (firstScope === undefined || secondScope === undefined) throw new Error('expected both project agent contexts to inject a mount scope')
+      expect([...firstScope.values()]).toEqual([expect.objectContaining({ command: 'server-0', cwd: first })])
+      expect([...secondScope.values()]).toEqual([expect.objectContaining({ command: 'server-1', cwd: second })])
+      // Both agents mount the same logical server under one stable serverName:
+      // the host keeps each agent's registrations in that agent's own scope, so
+      // the per-agent config already disambiguates them. A per-session suffix
+      // would fork the server's identity — and with it its stored OAuth grant —
+      // for every session instead.
+      expect([...firstScope.keys()]).toEqual([...secondScope.keys()])
       await catalog.setScanProjectLayouts(false)
+      await catalog.refreshSettled()
       expect(scopes.map(scope => scope.size)).toEqual([0, 0])
       await catalog.setScanProjectLayouts(true)
+      await catalog.refreshSettled()
       expect(scopes.map(scope => scope.size)).toEqual([1, 1])
     } finally {
       await runtime.dispose()

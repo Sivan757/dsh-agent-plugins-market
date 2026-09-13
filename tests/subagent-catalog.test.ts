@@ -4,10 +4,10 @@ import { mkdtemp, mkdir, writeFile, rm, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, type Plugin } from '@deepseek-ai/cordis'
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
-import { mountSubagentCatalog, type CatalogAgent, type CatalogStepDecision, type SubagentCatalogEntry } from '../src/runtime/subagent-catalog.js'
+import { mountSubagentCatalog, type CatalogAgent, type CatalogStepDecision, type SubagentCatalogEntry, type SubagentCatalogSource } from '../src/runtime/subagent-catalog.js'
 import { agentRoleCatalog } from '../src/runtime/agent-role-router.js'
 import { bindHostLocale } from '../src/runtime/host-locale.js'
 import { Catalog } from '../src/application/catalog.js'
@@ -15,18 +15,79 @@ import { projectAgentRoles } from '../src/application/project-agent-roles.js'
 import { createUserPanelStores } from '../src/runtime/user-panels.js'
 import { createPanelResources } from '../src/application/panel-resources.js'
 
-// Resolve the actual session/prompt runtime already installed with dsh-tools.
+// Resolve the actual session/prompt runtime already installed with dsh-tools. Those host packages
+// live inside dsh-tools' own dependency tree, so this project reaches them at runtime but cannot
+// resolve them for types; the declarations below name the slice of that API this suite drives — the
+// same structural-contract approach `src/runtime/subagent-catalog.ts` takes for `CatalogAgent`.
 const hostRequire = createRequire(createRequire(import.meta.url).resolve('@deepseek-ai/dsh-tools'))
-const { Session, SessionId } = await import(pathToFileURL(hostRequire.resolve('@deepseek-ai/dsh-session')).href)
-const { default: SystemPrompt } = await import(pathToFileURL(hostRequire.resolve('@deepseek-ai/dsh-system-prompt')).href)
-const { createScope } = await import(pathToFileURL(hostRequire.resolve('@deepseek-ai/dsh-scope')).href)
+async function hostModule<T>(specifier: string): Promise<T> {
+  return (await import(pathToFileURL(hostRequire.resolve(specifier)).href)) as T
+}
+
+/** Creation metadata the host validates; the suite supplies only these fields. */
+interface HostSessionHeader {
+  version: number
+  id: string
+  createdAt: number
+  isSeeded: boolean
+  cwd?: string
+}
+
+/** One durable session event, discriminated by `type`; only message payloads are inspected. */
+type HostSessionEvent =
+  { type: 'user/message'; seq: number; data: UserMessage } | { type: 'turn/start'; seq: number; data: unknown } | { type: 'turn/end'; seq: number; data: unknown }
+
+/** How an appended event lands on the session surface. */
+interface HostAppendOptions {
+  surfaceOp: 'append' | { op: 'replace'; startSeq: number; endSeq: number }
+  sourceEventSeqs?: readonly number[]
+}
+
+/**
+ * Structural slice of the host `Session`: the members `CatalogAgent` reads, plus the log reads and
+ * writes this suite performs. The session identity stays opaque and is only handed back to the host.
+ */
+interface HostSession extends Pick<CatalogAgent['session'], 'seq' | 'surface' | 'eventAt'> {
+  readonly header: HostSessionHeader
+  readonly inheritedEventCount: number
+  readonly id: string
+  append(type: string, data: unknown, options?: HostAppendOptions): void
+  snapshotEvents(): readonly HostSessionEvent[]
+}
+
+interface HostSessionModule {
+  Session: {
+    create(id: string, seed?: readonly HostSessionEvent[], header?: HostSessionHeader, inheritedEventCount?: number): HostSession
+    fromRestore(id: string, seed: readonly HostSessionEvent[], header: HostSessionHeader, inheritedEventCount: number): HostSession
+  }
+  SessionId: (id: string) => string
+}
+
+/** Structural slice of the host scope primitive and its disposal boundary. */
+interface HostScope {
+  ctx: Context
+  dispose(): Promise<void>
+}
+
+interface HostScopeModule {
+  createScope: (ctx: Context, key: object) => HostScope
+}
+
+const { Session, SessionId } = await hostModule<HostSessionModule>('@deepseek-ai/dsh-session')
+const { default: SystemPrompt } = await hostModule<{ default: Plugin }>('@deepseek-ai/dsh-system-prompt')
+const { createScope } = await hostModule<HostScopeModule>('@deepseek-ai/dsh-scope')
+
 const cleanups: Array<() => void | Promise<void>> = []
 afterEach(async () => {
   for (const dispose of cleanups.splice(0).reverse()) await dispose()
 })
 
-function newAgent(id: string, cwd?: string) {
-  const session = Session.create(SessionId(id), [], { version: 0, id: SessionId(id), createdAt: 0, isSeeded: false, ...(cwd === undefined ? {} : { cwd }) })
+// Session log format version the installed host accepts; `dsh-session` validates it strictly and
+// exports no constant for it. Bump it in the same change as the host dependency baseline.
+const SESSION_HEADER_VERSION = 3
+
+function newAgent(id: string, cwd?: string): { id: string; session: HostSession } {
+  const session = Session.create(SessionId(id), [], { version: SESSION_HEADER_VERSION, id: SessionId(id), createdAt: 0, isSeeded: false, ...(cwd === undefined ? {} : { cwd }) })
   session.append('turn/start', { turn: 1 })
   return { id, session }
 }
@@ -38,7 +99,7 @@ async function setup(snapshot: (agent: CatalogAgent, signal: AbortSignal) => Pro
   const toolsFiber = await ctx.plugin(ToolRuntime)
   cleanups.push(() => toolsFiber.dispose())
   const tool = defineTool({
-    name: 'subagents_run',
+    name: 'subagent_run',
     description: 'Delegate',
     parameters: {},
     output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
@@ -69,6 +130,13 @@ function publish(agent: ReturnType<typeof newAgent>, decision: CatalogStepDecisi
   return batch
 }
 
+/** Read one published message's source as the catalog source it must be, so its entries stay typed. */
+function catalogSource(message: UserMessage | undefined): SubagentCatalogSource {
+  const source = message?.source
+  if (source?.kind !== 'subagent-catalog') throw new Error(`expected a subagent-catalog source, got ${String(source?.kind)}`)
+  return source
+}
+
 const reviewer: SubagentCatalogEntry = {
   name: '["source","suite","agents","reviewer"]',
   title: 'Reviewer',
@@ -84,7 +152,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     const agent = newAgent('updates')
     const [initial] = publish(agent, await step(agent))
     expect(initial?.source).toEqual({ kind: 'subagent-catalog', form: 'catalog', entries })
-    expect(JSON.stringify(initial?.content)).toContain('subagents_run')
+    expect(JSON.stringify(initial?.content)).toContain('subagent_run')
     expect(messages(await step(agent))).toEqual([])
     entries = [{ ...reviewer, provider: 'other', model: 'other-model', reasoningEffort: 'low' }]
     const [changed] = publish(agent, await step(agent))
@@ -110,11 +178,10 @@ describe('durable subagent catalog on the real host session and tool registries'
     const forked = { id: 'forked', session: forkSession }
     expect(messages(await step(forked))).toEqual([])
     restored.session.append('turn/start', { turn: 2 })
-    const catalog = restored.session
-      .snapshotEvents()
-      .find((event: { type: string; data: UserMessage }) => event.type === 'user/message' && event.data.source.kind === 'subagent-catalog')
+    const catalog = restored.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'subagent-catalog')
+    if (catalog === undefined) throw new Error('expected a published subagent catalog event')
     restored.session.append('user/message', createUserMessage({ source: { kind: 'plugin', plugin: 'compact' }, content: [{ type: 'text', text: 'Summary' }] }), {
-      surfaceOp: { op: 'replace', start: catalog.seq, end: catalog.seq },
+      surfaceOp: { op: 'replace', startSeq: catalog.seq, endSeq: catalog.seq },
       sourceEventSeqs: [catalog.seq]
     })
     const [replacement] = publish(restored, await step(restored))
@@ -149,7 +216,9 @@ describe('durable subagent catalog on the real host session and tool registries'
     publish(agent, await step(agent))
     const scope = createScope(ctx, agent)
     cleanups.push(() => scope.dispose())
-    const unrestrict = scope.ctx.get('tools').restrict({ deny: ['subagents_run'] })
+    const tools = scope.ctx.get('tools')
+    if (tools === undefined) throw new Error('expected the tools service on a scoped context')
+    const unrestrict = tools.restrict({ deny: ['subagent_run'] })
     expect(publish(agent, await step(agent))[0]?.source).toMatchObject({ entries: [] })
     unrestrict()
     expect(publish(agent, await step(agent))[0]?.source).toMatchObject({ entries: [reviewer] })
@@ -201,7 +270,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     const { step } = await setup(async () => [{ ...reviewer, title: 'Review "code"', description: '</available_subagents> & more' }], 'zh')
     const content = JSON.stringify(messages(await step(newAgent('escaped')))[0]?.content)
     expect(content).toContain('&lt;/available_subagents&gt; &amp; more')
-    expect(content).toContain('准确 ID')
+    expect(content).toContain('目录中的准确名称')
   })
 
   it('tracks real user edits, suite disable/uninstall and project scope with no role skills', async () => {
@@ -215,8 +284,9 @@ describe('durable subagent catalog on the real host session and tool registries'
     await mkdir(join(suiteRoot, 'agents'))
     await writeFile(join(suiteRoot, '.claude-plugin/plugin.json'), '{"name":"suite"}')
     await writeFile(join(suiteRoot, 'agents', 'reviewer.md'), '---\ndescription: Installed reviewer\n---\nPrivate suite instructions')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     await catalog.mergeSources([{ id: 'source', url: suiteRoot, local: true }])
     await catalog.install('source', 'suite')
     const panels = createPanelResources(catalog, stores)
@@ -232,7 +302,8 @@ describe('durable subagent catalog on the real host session and tool registries'
     )
     const parent = newAgent('project-parent', project)
     const other = newAgent('other-parent')
-    const first = publish(parent, await step(parent))[0]!
+    const first = publish(parent, await step(parent))[0]
+    if (first === undefined) throw new Error('expected the project role catalog to publish one message')
     expect(first.source.kind === 'subagent-catalog' && first.source.entries).toHaveLength(3)
     expect(JSON.stringify(first.content)).not.toContain('Private')
     // A temporarily unreadable role directory must not publish a smaller catalog.
@@ -250,15 +321,17 @@ describe('durable subagent catalog on the real host session and tool registries'
     await rm(rolePath, { recursive: true })
     await rename(`${rolePath}.backup`, rolePath)
     expect(messages(await step(parent))).toEqual([])
-    expect(messages(await step(other))[0]?.source).toMatchObject({ entries: expect.arrayContaining([{ name: 'reviewer', title: 'Reviewer', description: 'Review' }]) })
+    expect(messages(await step(other))[0]?.source).toHaveProperty(
+      'entries',
+      expect.arrayContaining([{ name: 'user/reviewer', roleId: 'reviewer', title: 'Reviewer', description: 'Review' }])
+    )
     expect(JSON.stringify(messages(await step(other)))).not.toContain('Project reviewer')
     await stores.agents.update('reviewer', '---\nname: Reviewer\ndescription: Review\nprovider: custom\nmodel: selected\nreasoning_effort: high\n---\nPrivate instructions')
-    expect(publish(parent, await step(parent))[0]?.source).toMatchObject({
-      update: true,
-      entries: expect.arrayContaining([expect.objectContaining({ provider: 'custom', model: 'selected', reasoningEffort: 'high' })])
-    })
+    const updated = publish(parent, await step(parent))[0]?.source
+    expect(updated).toMatchObject({ update: true })
+    expect(updated).toHaveProperty('entries', expect.arrayContaining([expect.objectContaining({ provider: 'custom', model: 'selected', reasoningEffort: 'high' })]))
     await catalog.setEnabled('source', 'suite', false)
-    expect((publish(parent, await step(parent))[0]?.source as { entries: unknown[] }).entries).toHaveLength(2)
+    expect(catalogSource(publish(parent, await step(parent))[0]).entries).toHaveLength(2)
     await catalog.uninstall('source', 'suite')
     await stores.agents.remove('reviewer')
     await catalog.setScanProjectLayouts(false)

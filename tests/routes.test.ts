@@ -3,6 +3,8 @@ import { MARKET_ROUTES } from '../src/contracts/market.js'
 import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
 import type { MarketService } from '../src/application/queries.js'
 
+type RouteTable = Map<string, (request: unknown, response: unknown) => void | Promise<void>>
+
 function service(): MarketService {
   return {
     sources: [],
@@ -14,6 +16,10 @@ function service(): MarketService {
       directObservationOnly: true
     }),
     sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
+    serverConfig: async (kind, id) => ({ kind, id, editable: true, config: {} }),
+    lspStatus: async () => ({ entries: [], observedAt: '', totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 }, hostMissing: false }),
+    lspServers: async () => ({}),
+    mcpOverrides: async () => ({}),
     suiteDetail: async () => {
       throw new Error('not found')
     },
@@ -31,6 +37,11 @@ function service(): MarketService {
     setSurface: async () => {},
     setMcpOverride: async () => {},
     addMcpServer: async () => {},
+    saveServerConfig: async () => {},
+    addLspServer: async () => {},
+    setLspServers: async () => ({}),
+    setLspServerEnabled: async () => {},
+    migrateLegacyLspSeam: async profile => ({ profile, patchPath: '/p/cordis.patch.yml', backupPath: '/p/cordis.patch.yml.bak', restartRequired: false }),
     retryMounts: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
@@ -47,7 +58,10 @@ function service(): MarketService {
 function response(): { value: () => unknown; writeHead: (status: number, headers: Record<string, string>) => void; end: (body: string) => void } {
   let body = ''
   return {
-    value: () => JSON.parse(body),
+    value: () => {
+      const parsed: unknown = JSON.parse(body)
+      return parsed
+    },
     writeHead: () => {},
     end: value => {
       body = value
@@ -56,7 +70,7 @@ function response(): { value: () => unknown; writeHead: (status: number, headers
 }
 
 /** A strict webserver mock: mirrors the host's duplicate-throw contract. */
-function strictWebServer(routes: Map<string, (request: unknown, response: unknown) => void | Promise<void>>): WebServerService {
+function strictWebServer(routes: RouteTable): WebServerService {
   return {
     register: route => {
       if (routes.has(route.path)) throw new Error(`webserver: duplicate exact route "${route.path}"`)
@@ -66,12 +80,12 @@ function strictWebServer(routes: Map<string, (request: unknown, response: unknow
   }
 }
 
-/** A POST request stub with a JSON body and same-origin headers. */
-function postRequest(url: string, body: Record<string, unknown>): unknown {
+/** A POST request stub with a JSON body and same-origin headers unless `origin` overrides them. */
+function postRequest(url: string, body: Record<string, unknown>, origin = 'http://127.0.0.1'): unknown {
   return {
     method: 'POST',
     url,
-    headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+    headers: { host: '127.0.0.1', origin },
     on: (event: string, listener: (chunk?: unknown) => void) => {
       if (event === 'data') listener(Buffer.from(JSON.stringify(body), 'utf8'))
       if (event === 'end') listener()
@@ -85,7 +99,7 @@ const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0
 
 describe('market HTTP routes', () => {
   it('forwards exact model queries and returns reasoning options without provider configuration', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const calls: string[][] = []
     const llm = {
       listProviders: () => [{ id: 'p', apiKey: 'private' }],
@@ -109,7 +123,7 @@ describe('market HTTP routes', () => {
     }
   })
   it('registers the shared route constants and disposes them together', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
 
@@ -141,7 +155,7 @@ describe('market HTTP routes', () => {
     }
     // The second mount gets its own table: the strict mock enforces the
     // duplicate-throw contract per webserver instance, as the host does.
-    const reauthRoutes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const reauthRoutes: RouteTable = new Map()
     const disposeReauth = mountSuiteRoutes({ webServer: strictWebServer(reauthRoutes) }, reauthService)
     const reauthResponse = response()
     await reauthRoutes.get(MARKET_ROUTES.mcpReauthorize)?.(postRequest(MARKET_ROUTES.mcpReauthorize, { serverName: 'cloudflare__cloudflare-api' }), reauthResponse)
@@ -160,7 +174,7 @@ describe('market HTTP routes', () => {
   })
 
   it('serves the MCP backend block and validates backend switches', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
 
@@ -184,7 +198,7 @@ describe('market HTTP routes', () => {
   })
 
   it('registers user-panel routes only when panel stores are provided', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const created: Array<{ kind: string; name: string; text: string }> = []
     const store = (kind: string) => ({
@@ -229,7 +243,7 @@ describe('market HTTP routes', () => {
   })
 
   it('rejects panel entry names outside the grammar without filesystem effect', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const removals: string[] = []
     // The mock mirrors the real UserPanelStore's guard: a name outside the
@@ -259,18 +273,8 @@ describe('market HTTP routes', () => {
     expect(removals).toEqual([])
 
     // Same-origin enforcement still guards every mutation.
-    const crossOrigin = {
-      method: 'POST',
-      url: deletePath,
-      headers: { host: '127.0.0.1', origin: 'http://evil.example' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from('{"name":"ok"}', 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
     const corsResponse = response()
-    await routes.get(deletePath)?.(crossOrigin, corsResponse)
+    await routes.get(deletePath)?.(postRequest(deletePath, { name: 'ok' }, 'http://evil.example'), corsResponse)
     await settle()
     expect(corsResponse.value()).toMatchObject({ ok: false })
     expect(removals).toEqual([])
@@ -278,8 +282,116 @@ describe('market HTTP routes', () => {
     dispose()
   })
 
+  it('rejects a field whose wire type is not the declared one instead of coercing it', async () => {
+    const routes: RouteTable = new Map()
+    const storeInputs: unknown[] = []
+    const spyService: MarketService = {
+      ...service(),
+      addSource: async input => {
+        storeInputs.push(input.url)
+        return { id: 'source', ...input }
+      },
+      updateSource: async (_id, patch) => {
+        storeInputs.push(patch.url, patch.branch, patch.sha256)
+      },
+      setLspServerEnabled: async id => {
+        storeInputs.push(id)
+      },
+      refreshSource: async id => {
+        // Reaching here at all means a wrong-typed id fell back to "all".
+        storeInputs.push(id)
+      }
+    }
+    const store = {
+      list: async () => [],
+      get: async () => undefined,
+      create: async (name: string, text: string) => {
+        storeInputs.push(name, text)
+        return {}
+      },
+      update: async (_name: string, text: string) => {
+        storeInputs.push(text)
+      },
+      remove: async (name: string) => {
+        storeInputs.push(name)
+      }
+    }
+    const panels = { skills: store, commands: store, agents: store } as unknown as Parameters<typeof mountSuiteRoutes>[2]
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, spyService, panels)
+
+    // `String({href})` is "[object Object]": non-empty, so before the routes
+    // required the declared type it survived every downstream check and the
+    // profile stored it as a source url, a branch name, or an entry name.
+    const objectUrl = { href: 'https://example.com/repo' }
+    const panelRoute = `${MARKET_ROUTES.userPanel}/skills`
+    const cases: Array<[string, string, Record<string, unknown>, string]> = [
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: objectUrl }, 'source url must be a string'],
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: ['https://example.com/repo'] }, 'source url must be a string'],
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: 42 }, 'source url must be a string'],
+      [MARKET_ROUTES.addSource, MARKET_ROUTES.addSource, { url: 'https://example.com/repo', branch: {} }, 'branch must be a string'],
+      [MARKET_ROUTES.refreshSource, MARKET_ROUTES.refreshSource, { id: {} }, 'source id must be a string'],
+      [MARKET_ROUTES.updateSource, MARKET_ROUTES.updateSource, { id: 'source', url: objectUrl }, 'source url must be a string'],
+      [MARKET_ROUTES.updateSource, MARKET_ROUTES.updateSource, { id: 'source', branch: {} }, 'branch must be a string'],
+      [MARKET_ROUTES.updateSource, MARKET_ROUTES.updateSource, { id: 'source', sha256: { hex: 'a'.repeat(64) } }, 'sha256 must be a string'],
+      [`${MARKET_ROUTES.lspServers}/enabled`, `${MARKET_ROUTES.lspServers}/enabled`, { id: {}, enabled: true }, 'LSP server id must be a string'],
+      [`${MARKET_ROUTES.lspServers}/enabled`, `${MARKET_ROUTES.lspServers}/enabled`, { id: 'x', enabled: 'yes' }, 'missing boolean enabled'],
+      [MARKET_ROUTES.migrateLspSeam, MARKET_ROUTES.migrateLspSeam, { profile: {} }, 'profile name must be a string'],
+      [MARKET_ROUTES.migrateLspSeam, MARKET_ROUTES.migrateLspSeam, { profile: '  ' }, 'missing profile name'],
+      [`${panelRoute}/create`, `${panelRoute}/create`, { name: {}, text: '# body' }, 'entry name must be a string'],
+      [`${panelRoute}/create`, `${panelRoute}/create`, { name: 'demo', text: { body: '# body' } }, 'entry text must be a string'],
+      [`${panelRoute}/update`, `${panelRoute}/update?name=demo`, { text: ['# body'] }, 'entry text must be a string'],
+      [`${panelRoute}/delete`, `${panelRoute}/delete`, { name: [] }, 'entry name must be a string']
+    ]
+    try {
+      for (const [route, requestUrl, body, error] of cases) {
+        const output = response()
+        await routes.get(route)!(postRequest(requestUrl, body), output)
+        await settle()
+        expect(output.value(), `${route} ${JSON.stringify(body)}`).toMatchObject({ ok: false, error })
+      }
+      expect(storeInputs).toEqual([])
+
+      // Absence is still "missing", not a type error: only the declared type changed.
+      const emptyResponse = response()
+      await routes.get(MARKET_ROUTES.addSource)!(postRequest(MARKET_ROUTES.addSource, {}), emptyResponse)
+      await settle()
+      expect(emptyResponse.value()).toMatchObject({ ok: false, error: 'missing source url' })
+
+      // And the same fields as strings still reach the store.
+      const okResponse = response()
+      await routes.get(MARKET_ROUTES.addSource)!(postRequest(MARKET_ROUTES.addSource, { url: 'https://example.com/repo' }), okResponse)
+      await settle()
+      expect(okResponse.value()).toMatchObject({ ok: true })
+      expect(storeInputs).toEqual(['https://example.com/repo'])
+    } finally {
+      dispose()
+    }
+  })
+
+  it('removes the legacy LSP layer for the named profile only', async () => {
+    const routes: RouteTable = new Map()
+    const requested: string[] = []
+    const withMigration: MarketService = {
+      ...service(),
+      migrateLegacyLspSeam: async profile => {
+        requested.push(profile)
+        return { profile, patchPath: '/p/cordis.patch.yml', backupPath: '/p/cordis.patch.yml.bak-lsp-seam', restartRequired: false }
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, withMigration)
+    try {
+      const output = response()
+      await routes.get(MARKET_ROUTES.migrateLspSeam)!(postRequest(MARKET_ROUTES.migrateLspSeam, { profile: '  web  ' }), output)
+      await settle()
+      expect(output.value()).toMatchObject({ ok: true, migration: { profile: 'web' } })
+      expect(requested).toEqual(['web'])
+    } finally {
+      dispose()
+    }
+  })
+
   it('passes the delete-checkout flag through to removeSource', async () => {
-    const routes = new Map<string, (request: unknown, response: unknown) => void | Promise<void>>()
+    const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const removals: Array<{ id: string; deleteCheckout: boolean }> = []
     const removeService = {
@@ -290,18 +402,9 @@ describe('market HTTP routes', () => {
     }
     const dispose = mountSuiteRoutes({ webServer }, removeService)
 
-    const postRequest = {
-      method: 'POST',
-      url: MARKET_ROUTES.removeSource,
-      headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
-      on: (event: string, listener: (chunk?: unknown) => void) => {
-        if (event === 'data') listener(Buffer.from(JSON.stringify({ id: 'duckdb-skills', deleteCheckout: true }), 'utf8'))
-        if (event === 'end') listener()
-      },
-      destroy: () => {}
-    }
-    await routes.get(MARKET_ROUTES.removeSource)?.(postRequest, response())
-    await new Promise(resolve => setTimeout(resolve, 0))
+    const removeRequest = postRequest(MARKET_ROUTES.removeSource, { id: 'duckdb-skills', deleteCheckout: true })
+    await routes.get(MARKET_ROUTES.removeSource)?.(removeRequest, response())
+    await settle()
     expect(removals).toEqual([{ id: 'duckdb-skills', deleteCheckout: true }])
 
     dispose()

@@ -11,9 +11,10 @@ const roots: string[] = []
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'server-config-'))
   roots.push(root)
-  const catalog = new Catalog({ userRoot: root, dataRoot: root, onChanged: () => {} })
+  const agentsRoot = join(root, 'agents')
+  const catalog = new Catalog({ userRoot: root, dataRoot: root, agentsRoot, onChanged: () => {} })
   await catalog.load()
-  return { root, catalog }
+  return { root, agentsRoot, catalog }
 }
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
@@ -21,14 +22,14 @@ afterEach(async () => {
 
 describe('service configuration editing', () => {
   it('creates LSP servers independently, rejects duplicates and preserves corrupt existing data', async () => {
-    const { root, catalog } = await setup()
+    const { agentsRoot, catalog } = await setup()
     await catalog.addLspServer('one', { command: 'one', extensionToLanguage: { '.one': 'one' } })
     await catalog.addLspServer('two', { command: 'two', extensionToLanguage: { '.two': 'two' } })
-    expect(Object.keys((await loadLspServers(root)).servers)).toEqual(['one', 'two'])
+    expect(Object.keys((await loadLspServers(agentsRoot)).servers)).toEqual(['one', 'two'])
     await expect(catalog.addLspServer('one', { command: 'new', extensionToLanguage: { '.one': 'one' } })).rejects.toThrow('already exists')
-    const path = join(root, 'lsp-servers.json')
+    const path = join(agentsRoot, 'lsp.json')
     await writeFile(path, 'corrupt')
-    await expect(catalog.addLspServer('three', { command: 'three', extensionToLanguage: { '.three': 'three' } })).rejects.toThrow('lsp-servers.json')
+    await expect(catalog.addLspServer('three', { command: 'three', extensionToLanguage: { '.three': 'three' } })).rejects.toThrow('lsp.json')
     expect(await readFile(path, 'utf8')).toBe('corrupt')
   })
   it('persists plugin LSP edits outside the checkout and projects them into runtime discovery', async () => {
@@ -44,8 +45,13 @@ describe('service configuration editing', () => {
     const detail = await catalog.serverConfig('lsp', id)
     await catalog.saveServerConfig('lsp', id, { ...detail.config, command: 'replacement' })
     expect((await catalog.serverConfig('lsp', id)).config.command).toBe('replacement')
-    expect((await catalog.enabledUserSuites()).find(suite => suite.id === 'typescript-lsp')!.lsp!.servers.typescript!.command).toBe('replacement')
-    expect((await catalog.lspStatus()).entries.find(entry => entry.id === id)!.command).toBe('replacement')
+    const suite = (await catalog.enabledUserSuites()).find(candidate => candidate.id === 'typescript-lsp')
+    const typescript = suite?.lsp?.servers['typescript']
+    if (typescript === undefined) throw new Error('expected the saved command to reach the suite LSP table')
+    expect(typescript.command).toBe('replacement')
+    const statusEntry = (await catalog.lspStatus()).entries.find(entry => entry.id === id)
+    if (statusEntry === undefined) throw new Error('expected the saved command to reach the LSP status entry')
+    expect(statusEntry.command).toBe('replacement')
     expect(await readFile(manifest, 'utf8')).toBe(before)
   })
 
@@ -68,15 +74,15 @@ describe('service configuration editing', () => {
   })
 
   it('saves complete direct LSP config without parser identity, preserves nested secrets and rejects malformed edits', async () => {
-    const { root, catalog } = await setup()
+    const { agentsRoot, catalog } = await setup()
     await catalog.setLspServers({ lspServers: { demo: { command: 'old', extensionToLanguage: { '.ts': 'typescript' }, configuration: { apiKey: 'secret', deep: [1, true] } } } })
     const detail = await catalog.serverConfig('lsp', 'direct/demo')
     expect(detail.config.configuration).toEqual({ apiKey: '[redacted]', deep: [1, true] })
     await catalog.saveServerConfig('lsp', 'direct/demo', { ...detail.config, command: 'new' })
-    expect((await loadLspServers(root)).servers.demo).toMatchObject({ command: 'new', configuration: { apiKey: 'secret', deep: [1, true] } })
-    const before = await readFile(join(root, 'lsp-servers.json'), 'utf8')
+    expect((await loadLspServers(agentsRoot)).servers.demo).toMatchObject({ command: 'new', configuration: { apiKey: 'secret', deep: [1, true] } })
+    const before = await readFile(join(agentsRoot, 'lsp.json'), 'utf8')
     await expect(catalog.saveServerConfig('lsp', 'direct/demo', { command: 'broken', extensionToLanguage: {} })).rejects.toThrow('invalid LSP')
-    expect(await readFile(join(root, 'lsp-servers.json'), 'utf8')).toBe(before)
+    expect(await readFile(join(agentsRoot, 'lsp.json'), 'utf8')).toBe(before)
   })
 
   it('rejects newly introduced masks and preserves redacted args and URL exactly', () => {

@@ -3,7 +3,7 @@ import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
-import type { Translate } from '../src/client/index.js'
+import { stubTranslate as t } from './helpers/translate.js'
 
 vi.mock('../src/client/ui/ServerConfigDetail.js', () => ({
   ServerConfigDetail: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => h('button', { onClick: () => onDirtyChange(true) }, 'edit-config')
@@ -15,7 +15,6 @@ afterEach(async () => {
   await act(async () => root?.unmount())
   document.body.replaceChildren()
 })
-const t: Translate = key => key
 const base: McpStatusEntry = { id: 'service', name: 'service', kind: 'plugin', state: 'failed', transport: 'streamable-http', tools: [], canReauthorize: true }
 async function mount(entry = base) {
   const host = document.createElement('div')
@@ -50,4 +49,11 @@ it('shows close but no connection actions for external servers', async () => {
   expect(button('mcpClose')).toBeDefined()
   expect(button('mcpRetryConnection')).toBeUndefined()
   expect(button('mcpReauthorize')).toBeUndefined()
+})
+it('says that a remote server authorizes without declaring it', async () => {
+  await mount({ ...base, oauthDefault: true })
+  expect(document.body.textContent).toContain('mcpOauthDefault')
+  await act(async () => root.unmount())
+  await mount({ ...base, transport: 'stdio' })
+  expect(document.body.textContent).not.toContain('mcpOauthDefault')
 })

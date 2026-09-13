@@ -5,9 +5,9 @@ import { discoverLspEntries } from '../catalog/surfaces.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { credentialRefsInServer } from '../runtime/mcp-config.js'
 import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
-import { applyOverride, type McpServerOverride } from '../runtime/mcp-overrides.js'
+import { applyOverride } from '../runtime/mcp-overrides.js'
 import type { LspSurfaceDetail, McpServerDetail, SkillContent, SuiteDetail } from '../contracts/market.js'
-import { effectiveSurfaces, type InstalledEntry, type McpServerStdio, type McpServerStreamableHttp, type Suite, type SuiteMarkdownResource } from '../model/types.js'
+import { effectiveSurfaces, type InstalledEntry, type ProjectHooks, type Suite, type SuiteMarkdownResource } from '../model/types.js'
 import type { McpMountDiagnostic as McpDiagnostic } from '../runtime/mcp-mounts.js'
 
 /** Build the detail response for one normalized suite. */
@@ -44,7 +44,7 @@ export async function buildSuiteDetail(
       suite.mcp === undefined
         ? []
         : Object.entries(suite.mcp.servers).map(([key, server]) => {
-            const effective = applyOverride(server as McpServerStdio | McpServerStreamableHttp, mcpOverrides[key] as McpServerOverride | undefined)
+            const effective = applyOverride(server, mcpOverrides[key])
             return {
               key,
               ...(redactMcpConfig(server) as Omit<McpServerDetail, 'key' | 'credentialRefs'>),
@@ -57,7 +57,7 @@ export async function buildSuiteDetail(
           ? suite.resources === undefined
             ? await hooksPreviews(suite.root)
             : { count: 0, entries: [] }
-          : normalizedHookPreviews(suite)
+          : normalizedHookPreviews(suite.hooks)
         : { count: 0, entries: [] },
     commands: remoteUrl === undefined ? await markdownPreviews(suite.resources?.commands ?? (await defaultMarkdownResources(suite.root, 'commands'))) : [],
     agents: remoteUrl === undefined ? await markdownPreviews(suite.resources?.agents ?? (await defaultMarkdownResources(suite.root, 'agents'))) : [],
@@ -90,10 +90,10 @@ async function markdownPreviews(resources: SuiteMarkdownResource[]): Promise<Arr
   for (const resource of resources) {
     try {
       const content = (await resourceText(resource)).slice(0, 64 * 1024)
-      const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)
+      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)?.[1]
       let description: string | undefined
-      if (match !== null) {
-        const yaml = parseYaml(match[1])
+      if (frontmatter !== undefined) {
+        const yaml: unknown = parseYaml(frontmatter)
         if (typeof yaml === 'object' && yaml !== null) {
           const desc = (yaml as Record<string, unknown>)['description']
           if (typeof desc === 'string') description = desc
@@ -107,8 +107,8 @@ async function markdownPreviews(resources: SuiteMarkdownResource[]): Promise<Arr
   return previews
 }
 
-function normalizedHookPreviews(suite: Suite) {
-  const entries = Object.entries(suite.hooks!.events).flatMap(([event, groups]) =>
+function normalizedHookPreviews(hooks: ProjectHooks) {
+  const entries = Object.entries(hooks.events).flatMap(([event, groups]) =>
     groups.flatMap(group => group.hooks.map(hook => ({ event, ...(group.matcher === undefined ? {} : { matcher: group.matcher }), command: hook.command })))
   )
   return { count: entries.length, entries }

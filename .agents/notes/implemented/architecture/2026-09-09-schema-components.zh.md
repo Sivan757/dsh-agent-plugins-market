@@ -10,7 +10,7 @@ Status: implemented
 
 文件/目录/内联组件一次性归一化为套件资源，运行时消费者与详情投影共享它们。没有资源表的旧式/项目套件保留默认路径；显式为空或无效的组件不能复活默认目录。Kimi 启动/系统指令使用已有的 Agent 作用域提示 API。配置读取检查 realpath 归属并诊断无效声明。
 
-固定提交号的 README 仓库快照包含原文、哈希与许可证。测试扫描原始目录和每个套件根的单方言变体，验证真实 schema 并运行组件消费者。扫描器直接报告实际产出结果的 marketplace。见[审计表](../../../../docs/layout-coverage.zh.md)。
+固定提交号的 README 仓库快照包含原文、哈希与许可证。测试扫描原始目录和每个套件根的单方言变体，验证真实 schema 并运行组件消费者。扫描器直接报告实际产出结果的 marketplace。见[审计表](../../../../docs/user/layout-coverage.zh.md)。
 
 ## Alternatives considered
 

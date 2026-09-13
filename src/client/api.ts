@@ -1,11 +1,11 @@
-import { withBusyOperation } from './ui/busy-operation.js'
 /** Typed fetch helpers over the host's `/api/agent-plugins/*` routes. */
+import { withBusyOperation } from './ui/busy-operation.js'
+import { RequestTimeoutError } from './request-error.js'
 import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
 import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
-import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
+import type { McpBackendInfo, OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
-import type { LspServerSpec } from '../model/types.js'
 
 export type {
   AgentPreview,
@@ -25,17 +25,88 @@ export type {
   UserPanelKind
 } from '../contracts/market.js'
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../contracts/mcp-status.js'
-export type { LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
-export type { LspServerSpec } from '../model/types.js'
+export type { LspStatusEntry, LspStatusPayload, LspStatusState, LspLegacySeam, LspLegacySeamMigration } from '../contracts/lsp-status.js'
+export type { McpBackendInfo }
 
-/** Client-facing alias retained during migration from the original transport types. */
+/** The market overview wire, under the name the client surfaces use. */
 export type OverviewData = OverviewPayload
-/** Client-facing alias retained during migration from the original transport types. */
+/** One suite card wire, under the name the client surfaces use. */
 export type SuiteCardData = SuiteOverviewCard
+
+/** Reads are local and settle in milliseconds; a stalled host must not hold the page. */
+export const READ_TIMEOUT_MS = 15_000
+/** Mutations may legitimately clone or archive for minutes; this only caps a stalled one. */
+export const MUTATION_TIMEOUT_MS = 600_000
+
+/**
+ * One same-origin request that gives up waiting after `timeoutMs`.
+ *
+ * Aborting releases whoever is waiting — the panel, and the blocking overlay
+ * with it — while the host keeps working. The next read then reports where the
+ * operation actually stands, which is more useful than a spinner that never
+ * ends.
+ */
+async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController()
+  const external = init.signal ?? undefined
+  const forward = (): void => controller.abort()
+  // An already-aborted caller signal never fires another event, so it has to be
+  // honoured here or the request would outlive the read it belongs to.
+  if (external?.aborted === true) controller.abort()
+  else external?.addEventListener('abort', forward, { once: true })
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    // A caller-driven abort keeps its own error: the editor that cancelled the
+    // read owns that outcome.
+    if (timedOut) throw new RequestTimeoutError(timeoutMs)
+    throw error
+  } finally {
+    clearTimeout(timer)
+    external?.removeEventListener('abort', forward)
+  }
+}
+
+/**
+ * One same-origin GET decoded as JSON.
+ *
+ * `label` names the resource in the thrown message, so a failed load reads the
+ * same in every panel that shares this helper.
+ */
+async function getJson<T>(url: string, label: string, init?: RequestInit): Promise<T> {
+  const response = await boundedFetch(url, { credentials: 'same-origin', ...init }, READ_TIMEOUT_MS)
+  if (!response.ok) throw new Error(`${label}: ${response.status}`)
+  return response.json() as Promise<T>
+}
+
+/** One POST carrying the market API's `{ ok, error }` result envelope. */
+async function postOkJson<T>(url: string, body: Record<string, unknown>, label: string): Promise<T & { ok?: boolean; error?: string }> {
+  const response = await boundedFetch(
+    url,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    },
+    MUTATION_TIMEOUT_MS
+  )
+  const payload = (await response.json()) as T & { ok?: boolean; error?: string }
+  if (!response.ok || payload.ok !== true) {
+    throw new Error(payload.error ?? `${label}: ${response.status}`)
+  }
+  return payload
+}
 
 export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promise<import('../contracts/market.js').ServerConfigPayload> {
   return withBusyOperation(async () => {
-    const response = await fetch(`${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`, { credentials: 'same-origin' })
+    const url = `${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`
+    const response = await boundedFetch(url, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
     const body = (await response.json()) as import('../contracts/market.js').ServerConfigPayload & { error?: string }
     if (!response.ok) throw new Error(body.error ?? `Server configuration failed: ${response.status}`)
     return body
@@ -54,92 +125,50 @@ export async function fetchModelCatalog(provider?: string, signal?: AbortSignal,
   if (provider !== undefined) params.set('provider', provider)
   if (model !== undefined) params.set('model', model)
   const query = params.size === 0 ? '' : `?${params}`
-  const response = await fetch(`${MARKET_ROUTES.modelCatalog}${query}`, { credentials: 'same-origin', signal })
-  if (!response.ok) throw new Error(`DSH model directory failed: ${response.status}`)
-  return response.json() as Promise<import('../contracts/market.js').ModelCatalogPayload>
+  return getJson(`${MARKET_ROUTES.modelCatalog}${query}`, 'DSH model directory failed', { signal })
 }
 
 export async function fetchOverview(): Promise<OverviewData> {
-  return withBusyOperation(async () => {
-    const response = await fetch(MARKET_ROUTES.overview, { credentials: 'same-origin' })
-    if (!response.ok) throw new Error(`overview failed: ${response.status}`)
-    return response.json() as Promise<OverviewData>
-  })
+  return withBusyOperation(() => getJson<OverviewData>(MARKET_ROUTES.overview, 'overview failed'))
 }
 
 export async function fetchSourceProgress(): Promise<SourceProgress> {
-  const response = await fetch(MARKET_ROUTES.progress, { credentials: 'same-origin' })
-  if (!response.ok) throw new Error(`progress failed: ${response.status}`)
-  return response.json() as Promise<SourceProgress>
+  return getJson<SourceProgress>(MARKET_ROUTES.progress, 'progress failed')
 }
 
 export async function fetchSuiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail> {
-  return withBusyOperation(async () => {
-    const response = await fetch(suiteRoute(sourceId, suiteId), { credentials: 'same-origin' })
-    if (!response.ok) throw new Error(`suite detail failed: ${response.status}`)
-    return response.json() as Promise<SuiteDetail>
-  })
+  return withBusyOperation(() => getJson<SuiteDetail>(suiteRoute(sourceId, suiteId), 'suite detail failed'))
 }
 
 export async function fetchMcpStatus(): Promise<McpStatusPayload> {
-  return withBusyOperation(async () => {
-    const response = await fetch(MARKET_ROUTES.mcpStatus, { credentials: 'same-origin' })
-    if (!response.ok) throw new Error(`MCP status failed: ${response.status}`)
-    return response.json() as Promise<McpStatusPayload>
-  })
+  return withBusyOperation(() => getJson<McpStatusPayload>(MARKET_ROUTES.mcpStatus, 'MCP status failed'))
 }
 
 export async function fetchLspStatus(background = false): Promise<LspStatusPayload> {
-  const load = async (): Promise<LspStatusPayload> => {
-    const response = await fetch(MARKET_ROUTES.lspStatus, { credentials: 'same-origin' })
-    if (!response.ok) throw new Error(`LSP status failed: ${response.status}`)
-    return response.json() as Promise<LspStatusPayload>
-  }
+  const load = (): Promise<LspStatusPayload> => getJson<LspStatusPayload>(MARKET_ROUTES.lspStatus, 'LSP status failed')
   return background ? load() : withBusyOperation(load)
 }
 
-/** The user's direct LSP server table (normalized specs). */
-export async function fetchLspServers(): Promise<Record<string, LspServerSpec>> {
-  return withBusyOperation(async () => {
-    const response = await fetch(MARKET_ROUTES.lspServers, { credentials: 'same-origin' })
-    if (!response.ok) throw new Error(`LSP servers failed: ${response.status}`)
-    const body = (await response.json()) as { lspServers?: Record<string, LspServerSpec> }
-    return body.lspServers ?? {}
-  })
-}
-
-/** Validate and persist the user's direct LSP server table. */
-export async function saveLspServers(lspServers: unknown): Promise<Record<string, LspServerSpec>> {
-  return withBusyOperation(async () => {
-    const response = await fetch(`${MARKET_ROUTES.lspServers}/save`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ lspServers })
-    })
-    const body = (await response.json()) as { ok?: boolean; error?: string; lspServers?: Record<string, LspServerSpec> }
-    if (!response.ok || body.ok === false) throw new Error(body.error ?? `LSP servers save failed: ${response.status}`)
-    return body.lspServers ?? {}
-  })
-}
-export async function setLspServerEnabled(id: string, enabled: boolean): Promise<void> {
-  return withBusyOperation(async () => {
-    await postAction('lsp-servers/enabled', { id, enabled })
-  })
-}
-
+/** Add one direct LSP server to the user's table. */
 export async function addLspServer(name: string, config: Record<string, unknown>): Promise<void> {
   return withBusyOperation(async () => {
     await postAction('lsp-servers/add', { name, config })
   })
 }
 
-export async function fetchSkillContent(sourceId: string, suiteId: string, skill: string): Promise<SkillContent> {
+/**
+ * Remove a profile's hand-written LSP layer — the `cordis.patch.yml` rows an
+ * older release told users to add, which now claim the seam this plugin owns.
+ */
+export async function migrateLspSeam(profile: string): Promise<import('../contracts/lsp-status.js').LspLegacySeamMigration> {
   return withBusyOperation(async () => {
-    const response = await fetch(skillRoute(sourceId, suiteId, skill), { credentials: 'same-origin' })
-    if (!response.ok) throw new Error(`skill content failed: ${response.status}`)
-    return response.json() as Promise<SkillContent>
+    const payload = await postAction('lsp-servers/migrate-seam', { profile })
+    return payload.migration as import('../contracts/lsp-status.js').LspLegacySeamMigration
   })
+}
+
+export async function fetchSkillContent(sourceId: string, suiteId: string, skill: string): Promise<SkillContent> {
+  return withBusyOperation(() => getJson<SkillContent>(skillRoute(sourceId, suiteId, skill), 'skill content failed'))
 }
 
 /** Re-run the host MCP reconcile: retries failed mounts, clears residual tools. */
@@ -163,33 +192,12 @@ export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   })
 }
 
-/** The MCP backend card state: active client, host availability, download region. */
-export interface McpBackendInfo {
-  backend: 'builtin' | 'host'
-  hostClient: { available: boolean; version?: string }
-  downloadRegion: { setting: 'auto' | 'global' | 'china'; effective: 'global' | 'china' }
-}
-
 export async function fetchMcpBackend(): Promise<McpBackendInfo> {
-  const response = await fetch(MARKET_ROUTES.mcpBackend, { credentials: 'same-origin' })
-  if (!response.ok) throw new Error(`mcp backend failed: ${response.status}`)
-  return response.json() as Promise<McpBackendInfo>
+  return getJson<McpBackendInfo>(MARKET_ROUTES.mcpBackend, 'mcp backend failed')
 }
 
 export async function postAction(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  return withBusyOperation(async () => {
-    const response = await fetch(`${MARKET_API_PREFIX}${path}`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-    const payload = (await response.json()) as { ok: boolean; error?: string }
-    if (!response.ok || payload.ok !== true) {
-      throw new Error(payload.error ?? `request failed: ${response.status}`)
-    }
-    return payload
-  })
+  return withBusyOperation(() => postOkJson<Record<string, unknown>>(`${MARKET_API_PREFIX}${path}`, body, 'request failed'))
 }
 
 /* ---- User panel CRUD (skills / commands / agent personas) -------------- */
@@ -200,9 +208,7 @@ export type UserPanelEntry = UserPanelEntryWire
 /** List one panel's entries. */
 export async function fetchUserPanel(kind: UserPanelKind): Promise<UserPanelEntry[]> {
   return withBusyOperation(async () => {
-    const response = await fetch(userPanelRoute(kind), { credentials: 'same-origin' })
-    if (!response.ok) throw new Error(`user panel failed: ${response.status}`)
-    const body = (await response.json()) as { entries?: UserPanelEntry[] }
+    const body = await getJson<{ entries?: UserPanelEntry[] }>(userPanelRoute(kind), 'user panel failed')
     return body.entries ?? []
   })
 }
@@ -210,12 +216,16 @@ export async function fetchUserPanel(kind: UserPanelKind): Promise<UserPanelEntr
 /** Create one panel entry. */
 export async function createUserPanelEntry(kind: UserPanelKind, name: string, text: string): Promise<UserPanelEntry> {
   return withBusyOperation(async () => {
-    const response = await fetch(userPanelMutationRoute(kind, 'create'), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, text })
-    })
+    const response = await boundedFetch(
+      userPanelMutationRoute(kind, 'create'),
+      {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, text })
+      },
+      MUTATION_TIMEOUT_MS
+    )
     const payload = (await response.json()) as { ok?: boolean; error?: string; entry?: UserPanelEntry }
     if (!response.ok || payload.ok !== true || payload.entry === undefined) throw new Error(payload.error ?? `create failed: ${response.status}`)
     return payload.entry
@@ -225,27 +235,13 @@ export async function createUserPanelEntry(kind: UserPanelKind, name: string, te
 /** Replace one panel entry's file content. */
 export async function updateUserPanelEntry(kind: UserPanelKind, name: string, text: string): Promise<void> {
   return withBusyOperation(async () => {
-    const response = await fetch(userPanelMutationRoute(kind, 'update', name), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text })
-    })
-    const payload = (await response.json()) as { ok?: boolean; error?: string }
-    if (!response.ok || payload.ok !== true) throw new Error(payload.error ?? `save failed: ${response.status}`)
+    await postOkJson(userPanelMutationRoute(kind, 'update', name), { text }, 'save failed')
   })
 }
 
 /** Delete one panel entry. */
 export async function deleteUserPanelEntry(kind: UserPanelKind, name: string): Promise<void> {
   return withBusyOperation(async () => {
-    const response = await fetch(userPanelMutationRoute(kind, 'delete'), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name })
-    })
-    const payload = (await response.json()) as { ok?: boolean; error?: string }
-    if (!response.ok || payload.ok !== true) throw new Error(payload.error ?? `delete failed: ${response.status}`)
+    await postOkJson(userPanelMutationRoute(kind, 'delete'), { name }, 'delete failed')
   })
 }

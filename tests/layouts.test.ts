@@ -52,8 +52,10 @@ describe('layout registry', () => {
     await put(dir, '.mcp.json', JSON.stringify({ mcpServers: { test: { command: 'example-server' } } }))
     const result = await scanSource(dir, 'example', 'user')
     expect(result.suites).toHaveLength(1)
-    expect(result.suites[0]!.manifest.layout).toBe(layout.kind)
-    expect(result.suites[0]!.surfaces).toMatchObject({ skills: 1, mcp: 1 })
+    const [suite] = result.suites
+    if (suite === undefined) throw new Error(`expected the ${layout.kind} manifest to resolve to one suite`)
+    expect(suite.manifest.layout).toBe(layout.kind)
+    expect(suite.surfaces).toMatchObject({ skills: 1, mcp: 1 })
   })
 
   it('keeps existing dialect precedence when a source declares several manifests', async () => {
@@ -96,7 +98,7 @@ describe('layout registry', () => {
     await put(dir, '.cursor-plugin/marketplace.json', JSON.stringify({ name: 'cursor', plugins: [{ name: 'usable', source: { source: 'github', repo: 'example/usable' } }] }))
     const result = await scanSource(dir, 'market', 'user')
     expect(result.suites.map(suite => suite.id)).toEqual(['usable'])
-    expect(result.notes.join('\n')).toContain('.plugin/marketplace.json')
+    expect(result.notes.join('\n')).toContain(join('.plugin', 'marketplace.json'))
     expect(result.notes.join('\n')).toContain('no entry resolved')
   })
 
@@ -134,15 +136,48 @@ describe('layout registry', () => {
     expect(result.notes.join('\n')).toContain('rejected declared manifest')
   })
 
+  it('falls through to the next manifest when a higher-priority one is invalid', async () => {
+    const dir = await root()
+    // Declares the v1 schema but omits the required `name`, so strict v1 validation rejects it.
+    await put(dir, 'plugin.json', JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json' }))
+    await put(dir, '.claude-plugin/plugin.json', JSON.stringify({ name: 'fallback' }))
+    await put(dir, 'skills/test/SKILL.md', skill)
+    const result = await scanSource(dir, 'example', 'user')
+    expect(result.suites.map(suite => suite.id)).toEqual(['fallback'])
+    expect(result.suites[0]?.manifest.layout).toBe('claude-code')
+    expect(result.notes.join('\n')).toContain('a higher-priority manifest was rejected')
+    expect(result.notes.join('\n')).toContain('plugin.json')
+  })
+
+  it('rejects the suite when every manifest candidate is invalid', async () => {
+    const dir = await root()
+    await put(dir, 'plugin.json', '{invalid')
+    await put(dir, '.claude-plugin/plugin.json', '[]')
+    await put(dir, 'skills/test/SKILL.md', skill)
+    const result = await scanSource(dir, 'example', 'user')
+    expect(result.suites).toEqual([])
+    expect(result.notes.join('\n')).toContain('rejected declared manifest')
+  })
+
   it('rejects a marketplace self-reference whose subdirectory is an external symlink', async () => {
     const dir = await root()
     const external = await root()
     await symlink(external, join(dir, 'plugin'))
     const url = 'https://example.test/repo.git'
     const result = await resolveMarketplaceEntry(dir, { source: { source: 'git-subdir', url, path: 'plugin' } }, url)
-    expect(result).toMatchObject({ kind: 'rejected', reason: expect.stringContaining('symlink') })
+    expect(result).toMatchObject({ kind: 'rejected' })
+    expect(result).toHaveProperty('reason', expect.stringContaining('symlink'))
   })
 })
+
+/** Role names are JSON-encoded identity segments; the last segment is the role's own name. */
+function roleLeaf(name: string): string {
+  const segments: unknown = JSON.parse(name)
+  if (!Array.isArray(segments)) throw new Error(`expected role identity segments, got ${name}`)
+  const leaf: unknown = segments.at(-1)
+  if (typeof leaf !== 'string') throw new Error(`expected a string role name, got ${name}`)
+  return leaf
+}
 
 describe('project layout discovery and switch', () => {
   it('keeps Copilot roles out of skill and command menus while preserving their source identity', async () => {
@@ -150,13 +185,16 @@ describe('project layout discovery and switch', () => {
     const userRoot = await root()
     await mkdir(join(project, '.git'))
     await put(project, '.github/agents/reviewer.agent.md', '---\nname: reviewer\ndescription: Review changes\n---\nReview the diff.')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const provider = new SuiteSkillProvider(catalog)
     expect(await provider.list({ cwd: project })).toEqual([])
     const roles = await projectAgentRoles(catalog, { session: { header: { cwd: project } } })
-    expect(roles[0]).toMatchObject({ path: join(project, '.github/agents/reviewer.agent.md'), title: 'reviewer', description: 'Review changes' })
-    expect(JSON.parse(roles[0]!.name).at(-1)).toBe('reviewer.agent')
+    const [role] = roles
+    if (role === undefined) throw new Error('expected the Copilot agent file to resolve to one project role')
+    expect(role).toMatchObject({ path: join(project, '.github/agents/reviewer.agent.md'), title: 'reviewer', description: 'Review changes' })
+    expect(roleLeaf(role.name)).toBe('reviewer.agent')
     const commands: string[] = []
     const registry = new CommandMountRegistry({
       commands: {
@@ -176,11 +214,13 @@ describe('project layout discovery and switch', () => {
     const userRoot = await root()
     await mkdir(join(project, '.git'))
     await put(project, '.github/skills/helper/SKILL.md', '---\nname: agent-helper\ndescription: A normal skill\n---\nNormal skill body.')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const provider = new SuiteSkillProvider(catalog)
     const [candidate] = await provider.list({ cwd: project })
-    expect((await provider.get(candidate!, { cwd: project }))?.content).toBe('Normal skill body.')
+    if (candidate === undefined) throw new Error('expected the ordinary agent-helper skill to still be listed')
+    expect((await provider.get(candidate, { cwd: project }))?.content).toBe('Normal skill body.')
   })
 
   it('retains both plain and compound-suffix role identities without alias collisions', async () => {
@@ -188,11 +228,12 @@ describe('project layout discovery and switch', () => {
     const userRoot = await root()
     await mkdir(join(project, '.git'))
     for (const name of ['reviewer.md', 'reviewer.agent.md']) await put(project, `.github/agents/${name}`, `---\ndescription: ${name}\n---\nReview.`)
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     expect(await new SuiteSkillProvider(catalog).list({ cwd: project })).toEqual([])
     const roles = await projectAgentRoles(catalog, { session: { header: { cwd: project } } })
-    expect(roles.map(role => JSON.parse(role.name).at(-1)).sort()).toEqual(['reviewer', 'reviewer.agent'])
+    expect(roles.map(role => roleLeaf(role.name)).sort()).toEqual(['reviewer', 'reviewer.agent'])
   })
   it('resolves project roles only for the calling session and honors the scan switch', async () => {
     const project = await root()
@@ -201,8 +242,9 @@ describe('project layout discovery and switch', () => {
     await mkdir(join(project, '.git'))
     await mkdir(join(other, '.git'))
     await put(project, '.qoder/agents/reviewer.md', '---\ndescription: Review changes\n---\nReview changes.')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const parent = { session: { header: { cwd: project } } }
     expect((await projectAgentRoles(catalog, parent)).map(entry => entry.path)).toEqual([join(project, '.qoder/agents/reviewer.md')])
     expect(await projectAgentRoles(catalog, { session: { header: { cwd: other } } })).toEqual([])
@@ -215,8 +257,12 @@ describe('project layout discovery and switch', () => {
     await put(dir, `${layout.dirName}/skills/test/SKILL.md`, skill)
     const suites = await discoverNativeProjectSuites(dir, 'project')
     expect(suites).toHaveLength(1)
-    expect(suites[0]!.skills[0]!.file).toBe(join(dir, layout.dirName, 'skills/test/SKILL.md'))
-    expect(suites[0]!.activeSurfaces).toMatchObject({ mcp: false, hooks: false, lsp: false })
+    const [suite] = suites
+    if (suite === undefined) throw new Error(`expected ${layout.dirName} skills to resolve to one suite`)
+    const [declared] = suite.skills
+    if (declared === undefined) throw new Error(`expected ${layout.dirName} to read its skill in place`)
+    expect(declared.file).toBe(join(dir, layout.dirName, 'skills/test/SKILL.md'))
+    expect(suite.activeSurfaces).toMatchObject({ mcp: false, hooks: false, lsp: false })
   })
 
   it('does not expose unsupported Markdown agent files from Codex projects', async () => {
@@ -224,8 +270,10 @@ describe('project layout discovery and switch', () => {
     await put(dir, '.codex/skills/test/SKILL.md', skill)
     await put(dir, '.codex/agents/unrelated.md', 'Unrelated document')
     const suites = await discoverNativeProjectSuites(dir, 'project')
-    expect(suites[0]!.surfaces.agents).toBe(0)
-    expect(suites[0]!.activeSurfaces?.agents).toBe(false)
+    const [suite] = suites
+    if (suite === undefined) throw new Error('expected the Codex project skills to resolve to one suite')
+    expect(suite.surfaces.agents).toBe(0)
+    expect(suite.activeSurfaces?.agents).toBe(false)
   })
 
   it('removes and restores project skill candidates immediately despite cached snapshots', async () => {
@@ -233,8 +281,9 @@ describe('project layout discovery and switch', () => {
     const userRoot = await root()
     await mkdir(join(project, '.git'))
     await put(project, '.qoder/skills/test/SKILL.md', skill)
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, projectSnapshotTtlMs: 60_000 })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const provider = new SuiteSkillProvider(catalog)
     expect((await provider.list({ cwd: project })).map(item => item.name)).toEqual(['layout-test'])
     await catalog.setScanProjectLayouts(false)

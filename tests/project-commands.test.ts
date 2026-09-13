@@ -80,25 +80,31 @@ describe('project command lifecycle', () => {
     const catalog = new Catalog({
       userRoot,
       dataRoot: join(userRoot, 'data'),
+      agentsRoot: join(userRoot, 'agents'),
       onChanged: async () => {
         await mounted.refresh()
       }
     })
     await catalog.load()
+    await catalog.setScanProjectLayouts(true)
     const mounted = mountProjectCommands(context as unknown as Context, catalog, bindHostLocale(undefined))
     await mounted.refresh()
     for (const current of [first, second]) {
       expect([...current.definitions.keys()]).toEqual(['review'])
       expect(current.definitions.get('review')!.handler({ agent: current, rawInput: ' my diff' }).kind).toBe('success')
     }
-    expect(JSON.stringify(first.messages)).toContain('First project my diff')
+    // The forward is the template verbatim: no plugin or suite decorator line,
+    // which would be text the command author never wrote.
+    expect(first.messages).toEqual([{ content: [{ type: 'text', text: 'First project my diff' }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } }])
     expect(JSON.stringify(first.messages)).not.toContain('Second project')
     expect(JSON.stringify(second.messages)).toContain('Second project my diff')
 
     await catalog.setScanProjectLayouts(false)
+    await catalog.refreshSettled()
     expect(first.definitions.size).toBe(0)
     expect(second.definitions.size).toBe(0)
     await catalog.setScanProjectLayouts(true)
+    await catalog.refreshSettled()
     expect(first.definitions.has('review')).toBe(true)
 
     listeners.get('agent/disposed')!({ agent: first })
@@ -116,7 +122,7 @@ describe('project command lifecycle', () => {
       release = resolve
     })
     const userRoot = await project('User directory')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
     const snapshot = await catalog.readProjectCatalog(current.session.header.cwd)
     const delayedCatalog = {

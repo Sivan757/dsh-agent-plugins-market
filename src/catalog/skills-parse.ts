@@ -18,7 +18,7 @@ export interface ParsedSkillFrontmatter {
 }
 
 /** Kebab-case skill names only, matching the shipped provider's rule. */
-export function isSkillName(name: string): boolean {
+function isSkillName(name: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)
 }
 
@@ -26,7 +26,7 @@ export function isSkillName(name: string): boolean {
  * Normalize a display-style skill name into kebab-case (e.g. "Presentations"
  * → "presentations"), or `undefined` when nothing usable remains.
  */
-export function normalizeSkillName(name: string): string | undefined {
+function normalizeSkillName(name: string): string | undefined {
   const normalized = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -61,26 +61,27 @@ function parseBoolean(value: unknown): boolean | undefined {
  *   skill must be dropped from discovery.
  */
 export function parseSkillFrontmatter(text: string, expectedName: string | undefined): ParsedSkillFrontmatter | string {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)
-  if (match === null) return 'missing YAML frontmatter'
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+  if (frontmatter === undefined) return 'missing YAML frontmatter'
   let raw: unknown
   try {
-    raw = parseYaml(match[1])
+    raw = parseYaml(frontmatter)
   } catch {
     // Claude Code-authored frontmatter sometimes carries unquoted `: `
     // sequences in prose fields, which strict YAML rejects. A lenient
     // line-based fallback recovers the standard fields first-occurrence
     // wins; values that still fail the field checks below drop the skill.
-    raw = lenientFrontmatter(match[1])
+    raw = lenientFrontmatter(frontmatter)
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'frontmatter is not an object'
   const record = raw as Record<string, unknown>
   const rawName = record['name']
   const description = record['description']
+  if (typeof rawName !== 'string') return 'frontmatter name is missing or not kebab-case'
   // Codex plugins ship display names in `name` (e.g. "Presentations"); the
   // skill identity is its kebab form, so normalize instead of dropping.
-  const name = typeof rawName === 'string' && !isSkillName(rawName) ? normalizeSkillName(rawName) : rawName
-  if (name === undefined || typeof name !== 'string') return 'frontmatter name is missing or not kebab-case'
+  const name = isSkillName(rawName) ? rawName : normalizeSkillName(rawName)
+  if (name === undefined) return 'frontmatter name is missing or not kebab-case'
   if (expectedName !== undefined && name !== expectedName) return `frontmatter name "${rawName}" does not match skill directory "${expectedName}"`
   if (typeof description !== 'string' || description.trim() === '') return 'frontmatter description is missing or empty'
 
@@ -111,8 +112,9 @@ function lenientFrontmatter(body: string): Record<string, unknown> {
   for (const line of body.split(/\r?\n/)) {
     const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line)
     if (match === null) continue
-    const key = match[1]!
-    if (record[key] === undefined) record[key] = match[2]!.trim()
+    const [, key, value] = match
+    if (key === undefined || value === undefined) continue
+    if (record[key] === undefined) record[key] = value.trim()
   }
   return record
 }

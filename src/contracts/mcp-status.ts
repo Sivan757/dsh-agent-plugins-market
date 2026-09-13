@@ -39,6 +39,10 @@ export interface McpStatusEntry {
   advertisedTools?: boolean
   /** Whether a failed server will be retried automatically. */
   retryable?: boolean
+  /** A remote server whose suite declares no `auth` block: the bridge still
+   *  runs the OAuth flow when the server answers 401, which the redacted
+   *  configuration alone cannot show. */
+  oauthDefault?: boolean
 }
 
 /** The MCP status response returned by the host. */

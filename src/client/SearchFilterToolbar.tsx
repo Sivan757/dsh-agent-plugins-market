@@ -48,7 +48,7 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
       value: props.search,
       placeholder: props.searchPlaceholder,
       'aria-label': props.searchLabel,
-      onChange: event => props.onSearchChange((event.target as HTMLInputElement).value)
+      onChange: event => props.onSearchChange((event.target).value)
     }),
     h('div', { className: css.filterGap }),
     ...props.filters.map(filter =>

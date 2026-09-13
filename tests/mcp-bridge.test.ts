@@ -5,14 +5,14 @@
  * OAuth provider wiring), and the bridge plugin shell's apply lifecycle.
  *
  * Core cases are ported from the harness `dsh-mcp-client` specs (archived
- * patch series `docs/upstream-proposal/patches/`); the host is faked
+ * patch series `docs/developer/upstream-proposal/patches/`); the host is faked
  * structurally because the bridge must not depend on host test packages.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
 import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../src/runtime/mcp-client/tools.js'
 import { createTransport } from '../src/runtime/mcp-client/transport.js'
 import { apply } from '../src/runtime/mcp-client/bridge.js'
-import type { Config } from '../src/runtime/mcp-client/config.js'
+import type { Config, StreamableHttpConfig } from '../src/runtime/mcp-client/config.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const testToolSignal = new AbortController().signal
@@ -46,7 +46,15 @@ function createMockClient(tools: MockTool[], callResult: Record<string, unknown>
 
 // ---- Structural fake host ----
 
-function createFakeHost(): ToolHost & { registered: Map<string, ToolDefinition> } {
+// The logger spies are declared as properties rather than the contract's
+// methods, so `host.logger.error` can be handed to an assertion directly
+// instead of being read as a detached method.
+type FakeHost = Omit<ToolHost, 'logger'> & {
+  registered: Map<string, ToolDefinition>
+  logger: { error: Mock; warn: Mock; info: Mock }
+}
+
+function createFakeHost(): FakeHost {
   const registered = new Map<string, ToolDefinition>()
   return {
     registered,
@@ -180,7 +188,7 @@ describe('syncTools', () => {
       output: { schema: { type: 'object' }, render: () => [] },
       execute: async () => ({})
     })
-    const register = host.tools.register
+    const register = host.tools.register.bind(host.tools)
     host.tools.register = definition => {
       if (definition.name === 'mcp__srv__squatted') throw new Error('name already registered')
       return register(definition)
@@ -297,7 +305,9 @@ vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   }
 }))
 
-function httpConfig(auth?: { enabled: boolean; scope?: string }): Config {
+// Streamable HTTP specifically, not the `Config` union: spreading a union-typed
+// value makes every override an excess property on the other constituents.
+function httpConfig(auth?: { enabled: boolean; scope?: string }): StreamableHttpConfig {
   return {
     transport: 'streamable-http',
     serverName: 'srv',
@@ -336,7 +346,7 @@ describe('transport construction with auth', () => {
   })
 
   it('skips the provider on an explicit opt-out', () => {
-    const { oauthProvider } = createTransport({ ...httpConfig(), auth: { enabled: false } } as Config)
+    const { oauthProvider } = createTransport({ ...httpConfig(), auth: { enabled: false } })
     expect(oauthProvider).toBeUndefined()
   })
 
@@ -370,9 +380,12 @@ describe('transport construction with auth', () => {
       failOnStartupError: true
     }
     const { transport, oauthProvider } = createTransport(config, undefined)
-    expect(constructedUrls[0]).toBe('https://mcp.example/sse')
-    expect((constructedOptions[0]['requestInit'] as Record<string, unknown>)['headers']).toEqual({ 'x-custom': 'yes' })
-    expect(constructedOptions[0]).toHaveProperty('authProvider')
+    const [url] = constructedUrls
+    const [options] = constructedOptions
+    if (url === undefined || options === undefined) throw new Error('expected the sse transport to be constructed once')
+    expect(url).toBe('https://mcp.example/sse')
+    expect((options['requestInit'] as Record<string, unknown>)['headers']).toEqual({ 'x-custom': 'yes' })
+    expect(options).toHaveProperty('authProvider')
     expect(oauthProvider).toBeDefined()
     expect(transport).toBeDefined()
   })
@@ -402,14 +415,16 @@ function fakeContext(options: { credentials?: unknown } = {}): Context & { effec
   const ctx = {
     root: {},
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-    effect(fn: () => unknown) {
+    effect(fn: () => void | (() => void)) {
       const teardown = fn()
       if (typeof teardown === 'function') effects.push(teardown)
     },
     tools,
     ...(options.credentials === undefined ? {} : { get: (name: string) => (name === 'credentials' ? options.credentials : undefined) })
   }
-  return Object.assign(ctx, { effects }) as Context & { effects: Array<() => void> }
+  // Deliberate partial stub of the host's Context: only the members `apply`
+  // touches exist, so the conversion has to pass through `unknown`.
+  return Object.assign(ctx, { effects }) as unknown as Context & { effects: Array<() => void> }
 }
 
 describe('bridge apply', () => {
@@ -418,7 +433,8 @@ describe('bridge apply', () => {
     await apply(ctx, httpConfig({ enabled: true }))
     expect(constructedUrls[0]).toBe('https://mcp.example/mcp')
     expect(constructedOptions[0]).toHaveProperty('authProvider')
-    await Promise.all(ctx.effects.map(dispose => dispose()))
+    // Teardowns are synchronous and return nothing, so there is no aggregator to await.
+    for (const dispose of ctx.effects) dispose()
   })
 
   it('fails the instance when failOnStartupError is set and the initial connection fails', async () => {
@@ -433,11 +449,12 @@ describe('bridge apply', () => {
     const ctx = fakeContext()
     await apply(ctx, httpConfig())
     await expect(apply(ctx, httpConfig())).rejects.toThrow(/already in use/)
-    await Promise.all(ctx.effects.map(dispose => dispose()))
+    // Teardowns are synchronous and return nothing, so there is no aggregator to await.
+    for (const dispose of ctx.effects) dispose()
   })
 
   it('rejects a misconfigured serverName before any connection work', async () => {
     const ctx = fakeContext()
-    await expect(apply(ctx, { ...httpConfig(), serverName: 'not valid!' } as Config)).rejects.toThrow(/serverName/)
+    await expect(apply(ctx, { ...httpConfig(), serverName: 'not valid!' })).rejects.toThrow(/serverName/)
   })
 })

@@ -17,6 +17,7 @@ import { useWorkspaceView } from './ui/workspace-view.js'
 import { deriveMcpStatusViewModel, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
 import css from './mcp-status.module.css'
 import { withBusyOperation } from './ui/busy-operation.js'
+import { clientErrorMessage } from './ui/error-message.js'
 
 interface McpStatusPanelProps {
   t: Translate
@@ -68,7 +69,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     fetchMcpStatus()
       .then(setPayload)
       .catch(caught => {
-        setError(caught instanceof Error ? caught.message : String(caught))
+        setError(clientErrorMessage(t, caught))
       })
       .finally(() => setLoading(false))
   }
@@ -77,10 +78,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     refresh()
   }, [])
 
-  const viewModel = deriveMcpStatusViewModel(payload, filter, search)
-  const { activeEntries, filtered, filterCounts } = viewModel
-  // Hide the summary bar entirely while every active row is connected: the
-  // green confirmation above an all-green list is noise, not information.
+  const { activeEntries, filtered, filterCounts } = deriveMcpStatusViewModel(payload, filter, search)
 
   return h(
     'div',
@@ -96,7 +94,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       searchLabel: t('mcpSearch'),
       searchPlaceholder: t('mcpSearch'),
       onSearchChange: setSearch,
-      filters: (['all', 'plugin', 'direct'] as Filter[]).map(kind => ({
+      filters: (['all', 'direct', 'plugin'] as Filter[]).map(kind => ({
         id: kind,
         label: filterLabel(t, kind),
         count: filterCounts[kind],
@@ -149,11 +147,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
 }
 
 /**
- * One chip per non-healthy state, shown only when that state is non-zero.
+ * One inventory row: state dot, server name, tool count, and endpoint.
  *
- * The chips are ordered by severity so the first one the eye lands on is the
- * state that most needs attention, and the whole bar collapses to a single
- * "all connected" confirmation when nothing is wrong.
+ * The reason text, the actions (retry, reauthorize), and the configuration
+ * editor live in the detail dialog, so a wall of failing rows stays scannable.
  */
 function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; onClick: () => void }): ReactNode {
   const interactive = {
@@ -252,7 +249,7 @@ export function McpDetailModal({
       const connected = current.state === 'connected'
       setFeedback({ error: !connected, text: connected ? t('mcpRetrySuccess') : t('mcpStillUnavailable') + (current.reason ? ': ' + current.reason : '') })
     } catch (reason) {
-      setFeedback({ error: true, text: t('actionFail') + ': ' + (reason instanceof Error ? reason.message : String(reason)) })
+      setFeedback({ error: true, text: t('actionFail') + ': ' + clientErrorMessage(t, reason) })
     } finally {
       setPending(false)
     }
@@ -337,13 +334,19 @@ export function McpDetailModal({
           'div',
           { className: css.detailHeroText },
           entry.endpoint === undefined ? null : h('p', { className: css.detailEndpoint }, entry.endpoint),
-          // Source and transport moved here from the card meta row. The
-          // qualified suite id disambiguates same-named servers from
-          // different sources (e.g. two context7 installs).
+          // Source and transport live in the dialog rather than on the card:
+          // the qualified suite id disambiguates same-named servers from
+          // different sources (e.g. two context7 installs). The authorization
+          // note rides here too: a server that declares no `auth` block still
+          // runs the OAuth flow, and the configuration below cannot show that.
           h(
             'p',
             { className: css.detailEndpoint },
-            [entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.suiteId ?? entry.source ?? '—'}` : t('mcpDirect'), entry.transport].join(' · ')
+            [
+              entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.suiteId ?? entry.source ?? '—'}` : t('mcpDirect'),
+              entry.transport,
+              ...(entry.oauthDefault === true ? [t('mcpOauthDefault')] : [])
+            ].join(' · ')
           )
         )
       ),
@@ -412,7 +415,7 @@ function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => voi
     void Promise.resolve()
       .then(() => addMcpServer(name.trim(), parseServerConfig(config)))
       .then(onSaved)
-      .catch(caught => setError(caught instanceof Error ? caught.message : String(caught)))
+      .catch(caught => setError(clientErrorMessage(t, caught)))
       .finally(() => setBusy(false))
   }
   return h(DetailModal, {

@@ -12,13 +12,11 @@
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { parseSkillFrontmatter } from './skills-parse.js'
-import { isDirectory } from './paths.js'
+import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
 import { validateMcpJson } from './validate.js'
 import { readManifest } from './manifests.js'
 import type { LspSuiteConfig, McpServer, McpSuiteConfig, SuiteManifest, SuiteSkill, SuiteSurfaceCounts } from '../model/types.js'
-import { componentDocuments, componentPath, firstComponentFile } from './component-files.js'
-
-const DOT_DIRS = new Set(['.git', '.github', '.claude', '.cursor', '.kimi', '.plugin', '.sources', 'node_modules'])
+import { componentDocuments, componentPath, firstComponentFile, isUnknownArray } from './component-files.js'
 
 /**
  * Resolve a manifest-declared skills path into absolute directories (string or
@@ -167,7 +165,7 @@ export async function discoverMcp(root: string, errors: string[], manifest?: Sui
       ? fallback === undefined
         ? []
         : [fallback]
-      : [...(additive && fallback !== undefined ? [fallback] : []), ...(Array.isArray(declared) ? declared : [declared])]
+      : [...(additive && fallback !== undefined ? [fallback] : []), ...(isUnknownArray(declared) ? declared : [declared])]
   if (values.length === 0) return undefined
   const documents = await componentDocuments(root, values, errors)
   if (documents === undefined) return undefined
@@ -179,10 +177,8 @@ export async function discoverMcp(root: string, errors: string[], manifest?: Sui
     const result = await validateMcpJson(root, document.value, { strict })
     errors.push(...result.errors)
     if (result.config === undefined) return undefined
-    if (result.config !== undefined) {
-      Object.assign(servers, result.config.servers)
-      schema = result.config.schema
-    }
+    Object.assign(servers, result.config.servers)
+    schema = result.config.schema
   }
   return { schema, servers }
 }
@@ -268,22 +264,4 @@ export async function listMdFiles(dir: string): Promise<string[]> {
     return []
   }
   return entries.filter(name => name.endsWith('.md')).sort()
-}
-
-async function listChildDirs(dir: string): Promise<string[]> {
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return []
-  }
-  return entries.filter(entry => entry.isDirectory() && !DOT_DIRS.has(entry.name) && !entry.name.startsWith('.')).map(entry => join(dir, entry.name))
-}
-
-async function isFile(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isFile()
-  } catch {
-    return false
-  }
 }

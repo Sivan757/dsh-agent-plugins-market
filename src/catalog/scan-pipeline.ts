@@ -20,7 +20,7 @@
  * attempt is recorded on the result, so callers can surface why a source
  * resolved the way it did.
  */
-import type { Suite } from '../model/types.js'
+import type { DiscoveredSuite } from '../model/types.js'
 
 /** One filter's work context: the checkout and its identity. */
 export interface ScanContext {
@@ -41,7 +41,7 @@ export interface ScanContext {
 export type ScanAbstentionReason = string
 
 /** The outcome of one filter (or the whole chain) for one checkout. */
-export type ScanResolution = { kind: 'resolved'; suites: Suite[] } | { kind: 'abstain'; reason: ScanAbstentionReason }
+export type ScanResolution = { kind: 'resolved'; suites: DiscoveredSuite[] } | { kind: 'abstain'; reason: ScanAbstentionReason }
 
 /** The rest of the chain beyond the filter that holds it. */
 export interface ScanChain {
@@ -70,7 +70,7 @@ export interface ScanAttempt {
 /** The full outcome of scanning one checkout. */
 export interface ScanResult {
   marketplacePath?: string
-  suites: Suite[]
+  suites: DiscoveredSuite[]
   attempts: ScanAttempt[]
   /** Human-readable diagnostics: dropped entries, broken manifests, fallbacks taken. */
   notes: string[]
@@ -87,7 +87,7 @@ export async function runScanChain(filters: readonly ScanFilter[], context: Scan
       // end declares nothing this manager understands.
       return { kind: 'resolved', suites: [] }
     }
-    const productive = (resolution: ScanResolution): resolution is { kind: 'resolved'; suites: Suite[] } => resolution.kind === 'resolved' && resolution.suites.length > 0
+    const productive = (resolution: ScanResolution): resolution is { kind: 'resolved'; suites: DiscoveredSuite[] } => resolution.kind === 'resolved' && resolution.suites.length > 0
     // A filter that delegates has no answer of its own: recording its
     // delegation as an abstention keeps the attempt trace complete.
     let delegated = false

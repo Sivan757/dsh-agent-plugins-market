@@ -57,17 +57,21 @@ For a CI-equivalent install, use the frozen lockfile:
 pnpm install --frozen-lockfile
 ```
 
+`pnpm install` also points git at the checked-in `.githooks/` directory, so the host dependency alignment gate runs on every commit and a stale `@deepseek-ai/dsh-*` pin cannot reach the branch release-please cuts a tarball from. When the host release line has moved, `pnpm run fix:host-alignment` rewrites `package.json` and `pnpm-workspace.yaml` to the new baseline; run `pnpm install` afterwards to refresh the lockfile.
+
+`pnpm install` 还会把 git 指向仓库内的 `.githooks/`，使宿主依赖对齐门禁在每次提交时执行，陈旧的 `@deepseek-ai/dsh-*` 版本钉不会进入 release-please 用来产出 tarball 的分支。宿主发布线推进后，用 `pnpm run fix:host-alignment` 按新基线重写 `package.json` 与 `pnpm-workspace.yaml`，随后再跑一次 `pnpm install` 刷新锁文件。
+
 ### Repository map / 目录结构
 
 - `src/` — TypeScript host modules and React client modules / TypeScript 宿主模块与 React 客户端模块
 - `tests/` — Vitest tests and discovery fixtures / Vitest 测试与发现 fixture
-- `docs/` — architecture decisions, design notes, and research / 架构决策、设计笔记与研究记录
+- `docs/` — user guides, reference material, and developer structure and decisions; placement rules live in [docs/AGENTS.md](docs/AGENTS.md) / 用户指南、参考资料与开发者结构与决策；归属规则见 [docs/AGENTS.md](docs/AGENTS.md)
 - `docs-site/` — Astro documentation website / Astro 文档网站
 - `.github/` — issue forms, pull request templates, ownership, and automation / issue 表单、PR 模板、代码所有者与自动化
 
-The domain glossary in [CONTEXT.md](CONTEXT.md) and the staged architecture plan in [`docs/design/engineering-refactor-plan.md`](docs/design/engineering-refactor-plan.md) describe the project vocabulary and module boundaries.
+The domain glossary in [CONTEXT.md](CONTEXT.md) and the staged architecture plan in [`docs/developer/design/engineering-refactor-plan.md`](docs/developer/design/engineering-refactor-plan.md) describe the project vocabulary and module boundaries.
 
-[CONTEXT.md](CONTEXT.md) 中的领域词汇表，以及 [`docs/design/engineering-refactor-plan.md`](docs/design/engineering-refactor-plan.md) 中的分阶段架构计划，说明了项目术语和模块边界。
+[CONTEXT.md](CONTEXT.md) 中的领域词汇表，以及 [`docs/developer/design/engineering-refactor-plan.md`](docs/developer/design/engineering-refactor-plan.md) 中的分阶段架构计划，说明了项目术语和模块边界。
 
 ## Quality gates / 质量门禁
 
@@ -75,16 +79,18 @@ Run the focused checks that match your change, then run the full gate before ope
 
 请先运行与改动相关的专项检查，再在创建 PR 前运行完整门禁：
 
-| Command                       | Purpose / 用途                                                                                  |
-| ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| `pnpm run typecheck`          | TypeScript host and client type checks / TypeScript 宿主与客户端类型检查                        |
-| `pnpm run lint`               | ESLint checks / ESLint 检查                                                                     |
-| `pnpm run format:check`       | Prettier formatting check / Prettier 格式检查                                                   |
-| `pnpm run check:architecture` | Dependency-boundary check / 依赖边界检查                                                        |
-| `pnpm run test:contract`      | Fast host/client contract tests / 快速宿主/客户端契约测试                                       |
-| `pnpm run test`               | Full Vitest suite / 完整 Vitest 测试                                                            |
-| `pnpm run build`              | Published host and client artifacts / 发布用宿主与客户端构建产物                                |
-| `pnpm run check:refactor`     | Typecheck, lint, format, contract, and architecture gate / 类型、Lint、格式、契约与架构综合门禁 |
+| Command                         | Purpose / 用途                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pnpm run typecheck`            | TypeScript host, client and test type checks / TypeScript 宿主、客户端与测试类型检查            |
+| `pnpm run lint`                 | ESLint checks / ESLint 检查                                                                     |
+| `pnpm run format:check`         | Prettier formatting check / Prettier 格式检查                                                   |
+| `pnpm run check:architecture`   | Dependency-boundary check / 依赖边界检查                                                        |
+| `pnpm run check:host-alignment` | Host dependency baseline check against the registry / 对照 registry 的宿主依赖基线检查          |
+| `pnpm run fix:host-alignment`   | Rewrite pins and exclusions into alignment / 按基线重写版本钉与逃生舱条目                       |
+| `pnpm run test:contract`        | Fast host/client contract tests / 快速宿主/客户端契约测试                                       |
+| `pnpm run test`                 | Full Vitest suite / 完整 Vitest 测试                                                            |
+| `pnpm run build`                | Published host and client artifacts / 发布用宿主与客户端构建产物                                |
+| `pnpm run check:refactor`       | Typecheck, lint, format, contract, and architecture gate / 类型、Lint、格式、契约与架构综合门禁 |
 
 The pull-request workflow runs the refactor gate, the full test suite, and the build automatically. A PR should not be considered ready while a required check is failing.
 
@@ -126,7 +132,7 @@ PR 工作流会自动运行重构门禁、完整测试和构建。任何必需�
 
 ## Commit types / 提交类型
 
-Conventional commit types drive automated versioning and the CHANGELOG through [release-please](https://github.com/googleapis/release-please). The full policy is [ADR-0002](docs/adr/0002-versioning-and-release-policy.md); the short version:
+Conventional commit types drive automated versioning and the CHANGELOG through [release-please](https://github.com/googleapis/release-please). The full policy is [ADR-0002](docs/developer/decisions/0002-versioning-and-release-policy.md); the short version:
 
 - **`feat:` / `fix:`** — user-visible behavior changes only. These bump the version and appear in the CHANGELOG, so they open a release PR.
 - **`refactor:` / `test:` / `ci:` / `docs:` / `chore:` / `build:`** — everything else. Never write `fix(ci):` or `feat(ci):`: a scoped `fix` still bumps patch.
@@ -134,7 +140,7 @@ Conventional commit types drive automated versioning and the CHANGELOG through [
 
 If a commit message would look wrong in the CHANGELOG, it has the wrong type.
 
-Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-please](https://github.com/googleapis/release-please) 驱动）。完整规则见 [ADR-0002](docs/adr/0002-versioning-and-release-policy.md)，简版：
+Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-please](https://github.com/googleapis/release-please) 驱动）。完整规则见 [ADR-0002](docs/developer/decisions/0002-versioning-and-release-policy.md)，简版：
 
 - **`feat:` / `fix:`** — 仅限用户可见的行为变化。会升级版本并出现在 CHANGELOG 中，因此会打开 release PR。
 - **`refactor:` / `test:` / `ci:` / `docs:` / `chore:` / `build:`** — 其余一切变更。不要写 `fix(ci):` 或 `feat(ci):`：带 scope 的 `fix` 仍会 bump patch。
@@ -160,9 +166,9 @@ Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-p
 
 ## Generated artifacts / 构建产物
 
-The repository publishes built host and client artifacts under `lib/` and `client/` so a GitHub installation does not need a `prepare` step. Do not hand-edit generated JavaScript or declaration files. After changing source code, run `pnpm run build` and inspect the resulting diff; include generated changes when the project release workflow requires them.
+The published package ships built host and client artifacts under `lib/` and `client/`, generated by the `prepare` and `prepack` scripts. They are not committed. Do not hand-edit generated JavaScript or declaration files; after changing source code, run `pnpm run build` and confirm it succeeds.
 
-仓库发布 `lib/` 和 `client/` 下的宿主与客户端构建产物，使 GitHub 安装无需执行 `prepare`。不要手工编辑生成的 JavaScript 或声明文件。修改源码后请运行 `pnpm run build` 并检查 diff；项目发布流程需要时，再一并包含生成文件的改动。
+发布包中 `lib/` 和 `client/` 下的宿主与客户端构建产物由 `prepare`、`prepack` 脚本生成，不纳入版本管理。不要手工编辑生成的 JavaScript 或声明文件；修改源码后请运行 `pnpm run build` 并确认构建通过。
 
 ## Security and responsible disclosure / 安全与负责任披露
 

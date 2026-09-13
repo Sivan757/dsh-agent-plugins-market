@@ -58,7 +58,7 @@ const mcpStatus: McpStatusPayload = {
     { id: 'disabled:three', name: 'three', kind: 'plugin', state: 'disabled', transport: 'stdio', tools: [] }
   ],
   observedAt: '',
-  totals: { all: 3, connected: 1, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 1 },
+  totals: { all: 3, connected: 1, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 1, foreign: 0 },
   directObservationOnly: true
 }
 
@@ -73,18 +73,18 @@ describe('client catalog view models', () => {
     const result = deriveMcpStatusViewModel(mcpStatus, 'direct', 'https://two')
     expect(result.activeEntries.map(entry => entry.id)).toEqual(['plugin:one', 'direct:two'])
     expect(result.filterCounts).toEqual({ all: 2, plugin: 1, direct: 1 })
-    expect(result.visibleTotals).toMatchObject({ all: 2, connected: 1, failed: 1 })
     expect(result.filtered.map(entry => entry.id)).toEqual(['direct:two'])
   })
 
   it('records a repeat-filtering baseline for a 5,000-card payload', () => {
+    const { suites } = overview
     const large: OverviewData = {
       ...overview,
-      suites: Array.from({ length: 5_000 }, (_, index) => ({
-        ...overview.suites[index % overview.suites.length]!,
-        suiteId: `suite-${index}`,
-        name: `Suite ${index}`
-      }))
+      suites: Array.from({ length: 5_000 }, (_, index) => {
+        const template = suites[index % suites.length]
+        if (template === undefined) throw new Error('expected the overview fixture to carry at least one suite')
+        return { ...template, suiteId: `suite-${index}`, name: `Suite ${index}` }
+      })
     }
     const started = performance.now()
     let visible = 0

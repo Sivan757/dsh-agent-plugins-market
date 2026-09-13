@@ -10,11 +10,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { marketSettingsPath, MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
-import type { Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 // The hoisted switch lets one mock serve both the available and the missing
 // host-client scenarios.
-const hostClientState = vi.hoisted(() => ({ mode: 'available' as 'available' | 'missing' }))
+const hostClientState = vi.hoisted((): { mode: 'available' | 'missing' } => ({ mode: 'available' }))
 
 vi.mock('@deepseek-ai/dsh-mcp-client', () => {
   if (hostClientState.mode === 'missing') throw new Error('Cannot find package')
@@ -40,6 +40,7 @@ function suite(id: string, serverKey: string, transport: 'stdio' | 'sse' = 'stdi
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: []
   }
 }
@@ -84,6 +85,13 @@ describe('MCP backend persistence', () => {
     expect(off.downloadRegion).toBe('china')
   })
 
+  it('reads a missing scanProjectLayouts as off so a project joins only on an explicit opt-in', () => {
+    const resolved = MarketSettingsSchema({}) as { scanProjectLayouts?: boolean }
+    expect(resolved.scanProjectLayouts).toBe(false)
+    const on = MarketSettingsSchema({ scanProjectLayouts: true }) as { scanProjectLayouts?: boolean }
+    expect(on.scanProjectLayouts).toBe(true)
+  })
+
   it('probes the host client with a boolean availability and optional version', async () => {
     const probe = await probeHostMcpClient()
     expect(typeof probe.available).toBe('boolean')
@@ -92,28 +100,22 @@ describe('MCP backend persistence', () => {
 })
 
 describe('MCP backend dispatch at mount time', () => {
-  it('mounts through the built-in bridge by default', async () => {
+  it.each([
+    ['the built-in bridge by default', undefined, 'market-mcp-client'],
+    ['the host client in compat mode', async () => 'host' as const, 'mcp-client']
+  ])('mounts through %s', async (_label, backend, expectedModule) => {
     vi.resetModules()
     hostClientState.mode = 'available'
     const { ctx, mounted } = fakeContext()
     const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    if (backend !== undefined) registry.setBackendProvider(backend)
     await registry.reconcile([suite('alpha', 'db')])
     expect(mounted).toHaveLength(1)
-    // The bridge module's plugin name marks the built-in backend.
-    expect((mounted[0]!.module as { name?: string }).name).toBe('market-mcp-client')
-    expect(mounted[0]!.config['transport']).toBe('stdio')
-    await registry.disposeAll()
-  })
-
-  it('mounts through the host client in compat mode', async () => {
-    vi.resetModules()
-    hostClientState.mode = 'available'
-    const { ctx, mounted } = fakeContext()
-    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
-    registry.setBackendProvider(async () => 'host')
-    await registry.reconcile([suite('alpha', 'db')])
-    expect(mounted).toHaveLength(1)
-    expect((mounted[0]!.module as { name?: string }).name).toBe('mcp-client')
+    const [mount] = mounted
+    if (mount === undefined) throw new Error(`expected ${expectedModule} to serve exactly one mount`)
+    // The mounted module's plugin name marks which backend served the mount.
+    expect((mount.module as { name?: string }).name).toBe(expectedModule)
+    expect(mount.config['transport']).toBe('stdio')
     await registry.disposeAll()
   })
 
@@ -130,11 +132,12 @@ describe('MCP backend dispatch at mount time', () => {
     registry.setBackendProvider(async () => 'host')
     const diagnostics = await registry.reconcile([suite('alpha', 'db')])
     expect(mounted).toHaveLength(0)
+    const reason: unknown = expect.stringContaining('not installed in this profile')
     expect(diagnostics).toContainEqual({
       suiteId: 'demo/alpha',
       serverKey: 'db',
       code: 'mount-failed',
-      reason: expect.stringContaining('not installed in this profile')
+      reason
     })
     vi.doUnmock('@deepseek-ai/dsh-mcp-client')
     vi.resetModules()
@@ -148,11 +151,12 @@ describe('MCP backend dispatch at mount time', () => {
     registry.setBackendProvider(async () => 'host')
     const diagnostics = await registry.reconcile([suite('alpha', 'web', 'sse')])
     expect(mounted).toHaveLength(0)
+    const reason: unknown = expect.stringContaining('does not support the legacy SSE transport')
     expect(diagnostics).toContainEqual({
       suiteId: 'demo/alpha',
       serverKey: 'web',
       code: 'mount-failed',
-      reason: expect.stringContaining('does not support the legacy SSE transport')
+      reason
     })
   })
 })

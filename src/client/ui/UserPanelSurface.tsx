@@ -17,6 +17,7 @@ import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModa
 import css from './panel.module.css'
 import { RoleMetadataFields } from '../features/personas/RoleMetadataFields.js'
 import { readRoleFields, updateFrontmatter } from '../features/personas/frontmatter.js'
+import { clientErrorMessage } from './error-message.js'
 
 /** Draft templates per panel kind (bilingual; the user edits from here). */
 function draftTemplate(kind: UserPanelKind, t: Translate): string {
@@ -32,12 +33,7 @@ function draftTemplate(kind: UserPanelKind, t: Translate): string {
 type PanelFilter = 'all' | 'disabled' | 'user' | 'plugin'
 
 /** The generic user-panel surface for one panel kind. */
-export function UserPanelSurface(props: {
-  t: Translate
-  kind: UserPanelKind
-  /** The "quick reply" hint line, only rendered for commands. */
-  hint?: string
-}): ReactNode {
+export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): ReactNode {
   const { t, kind } = props
   const [entries, setEntries] = useState<UserPanelEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,7 +55,7 @@ export function UserPanelSurface(props: {
       const data = await fetchUserPanel(kind)
       if (refreshSeq.current === seq) setEntries(data)
     } catch (reason) {
-      if (refreshSeq.current === seq) setError(reason instanceof Error ? reason.message : String(reason))
+      if (refreshSeq.current === seq) setError(clientErrorMessage(t, reason))
     } finally {
       if (refreshSeq.current === seq) setLoading(false)
     }
@@ -88,7 +84,7 @@ export function UserPanelSurface(props: {
         await refresh()
         return true
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason))
+        setError(clientErrorMessage(t, reason))
         return false
       } finally {
         setBusy(false)
@@ -207,8 +203,7 @@ export function UserPanelSurface(props: {
                   onDelete: () => openDelete(entry)
                 })
               )
-            ),
-      props.hint === undefined ? null : h('p', { className: css.editorHint }, props.hint)
+            )
     ),
     h(EntryEditorModal, {
       t,

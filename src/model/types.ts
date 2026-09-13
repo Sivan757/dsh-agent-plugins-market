@@ -29,12 +29,41 @@ export interface SourceRef {
   adopted?: boolean
 }
 
-/** Archive URL extensions the archive acquisition path understands. */
-const ARCHIVE_URL_PATTERN = /\.(zip|tgz|tar\.gz|tar)$/i
+/**
+ * Archive URL suffixes with the payload kind each names, longest suffix first
+ * so `.tar.gz` wins over `.tar`. Source-kind inference, source-id derivation,
+ * and archive extraction all read this one table.
+ */
+export const ARCHIVE_SUFFIXES = [
+  ['.tar.gz', 'targz'],
+  ['.tgz', 'targz'],
+  ['.zip', 'zip'],
+  ['.tar', 'tar']
+] as const
+
+/** Payload kind of an archive source. */
+export type ArchiveFormat = (typeof ARCHIVE_SUFFIXES)[number][1]
+
+/** The archive suffix `url` ends with, or undefined when it names no known payload. */
+function matchArchiveSuffix(url: string): (typeof ARCHIVE_SUFFIXES)[number] | undefined {
+  const clean = url.trim().toLowerCase()
+  return ARCHIVE_SUFFIXES.find(([suffix]) => clean.endsWith(suffix))
+}
+
+/** Classify an archive URL by extension; undefined when unsupported. */
+export function archiveFormatOf(url: string): ArchiveFormat | undefined {
+  return matchArchiveSuffix(url)?.[1]
+}
 
 /** Whether a URL points at a downloadable archive. */
 export function isArchiveUrl(url: string): boolean {
-  return ARCHIVE_URL_PATTERN.test(url.trim())
+  return matchArchiveSuffix(url) !== undefined
+}
+
+/** Drop a trailing archive suffix (`plugin-0.1.zip` → `plugin-0.1`); other values pass through. */
+export function stripArchiveSuffix(value: string): string {
+  const suffix = matchArchiveSuffix(value)?.[0]
+  return suffix === undefined ? value : value.slice(0, -suffix.length)
 }
 
 /**
@@ -183,8 +212,13 @@ export interface LspSuiteConfig {
 /** Install dimension of a suite. */
 export type SuiteDimension = 'user' | 'project'
 
-/** One discovered suite with runtime-relevant fields resolved. */
-export interface Suite {
+/**
+ * One suite as scanning produced it, with runtime-relevant fields resolved:
+ * no install entry has been merged in, so there is no lock commit, install
+ * timestamp, or effective surface set — except where the layout describes the
+ * set itself (project-native). Runtime consumers take {@link Suite}.
+ */
+export interface DiscoveredSuite {
   resources?: { commands: SuiteMarkdownResource[]; agents: SuiteMarkdownResource[] }
   systemPrompt?: string
   /** Validated native settings hooks; serialized only into a runtime-owned temporary file. */
@@ -201,7 +235,7 @@ export interface Suite {
   surfaces: SuiteSurfaceCounts
   dimension: SuiteDimension
   enabled: boolean
-  /** Effective per-surface enablement (overrides merged over enabled defaults). */
+  /** Effective per-surface enablement, declared only by a self-describing layout. */
   activeSurfaces?: Record<SuiteSurfaceKey, boolean>
   lockCommit?: string
   installedAt?: string
@@ -210,6 +244,16 @@ export interface Suite {
   remote?: { url: string }
   /** Surface diagnostics on a surviving suite; invalid declared manifests are rejected before discovery returns a suite. */
   errors: string[]
+}
+
+/**
+ * A suite with its install state applied: the shape `CatalogContext.project()`
+ * returns and every runtime consumer takes. The effective surface set is
+ * always present, so no consumer has to interpret its absence.
+ */
+export interface Suite extends DiscoveredSuite {
+  /** Effective per-surface enablement (overrides merged over enabled defaults). */
+  activeSurfaces: Record<SuiteSurfaceKey, boolean>
 }
 
 export interface ProjectHooks {
@@ -253,6 +297,3 @@ export interface SuiteState {
   sources: SourceRef[]
   installed: Record<string, InstalledEntry>
 }
-
-/** Browser-safe market records are shared from the transport contracts. */
-export type { OverviewPayload, SourceOverview, SuiteOverviewCard } from '../contracts/market.js'

@@ -1,26 +1,36 @@
 /** Resolve declared component files once; all consumers use the same contained resource paths. */
 import { readFile, readdir, realpath, stat } from 'node:fs/promises'
-import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { extname, join, relative, resolve } from 'node:path'
 import type { SuiteMarkdownResource } from '../model/types.js'
 import { PLUGIN_ROOT_VARIABLES } from '../model/layouts.js'
+import { isFile } from './fs-probes.js'
+import { isWithin } from './paths.js'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** `Array.isArray` narrows to `any[]`; declarations are untrusted, so the elements stay `unknown`. */
+export function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value)
+}
+
+/** True only for an array whose every element is a string. */
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(entry => typeof entry === 'string')
 }
 
 /** Reject both lexical and symlink escapes. Optional defaults may be absent without a diagnostic. */
 export async function componentPath(root: string, value: string, errors: string[], required = true): Promise<string | undefined> {
   const clean = value.replace(/^\$\{([A-Z_]+)\}\//, (match, name: string) => (PLUGIN_ROOT_VARIABLES.has(name) ? './' : match))
   const path = resolve(root, clean)
-  const rel = relative(resolve(root), path)
-  if (isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`)) {
+  if (!isWithin(resolve(root), path)) {
     errors.push(`component path ${value}: escapes the suite root`)
     return undefined
   }
   try {
     const [base, target] = await Promise.all([realpath(root), realpath(path)])
-    const actual = relative(base, target)
-    if (isAbsolute(actual) || actual === '..' || actual.startsWith(`..${sep}`)) {
+    if (!isWithin(base, target)) {
       errors.push(`component path ${value}: escapes the suite root through a symlink`)
       return undefined
     }
@@ -135,7 +145,7 @@ export async function componentDocuments(root: string, declaration: unknown, err
 }
 
 export async function firstComponentFile(root: string, candidates: readonly string[]): Promise<string | undefined> {
-  for (const path of candidates) if ((await stat(join(root, path)).catch(() => undefined))?.isFile()) return path
+  for (const path of candidates) if (await isFile(join(root, path))) return path
   return undefined
 }
 

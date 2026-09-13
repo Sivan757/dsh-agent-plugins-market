@@ -1,6 +1,8 @@
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { deriveServerName, toMcpMounts } from '../src/runtime/mcp-config.js'
-import type { Suite } from '../src/model/types.js'
+import { expectTransport } from './helpers/bridge-config.js'
+import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {
@@ -12,6 +14,7 @@ function suite(overrides: Partial<Suite> = {}): Suite {
     surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
     errors: [],
     mcp: {
       schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
@@ -33,18 +36,18 @@ describe('mcp-config: suite mcp.json → bridge rows', () => {
     const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
     expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web', 'my-suite__legacy'])
     expect(failures).toEqual([])
-    const db = mounts[0]!.config as Record<string, unknown>
-    expect(db['transport']).toBe('stdio')
-    expect(db['command']).toBe('/tmp/my-suite/bin/db')
-    expect(db['args']).toEqual(['--root', '/tmp/my-suite'])
-    expect(db['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
-    expect(db['cwd']).toBe('/tmp/my-suite/data')
-    const web = mounts[1]!.config as Record<string, unknown>
-    expect(web['transport']).toBe('streamable-http')
-    expect(web['headers']).toEqual({ Authorization: 'Bearer resolved' })
-    const legacy = mounts[2]!.config as Record<string, unknown>
-    expect(legacy['transport']).toBe('sse')
-    expect(legacy['url']).toBe('https://example.com/sse')
+    const [db, web, legacy] = mounts.map(mount => mount.config)
+    if (db === undefined || web === undefined || legacy === undefined) throw new Error('expected the fixture to map its stdio, streamable-http and SSE servers')
+    expectTransport(db, 'stdio')
+    expect(db.command).toBe('/tmp/my-suite/bin/db')
+    expect(db.args).toEqual(['--root', '/tmp/my-suite'])
+    expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    // `cwd` is resolved against the suite root, so it carries the host's spelling.
+    expect(db.cwd).toBe(resolve('/tmp/my-suite', 'data'))
+    expectTransport(web, 'streamable-http')
+    expect(web.headers).toEqual({ Authorization: 'Bearer resolved' })
+    expectTransport(legacy, 'sse')
+    expect(legacy.url).toBe('https://example.com/sse')
   })
 })
 
@@ -65,7 +68,9 @@ describe('mcp-config: credential references', () => {
     })
     const { mounts, failures } = await toMcpMounts(source, '/tmp/data')
     expect(failures).toEqual([])
-    expect(mounts[0]!.config).toMatchObject({ args: ['/tmp/my-suite'], env: { DATA: '/tmp/data/demo/my-suite' } })
+    const [mount] = mounts.map(candidate => candidate.config)
+    if (mount === undefined) throw new Error(`expected ${dialect} plugin variables to mount one server`)
+    expect(mount).toMatchObject({ args: ['/tmp/my-suite'], env: { DATA: '/tmp/data/demo/my-suite' } })
   })
   it('resolves env and header placeholders through the credential resolver', async () => {
     const result = await toMcpMounts(
@@ -76,8 +81,9 @@ describe('mcp-config: credential references', () => {
         resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'resolved-secret', source: 'file' } : undefined)
       }
     )
-    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config as Record<string, unknown>
-    expect((web['headers'] as Record<string, string>)['Authorization']).toBe('Bearer resolved-secret')
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config
+    expectTransport(web, 'streamable-http')
+    expect(web.headers['Authorization']).toBe('Bearer resolved-secret')
     expect(result.failures).toEqual([])
   })
 
@@ -96,8 +102,9 @@ describe('mcp-config: credential references', () => {
     const target = suite()
     target.mcp!.servers.web = { type: 'streamable-http', url: 'https://example.com/mcp?key=${MCP_TOKEN}' }
     const result = await toMcpMounts(target, '/tmp/data', {}, { resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'abc123' } : undefined) })
-    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config as Record<string, unknown>
-    expect(web['url']).toBe('https://example.com/mcp?key=abc123')
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config
+    expectTransport(web, 'streamable-http')
+    expect(web.url).toBe('https://example.com/mcp?key=abc123')
   })
 
   it('honors an explicit non-empty fallback but still fails closed on an empty one', async () => {
@@ -108,8 +115,9 @@ describe('mcp-config: credential references', () => {
       db: { type: 'stdio', command: 'db', args: ['--root', '${MISSING:-/default}'] }
     }
     const resolved = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
-    const db = resolved.mounts.find(mount => mount.serverKey === 'db')!.config as Record<string, unknown>
-    expect(db['args']).toEqual(['--root', '/default'])
+    const db = resolved.mounts.find(mount => mount.serverKey === 'db')!.config
+    expectTransport(db, 'stdio')
+    expect(db.args).toEqual(['--root', '/default'])
     expect(resolved.failures).toEqual([])
 
     // `${REF:-}` supplies an empty fallback, so an unresolved value stays empty
@@ -149,8 +157,10 @@ describe('mcp-config: credential references', () => {
         }
       }
     )
-    const db = result.mounts[0]!.config as Record<string, unknown>
-    expect(db['args']).toEqual(['v', 'v'])
+    const [db] = result.mounts.map(candidate => candidate.config)
+    if (db === undefined) throw new Error('expected the repeated placeholder to resolve to one stdio mount')
+    expectTransport(db, 'stdio')
+    expect(db.args).toEqual(['v', 'v'])
     expect(lookups).toBe(1)
   })
 })
@@ -173,7 +183,7 @@ describe('mcp-config: serverName derivation', () => {
 })
 
 describe('mcp-config: source-scoped identity', () => {
-  it('derives serverNames and mount keys from the qualified suite id so two sources never collide', async () => {
+  it('qualifies the suite id so same-named suites from two sources keep separate mounts and data dirs', async () => {
     // Regression: mount requests keyed by the bare suite id let two sources'
     // same-named suites shadow each other's mounts, data dirs, and status.
     const a = suite()
@@ -182,9 +192,10 @@ describe('mcp-config: source-scoped identity', () => {
     const second = await toMcpMounts(b, '/tmp/data', {}, alwaysResolves)
     const firstNames = first.mounts.map(mount => mount.config.serverName)
     const secondNames = second.mounts.map(mount => mount.config.serverName)
-    // Qualified ids differ, so every derived serverName differs.
-    // Same suite/server pair across sources derives ONE name by design:
-    // the mount registry skips the second as a duplicate-mount.
+    // The derived serverName is deliberately source-independent: the same
+    // suite/server pair in two sources resolves to ONE name, and the mount
+    // registry skips the second as a duplicate-mount. What stays per-source is
+    // the registry key and the data dir, asserted below.
     expect(firstNames.some(name => secondNames.includes(name))).toBe(true)
     expect(firstNames.every(name => name.startsWith('my-suite__'))).toBe(true)
     expect(secondNames.every(name => name.startsWith('my-suite__'))).toBe(true)
@@ -192,9 +203,13 @@ describe('mcp-config: source-scoped identity', () => {
     expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
     expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
     // Per-suite PLUGIN_DATA directories are qualified too.
-    const dbA = first.mounts[0]!.config as Record<string, unknown>
-    expect(dbA['env']).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
-    const dbB = second.mounts[0]!.config as Record<string, unknown>
-    expect(dbB['env']).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
+    const [dbA] = first.mounts.map(mount => mount.config)
+    if (dbA === undefined) throw new Error('expected the demo source to mount its stdio server')
+    expectTransport(dbA, 'stdio')
+    expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    const [dbB] = second.mounts.map(mount => mount.config)
+    if (dbB === undefined) throw new Error('expected the other source to mount its stdio server')
+    expectTransport(dbB, 'stdio')
+    expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
   })
 })

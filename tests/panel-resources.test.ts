@@ -27,7 +27,7 @@ describe('installed and user panel resources', () => {
           installed: { 'active/v1-suite': { enabled: true, installedAt: new Date(0).toISOString() } }
         })
       )
-      const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), onChanged: () => {} })
+      const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
       await catalog.load()
       const users = createUserPanelStores(root)
       await users.agents.create('reviewer', '---\ndescription: My reviewer\n---\nMy instructions')

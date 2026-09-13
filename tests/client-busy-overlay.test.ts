@@ -3,12 +3,11 @@ import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { beginBusyOperation, busySnapshot, withBusyOperation } from '../src/client/ui/busy-operation.js'
-import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_MIN_VISIBLE_MS, BUSY_SETTLE_MS } from '../src/client/ui/BusyOverlay.js'
-import type { Translate } from '../src/client/index.js'
+import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_MIN_VISIBLE_MS, BUSY_SETTLE_MS, BUSY_LONG_RUNNING_MS } from '../src/client/ui/BusyOverlay.js'
+import { stubTranslate as t } from './helpers/translate.js'
 import { fetchLspStatus, postAction } from '../src/client/api.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-const t: Translate = key => key
 let root: Root | undefined
 const releases: Array<() => void> = []
 afterEach(async () => {
@@ -132,6 +131,37 @@ describe('shared operation overlay', () => {
     expect(clicked).toHaveBeenCalledOnce()
     expect(cleared).toHaveBeenCalled()
     document.removeEventListener('keydown', listener)
+  })
+
+  it('says so when a lease outlives the long-running threshold', async () => {
+    vi.useFakeTimers()
+    const dialog = document.createElement('div')
+    document.body.append(dialog)
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    let end!: () => void
+    await act(async () => {
+      end = beginBusyOperation(dialog)
+      releases.push(end)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS)
+    })
+    expect(host.querySelector('[data-visible="true"]')).not.toBeNull()
+    expect(host.textContent).not.toContain('busyLongRunning')
+    await act(async () => {
+      vi.advanceTimersByTime(BUSY_LONG_RUNNING_MS)
+    })
+    expect(host.textContent).toContain('busyLongRunning')
+    // The warning belongs to the wait, not to the mask: releasing the lease
+    // clears both.
+    await act(async () => end())
+    await act(async () => {
+      vi.advanceTimersByTime(BUSY_SETTLE_MS)
+    })
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
   })
 
   it('never paints quick requests and holds a visible mask across a short request gap', async () => {

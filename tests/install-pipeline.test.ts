@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -10,7 +11,7 @@ import { Catalog } from '../src/application/catalog.js'
  * Exercises the complete Catalog lifecycle across every layer touched by the
  * ADR-0001 refactor: catalog/source-catalog (source discovery),
  * catalog/suite-scanner (suite scanning), application/catalog (state +
- * install mutation), model/state (persistence), and enabled-suite derivation.
+ * install mutation), runtime/state-store (persistence), and enabled-suite derivation.
  *
  * Uses a local fixture (no git clone) so the test is hermetic.
  */
@@ -23,7 +24,7 @@ let userRoot: string
 let dataRoot: string
 
 beforeEach(async () => {
-  tmpRoot = await mkdtemp(join('/tmp', 'dsh-agent-pipeline-'))
+  tmpRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-pipeline-'))
   userRoot = await mkdtemp(join(tmpRoot, 'user'))
   dataRoot = join(tmpRoot, 'data')
   await mkdir(join(userRoot, '.sources'), { recursive: true })
@@ -35,7 +36,7 @@ afterEach(async () => {
 
 describe('full install pipeline: addSource → install → setEnabled → enabledUserSuites', () => {
   it('discovers, installs, enables, and lists a suite from a local source', async () => {
-    const catalog = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const catalog = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
 
     // 1. Add a local source pointing at the v1-suite fixture.
@@ -84,7 +85,7 @@ describe('full install pipeline: addSource → install → setEnabled → enable
     const suiteId = 'v1-suite'
 
     // First instance: add source, install, enable.
-    const first = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const first = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await first.load()
     const source = await first.addSource({ url: fixture, local: true })
     await first.install(source.id, suiteId)
@@ -93,7 +94,7 @@ describe('full install pipeline: addSource → install → setEnabled → enable
     expect(enabledBefore.length).toBe(1)
 
     // Second instance: reload from the same state.json on disk.
-    const reloaded = new Catalog({ userRoot, dataRoot, onChanged: () => {} })
+    const reloaded = new Catalog({ userRoot, dataRoot, agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await reloaded.load()
     const snapshot = await reloaded.readUserCatalog()
     expect(snapshot.sources.map(s => s.id)).toContain(source.id)

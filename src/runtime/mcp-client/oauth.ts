@@ -22,7 +22,7 @@
  * then last exactly as long as the process.
  *
  * Ported from the harness `dsh-mcp-client` OAuth implementation (upstream
- * commits archived at `docs/upstream-proposal/patches/`); the record format is
+ * commits archived at `docs/developer/upstream-proposal/patches/`); the record format is
  * byte-compatible, so grants written by either implementation are interchangeable.
  *
  * @module runtime/mcp-client/oauth
@@ -32,13 +32,11 @@ import { createServer, type IncomingMessage, type Server } from 'node:http'
 import { type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { OAuthClientInformation, OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { credentialKey, scrubbedParentEnv, type CredentialKey, type CredentialRecordStore } from './host-seams.js'
+import { PLUGIN_NAME, PLUGIN_VERSION } from './plugin-identity.js'
 import type { OAuthStorageConfig } from './config.js'
 
 /** OAuth client identity presented during dynamic registration. */
-const CLIENT_NAME = 'DeepSeek Harness (dsh-agent-plugins-market)'
-/** Software id/version advertised in RFC 7591 registration metadata. */
-const CLIENT_SOFTWARE_ID = 'dsh-agent-plugins-market'
-const CLIENT_SOFTWARE_VERSION = '0.1.0'
+const CLIENT_NAME = `DeepSeek Harness (${PLUGIN_NAME})`
 /** Credential-record scope for MCP OAuth state; per-server ids follow it. */
 export const MCP_AUTH_RECORD_SCOPE = 'mcp-auth'
 /** Loopback callback budget: the browser must land within five minutes. */
@@ -174,8 +172,8 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
       // Public client: PKCE carries the proof; no client secret exists.
       token_endpoint_auth_method: 'none',
       ...(this.scope === undefined ? {} : { scope: this.scope }),
-      software_id: CLIENT_SOFTWARE_ID,
-      software_version: CLIENT_SOFTWARE_VERSION
+      software_id: PLUGIN_NAME,
+      software_version: PLUGIN_VERSION
     }
   }
 

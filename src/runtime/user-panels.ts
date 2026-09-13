@@ -1,8 +1,9 @@
 /**
  * User panel storage: the persistence layer behind the skills / commands /
  * agent-personas panels. Each surface owns one directory of Markdown files
- * under `<userRoot>/user/<kind>/`, so user-authored entries survive restarts,
- * are trivially hand-editable, and stay outside suite checkouts.
+ * under the shared Agent layout root (`~/.agents/<kind>/`), so user-authored
+ * entries survive restarts, are trivially hand-editable, and stay outside
+ * suite checkouts.
  *
  * Skills entries follow the SKILL.md frontmatter grammar (`name`,
  * `description`, optional `whenToUse`, invocation controls) plus a
@@ -16,12 +17,23 @@
 import { join } from 'node:path'
 import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillSource } from '@deepseek-ai/dsh-skill'
 import { deleteEntryFile, entryExists, listEntryFiles, readEntryFile, USER_ENTRY_NAME, userEntryDir, writeEntryFile, type UserEntryFile } from './user-store.js'
-import type { HostTranslate } from './host-locale.js'
 /** The skill-source label user-panel entries carry into the skill registry. */
 export const USER_PANEL_SKILL_SOURCE = 'user-panel' satisfies SkillSource
 
-/** Ranks sit behind every shipped root so real files always win a name clash. */
-const USER_PANEL_RANK = 600
+/**
+ * Panel skills outrank both the harness's reader of this directory and the
+ * suite skills an install adds.
+ *
+ * `dsh-skill-filesystem` maps `~/.agents/skills` as its `user-agents` root at
+ * rank 500, and a lower rank wins a duplicated skill name. Sitting behind it
+ * handed every entry to that reader, which knows neither this panel's
+ * `disabled` frontmatter nor its localized description, so a skill the user
+ * disabled stayed loaded. At 440 the panel keeps its own controls; project
+ * roots (100-300) and the user's `~/.dsh` skills (400) still outrank it, while
+ * a skill the user wrote by hand now beats one an installed suite ships under
+ * the same name (the suite user rank is 450).
+ */
+const USER_PANEL_RANK = 440
 
 /** A user panel entry as the HTTP layer serializes it. */
 export interface UserPanelEntry {
@@ -43,20 +55,15 @@ export interface UserPanelEntry {
 /** Throwing CRUD over one panel directory, shared by the three panels. */
 export class UserPanelStore {
   constructor(
-    private readonly dataRoot: string,
+    private readonly agentsRoot: string,
     private readonly kind: 'skills' | 'commands' | 'agents',
     /** Extra name grammar for this panel (runs after USER_ENTRY_NAME). */
     private readonly extraNameCheck: (name: string) => boolean = () => true
   ) {}
 
-  /** The panel's directory under the data root. */
+  /** The panel's directory under the Agent layout root. */
   dirPath(): string {
-    return userEntryDir(this.dataRoot, this.kind)
-  }
-
-  /** The plugin data root the panel lives under. */
-  root(): string {
-    return this.dataRoot
+    return userEntryDir(this.agentsRoot, this.kind)
   }
 
   private get dir(): string {
@@ -123,15 +130,15 @@ export class UserPanelStore {
 }
 
 /** Locate the three stores; constructed once per plugin activation. */
-export function createUserPanelStores(dataRoot: string): {
+export function createUserPanelStores(agentsRoot: string): {
   skills: UserPanelStore
   commands: UserPanelStore
   agents: UserPanelStore
 } {
   return {
-    skills: new UserPanelStore(dataRoot, 'skills', isUserSkillEntryName),
-    commands: new UserPanelStore(dataRoot, 'commands'),
-    agents: new UserPanelStore(dataRoot, 'agents', isUserSkillEntryName)
+    skills: new UserPanelStore(agentsRoot, 'skills', isUserSkillEntryName),
+    commands: new UserPanelStore(agentsRoot, 'commands'),
+    agents: new UserPanelStore(agentsRoot, 'agents', isUserSkillEntryName)
   }
 }
 
@@ -157,10 +164,7 @@ interface UserSkillLocator {
 export class UserPanelSkillProvider implements SkillProvider {
   readonly name = 'user-panel'
 
-  constructor(
-    private readonly skills: UserPanelStore,
-    private readonly t: HostTranslate
-  ) {}
+  constructor(private readonly skills: UserPanelStore) {}
 
   async list(_options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const candidates: SkillCandidate[] = []
@@ -169,7 +173,10 @@ export class UserPanelSkillProvider implements SkillProvider {
       if (entry.disabled || !isUserSkillEntryName(entry.name)) continue
       candidates.push({
         name: entry.name,
-        description: this.t('userSkillDescription', { description: entry.description === '' ? entry.name : entry.description }),
+        // The entry's own description verbatim; a user-entry label is our
+        // packaging, and this description reaches the same model-facing
+        // catalog a suite skill does.
+        description: entry.description === '' ? entry.name : entry.description,
         ...(typeof entry.metadata['whenToUse'] === 'string' && entry.metadata['whenToUse'] !== '' ? { whenToUse: entry.metadata['whenToUse'] } : {}),
         invocation: {
           modelInvocable: entry.metadata['disable-model-invocation'] !== true,
