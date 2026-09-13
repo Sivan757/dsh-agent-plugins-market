@@ -75,7 +75,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 3. 打开套件查看内容，确认后安装，并确保套件已启用。
 4. 如果套件提供技能，先在**技能**页签查看，再在聊天中输入 `/` 查找允许手动调用的技能。如果提供 MCP，前往 **MCP 服务**检查状态，处理凭据或连接提示后再使用工具。
 
-环境要求、profile 配置与其他安装方式见[使用指南](docs/guides/usage.zh.md#其他安装方式)。
+环境要求、profile 配置与其他安装方式见[使用指南](docs/user/usage.zh.md#其他安装方式)。
 
 ## 日常使用
 
@@ -92,13 +92,13 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 **来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件；安装并启用套件决定其运行时能力是否生效。
 
-你自己创作的内容都放在共用的 Agent 布局根目录：技能、命令和角色是 `~/.agents/` 下的 Markdown 文件，工作区里新增的 MCP 与 LSP 服务分别保存在 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。项目原生资源继续保留在项目中。路径和优先级见[存储与发现](docs/guides/usage.zh.md#存储与发现)。
+你自己创作的内容都放在共用的 Agent 布局根目录：技能、命令和角色是 `~/.agents/` 下的 Markdown 文件，工作区里新增的 MCP 与 LSP 服务分别保存在 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。项目原生资源继续保留在项目中。路径和优先级见[存储与发现](docs/user/usage.zh.md#存储与发现)。
 
 六个页签共用持久化的卡片/列表偏好。新增、刷新统一位于页头；资源状态条为绿色时表示生效中。
 
 ## 兼容性与运行边界
 
-支持的**布局方言（layout dialect）**描述文件如何组织。[统一优先级表](#布局识别优先级)并列列出套件清单与 Marketplace 目录索引。[`schemas/`](schemas/README.md) 中十种布局契约均有独立读取测试；[布局审计](docs/layout-coverage.zh.md)把它们对应到固定提交号的仓库快照。
+支持的**布局方言（layout dialect）**描述文件如何组织。[统一优先级表](#布局识别优先级)并列列出套件清单与 Marketplace 目录索引。[`schemas/`](schemas/README.md) 中十种布局契约均有独立读取测试；[布局审计](docs/user/layout-coverage.zh.md)把它们对应到固定提交号的仓库快照。
 
 支持的**运行时能力（runtime surface）**描述 DSH 能使用什么：
 
@@ -111,7 +111,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 | Hooks | 运行 `dsh-hooks-claude-code` 桥接映射支持的 command-hook 子集。                                                         |
 | LSP   | 随插件自带：安装插件即安装 LSP 支持包，`lsp` 工具只在确有语言服务器需求时挂载；语言服务器可执行文件本身需在 `PATH` 中。 |
 
-代理角色显示在会话目录中，并通过 `subagent_run(agent, prompt)` 执行。角色可以保存精确的 `provider` + `model` 与 `reasoning_effort`；其余声明一律忽略，子代理改为继承父会话路由。`tools` 与 `disallowedTools` 会保留在文件中但不会生效。frontmatter 字段与边界见[代理角色](docs/guides/agent-roles.zh.md)。
+代理角色显示在会话目录中，并通过 `subagent_run(agent, prompt)` 执行。角色可以保存精确的 `provider` + `model` 与 `reasoning_effort`；其余声明一律忽略，子代理改为继承父会话路由。`tools` 与 `disallowedTools` 会保留在文件中但不会生效。frontmatter 字段与边界见[代理角色](docs/user/agent-roles.zh.md)。
 
 ### 布局识别优先级
 
@@ -138,7 +138,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 ### 布局支持矩阵
 
-表中说明本插件是否读取该布局的对应能力。**支持**表示读取该布局自己的文件并注入；**部分**表示只理解其中一部分格式，或上游布局本身没有对应定义——具体见下表说明。依据见[兼容性报告](docs/compat-report.md)与[布局审计](docs/layout-coverage.zh.md)。
+表中说明本插件是否读取该布局的对应能力。**支持**表示读取该布局自己的文件并注入；**部分**表示只理解其中一部分格式，或上游布局本身没有对应定义——具体见下表说明。依据见[兼容性报告](docs/reference/compat-report.md)与[布局审计](docs/user/layout-coverage.zh.md)。
 
 | 布局                                                                                                          | 技能 | 代理 | 命令 | MCP  | Hooks  | LSP    |
 | ------------------------------------------------------------------------------------------------------------- | ---- | ---- | ---- | ---- | ------ | ------ |
@@ -168,13 +168,13 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 插件设置卡提供**扫描项目 Agent 布局**（`dsh-agent-plugins-market.scanProjectLayouts`，默认开启）。它只控制一件事：当前项目是否把自己目录（`.claude`、`.agents`、`.codex`、`.cursor`、`.kimi`、`.zcode`、`.qoder`、`.github`）里的技能、命令、代理角色、MCP 服务与 hooks 贡献到会话里。关闭后立即移除这些候选；配置源与已安装套件不受影响。
 
-每种布局读取哪些目录与文件、如何挂载，见[项目布局](docs/guides/usage.zh.md#项目布局)。
+每种布局读取哪些目录与文件、如何挂载，见[项目布局](docs/user/usage.zh.md#项目布局)。
 
 ### 抽样验证
 
-README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layouts/) 保留了离线快照（含提交号、哈希与许可证），且每种布局都有独立的读取测试。[兼容性报告](docs/compat-report.md)记录抽样仓库、schema 结论与扫描器输出，[布局审计](docs/layout-coverage.zh.md)记录独立的资源核验。这些是文档、源码与抽样核验，并非每个平台的端到端兼容认证。
+README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layouts/) 保留了离线快照（含提交号、哈希与许可证），且每种布局都有独立的读取测试。[兼容性报告](docs/reference/compat-report.md)记录抽样仓库、schema 结论与扫描器输出，[布局审计](docs/user/layout-coverage.zh.md)记录独立的资源核验。这些是文档、源码与抽样核验，并非每个平台的端到端兼容认证。
 
-启用第三方套件前请检查其内容：启用的服务和 hooks 可以执行程序。详见[运行时与安全边界](docs/guides/usage.zh.md#运行时与安全边界)。
+启用第三方套件前请检查其内容：启用的服务和 hooks 可以执行程序。详见[运行时与安全边界](docs/user/usage.zh.md#运行时与安全边界)。
 
 ## 常见问题
 
@@ -196,7 +196,7 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 
 **来源下载失败怎么办？**
 
-可以使用本地目录、收编手动克隆的仓库，或配置代理与镜像，见[配置市场源](docs/guides/usage.zh.md#配置市场源)。
+可以使用本地目录、收编手动克隆的仓库，或配置代理与镜像，见[配置市场源](docs/user/usage.zh.md#配置市场源)。
 
 **本地修改什么时候生效？**
 
@@ -208,10 +208,10 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 
 ## 更多文档
 
-- [使用指南](docs/guides/usage.zh.md)：安装、来源配置、存储、宿主要求、项目布局、MCP / LSP 和反馈设置。
+- [使用指南](docs/user/usage.zh.md)：安装、来源配置、存储、宿主要求、项目布局、MCP / LSP 和反馈设置。
 - [插件规范](schemas/README.md)：各布局的参考 schema 与依据，以及内置的 agent-plugins v1.0.0 契约。
-- [兼容性报告](docs/compat-report.md)：每个 schema 一个真实仓库，含提交号、schema 结论与扫描器输出。
+- [兼容性报告](docs/reference/compat-report.md)：每个 schema 一个真实仓库，含提交号、schema 结论与扫描器输出。
 - [贡献指南](CONTRIBUTING.md)：开发环境、检查命令和 PR 流程。
 - [安全政策](SECURITY.md) · [版本记录](CHANGELOG.md) · [MIT 许可](LICENSE)。
-- [领域词汇](CONTEXT.md) · [架构设计](docs/adr/0001-catalog-centered-modular-refactor.md)。
-- [代理角色与存储](docs/guides/agent-roles.zh.md)：已安装资源编辑、角色模型路由与目录迁移。
+- [领域词汇](CONTEXT.md) · [架构设计](docs/developer/decisions/0001-catalog-centered-modular-refactor.md)。
+- [代理角色与存储](docs/user/agent-roles.zh.md)：已安装资源编辑、角色模型路由与目录迁移。

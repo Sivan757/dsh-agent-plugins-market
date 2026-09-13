@@ -52,6 +52,8 @@ Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (
 
 A `local: true` source reads the directory in place (live working tree; never deleted on removal). Discovery results are cached for up to 30 seconds and reused across install/enable/panel actions, so working-tree edits of local sources appear on the next cache refresh (any source mutation, the refresh button, or the 30 s TTL). Startup mounts and user skill listing scan only sources containing enabled installs; browsing the market still discovers all configured sources. Concurrent reads share discovery work. Startup does not fetch Git updates; source refresh is explicit unless **Background source updates** is on. An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
 
+Install, enable and surface switches answer as soon as their state is saved. The mounts that follow — MCP servers, hooks, commands, LSP servers — reconcile in the background and report through the status panels, so a switch is never held open by a service that is slow to start.
+
 ### Manual clones, adoption, and network tuning
 
 Cloning from the UI times out on a restricted network? Clone the repository yourself into the checkout root (`~/.dsh/agent-plugins/.sources/<id>/`) — the market page lists it under **unregistered local checkouts** with a one-click **adopt** action that registers it in place, no re-clone and no rename. The directory itself is removed only if you later delete the source and tick the delete-files option. Adding a URL whose checkout already exists with a matching `origin` remote adopts it automatically instead of cloning a second copy. Adopted sources are ordinary sources in the UI — they carry no extra badge.
@@ -110,7 +112,7 @@ Unmanaged user checkouts do not become runtime installations just because they e
 
 ## Runtime and security
 
-MCP details offer retry only for failed managed services or residual mounts, and OAuth reset only when the active backend supports it. Retrying checks all managed services without clearing credentials. Reauthorization explicitly confirms grant removal and possible interruption. Unsaved configuration disables connection actions. Results are based on refreshed status, not HTTP success; missing credentials must be configured first.
+MCP details offer retry only for failed managed services or residual mounts, and OAuth reset only when the active backend supports it. Retrying checks all managed services without clearing credentials, and rebuilds every live bridge so a service that stopped answering after being reported connected is re-verified. Reauthorization explicitly confirms grant removal and possible interruption. Unsaved configuration disables connection actions. Results are based on refreshed status, not HTTP success; missing credentials must be configured first.
 
 ### MCP configuration
 
@@ -157,6 +159,8 @@ Details use a shared 1120px maximum-width dialog, constrained to the viewport. M
 Visual feedback waits 200 ms, then stays visible for at least 400 ms. A 100 ms settling window bridges consecutive requests. Interaction locks immediately, including during the invisible delay; short operations therefore finish without a flash.
 
 Workspace requests and credential/settings writes share `withBusyOperation` (`src/client/ui/busy-operation.ts`). Wrap a complete workflow when it also refreshes data afterward; nested leases keep the mask until every operation settles. A single body-level `BusyOverlay` tracks the active dialog rectangle, marks it inert, blocks backdrop/keyboard interaction and restores focus afterward. Tips rotate every 3.2 seconds; reduced-motion preferences disable the scrolling transition. Source-progress, model-catalog background loading and automatic LSP polling remain silent. The mask never occupies a row in the resource list and does not fabricate percentage progress.
+
+Waiting never ends in silence: a mask that outlives 20 seconds says a local service may not be answering, reads stop waiting after 15 seconds, and mutations after a 10-minute backstop — a request that ran out of time is reported as such instead of holding the page.
 
 A source may contain multiple layout dialects. Suite manifests and Marketplace catalogs follow the [same layout priority](../../README.md#layout-detection-precedence). Manifest selection tries the manifests in priority order; one that cannot be read or validated is diagnosed and the next one is tried, and a suite whose every candidate fails is rejected. Catalog scanning uses the first catalog that produces suites, with supported supplemental discovery; invalid or empty catalogs allow later candidates. Root `marketplace.json` is the final shared fallback. Remote-reference cards are not directly installable: add their repository as a source first.
 

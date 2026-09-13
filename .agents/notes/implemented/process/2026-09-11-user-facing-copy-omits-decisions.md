@@ -24,7 +24,7 @@ A hint stays when it changes what the reader does: which declaration actually ta
 
 ## Consequences
 
-User-facing surfaces are shorter and stay on the reader's task. The cost is that reasoning sits one hop away in `.agents/notes/` and `docs/adr/`, so contributors must look there rather than reading it inline. The boundary is also judgment-based — a hint that saves a support round trip can look like an unrequested hint — so the rule is review-enforced, not gated. It governs new and touched copy: user-facing text that still explains the `tools` / `disallowedTools` decision, in the READMEs and `docs/guides/agent-roles*.md`, has not been rewritten yet.
+User-facing surfaces are shorter and stay on the reader's task. The cost is that reasoning sits one hop away in `.agents/notes/` and `docs/developer/decisions/`, so contributors must look there rather than reading it inline. The boundary is also judgment-based — a hint that saves a support round trip can look like an unrequested hint — so the rule is review-enforced, not gated. It governs new and touched copy: user-facing text that still explains the `tools` / `disallowedTools` decision, in the READMEs and `docs/user/agent-roles*.md`, has not been rewritten yet.
 
 ## Related
 

@@ -60,7 +60,7 @@ Claude Code and Copilot (including the Universal convention) define usable LSP d
 
 ## Executable coverage
 
-All ten active layouts are covered by [offline README repository tests](../tests/real-layouts.test.ts). Fixtures retain original Git blobs, commit IDs, hashes and licenses. Competing manifests are removed at every suite root in isolated cases, and the scanner reports the productive marketplace rather than inferring it from file presence. [Component contract tests](../tests/component-declarations.test.ts) cover path/array/inline forms and validation failures. See the [coverage audit](../docs/layout-coverage.md) for the exact boundary between layout compatibility and vendor-native runtime behavior.
+All ten active layouts are covered by [offline README repository tests](../tests/real-layouts.test.ts). Fixtures retain original Git blobs, commit IDs, hashes and licenses. Competing manifests are removed at every suite root in isolated cases, and the scanner reports the productive marketplace rather than inferring it from file presence. [Component contract tests](../tests/component-declarations.test.ts) cover path/array/inline forms and validation failures. See the [coverage audit](../docs/user/layout-coverage.md) for the exact boundary between layout compatibility and vendor-native runtime behavior.
 
 ## Provenance and update policy
 

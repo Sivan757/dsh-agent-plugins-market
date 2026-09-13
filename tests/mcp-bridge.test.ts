@@ -5,7 +5,7 @@
  * OAuth provider wiring), and the bridge plugin shell's apply lifecycle.
  *
  * Core cases are ported from the harness `dsh-mcp-client` specs (archived
- * patch series `docs/upstream-proposal/patches/`); the host is faked
+ * patch series `docs/developer/upstream-proposal/patches/`); the host is faked
  * structurally because the bridge must not depend on host test packages.
  */
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'

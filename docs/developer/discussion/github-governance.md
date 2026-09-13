@@ -2,7 +2,7 @@
 
 > 研究范围 / Scope: GitHub 官方文档与 GitHub 官方 Actions 仓库 README；结论用于本仓库 `Sivan757/dsh-agent-plugins-market` 的治理设计。检索日期：2026-08-20。
 >
-> 本仓库现有 `docs/` 采用短标题、分节、可复现/范围说明的 Markdown 风格；当前没有 `docs/research/` 目录，因此本文件是该目录下的首份研究记录。除本文件外未修改其他文件。
+> 本仓库现有 `docs/` 采用短标题、分节、可复现/范围说明的 Markdown 风格；当前没有 `docs/research/` 目录，因此本文件是该目录下的首份研究记录。除本文件外未修改其他文件。本记录写于目录重组之前，其中的路径按当时的工作树状态保留。
 
 ## Executive conclusions / 核心结论
 
@@ -123,9 +123,9 @@ CodeQL 是 GitHub code scanning 的语义分析工具，官方 starter workflow 
 
 本笔记将平台行为与本地观察分开：平台行为均链接到直接的 GitHub 官方文档或 GitHub 官方 Action 仓库；本地仓库事实则链接到对应文件，避免把推断写成 GitHub 平台保证。
 
-- **Existing PR CI / 现有 PR CI：** [`quality.yml`](../../.github/workflows/quality.yml) 的实际配置是无过滤的 `push` 与 `pull_request`，并依次执行 `actions/checkout@v4`、`actions/setup-node@v4`（Node 22、pnpm cache）、Corepack、冻结依赖安装、`check:refactor`、测试和构建。关于这些 trigger 与权限语义，直接参见 [Workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)、[Events that trigger workflows](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows) 和 [Automatic token authentication](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication)；关于 action 本身，参见官方 [`actions/checkout`](https://github.com/actions/checkout) 与 [`actions/setup-node`](https://github.com/actions/setup-node) 仓库。
-- **Existing docs convention / 现有文档约定：** [`docs/adr/0001-catalog-centered-modular-refactor.md`](../adr/0001-catalog-centered-modular-refactor.md) 与 [`docs/design/engineering-refactor-plan.md`](../design/engineering-refactor-plan.md) 使用短标题、分节、范围/背景、可执行建议；[`docs/design/rendering-baseline.md`](../design/rendering-baseline.md) 记录可复现的测量口径。该约定是本仓库本地事实，不是 GitHub 行为，因此不以 GitHub URL 冒充来源。
-- **Current governance inventory / 当前治理清单：** 基于仓库当前工作树扫描，已有 [`docs-pages.yml`](../../.github/workflows/docs-pages.yml) 与 [`quality.yml`](../../.github/workflows/quality.yml)；其他治理文件缺失情况见上文。GitHub 对这些文件的标准路径和行为分别以各节所列官方 URL 为准。
+- **Existing PR CI / 现有 PR CI：** [`quality.yml`](../../../.github/workflows/quality.yml) 的实际配置是无过滤的 `push` 与 `pull_request`，并依次执行 `actions/checkout@v4`、`actions/setup-node@v4`（Node 22、pnpm cache）、Corepack、冻结依赖安装、`check:refactor`、测试和构建。关于这些 trigger 与权限语义，直接参见 [Workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)、[Events that trigger workflows](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows) 和 [Automatic token authentication](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication)；关于 action 本身，参见官方 [`actions/checkout`](https://github.com/actions/checkout) 与 [`actions/setup-node`](https://github.com/actions/setup-node) 仓库。
+- **Existing docs convention / 现有文档约定：** [`docs/developer/decisions/0001-catalog-centered-modular-refactor.md`](../decisions/0001-catalog-centered-modular-refactor.md) 与 [`docs/developer/design/engineering-refactor-plan.md`](../design/engineering-refactor-plan.md) 使用短标题、分节、范围/背景、可执行建议；[`docs/developer/design/rendering-baseline.md`](../design/rendering-baseline.md) 记录可复现的测量口径。该约定是本仓库本地事实，不是 GitHub 行为，因此不以 GitHub URL 冒充来源。
+- **Current governance inventory / 当前治理清单：** 基于仓库当前工作树扫描，已有 [`docs-pages.yml`](../../../.github/workflows/docs-pages.yml) 与 [`quality.yml`](../../../.github/workflows/quality.yml)；其他治理文件缺失情况见上文。GitHub 对这些文件的标准路径和行为分别以各节所列官方 URL 为准。
 
 ## Official source index / 官方来源索引
 

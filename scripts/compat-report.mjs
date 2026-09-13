@@ -17,7 +17,7 @@
  * 12 GB repository costs under a megabyte.
  *
  * Usage: `node scripts/compat-report.mjs [--refresh] [--dialect <name>]`
- * Outputs `docs/compat-report.json` and `docs/compat-report.md`.
+ * Outputs `docs/reference/compat-report.json` and `docs/reference/compat-report.md`.
  */
 import { execFile } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -31,8 +31,8 @@ const exec = promisify(execFile)
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const CACHE_DIR = join(ROOT, 'node_modules', '.cache', 'compat-report')
 const CONFIG_PATH = join(ROOT, 'scripts', 'compat-sources.json')
-const REPORT_JSON = join(ROOT, 'docs', 'compat-report.json')
-const REPORT_MD = join(ROOT, 'docs', 'compat-report.md')
+const REPORT_JSON = join(ROOT, 'docs', 'reference', 'compat-report.json')
+const REPORT_MD = join(ROOT, 'docs', 'reference', 'compat-report.md')
 
 /** Marketplace manifests the scanner's `MarketplaceStrategy` can read, in its order. */
 let scannerMarketplaces = []
@@ -267,10 +267,10 @@ async function main() {
     },
     samples
   }
-  await mkdir(join(ROOT, 'docs'), { recursive: true })
+  await mkdir(join(ROOT, 'docs', 'reference'), { recursive: true })
   await writeFile(REPORT_JSON, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
   await writeFile(REPORT_MD, renderMarkdown(report), 'utf8')
-  process.stdout.write(`\nwrote docs/compat-report.json and docs/compat-report.md (${samples.length} sample(s))\n`)
+  process.stdout.write(`\nwrote docs/reference/compat-report.json and docs/reference/compat-report.md (${samples.length} sample(s))\n`)
 }
 
 /** Human-readable companion to the JSON report. */

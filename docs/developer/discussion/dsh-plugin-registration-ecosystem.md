@@ -119,7 +119,7 @@
 差异化结论：
 
 1. **能力面覆盖第一**：唯一同时注入 skills + MCP + hooks + commands/subagents 的方案（官方原语 `dsh-mcp-client`/`dsh-hooks-claude-code`/`dsh-tool-skill` 只提供单通道，本项目是其编排者）。
-2. **生命周期语义第一**：同类管理器的启停多为 next-start；本项目做到实时进程回收（`ctx.effect` dispose + generation 同步，`dsh-mcp-client/lib/index.js:135-172,585-586,678-697`），且有 `docs/promotion/lifecycle-evidence.md` 截图证据链。
+2. **生命周期语义第一**：同类管理器的启停多为 next-start；本项目做到实时进程回收（`ctx.effect` dispose + generation 同步，`dsh-mcp-client/lib/index.js:135-172,585-586,678-697`），且有 `docs/scratch/promotion/lifecycle-evidence.md` 截图证据链。
 3. **安全模型**：安装期不执行第三方代码、execFile 无 shell、fail-closed schema、路径 containment、凭据 write-only 不落盘、同源 POST 上限。
 
 ---

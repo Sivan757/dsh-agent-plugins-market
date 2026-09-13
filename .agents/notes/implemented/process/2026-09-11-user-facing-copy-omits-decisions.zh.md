@@ -24,7 +24,7 @@ Status: implemented
 
 ## Consequences
 
-面向用户的界面更短，并停留在读者的任务上。代价是理由退到 `.agents/notes/` 与 `docs/adr/` 一步之外，贡献者需要去那里查阅而不能再就地读到。这条边界也依赖判断——一个能省下一轮答疑的提示，看起来可能就像没人索要的提示——因此由评审把关，而非门禁。它约束新增和改动到的文案：README 与 `docs/guides/agent-roles*.md` 中仍在解释 `tools` / `disallowedTools` 决策的用户可见文字尚未重写。
+面向用户的界面更短，并停留在读者的任务上。代价是理由退到 `.agents/notes/` 与 `docs/developer/decisions/` 一步之外，贡献者需要去那里查阅而不能再就地读到。这条边界也依赖判断——一个能省下一轮答疑的提示，看起来可能就像没人索要的提示——因此由评审把关，而非门禁。它约束新增和改动到的文案：README 与 `docs/user/agent-roles*.md` 中仍在解释 `tools` / `disallowedTools` 决策的用户可见文字尚未重写。
 
 ## Related
 

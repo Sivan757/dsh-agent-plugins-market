@@ -63,7 +63,7 @@ market 对 streamable-http 自建客户端（含 OAuth），stdio 继续用宿�
 
 ## 五、方案 C 执行计划
 
-1. **留档**：`git format-patch b150a551b8..HEAD` 导出两个提交到 market 仓 `docs/upstream-proposal/`（作为将来向上游提案的完整素材，也作为搬运蓝本）。
+1. **留档**：`git format-patch b150a551b8..HEAD` 导出两个提交到 market 仓 `docs/developer/upstream-proposal/`（作为将来向上游提案的完整素材，也作为搬运蓝本）。
 2. **回退 harness**：`reset --hard b150a551b8`，工作树与上游一致。
 3. **恢复装机**：从 npm 缓存/重装恢复 `/opt/homebrew/.../dsh-mcp-client/lib` 原版，校验 sha 与上游 rc.2 一致。
 4. **market 自建**：

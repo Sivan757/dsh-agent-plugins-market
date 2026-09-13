@@ -3,7 +3,7 @@
 - 版本：1.0.0 · 运行时基线：**本机实际运行的 dsh CLI**（全局安装，`dsh -V` 实测）；宿主依赖范围见本仓库 `package.json` 的 `peerDependencies`。文中「rc.2 实测」事实取自 dsh `0.1.1-rc.2`。
 - 参考实现：本仓库 `dsh-agent-plugins-market`（已发布的成熟 DSH 插件）
 - 受众优先级：**AI Agent 执行优先，人类复核友好**。条款为祈使句，用 MUST / SHOULD / MAY（RFC 2119 语义）；多数小节附「依据」，指向真实文件或命令供人抽查。
-- 配套脚手架：独立项目 [`dsh-plugin-scaffold`](../../../dsh-plugin-scaffold/)（`~/workspace/dsh-plugin-scaffold`，从零起步复制即用）；其根目录 `AGENTS.md` 是本规范的**自包含执行投影**（复制出去后无需携带本文即可执行）。
+- 配套脚手架：独立项目 `dsh-plugin-scaffold`（`~/workspace/dsh-plugin-scaffold`，从零起步复制即用）；其根目录 `AGENTS.md` 是本规范的**自包含执行投影**（复制出去后无需携带本文即可执行）。
 
 ## §0 使用方式
 
@@ -103,7 +103,7 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 
 一切副作用（服务注册、事件监听、定时器、子进程、HTTP 路由、DOM）**MUST** 挂在 `ctx.effect(fn, label)` 或返回 disposer 的官方 API 上，保证 stop/update/undefine 全量回收。
 
-> 依据：docs/adr/0001-catalog-centered-modular-refactor.md；.dependency-cruiser.cjs；docs/design/engineering-refactor-plan.md。
+> 依据：docs/developer/decisions/0001-catalog-centered-modular-refactor.md；.dependency-cruiser.cjs；docs/developer/design/engineering-refactor-plan.md。
 
 ## §4 运行时能力与注入面（rc.2 实测）
 
@@ -147,7 +147,7 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 
 - Conventional Commits 分类铁律：**只有安装者可感知的变化才用 `feat:` / `fix:`**；内部重构/测试/CI/文档一律非升级类型。自查句式：「这条 commit 写进 CHANGELOG 丢不丢人？」（scoped 的 `fix(ci)` 也算违规——照样 bump。）
 - 发布走 release-please 自动化；版本策略与回滚政策（先 `npm deprecate` 后考虑 unpublish）SHOULD 固化为 ADR。
-- 文档义务：`CONTEXT.md` 领域词汇表随概念演进更新（保护概念边界，如「catalog source ≠ layout dialect」）；每个重大决策写成 ADR（模板：scaffold `docs/adr/0000`）。
+- 文档义务：`CONTEXT.md` 领域词汇表随概念演进更新（保护概念边界，如「catalog source ≠ layout dialect」）；每个重大决策写成 ADR（模板：scaffold `docs/developer/decisions/0000`）。
 - 双语仓库 SHOULD 维持「另一语言主体 + 一段对方语言摘要」纪律；标识符/API 名保留原文。
 
 ## §8 Agent 硬约束（执行协议）
@@ -176,7 +176,7 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 
 ## §9 从零起步
 
-复制独立脚手架仓库 [`dsh-plugin-scaffold`](../../../dsh-plugin-scaffold/)（`~/workspace/dsh-plugin-scaffold`）全部内容到新插件仓库根 → 按其 `README.md` 完成改名与五步验收 → 第一个重大选择写 `docs/adr/0001-*.md`。
+复制独立脚手架仓库 `dsh-plugin-scaffold`（`~/workspace/dsh-plugin-scaffold`）全部内容到新插件仓库根 → 按其 `README.md` 完成改名与五步验收 → 第一个重大选择写 `docs/developer/decisions/0001-*.md`。
 
 ---
 

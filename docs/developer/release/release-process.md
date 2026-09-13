@@ -1,6 +1,6 @@
 # 发版流程
 
-> 策略层（版本号规则、提交纪律）见 `docs/adr/0002-versioning-and-release-policy.md`。
+> 策略层（版本号规则、提交纪律）见 `docs/developer/decisions/0002-versioning-and-release-policy.md`。
 
 ## 自动化现状
 
@@ -22,7 +22,7 @@ release-please 内嵌在 `.github/workflows/npm-publish.yml`（无独立 workflo
 | `prepack`                               | `pnpm publish` / `npm pack` 都先跑一遍，覆盖真实发布路径                                                  |
 | `npm-publish.yml` 的 release-please job | 在 release-please-action 之前跑，避免先打出 tag 与 GitHub Release、才发现 npm 发不出去                    |
 
-宿主换线后的修法：`pnpm run fix:host-alignment` 重写 pin 与 `minimumReleaseAgeExclude`，再 `pnpm install` 刷新锁文件，然后按[对齐门禁的决策记录](../../.agents/notes/implemented/process/2026-09-11-host-dependency-alignment-gate.md)里的 API 断裂点清单逐条核对是否需要改代码，最后跑全量 `pnpm run test`。
+宿主换线后的修法：`pnpm run fix:host-alignment` 重写 pin 与 `minimumReleaseAgeExclude`，再 `pnpm install` 刷新锁文件，然后按[对齐门禁的决策记录](../../../.agents/notes/implemented/process/2026-09-11-host-dependency-alignment-gate.md)里的 API 断裂点清单逐条核对是否需要改代码，最后跑全量 `pnpm run test`。
 
 ## 版本号的两种模式
 

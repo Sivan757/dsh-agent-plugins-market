@@ -4,7 +4,7 @@ Status: implemented
 
 ## 问题
 
-自建技能、命令和角色原本保存在 `$DSH_HOME/agent-plugins/user/{skills,commands,agents}`，工作区新增的服务保存在 `data/mcp-servers.json` 与 `data/lsp-servers.json`。这把用户自己拥有的内容埋进了插件私有状态：其它 Agent 工具读不到，服务声明也没有使用本插件在项目 `.agents/` 目录上已经采用的布局。[生态调研](../../../../docs/research/2026-09-02-agent-config-compat-ecosystem.md)记录了项目级 `.agents/skills/` 与全局 `~/.agents/skills/` 已是事实上的跨工具约定。
+自建技能、命令和角色原本保存在 `$DSH_HOME/agent-plugins/user/{skills,commands,agents}`，工作区新增的服务保存在 `data/mcp-servers.json` 与 `data/lsp-servers.json`。这把用户自己拥有的内容埋进了插件私有状态：其它 Agent 工具读不到，服务声明也没有使用本插件在项目 `.agents/` 目录上已经采用的布局。[生态调研](../../../../docs/developer/discussion/2026-09-02-agent-config-compat-ecosystem.md)记录了项目级 `.agents/skills/` 与全局 `~/.agents/skills/` 已是事实上的跨工具约定。
 
 ## 决策
 

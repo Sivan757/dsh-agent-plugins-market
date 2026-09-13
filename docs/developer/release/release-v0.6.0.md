@@ -34,9 +34,9 @@
   - LSP 面板：声明显示、启动中状态轮询、宿主缺失诊断、直配表保存后下一 reconcile 生效
   - 安装确认对话框显示 `lsp` surface 标签
 
-### 4. 发布流程（npm-publish.yml 内嵌 release-please，详见 docs/release/release-process.md）
+### 4. 发布流程（npm-publish.yml 内嵌 release-please，详见 docs/developer/release/release-process.md）
 
-- [ ] 提交本地未推送的变更并 `git push origin main`（当前领先 17+ 个提交；`docs/release/**` 在 paths-ignore 内，纯文档推送不触发 release-please）
+- [ ] 提交本地未推送的变更并 `git push origin main`（当前领先 17+ 个提交；`docs/developer/release/**` 在 paths-ignore 内，纯文档推送不触发 release-please）
 - [ ] npm-publish.yml 在 main 上运行后，确认 Release PR（0.5.3 → 0.6.0）被开/更新：核对 PR 内 package.json version、CHANGELOG 小节、.release-please-manifest.json 三处一致（PR head 分支固定为 `release-please--branches--main--components--dsh-agent-plugins-market`，base 是 **main**，没有 npm-release 分支）
 - [ ] quality + CodeQL 绿后人工合并该 Release PR（历史上由仓库所有者合并，如 #26）
 - [ ] 确认合并后的 npm-publish 运行自动完成：打 tag `dsh-agent-plugins-market-v0.6.0`、创建 GitHub Release（正文自动生成）、OIDC trusted publishing 发布 npm（远端会再跑 check:refactor + test）

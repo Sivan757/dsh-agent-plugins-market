@@ -17,7 +17,7 @@ action 自带的 `release-as` 输入刻意不使用：在 `config-file`（manife
 
 两条路径汇聚到同一个 Release PR 分支，因此手动 dispatch 会更新 release-please 已提出的版本；合并该 PR 仍是唯一必做的人工步骤，tag / GitHub Release / npm 发布保持自动。
 
-运行手册（[docs/release/release-process.md](../../../../docs/release/release-process.md)）记录两种模式，以及 bot 分支上 run 的 `action_required` 批准步骤。
+运行手册（[docs/developer/release/release-process.md](../../../../docs/developer/release/release-process.md)）记录两种模式，以及 bot 分支上 run 的 `action_required` 批准步骤。
 
 ## Alternatives considered
 

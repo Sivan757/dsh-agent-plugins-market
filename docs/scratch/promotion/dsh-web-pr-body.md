@@ -97,7 +97,7 @@ chore(community-plugins): register dsh-agent-plugins-market in the community plu
 - **已知限制**：项目维度不挂载 MCP（DSH 无会话级工具作用域）；技能发现无文件监听，变更经管理操作或重启后生效；Claude Code hooks 仅支持桥接映射子集；LSP 仅计数预览不执行。
 - **兼容性验证**：仅基于官方 `@deepseek-ai/*` NPM SDK 开发，未修改 DSH 源码；已在本地 dsh web 上实际挂载运行——市场设置页可用，多个市场源的技能与 MCP 注入正常生效。
 
-- [x] 已按 [docs/plugins.md](../docs/plugins.md) 的登记说明在 `packages/dsh-community-plugins/community.json` 追加条目，并运行 `node scripts/community-index` 校验；同时按登记说明第 3 步用 `node scripts/market-build` 重新生成 `market/dist/manifest/plugins.json` 并一并提交（当前 dev 的脚本不产出 `src/client/generated/community.ts`，派生生成物以 `market/dist` 为准，与 docs/plugins.md 一致）。
+- [x] 已按 dsh-web 仓 `docs/plugins.md` 的登记说明在 `packages/dsh-community-plugins/community.json` 追加条目，并运行 `node scripts/community-index` 校验；同时按登记说明第 3 步用 `node scripts/market-build` 重新生成 `market/dist/manifest/plugins.json` 并一并提交（当前 dev 的脚本不产出 `src/client/generated/community.ts`，派生生成物以 `market/dist` 为准，与 docs/plugins.md 一致）。
 - [x] 已确认插件与 dsh-web 插件体系兼容：遵循官方 cordis bundle 独立标准（package.json 声明 `dsh.bundle.patch` 指向 `cordis.patch.yml`、`dsh.client` 浏览器半区），类型仅基于官方 `@deepseek-ai/*` NPM SDK，未修改 DSH 源码；已在本仓库最新代码所运行的 dsh web 上验证插件可被正常挂载运行。
 - [x] 承诺负责后续更新跟进：插件与 DSH / dsh-web 生态保持同步，生态升级导致不兼容时主动跟进修复；条目信息（description / npm 等）变动或插件停更时，及时更新索引登记或提交移除。
 

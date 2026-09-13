@@ -22,7 +22,7 @@ This complements [selective runtime source discovery](../performance/2026-09-07-
 
 ## Consequences
 
-Slow MCP connections can still delay completion of the operation that requested them. Other runtime surfaces become available independently, and repeated settings or credential notifications cannot create an unbounded backlog of catalog passes. Credential notifications remain conservative so updates received before the first reference snapshot are not lost.
+Slow MCP connections no longer delay completion of the operation that requested them: a mutation answers once its state is durable, the pass catches up behind it, and every stage of the change pipeline is bounded — see [bounded change pipeline and request waits](2026-09-13-bounded-change-pipeline-and-request-waits.md). Other runtime surfaces become available independently, and repeated settings or credential notifications cannot create an unbounded backlog of catalog passes. Credential notifications remain conservative so updates received before the first reference snapshot are not lost.
 
 ## Testing
 

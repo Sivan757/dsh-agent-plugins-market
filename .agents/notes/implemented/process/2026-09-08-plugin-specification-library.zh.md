@@ -4,7 +4,7 @@ Status: implemented
 
 ## 问题
 
-[README.md](../../../../README.md) 的兼容性表格列出了十种插件布局，但仓库只为其中一种钉住了字段级契约：`schemas/1.0.0/` 下内置的 agent-plugins.org v1.0.0 schema。其余全部——Claude Code、Codex、Cursor、Kimi、`.plugin/` 通用约定，以及新调研的 ZCode、Qoder CLI、GitHub Copilot CLI——都只以 README 表格中的散文和 `docs/research/` 里零散事实的形式存在。这不足以回答方言变更真正会提出的问题：同时存在多个 manifest 时哪个优先、客户端读哪个 MCP 文件名、`source` 对象是否接受 `github`、以及任何一条事实的上游出处是什么。一次新增三种方言让缺口变得尖锐：其中两种（ZCode、Qoder）根本不发布 schema，第三种（GitHub Copilot）发布的 schema 属于另一个相邻格式。
+[README.md](../../../../README.md) 的兼容性表格列出了十种插件布局，但仓库只为其中一种钉住了字段级契约：`schemas/1.0.0/` 下内置的 agent-plugins.org v1.0.0 schema。其余全部——Claude Code、Codex、Cursor、Kimi、`.plugin/` 通用约定，以及新调研的 ZCode、Qoder CLI、GitHub Copilot CLI——都只以 README 表格中的散文和 `docs/developer/discussion/` 里零散事实的形式存在。这不足以回答方言变更真正会提出的问题：同时存在多个 manifest 时哪个优先、客户端读哪个 MCP 文件名、`source` 对象是否接受 `github`、以及任何一条事实的上游出处是什么。一次新增三种方言让缺口变得尖锐：其中两种（ZCode、Qoder）根本不发布 schema，第三种（GitHub Copilot）发布的 schema 属于另一个相邻格式。
 
 ## 决策
 
@@ -18,7 +18,7 @@ Status: implemented
 
 ## 考虑过的替代方案
 
-- **写成一篇长的 `docs/standards/` 文档。** 写起来更省事，但既不能编译，也不能按方言引用，还要重述 schema 已经机械表达的字段表。仓库里 `docs/standards/dsh-plugin-development-standard.md` 面向的是另一类读者。
+- **写成一篇长的 `docs/reference/` 文档。** 写起来更省事，但既不能编译，也不能按方言引用，还要重述 schema 已经机械表达的字段表。仓库里 `docs/reference/dsh-plugin-development-standard.md` 面向的是另一类读者。
 - **只写 markdown，不做 JSON Schema。** 被否决：仓库自身对「钉住的契约」的惯例就是 schema 文件；而且写 schema 的过程暴露了散文曾抹平的真实矛盾（ZCode 的顶层 `pluginRoot` 与 `metadata.pluginRoot`；Qoder 文档中的三种作用域与 CLI 的四种）。
 - **内置 SchemaStore 的 Claude Code schema。** 它们由社区维护且相对文档已过期（生成于 2026-04-23，缺 `displayName`、`metadata`、`defaultEnabled`、`experimental`、`workflows`、`renames`）。内置它们等于把错误契约贴上上游标签。
 - **把上游校验器（`scripts/validate.py`、Qoder 的 Zod bundle）搬进 schema。** 这样 schema 能按厂商自己的规则执行，但等于把实现复制进文档目录，且每次客户端发版都会过期。改为在 `$comment` 里记录观测到的版本。

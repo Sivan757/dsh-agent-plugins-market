@@ -22,7 +22,7 @@
  * then last exactly as long as the process.
  *
  * Ported from the harness `dsh-mcp-client` OAuth implementation (upstream
- * commits archived at `docs/upstream-proposal/patches/`); the record format is
+ * commits archived at `docs/developer/upstream-proposal/patches/`); the record format is
  * byte-compatible, so grants written by either implementation are interchangeable.
  *
  * @module runtime/mcp-client/oauth

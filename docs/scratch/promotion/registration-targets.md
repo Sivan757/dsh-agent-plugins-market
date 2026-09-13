@@ -23,7 +23,7 @@
 
 | 渠道 | 星标 | 材料 | 动作 |
 | --- | --- | --- | --- |
-| [zhu1090093659/dsh-web](https://github.com/zhu1090093659/dsh-web) 社区插件索引（创意工坊 + dsh-market.com 数据源） | ⭐6004 | `docs/promotion/dsh-web-pr-body.md` 全套 PR 稿（community.json 第 38 条 + market-build 生成物，对齐已合并先例 #1055） | 用户批准后从 `register-agent-plugins-market` 分支提 PR（base: dev）。当前索引 37 条、无我们 |
+| [zhu1090093659/dsh-web](https://github.com/zhu1090093659/dsh-web) 社区插件索引（创意工坊 + dsh-market.com 数据源） | ⭐6004 | `docs/scratch/promotion/dsh-web-pr-body.md` 全套 PR 稿（community.json 第 38 条 + market-build 生成物，对齐已合并先例 #1055） | 用户批准后从 `register-agent-plugins-market` 分支提 PR（base: dev）。当前索引 37 条、无我们 |
 
 ## D. 需主动提 PR/Issue 的 awesome 清单（按优先级排序）
 

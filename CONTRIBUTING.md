@@ -65,13 +65,13 @@ pnpm install --frozen-lockfile
 
 - `src/` — TypeScript host modules and React client modules / TypeScript 宿主模块与 React 客户端模块
 - `tests/` — Vitest tests and discovery fixtures / Vitest 测试与发现 fixture
-- `docs/` — architecture decisions, design notes, and research / 架构决策、设计笔记与研究记录
+- `docs/` — user guides, reference material, and developer structure and decisions; placement rules live in [docs/AGENTS.md](docs/AGENTS.md) / 用户指南、参考资料与开发者结构与决策；归属规则见 [docs/AGENTS.md](docs/AGENTS.md)
 - `docs-site/` — Astro documentation website / Astro 文档网站
 - `.github/` — issue forms, pull request templates, ownership, and automation / issue 表单、PR 模板、代码所有者与自动化
 
-The domain glossary in [CONTEXT.md](CONTEXT.md) and the staged architecture plan in [`docs/design/engineering-refactor-plan.md`](docs/design/engineering-refactor-plan.md) describe the project vocabulary and module boundaries.
+The domain glossary in [CONTEXT.md](CONTEXT.md) and the staged architecture plan in [`docs/developer/design/engineering-refactor-plan.md`](docs/developer/design/engineering-refactor-plan.md) describe the project vocabulary and module boundaries.
 
-[CONTEXT.md](CONTEXT.md) 中的领域词汇表，以及 [`docs/design/engineering-refactor-plan.md`](docs/design/engineering-refactor-plan.md) 中的分阶段架构计划，说明了项目术语和模块边界。
+[CONTEXT.md](CONTEXT.md) 中的领域词汇表，以及 [`docs/developer/design/engineering-refactor-plan.md`](docs/developer/design/engineering-refactor-plan.md) 中的分阶段架构计划，说明了项目术语和模块边界。
 
 ## Quality gates / 质量门禁
 
@@ -132,7 +132,7 @@ PR 工作流会自动运行重构门禁、完整测试和构建。任何必需�
 
 ## Commit types / 提交类型
 
-Conventional commit types drive automated versioning and the CHANGELOG through [release-please](https://github.com/googleapis/release-please). The full policy is [ADR-0002](docs/adr/0002-versioning-and-release-policy.md); the short version:
+Conventional commit types drive automated versioning and the CHANGELOG through [release-please](https://github.com/googleapis/release-please). The full policy is [ADR-0002](docs/developer/decisions/0002-versioning-and-release-policy.md); the short version:
 
 - **`feat:` / `fix:`** — user-visible behavior changes only. These bump the version and appear in the CHANGELOG, so they open a release PR.
 - **`refactor:` / `test:` / `ci:` / `docs:` / `chore:` / `build:`** — everything else. Never write `fix(ci):` or `feat(ci):`: a scoped `fix` still bumps patch.
@@ -140,7 +140,7 @@ Conventional commit types drive automated versioning and the CHANGELOG through [
 
 If a commit message would look wrong in the CHANGELOG, it has the wrong type.
 
-Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-please](https://github.com/googleapis/release-please) 驱动）。完整规则见 [ADR-0002](docs/adr/0002-versioning-and-release-policy.md)，简版：
+Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-please](https://github.com/googleapis/release-please) 驱动）。完整规则见 [ADR-0002](docs/developer/decisions/0002-versioning-and-release-policy.md)，简版：
 
 - **`feat:` / `fix:`** — 仅限用户可见的行为变化。会升级版本并出现在 CHANGELOG 中，因此会打开 release PR。
 - **`refactor:` / `test:` / `ci:` / `docs:` / `chore:` / `build:`** — 其余一切变更。不要写 `fix(ci):` 或 `feat(ci):`：带 scope 的 `fix` 仍会 bump patch。

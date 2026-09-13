@@ -55,7 +55,7 @@ The `Catalog` module is the seam after normalized suite discovery and before hos
 - [x] Stage 6: SuiteManager + discovery facades deleted; callers migrated to `application/Catalog` directly.
 - [x] Stage 7: directory alignment — runtime mounts, model, and catalog modules relocated into their target layers; MarketSection split into feature components and shared `ui/` controls.
 - [x] Stage 8: test stability — React `act` environment configured, parallel-test interference eliminated via serial file execution, MarketSection render smoke tests, coverage baseline established.
-- [x] Stage 9: Catalog split into a facade over collaborators; one mount lifecycle and one per-server projection; the composition root reduced to wiring; layer gates made enforceable. See the [shared primitives note](../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md).
+- [x] Stage 9: Catalog split into a facade over collaborators; one mount lifecycle and one per-server projection; the composition root reduced to wiring; layer gates made enforceable. See the [shared primitives note](../../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md).
 
 The `SuiteManager` facade has been deleted; all callers (routes, skill provider, host composition) now use `application/Catalog` directly. Browser Performance-panel and React Profiler measurements remain a release follow-up because the current automated baseline measures pure view-model work, not browser paint or React commits.
 
@@ -216,7 +216,7 @@ Add tests for the overview remote-reference record, local-source removal behavio
 
 Fix the known behavior defects independently of broad moves: missing overview `remoteUrl`, local-source removal branch selection, stale detail skill response ordering, and obvious client derivation inefficiencies.
 
-Record the target architecture and compatibility rules in [ADR 0001](../adr/0001-catalog-centered-modular-refactor.md) before moving modules.
+Record the target architecture and compatibility rules in [ADR 0001](../decisions/0001-catalog-centered-modular-refactor.md) before moving modules.
 
 ### Stage 1: create contracts and presenters
 

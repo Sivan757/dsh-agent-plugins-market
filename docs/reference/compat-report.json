@@ -58,9 +58,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "claude-code"
-        ],
+        "layouts": ["claude-code"],
         "surfaces": {
           "skills": 0,
           "commands": 0,
@@ -74,9 +72,7 @@
             "filter": "rooted",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "grafana"
-            ]
+            "suiteIds": ["grafana"]
           },
           {
             "filter": "marketplace",
@@ -135,9 +131,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "agent-plugin-v1"
-        ],
+        "layouts": ["agent-plugin-v1"],
         "surfaces": {
           "skills": 5,
           "commands": 0,
@@ -151,22 +145,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "daisyui"
-            ]
+            "suiteIds": ["daisyui"]
           }
         ],
-        "notes": [
-          "marketplace entry \"daisyui-blueprint\": path \"./packages/blueprint\" is missing or unreadable"
-        ],
+        "notes": ["marketplace entry \"daisyui-blueprint\": path \"./packages/blueprint\" is missing or unreadable"],
         "noteCount": 1,
         "dialectManifestRead": false,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json",
-          ".agents/plugins/marketplace.json",
-          ".cursor-plugin/marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", ".cursor-plugin/marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "shadowed",
@@ -218,9 +204,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "claude-code"
-        ],
+        "layouts": ["claude-code"],
         "surfaces": {
           "skills": 33,
           "commands": 0,
@@ -234,21 +218,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "compound-engineering"
-            ]
+            "suiteIds": ["compound-engineering"]
           }
         ],
         "notes": [],
         "noteCount": 0,
         "dialectManifestRead": false,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json",
-          ".agents/plugins/marketplace.json",
-          ".cursor-plugin/marketplace.json",
-          ".kimi-plugin/marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", ".cursor-plugin/marketplace.json", ".kimi-plugin/marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "shadowed",
@@ -294,9 +271,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "claude-code"
-        ],
+        "layouts": ["claude-code"],
         "surfaces": {
           "skills": 14,
           "commands": 0,
@@ -310,19 +285,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "superpowers"
-            ]
+            "suiteIds": ["superpowers"]
           }
         ],
         "notes": [],
         "noteCount": 0,
         "dialectManifestRead": false,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json",
-          ".agents/plugins/marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "shadowed",
@@ -368,9 +338,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "universal"
-        ],
+        "layouts": ["universal"],
         "surfaces": {
           "skills": 18,
           "commands": 0,
@@ -384,18 +352,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "context-engineering"
-            ]
+            "suiteIds": ["context-engineering"]
           }
         ],
         "notes": [],
         "noteCount": 0,
         "dialectManifestRead": true,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "integrated",
@@ -441,9 +405,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "agent-plugin-v1"
-        ],
+        "layouts": ["agent-plugin-v1"],
         "surfaces": {
           "skills": 5,
           "commands": 0,
@@ -457,22 +419,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "daisyui"
-            ]
+            "suiteIds": ["daisyui"]
           }
         ],
-        "notes": [
-          "marketplace entry \"daisyui-blueprint\": path \"./packages/blueprint\" is missing or unreadable"
-        ],
+        "notes": ["marketplace entry \"daisyui-blueprint\": path \"./packages/blueprint\" is missing or unreadable"],
         "noteCount": 1,
         "dialectManifestRead": true,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json",
-          ".agents/plugins/marketplace.json",
-          ".cursor-plugin/marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", ".cursor-plugin/marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "integrated",
@@ -524,9 +478,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "claude-code"
-        ],
+        "layouts": ["claude-code"],
         "surfaces": {
           "skills": 13,
           "commands": 0,
@@ -540,19 +492,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "oh-story"
-            ]
+            "suiteIds": ["oh-story"]
           }
         ],
         "notes": [],
         "noteCount": 0,
         "dialectManifestRead": false,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json",
-          "marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json", "marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "shadowed",
@@ -598,9 +545,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "claude-code"
-        ],
+        "layouts": ["claude-code"],
         "surfaces": {
           "skills": 6,
           "commands": 0,
@@ -614,20 +559,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "ponytail"
-            ]
+            "suiteIds": ["ponytail"]
           }
         ],
         "notes": [],
         "noteCount": 0,
         "dialectManifestRead": false,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json",
-          ".agents/plugins/marketplace.json",
-          ".github/plugin/marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", ".github/plugin/marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "shadowed",
@@ -673,9 +612,7 @@
           }
         ],
         "suiteCount": 1,
-        "layouts": [
-          "claude-code"
-        ],
+        "layouts": ["claude-code"],
         "surfaces": {
           "skills": 0,
           "commands": 0,
@@ -689,19 +626,14 @@
             "filter": "marketplace",
             "outcome": "resolved",
             "detail": "1 suite(s)",
-            "suiteIds": [
-              "headroom"
-            ]
+            "suiteIds": ["headroom"]
           }
         ],
         "notes": [],
         "noteCount": 0,
         "dialectManifestRead": false,
         "dialectMarketplaceRead": false,
-        "presentMarketplaces": [
-          ".claude-plugin/marketplace.json",
-          ".github/plugin/marketplace.json"
-        ],
+        "presentMarketplaces": [".claude-plugin/marketplace.json", ".github/plugin/marketplace.json"],
         "scannerMarketplace": ".claude-plugin/marketplace.json"
       },
       "verdict": "shadowed",

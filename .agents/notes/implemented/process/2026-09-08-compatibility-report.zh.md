@@ -12,7 +12,7 @@ Status: implemented
 - **每个 schema 一个仓库，按分支钉定。** `scripts/compat-sources.json` 钉住「使用该布局且 star 最多」的 GitHub 候选：先用代码搜索找出候选，再用批量 GraphQL 查 star，最后逐文件确认它确实提供该布局。报告记录实际 checkout 的提交号，样本不会悄悄漂移。
 - **获取方式是稀疏、blobless、延迟检出。** 先用 `--depth 1 --filter=blob:none --no-checkout` 克隆，设置 sparse 规则，再 `git checkout`。`--no-checkout` 是关键：单纯的 `--sparse` 克隆仍会先取出根目录 blob，某个样本因此要以 155 KB/s 下载 54 MB 的 GIF。先设规则后检出，12 GB 的仓库不到 1 MB。checkout 缓存在 `node_modules/.cache/compat-report/`。
 - **一套点出关键情形的判定词。** `integrated`：扫描器把该方言自己的清单读作套件身份。`shadowed`：发现了套件，但胜出的是另一种方言的清单。`unread`：没有发现任何套件。`error`：获取或扫描失败。遮蔽（shadowing）正是矩阵此前无法表达的那个发现。
-- **报告是生成物，并有离线守卫。** `node scripts/compat-report.mjs` 写出 `docs/compat-report.md` 与 `docs/compat-report.json`；两者因为是生成物而列入 `.prettierignore`。`tests/compat-report.test.ts` 强制覆盖（每个方言 schema 都要有样本，外加内置的 agent-plugins schema）、形状、提交号与判定词合法性、被引用的 schema 文件确实存在，以及两份 README 都引用每个抽样仓库并链接报告。它完全不联网。
+- **报告是生成物，并有离线守卫。** `node scripts/compat-report.mjs` 写出 `docs/reference/compat-report.md` 与 `docs/reference/compat-report.json`；两者因为是生成物而列入 `.prettierignore`。`tests/compat-report.test.ts` 强制覆盖（每个方言 schema 都要有样本，外加内置的 agent-plugins schema）、形状、提交号与判定词合法性、被引用的 schema 文件确实存在，以及两份 README 都引用每个抽样仓库并链接报告。它完全不联网。
 - **README 矩阵带实测行。** ZCode、Qoder CLI、GitHub Copilot CLI 的清单路径已被识别，并附明确的能力边界；「抽样验证」表列出布局、仓库、方言清单、schema 结论与扫描器结论。脚本测量前重新编译当前扫描器，从其布局注册表读取 marketplace 路径，并区分文件存在与策略实际产出。
 - **schema 仍是参考契约。** 报告只做测量，不会让扫描器在运行时按自撰 schema 校验。那仍是一个独立的 fail-closed 决定，本次刻意不做。
 - **替代性检查。** 本笔记扩展而非取代[规范库笔记](2026-09-08-plugin-specification-library.zh.md)：schema 的角色不变，本笔记只拥有「如何测量它们的主张」。[README 信息结构](2026-09-08-readme-information-structure.zh.md)仍拥有 README 的组织方式，本笔记拥有兼容性章节背后的证据。
@@ -36,6 +36,6 @@ Status: implemented
 
 ## 验证
 
-- `node scripts/compat-report.mjs`——九个样本，schema 全部通过，三个 `integrated`、六个 `shadowed`，写入 `docs/compat-report.json` 与 `docs/compat-report.md`。
+- `node scripts/compat-report.mjs`——九个样本，schema 全部通过，三个 `integrated`、六个 `shadowed`，写入 `docs/reference/compat-report.json` 与 `docs/reference/compat-report.md`。
 - `pnpm exec vitest run tests/compat-report.test.ts tests/schemas.test.ts`——十个用例，覆盖报告覆盖度/形状、schema 编译与 README 证据链接。
 - `README.md`、`README.zh.md` 与 `docs-site/src/pages/compatible-plugins.astro` 已更新新行、抽样验证表与报告链接。

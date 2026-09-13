@@ -8,7 +8,7 @@ const { execSync } = require('node:child_process')
 const fs = require('node:fs')
 
 const BASE = 'http://127.0.0.1:3080'
-const SHOTS = '/Users/sivan/workspace/dsh-agent-plugins-market/docs/promotion/evidence'
+const SHOTS = '/Users/sivan/workspace/dsh-agent-plugins-market/docs/scratch/promotion/evidence'
 const DSH_PID = 17733
 
 function snapshotMcp(label) {

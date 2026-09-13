@@ -5,7 +5,7 @@
  * SDK-owned and covered upstream; these tests pin the provider half.
  *
  * Ported from the harness `dsh-mcp-client` oauth.spec (archived patch series
- * `docs/upstream-proposal/patches/`), adapted to the market's self-built
+ * `docs/developer/upstream-proposal/patches/`), adapted to the market's self-built
  * bridge modules.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'

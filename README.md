@@ -75,7 +75,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 3. Open a suite, review its contents, then install it and ensure it is enabled.
 4. For a suite with skills, check the **Skills** tab and type `/` in chat to find its user-invocable skills. For an MCP suite, check **MCP services** and resolve any credential or connection notice before using its tools.
 
-Requirements, profile configuration and alternative installs: [usage guide](docs/guides/usage.md#installation-options).
+Requirements, profile configuration and alternative installs: [usage guide](docs/user/usage.md#installation-options).
 
 ## Everyday use
 
@@ -92,13 +92,13 @@ The workspace has six tabs:
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
 
-Everything you author yourself lives in the shared Agent layout root: skills, commands and personas as Markdown under `~/.agents/`, and the MCP and LSP services you add in the workspace in `~/.agents/mcp.json` and `~/.agents/lsp.json`. Project-native resources stay in the project. See [storage and discovery](docs/guides/usage.md#storage-and-discovery) for paths and precedence.
+Everything you author yourself lives in the shared Agent layout root: skills, commands and personas as Markdown under `~/.agents/`, and the MCP and LSP services you add in the workspace in `~/.agents/mcp.json` and `~/.agents/lsp.json`. Project-native resources stay in the project. See [storage and discovery](docs/user/usage.md#storage-and-discovery) for paths and precedence.
 
 All six tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active.
 
 ## Compatibility and boundaries
 
-Supported **layout dialects** describe how files are organized. The [shared priority table](#layout-detection-precedence) lists suite manifests and Marketplace catalogs together. All ten layout contracts in [`schemas/`](schemas/README.md) have independent reader tests; [the layout audit](docs/layout-coverage.md) maps them to pinned repository fixtures.
+Supported **layout dialects** describe how files are organized. The [shared priority table](#layout-detection-precedence) lists suite manifests and Marketplace catalogs together. All ten layout contracts in [`schemas/`](schemas/README.md) have independent reader tests; [the layout audit](docs/user/layout-coverage.md) maps them to pinned repository fixtures.
 
 Supported **runtime surfaces** describe what DSH can use:
 
@@ -111,7 +111,7 @@ Supported **runtime surfaces** describe what DSH can use:
 | Hooks    | The command-hook subset mapped by `dsh-hooks-claude-code`.                                                                                                    |
 | LSP      | Self-provisioned: installing the plugin is the whole setup, and `lsp` mounts only while a language server is wanted; the server executable must be on `PATH`. |
 
-Agent roles appear in the session catalog and run through `subagent_run(agent, prompt)`. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/guides/agent-roles.md) for the frontmatter fields and limits.
+Agent roles appear in the session catalog and run through `subagent_run(agent, prompt)`. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/user/agent-roles.md) for the frontmatter fields and limits.
 
 ### Layout detection precedence
 
@@ -138,7 +138,7 @@ The order is defined in [`src/model/layouts.ts`](src/model/layouts.ts); selectio
 
 ### Layout support matrix
 
-The table says per layout whether this plugin reads a given surface at all. **Yes** means the layout's own files are read and injected; **Partial** means only part of the formats is understood, or the upstream layout has no such definition — the notes below say which. Evidence: the [compatibility report](docs/compat-report.md) and [layout audit](docs/layout-coverage.md).
+The table says per layout whether this plugin reads a given surface at all. **Yes** means the layout's own files are read and injected; **Partial** means only part of the formats is understood, or the upstream layout has no such definition — the notes below say which. Evidence: the [compatibility report](docs/reference/compat-report.md) and [layout audit](docs/user/layout-coverage.md).
 
 | Layout                                                                                                        | Skills | Agents  | Commands | MCP     | Hooks   | LSP     |
 | ------------------------------------------------------------------------------------------------------------- | ------ | ------- | -------- | ------- | ------- | ------- |
@@ -168,13 +168,13 @@ Reading a layout does not guarantee every behavior of its original platform. Inv
 
 The plugin settings card has **Scan project Agent layouts** (`dsh-agent-plugins-market.scanProjectLayouts`, default on). It controls one thing: whether the project you are working in contributes skills, commands, agent roles, MCP servers and hooks from its own directories (`.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder`, `.github`). Turning it off removes those candidates immediately; configured sources and installed suites are unaffected.
 
-[Project layouts](docs/guides/usage.md#project-layouts) lists the directories and files read per layout and how they are mounted.
+[Project layouts](docs/user/usage.md#project-layouts) lists the directories and files read per layout and how they are mounted.
 
 ### Verified samples
 
-The README repositories have offline snapshots in [`tests/fixtures/real-layouts/`](tests/fixtures/real-layouts/) with commit IDs, hashes and licenses, and each layout has an isolated reader test. The [compatibility report](docs/compat-report.md) records the sampled repositories, their schema verdicts and the scanner output; [the audit](docs/layout-coverage.md) records independent resource checks. These are documentation, source and sample checks — not end-to-end certification for every platform.
+The README repositories have offline snapshots in [`tests/fixtures/real-layouts/`](tests/fixtures/real-layouts/) with commit IDs, hashes and licenses, and each layout has an isolated reader test. The [compatibility report](docs/reference/compat-report.md) records the sampled repositories, their schema verdicts and the scanner output; [the audit](docs/user/layout-coverage.md) records independent resource checks. These are documentation, source and sample checks — not end-to-end certification for every platform.
 
-Review third-party suites before enabling them: enabled services and hooks can execute programs. See the [runtime and security details](docs/guides/usage.md#runtime-and-security).
+Review third-party suites before enabling them: enabled services and hooks can execute programs. See the [runtime and security details](docs/user/usage.md#runtime-and-security).
 
 ## FAQ
 
@@ -196,7 +196,7 @@ Only when **Background source updates** is on: every configured source is then r
 
 **What if a source download fails?**
 
-Use a local directory, adopt a manual checkout, or configure a proxy / mirror. See [source configuration](docs/guides/usage.md#configure-marketplace-sources).
+Use a local directory, adopt a manual checkout, or configure a proxy / mirror. See [source configuration](docs/user/usage.md#configure-marketplace-sources).
 
 **When do local edits become visible?**
 
@@ -208,10 +208,10 @@ Only when you tick **also delete the managed market directory** in the confirmat
 
 ## More documentation
 
-- [Usage guide](docs/guides/usage.md): installation, source configuration, storage, host requirements, project layouts, MCP / LSP and feedback settings.
+- [Usage guide](docs/user/usage.md): installation, source configuration, storage, host requirements, project layouts, MCP / LSP and feedback settings.
 - [Plugin specifications](schemas/README.md): per-dialect reference schemas and evidence, plus the vendored agent-plugins v1.0.0 contracts.
-- [Compatibility report](docs/compat-report.md): one real repository per schema, with commits, schema verdicts and scanner output.
+- [Compatibility report](docs/reference/compat-report.md): one real repository per schema, with commits, schema verdicts and scanner output.
 - [Contributing](CONTRIBUTING.md): development setup, checks and PR workflow.
 - [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).
-- [Domain glossary](CONTEXT.md) · [Architecture](docs/adr/0001-catalog-centered-modular-refactor.md).
-- [Agent roles and storage](docs/guides/agent-roles.md): installed-resource editing, model routing and migration.
+- [Domain glossary](CONTEXT.md) · [Architecture](docs/developer/decisions/0001-catalog-centered-modular-refactor.md).
+- [Agent roles and storage](docs/user/agent-roles.md): installed-resource editing, model routing and migration.

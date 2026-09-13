@@ -17,7 +17,7 @@ The action's own `release-as` input is deliberately unused: with `config-file` (
 
 Both paths converge on the same Release PR branch, so a manual dispatch updates whatever release-please had already proposed; merging that PR remains the single mandatory human step, and tag/Release/npm publish stay automatic.
 
-The runbook ([docs/release/release-process.md](../../../../docs/release/release-process.md)) documents both modes and the `action_required` approval step for runs on the bot branch.
+The runbook ([docs/developer/release/release-process.md](../../../../docs/developer/release/release-process.md)) documents both modes and the `action_required` approval step for runs on the bot branch.
 
 ## Alternatives considered
 

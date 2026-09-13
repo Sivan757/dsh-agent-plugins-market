@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-User-authored skills, commands and personas persisted under `$DSH_HOME/agent-plugins/user/{skills,commands,agents}`, and the services a user added in the workspace persisted as `data/mcp-servers.json` and `data/lsp-servers.json`. That buried content the user owns inside plugin-private state: no other Agent tool reads it, and the service declarations did not use the layout this plugin already reads from a project's `.agents/` directory. [The ecosystem research](../../../../docs/research/2026-09-02-agent-config-compat-ecosystem.md) records project `.agents/skills/` and global `~/.agents/skills/` as de-facto cross-tool conventions.
+User-authored skills, commands and personas persisted under `$DSH_HOME/agent-plugins/user/{skills,commands,agents}`, and the services a user added in the workspace persisted as `data/mcp-servers.json` and `data/lsp-servers.json`. That buried content the user owns inside plugin-private state: no other Agent tool reads it, and the service declarations did not use the layout this plugin already reads from a project's `.agents/` directory. [The ecosystem research](../../../../docs/developer/discussion/2026-09-02-agent-config-compat-ecosystem.md) records project `.agents/skills/` and global `~/.agents/skills/` as de-facto cross-tool conventions.
 
 ## Decision
 

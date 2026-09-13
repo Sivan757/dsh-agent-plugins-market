@@ -60,7 +60,7 @@ interface PinnedSample {
   stars: number
 }
 
-const report = JSON.parse(await readFile(join(ROOT, 'docs', 'compat-report.json'), 'utf8')) as Report
+const report = JSON.parse(await readFile(join(ROOT, 'docs', 'reference', 'compat-report.json'), 'utf8')) as Report
 const config = JSON.parse(await readFile(join(ROOT, 'scripts', 'compat-sources.json'), 'utf8')) as { samples: PinnedSample[] }
 /** Dialect directories that ship a plugin schema; `1.0.0/` is vendored and `skill-collection/` has no manifest. */
 const schemaDirectories: string[] = []
@@ -130,11 +130,11 @@ describe('compatibility report', () => {
   it('links the report and audit from both READMEs and cites every sample in the evidence docs', async () => {
     for (const file of ['README.md', 'README.zh.md']) {
       const text = await readFile(join(ROOT, file), 'utf8')
-      expect(text, `${file} must link the compatibility report`).toContain('docs/compat-report.md')
-      expect(text, `${file} must link the layout audit`).toContain('docs/layout-coverage')
+      expect(text, `${file} must link the compatibility report`).toContain('docs/reference/compat-report.md')
+      expect(text, `${file} must link the layout audit`).toContain('docs/user/layout-coverage')
     }
     // Per-sample evidence lives with the report and the audit, not in the READMEs.
-    for (const file of ['docs/compat-report.md', 'docs/layout-coverage.md', 'docs/layout-coverage.zh.md']) {
+    for (const file of ['docs/reference/compat-report.md', 'docs/user/layout-coverage.md', 'docs/user/layout-coverage.zh.md']) {
       const text = await readFile(join(ROOT, file), 'utf8')
       for (const sample of report.samples) {
         if (sample.verdict === 'error') continue

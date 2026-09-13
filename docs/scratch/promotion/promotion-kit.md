@@ -1,6 +1,6 @@
 # dsh-agent-plugins-market 推广工具箱
 
-- 依据：`docs/research/dsh-plugin-registration-ecosystem.md`（注册机制全景分析）
+- 依据：`docs/developer/discussion/dsh-plugin-registration-ecosystem.md`（注册机制全景分析）
 - 纪律：**所有对外发布（PR/Issue/帖子/发布）必须先经用户明确批准**；本文件只是草稿库。
 - 更新：2026-08-25 · 当前版本 0.5.1
 
@@ -36,16 +36,16 @@
 
 ## 4. 渠道与状态
 
-| 渠道                                                                          | 状态                                  | 材料                                             |
-| ----------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------ |
-| npm + GitHub 双语 README（含对比表/FAQ）                                      | ✅ 已上线                             | 根 README.md / README.zh.md                      |
-| 文档站（GitHub Pages）                                                        | ✅ 已上线                             | docs-site/                                       |
-| dsh-web 社区插件索引登记（community.json 第 38 条）                           | 📝 材料就绪待批准提交                 | docs/promotion/dsh-web-pr-body.md                |
-| 生命周期证据链（启停/卸载截图）                                               | ✅ 已沉淀                             | docs/promotion/lifecycle-evidence.md + evidence/ |
-| GitHub topics（deepseek-harness / claude-code / mcp）                         | ⬜ 建议补充到 repo about              | —                                                |
-| awesome 列表收录申请（awesome-deepseek-harness-plugins、awesome-claude-code） | ⬜ 待批准后提 PR                      | 用 §5 文案                                       |
-| 中文社区帖（linux.do / V2EX）与英文帖（X/Reddit r/ClaudeAI）                  | ⬜ 草稿见 §5                          | —                                                |
-| 向 deepseek-harness 官方 examples/docs 贡献「第三方插件开发指南」             | ⬜ 机会点：官方无此教程，本项目可补位 | 引用研究文档 §1.4 模板                           |
+| 渠道                                                                          | 状态                                  | 材料                                                     |
+| ----------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
+| npm + GitHub 双语 README（含对比表/FAQ）                                      | ✅ 已上线                             | 根 README.md / README.zh.md                              |
+| 文档站（GitHub Pages）                                                        | ✅ 已上线                             | docs-site/                                               |
+| dsh-web 社区插件索引登记（community.json 第 38 条）                           | 📝 材料就绪待批准提交                 | docs/scratch/promotion/dsh-web-pr-body.md                |
+| 生命周期证据链（启停/卸载截图）                                               | ✅ 已沉淀                             | docs/scratch/promotion/lifecycle-evidence.md + evidence/ |
+| GitHub topics（deepseek-harness / claude-code / mcp）                         | ⬜ 建议补充到 repo about              | —                                                        |
+| awesome 列表收录申请（awesome-deepseek-harness-plugins、awesome-claude-code） | ⬜ 待批准后提 PR                      | 用 §5 文案                                               |
+| 中文社区帖（linux.do / V2EX）与英文帖（X/Reddit r/ClaudeAI）                  | ⬜ 草稿见 §5                          | —                                                        |
+| 向 deepseek-harness 官方 examples/docs 贡献「第三方插件开发指南」             | ⬜ 机会点：官方无此教程，本项目可补位 | 引用研究文档 §1.4 模板                                   |
 
 ## 5. 即用文案草稿
 

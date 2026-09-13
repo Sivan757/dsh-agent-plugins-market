@@ -11,7 +11,7 @@
 1. **模型指定功能本身生效**：`provider` + `model` frontmatter 会被真实下发给子代理（跨 provider 亦生效），证据是子会话 `request/header.config` 与 `request/context`。
 2. **但 394/437 张市场 agent 卡片无法被 `market_agent` 运行**：它们的 `tools:` 使用 Claude Code 大写工具名（`Read`/`Bash`/`Grep`…），host 的 `tools.restrict()` 直接抛错，spawn 失败。
 3. **另有 324 张卡片因 `model: sonnet|opus|haiku` 被拒绝**：`resolveAgentModel()` 要求裸 id 在已注册 provider 中唯一命中，Claude 别名一律报 `is not advertised`。
-4. 这不是意外，而是 `docs/guides/agent-roles.md:17` 的既有设计（"Claude Code tool names and model aliases are not automatically translated"）。但它在产品层面形成"能扫描、能安装、能在面板里列出、**但点不亮**"的落差：本插件的定位是零转换原地注入，agent 卡片却是唯一一类装上就跑不了的 surface。
+4. 这不是意外，而是 `docs/user/agent-roles.md:17` 的既有设计（"Claude Code tool names and model aliases are not automatically translated"）。但它在产品层面形成"能扫描、能安装、能在面板里列出、**但点不亮**"的落差：本插件的定位是零转换原地注入，agent 卡片却是唯一一类装上就跑不了的 surface。
 
 ---
 
@@ -74,7 +74,7 @@ Claude 工具名出现次数（含带参形式 `Bash(git:*)`、`Agent(ns:name)`�
 三条路线，代价递增：
 
 1. **文档化现状**（零代码）：在面板/文档明示"仅接受 DSH 工具名与已注册模型 id"，用户自行建 user 面板副本改写。代价：394 张卡片继续不可用，与本插件"零转换注入"的卖点冲突。
-2. **加方言翻译层**（推荐）：在 `parseAgentRole()` 后加映射表，`Bash→bash`、`Read→read`、`Agent|Task→subagent`、`WebSearch→web_search`、`TodoWrite→todo_write`、`Bash(cmd:*)→bash`、`Agent(ns:name)→subagent`；模型别名按"provider 显式指定时映射到该 provider 的默认/命名模型，否则报错"处理。无法映射的名字（`NotebookRead`、`TaskUpdate`）从 allow 列表剔除（收窄权限方向失败，不是提权）。需要 Agent Note + 更新 `docs/guides/agent-roles.md`。
+2. **加方言翻译层**（推荐）：在 `parseAgentRole()` 后加映射表，`Bash→bash`、`Read→read`、`Agent|Task→subagent`、`WebSearch→web_search`、`TodoWrite→todo_write`、`Bash(cmd:*)→bash`、`Agent(ns:name)→subagent`；模型别名按"provider 显式指定时映射到该 provider 的默认/命名模型，否则报错"处理。无法映射的名字（`NotebookRead`、`TaskUpdate`）从 allow 列表剔除（收窄权限方向失败，不是提权）。需要 Agent Note + 更新 `docs/user/agent-roles.md`。
 3. **只映射工具名，模型别名维持报错**：最小改动，但 324 张卡片仍需手改模型。
 
 ---
