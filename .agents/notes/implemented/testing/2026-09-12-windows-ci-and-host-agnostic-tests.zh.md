@@ -14,6 +14,8 @@ Status: implemented
 
 那些此前只在一个宿主上运行过的套件，现在改为按宿主路径规则推导断言，而不是把路径写死：临时根来自 `os.tmpdir()`，期望路径用 `join`/`resolve` 构造，唯一那处权限断言则明确声明它只属于 POSIX——Windows 上 `chmod` 只切换只读属性，权限位是 `0o666`。
 
+`.gitattributes` 让每个文本文件在所有平台上都以 `eol=lf` 检出，因为第二处只在 Windows 出现的失败与路径无关：一个 `commands/*.md` fixture 是按字节原样转发的，其结尾换行会被断言，于是 CRLF 检出报告了一个产品本身并不存在的差异。要覆盖宿主的 `core.autocrlf` 靠的是 `eol=lf`；只有 `text=auto` 会让步于它，仍然得到 CRLF。仓库里已提交的 blob 本来就全是 LF，所以这条规则没有重新规范化任何文件。
+
 ## Consequences
 
 分隔符或大小写假设现在会在它真正出错的那个平台上、在评审之前失败。代价是每次推送到集成分支、每个 PR 多一次安装加一次套件运行。
@@ -28,6 +30,8 @@ Status: implemented
 
 **在断言内部归一化分隔符。** 比较前把两侧折叠成 `/` 会掩盖产品真正产生的那个写法，而那恰恰是值得看见的东西。
 
+**在套件内部归一化换行，而不是用 `.gitattributes`。** 那样每一条按字节读取文件的断言都要重复一遍，而且会把将来某个 fixture 真实的 CRLF 回归也一并掩盖，而不只是掩盖检出的差异。
+
 ## Testing
 
-这个 job 本身就是它的测试：对上面列出的每一个 `/tmp` 根与 POSIX 断言，它都会在 `windows-latest` 上失败——每一处都是这样被发现的。`tests/paths.test.ts` 让分隔符规则本身在每个宿主上都被覆盖，因此即使某次改动只在 Linux 上被执行，win32 行为也仍然被钉住。
+这个 job 本身就是它的测试：对上面列出的每一个 `/tmp` 根、POSIX 断言与依赖 CRLF 的 fixture，它都会在 `windows-latest` 上失败——每一处都是这样被发现的。`tests/paths.test.ts` 让分隔符规则本身在每个宿主上都被覆盖，因此即使某次改动只在 Linux 上被执行，win32 行为也仍然被钉住。

@@ -1,0 +1,9 @@
+# Check every text file out with LF on every platform.
+#
+# The suite reads repository fixtures verbatim — a command template's trailing
+# newline is asserted byte-for-byte, and skill frontmatter is parsed — so a
+# Windows clone that rewrote those files to CRLF would report a difference the
+# product does not have. `eol=lf` overrides the host's `core.autocrlf`, which
+# `text=auto` alone would defer to. Binary files are still detected as binary
+# and left untouched.
+* text=auto eol=lf

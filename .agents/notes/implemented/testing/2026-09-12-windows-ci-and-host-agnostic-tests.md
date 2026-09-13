@@ -14,6 +14,8 @@ Adding the job found more of the same class, this time in the tests rather than 
 
 The suites that had only ever run on one host now derive what they assert from the host's path rules instead of spelling it out: temp roots come from `os.tmpdir()`, expected paths are built with `join`/`resolve`, and the single permission assertion states that it is POSIX-only, because `chmod` on Windows only toggles the read-only attribute and the mode there is `0o666`.
 
+`.gitattributes` checks every text file out with `eol=lf`, because a second Windows-only failure had nothing to do with paths: a `commands/*.md` fixture is forwarded byte-for-byte and its trailing newline is asserted, so a CRLF checkout reported a difference the product does not have. `eol=lf` is the attribute that overrides the host's `core.autocrlf`; `text=auto` alone defers to it and still yields CRLF. Every committed blob was already LF, so the rule renormalized nothing.
+
 ## Consequences
 
 A separator or casing assumption now fails on the platform where it is actually wrong, before review. The job costs one extra install plus one suite run per push to an integration branch and per pull request.
@@ -28,6 +30,8 @@ The file-mode assertion is the one guarantee Windows cannot observe at all; it s
 
 **Normalize separators inside the assertions.** Folding both sides to `/` before comparing hides the spelling the product actually produced, which is the thing worth seeing.
 
+**Normalize line endings inside the suite instead of in `.gitattributes`.** It would have to be repeated in every assertion that reads a file verbatim, and it would hide a genuine CRLF regression in a future fixture rather than only the checkout's.
+
 ## Testing
 
-The job is its own test: it fails on `windows-latest` for every `/tmp` root and POSIX assertion listed above, which is how each was found. `tests/paths.test.ts` keeps the separator rules themselves covered on every host, so the win32 behavior stays pinned even when a change is only exercised on Linux.
+The job is its own test: it fails on `windows-latest` for every `/tmp` root, POSIX assertion, and CRLF-dependent fixture listed above, which is how each was found. `tests/paths.test.ts` keeps the separator rules themselves covered on every host, so the win32 behavior stays pinned even when a change is only exercised on Linux.
