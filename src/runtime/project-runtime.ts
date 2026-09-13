@@ -6,14 +6,13 @@ import type { HostTranslate } from './host-locale.js'
 import { McpMountRegistry } from './mcp-mounts.js'
 import { HooksMountRegistry } from './hooks-mounts.js'
 import type { Suite } from '../model/types.js'
-import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from './user-store.js'
 
 interface ProjectAgent {
   ctx: Context
-  session: { id?: string; header: { cwd?: string } }
+  session: { header: { cwd?: string } }
 }
 
 interface AgentMount {
@@ -28,8 +27,8 @@ export function mountProjectCommands(ctx: Context, catalog: Catalog, t: HostTran
 
 /** MCP uses a separate injected child so network startup cannot delay local commands. */
 export function mountProjectMcp(ctx: Context, catalog: Catalog, dataRoot: string): { refresh(): Promise<void>; dispose(): Promise<void> } {
-  return mountProjectSurface(ctx, catalog, 'tools', (scope, agent) => {
-    const registry = new McpMountRegistry(scope, dataRoot, agent.session.id ?? randomUUID())
+  return mountProjectSurface(ctx, catalog, 'tools', scope => {
+    const registry = new McpMountRegistry(scope, dataRoot)
     registry.setBackendProvider(() => catalog.mcpBackend())
     return registry
   })

@@ -155,6 +155,7 @@ export const zh = {
   mcpRetryPreservesCredentials: '重新尝试连接失败的托管服务；保留已有凭据。此操作会检查所有托管 MCP 服务。',
   mcpReauthExplain: '这将清除本服务已保存的 OAuth 授权并重新连接，可能中断正在使用它的请求。仅在需要更换账号或授权权限时使用；若服务要求登录，请在打开的浏览器页面完成授权。',
   mcpConfirmReauth: '清除授权并重新连接',
+  mcpOauthDefault: '授权默认开启',
   mcpSaveFirst: '请先保存配置，再执行连接操作；连接操作只使用已保存的配置。',
   mcpStillUnavailable: '操作已执行，但当前尚未确认服务已连接，请检查连接状态和错误原因',
   mcpConfigureCredentialsFirst: '请先在凭据配置中填写缺失的凭据；重试连接不会自动补齐凭据。',
@@ -434,6 +435,7 @@ export const en: Record<LocaleKey, string> = {
   mcpReauthExplain:
     'This clears the saved OAuth grant for this service and reconnects it, which may interrupt active requests. Use it to change accounts or permissions. If sign-in is required, complete authorization in the browser page that opens.',
   mcpConfirmReauth: 'Clear authorization and reconnect',
+  mcpOauthDefault: 'OAuth on by default',
   mcpSaveFirst: 'Save configuration before connection actions; they use saved configuration only.',
   mcpStillUnavailable: 'The operation finished, but the service is not confirmed connected. Check its status and error details',
   mcpConfigureCredentialsFirst: 'Configure the missing credentials first. Retrying cannot supply them automatically.',

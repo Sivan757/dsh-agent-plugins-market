@@ -50,3 +50,10 @@ it('shows close but no connection actions for external servers', async () => {
   expect(button('mcpRetryConnection')).toBeUndefined()
   expect(button('mcpReauthorize')).toBeUndefined()
 })
+it('says that a remote server authorizes without declaring it', async () => {
+  await mount({ ...base, oauthDefault: true })
+  expect(document.body.textContent).toContain('mcpOauthDefault')
+  await act(async () => root.unmount())
+  await mount({ ...base, transport: 'stdio' })
+  expect(document.body.textContent).not.toContain('mcpOauthDefault')
+})

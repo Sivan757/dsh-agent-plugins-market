@@ -50,6 +50,21 @@ describe('MCP status aggregation', () => {
     expect(direct.tools[0]?.name).toBe('read_file')
   })
 
+  it('flags the remote servers that authorize without declaring it', () => {
+    // The redacted configuration shows only what the suite declared, so a
+    // remote server whose suite omits `auth` still reads as auth-free while the
+    // bridge starts OAuth on the server's 401 challenge.
+    const payload = buildMcpStatus([suite()], [], [])
+    expect(payload.entries.find(entry => entry.serverKey === 'docs')?.oauthDefault).toBe(true)
+    expect(payload.entries.find(entry => entry.serverKey === 'app')?.oauthDefault).toBeUndefined()
+    const declared = buildMcpStatus(
+      [suite({ mcp: { schema: 'native-client', servers: { docs: { type: 'streamable-http', url: 'https://example.test/mcp', auth: { enabled: true } } } } })],
+      [],
+      []
+    )
+    expect(declared.entries[0]?.oauthDefault).toBeUndefined()
+  })
+
   it('reads MCP tools from the optional tool-layer snapshot adapter', () => {
     const runtime = {
       layers: {

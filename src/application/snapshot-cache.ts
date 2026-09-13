@@ -9,7 +9,7 @@
  * acquire) clear every cached discovery generation; the TTL bounds staleness
  * for in-place working-tree edits of local sources.
  */
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { resolveProjectRoot, STATE_FILE_NAME } from '../catalog/paths.js'
 import { discoverSourceListWithNotes } from '../catalog/source-catalog.js'
 import { loadState } from '../runtime/state-store.js'
@@ -84,6 +84,13 @@ export class SnapshotCache {
   /** Read one coherent project-dimension snapshot for a workspace cwd. */
   async readProjectCatalog(cwd: string): Promise<CatalogSnapshot> {
     const projectRoot = await resolveProjectRoot(cwd)
+    // A cwd with no `.git` ancestor resolves to itself as its own project root,
+    // so a session started in the harness home lands on the user dimension root.
+    // That directory is the user's catalog, not a project's: reading it would
+    // present every user-level suite as a project suite of that one session.
+    if (resolve(projectRoot) === resolve(this.host.userRoot)) {
+      return { revision: this.host.revision, sources: [], suites: [], enabledSuites: [] }
+    }
     if (this.ttls.project <= 0) return this.buildProjectSnapshot(projectRoot)
     const cached = this.projectSnapshots.get(projectRoot)
     if (cached !== undefined && cached.expiresAt > Date.now()) return cached.snapshot

@@ -237,7 +237,12 @@ describe('project MCP runtime scope', () => {
       if (firstScope === undefined || secondScope === undefined) throw new Error('expected both project agent contexts to inject a mount scope')
       expect([...firstScope.values()]).toEqual([expect.objectContaining({ command: 'server-0', cwd: first })])
       expect([...secondScope.values()]).toEqual([expect.objectContaining({ command: 'server-1', cwd: second })])
-      expect([...firstScope.keys()]).not.toEqual([...secondScope.keys()])
+      // Both agents mount the same logical server under one stable serverName:
+      // the host keeps each agent's registrations in that agent's own scope, so
+      // the per-agent config already disambiguates them. A per-session suffix
+      // would fork the server's identity — and with it its stored OAuth grant —
+      // for every session instead.
+      expect([...firstScope.keys()]).toEqual([...secondScope.keys()])
       await catalog.setScanProjectLayouts(false)
       expect(scopes.map(scope => scope.size)).toEqual([0, 0])
       await catalog.setScanProjectLayouts(true)

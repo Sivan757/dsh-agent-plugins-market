@@ -116,6 +116,8 @@ MCP details offer retry only for failed managed services or residual mounts, and
 
 Open **MCP services** for service configuration, credentials, overrides, authorization and retry actions. Suite details are read-only previews.
 
+Remote services authorize on demand: a declaration that says nothing about `auth` still runs OAuth, and only when the server challenges the connection. Service details mark those rows **OAuth on by default**.
+
 The **MCP enhancement** setting (`mcpEnhanced`, default `true`) selects the built-in bridge with stdio, Streamable HTTP / OAuth and legacy SSE. Turning it off selects the host client compatibility backend, which does not provide OAuth or SSE through this integration. Changing the setting remounts services.
 
 Use references such as `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. Missing references block startup with `needs-credentials`. Host credential writes are write-only and do not put literal tokens into suite state or override JSON. Read-only launch-environment values must be changed before restarting DSH.

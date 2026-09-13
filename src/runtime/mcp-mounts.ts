@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto'
 import * as mcpBridge from './mcp-client/bridge.js'
 import type { McpBackend } from './mcp-backend.js'
 import type { McpSuiteOverrides } from './mcp-overrides.js'
-import { deriveServerName, toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
+import { toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
@@ -60,8 +60,7 @@ export class McpMountRegistry {
 
   constructor(
     private readonly ctx: Context,
-    private readonly pluginDataRoot: string,
-    private readonly namespace?: string
+    private readonly pluginDataRoot: string
   ) {
     this.retries = new RetryScheduler({
       replay: () => this.reconcile(this.lastEnabled),
@@ -143,8 +142,10 @@ export class McpMountRegistry {
         })
       }
       for (const mount of mounts) {
-        // Bridge namespaces are reserved app-wide, even when tools are agent-scoped.
-        if (this.namespace !== undefined) mount.config.serverName = deriveServerName(mount.config.serverName, this.namespace)
+        // One derived serverName per suite/server, whatever the dimension: the
+        // host keeps an agent's registrations in that agent's own scope and lets
+        // them shadow globals, so suffixing a per-session id would only fork the
+        // server's identity — including its stored OAuth grant — per session.
         wanted.set(mountKey(mount.suiteId, mount.serverKey), { suite, serverKey: mount.serverKey, request: mount })
       }
     }

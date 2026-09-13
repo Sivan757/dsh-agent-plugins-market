@@ -335,11 +335,17 @@ export function McpDetailModal({
           entry.endpoint === undefined ? null : h('p', { className: css.detailEndpoint }, entry.endpoint),
           // Source and transport live in the dialog rather than on the card:
           // the qualified suite id disambiguates same-named servers from
-          // different sources (e.g. two context7 installs).
+          // different sources (e.g. two context7 installs). The authorization
+          // note rides here too: a server that declares no `auth` block still
+          // runs the OAuth flow, and the configuration below cannot show that.
           h(
             'p',
             { className: css.detailEndpoint },
-            [entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.suiteId ?? entry.source ?? '—'}` : t('mcpDirect'), entry.transport].join(' · ')
+            [
+              entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.suiteId ?? entry.source ?? '—'}` : t('mcpDirect'),
+              entry.transport,
+              ...(entry.oauthDefault === true ? [t('mcpOauthDefault')] : [])
+            ].join(' · ')
           )
         )
       ),

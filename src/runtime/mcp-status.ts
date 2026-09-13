@@ -91,6 +91,7 @@ export function buildMcpStatus(
         tools: disabled && !orphaned ? [] : tools.map(tool => ({ name: tool.name, ...(tool.description === undefined ? {} : { description: tool.description }) })),
         advertisedTools: tools.length > 0,
         retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',
+        ...(effective.type === 'stdio' || effective.auth !== undefined ? {} : { oauthDefault: true }),
         ...(diagnostic?.code === undefined ? {} : { code: diagnostic.code }),
         ...(reason === undefined ? {} : { reason }),
         ...(credentialRefs.length === 0 ? {} : { credentialRefs })

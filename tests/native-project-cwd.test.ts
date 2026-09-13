@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -13,6 +13,37 @@ describe('cwd resolution edges', () => {
     await mkdir(join(repo, 'packages', 'app', 'src'), { recursive: true })
     const deepCwd = join(repo, 'packages', 'app', 'src')
     expect(await resolveProjectRoot(deepCwd)).toBe(join(repo, '.dsh', 'agent-plugins'))
+  })
+
+  it('reads a home cwd as no project rather than as a second view of the user dimension', async () => {
+    const { Catalog } = await import('../src/application/catalog.js')
+    // A session started in the harness home has no `.git` ancestor, so its cwd
+    // resolves to itself as the project root and its dimension root lands on the
+    // user dimension root. Reading that as a project would hand the session every
+    // user-level suite as its own.
+    const home = await mkdtemp(join(tmpdir(), 'dsh-home-'))
+    const userRoot = join(home, '.dsh', 'agent-plugins')
+    const source = join(home, 'source')
+    await mkdir(join(source, 'skills', 'greet'), { recursive: true })
+    await writeFile(join(source, 'plugin.json'), JSON.stringify({ name: 'home-suite' }))
+    await writeFile(join(source, 'skills', 'greet', 'SKILL.md'), '---\nname: greet\ndescription: from home.\n---\n')
+    await mkdir(userRoot, { recursive: true })
+    await writeFile(
+      join(userRoot, 'state.json'),
+      JSON.stringify({
+        version: 1,
+        sources: [{ id: 'local', url: source, local: true }],
+        installed: { 'local/home-suite': { enabled: true, installedAt: '2026-09-09T00:00:00Z' } }
+      })
+    )
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
+    await catalog.load()
+    expect((await catalog.readUserCatalog()).enabledSuites.map(suite => suite.id)).toEqual(['home-suite'])
+    const project = await catalog.readProjectCatalog(home)
+    expect(project.enabledSuites).toEqual([])
+    expect(project.suites).toEqual([])
+    expect(project.sources).toEqual([])
+    await rm(home, { recursive: true, force: true })
   })
 })
 
