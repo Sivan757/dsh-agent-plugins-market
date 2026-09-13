@@ -51,7 +51,7 @@ pnpm run build               # tsc emits lib/, tsdown bundles client/
 
 ## Editing these instructions
 
-`CLAUDE.md` symlinks this file at the root; edit `AGENTS.md`. Keep each rule self-contained and link rationale instead of restating it.
+`AGENTS.md` is this repository's only instruction entry point; edit it here. Keep each rule self-contained and link rationale instead of restating it.
 
 <!-- dsh-workflow:begin -->
 
