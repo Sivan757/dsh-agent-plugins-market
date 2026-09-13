@@ -1,6 +1,6 @@
 # 发版材料：v0.7.0
 
-> 基准：`dsh-agent-plugins-market-v0.6.2`（2026-09-10）之后 dev 上的 88 个提交（6 个 `feat:`，0 个 breaking）→ release-please 按 semver 自动升 **minor：0.7.0**。状态：`dev` 领先 `origin/dev` 86 个提交，尚未推送。
+> 基准：`dsh-agent-plugins-market-v0.6.2`（2026-09-10）之后 dev 上的 92 个提交（7 个 `feat:`，0 个 breaking）→ release-please 按 semver 自动升 **minor：0.7.0**。状态：`dev` 已推送（`ade79f1`），领先 `origin/main` 91 个提交。
 
 ---
 
@@ -9,7 +9,7 @@
 ### 1. 代码与质量门禁
 
 - [x] `pnpm run check:refactor`（typecheck + lint + format:check + contract + dependency-cruiser）✅ 143 模块 0 违规
-- [x] `pnpm run test` ✅ **77 个文件 / 573 个测试全绿**（28.2s）
+- [x] `pnpm run test` ✅ **77 个文件 / 575 个测试全绿**（31.1s）
 - [x] `pnpm run build` ✅ `lib/` + `client/`
 - [x] `pnpm --dir docs-site exec astro build` ✅ 4 页
 - [x] `pnpm run check:host-alignment` ✅ 基线 `0.1.5-rc.2`（`next`），11 个包全部对齐
@@ -22,8 +22,24 @@
 - [x] PR 清理：7 个 dependabot PR 全部关闭，有效升级折叠为一个 `chore(deps)` 提交
 - [x] 分支清理：3 个已合并本地分支删除
 - [x] `dependabot.yml`：删掉冗余的 `/docs-site` 条目（pnpm workspace 只有一个锁文件，该条目把每次升级拆成 manifest PR + lockfile PR，两者都过不了 `--frozen-lockfile`），补 `@types/node >=23` ignore
+- [x] 安全公告：main 上 12 条 dependabot 告警涉及的 6 个包全部落到已修补版本（见下）
 - [x] 依赖对齐：`@types/react-dom` `^19.2.4` → `~18.3.0`（与 `react-dom` 18.3.1 及宿主 `dsh-ui-primitives` 一致）
 - [ ] 删除两个已合并的远端分支（`chore/host-fs-seam`、`fix/windows-path-containment`）——**需你确认后执行**
+
+### 2.1 安全公告（GitHub Advisory）
+
+main 的锁文件上 12 条告警、6 个包。**全部已在 dev 的锁文件里修掉**（范围内升级，无 manifest 变更）：
+
+| 包       | 修复前 → 修复后 | 已修补版本 | 是否进入发布产物                    |
+| -------- | --------------- | ---------- | ----------------------------------- |
+| fast-uri | 3.1.5 → 3.1.7   | 3.1.6      | **是**（经 `ajv`，直接依赖）        |
+| qs       | 6.15.3 → 6.16.0 | 6.16.0     | **是**（经 MCP SDK 的 express）     |
+| hono     | 4.13.2 → 4.13.7 | 4.13.5     | **是**（经 MCP SDK 的 node-server） |
+| js-yaml  | 4.3.1 → 4.3.2   | 4.3.2      | 否（docs-site 工具链）              |
+| sharp    | 0.35.4          | 0.35.4     | 否（docs-site 构建）                |
+| astro    | 7.3.2（已达标） | 7.2.8      | 否（docs-site 构建）                |
+
+三个进入运行时的包都来自两个直接依赖（`ajv`、`@modelcontextprotocol/sdk`），插件自身的调用路径不可利用（ajv 解析的是本仓库自带 schema 的 `$id`，MCP SDK 的 HTTP server 只作客户端用），但发布 tarball 不应携带已知漏洞的传递依赖——尤其当补丁只差一个范围内小版本。
 
 ### 3. 行为变更确认
 
@@ -37,7 +53,8 @@
 
 ### 4. 发布流程（release-please 内嵌于 `npm-publish.yml`，详见 [release-process.md](release-process.md)）
 
-- [ ] `git push origin dev`，开 dev → main 的 PR，CI 绿后合并
+- [x] `git push origin dev` ✅（`ade79f1`）
+- [ ] 开 dev → main 的 PR，CI 绿后合并
 - [ ] 确认 release-please 开出 **0.7.0** 的 Release PR（head 固定为 `release-please--branches--main--components--dsh-agent-plugins-market`，base 为 main），核对 `package.json` / CHANGELOG 小节 / `.release-please-manifest.json` 三处一致
 - [ ] quality + CodeQL 绿后合并 Release PR（**合并前需你确认**）
 - [ ] 合并后同 workflow 自动：打 tag `dsh-agent-plugins-market-v0.7.0`、建 GitHub Release、OIDC 发布 npm
@@ -103,6 +120,6 @@ This release makes LSP self-contained and gives existing installs a one-click wa
 
 ## 三、版本判定
 
-- 88 个提交中 `feat:` 6 个、`fix:` 18 个、其余为 docs/test/refactor/chore，无 `feat!` / `BREAKING CHANGE:` → **0.6.2 → 0.7.0（minor，自动）**。
+- 92 个提交中 `feat:` 7 个、`fix:` 19 个、其余为 docs/test/refactor/chore，无 `feat!` / `BREAKING CHANGE:` → **0.6.2 → 0.7.0（minor，自动）**。
 - 无需 `Release-As` 页脚强制版本：本次提交分类与目标版本一致。
 - 若希望把「profile LSP 层需要清理」当作破坏性变更宣传，可保持 0.7.0 并在 Upgrade notes 中强调；API 层面无破坏。
