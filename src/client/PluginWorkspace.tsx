@@ -101,7 +101,7 @@ function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi |
     case 'skills':
       return h(UserPanelSurface, { t, kind: 'skills' })
     case 'commands':
-      return h(UserPanelSurface, { t, kind: 'commands', hint: t('commandsPanelHint') })
+      return h(UserPanelSurface, { t, kind: 'commands' })
     case 'personas':
       return h(UserPanelSurface, { t, kind: 'agents' })
     case 'mcp':

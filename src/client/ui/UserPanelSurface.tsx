@@ -33,12 +33,7 @@ function draftTemplate(kind: UserPanelKind, t: Translate): string {
 type PanelFilter = 'all' | 'disabled' | 'user' | 'plugin'
 
 /** The generic user-panel surface for one panel kind. */
-export function UserPanelSurface(props: {
-  t: Translate
-  kind: UserPanelKind
-  /** The "quick reply" hint line, only rendered for commands. */
-  hint?: string
-}): ReactNode {
+export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): ReactNode {
   const { t, kind } = props
   const [entries, setEntries] = useState<UserPanelEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -208,8 +203,7 @@ export function UserPanelSurface(props: {
                   onDelete: () => openDelete(entry)
                 })
               )
-            ),
-      props.hint === undefined ? null : h('p', { className: css.editorHint }, props.hint)
+            )
     ),
     h(EntryEditorModal, {
       t,

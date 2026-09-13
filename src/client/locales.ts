@@ -162,16 +162,15 @@ export const zh = {
   mcpConfigureCredentialsFirst: '请先在凭据配置中填写缺失的凭据；重试连接不会自动补齐凭据。',
   mcpSavedStatusUnknown: '配置已保存，但无法刷新连接状态',
   mcpEntryGone: '服务已不在当前列表中，请关闭详情并刷新',
-  marketCardDesc: 'Agent Plugins 市场套件的安装、启用与运行时行为配置。',
+  marketCardDesc: '管理套件来源、安装与运行时开关。',
   mcpCardTitle: 'MCP 增强模式',
-  mcpCardDescOn: '已开启：支持 OAuth 授权、SSE、授权保持等功能。',
-  mcpCardDescOff: '已关闭：使用宿主 dsh-mcp-client。',
+  mcpCardDesc: '内置桥接，支持 OAuth 授权与 SSE；关闭后改用宿主 dsh-mcp-client。',
   mcpCardReadonly: '当前环境设置文档只读，无法切换。',
   mcpForeignHint:
     '该服务器已通过其他途径（原生配置或另一插件）挂载了同名 MCP，市场已跳过以避免重复挂载。如需由市场接管，请先停用另一来源的该服务器；若确认是残留挂载，重启宿主即可清除。',
   mcpDuplicateHint: '另一来源已挂载了相同的服务器，本副本未注册——同一服务器挂载两份对模型没有额外意义。卸载另一来源的套件后，本副本会在下次刷新时自动接管。',
   regionLabel: '下载区域',
-  regionHint: '中国大陆走镜像线路，仅影响下载线路。',
+  regionHint: '中国大陆走镜像线路，仅影响下载。',
   regionGlobal: '全球',
   regionChina: '中国大陆',
   mcpBackendHostMissing: '宿主 dsh-mcp-client 在当前环境不可用，无法切换到兼容模式。',
@@ -270,7 +269,6 @@ export const zh = {
   panelEmpty: '暂无条目，点击右上角 ＋ 新增',
   panelDisabledBadge: '已禁用',
   panelDelete: '删除',
-  commandsPanelHint: '命令是聊天时的「快捷回复」：输入 /名称 即可把模板正文（含 $ARGUMENTS 占位符）作为指令转交模型执行。',
   skillsPanelDescription: '查看已加载技能，并维护用户技能。',
   commandsPanelDescription: '查看插件和用户命令。',
   personasPanelDescription: '查看插件代理角色与用户角色卡，维护常用的 SubAgent 设定。',
@@ -285,11 +283,10 @@ export const zh = {
   removeSourceKeepFiles: '仅取消登记，保留本地目录',
   feedbackToggleLabel: '体验反馈工具',
   projectLayoutsLabel: '扫描项目 Agent 布局',
-  projectLayoutsDesc: '读取项目里 .claude、.agents 等目录中的技能、命令、角色、MCP 与 hooks；关闭后只用已安装的套件。',
+  projectLayoutsDesc: '读取项目 .claude、.agents 等目录中的技能、命令、角色、MCP 与 hooks。',
   autoUpdateLabel: '后台自动更新来源',
-  autoUpdateDesc: '每 6 小时在后台刷新全部已配置来源；默认关闭。',
-  feedbackToggleDescOn: '已开启：Agent 遇到本插件的问题时可自动提交 issue 反馈。',
-  feedbackToggleDescOff: '已关闭：Agent 无法自动提交反馈。'
+  autoUpdateDesc: '每 6 小时刷新全部已配置来源。',
+  feedbackToggleDesc: 'Agent 遇到本插件的问题时可自动提交 issue 反馈。'
 }
 
 export type LocaleKey = keyof typeof zh
@@ -454,17 +451,16 @@ export const en: Record<LocaleKey, string> = {
   mcpConfigureCredentialsFirst: 'Configure the missing credentials first. Retrying cannot supply them automatically.',
   mcpSavedStatusUnknown: 'Configuration saved, but connection status could not be refreshed',
   mcpEntryGone: 'This service is no longer listed. Close the details and refresh.',
-  marketCardDesc: 'Install, enable, and runtime settings for Agent Plugins Market suites.',
+  marketCardDesc: 'Manage suite sources, installs, and runtime switches.',
   mcpCardTitle: 'MCP enhancement',
-  mcpCardDescOn: 'On: enables OAuth authorization, SSE, authorization hold, and more.',
-  mcpCardDescOff: 'Off: uses the host dsh-mcp-client.',
+  mcpCardDesc: 'Built-in bridge with OAuth and SSE; off falls back to the host dsh-mcp-client.',
   mcpCardReadonly: 'The settings document is read-only in this environment; the switch is unavailable.',
   mcpForeignHint:
     'This server is already mounted through another path (native config or another plugin); the market skipped it to avoid a duplicate. To let the market take over, disable the other source first. If it is a leftover mount, a Host restart clears it.',
   mcpDuplicateHint:
     "Another source already mounted this server, so this copy was not registered — mounting the same server twice adds nothing for the model. Uninstall the other source's suite and this copy takes over on the next refresh.",
   regionLabel: 'Download region',
-  regionHint: 'China mainland routes through a mirror. Affects the download route only.',
+  regionHint: 'China mainland uses a mirror. Affects downloads only.',
   regionGlobal: 'Global',
   regionChina: 'China mainland',
   mcpBackendHostMissing: 'The host dsh-mcp-client is not available here; compat mode cannot be enabled.',
@@ -561,7 +557,6 @@ export const en: Record<LocaleKey, string> = {
   panelEmpty: 'No entries yet — use ＋ to add one',
   panelDisabledBadge: 'disabled',
   panelDelete: 'Delete',
-  commandsPanelHint: 'Commands are chat quick-replies: typing /name forwards the template body (with $ARGUMENTS) to the model as instructions.',
   skillsPanelDescription: 'Inspect loaded plugin and user skills, and maintain user skills.',
   commandsPanelDescription: 'Inspect plugin and user commands.',
   personasPanelDescription: 'Inspect plugin agent roles and user persona cards and maintain reusable SubAgent setups.',
@@ -575,9 +570,8 @@ export const en: Record<LocaleKey, string> = {
   removeSourceKeepFiles: 'Unregister only; keep the local directory',
   feedbackToggleLabel: 'Experience feedback tool',
   projectLayoutsLabel: 'Scan project Agent layouts',
-  projectLayoutsDesc: 'Reads skills, commands, roles, MCP servers and hooks from the project .claude, .agents and similar directories; off means installed suites only.',
+  projectLayoutsDesc: 'Reads skills, commands, roles, MCP servers and hooks from the project .claude, .agents and similar directories.',
   autoUpdateLabel: 'Background source updates',
-  autoUpdateDesc: 'Refreshes every configured source in the background every 6 hours. Off by default.',
-  feedbackToggleDescOn: 'On: the agent may auto-file an issue when it hits a problem in this plugin.',
-  feedbackToggleDescOff: 'Off: the agent cannot auto-file feedback.'
+  autoUpdateDesc: 'Refreshes every configured source every 6 hours.',
+  feedbackToggleDesc: 'The agent may auto-file an issue when it hits a problem in this plugin.'
 }

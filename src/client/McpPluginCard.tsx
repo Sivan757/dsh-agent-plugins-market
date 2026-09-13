@@ -39,6 +39,7 @@ export interface McpEnhanceScopeFace {
   setRegion(next: 'global' | 'china'): Promise<void>
   /** Whether the experience-feedback model tool is registered (default true). */
   feedbackEnabled?(): boolean
+  /** Whether native project Agent layouts are scanned (default false). */
   scanProjectLayouts?(): boolean
   setScanProjectLayouts?(next: boolean): Promise<void>
   /** Register/unregister the experience-feedback model tool. */
@@ -137,7 +138,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
               'div',
               { className: css.pluginCardText },
               h('div', { className: css.pluginCardRowLabel }, t('mcpCardTitle')),
-              h('div', { className: css.pluginCardDesc }, enhanced ? t('mcpCardDescOn') : t('mcpCardDescOff'))
+              h('div', { className: css.pluginCardDesc }, t('mcpCardDesc'))
             ),
             h(ToggleSwitch, {
               on: enhanced,
@@ -238,7 +239,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                   'div',
                   { className: css.pluginCardText },
                   h('div', { className: css.pluginCardRowLabel }, t('feedbackToggleLabel')),
-                  h('div', { className: css.pluginCardDesc }, scope.feedbackEnabled() ? t('feedbackToggleDescOn') : t('feedbackToggleDescOff'))
+                  h('div', { className: css.pluginCardDesc }, t('feedbackToggleDesc'))
                 ),
                 h(ToggleSwitch, {
                   on: scope.feedbackEnabled(),
