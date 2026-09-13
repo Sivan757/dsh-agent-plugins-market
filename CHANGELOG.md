@@ -9,6 +9,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.7.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.6.2...dsh-agent-plugins-market-v0.7.0) (2026-09-13)
+
+
+### Features
+
+* **agents:** delegate role cards through the host continuation seam ([f366860](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f366860bfed1b6c1810490b4b28301145478f458))
+* **client:** label the direct filter 用户/User and list it before Plugin ([d534f19](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d534f199fc8313a2ab3422340aff12012a31be13))
+* **lsp:** remove the legacy profile LSP layer from the panel ([7f89ec5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7f89ec5702cd6e0d676e1d0f03098fb3aa58ae1e))
+* **lsp:** self-provision the LSP capability seam ([1e1acd7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1e1acd7a5f107f962fedbb9e5e3bb1e77ddc1956))
+* **settings:** make project layout scanning opt-in ([4a31ac2](https://github.com/Sivan757/dsh-agent-plugins-market/commit/4a31ac29029cbd9cc147574a759dd8353b932b36))
+* **settings:** refresh sources in the background when enabled ([a1b8038](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a1b803867bbc8002ebcf9bd3d435f0387d085ea9))
+* **storage:** keep hand-authored resources in the shared ~/.agents root ([2d57863](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2d57863e1f80ccb00cbd13aebeae8325c1af1bd1))
+
+
+### Bug Fixes
+
+* **archive:** bound concurrent zip entry writes ([5301f28](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5301f284b943f94a9037bf1dd4ef8a27671cfb71))
+* **build:** clear lib/ before emitting ([20355a9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/20355a959691a99c13a03a8eef36795d18bc0b1a))
+* **catalog:** decide path containment by path relations, not text prefixes ([6aac018](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6aac018d6a594a26b5a1a8c1a6d318d736bc32dd))
+* **catalog:** try the next manifest when a higher-priority one is invalid ([fcfc18f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/fcfc18f61f37b72fb1a68d84136dacaf9e7a57f7))
+* **client:** keep the commands panel hint next to its panel ([32f72f8](https://github.com/Sivan757/dsh-agent-plugins-market/commit/32f72f85c6c909c310103b74df5f568c8e7ca8aa))
+* **contracts:** declare the MCP backend wire record once, in contracts ([d6b6a1a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d6b6a1a7da43a89de18f507fbbcb5c5a71062f3d))
+* **deps:** pull the patched transitive versions flagged on main ([ade79f1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ade79f1d1e650a776ce101cbf27a792057627fc9))
+* **feedback:** file through the gh CLI and hand back the issue text ([fb4d080](https://github.com/Sivan757/dsh-agent-plugins-market/commit/fb4d080b13390ce0889dd5094924bfe91f68d532))
+* **feedback:** report the feedback tool mount state ([7e26019](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7e260196b204a3e959143f184dcb70af0b3c795a))
+* **hooks:** keep the pre-commit gate out of pnpm's dependency sync ([9cadbb9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9cadbb9a329430d524efc1c4929f840c5f700bee))
+* **mcp:** keep the registry's internal key out of the duplicate-mount diagnostic ([d6bcee4](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d6bcee4f65cc1600b532e99754d6ff97dd1f1c48))
+* **mcp:** one server identity per suite/server, in every dimension ([d265f77](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d265f7792316eb63b4bdbc97c1d496d9d754004f))
+* **mcp:** stop erasing credential references beside a preserved placeholder ([5ed7f85](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5ed7f8556e0b403cc4e8fb4d81fb133f06609721))
+* **routes:** require the declared wire type instead of coercing ([b91f7a2](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b91f7a273c628eb439d665390a281988176893e1))
+* **runtime:** bound the change pipeline and request waits ([6795e7c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6795e7c6ae8d17d9d050bc126900d513393102e3))
+* **runtime:** drop plugin decorators from injected session text ([612d113](https://github.com/Sivan757/dsh-agent-plugins-market/commit/612d113dfc086e8a0faf9a04316c2ea404333d6a))
+* **runtime:** handle the refresh rejection a session start could drop ([9c226e5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9c226e50a55ddfc5935bcf8653ec5e6970b93306))
+* **skills:** let panel skills outrank the harness reader of their directory ([2d6b9a4](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2d6b9a4a83726d9699613147646d5f9333d231c1))
+* **skills:** rank hand-written panel skills above suite skills too ([77c6595](https://github.com/Sivan757/dsh-agent-plugins-market/commit/77c6595cd228a873cf2afa97d92bf0d6a3656c95))
+* **tests:** check the backup stamp, not the whole path, for colons ([465a03b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/465a03b8776b8396f1321b8534b10c49b49df4b5))
+
 ## [0.6.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.6.1...dsh-agent-plugins-market-v0.6.2) (2026-09-10)
 
 
