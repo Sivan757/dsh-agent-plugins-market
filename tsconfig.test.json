@@ -20,6 +20,7 @@
     "tests/helpers/dom-events.ts",
     "tests/helpers/translate.ts",
     "tests/jsdom.d.ts",
+    "tests/client-api-timeout.test.ts",
     "tests/client-busy-overlay.test.ts",
     "tests/client-credentials.test.ts",
     "tests/client-detail-editors.test.ts",

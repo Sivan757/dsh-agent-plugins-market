@@ -50,6 +50,8 @@ export interface CatalogPorts {
   credentialsStore: CredentialGrantStore | undefined
   /** Flags one mount key for an explicit rebuild on the next reconcile. */
   mcpRemount(suiteId: string, serverKey: string): void
+  /** Flags every live mount for an explicit rebuild on the next reconcile. */
+  mcpRemountAll(): void
   /** Resolves the mount key owning one derived serverName; undefined when not mounted. */
   mcpServerOwner(serverName: string): { suiteId: string; serverKey: string } | undefined
   /** Latest LSP mount diagnostics. */
@@ -73,6 +75,7 @@ export const defaultCatalogPorts: CatalogPorts = {
   mcpToolSnapshot: () => [],
   credentialsStore: undefined,
   mcpRemount: () => {},
+  mcpRemountAll: () => {},
   mcpServerOwner: () => undefined,
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
   mcpBackend: async () => 'builtin',

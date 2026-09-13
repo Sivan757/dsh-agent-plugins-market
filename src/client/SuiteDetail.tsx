@@ -20,6 +20,7 @@ import { suiteLayoutLabel } from './layout-label.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import { createLatestRequestGuard } from './features/suite-detail/suite-detail-resource.js'
 import css from './market.module.css'
+import { clientErrorMessage } from './ui/error-message.js'
 
 /** Toggleable surface keys paired with their translation keys. */
 const SURFACE_TOGGLE_ROWS = [
@@ -60,7 +61,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
         if (!cancelled) setDetail(value)
       })
       .catch(reason => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason))
+        if (!cancelled) setError(clientErrorMessage(t, reason))
       })
     return () => {
       cancelled = true
@@ -81,7 +82,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
       const content = await fetchSkillContent(sourceId, suiteId, name)
       if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(content.content)
     } catch (reason) {
-      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(`⚠ ${reason instanceof Error ? reason.message : String(reason)}`)
+      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(`⚠ ${clientErrorMessage(t, reason)}`)
     } finally {
       if (skillRequestGuard.current.isCurrent(requestId)) setSkillLoading(false)
     }
@@ -99,7 +100,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
       const next = await fetchSuiteDetail(sourceId, suiteId)
       setDetail(next)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(clientErrorMessage(t, reason))
     } finally {
       setSurfaceBusy(false)
     }

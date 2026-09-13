@@ -24,6 +24,7 @@ import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
 import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './features/lsp-status/lsp-status-view-model.js'
 import css from './mcp-status.module.css'
+import { clientErrorMessage } from './ui/error-message.js'
 
 interface LspStatusPanelProps {
   t: Translate
@@ -66,7 +67,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     fetchLspStatus()
       .then(setPayload)
       .catch(caught => {
-        setError(caught instanceof Error ? caught.message : String(caught))
+        setError(clientErrorMessage(t, caught))
       })
       .finally(() => setLoading(false))
   }
@@ -173,7 +174,7 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
       await addLspServer(name.trim(), parseServerConfig(text))
       onSaved()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(clientErrorMessage(t, reason))
     } finally {
       setBusy(false)
     }

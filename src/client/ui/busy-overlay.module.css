@@ -55,6 +55,18 @@
   animation: busy-hint 300ms ease-out;
   overflow-wrap: anywhere;
 }
+/* Shown once the wait outlives anything a local request should take: the user
+   needs to know the overlay is still waiting, not silently stuck. */
+.warning {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  background: var(--dsw-alias-state-warn-tertiary, rgb(254, 245, 231));
+  overflow-wrap: anywhere;
+}
 @keyframes busy-spin {
   to {
     transform: rotate(360deg);

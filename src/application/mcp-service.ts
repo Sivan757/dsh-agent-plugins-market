@@ -146,9 +146,17 @@ export class McpService {
   /**
    * Re-run the MCP reconcile pass: retries failed mounts and clears residual
    * tools, without changing any catalog state.
+   *
+   * Every live mount is rebuilt rather than fingerprinted: a bridge whose
+   * server died underneath it keeps matching its own resolved config, so a
+   * retry is the only path that re-verifies a mount that looks connected. The
+   * wait is bounded — the pass keeps running, so a slow server reports its
+   * outcome to the status surface instead of holding the request open.
    */
   async retryMounts(): Promise<void> {
+    this.ports.mcpRemountAll()
     await this.context.notifyChanged(true)
+    await this.context.refreshSettled()
   }
 
   /** The persisted backend choice without the host-client probe (mount-time provider). */

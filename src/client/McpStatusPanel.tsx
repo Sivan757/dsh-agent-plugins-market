@@ -17,6 +17,7 @@ import { useWorkspaceView } from './ui/workspace-view.js'
 import { deriveMcpStatusViewModel, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
 import css from './mcp-status.module.css'
 import { withBusyOperation } from './ui/busy-operation.js'
+import { clientErrorMessage } from './ui/error-message.js'
 
 interface McpStatusPanelProps {
   t: Translate
@@ -68,7 +69,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     fetchMcpStatus()
       .then(setPayload)
       .catch(caught => {
-        setError(caught instanceof Error ? caught.message : String(caught))
+        setError(clientErrorMessage(t, caught))
       })
       .finally(() => setLoading(false))
   }
@@ -248,7 +249,7 @@ export function McpDetailModal({
       const connected = current.state === 'connected'
       setFeedback({ error: !connected, text: connected ? t('mcpRetrySuccess') : t('mcpStillUnavailable') + (current.reason ? ': ' + current.reason : '') })
     } catch (reason) {
-      setFeedback({ error: true, text: t('actionFail') + ': ' + (reason instanceof Error ? reason.message : String(reason)) })
+      setFeedback({ error: true, text: t('actionFail') + ': ' + clientErrorMessage(t, reason) })
     } finally {
       setPending(false)
     }
@@ -414,7 +415,7 @@ function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => voi
     void Promise.resolve()
       .then(() => addMcpServer(name.trim(), parseServerConfig(config)))
       .then(onSaved)
-      .catch(caught => setError(caught instanceof Error ? caught.message : String(caught)))
+      .catch(caught => setError(clientErrorMessage(t, caught)))
       .finally(() => setBusy(false))
   }
   return h(DetailModal, {

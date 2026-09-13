@@ -322,6 +322,44 @@ describe('McpMountRegistry', () => {
     await registry.disposeAll()
   })
 
+  it('rebuilds every live mount flagged by forceRemountAll', async () => {
+    // Manual retry: a bridge whose server died underneath it still matches its
+    // own resolved config, so the fingerprint cannot tell it apart from a
+    // healthy mount — retrying has to rebuild what is live.
+    const mounted: Array<Record<string, unknown> & { disposed?: boolean }> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const record: Record<string, unknown> & { disposed?: boolean } = { ...config, disposed: false }
+        mounted.push(record)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            record.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const suites = [suite('alpha', 'db'), suite('beta', 'cache')]
+
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(2)
+    // An unflagged pass over identical config leaves both bridges live.
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(2)
+
+    registry.forceRemountAll()
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(4)
+    expect(mounted.slice(0, 2).every(record => record.disposed === true)).toBe(true)
+
+    // The flags are consumed: the next pass leaves the fresh bridges alone.
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(4)
+    await registry.disposeAll()
+  })
+
   it('resolves the owning mount key from a derived serverName', () => {
     const registry = new McpMountRegistry({ logger: { warn: () => {} } } as never, '/tmp/data')
     expect(registry.serverOwner('alpha__db')).toBeUndefined()

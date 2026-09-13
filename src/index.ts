@@ -17,6 +17,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import { Catalog } from './application/catalog.js'
 import type { CatalogPortsOverride } from './application/ports.js'
+import { settlesWithin } from './runtime/deadline.js'
 import { RuntimeReconciler } from './runtime/reconciler.js'
 import { ReconcileScheduler } from './runtime/reconcile-scheduler.js'
 import { MarketSettingsNamespace } from './runtime/settings-namespace.js'
@@ -114,18 +115,39 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   }
 
   /**
+   * How long the change pipeline holds the queue on one stage. A mount that
+   * stops responding — a stdio server that never finishes its handshake, a
+   * browser authorization nobody completed — delays its own surface only; the
+   * stage keeps running while the pipeline moves on to the next change.
+   */
+  const CHANGE_STAGE_DEADLINE_MS = 20_000
+
+  /** Run one pipeline stage, logging its failure or its overrun instead of holding the pipeline. */
+  const runStage = async (stage: string, work: () => Promise<unknown> | undefined): Promise<void> => {
+    const running = (async () => await work())()
+    void running.catch(error => {
+      ctx.logger?.warn(`[dsh-agent-plugins-market] ${stage} failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    if (!(await settlesWithin(running, CHANGE_STAGE_DEADLINE_MS))) {
+      ctx.logger?.warn(`[dsh-agent-plugins-market] ${stage} is still running after ${CHANGE_STAGE_DEADLINE_MS}ms; the change pipeline continues without waiting for it`)
+    }
+  }
+
+  /**
    * Catalog change pipeline: invalidate the derived skill and command
    * surfaces, refresh the project mounts, then reconcile every runtime mount.
+   * `CatalogContext` schedules it in the background, so a stage that overruns
+   * costs freshness, never the mutation that asked for it.
    */
   const onChanged = async (): Promise<void> => {
     if (disposed) return
     providerControl?.invalidate()
     userPanelControl?.invalidate()
-    await projectCommands?.refresh()
-    await suitePrompts?.refresh()
-    await Promise.all([projectMcp?.refresh(), projectHooks?.refresh()])
-    await reconcileUserCommands()
-    await scheduler.request()
+    await runStage('project commands', () => projectCommands?.refresh())
+    await runStage('suite instructions', () => suitePrompts?.refresh())
+    await runStage('project MCP and hooks', () => Promise.all([projectMcp?.refresh(), projectHooks?.refresh()]))
+    await runStage('user commands', () => reconcileUserCommands())
+    await runStage('runtime mounts', () => scheduler.request())
   }
 
   // Background source updates: off until the settings switch says otherwise.
@@ -157,6 +179,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     // registry flags the mount and the following reconcile tears it down and
     // remounts, so the server's 401 restarts the browser authorization.
     mcpRemount: (suiteId, serverKey) => runtime.forceMcpRemount(suiteId, serverKey),
+    mcpRemountAll: () => runtime.forceMcpRemountAll(),
     mcpServerOwner: serverName => runtime.mcpServerOwner(serverName),
     lspStatusSource: runtime.lsp,
     mcpBackend: () => settings.backend(),

@@ -1,5 +1,6 @@
 /** Typed fetch helpers over the host's `/api/agent-plugins/*` routes. */
 import { withBusyOperation } from './ui/busy-operation.js'
+import { RequestTimeoutError } from './request-error.js'
 import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
 import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
 import type { McpBackendInfo, OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
@@ -32,6 +33,45 @@ export type OverviewData = OverviewPayload
 /** One suite card wire, under the name the client surfaces use. */
 export type SuiteCardData = SuiteOverviewCard
 
+/** Reads are local and settle in milliseconds; a stalled host must not hold the page. */
+export const READ_TIMEOUT_MS = 15_000
+/** Mutations may legitimately clone or archive for minutes; this only caps a stalled one. */
+export const MUTATION_TIMEOUT_MS = 600_000
+
+/**
+ * One same-origin request that gives up waiting after `timeoutMs`.
+ *
+ * Aborting releases whoever is waiting — the panel, and the blocking overlay
+ * with it — while the host keeps working. The next read then reports where the
+ * operation actually stands, which is more useful than a spinner that never
+ * ends.
+ */
+async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController()
+  const external = init.signal ?? undefined
+  const forward = (): void => controller.abort()
+  // An already-aborted caller signal never fires another event, so it has to be
+  // honoured here or the request would outlive the read it belongs to.
+  if (external?.aborted === true) controller.abort()
+  else external?.addEventListener('abort', forward, { once: true })
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    // A caller-driven abort keeps its own error: the editor that cancelled the
+    // read owns that outcome.
+    if (timedOut) throw new RequestTimeoutError(timeoutMs)
+    throw error
+  } finally {
+    clearTimeout(timer)
+    external?.removeEventListener('abort', forward)
+  }
+}
+
 /**
  * One same-origin GET decoded as JSON.
  *
@@ -39,19 +79,23 @@ export type SuiteCardData = SuiteOverviewCard
  * same in every panel that shares this helper.
  */
 async function getJson<T>(url: string, label: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { credentials: 'same-origin', ...init })
+  const response = await boundedFetch(url, { credentials: 'same-origin', ...init }, READ_TIMEOUT_MS)
   if (!response.ok) throw new Error(`${label}: ${response.status}`)
   return response.json() as Promise<T>
 }
 
 /** One POST carrying the market API's `{ ok, error }` result envelope. */
 async function postOkJson<T>(url: string, body: Record<string, unknown>, label: string): Promise<T & { ok?: boolean; error?: string }> {
-  const response = await fetch(url, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
-  })
+  const response = await boundedFetch(
+    url,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    },
+    MUTATION_TIMEOUT_MS
+  )
   const payload = (await response.json()) as T & { ok?: boolean; error?: string }
   if (!response.ok || payload.ok !== true) {
     throw new Error(payload.error ?? `${label}: ${response.status}`)
@@ -61,7 +105,8 @@ async function postOkJson<T>(url: string, body: Record<string, unknown>, label: 
 
 export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promise<import('../contracts/market.js').ServerConfigPayload> {
   return withBusyOperation(async () => {
-    const response = await fetch(`${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`, { credentials: 'same-origin' })
+    const url = `${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`
+    const response = await boundedFetch(url, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
     const body = (await response.json()) as import('../contracts/market.js').ServerConfigPayload & { error?: string }
     if (!response.ok) throw new Error(body.error ?? `Server configuration failed: ${response.status}`)
     return body
@@ -160,12 +205,16 @@ export async function fetchUserPanel(kind: UserPanelKind): Promise<UserPanelEntr
 /** Create one panel entry. */
 export async function createUserPanelEntry(kind: UserPanelKind, name: string, text: string): Promise<UserPanelEntry> {
   return withBusyOperation(async () => {
-    const response = await fetch(userPanelMutationRoute(kind, 'create'), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, text })
-    })
+    const response = await boundedFetch(
+      userPanelMutationRoute(kind, 'create'),
+      {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, text })
+      },
+      MUTATION_TIMEOUT_MS
+    )
     const payload = (await response.json()) as { ok?: boolean; error?: string; entry?: UserPanelEntry }
     if (!response.ok || payload.ok !== true || payload.entry === undefined) throw new Error(payload.error ?? `create failed: ${response.status}`)
     return payload.entry

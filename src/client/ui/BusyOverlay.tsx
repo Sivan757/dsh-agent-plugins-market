@@ -7,6 +7,12 @@ import css from './busy-overlay.module.css'
 export const BUSY_SHOW_DELAY_MS = 200
 export const BUSY_MIN_VISIBLE_MS = 400
 export const BUSY_SETTLE_MS = 100
+/**
+ * When a leased operation outlives this, the overlay says so. Nothing local
+ * should take this long, so the user learns the wait is still real instead of
+ * reading an unchanging spinner as "it finished and the dialog stuck".
+ */
+export const BUSY_LONG_RUNNING_MS = 20_000
 
 /** Mount once per client. A body-level host covers portaled dialogs without inheriting their inert state. */
 export function BusyOverlay({ t }: { t: Translate }): ReactNode {
@@ -14,9 +20,22 @@ export function BusyOverlay({ t }: { t: Translate }): ReactNode {
   const target = [...tasks].reverse().find(task => task.target?.isConnected)?.target ?? (tasks.length ? operationTarget() : null)
   const [heldTarget, setHeldTarget] = useState<HTMLElement | null>(null)
   const [visible, setVisible] = useState(false)
+  const [slow, setSlow] = useState(false)
   const startedAt = useRef<number | null>(null)
   const shownAt = useRef<number | null>(null)
   const active = tasks.length > 0
+
+  // The watchdog measures from the lease's own start, so a mask held across a
+  // short gap still reports one continuous wait.
+  useEffect(() => {
+    if (!active || target === null) {
+      setSlow(false)
+      return
+    }
+    const started = startedAt.current ?? Date.now()
+    const timer = setTimeout(() => setSlow(true), Math.max(0, BUSY_LONG_RUNNING_MS - (Date.now() - started)))
+    return () => clearTimeout(timer)
+  }, [active, target])
 
   useLayoutEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -48,10 +67,10 @@ export function BusyOverlay({ t }: { t: Translate }): ReactNode {
   }, [active, target])
 
   const displayedTarget = target ?? (heldTarget?.isConnected ? heldTarget : null)
-  return displayedTarget && (active || visible) ? h(ActiveOverlay, { target: displayedTarget, t, visible }) : null
+  return displayedTarget && (active || visible) ? h(ActiveOverlay, { target: displayedTarget, t, visible, slow }) : null
 }
 
-function ActiveOverlay({ target, t, visible }: { target: HTMLElement; t: Translate; visible: boolean }): ReactNode {
+function ActiveOverlay({ target, t, visible, slow }: { target: HTMLElement; t: Translate; visible: boolean; slow: boolean }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
   const [rect, setRect] = useState(() => target.getBoundingClientRect())
   const [message, setMessage] = useState(0)
@@ -137,7 +156,8 @@ function ActiveOverlay({ target, t, visible }: { target: HTMLElement; t: Transla
           { className: css.content },
           h('span', { className: css.spinner, 'aria-hidden': true }, h(IconLoadingOutline16, { size: 28 })),
           h('strong', { className: css.label }, t('panelWorking')),
-          h('div', { className: css.hintViewport }, h('p', { key: message, className: css.hint }, hints[message]))
+          h('div', { className: css.hintViewport }, h('p', { key: message, className: css.hint }, hints[message])),
+          slow ? h('p', { className: css.warning, role: 'alert' }, t('busyLongRunning')) : null
         )
       : null
   )

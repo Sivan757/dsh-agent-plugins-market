@@ -59,7 +59,7 @@ describe('Catalog application module', () => {
     await rm(userRoot, { recursive: true, force: true })
   })
 
-  it('waits for the runtime change callback before a mutation resolves', async () => {
+  it('commits a mutation without waiting for the runtime change callback', async () => {
     const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-await-')
     let hold = false
     let callbackStarted = false
@@ -71,11 +71,13 @@ describe('Catalog application module', () => {
     const gate = new Promise<void>(resolve => {
       release = resolve
     })
+    let passes = 0
     const catalog = new Catalog({
       userRoot,
       dataRoot: join(userRoot, 'data'),
       agentsRoot: join(userRoot, 'agents'),
       onChanged: async () => {
+        passes++
         if (!hold) return
         callbackStarted = true
         callbackEntered()
@@ -87,18 +89,42 @@ describe('Catalog application module', () => {
     await catalog.install('demo', 'v1-suite')
     hold = true
 
-    const disabling = catalog.setEnabled('demo', 'v1-suite', false)
+    // The mutation resolves while the callback is still gated: its state is
+    // durable, and the derived surfaces catch up behind it.
+    await catalog.setEnabled('demo', 'v1-suite', false)
     await entered
     expect(callbackStarted).toBe(true)
-    let settled = false
-    void disabling.then(() => {
-      settled = true
-    })
-    await Promise.resolve()
-    expect(settled).toBe(false)
+    expect((await catalog.readUserCatalog()).enabledSuites).toEqual([])
+    expect(await catalog.refreshSettled(0)).toBe(false)
 
     release()
-    await disabling
-    expect(settled).toBe(true)
+    expect(await catalog.refreshSettled(1_000)).toBe(true)
+    expect(passes).toBe(2)
+  })
+
+  it('keeps refreshing after a rejected pass', async () => {
+    const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-reject-')
+    let passes = 0
+    let fail = false
+    const catalog = new Catalog({
+      userRoot,
+      dataRoot: join(userRoot, 'data'),
+      agentsRoot: join(userRoot, 'agents'),
+      onChanged: async () => {
+        passes++
+        if (fail) throw new Error('stage failed')
+      }
+    })
+    await catalog.load()
+    await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
+    fail = true
+    await catalog.install('demo', 'v1-suite')
+    expect(await catalog.refreshSettled(1_000)).toBe(true)
+
+    // A failed pass must not wedge the queue: the next change still refreshes.
+    fail = false
+    await catalog.setEnabled('demo', 'v1-suite', false)
+    expect(await catalog.refreshSettled(1_000)).toBe(true)
+    expect(passes).toBe(2)
   })
 })

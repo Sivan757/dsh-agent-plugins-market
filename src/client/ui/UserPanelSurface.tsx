@@ -17,6 +17,7 @@ import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModa
 import css from './panel.module.css'
 import { RoleMetadataFields } from '../features/personas/RoleMetadataFields.js'
 import { readRoleFields, updateFrontmatter } from '../features/personas/frontmatter.js'
+import { clientErrorMessage } from './error-message.js'
 
 /** Draft templates per panel kind (bilingual; the user edits from here). */
 function draftTemplate(kind: UserPanelKind, t: Translate): string {
@@ -59,7 +60,7 @@ export function UserPanelSurface(props: {
       const data = await fetchUserPanel(kind)
       if (refreshSeq.current === seq) setEntries(data)
     } catch (reason) {
-      if (refreshSeq.current === seq) setError(reason instanceof Error ? reason.message : String(reason))
+      if (refreshSeq.current === seq) setError(clientErrorMessage(t, reason))
     } finally {
       if (refreshSeq.current === seq) setLoading(false)
     }
@@ -88,7 +89,7 @@ export function UserPanelSurface(props: {
         await refresh()
         return true
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason))
+        setError(clientErrorMessage(t, reason))
         return false
       } finally {
         setBusy(false)

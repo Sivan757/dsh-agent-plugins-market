@@ -102,6 +102,15 @@ export class McpMountRegistry {
     this.forcedRemounts.add(mountKey(suiteId, serverKey))
   }
 
+  /**
+   * Flag every live mount for a rebuild on the next reconcile: the manual
+   * retry path. A bridge whose server died underneath it still matches its own
+   * config fingerprint, so nothing else would ever re-verify that mount.
+   */
+  forceRemountAll(): void {
+    for (const key of this.live.keys()) this.forcedRemounts.add(key)
+  }
+
   /** The mount key owning one derived serverName; undefined when not mounted here. */
   serverOwner(serverName: string): { suiteId: string; serverKey: string } | undefined {
     const owner = this.names.get(serverName)

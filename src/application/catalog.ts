@@ -96,6 +96,14 @@ export class Catalog implements MarketService {
     await this.context.notifyChanged()
   }
 
+  /**
+   * Wait for the derived refresh triggered by the latest change, bounded so a
+   * stuck mount reports back instead of holding an explicit retry open.
+   */
+  async refreshSettled(deadlineMs?: number): Promise<boolean> {
+    return this.context.refreshSettled(deadlineMs)
+  }
+
   /** Read one coherent user-dimension snapshot, reusing in-flight discovery. */
   async readUserCatalog(): Promise<CatalogSnapshot> {
     return this.snapshots.readUserCatalog()

@@ -16,6 +16,7 @@ import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import type { McpBackendInfo } from './api.js'
 import { ToggleSwitch } from './ui/ToggleSwitch.js'
 import css from './market.module.css'
+import { clientErrorMessage } from './ui/error-message.js'
 
 /** Locale subset the card needs (structural — the host binds the real one). */
 type CardTranslate = (key: string, params?: Record<string, unknown>) => string
@@ -95,7 +96,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
     void scope.setEnhanced(next).then(() => {
       setBusy(false)
     }).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setError(clientErrorMessage(t, cause))
       setBusy(false)
     })
   }
@@ -175,7 +176,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                       void scope.setRegion(region).then(() => {
                         setBusy(false)
                       }).catch((cause: unknown) => {
-                        setError(cause instanceof Error ? cause.message : String(cause))
+                        setError(clientErrorMessage(t, cause))
                         setBusy(false)
                       })
                     }
@@ -202,7 +203,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                     setBusy(true)
                     setError(undefined)
                     void scope.setScanProjectLayouts!(!scope.scanProjectLayouts!()).catch((cause: unknown) => {
-                      setError(cause instanceof Error ? cause.message : String(cause))
+                      setError(clientErrorMessage(t, cause))
                     }).finally(() => setBusy(false))
                   }
                 }))
@@ -224,7 +225,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                     setBusy(true)
                     setError(undefined)
                     void scope.setAutoUpdateSources!(!scope.autoUpdateSources!()).catch((cause: unknown) => {
-                      setError(cause instanceof Error ? cause.message : String(cause))
+                      setError(clientErrorMessage(t, cause))
                     }).finally(() => setBusy(false))
                   }
                 }))
@@ -249,7 +250,7 @@ export function McpPluginCard({ t, scope, probe }: McpPluginCardProps): ReactNod
                     void scope.setFeedbackEnabled!(!scope.feedbackEnabled!()).then(() => {
                       setBusy(false)
                     }).catch((cause: unknown) => {
-                      setError(cause instanceof Error ? cause.message : String(cause))
+                      setError(clientErrorMessage(t, cause))
                       setBusy(false)
                     })
                   }

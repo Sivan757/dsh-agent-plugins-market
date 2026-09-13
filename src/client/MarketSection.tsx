@@ -26,6 +26,7 @@ import css from './market.module.css'
 import { useWorkspaceView } from './ui/workspace-view.js'
 import { PanelHeader, PanelActions } from './ui/panel.js'
 import { ResourceCollection } from './ui/ResourceCard.js'
+import { clientErrorMessage } from './ui/error-message.js'
 
 /** Host step keys -> translation keys, resolved against the active t(). */
 const PROGRESS_STEP_LABELS: Record<string, string> = {
@@ -101,7 +102,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         await refresh()
         return true
       } catch (error) {
-        setToast({ key: Date.now(), message: `${t('actionFail')}: ${error instanceof Error ? error.message : String(error)}` })
+        setToast({ key: Date.now(), message: `${t('actionFail')}: ${clientErrorMessage(t, error)}` })
         return false
       } finally {
         setBusy(undefined)
@@ -381,8 +382,8 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   if (derived !== undefined) setCategory(derived)
                   return true
                 } catch (error) {
-                  setToast({ key: Date.now(), message: `${t('actionFail')}: ${error instanceof Error ? error.message : String(error)}` })
-                  setProgress({ step: undefined, error: error instanceof Error ? error.message : String(error) })
+                  setToast({ key: Date.now(), message: `${t('actionFail')}: ${clientErrorMessage(t, error)}` })
+                  setProgress({ step: undefined, error: clientErrorMessage(t, error) })
                   return false
                 } finally {
                   poll.stop()

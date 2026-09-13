@@ -14,6 +14,7 @@ import { describeCredential, setCredential, unsetCredential, type CredentialApi,
 import { BusyIndicator } from './ui/panel.js'
 import type { Translate } from './index.js'
 import css from './mcp-credential.module.css'
+import { clientErrorMessage } from './ui/error-message.js'
 
 export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; refs: string[] }): ReactNode {
   const { t, api, refs } = props
@@ -36,7 +37,7 @@ export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; 
         setViews(Object.fromEntries(entries.flatMap(([ref, view]) => (view === undefined ? [] : [[ref, view]]))))
       })
       .catch(reason => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason))
+        if (!cancelled) setError(clientErrorMessage(t, reason))
       })
     return () => {
       cancelled = true
@@ -59,7 +60,7 @@ export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; 
       setDrafts(current => ({ ...current, [ref]: '' }))
       await refresh(ref)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(clientErrorMessage(t, reason))
     } finally {
       setBusy(undefined)
     }
@@ -72,7 +73,7 @@ export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; 
       await unsetCredential(api, ref)
       await refresh(ref)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(clientErrorMessage(t, reason))
     } finally {
       setBusy(undefined)
     }

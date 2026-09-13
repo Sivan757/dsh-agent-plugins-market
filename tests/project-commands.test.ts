@@ -99,9 +99,11 @@ describe('project command lifecycle', () => {
     expect(JSON.stringify(second.messages)).toContain('Second project my diff')
 
     await catalog.setScanProjectLayouts(false)
+    await catalog.refreshSettled()
     expect(first.definitions.size).toBe(0)
     expect(second.definitions.size).toBe(0)
     await catalog.setScanProjectLayouts(true)
+    await catalog.refreshSettled()
     expect(first.definitions.has('review')).toBe(true)
 
     listeners.get('agent/disposed')!({ agent: first })

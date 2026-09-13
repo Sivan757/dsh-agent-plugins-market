@@ -16,6 +16,7 @@ import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
 import type { Translate } from '../index.js'
 import detailCss from './detail.module.css'
+import { clientErrorMessage } from './error-message.js'
 
 /** The trailing header commands have one position and one visual treatment. */
 export function PanelActions(props: { addLabel?: string; onAdd?: () => void; refreshLabel?: string; onRefresh?: () => void; busy?: boolean }): ReactNode {
@@ -129,7 +130,7 @@ export function EntryEditorModal(props: {
                   // stale inline validation error here.
                   if (ok) setError(undefined)
                 })
-                .catch(reason => setError(reason instanceof Error ? reason.message : String(reason)))
+                .catch(reason => setError(clientErrorMessage(props.t, reason)))
             }
           },
           props.saveLabel ?? '✓'

@@ -6,6 +6,7 @@ import { ServerConfigEditor } from './ServerConfigEditor.js'
 import { parseServerConfig, type ServerKind } from './server-form.js'
 import css from './detail.module.css'
 import { DetailFooterAction } from './DetailModal.js'
+import { clientErrorMessage } from './error-message.js'
 
 /** Loads complete configuration rather than editing the abbreviated status projection. */
 export function ServerConfigDetail({
@@ -61,7 +62,7 @@ export function ServerConfigDetail({
       setDirty(false)
       onSaved?.()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(clientErrorMessage(t, reason))
     } finally {
       setBusy(false)
     }

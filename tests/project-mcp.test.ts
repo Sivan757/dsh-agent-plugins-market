@@ -244,8 +244,10 @@ describe('project MCP runtime scope', () => {
       // for every session instead.
       expect([...firstScope.keys()]).toEqual([...secondScope.keys()])
       await catalog.setScanProjectLayouts(false)
+      await catalog.refreshSettled()
       expect(scopes.map(scope => scope.size)).toEqual([0, 0])
       await catalog.setScanProjectLayouts(true)
+      await catalog.refreshSettled()
       expect(scopes.map(scope => scope.size)).toEqual([1, 1])
     } finally {
       await runtime.dispose()

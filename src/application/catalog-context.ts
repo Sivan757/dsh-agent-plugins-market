@@ -10,6 +10,7 @@
 import { join } from 'node:path'
 import type { GitOptions } from '../catalog/git.js'
 import { STATE_FILE_NAME } from '../catalog/paths.js'
+import { settlesWithin } from '../runtime/deadline.js'
 import { EMPTY_STATE, loadState, saveState } from '../runtime/state-store.js'
 import { effectiveSurfaces, type DiscoveredSuite, type InstalledEntry, type Suite, type SuiteDimension, type SuiteState } from '../model/types.js'
 import type { CatalogPortsOverride } from './ports.js'
@@ -61,12 +62,22 @@ export function installKey(sourceId: string, suiteId: string): string {
   return `${sourceId}/${suiteId}`
 }
 
+/**
+ * How long an explicit caller waits for the derived refresh before answering
+ * anyway. The refresh keeps running; only the wait ends.
+ */
+export const DERIVED_REFRESH_WAIT_MS = 10_000
+
 export class CatalogContext implements SnapshotHost {
   private currentState: SuiteState = EMPTY_STATE
   private mutationQueue: Promise<unknown> = Promise.resolve()
   private currentRevision = 0
   private currentScanGeneration = 0
   private scanProjectLayoutsEnabled = true
+  /** The derived refresh in flight, shared by every change that lands while it runs. */
+  private refreshPass: Promise<void> | undefined
+  /** Whether a change landed after the running pass started; it earns one more pass. */
+  private refreshQueued = false
 
   readonly statePath: string
   readonly userRoot: string
@@ -160,15 +171,51 @@ export class CatalogContext implements SnapshotHost {
   }
 
   /**
-   * Invalidate snapshots and run the change pipeline. `keepScanCache` marks
-   * state-only mutations (install, enable, surface toggles, MCP overrides)
-   * whose inputs leave every checkout untouched, so the next snapshot
-   * re-derives from cached discovery instead of rescanning the filesystem.
+   * Invalidate snapshots and schedule the change pipeline. `keepScanCache`
+   * marks state-only mutations (install, enable, surface toggles, MCP
+   * overrides) whose inputs leave every checkout untouched, so the next
+   * snapshot re-derives from cached discovery instead of rescanning the
+   * filesystem.
+   *
+   * The invalidation is synchronous and the refresh is coalesced in the
+   * background: resolving here means the state is durable, never that every
+   * mount has finished. Callers that must observe the refreshed surfaces await
+   * {@link refreshSettled}, whose wait is bounded so one stuck mount cannot
+   * hold a request — or the next mutation behind it — open.
    */
   async notifyChanged(keepScanCache = false): Promise<void> {
     if (!keepScanCache) this.invalidateScans()
     this.invalidateSnapshot(true)
-    await this.onChanged()
+    this.scheduleRefresh()
+  }
+
+  /**
+   * Resolve once the queued derived refresh finishes, `false` when the deadline
+   * elapses first. The refresh itself is never cancelled.
+   */
+  async refreshSettled(deadlineMs = DERIVED_REFRESH_WAIT_MS): Promise<boolean> {
+    const pass = this.refreshPass
+    return pass === undefined ? true : settlesWithin(pass, deadlineMs)
+  }
+
+  /** Queue one derived refresh; a pass already in flight absorbs it. */
+  private scheduleRefresh(): void {
+    this.refreshQueued = true
+    this.refreshPass ??= (async () => {
+      try {
+        while (this.refreshQueued) {
+          this.refreshQueued = false
+          try {
+            await this.onChanged()
+          } catch {
+            // The pipeline owner reports its own stage failures. A rejected
+            // pass must not wedge the queue for every later change.
+          }
+        }
+      } finally {
+        this.refreshPass = undefined
+      }
+    })()
   }
 
   /** Drop every cached dimension snapshot; `increment` advances the revision. */
