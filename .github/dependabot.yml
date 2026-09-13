@@ -1,5 +1,9 @@
 version: 2
 updates:
+  # One npm entry covers the whole pnpm workspace, docs-site included. A second
+  # entry for `/docs-site` split each bump in two — the manifest in one PR and
+  # the shared lockfile in another — so neither PR installed under
+  # `--frozen-lockfile`.
   - package-ecosystem: npm
     directory: '/'
     schedule:
@@ -20,15 +24,13 @@ updates:
       # migration with a tsconfig change, not a routine bump.
       - dependency-name: 'typescript'
         versions: ['>=6']
+      # `engines` starts at Node 22 and CI runs Node 22, so newer types would
+      # type-check APIs the shipped runtime does not have.
+      - dependency-name: '@types/node'
+        versions: ['>=23']
 
   - package-ecosystem: github-actions
     directory: '/'
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: '/docs-site'
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

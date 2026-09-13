@@ -45,7 +45,7 @@ async function change(label: string, value: string) {
   expect(input).not.toBeNull()
   await act(async () => typeInto(input, value))
 }
-const value = () => JSON.parse(host.querySelector('[data-value]')!.textContent!) as Record<string, unknown>
+const value = () => JSON.parse(host.querySelector('[data-value]')!.textContent) as Record<string, unknown>
 
 describe('shared resource detail editors', () => {
   it('renders Markdown as markup and metadata as a definition list without rendering HTML injection', () => {

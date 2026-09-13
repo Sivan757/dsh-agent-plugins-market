@@ -52,7 +52,7 @@ function select(label: string): HTMLSelectElement {
   return host.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!
 }
 function value() {
-  return host.querySelector('output')!.textContent!
+  return host.querySelector('output')!.textContent
 }
 async function change(label: string, value: string) {
   await act(async () => selectOption(select(label), value))
