@@ -417,7 +417,7 @@ describe('CommandMountRegistry (CC commands compat)', () => {
     const review = required(registered[0], 'the cc-commands fixture to register one review command')
     expect(review.description).toBe('[cc-commands] Run a challenge review')
     let followup: { content: Array<{ type: string; text: string }> } | undefined
-    const result = review.handler({
+    const result = await review.handler({
       agent: {
         followup: (message: { content: Array<{ type: string; text: string }> }) => {
           followup = message

@@ -31,6 +31,7 @@ import { createPanelResources } from './application/panel-resources.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
+import type { ShellSeam } from './runtime/dynamic-context.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
 import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
@@ -216,9 +217,12 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     })
     .catch(() => {})
 
+  // The shell seam resolves lazily: the service may land after this plugin, and
+  // a profile without one keeps dynamic-context placeholders literal.
+  const shellSeam = (): ShellSeam | undefined => (ctx as unknown as { shell?: ShellSeam }).shell
   ctx.skills.registerProvider(control => {
     providerControl = control
-    return new SuiteSkillProvider(catalog)
+    return new SuiteSkillProvider(catalog, { dataRoot, shell: shellSeam })
   })
 
   // User panel skills ride a second provider so a panel
@@ -245,10 +249,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
 
   ctx.inject(['agents'], hostCtx => {
     hostCtx.effect(() => {
-      const mounted = mountProjectCommands(hostCtx, catalog, key => hostLocale.t(key))
+      const mounted = mountProjectCommands(hostCtx, catalog, key => hostLocale.t(key), dataRoot)
       const mcp = mountProjectMcp(hostCtx, catalog, dataRoot)
       const hooks = mountProjectHooks(hostCtx, catalog)
-      const prompts = mountSuiteInstructions(hostCtx, catalog)
+      const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot)
       projectCommands = mounted
       projectMcp = mcp
       projectHooks = hooks

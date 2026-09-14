@@ -3,7 +3,8 @@ import { realpath, unlink } from 'node:fs/promises'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
-import { isWithin } from '../catalog/paths.js'
+import { pluginRootOf } from '../catalog/plugin-variables.js'
+import { isWithin, suiteDataDir } from '../catalog/paths.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from '../runtime/user-store.js'
 import type { UserPanelStore } from '../runtime/user-panels.js'
@@ -80,7 +81,8 @@ class PanelResources implements PanelResourceStore {
           rawText,
           content: stripFrontmatter(rawText),
           path: file,
-          description: typeof metadata.description === 'string' ? metadata.description : ''
+          description: typeof metadata.description === 'string' ? metadata.description : '',
+          ...(pluginRootOf(suite) === undefined ? {} : { suiteRoot: suite.root, suiteData: suiteDataDir(this.catalog.dataRoot, suite.sourceId, suite.id) })
         })
       }
     }

@@ -1,5 +1,7 @@
 /** Resolve read-only project roles from the calling session, never from tool-supplied paths. */
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
+import { pluginRootOf } from '../catalog/plugin-variables.js'
+import { suiteDataDir } from '../catalog/paths.js'
 import { parseAgentRole, type AgentRoleEntry } from '../runtime/agent-role-router.js'
 import type { Catalog } from './catalog.js'
 
@@ -10,6 +12,8 @@ export async function projectAgentRoles(catalog: Catalog, parent: unknown): Prom
   const entries: AgentRoleEntry[] = []
   for (const suite of snapshot.enabledSuites) {
     if (suite.activeSurfaces.agents === false) continue
+    const suiteRoot = pluginRootOf(suite)
+    const suiteData = suiteRoot === undefined ? undefined : suiteDataDir(catalog.dataRoot, suite.sourceId, suite.id)
     for (const resource of suite.resources?.agents ?? (await defaultMarkdownResources(suite.root, 'agents'))) {
       const path = resource.file
       const rawText = await resourceText(resource).catch(error => {
@@ -25,7 +29,9 @@ export async function projectAgentRoles(catalog: Catalog, parent: unknown): Prom
           rawText,
           title: policy.title ?? resource.name.replace(/\.agent$/, ''),
           description: policy.description ?? `${suite.manifest.name}: ${resource.name}`,
-          disabled: policy.disabled
+          disabled: policy.disabled,
+          ...(suiteRoot === undefined ? {} : { suiteRoot }),
+          ...(suiteData === undefined ? {} : { suiteData })
         })
       } catch {
         // Malformed routing metadata cannot authorize a project role.

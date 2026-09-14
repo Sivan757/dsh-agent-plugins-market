@@ -14,7 +14,7 @@ afterEach(async () => {
 
 interface Definition {
   name: string
-  handler(invocation: { agent: unknown; rawInput: string }): { kind: string }
+  handler(invocation: { agent: unknown; rawInput: string }): { kind: string } | Promise<{ kind: string }>
 }
 
 function agent(cwd: string) {
@@ -91,7 +91,7 @@ describe('project command lifecycle', () => {
     await mounted.refresh()
     for (const current of [first, second]) {
       expect([...current.definitions.keys()]).toEqual(['review'])
-      expect(current.definitions.get('review')!.handler({ agent: current, rawInput: ' my diff' }).kind).toBe('success')
+      await expect(current.definitions.get('review')!.handler({ agent: current, rawInput: ' my diff' })).resolves.toMatchObject({ kind: 'success' })
     }
     // The forward is the template verbatim: no plugin or suite decorator line,
     // which would be text the command author never wrote.

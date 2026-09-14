@@ -126,6 +126,10 @@ Use references such as `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. Missing referen
 
 `mcp.json` uses strict schema validation. `.mcp.json` supports common compatibility forms: top-level server maps, `http` / `local` transport aliases, omitted type inferred from `command`, and `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${NAME:-default}` placeholders. Invalid servers are diagnosed and skipped rather than started with partial configuration.
 
+Path variables written in suite files resolve to real values at injection time: `${CLAUDE_PLUGIN_ROOT}` (and the Codex, ZCode and Qoder spellings) points at the suite checkout, `${CLAUDE_PLUGIN_DATA}` at that suite's data directory, `${CLAUDE_SKILL_DIR}` at the skill's own directory, and `${CLAUDE_PROJECT_DIR}` at the calling session's project directory. Skill bodies, slash commands, agent personas, LSP declarations and startup instructions all resolve them; the host bridge resolves the plugin root and project directory in hook commands, so a hook command never receives `${CLAUDE_PLUGIN_DATA}`. A project's own `.claude/` and similar native directories are not plugins, and the plugin variables in them stay as written.
+
+`` !`command` `` in a skill body or slash command is dynamic context: the command runs in the session directory and its output replaces the placeholder, and a multi-line command goes in a ` ```! ` code block. A command that fails, times out or is cancelled aborts the whole invocation with the command's output instead of injecting half of it. A skill or command from an enabled suite therefore runs the shell commands it ships when you invoke it, so review a suite's contents before installing it.
+
 ### Hooks and LSP
 
 Hooks use the bridge's mapped command-hook subset at SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart and SubagentStop. This is not full Claude Code runtime compatibility.

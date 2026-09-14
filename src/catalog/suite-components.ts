@@ -5,7 +5,7 @@ import type { ProjectHooks, SuiteManifest, LspSuiteConfig } from '../model/types
 import { componentDocuments, componentPath, firstComponentFile, isRecord, isStringArray, isUnknownArray } from './component-files.js'
 import { parseLspServers } from './lsp-spec.js'
 import { normalizeHookDocuments } from './project-hooks.js'
-import { PLUGIN_ROOT_VARIABLES } from '../model/layouts.js'
+import { expandPluginPaths } from './plugin-variables.js'
 
 export async function discoverSuiteLsp(root: string, manifest: SuiteManifest, errors: string[]): Promise<LspSuiteConfig | undefined> {
   const declaration = manifest.components?.lspServers
@@ -25,7 +25,7 @@ function quote(argument: string): string {
   return `'${argument.replaceAll("'", "'\\''")}'`
 }
 function rootVariables(text: string, root: string): string {
-  return text.replace(/\$\{([A-Z_]+)\}/g, (match, name: string) => (PLUGIN_ROOT_VARIABLES.has(name) ? root : match))
+  return expandPluginPaths(text, { root })
 }
 
 const EVENT_ALIASES: Record<string, string> = {

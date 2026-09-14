@@ -126,6 +126,10 @@ MCP 详情仅为失败的托管服务或残留挂载显示重试；当前后端�
 
 `mcp.json` 使用严格 schema 校验。`.mcp.json` 支持常见兼容形式：顶层 server map、`http` / `local` transport 别名、省略 type 时通过 `command` 推断，以及 `${CLAUDE_PLUGIN_ROOT}`、`${CLAUDE_PLUGIN_DATA}`、`${NAME:-default}` 占位符。无效服务会诊断并跳过，不会带着部分配置启动。
 
+套件文件里写的路径变量会在注入时替换成实际值：`${CLAUDE_PLUGIN_ROOT}`（及 Codex、ZCode、Qoder 各自的拼写）指向套件 checkout，`${CLAUDE_PLUGIN_DATA}` 指向该套件的数据目录，`${CLAUDE_SKILL_DIR}` 指向技能自身目录，`${CLAUDE_PROJECT_DIR}` 指向当前会话的项目目录。技能正文、斜杠命令、子代理提示、LSP 声明和启动指令都会替换；hooks 命令由宿主桥替换插件根与项目目录，因此 hooks 里拿不到 `${CLAUDE_PLUGIN_DATA}`。项目自带的 `.claude/` 等原生目录不算插件，其中的插件路径变量保持原样。
+
+技能正文与斜杠命令里的 `` !`命令` `` 属于动态上下文：命令在会话目录中运行，输出替换该占位符；多行命令写成 ` ```! ` 代码块。命令失败、超时或被取消会中止整次调用并给出命令输出，不会只注入一半。这意味着启用套件的技能与命令在调用时会执行其自带的 shell 命令，安装前请先检查内容。
+
 ### Hooks 与 LSP
 
 Hooks 使用桥接映射支持的 command-hook 子集，接入 SessionStart、UserPromptSubmit、PreToolUse、PostToolUse、Stop、SubagentStart、SubagentStop。这不代表完整兼容 Claude Code 运行时。

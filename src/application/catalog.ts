@@ -62,6 +62,11 @@ export class Catalog implements MarketService {
     return this.context.userRoot
   }
 
+  /** The plugin storage root holding per-suite `${PLUGIN_DATA}` directories and overrides. */
+  get dataRoot(): string {
+    return this.context.dataRoot
+  }
+
   get sources(): SourceRef[] {
     return this.context.state.sources
   }

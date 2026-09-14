@@ -289,6 +289,10 @@ export interface UserPanelEntryWire {
   metadata: Record<string, unknown>
   path: string
   content: string
+  /** Suite checkout root of a plugin-provided file; runtime consumers resolve `${PLUGIN_ROOT}` against it. */
+  suiteRoot?: string
+  /** The suite's `${PLUGIN_DATA}` directory, for the same runtime resolution. */
+  suiteData?: string
 }
 
 /** The user panel surface the market exposes. */

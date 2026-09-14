@@ -6,6 +6,7 @@ import { parse as parseYaml } from 'yaml'
 import { mountSubagentCatalog, type SubagentCatalogEntry } from './subagent-catalog.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
 import { namedAgentRoles } from './agent-role-names.js'
+import { expandPluginPaths } from '../catalog/plugin-variables.js'
 
 export const AGENT_ROLE_TOOL_NAME = 'subagent_run'
 
@@ -23,6 +24,10 @@ export interface AgentRoleEntry {
   disabled: boolean
   title?: string
   rawText?: string
+  /** Suite checkout root the card's `${PLUGIN_ROOT}` variables resolve to; absent for project-native files. */
+  suiteRoot?: string
+  /** The suite's `${PLUGIN_DATA}` directory; absent for project-native files. */
+  suiteData?: string
 }
 
 /**
@@ -174,7 +179,12 @@ export async function resolveAgentOptions(
 }
 
 /** Stable summaries; invalid declarations are excluded and transient read failures abort publication. */
-export async function agentRoleCatalog(entries: AgentRoleEntry[], signal: AbortSignal, diagnose: (message: string) => void = () => {}): Promise<SubagentCatalogEntry[]> {
+export async function agentRoleCatalog(
+  entries: AgentRoleEntry[],
+  signal: AbortSignal,
+  diagnose: (message: string) => void = () => {},
+  projectDir?: string
+): Promise<SubagentCatalogEntry[]> {
   const summaries: SubagentCatalogEntry[] = []
   const counts = new Map<string, number>()
   for (const entry of entries) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1)
@@ -194,7 +204,7 @@ export async function agentRoleCatalog(entries: AgentRoleEntry[], signal: AbortS
     }
     let policy: AgentRolePolicy
     try {
-      policy = parseAgentRole(text)
+      policy = expandPolicyPaths(parseAgentRole(text), entry, projectDir)
     } catch (error) {
       diagnose(`${entry.path}: ${String(error)}`)
       continue
@@ -216,9 +226,31 @@ export async function agentRoleCatalog(entries: AgentRoleEntry[], signal: AbortS
   return summaries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 }
 
+/** A suite card carries the same path variables as every other surface its author wrote for. */
+function expandPolicyPaths(policy: AgentRolePolicy, entry: AgentRoleEntry, projectDir: string | undefined): AgentRolePolicy {
+  if (entry.suiteRoot === undefined && entry.suiteData === undefined && projectDir === undefined) return policy
+  const context = {
+    ...(entry.suiteRoot === undefined ? {} : { root: entry.suiteRoot }),
+    ...(entry.suiteData === undefined ? {} : { data: entry.suiteData }),
+    ...(projectDir === undefined ? {} : { projectDir })
+  }
+  return {
+    ...policy,
+    content: expandPluginPaths(policy.content, context),
+    ...(policy.title === undefined ? {} : { title: expandPluginPaths(policy.title, context) }),
+    ...(policy.description === undefined ? {} : { description: expandPluginPaths(policy.description, context) })
+  }
+}
+
 /** Read the same declaration for catalog summaries and execution, including inline resources. */
-export async function readAgentRole(entry: AgentRoleEntry): Promise<AgentRolePolicy> {
-  return parseAgentRole(entry.rawText ?? (await readFile(entry.path, 'utf8')))
+export async function readAgentRole(entry: AgentRoleEntry, projectDir?: string): Promise<AgentRolePolicy> {
+  return expandPolicyPaths(parseAgentRole(entry.rawText ?? (await readFile(entry.path, 'utf8'))), entry, projectDir)
+}
+
+/** The calling session's directory, which is what a card's `${CLAUDE_PROJECT_DIR}` names. */
+function sessionCwd(agent: unknown): string | undefined {
+  const cwd = (agent as { session?: { header?: { cwd?: unknown } } } | undefined)?.session?.header?.cwd
+  return typeof cwd === 'string' && cwd !== '' ? cwd : undefined
 }
 
 /**
@@ -241,7 +273,7 @@ export async function executeAgentRole(
   const [entry, ...duplicates] = namedAgentRoles(await listRoles(parent)).filter(candidate => candidate.callName === agentName)
   if (entry === undefined || duplicates.length > 0) throw new Error(`agent "${agentName}" is unavailable or ambiguous`)
   if (entry.disabled) throw new Error(`agent "${agentName}" is disabled`)
-  const policy = await readAgentRole(entry)
+  const policy = await readAgentRole(entry, sessionCwd(parent))
   if (policy.disabled) throw new Error(`agent "${agentName}" is disabled`)
   const agentOptions = await resolveAgentOptions(policy, parent, host.llm, signal, agentName, diagnose)
   signal.throwIfAborted()
@@ -289,7 +321,12 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
   const disposeTool = host.tools.register(tool)
   let disposeCatalog: () => void
   try {
-    disposeCatalog = mountSubagentCatalog(ctx, tool, async (agent, signal) => agentRoleCatalog(await listRoles(agent), signal, message => ctx.logger?.warn(message)), t)
+    disposeCatalog = mountSubagentCatalog(
+      ctx,
+      tool,
+      async (agent, signal) => agentRoleCatalog(await listRoles(agent), signal, message => ctx.logger?.warn(message), sessionCwd(agent)),
+      t
+    )
   } catch (error) {
     disposeTool()
     throw error

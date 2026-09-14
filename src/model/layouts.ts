@@ -18,6 +18,10 @@ export const MANIFEST_ALIASES: Partial<Record<ManifestKind, readonly string[]>> 
 /** Equivalent plugin-owned path variables; these never resolve as credentials. */
 export const PLUGIN_ROOT_VARIABLES: ReadonlySet<string> = new Set(['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT', 'ZCODE_PLUGIN_ROOT', 'QODER_PLUGIN_ROOT'])
 export const PLUGIN_DATA_VARIABLES: ReadonlySet<string> = new Set(['PLUGIN_DATA', 'CLAUDE_PLUGIN_DATA', 'ZCODE_PLUGIN_DATA', 'QODER_PLUGIN_DATA'])
+/** Equivalent session project-directory variables; only a calling session supplies the directory. */
+export const PROJECT_DIR_VARIABLES: ReadonlySet<string> = new Set(['CLAUDE_PROJECT_DIR', 'ZCODE_PROJECT_DIR', 'QODER_PROJECT_DIR'])
+/** Claude Code names the directory holding the skill's own file; no dialect alias exists. */
+export const SKILL_DIR_VARIABLE = 'CLAUDE_SKILL_DIR'
 
 /** Explicit project document formats and portable surfaces; execution stays in the runtime adapters. */
 export type ProjectMcpFormat = 'mcpServers' | 'zcode' | 'codex'
