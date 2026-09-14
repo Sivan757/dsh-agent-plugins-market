@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { Catalog } from '../src/application/catalog.js'
 import { mountProjectCommands } from '../src/runtime/project-runtime.js'
 import { bindHostLocale } from '../src/runtime/host-locale.js'
+import { required } from './helpers/fixture.js'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -95,7 +97,12 @@ describe('project command lifecycle', () => {
     }
     // The forward is the template verbatim: no plugin or suite decorator line,
     // which would be text the command author never wrote.
-    expect(first.messages).toEqual([{ content: [{ type: 'text', text: 'First project my diff' }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } }])
+    expect(first.messages).toHaveLength(1)
+    const forwarded = required(first.messages[0] as UserMessage | undefined, 'the project command to forward one follow-up')
+    expect(forwarded.id).toMatch(/^\S+$/)
+    expect(forwarded.role).toBe('user')
+    expect(forwarded.content).toEqual([{ type: 'text', text: 'First project my diff' }])
+    expect(forwarded.source).toEqual({ kind: 'plugin', plugin: 'dsh-agent-plugins-market' })
     expect(JSON.stringify(first.messages)).not.toContain('Second project')
     expect(JSON.stringify(second.messages)).toContain('Second project my diff')
 

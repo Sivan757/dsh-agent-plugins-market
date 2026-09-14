@@ -8,6 +8,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import type { HostTranslate } from './host-locale.js'
 import { USER_ENTRY_NAME } from './user-store.js'
 import type { UserPanelStore } from './user-panels.js'
@@ -25,7 +26,7 @@ interface CommandsHost {
 }
 
 interface InboxAgent {
-  followup(message: { content: Array<{ type: string; text: string }>; source: unknown }): void
+  followup(message: UserMessage): void
 }
 
 /** One reconciled user command's spec. */
@@ -87,7 +88,12 @@ export class UserCommandMountRegistry {
           handler: invocation => {
             const agent = invocation.agent as InboxAgent
             const text = spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())
-            agent.followup({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } })
+            agent.followup(
+              createUserMessage({
+                content: [{ type: 'text', text }],
+                source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' }
+              })
+            )
             return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
           }
         })

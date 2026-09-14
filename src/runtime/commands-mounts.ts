@@ -12,6 +12,7 @@
  * reported as a diagnostic.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { parse as parseYaml } from 'yaml'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from './user-store.js'
@@ -54,7 +55,7 @@ interface CommandsHost {
 }
 
 interface InboxAgent {
-  followup(message: { content: Array<{ type: string; text: string }>; source: unknown }): void
+  followup(message: UserMessage): void
   session?: { header?: { cwd?: string } }
 }
 
@@ -137,7 +138,12 @@ export class CommandMountRegistry {
             }).replaceAll('$ARGUMENTS', invocation.rawInput.trim())
             const shell = this.shell()
             if (shell === undefined) {
-              agent.followup({ content: [{ type: 'text', text: body }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } })
+              agent.followup(
+                createUserMessage({
+                  content: [{ type: 'text', text: body }],
+                  source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' }
+                })
+              )
               return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
             }
             let text: string
@@ -146,7 +152,12 @@ export class CommandMountRegistry {
             } catch (error) {
               return { kind: 'error', text: error instanceof Error ? error.message : String(error) }
             }
-            agent.followup({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } })
+            agent.followup(
+              createUserMessage({
+                content: [{ type: 'text', text }],
+                source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' }
+              })
+            )
             return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
           }
         })

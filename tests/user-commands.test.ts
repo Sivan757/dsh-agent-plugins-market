@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { bindHostLocale } from '../src/runtime/host-locale.js'
 import { createUserPanelStores } from '../src/runtime/user-panels.js'
 import { UserCommandMountRegistry } from '../src/runtime/user-commands.js'
+import { required } from './helpers/fixture.js'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -50,7 +52,12 @@ describe('user command mounts', () => {
     const result = definition.handler({ agent: { followup: (message: unknown) => messages.push(message) }, rawInput: ' now' })
 
     expect(result).toEqual({ kind: 'success', text: '/do-thing 已转交模型执行' })
-    expect(messages).toEqual([{ content: [{ type: 'text', text: 'Do the thing: now' }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } }])
+    expect(messages).toHaveLength(1)
+    const forwarded = required(messages[0] as UserMessage | undefined, 'the user command to forward one follow-up')
+    expect(forwarded.id).toMatch(/^\S+$/)
+    expect(forwarded.role).toBe('user')
+    expect(forwarded.content).toEqual([{ type: 'text', text: 'Do the thing: now' }])
+    expect(forwarded.source).toEqual({ kind: 'plugin', plugin: 'dsh-agent-plugins-market' })
   })
 
   it('keeps the source label in the slash-menu description and drops disabled entries', async () => {
