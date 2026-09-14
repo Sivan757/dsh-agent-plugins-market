@@ -4,7 +4,7 @@ English | [简体中文](usage.zh.md) | [README](../../README.md)
 
 ## Host requirements
 
-The plugin configuration card carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), and the **experience feedback tool**.
+The plugin configuration card carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), and the **experience feedback tool**. The card stages what you pick and applies it when you press Save, so what is on screen is what saving writes; a setting marked **customized** also offers **Use default**, which hands that one setting back to the plugin. **Download region** starts on **Follow interface language**, and choosing it again clears your explicit choice.
 
 Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environment references, tool allow/deny lists and timeouts are preserved; unsupported fields are diagnosed. Project LSP is not mounted because the host registry is global; this plugin does not modify host APIs.
 
@@ -106,7 +106,7 @@ Skill directories are read under `.claude`, `.agents`, `.codex`, `.cursor`, `.ki
 
 MCP reads root `.mcp.json`, `.cursor/mcp.json`, and the `mcpServers` tables in `.qoder/settings.json` and `.qoder/settings.local.json` (local keys override project keys). ZCode reads `mcp.servers` from `zcode.json` and `.zcode/config.json`, with `.agents/mcp.json` as an empty-native-table fallback. Codex reads `[mcp_servers.*]` from `.codex/config.toml` through `smol-toml`, preserving stdio/HTTP configuration, environment and header references, enabled flags, tool filters and timeouts; unsupported server options are diagnosed. Relative executables resolve from the project root.
 
-Claude/Qoder settings hooks and enabled ZCode configuration hooks use the bridge's supported command-event subset. Validated hooks become private temporary runtime files that are removed on teardown; project files stay unchanged. Project LSP is diagnosed and not mounted: the host LSP registry does not isolate projects.
+Claude/Qoder settings hooks, the Agent layout's `.agents/hooks/hooks.json` or `.agents/hooks.json` (either a bare event table or a `hooks` key), and enabled ZCode configuration hooks use the bridge's supported command-event subset. Validated hooks become private temporary runtime files that are removed on teardown; project files stay unchanged. Project LSP is diagnosed and not mounted: the host LSP registry does not isolate projects.
 
 Unmanaged user checkouts do not become runtime installations just because they exist on disk. Adopt and install them explicitly. There is no file watcher; project discovery snapshots are cached for five seconds.
 

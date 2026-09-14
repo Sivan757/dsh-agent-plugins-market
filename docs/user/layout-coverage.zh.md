@@ -23,11 +23,13 @@
 
 `tests/real-layouts.test.ts` 核验来源、对真实清单执行 schema 校验，扫描原始多布局目录，再构建第二棵目录树，在每个套件根移除竞争清单。实际生效的 marketplace 来自扫描器返回值。测试还验证运行时命令读取、hooks 归一化、详情投影和 Kimi 指令加载。无清单和 Kimi 主路径用例明确属于派生布局变体，不冒充上游原始文件位置。
 
-`tests/component-declarations.test.ts` 补充样本未必具备的 schema 形式：文件/目录/数组路径、Cursor 文本扩展名、MCP 文件/内联数组、文件式 LSP、Qoder 内联命令、Kimi hooks/系统提示/catalog 别名、marketplace pluginRoot 与仅条目声明的套件、Codex API catalog，以及路径隔离和失败关闭。
+`tests/component-declarations.test.ts` 补充样本未必具备的 schema 形式：文件/目录/数组路径、Cursor 文本扩展名、MCP 文件/内联数组、文件式 LSP、Qoder 内联命令、Kimi hooks/系统提示/catalog 别名、marketplace pluginRoot 与仅条目声明的套件、Codex API catalog，以及路径隔离和失败关闭。`tests/project-hooks.test.ts` 覆盖项目维度：设置表与独立 hook 文件、`hooks.json` 可携带的裸事件表、文件损坏时的失败关闭，以及桥挂载的私有运行时快照。
 
 ## 实现
 
 `component-files.ts` 负责受限路径与归一化资源，`suite-components.ts` 归一化 hooks 和 LSP 声明。目录计数、命令/代理提供器、角色路由、详情面板使用同一组资源。显式 hooks 无效时不会回退执行默认文件。清单内联命令在资源编辑器中保持只读。
+
+项目维度通过 `native-project.ts` 复用同一套归一化，因此 `.agents/hooks/hooks.json` 与 `.agents/hooks.json` 的挂载方式与套件自身的 `hooks.json` 一致；独立文件既可写裸事件表，也可写 `hooks` 键。
 
 仅含元数据的根 `plugin.json` 保留现有身份，但会从同根 Claude 清单补充缺失的组件声明。未修改的 ponytail 快照验证这一行为，避免根名称文件继续遮蔽真实 hooks，却在隔离测试中表现正常。
 

@@ -4,7 +4,7 @@
 
 ## 宿主要求
 
-插件配置卡承载本插件的全部开关：**扫描项目 Agent 布局**（`scanProjectLayouts`，默认关闭，见[项目布局](#项目布局)）、**MCP 增强**、**下载区域**、**后台自动更新来源**（`autoUpdateSources`，默认关闭，每 6 小时刷新一次全部已配置来源）与**体验反馈工具**。
+插件配置卡承载本插件的全部开关：**扫描项目 Agent 布局**（`scanProjectLayouts`，默认关闭，见[项目布局](#项目布局)）、**MCP 增强**、**下载区域**、**后台自动更新来源**（`autoUpdateSources`，默认关闭，每 6 小时刷新一次全部已配置来源）与**体验反馈工具**。卡片会暂存你的选择，按下「保存」后才生效，因此屏幕上显示的就是保存会写入的内容；标记为**已自定义**的设置还会提供「恢复默认」，把该设置交还给插件。**下载区域**初始为**跟随界面语言**，再次选择它即清除你的显式选择。
 
 Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量引用、工具白名单/黑名单及超时；不支持的字段给出诊断。宿主 LSP 注册表是全局的，因此项目 LSP 不挂载，本插件不修改宿主 API。
 
@@ -106,7 +106,7 @@ git/压缩包获取可通过宿主配置调优：
 
 MCP 读取根 `.mcp.json`、`.cursor/mcp.json`，以及 `.qoder/settings.json`、`.qoder/settings.local.json` 的 `mcpServers` 表（本机配置覆盖同名项目配置）。ZCode 读取 `zcode.json`、`.zcode/config.json` 的 `mcp.servers`，原生表为空时回退到 `.agents/mcp.json`。Codex 通过 `smol-toml` 读取 `.codex/config.toml` 的 `[mcp_servers.*]`，保留 stdio/HTTP 配置、环境变量/请求头引用、启停、工具过滤和超时；不支持的服务字段会报诊断。相对可执行路径从项目根解析。
 
-Claude/Qoder 设置 hooks 与明确启用的 ZCode 配置 hooks 使用桥支持的命令事件子集。校验后的 hooks 写入私有运行时临时文件，销毁时删除，项目原文件保持不变。项目 LSP 给出诊断且不挂载，修改宿主不属于本插件范围。
+Claude/Qoder 设置 hooks、Agent 布局的 `.agents/hooks/hooks.json` 或 `.agents/hooks.json`（裸事件表或带 `hooks` 键）与明确启用的 ZCode 配置 hooks 使用桥支持的命令事件子集。校验后的 hooks 写入私有运行时临时文件，销毁时删除，项目原文件保持不变。项目 LSP 给出诊断且不挂载，修改宿主不属于本插件范围。
 
 未登记的用户 checkout 不会因为存在于磁盘上就自动参与运行，需要显式收编和安装。没有文件监听；项目发现快照缓存五秒。
 

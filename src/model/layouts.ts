@@ -31,6 +31,11 @@ export interface ProjectLayout {
   label: string
   subdirs: readonly string[]
   mcpFiles?: readonly string[]
+  /**
+   * Project-root-relative hook documents, read in order. A `settings.json`
+   * layer carries a `hooks` key; a standalone `hooks.json` may instead be the
+   * bare event table, the same file shape a suite ships under `hooks/`.
+   */
   hookFiles?: readonly string[]
   mcpFormat?: ProjectMcpFormat
   hookFormat?: ProjectHookFormat
@@ -44,7 +49,12 @@ export const PROJECT_LAYOUTS = [
     mcpFiles: ['.mcp.json'],
     hookFiles: ['.claude/settings.json', '.claude/settings.local.json']
   },
-  { dirName: '.agents', label: 'agents', subdirs: ['skills', 'agents', 'commands'] },
+  {
+    dirName: '.agents',
+    label: 'agents',
+    subdirs: ['skills', 'agents', 'commands'],
+    hookFiles: ['.agents/hooks/hooks.json', '.agents/hooks.json']
+  },
   { dirName: '.codex', label: 'Codex', subdirs: ['skills'], mcpFiles: ['.codex/config.toml'], mcpFormat: 'codex' },
   { dirName: '.cursor', label: 'Cursor', subdirs: ['skills', 'agents', 'commands'], mcpFiles: ['.cursor/mcp.json'] },
   { dirName: '.kimi', label: 'Kimi', subdirs: ['skills'] },
