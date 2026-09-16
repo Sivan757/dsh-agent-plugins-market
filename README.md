@@ -166,7 +166,7 @@ Reading a layout does not guarantee every behavior of its original platform. Inv
 
 ### Project layout switch
 
-The plugin settings card has **Scan project Agent layouts** (`dsh-agent-plugins-market.scanProjectLayouts`, default off). It controls one thing: whether the project you are working in contributes skills, commands, agent roles, MCP servers and hooks from its own directories (`.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder`, `.github`). Turning it on adds those candidates immediately and turning it off removes them; configured sources and installed suites are unaffected.
+The plugin settings card has **Scan project Agent layouts** (`dsh-agent-plugins-market.scanProjectLayouts`, default off). It controls one thing: whether the project you are working in contributes skills, commands, agent roles, MCP servers and hooks from its own directories (`.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder`, `.github`). Turning it on adds those candidates; turning it off removes them on the next discovery pass. The card applies a switch when you save it, and each setting offers Use default while it carries your own value. Configured sources and installed suites are unaffected.
 
 [Project layouts](docs/user/usage.md#project-layouts) lists the directories and files read per layout and how they are mounted.
 

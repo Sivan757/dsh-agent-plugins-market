@@ -8,7 +8,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { marketSettingsPath, MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
+import { MARKET_SETTINGS_NAMESPACE } from '../src/contracts/settings.js'
+import { marketSettingsPath, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
@@ -75,7 +76,7 @@ describe('MCP backend persistence', () => {
   })
 
   it('exposes the settings namespace and schema the plugin-config tab pairs by', async () => {
-    expect(MCP_SETTINGS_NAMESPACE).toBe('dsh-agent-plugins-market')
+    expect(MARKET_SETTINGS_NAMESPACE).toBe('dsh-agent-plugins-market')
     // The schemastery schema resolves a missing section to both defaults.
     const resolved = MarketSettingsSchema(undefined) as { mcpEnhanced?: boolean; downloadRegion?: string }
     expect(resolved.mcpEnhanced).toBe(true)

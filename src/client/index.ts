@@ -8,16 +8,19 @@
 import { createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BusyOverlay } from './ui/BusyOverlay.js'
-import { withBusyOperation } from './ui/busy-operation.js'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import { MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../contracts/settings.js'
 import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
 import { PluginWorkspace } from './PluginWorkspace.js'
 import { McpPluginCard } from './McpPluginCard.js'
+import { MarketPluginCardController } from './plugin-card-controller.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './page-mode.js'
 
-const NS = 'dsh-agent-plugins-market'
+/** The settings namespace this plugin registers, and the key the host pairs our card by. */
+const NS = MARKET_SETTINGS_NAMESPACE
 
 export type Translate = (key: LocaleKey, params?: Record<string, unknown>) => string
 
@@ -32,16 +35,12 @@ interface LocaleService {
 interface SlotsService {
   inject(slot: string, register: () => unknown): void
   /** Returns the registration's disposer; a host that keeps the seat until teardown returns nothing. */
-  register(meta: Record<string, unknown>, component: () => unknown): (() => void) | undefined
+  register(meta: Record<string, unknown>, component: (props: never) => unknown): (() => void) | undefined
 }
 
-/** The subset of the host settings-scope service this plugin touches. */
+/** The host settings-scope service: the browser mirror of a Host-owned namespace. */
 interface SettingsScopeService {
-  bind(options: { namespace: string }): {
-    getSnapshot(): { value?: { mcpEnhanced?: boolean; downloadRegion?: string; feedbackEnabled?: boolean; scanProjectLayouts?: boolean; autoUpdateSources?: boolean }; writable: boolean }
-    subscribe(listener: () => void): () => void
-    set(field: string, value: unknown): Promise<void>
-  }
+  bind<T>(options: { namespace: string }): SettingsScope<T>
 }
 
 /** The client cordis context this plugin relies on (structural subset). */
@@ -99,43 +98,28 @@ export function apply(ctx: SuiteClientContext): void {
   }), 'dsh-agent-plugins-market: legacy page mode')
 
   // The host 插件配置 tab card. Registration rides the injected scope's slots
-  // (the dshmarket / dsh-rewind pattern), and the card state binds the
-  // market's settings namespace — the namespace the node half registers,
-  // which is also what makes the tab serve our card at all.
+  // (the dshmarket / dsh-rewind pattern): the card's form binds the market's
+  // settings namespace — the namespace the node half registers, which is also
+  // what makes the tab serve our card at all.
   ctx.inject?.(['settingsScope'], (scoped: { settingsScope?: SettingsScopeService; slots?: SlotsService }) => {
     const service = scoped.settingsScope
     const slots = scoped.slots
     if (service === undefined || slots === undefined) return
-    const tCard = ctx.locale.bind(NS)
-    const scope = service.bind({ namespace: NS })
-    slots.inject('settings.plugin.item', () =>
-      slots.register({
+    slots.inject('settings.plugin.item', () => {
+      // One form per declaration lifetime: a collapsed and re-declared slot
+      // gets a live controller rather than the disposed one from before.
+      const card = new MarketPluginCardController(service.bind<MarketSettings>({ namespace: NS }), fetchMcpBackend)
+      const dispose = slots.register({
         name: 'settings.plugin.item',
         key: NS,
         locale: NS,
-        inject: () => ({ t: tCard }),
-      }, () => h(McpPluginCard, {
-        t: key => tCard(key as LocaleKey),
-        scope: {
-          enhanced: () => scope.getSnapshot().value?.mcpEnhanced !== false,
-          writable: () => scope.getSnapshot().writable,
-          subscribe: listener => scope.subscribe(listener),
-          setEnhanced: next => withBusyOperation(() => scope.set('mcpEnhanced', next)),
-          region: () => {
-            const value = scope.getSnapshot().value?.downloadRegion
-            return value === 'global' || value === 'china' ? value : 'auto'
-          },
-          setRegion: next => withBusyOperation(() => scope.set('downloadRegion', next)),
-          feedbackEnabled: () => scope.getSnapshot().value?.feedbackEnabled !== false,
-          setFeedbackEnabled: next => withBusyOperation(() => scope.set('feedbackEnabled', next)),
-          scanProjectLayouts: () => scope.getSnapshot().value?.scanProjectLayouts === true,
-          setScanProjectLayouts: next => withBusyOperation(() => scope.set('scanProjectLayouts', next)),
-          autoUpdateSources: () => scope.getSnapshot().value?.autoUpdateSources === true,
-          setAutoUpdateSources: next => withBusyOperation(() => scope.set('autoUpdateSources', next))
-        },
-        probe: () => fetchMcpBackend(),
-      })),
-    )
+        inject: () => card.inject(),
+      }, McpPluginCard)
+      return () => {
+        card.dispose()
+        if (typeof dispose === 'function') dispose()
+      }
+    })
   })
 
   ctx.slots.inject('settings.section', () => {

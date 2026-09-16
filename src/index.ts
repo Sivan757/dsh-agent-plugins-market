@@ -34,7 +34,7 @@ import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { shellSeamOf, type ShellSeam } from './runtime/dynamic-context.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
-import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
+import { bindHostLocale, loadHostLocale, readHostLocalePreference, setHostLocaleSource, type HostTranslate } from './runtime/host-locale.js'
 import { createUserPanelStores } from './runtime/user-panels.js'
 import { SourceAutoUpdater } from './runtime/source-auto-update.js'
 import { UserPanelSkillProvider } from './runtime/user-panels.js'
@@ -81,10 +81,20 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   // Host runtime copy resolves from the harness `locale.preference` setting;
   // the async settings read lands before the first session starts in practice.
   const hostLocale: { t: HostTranslate } = { t: bindHostLocale(undefined) }
-  void loadHostLocale().then(locale => {
-    hostLocale.t = locale.t
-    providerControl?.invalidate()
-    userPanelControl?.invalidate()
+  const refreshHostLocale = (): void => {
+    void loadHostLocale().then(locale => {
+      hostLocale.t = locale.t
+      providerControl?.invalidate()
+      userPanelControl?.invalidate()
+    })
+  }
+  void refreshHostLocale()
+  // The locale preference the GUI writes is owned by the host settings service:
+  // read it there rather than re-parsing the document, and re-bind once the
+  // service lands (the locale namespace may register after this plugin).
+  ctx.inject(['settings'], settingsCtx => {
+    setHostLocaleSource(() => readHostLocalePreference(settingsCtx))
+    refreshHostLocale()
   })
 
   const runtime = new RuntimeReconciler(ctx, dataRoot, key => hostLocale.t(key))

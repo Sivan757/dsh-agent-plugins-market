@@ -227,6 +227,9 @@ function mapAuth(auth: { enabled: boolean; scope?: string }): { enabled: boolean
 function bridgePolicy(server: McpServer) {
   return {
     toolCallTimeoutMs: server.toolCallTimeoutMs ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    // Only a DECLARED startup timeout is a policy: host compatibility mode
+    // cannot enforce one, so an undeclared server stays enforceable there and
+    // the built-in bridge applies its own default at connect time.
     ...(server.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: server.startupTimeoutMs }),
     ...(server.enabledTools === undefined ? {} : { enabledTools: server.enabledTools }),
     ...(server.disabledTools === undefined ? {} : { disabledTools: server.disabledTools })

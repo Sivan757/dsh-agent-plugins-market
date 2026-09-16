@@ -1,39 +1,57 @@
+/**
+ * The market workspace's grid/list display preference.
+ *
+ * A reading gesture rather than something the session runs on, so it lives in
+ * the browser instead of the host settings document — and it uses the platform
+ * snapshot store, whose opt-in persistence is the supported way to keep a
+ * browser-local preference across reloads.
+ *
+ * @module client/ui/workspace-view
+ */
 import { useSyncExternalStore } from 'react'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 
 export type WorkspaceView = 'grid' | 'list'
-const KEY = 'dsh-agent-plugins-market:view'
-const listeners = new Set<() => void>()
-let view: WorkspaceView = 'grid'
-let initialized = false
 
-function snapshot(): WorkspaceView {
-  if (!initialized && typeof window !== 'undefined') {
-    initialized = true
-    try { view = window.localStorage.getItem(KEY) === 'list' ? 'list' : 'grid' } catch { /* Session state still works without storage. */ }
-  }
-  return view
+/** Persistence key; the platform store uses it verbatim as the localStorage key. */
+const KEY = 'dsh-agent-plugins-market:view'
+
+/** What a value this preference does not accept reads as. */
+const DEFAULT_VIEW: WorkspaceView = 'grid'
+
+/**
+ * One store per browser document, created on first use so nothing touches
+ * storage at import time. Every mounted tab reads the same instance.
+ */
+let store: SnapshotStore<WorkspaceView> | undefined
+
+function viewStore(): SnapshotStore<WorkspaceView> {
+  store ??= createSnapshotStore<WorkspaceView>(DEFAULT_VIEW, { persist: { name: KEY } })
+  return store
+}
+
+/** Narrow a stored value to the two states this preference has. */
+function narrow(value: unknown): WorkspaceView {
+  return value === 'list' || value === 'grid' ? value : DEFAULT_VIEW
 }
 
 function setView(next: WorkspaceView): void {
-  view = next
-  initialized = true
-  try { window.localStorage.setItem(KEY, next) } catch { /* Keep the selection for this session. */ }
-  listeners.forEach(listener => listener())
+  const current = viewStore()
+  if (narrow(current.getSnapshot()) === next) return
+  current.set(next)
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  const onStorage = (event: StorageEvent): void => {
-    if (event.key !== KEY && event.key !== null) return
-    initialized = false
-    snapshot()
-    listener()
-  }
-  window.addEventListener('storage', onStorage)
-  return () => { listeners.delete(listener); window.removeEventListener('storage', onStorage) }
-}
-
-/** All workspace tabs share one persisted display preference. Search and filters remain tab-specific. */
+/**
+ * All workspace tabs share one persisted display preference; search and filters
+ * stay tab-specific.
+ * @returns the current view and the setter.
+ */
 export function useWorkspaceView(): readonly [WorkspaceView, typeof setView] {
-  return [useSyncExternalStore(subscribe, snapshot, () => 'grid'), setView]
+  const current = viewStore()
+  const view = useSyncExternalStore(
+    listener => current.subscribe(listener),
+    () => narrow(current.getSnapshot()),
+    () => DEFAULT_VIEW
+  )
+  return [view, setView]
 }

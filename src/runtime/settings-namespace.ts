@@ -17,19 +17,10 @@
  * @module runtime/settings-namespace
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { MARKET_SETTINGS_NAMESPACE, resolveMarketSettings, type DownloadRegionSetting, type MarketSettings } from '../contracts/settings.js'
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from './feedback-tool.js'
 import type { HostLocaleKey, HostTranslate } from './host-locale.js'
-import { MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, readMcpBackend, type McpBackend } from './mcp-backend.js'
-import { narrowDownloadRegion, type DownloadRegionSetting } from './regions.js'
-
-/** Settings values this plugin reads; anything else reads as its default. */
-export interface MarketSettings {
-  mcpEnhanced?: boolean
-  scanProjectLayouts?: boolean
-  downloadRegion?: unknown
-  feedbackEnabled?: boolean
-  autoUpdateSources?: boolean
-}
+import { MarketSettingsSchema, readMcpBackend, type McpBackend } from './mcp-backend.js'
 
 /** The scope the host hands back for a registered namespace. */
 interface SettingsScope {
@@ -74,7 +65,7 @@ export class MarketSettingsNamespace {
 
   /** The persisted MCP backend choice; the built-in client until registration lands. */
   async backend(): Promise<McpBackend> {
-    return this.scope !== undefined && this.scope.get().mcpEnhanced === false ? 'host' : 'builtin'
+    return this.settings().mcpEnhanced ? 'builtin' : 'host'
   }
 
   /**
@@ -88,7 +79,18 @@ export class MarketSettingsNamespace {
 
   /** The persisted download-region setting. */
   async downloadRegion(): Promise<DownloadRegionSetting> {
-    return narrowDownloadRegion(this.scope?.get().downloadRegion)
+    return this.settings().downloadRegion
+  }
+
+  /**
+   * The resolved settings, whether or not the namespace is registered yet.
+   *
+   * Every reader goes through here so "the field is absent" has exactly one
+   * answer — {@link resolveMarketSettings} — instead of each caller inventing
+   * its own fallback for the window before registration lands.
+   */
+  private settings(): MarketSettings {
+    return resolveMarketSettings(this.scope?.get())
   }
 
   /** Release every watcher and unmount the feedback tool. */
@@ -104,13 +106,11 @@ export class MarketSettingsNamespace {
       const settings = (
         settingsCtx as {
           settings: {
-            register(ns: string, schema: unknown, options?: { base?: MarketSettings }): SettingsScope
+            register(ns: string, schema: unknown): SettingsScope
           }
         }
       ).settings
-      const scope = settings.register(MCP_SETTINGS_NAMESPACE, MarketSettingsSchema, {
-        base: { mcpEnhanced: true, downloadRegion: 'auto', feedbackEnabled: true, scanProjectLayouts: false }
-      })
+      const scope = settings.register(MARKET_SETTINGS_NAMESPACE, MarketSettingsSchema)
       this.scope = scope
       this.ctx.logger?.info?.('[dsh-agent-plugins-market] settings namespace registered — plugin-config card will serve')
       this.syncProjectLayouts()
@@ -121,10 +121,10 @@ export class MarketSettingsNamespace {
       void readMcpBackend(this.dataRoot).then(backend => {
         if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})
       })
-      let previousBackend = scope.get().mcpEnhanced !== false
+      let previousBackend = this.settings().mcpEnhanced
       this.watchers.push(
         scope.watch(() => {
-          const backend = scope.get().mcpEnhanced !== false
+          const backend = this.settings().mcpEnhanced
           if (backend === previousBackend) return
           previousBackend = backend
           this.host.refreshMcpMounts()
@@ -145,24 +145,24 @@ export class MarketSettingsNamespace {
     }
   }
 
-  /** Apply the background source-update switch; OFF is the default. */
+  /** Apply the background source-update switch. */
   private syncAutoUpdateSources(): void {
     try {
-      this.host.setAutoUpdateSources(this.scope?.get().autoUpdateSources === true)
+      this.host.setAutoUpdateSources(this.settings().autoUpdateSources)
     } catch (error) {
       this.ctx.logger?.error?.(`[dsh-agent-plugins-market] background source update switch failed: ${String(error)}`)
     }
   }
 
   private syncProjectLayouts(): void {
-    void this.host.setScanProjectLayouts(this.scope?.get().scanProjectLayouts === true).catch(error => {
+    void this.host.setScanProjectLayouts(this.settings().scanProjectLayouts).catch(error => {
       this.ctx.logger?.error?.(`[dsh-agent-plugins-market] project layout reconciliation failed: ${String(error)}`)
     })
   }
 
   private syncFeedbackTool(): void {
     try {
-      const wanted = this.scope?.get().feedbackEnabled !== false
+      const wanted = this.settings().feedbackEnabled
       if (!wanted) {
         if (this.feedbackDisposer !== undefined) {
           this.feedbackDisposer()

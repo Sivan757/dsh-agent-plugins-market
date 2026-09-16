@@ -166,7 +166,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 ### 项目布局开关
 
-插件设置卡提供**扫描项目 Agent 布局**（`dsh-agent-plugins-market.scanProjectLayouts`，默认关闭）。它只控制一件事：当前项目是否把自己目录（`.claude`、`.agents`、`.codex`、`.cursor`、`.kimi`、`.zcode`、`.qoder`、`.github`）里的技能、命令、代理角色、MCP 服务与 hooks 贡献到会话里。开启后立即纳入这些候选，关闭后立即移除；配置源与已安装套件不受影响。
+插件设置卡提供**扫描项目 Agent 布局**（`dsh-agent-plugins-market.scanProjectLayouts`，默认关闭）。它只控制一件事：当前项目是否把自己目录（`.claude`、`.agents`、`.codex`、`.cursor`、`.kimi`、`.zcode`、`.qoder`、`.github`）里的技能、命令、代理角色、MCP 服务与 hooks 贡献到会话里。开启后纳入这些候选，关闭后在下一轮发现时移除。卡片在你保存时生效，设置带着你自己填的值时也提供「恢复默认」。配置源与已安装套件不受影响。
 
 每种布局读取哪些目录与文件、如何挂载，见[项目布局](docs/user/usage.zh.md#项目布局)。
 

@@ -100,7 +100,7 @@ Project-dimension state and checkouts live under `<project>/.dsh/agent-plugins/`
 
 ### Project layouts
 
-**Scan project Agent layouts** is off by default. With it on, the project a session runs in contributes its own resources; turning it off removes every candidate below immediately. Configured sources and installed suites are unaffected. Files are read in place and are never installed, rewritten or deleted.
+**Scan project Agent layouts** is off by default. With it on, the project a session runs in contributes its own resources; saving with it off removes every candidate below on the next discovery pass. Configured sources and installed suites are unaffected. Files are read in place and are never installed, rewritten or deleted.
 
 Skill directories are read under `.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder` and `.github`. Portable Markdown agents are enabled for all of them except `.codex` and `.kimi`, whose TOML/YAML formats need separate adapters. Role execution resolves the calling session's project. Project commands, supported MCP servers and mapped command hooks register in each agent's scoped context and refresh on session startup or catalog changes.
 

@@ -13,20 +13,13 @@
  *
  * @module runtime/regions
  */
-
-/** The persisted setting: `auto` follows the interface language. */
-export type DownloadRegionSetting = 'auto' | 'global' | 'china'
+import type { DownloadRegionSetting } from '../contracts/settings.js'
 
 /** The route downloads actually take. */
 export type EffectiveRegion = 'global' | 'china'
 
 /** The China-route GitHub prefix proxy, no trailing slash. */
 const DEFAULT_GITHUB_PROXY = 'https://gh-proxy.com'
-
-/** Narrow an untrusted stored value to a setting; anything else reads as auto. */
-export function narrowDownloadRegion(value: unknown): DownloadRegionSetting {
-  return value === 'global' || value === 'china' ? value : 'auto'
-}
 
 /**
  * Resolve the effective region: an explicit choice wins; `auto` follows the

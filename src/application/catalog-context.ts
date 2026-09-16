@@ -8,6 +8,7 @@
  * notification path — have a single owner.
  */
 import { join } from 'node:path'
+import { MARKET_SETTINGS_DEFAULTS } from '../contracts/settings.js'
 import type { GitOptions } from '../catalog/git.js'
 import { STATE_FILE_NAME } from '../catalog/paths.js'
 import { settlesWithin } from '../runtime/deadline.js'
@@ -73,7 +74,13 @@ export class CatalogContext implements SnapshotHost {
   private mutationQueue: Promise<unknown> = Promise.resolve()
   private currentRevision = 0
   private currentScanGeneration = 0
-  private scanProjectLayoutsEnabled = false
+  /**
+   * The project-layout switch in effect. The host settings document owns the
+   * value and pushes it here on registration and on every change; the initial
+   * value is the contract's declared default, which is what the catalog would
+   * read from the document before the settings service resolves.
+   */
+  private scanProjectLayoutsEnabled: boolean = MARKET_SETTINGS_DEFAULTS.scanProjectLayouts
   /** The derived refresh in flight, shared by every change that lands while it runs. */
   private refreshPass: Promise<void> | undefined
   /** Whether a change landed after the running pass started; it earns one more pass. */

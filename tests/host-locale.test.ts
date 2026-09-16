@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { bindHostLocale, readLocalePreference } from '../src/runtime/host-locale.js'
+import { afterEach, describe, expect, it } from 'vitest'
+import { bindHostLocale, readHostLocalePreference, readLocalePreference, setHostLocaleSource } from '../src/runtime/host-locale.js'
 
 describe('host locale', () => {
+  afterEach(() => {
+    setHostLocaleSource(() => undefined)
+  })
+
   it('defaults to zh copy', () => {
     const t = bindHostLocale(undefined)
     expect(t('commandAcknowledged', { command: 'review' })).toBe('/review 已转交模型执行')
@@ -23,5 +27,17 @@ describe('host locale', () => {
     // outcomes are valid — the function must not throw.
     const preference = await readLocalePreference()
     expect(preference === undefined || typeof preference === 'string').toBe(true)
+  })
+
+  it('prefers the host settings service over the file once one is wired', async () => {
+    setHostLocaleSource(() => 'en-GB')
+    await expect(readLocalePreference()).resolves.toBe('en-GB')
+  })
+
+  it('reads the preference field off the locale namespace section', () => {
+    const settingsCtx = { settings: { get: (ns: string) => (ns === 'locale' ? { preference: 'en' } : undefined) } }
+    expect(readHostLocalePreference(settingsCtx)).toBe('en')
+    expect(readHostLocalePreference({})).toBeUndefined()
+    expect(readHostLocalePreference({ settings: { get: () => ({ preference: 42 }) } })).toBeUndefined()
   })
 })
