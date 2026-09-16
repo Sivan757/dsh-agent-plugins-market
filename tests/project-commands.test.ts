@@ -31,6 +31,9 @@ function agent(cwd: string) {
       inject: (_services: string[], callback: (scope: unknown) => void) => {
         const cleanups: Array<() => void> = []
         callback({
+          // No optional service resolves on this scope: the template's
+          // placeholders stay literal, as they do on a profile without a shell.
+          get: () => undefined,
           commands: {
             register: (definition: Definition) => {
               if (definitions.has(definition.name)) throw new Error('duplicate command')

@@ -53,7 +53,7 @@ Web GUI(浏览器) ──window.__ModuleLoader__──▶ 插件 client 面(单�
 
 - 函数式插件：named exports `name` / `inject` / `apply(ctx, config)`，无 default export。
 - `inject` 只声明硬依赖；可选服务一律 `ctx.get('xxx') !== undefined` 判空后使用。
-- 未在 `inject` 声明的服务，禁止以 `ctx.serviceName` 属性访问。
+- 未在 `inject` 声明的服务，禁止以 `ctx.serviceName` 属性访问。Cordis 的属性解析只沿读取方 fiber 的**祖先**查找，宿主从兄弟 fiber 提供的服务（`shell`、`tools`）会抛 `cannot get property "<name>" without inject`；`ctx.get` 读全局服务表，与拓扑无关。该拓扑由 `tests/host-service-seam.test.ts` 钉住：服务来自兄弟 fiber，读取方只声明自己的 `inject`。
 
 ### 2.3 Client bundle
 

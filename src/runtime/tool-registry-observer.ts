@@ -1,5 +1,7 @@
 /** Host-private adapter for observing model-facing MCP tools. */
 
+import type { Context } from '@deepseek-ai/cordis'
+
 /** One MCP tool observed from the DSH tool registry. */
 export interface McpToolSnapshot {
   name: string
@@ -35,4 +37,9 @@ export function inspectToolRegistry(runtime: unknown): McpToolSnapshot[] {
   } catch {
     return []
   }
+}
+
+/** Read the tools service off the plugin context, when the host mounts one. */
+export function toolsServiceOf(ctx: Context): unknown {
+  return (ctx as unknown as { get?: (name: string) => unknown }).get?.('tools')
 }

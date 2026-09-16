@@ -21,7 +21,7 @@ import { expandPluginPaths, pluginRootOf } from '../catalog/plugin-variables.js'
 import type { Suite, SuiteMarkdownResource } from '../model/types.js'
 import { defaultMarkdownResources, resourceText, resourceCommandName } from '../catalog/component-files.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
-import { injectDynamicContext, type ShellSeam } from './dynamic-context.js'
+import { injectDynamicContext, shellSeamOf, type ShellSeam } from './dynamic-context.js'
 
 export interface CommandMountDiagnostic {
   suiteId: string
@@ -73,7 +73,7 @@ export class CommandMountRegistry {
 
   /** The live shell seam, when the profile has one; dynamic context stays literal without it. */
   private shell(): ShellSeam | undefined {
-    return (this.ctx as unknown as { shell?: ShellSeam }).shell
+    return shellSeamOf(this.ctx)
   }
 
   /** Register/unregister suite commands to match the enabled suites exactly. */

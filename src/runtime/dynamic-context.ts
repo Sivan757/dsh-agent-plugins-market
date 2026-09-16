@@ -13,9 +13,10 @@
  * reads half-injected text. Exit code 1 counts as a result for the commands
  * whose benign outcome it is (`grep`, `rg`, `find`, `diff`, `test`, …).
  *
- * The shell service is reached structurally: the caller supplies the seam it
- * resolved, and a profile without one keeps the author's literal text.
+ * The shell service is reached structurally: {@link shellSeamOf} resolves it
+ * from any context, and a profile without one keeps the author's literal text.
  */
+import type { Context } from '@deepseek-ai/cordis'
 
 /** How long one injected command may run; the executor caps a larger request. */
 export const DYNAMIC_CONTEXT_TIMEOUT_MS = 120_000
@@ -36,6 +37,23 @@ export interface ShellOutcome {
   aborted: boolean
   stdout: { text: string; truncated: boolean; spillPath?: string }
   stderr: { text: string; truncated: boolean; spillPath?: string }
+}
+
+/**
+ * Resolve the host shell service from any context, whether or not the reading
+ * fiber injects `shell`.
+ *
+ * Cordis resolves `ctx.shell` by walking the reading fiber's ancestors, so a
+ * scope that does not inject the service throws `cannot get property "shell"
+ * without inject` even when a sibling fiber provides it. `ctx.get` reads the
+ * global service store instead and answers `undefined` in a profile that has
+ * no shell, which is what keeps the seam optional.
+ *
+ * @param ctx - the context the dynamic-context pass runs under.
+ * @returns the shell seam, or `undefined` when the profile provides none.
+ */
+export function shellSeamOf(ctx: Context): ShellSeam | undefined {
+  return ctx.get('shell') as ShellSeam | undefined
 }
 
 export interface DynamicContextOptions {

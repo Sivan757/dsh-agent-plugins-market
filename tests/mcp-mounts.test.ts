@@ -398,6 +398,8 @@ describe('CommandMountRegistry (CC commands compat)', () => {
   it('registers commands/*.md and forwards the template as a model follow-up', async () => {
     const registered: Array<{ name: string; description: string; input?: { hint: string }; handler: (inv: { agent: unknown; rawInput: string }) => unknown }> = []
     const ctx = {
+      // No optional service resolves here, so the template's placeholders stay literal.
+      get: () => undefined,
       commands: {
         register: (def: { name: string; description: string; input?: { hint: string }; handler: (inv: { agent: unknown; rawInput: string }) => unknown }) => {
           registered.push(def)

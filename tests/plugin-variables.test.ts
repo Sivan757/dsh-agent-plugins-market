@@ -35,6 +35,8 @@ afterEach(async () => {
 function commandHost(agent: Record<string, unknown> = {}) {
   const registered: Array<{ name: string; handler: (invocation: { agent: unknown; rawInput: string }) => unknown }> = []
   const ctx = {
+    // No optional service resolves here, so the template's placeholders stay literal.
+    get: () => undefined,
     commands: {
       register: (definition: (typeof registered)[number]) => {
         registered.push(definition)

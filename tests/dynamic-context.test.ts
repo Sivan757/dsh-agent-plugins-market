@@ -54,6 +54,16 @@ function shellFor(answers: Record<string, ShellOutcome | Error>): ShellSeam & { 
   }
 }
 
+/**
+ * A context stub that resolves `shell` the way a Cordis context does — through
+ * `get`. Attaching the seam as a plain `shell` property would hide the failure
+ * this stub exists to stay honest about; `tests/host-shell-seam.test.ts` mounts
+ * the real fiber tree where the property read throws.
+ */
+function shellService(shell: ShellSeam | undefined): { get(name: string): unknown } {
+  return { get: (name: string) => (name === 'shell' ? shell : undefined) }
+}
+
 describe('dynamic context injection', () => {
   it('replaces inline placeholders with their command output', async () => {
     const shell = shellFor({ 'git status --short': outcome({ stdout: { text: ' M a.ts\n', truncated: false } }) })
@@ -135,7 +145,7 @@ describe('dynamic context reaches the model through the surfaces', () => {
     if (suite === undefined) throw new Error('expected the layout to resolve to one suite')
     const registered: Array<{ handler: (invocation: { agent: unknown; rawInput: string }) => Promise<unknown> }> = []
     const shell = shellFor({ 'git status --short': outcome({ stdout: { text: ' M a.ts\n', truncated: false } }) })
-    const registry = new CommandMountRegistry({ shell, commands: { register: (definition: never) => (registered.push(definition), () => {}) } } as never)
+    const registry = new CommandMountRegistry({ ...shellService(shell), commands: { register: (definition: never) => (registered.push(definition), () => {}) } } as never)
     await registry.reconcile([withDefaultSurfaces({ ...suite, enabled: true })])
 
     let forwarded = ''
@@ -157,7 +167,7 @@ describe('dynamic context reaches the model through the surfaces', () => {
     if (suite === undefined) throw new Error('expected the layout to resolve to one suite')
     const registered: Array<{ handler: (invocation: { agent: unknown; rawInput: string }) => Promise<{ kind: string; text: string }> }> = []
     const shell = shellFor({ 'exit 3': outcome({ exitCode: 3 }) })
-    const registry = new CommandMountRegistry({ shell, commands: { register: (definition: never) => (registered.push(definition), () => {}) } } as never)
+    const registry = new CommandMountRegistry({ ...shellService(shell), commands: { register: (definition: never) => (registered.push(definition), () => {}) } } as never)
     await registry.reconcile([withDefaultSurfaces({ ...suite, enabled: true })])
     const followed: unknown[] = []
     const result = await registered[0]!.handler({ agent: { session: { header: { cwd: dir } }, followup: (message: unknown) => followed.push(message) }, rawInput: '' })
@@ -174,7 +184,7 @@ describe('dynamic context reaches the model through the surfaces', () => {
     const [suite] = (await scanSource(dir, 's', 'user')).suites
     if (suite === undefined) throw new Error('expected the layout to resolve to one suite')
     const registered: Array<{ handler: (invocation: { agent: unknown; rawInput: string }) => Promise<unknown> }> = []
-    const registry = new CommandMountRegistry({ commands: { register: (definition: never) => (registered.push(definition), () => {}) } } as never)
+    const registry = new CommandMountRegistry({ ...shellService(undefined), commands: { register: (definition: never) => (registered.push(definition), () => {}) } } as never)
     await registry.reconcile([withDefaultSurfaces({ ...suite, enabled: true })])
     let forwarded = ''
     await registered[0]!.handler({
