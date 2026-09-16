@@ -16,7 +16,7 @@ import { useWorkspaceView } from './workspace-view.js'
 import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, SourceBadge, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
 import { RoleMetadataFields } from '../features/personas/RoleMetadataFields.js'
-import { readRoleFields, updateFrontmatter } from '../features/personas/frontmatter.js'
+import { readRoleFields, setSkillInvocationEnabled, updateFrontmatter } from '../features/personas/frontmatter.js'
 import { clientErrorMessage } from './error-message.js'
 
 /** Draft templates per panel kind (bilingual; the user edits from here). */
@@ -118,7 +118,11 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   }
 
   const toggleDisabled = (entry: UserPanelEntry): void => {
-    void mutate(() => updateUserPanelEntry(kind, entry.id ?? entry.name, updateFrontmatter(entry.rawText, 'disabled', !entry.disabled)))
+    // A skill is switched through the harness's invocation controls, which
+    // every reader of the file honors; commands and personas use the panel's
+    // own `disabled` key.
+    const text = kind === 'skills' ? setSkillInvocationEnabled(entry.rawText, entry.disabled) : updateFrontmatter(entry.rawText, 'disabled', !entry.disabled)
+    void mutate(() => updateUserPanelEntry(kind, entry.id ?? entry.name, text))
   }
 
   const saveEditor = async (state: PanelEditorState): Promise<boolean> => {
@@ -243,6 +247,9 @@ function UserEntryRow(props: {
 }): ReactNode {
   const { entry, t } = props
   const metaPairs = Object.entries(entry.metadata).filter(([key]) => key !== 'description' && key !== 'disabled' && key !== 'name')
+  // A rejected document cannot be switched on: its state is recomputed from the
+  // document, so the fix is editing the document.
+  const locked = props.busy || entry.metadata['validationError'] !== undefined
   return h(
     ResourceCard,
     { className: css.entryRow, state: entry.disabled ? 'disabled' : 'active' },
@@ -282,7 +289,7 @@ function UserEntryRow(props: {
         },
         h(IconTrashOutline16)
       ),
-      h(ToggleSwitch, { on: !entry.disabled, disabled: props.busy, title: entry.disabled ? t('enable') : t('disable'), onChange: props.onToggle })
+      h(ToggleSwitch, { on: !entry.disabled, disabled: locked, title: entry.disabled ? t('enable') : t('disable'), onChange: props.onToggle })
     )
   )
 }

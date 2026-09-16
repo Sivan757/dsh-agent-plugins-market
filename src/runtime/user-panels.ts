@@ -1,9 +1,9 @@
 /**
  * User panel storage: the persistence layer behind the skills / commands /
- * agent-personas panels. Each surface owns one directory of Markdown files
- * under the shared Agent layout root (`~/.agents/<kind>/`), so user-authored
- * entries survive restarts, are trivially hand-editable, and stay outside
- * suite checkouts.
+ * agent-personas panels. Each surface owns one directory of Markdown
+ * documents under the shared Agent layout root (`~/.agents/<kind>/`), so
+ * user-authored entries survive restarts, are trivially hand-editable, and
+ * stay outside suite checkouts.
  *
  * Skills entries follow the SKILL.md frontmatter grammar (`name`,
  * `description`, optional `whenToUse`, invocation controls) plus a
@@ -11,55 +11,114 @@
  * frontmatter (`description`, optional `argument-hint`, `disabled`); agent
  * personas follow Claude Code agents frontmatter (`name`, `description`,
  * optional `whenToUse`, `tools`, `model`, `disabled`).
+ *
+ * Only the skills panel serves the cross-tool `<name>/SKILL.md` directory
+ * spelling beside its own flat entries; commands and personas stay flat.
+ *
+ * An entry's name is the one its document declares — the same name the
+ * harness reader derives from that file — and the panel addresses, edits, and
+ * deletes the entry by that name. A document that reader would reject is
+ * listed disabled with the reason instead of joining the catalog, and a skill
+ * is switched off by writing that reader's own invocation controls, so the off
+ * state lives in the file rather than in this provider.
  * @module runtime/user-panels
  */
 
-import { join } from 'node:path'
+import { dirname } from 'node:path'
 import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillSource } from '@deepseek-ai/dsh-skill'
-import { deleteEntryFile, entryExists, listEntryFiles, readEntryFile, USER_ENTRY_NAME, userEntryDir, writeEntryFile, type UserEntryFile } from './user-store.js'
+import { skillEntryRejection } from '../catalog/skills-parse.js'
+import {
+  deleteEntryDocument,
+  entryExists,
+  listEntryDocuments,
+  listEntryFiles,
+  readEntryDocument,
+  resolveEntryDocument,
+  SKILL_ENTRY_SHAPES,
+  USER_ENTRY_NAME,
+  userEntryDir,
+  writeEntryDocument,
+  writeEntryFile,
+  type EntryDocument,
+  type EntryShape,
+  type UserEntryFile
+} from './user-store.js'
 /** The skill-source label user-panel entries carry into the skill registry. */
 export const USER_PANEL_SKILL_SOURCE = 'user-panel' satisfies SkillSource
 
 /**
- * Panel skills outrank both the harness's reader of this directory and the
- * suite skills an install adds.
+ * Panel skills register ahead of the harness reader that maps this same
+ * directory (`dsh-skill-filesystem` roots `~/.agents/skills` as `user-agents`
+ * at rank 500), so the panel's localized description and its name precedence
+ * apply to the entries it serves. Project roots (100-300) and the user's
+ * `~/.dsh` skills (400) still outrank it, and it beats the suite user rank
+ * (450), so a skill the user wrote by hand wins over one an installed suite
+ * ships under the same name.
  *
- * `dsh-skill-filesystem` maps `~/.agents/skills` as its `user-agents` root at
- * rank 500, and a lower rank wins a duplicated skill name. Sitting behind it
- * handed every entry to that reader, which knows neither this panel's
- * `disabled` frontmatter nor its localized description, so a skill the user
- * disabled stayed loaded. At 440 the panel keeps its own controls; project
- * roots (100-300) and the user's `~/.dsh` skills (400) still outrank it, while
- * a skill the user wrote by hand now beats one an installed suite ships under
- * the same name (the suite user rank is 450).
+ * Switching a skill off is not this provider's job: the panel writes the
+ * harness's own invocation pair into the document, which every reader of that
+ * file honors.
  */
 const USER_PANEL_RANK = 440
 
 /** A user panel entry as the HTTP layer serializes it. */
 export interface UserPanelEntry {
-  /** Entry identity: the file's base name. */
+  /** Entry name: the name its document declares, else the file's base name (or the skill directory's). */
   name: string
   description: string
-  /** True when the entry is disabled through its `disabled` frontmatter key. */
+  /** True when the entry is disabled, either by its `disabled` frontmatter key or by a failed validation. */
   disabled: boolean
   /** The parsed frontmatter record (name, description, hint, tools, model, …). */
   metadata: Record<string, unknown>
   /** Absolute file path. */
   path: string
+  /** How the entry is spelled on disk. */
+  shape: EntryShape
   /** The body after frontmatter removal. */
   content: string
   rawText: string
   origin: 'user'
 }
 
+/** How one panel store treats names and on-disk spellings. */
+export interface UserPanelStoreOptions {
+  /** Extra name grammar for this panel (runs after USER_ENTRY_NAME). */
+  extraNameCheck?: (name: string) => boolean
+  /** The document spellings this panel serves, most preferred first. */
+  shapes?: readonly EntryShape[]
+  /**
+   * Rejection for a document this panel must not register, or `undefined` when
+   * it may. Skills validate against the harness reader that shares their
+   * directory; commands and personas are this plugin's own surfaces.
+   */
+  validate?: (file: UserEntryFile) => string | undefined
+  /**
+   * Read the harness's own invocation controls as this panel's disabled state:
+   * a document that switches both off (`disable-model-invocation: true` and
+   * `user-invocable: false`) is off here too, which is the state every reader
+   * of the file agrees on. Only the skills panel sets it; commands and
+   * personas are switched through the panel's own `disabled` key.
+   */
+  honorInvocationControls?: boolean
+}
+
 /** Throwing CRUD over one panel directory, shared by the three panels. */
 export class UserPanelStore {
+  private readonly shapes: readonly EntryShape[]
+  private readonly extraNameCheck: (name: string) => boolean
+  private readonly validate: ((file: UserEntryFile) => string | undefined) | undefined
+  private readonly honorInvocationControls: boolean
+
   constructor(
     private readonly agentsRoot: string,
     private readonly kind: 'skills' | 'commands' | 'agents',
-    /** Extra name grammar for this panel (runs after USER_ENTRY_NAME). */
-    private readonly extraNameCheck: (name: string) => boolean = () => true
-  ) {}
+    options: UserPanelStoreOptions = {}
+  ) {
+    this.shapes = options.shapes ?? ['file']
+    this.extraNameCheck = options.extraNameCheck ?? (() => true)
+    this.validate = options.validate
+    this.honorInvocationControls = options.honorInvocationControls === true
+  }
 
   /** The panel's directory under the Agent layout root. */
   dirPath(): string {
@@ -70,62 +129,100 @@ export class UserPanelStore {
     return this.dirPath()
   }
 
+  private validName(name: string): boolean {
+    return USER_ENTRY_NAME.test(name) && this.extraNameCheck(name)
+  }
+
+  /**
+   * Resolve the document one entry name addresses. The name a panel entry
+   * carries is the one its document declares, which is only the file name by
+   * convention, so a name that matches no path is matched against the
+   * declared names of the served documents.
+   */
+  private async document(name: string): Promise<EntryDocument | undefined> {
+    const direct = await resolveEntryDocument(this.dir, name, this.shapes)
+    if (direct !== undefined) return direct
+    for (const candidate of await listEntryDocuments(this.dir, false, this.shapes)) {
+      const file = await readEntryDocument(candidate)
+      if (file?.name === name) return candidate
+    }
+    return undefined
+  }
+
   /** Every entry, sorted by name; strict snapshots propagate temporary I/O failures. */
   async list(strict = false): Promise<UserPanelEntry[]> {
-    const files = await listEntryFiles(this.dir, strict)
+    const files = await listEntryFiles(this.dir, strict, this.shapes)
     return files.map(file => this.serialize(file))
   }
 
   /** One entry's full record, including the raw file text. */
   async get(name: string): Promise<UserPanelEntry | undefined> {
-    if (!USER_ENTRY_NAME.test(name)) return undefined
-    const file = await readEntryFile(join(this.dir, `${name}.md`), name)
-    if (file === undefined) return undefined
-    return this.serialize(file)
+    const document = await this.document(name)
+    if (document === undefined) return undefined
+    const file = await readEntryDocument(document)
+    return file === undefined ? undefined : this.serialize(file)
   }
 
   /**
    * Project one parsed file onto the wire shape. The description prefers the
    * strict frontmatter parse (multi-line YAML like `description: |` survives
    * intact there) and falls back to the shallow line record.
+   *
+   * A document the panel must not register stays listed and editable but reads
+   * as disabled with the reason in its metadata, the same shape an unparseable
+   * frontmatter already produced — hiding it would leave the user no way to
+   * find or fix it.
    */
   private serialize(file: UserEntryFile): UserPanelEntry {
     const strictDescription = typeof file.description === 'string' && file.description !== '' ? file.description : undefined
     const shallowDescription = typeof file.meta['description'] === 'string' && file.meta['description'] !== '' ? file.meta['description'] : ''
+    const parseError = typeof file.meta['validationError'] === 'string' ? file.meta['validationError'] : undefined
+    const rejection = parseError ?? this.validate?.(file)
+    // Both invocation controls off is the panel's off state as well: the switch
+    // writes that pair, and either key alone is an authoring choice (a
+    // user-invocable-only skill, for instance) that stays switched on.
+    const invocationOff = this.honorInvocationControls && file.invocation !== undefined && !file.invocation.modelInvocable && !file.invocation.userInvocable
     return {
-      name: file.fallbackName,
+      // The declared name is the entry's name; a document that declares none
+      // the registry would accept is listed under its own file name, which is
+      // the name that keeps it addressable and fixable. `path` carries the
+      // document either way.
+      name: rejection === undefined ? file.name : file.documentName,
       description: strictDescription ?? shallowDescription,
-      disabled: file.meta['disabled'] === true,
-      metadata: file.meta,
+      disabled: file.meta['disabled'] === true || invocationOff || rejection !== undefined,
+      metadata: rejection === undefined ? file.meta : { ...file.meta, disabled: true, validationError: rejection },
       path: file.file,
+      shape: file.shape,
       content: file.body,
       rawText: file.text,
       origin: 'user'
     }
   }
 
-  /** Create an entry; refuses an occupied name. */
+  /** Create an entry; refuses an occupied name. New entries use the flat spelling. */
   async create(name: string, text: string): Promise<UserPanelEntry> {
-    if (!USER_ENTRY_NAME.test(name) || !this.extraNameCheck(name))
-      throw new Error(`invalid name "${name}" — use lowercase letters, digits, and dashes, starting with a letter or digit`)
-    if (await entryExists(this.dir, name)) throw new Error(`an entry named "${name}" already exists`)
+    if (!this.validName(name)) throw new Error(`invalid name "${name}" — use lowercase letters, digits, and dashes, starting with a letter or digit`)
+    if (await entryExists(this.dir, name, this.shapes)) throw new Error(`an entry named "${name}" already exists`)
     await writeEntryFile(this.dir, name, text)
     const created = await this.get(name)
     if (created === undefined) throw new Error(`entry "${name}" vanished after write`)
     return created
   }
 
-  /** Replace one entry's file content wholesale. */
+  /** Replace one entry's content wholesale, keeping the spelling it already has. */
   async update(name: string, text: string): Promise<void> {
-    if (!USER_ENTRY_NAME.test(name) || !this.extraNameCheck(name)) throw new Error(`invalid entry name "${name}"`)
-    if (!(await entryExists(this.dir, name))) throw new Error(`no entry named "${name}"`)
-    await writeEntryFile(this.dir, name, text)
+    if (!this.validName(name)) throw new Error(`invalid entry name "${name}"`)
+    const document = await this.document(name)
+    if (document === undefined) throw new Error(`no entry named "${name}"`)
+    await writeEntryDocument(document, text)
   }
 
   /** Delete one entry; a missing file is a no-op (idempotent delete). */
   async remove(name: string): Promise<void> {
     if (!USER_ENTRY_NAME.test(name)) throw new Error(`invalid entry name "${name}"`)
-    await deleteEntryFile(this.dir, name)
+    const document = await this.document(name)
+    if (document === undefined) return
+    await deleteEntryDocument(document)
   }
 }
 
@@ -136,9 +233,14 @@ export function createUserPanelStores(agentsRoot: string): {
   agents: UserPanelStore
 } {
   return {
-    skills: new UserPanelStore(agentsRoot, 'skills', isUserSkillEntryName),
+    skills: new UserPanelStore(agentsRoot, 'skills', {
+      extraNameCheck: isUserSkillEntryName,
+      shapes: SKILL_ENTRY_SHAPES,
+      validate: file => skillEntryRejection(file.text),
+      honorInvocationControls: true
+    }),
     commands: new UserPanelStore(agentsRoot, 'commands'),
-    agents: new UserPanelStore(agentsRoot, 'agents', isUserSkillEntryName)
+    agents: new UserPanelStore(agentsRoot, 'agents', { extraNameCheck: isUserSkillEntryName })
   }
 }
 
@@ -172,6 +274,8 @@ export class UserPanelSkillProvider implements SkillProvider {
     for (const entry of skills) {
       if (entry.disabled || !isUserSkillEntryName(entry.name)) continue
       candidates.push({
+        // The entry's name is the one its document declares, which is also the
+        // name the harness's own reader derives from the same file.
         name: entry.name,
         // The entry's own description verbatim; a user-entry label is our
         // packaging, and this description reaches the same model-facing
@@ -187,7 +291,7 @@ export class UserPanelSkillProvider implements SkillProvider {
         rank: USER_PANEL_RANK,
         locator: { name: entry.name } satisfies UserSkillLocator,
         path: entry.path,
-        resourceBase: { kind: 'directory', path: this.skills.dirPath() }
+        resourceBase: { kind: 'directory', path: this.resourceDirectory(entry) }
       })
     }
     return candidates
@@ -205,9 +309,18 @@ export class UserPanelSkillProvider implements SkillProvider {
       invocation: candidate.invocation,
       source: candidate.source,
       provider: this.name,
-      resourceBase: { kind: 'directory', path: store.dirPath() },
+      resourceBase: { kind: 'directory', path: this.resourceDirectory(entry) },
       path: entry.path,
       content: entry.content
     }
+  }
+
+  /**
+   * Relative resources resolve beside the document that references them: a
+   * directory-shaped skill owns `references/`, `scripts/` and the like next to
+   * its `SKILL.md`, while a flat entry resolves against the panel directory.
+   */
+  private resourceDirectory(entry: UserPanelEntry): string {
+    return entry.shape === 'skill-directory' ? dirname(entry.path) : this.skills.dirPath()
   }
 }

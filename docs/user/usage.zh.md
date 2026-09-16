@@ -86,15 +86,15 @@ git/压缩包获取可通过宿主配置调优：
 
 你自己创作的内容位于共用的 Agent 布局根目录 `~/.agents/`（`$DSH_AGENTS_HOME` 可覆盖）——与项目管理维度读取的 `.agents/` 目录形态一致：
 
-| 路径        | 内容                                  |
-| ----------- | ------------------------------------- |
-| `skills/`   | 自建技能 Markdown 文件                |
-| `commands/` | 自建命令 Markdown 文件                |
-| `agents/`   | 自建角色 Markdown 文件                |
-| `mcp.json`  | 工作区新增的 MCP 服务（`mcpServers`） |
-| `lsp.json`  | 工作区新增的 LSP 服务（`lspServers`） |
+| 路径        | 内容                                                      |
+| ----------- | --------------------------------------------------------- |
+| `skills/`   | 自建技能：`<name>.md`，或其它工具创作的 `<name>/SKILL.md` |
+| `commands/` | 自建命令 Markdown 文件                                    |
+| `agents/`   | 自建角色 Markdown 文件                                    |
+| `mcp.json`  | 工作区新增的 MCP 服务（`mcpServers`）                     |
+| `lsp.json`  | 工作区新增的 LSP 服务（`lspServers`）                     |
 
-自建条目支持 frontmatter `disabled: true`，停止注册但保留文件。命令将正文转交给模型，并把 `$ARGUMENTS` 替换为调用时的文本。自建角色进入动态[子代理目录](agent-roles.zh.md)，不再进入技能或斜杠命令菜单。
+自建条目支持 frontmatter `disabled: true`，停止注册但保留文件。技能面板改用宿主自己的 `disable-model-invocation: true` 与 `user-invocable: false` 这对开关来停用技能——这是该文件的所有读取器都认的停用状态——并在首次切换时删掉较早的 `disabled` 键。以 `<name>/SKILL.md` 形态创作的技能保留该文档旁的其它文件；从面板删除只移除该文档，不会动其它工具放在那里的 `references/`、`scripts/` 等文件。技能以其 frontmatter 声明的 `name` 注册，面板也用这个名字显示条目；宿主读取器会拒绝的文件以文件名列出、显示为已停用并给出原因，不进入技能目录。命令将正文转交给模型，并把 `$ARGUMENTS` 替换为调用时的文本。自建角色进入动态[子代理目录](agent-roles.zh.md)，不再进入技能或斜杠命令菜单。
 
 项目维度的状态和 checkout 位于 `<project>/.dsh/agent-plugins/`。[项目布局](#项目布局)列出的原生布局直接读取，无需安装状态。同名时，项目技能优先于已安装的用户套件技能，你在 Agent 布局根目录下自建的技能优先于同名套件技能。条目被遮蔽时可通过改名解决。
 

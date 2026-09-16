@@ -48,3 +48,18 @@ export function updateFrontmatter(text: string, key: string, value: unknown): st
   }
   return `---\n${document.toString()}---\n${body}`
 }
+
+/**
+ * Switch one skill entry on or off through the harness's own invocation
+ * controls. Off means both are off — the model may not invoke the skill and
+ * the user may not either — which is the one state every reader of the file
+ * agrees on. The panel's own `disabled` key is dropped so an entry an older
+ * release or a hand edit disabled migrates on its first toggle.
+ */
+export function setSkillInvocationEnabled(text: string, enabled: boolean): string {
+  const { document, body } = frontmatter(text)
+  document.delete('disabled')
+  document.set('disable-model-invocation', !enabled)
+  document.set('user-invocable', enabled)
+  return `---\n${document.toString()}---\n${body}`
+}

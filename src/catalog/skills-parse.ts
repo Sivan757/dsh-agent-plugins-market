@@ -106,6 +106,48 @@ export function parseSkillFrontmatter(text: string, expectedName: string | undef
   }
 }
 
+/** Frontmatter record for the panel's host-parity check, or the reason the YAML is unusable. */
+function strictSkillRecord(text: string): Record<string, unknown> | string {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+  if (frontmatter === undefined) return 'missing YAML frontmatter'
+  let raw: unknown
+  try {
+    raw = parseYaml(frontmatter)
+  } catch {
+    return 'invalid YAML frontmatter'
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'frontmatter is not an object'
+  return raw as Record<string, unknown>
+}
+
+/**
+ * Rejection for a user skill document the harness's own `dsh-skill-filesystem`
+ * reader would drop from `~/.agents/skills`, or `undefined` when that reader
+ * accepts it.
+ *
+ * The two readers share the directory, so the panel publishes only documents
+ * both accept: a listed entry never becomes a skill that loads in a
+ * market-equipped session alone. The checks mirror the shipped reader rather
+ * than the lenient suite scan — strict YAML, no display-name normalization,
+ * and a `name` the reader compares only against its kebab grammar.
+ * @returns the drop reason, phrased as the reader's own diagnostic.
+ */
+export function skillEntryRejection(text: string): string | undefined {
+  const record = strictSkillRecord(text)
+  if (typeof record === 'string') return record
+  const name = record['name']
+  const description = record['description']
+  if (typeof name !== 'string' || name === '' || typeof description !== 'string' || description.trim() === '') {
+    return 'frontmatter requires name and description'
+  }
+  if (!isSkillName(name)) return `invalid skill name "${name}"`
+  const disableModel = parseBoolean(record['disable-model-invocation'])
+  if (disableModel === undefined && record['disable-model-invocation'] !== undefined) return 'invalid disable-model-invocation value'
+  const userInvocable = parseBoolean(record['user-invocable'])
+  if (userInvocable === undefined && record['user-invocable'] !== undefined) return 'invalid user-invocable value'
+  return undefined
+}
+
 /** Lenient frontmatter recovery for prose fields with embedded `: `. */
 function lenientFrontmatter(body: string): Record<string, unknown> {
   const record: Record<string, unknown> = {}

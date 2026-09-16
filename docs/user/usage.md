@@ -86,15 +86,15 @@ Plugin state lives under `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it 
 
 Content you author yourself lives in the shared Agent layout root, `~/.agents/` (`$DSH_AGENTS_HOME` overrides it) — the same directory shape this plugin reads from a project's `.agents/`:
 
-| Path        | Contents                                           |
-| ----------- | -------------------------------------------------- |
-| `skills/`   | Your skill Markdown files                          |
-| `commands/` | Your command Markdown files                        |
-| `agents/`   | Your persona Markdown files                        |
-| `mcp.json`  | MCP services added in the workspace (`mcpServers`) |
-| `lsp.json`  | LSP servers added in the workspace (`lspServers`)  |
+| Path        | Contents                                                         |
+| ----------- | ---------------------------------------------------------------- |
+| `skills/`   | Your skills: `<name>.md`, or the tool-authored `<name>/SKILL.md` |
+| `commands/` | Your command Markdown files                                      |
+| `agents/`   | Your persona Markdown files                                      |
+| `mcp.json`  | MCP services added in the workspace (`mcpServers`)               |
+| `lsp.json`  | LSP servers added in the workspace (`lspServers`)                |
 
-User entries support `disabled: true` frontmatter to stop registration without deleting the file. Commands forward their body to the model, replacing `$ARGUMENTS` with the invocation text. User personas appear in the dynamic [subagent catalog](agent-roles.md), not the skill or slash-command menus.
+User entries support `disabled: true` frontmatter to stop registration without deleting the file. The skills panel switches a skill by writing the harness's own `disable-model-invocation: true` with `user-invocable: false` — the one off state every reader of that file honors — and drops the older `disabled` key on the first switch. A skill in the `<name>/SKILL.md` spelling keeps whatever sits beside that document; deleting it from the panel removes the document only, never the `references/` or `scripts/` files another tool put there. A skill registers under the `name` its frontmatter declares — the name the panel shows — and one the harness reader would reject is listed under its file name, disabled, with the reason instead of joining the catalog. Commands forward their body to the model, replacing `$ARGUMENTS` with the invocation text. User personas appear in the dynamic [subagent catalog](agent-roles.md), not the skill or slash-command menus.
 
 Project-dimension state and checkouts live under `<project>/.dsh/agent-plugins/`. Native layouts listed under [project layouts](#project-layouts) are read in place without install state. Project skills win same-name conflicts with installed user suites, and a skill you author under the Agent layout root wins over a suite skill of the same name. Rename an entry if it is shadowed.
 

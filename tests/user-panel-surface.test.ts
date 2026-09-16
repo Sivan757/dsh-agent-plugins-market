@@ -111,4 +111,68 @@ describe('unified Markdown resource panel', () => {
     expect(host.textContent).toContain('/user/reviewer.md')
     expect(host.querySelector('[role="dialog"]')).toBeNull()
   })
+
+  it('switches a skill through the harness invocation pair, never the panel key', async () => {
+    const on = {
+      ...user,
+      id: 'user:notes',
+      name: 'notes',
+      path: '/user/notes.md',
+      rawText: '---\nname: notes\ndescription: take notes\n---\nBody',
+      content: 'Body',
+      disabled: false
+    }
+    let mounted = false
+    const mountSkills = async (entries: unknown[]): Promise<void> => {
+      api.fetchUserPanel.mockResolvedValue(entries)
+      if (mounted) {
+        await act(async () => root.unmount())
+        host.remove()
+      }
+      host = document.createElement('div')
+      document.body.append(host)
+      root = createRoot(host)
+      await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
+      mounted = true
+    }
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+
+    const switchButton = (): HTMLButtonElement => {
+      const found = host.querySelector<HTMLButtonElement>('button[role="switch"]')
+      expect(found).not.toBeNull()
+      return found!
+    }
+
+    await mountSkills([on])
+    expect(switchButton().title).toBe('disable')
+    await act(async () => switchButton().click())
+    const [offCall] = api.updateUserPanelEntry.mock.calls
+    expect(offCall?.[0]).toBe('skills')
+    expect(offCall?.[1]).toBe('user:notes')
+    const offText = offCall?.[2] as string
+    expect(offText).toContain('disable-model-invocation: true')
+    expect(offText).toContain('user-invocable: false')
+    expect(offText).not.toContain('disabled:')
+    expect(offText).toContain('Body')
+
+    // The reverse direction restores both controls and drops the legacy key.
+    api.updateUserPanelEntry.mockClear()
+    await mountSkills([{ ...on, disabled: true, rawText: '---\nname: notes\ndescription: take notes\ndisabled: true\n---\nBody' }])
+    await act(async () => switchButton().click())
+    const onText = api.updateUserPanelEntry.mock.calls[0]?.[2] as string
+    expect(onText).toContain('disable-model-invocation: false')
+    expect(onText).toContain('user-invocable: true')
+    expect(onText).not.toContain('disabled:')
+  })
+
+  it('refuses to switch a document whose frontmatter failed validation', async () => {
+    api.fetchUserPanel.mockResolvedValue([{ ...user, id: 'user:broken', name: 'broken', disabled: true, metadata: { validationError: 'missing YAML frontmatter' } }])
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
+    const switchButton = host.querySelector<HTMLButtonElement>('button[role="switch"]')
+    expect(switchButton?.disabled).toBe(true)
+  })
 })

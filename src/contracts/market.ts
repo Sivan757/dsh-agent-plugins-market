@@ -277,6 +277,7 @@ export interface SkillContent {
 
 /** A user panel entry (skills / commands / agent personas) over HTTP. */
 export interface UserPanelEntryWire {
+  /** Entry name: the name its document declares, else the file's base name. */
   name: string
   description: string
   disabled: boolean

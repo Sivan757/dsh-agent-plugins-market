@@ -10,14 +10,14 @@ User-authored skills, commands and personas persisted under `$DSH_HOME/agent-plu
 
 Hand-authored resources and hand-written service declarations move to the shared Agent layout root `~/.agents` (`$DSH_AGENTS_HOME` overrides it for tests and unusual homes):
 
-- `skills/`, `commands/`, `agents/` — the same flat Markdown entries and frontmatter grammar as before; `UserPanelStore` changes only its root.
+- `skills/`, `commands/`, `agents/` — the same Markdown entries and frontmatter grammar as before; `UserPanelStore` changes only its root. The skills panel later gained the cross-tool `<name>/SKILL.md` spelling beside its flat files, per [the skill directory spelling decision](../feature/2026-09-14-user-skill-directory-spelling.md).
 - `mcp.json` (`mcpServers`) and `lsp.json` (`lspServers`) — where the workspace's Add buttons write.
 
 Plugin state stays under `$DSH_HOME/agent-plugins`: `.sources/`, `state.json`, `data/` (overrides, `${PLUGIN_DATA}` directories, the feedback rate-limit stamp) and the persisted LSP enable set. The two roots are deliberately different: caches and install state are ours, authored content is the user's.
 
 Containment for editing resources inside an installed suite is now measured against the catalog's user root instead of the panel directory, because a panel no longer sits inside the tree that owns the checkouts.
 
-The harness's own `dsh-skill-filesystem` maps this same `~/.agents/skills` directory as its `user-agents` root, at rank 500, and a lower rank wins a duplicated skill name. The panel provider therefore sits at 440: high enough to keep serving the entries it owns, so the panel's `disabled` frontmatter and localized description actually apply, and low enough that project roots (100-300) and the user's `~/.dsh` skills (400) still outrank it — while also beating the suite user rank (450), so a skill the user wrote by hand wins over one an installed suite ships under the same name.
+The harness's own `dsh-skill-filesystem` maps this same `~/.agents/skills` directory as its `user-agents` root, at rank 500, and a lower rank wins a duplicated skill name within one layer. The panel provider therefore sits at 440: ahead of that reader for the entries it serves, so the declared name and localized description it publishes are the ones that apply, and behind project roots (100-300) and the user's `~/.dsh` skills (400) — while also beating the suite user rank (450), so a skill the user wrote by hand wins over one an installed suite ships under the same name. Rank does not carry the panel's off state: the switch writes the harness's own invocation pair into the document, which that reader parses and its consumer enforces; see [the panel's reader-parity decision](../feature/2026-09-14-user-skill-directory-spelling.md).
 
 Activation migrates before any store reads: `user/{skills,commands,agents}` and `data/user/...` into `~/.agents/<kind>`, `data/mcp-servers.json` and `data/lsp-servers.json` into `~/.agents/mcp.json` and `~/.agents/lsp.json`. Emptied former panel directories are removed; a content conflict stays at the original path and blocks activation with that path.
 
@@ -25,7 +25,7 @@ Activation migrates before any store reads: `user/{skills,commands,agents}` and 
 
 **Keep one canonical root for everything.** Rejected: that is the problem being fixed — user content unreadable by the tools the `.agents/` convention exists for.
 
-**Move skills to the cross-tool `skills/<name>/SKILL.md` directory shape at the same time.** Rejected for now: the panels edit one document per entry, and flat `skills/*.md` is also an accepted spelling; the directory shape is its own change with its own migration.
+**Move skills to the cross-tool `skills/<name>/SKILL.md` directory shape at the same time.** Rejected for now: the panels edit one document per entry, and flat `skills/*.md` is also an accepted spelling; the directory shape is its own change with its own migration. That change later shipped without a migration ([the skill directory spelling decision](../feature/2026-09-14-user-skill-directory-spelling.md)): the panel now serves both spellings and keeps creating flat entries.
 
 **Discover `~/.agents` as an ordinary source instead of a panel store.** Rejected: the panels need create/update/delete and the `disabled` frontmatter control, which the catalog reader does not provide.
 
@@ -35,7 +35,7 @@ User content survives uninstalling the plugin, which is the point of the move. `
 
 Sharing `skills/` with the harness's own reader costs one duplicated candidate per entry and one host warning per shadowed name, in whichever direction the ranks decide. The panel wins that trade because it is the only reader that knows the user disabled the entry.
 
-That cost is also profile-bounded. The web bundle disables the host's `skill-filesystem` row (`packages/bundle/web-app/cordis.patch.yml`) because presets own local discovery there, so only base-backed profiles run both readers at all. Keeping the entries in this shared directory is still the right side of the trade: moving them into plugin-private storage to avoid one duplicate candidate would put user content back where no other Agent tool reads it, which is the problem this decision exists to fix.
+That cost is not profile-bounded. The web bundle disables the base host `skill-filesystem` row (`packages/bundle/web-app/cordis.patch.yml`) because presets own local discovery there, but every shipped preset mounts its own `skill-filesystem` row, so a session reads this directory through both providers. Keeping the entries in this shared directory is still the right side of the trade: moving them into plugin-private storage to avoid one duplicate candidate would put user content back where no other Agent tool reads it, which is the problem this decision exists to fix.
 
 ## Verification
 
