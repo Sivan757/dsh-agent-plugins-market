@@ -155,7 +155,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 | 项目原生目录                                                                                                  | 支持 | 支持 | 支持 | 支持 | 部分   | 不支持 |
 
 - **技能**读取清单声明的路径与约定的 `skills/` 目录，也支持平铺的 `SKILL.md` 文件。
-- **代理与命令**按 Markdown 读取（`agents/*.md`、`commands/*.md`）。Cursor 命令只读 `.md`，不读 `.mdc`、`.markdown`、`.txt`；Codex 与 Kimi 的原生代理/命令格式（TOML、YAML）尚未适配。
+- **代理与命令**按 Markdown 读取（`agents/*.md`、`commands/*.md`）。Cursor 插件命令接受 `.md`、`.mdc`、`.markdown`、`.txt`；Codex 与 Kimi 的原生代理/命令格式（TOML、YAML）尚未适配。
 - **MCP** 支持声明的文件、内联表与数组。Cursor 的无 schema `mcp.json` 与 agent-plugins 的严格 `mcp.json` 都能读取；Kimi Code 只读内联声明。Codex 的 app 连接器不在适配范围内。
 - **Hooks** 只映射 DSH 有对应点的命令类事件；没有对应点的事件（例如 `afterFileEdit`）给出诊断而不伪造执行。Cursor 的原生事件不读取。
 - **LSP** 支持声明的文件、数组、内联表，以及约定的 `.lsp.json` / `lsp.json` 位置。项目内的 LSP 声明只给诊断、不挂载：宿主 LSP 注册表是全局的。部分布局只提供目录预览。
