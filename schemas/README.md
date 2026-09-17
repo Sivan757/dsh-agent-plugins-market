@@ -39,7 +39,7 @@ This table records **upstream client conventions**, including their own fallback
 | [Kimi (kimi-code)](kimi/spec.md) | `kimi.plugin.json` → `.kimi-plugin/plugin.json` | `KIMI_CODE_PLUGIN_MARKETPLACE_URL`, default `https://code.kimi.com/kimi-code/plugins/marketplace.json` | None reachable; the declared URI serves HTML |
 | [Kimi (kimi-cli, legacy)](kimi/spec.md#kimi-cli-legacy-a-different-format) | `plugin.json` with a `tools` array | None | None |
 | [Universal `.plugin/`](universal/spec.md) | `.plugin/plugin.json` | `.plugin/marketplace.json` | None — an observed convention, not a specification |
-| [agent-plugins.org v1](agent-plugins/spec.md) | `plugin.json` (required) | Vendor-specific; not part of the standard | **Vendored 1.0.0 and 1.1.0** |
+| [agent-plugins.org v1](agent-plugins/spec.md) | `plugin.json` (required) | Vendor-specific; not part of the standard. This manager reads `.claude-plugin/marketplace.json`, root `marketplace.json`, or rooted discovery with no catalog | **Vendored 1.0.0 and 1.1.0** |
 | [Skill collection](skill-collection/spec.md) | None | None | n/a |
 | [ZCode](zcode/spec.md) | `.zcode-plugin/plugin.json` → `.claude-plugin/` → `.codex-plugin/` | `.claude-plugin/marketplace.json` → `marketplace.json` | None |
 | [Qoder CLI](qoder/spec.md) | `.qoder-plugin/plugin.json` → `.claude-plugin/plugin.json` | `.qoder-plugin/marketplace.json` → `.claude-plugin/` → `marketplace.json` | None |
@@ -49,17 +49,17 @@ This table records **upstream client conventions**, including their own fallback
 
 These are the points where the layouts actually differ; they cause the most silent failures.
 
-| Dialect              | MCP configuration                                                                     | Hooks                                                        |
-| -------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Claude Code          | `.mcp.json`; inline `mcpServers` is additive                                          | `hooks/hooks.json` or inline                                 |
-| Codex                | legacy: `.mcp.json` (validator rejects `mcp.json`); agent-plugins dialect: `mcp.json` | manifest `hooks` or `hooks/`                                 |
-| Cursor               | `mcp.json` (dot-file only via an explicit `mcpServers` field)                         | `hooks/hooks.json` or inline                                 |
-| Kimi (kimi-code)     | inline `mcpServers` only                                                              | inline `hooks` array                                         |
-| Universal `.plugin/` | `.mcp.json`, `.github/mcp.json`                                                       | `hooks.json` or `hooks/hooks.json`                           |
-| agent-plugins.org v1 | `mcp.json`, required and closed; inline is forbidden                                  | `com.deepseek.harness/hooks/hooks.json` (namespace contract) |
-| ZCode                | `.mcp.json` only                                                                      | `hooks/hooks.json`                                           |
-| Qoder CLI            | `.mcp.json` → `mcp.json` (never merged)                                               | `hooks/hooks.json`                                           |
-| GitHub Copilot CLI   | `.mcp.json`, `.github/mcp.json`                                                       | `hooks.json` or `hooks/hooks.json`                           |
+| Dialect              | MCP configuration                                                                      | Hooks                                                        |
+| -------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Claude Code          | `.mcp.json`; inline `mcpServers` is additive                                           | `hooks/hooks.json` or inline                                 |
+| Codex                | legacy: `.mcp.json` (validator rejects `mcp.json`); agent-plugins dialect: `mcp.json`  | manifest `hooks` or `hooks/`                                 |
+| Cursor               | `mcp.json` (dot-file only via an explicit `mcpServers` field)                          | `hooks/hooks.json` or inline                                 |
+| Kimi (kimi-code)     | inline `mcpServers` only                                                               | inline `hooks` array                                         |
+| Universal `.plugin/` | `.mcp.json`, `.github/mcp.json`                                                        | `hooks.json` or `hooks/hooks.json`                           |
+| agent-plugins.org v1 | `mcp.json` (optional — a skills-only suite is conformant), closed; inline is forbidden | `com.deepseek.harness/hooks/hooks.json` (namespace contract) |
+| ZCode                | `.mcp.json` only                                                                       | `hooks/hooks.json`                                           |
+| Qoder CLI            | `.mcp.json` → `mcp.json` (never merged)                                                | `hooks/hooks.json`                                           |
+| GitHub Copilot CLI   | `.mcp.json`, `.github/mcp.json`                                                        | `hooks.json` or `hooks/hooks.json`                           |
 
 Claude Code and Copilot (including the Universal convention) define usable LSP declarations. Qoder/ZCode record the field without native execution. Cursor, Codex, Kimi and agent-plugins do not define a native LSP surface; this manager reads agent-plugins LSP declarations from the [`com.deepseek.harness` namespace](com.deepseek.harness/spec.md), its own §8 extension rather than an upstream feature.
 

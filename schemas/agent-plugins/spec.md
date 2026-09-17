@@ -37,7 +37,17 @@ Clients MUST discover each supported component type from its fixed location, and
 | Skills      | `skills/`  | Immediate subdirectories containing `SKILL.md` |
 | MCP servers | `mcp.json` | JSON configuration                             |
 
-v1 defines exactly these two component types. Commands, hooks, agents, rules, and LSP servers are explicitly outside the format "until their formats converge". MCP configuration MUST NOT be declared inline in `plugin.json`. The `mcp.json` schema is closed and requires `$schema` and `mcpServers` with no other top-level fields; every server requires `type` and must match exactly one closed variant (§7.2.2 rule 3: a per-server violation skips that server only). `mcp.json` `$schema` MUST name the same release as `plugin.json` (§10.1). Skills discovery covers one level of `skills/` subdirectories and MUST NOT search deeper descendants (§7.1).
+v1 defines exactly these two component types. Commands, hooks, agents, rules, and LSP servers are explicitly outside the format "until their formats converge". MCP configuration MUST NOT be declared inline in `plugin.json`. The `mcp.json` schema is closed and requires `$schema` and `mcpServers` with no other top-level fields; every server requires `type` and must match exactly one closed variant (§7.2.2 rule 3: a per-server violation skips that server only). `mcp.json` `$schema` MUST name the same release as `plugin.json` (§10.1). Skills discovery covers one level of `skills/` subdirectories and MUST NOT search deeper descendants (§7.1). `mcp.json` fixes a location, not a presence requirement: a suite carrying skills only is conformant, and an absent `mcp.json` contributes zero servers.
+
+## Marketplace catalogs
+
+The specification defines no marketplace format — catalogs of v1 suites are a vendor-side convention, and the standard assigns them no schema. This manager reads three catalog shapes over v1 suite roots, in the shared scan order:
+
+1. `.claude-plugin/marketplace.json` (Claude Code shape) — the format the first-party collection [dsh-agent-plugins](https://github.com/Sivan757/dsh-agent-plugins) ships.
+2. Root `marketplace.json` — the fallback catalog for layouts without a dedicated one.
+3. No catalog at all — rooted discovery walks the checkout (up to four levels deep) and reads every directory carrying a v1 manifest, so a bare collection is scannable without any catalog file.
+
+A catalog entry's `name`/`version`/`description` are fallbacks: a conformant suite's own `plugin.json` wins for every field it declares. Entries may add display metadata the portable manifest cannot express (`category`, `keywords`). Entry sources resolve relative to the catalog's checkout; with no `source`, each entry resolves against the catalog checkout's own containers.
 
 ## Client extensions
 
