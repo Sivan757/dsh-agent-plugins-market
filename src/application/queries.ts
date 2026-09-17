@@ -5,6 +5,7 @@ import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from 
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../runtime/mcp-overrides.js'
 import type { McpBackend } from '../runtime/mcp-backend.js'
+import type { McpImportResult } from '../runtime/mcp-direct-config.js'
 import type { ServerConfigPayload } from '../contracts/market.js'
 import type { LspServerTable, McpBackendInfo, SourceInput, SourcePatch } from './ports.js'
 
@@ -26,6 +27,8 @@ export interface MarketQueries {
 export interface MarketMutations {
   saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown, policy?: unknown): Promise<void>
   addMcpServer(name: string, server: unknown): Promise<void>
+  /** Import several pasted services in one write; each entry reports its own outcome. */
+  importMcpServers(servers: unknown, overwrite: boolean): Promise<McpImportResult>
   addLspServer(name: string, config: unknown): Promise<void>
   addSource(input: SourceInput): Promise<SourceRef>
   updateSource(sourceId: string, patch: SourcePatch): Promise<void>

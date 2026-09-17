@@ -16,7 +16,15 @@ import { readLocalePreference } from '../runtime/host-locale.js'
 import { probeHostMcpClient, type McpBackend } from '../runtime/mcp-backend.js'
 import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from '../runtime/mcp-config.js'
 import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
-import { addUserMcpServer, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from '../runtime/mcp-direct-config.js'
+import {
+  addUserMcpServer,
+  importUserMcpServers,
+  loadUserMcpSuite,
+  USER_MCP_SOURCE,
+  USER_MCP_SUITE,
+  type McpImportEntry,
+  type McpImportResult
+} from '../runtime/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import {
   applyOverride,
@@ -89,6 +97,26 @@ export class McpService {
     return this.context.enqueue(async () => {
       await addUserMcpServer(this.context.agentsRoot, name, server)
       await this.context.notifyChanged(true)
+    })
+  }
+
+  /**
+   * Import several pasted services in one write. Each entry is checked on its
+   * own and reports back with its own outcome, so a paste of many services
+   * never fails as a block.
+   */
+  async importServers(servers: unknown, overwrite: boolean): Promise<McpImportResult> {
+    if (!Array.isArray(servers)) throw new Error('servers must be an array')
+    const entries: McpImportEntry[] = servers.map(entry => {
+      if (typeof entry !== 'object' || entry === null) throw new Error('each server must be an object')
+      const { name, config } = entry as { name?: unknown; config?: unknown }
+      if (typeof name !== 'string' || name === '') throw new Error('each server needs a name')
+      return { name, server: config }
+    })
+    return this.context.enqueue(async () => {
+      const result = await importUserMcpServers(this.context.agentsRoot, entries, overwrite)
+      if (result.imported.length > 0) await this.context.notifyChanged(true)
+      return result
     })
   }
 

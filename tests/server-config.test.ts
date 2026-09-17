@@ -214,6 +214,17 @@ describe('MCP service policy', () => {
     await expect(catalog.setMcpServerEnabled('@user-mcp/user-mcp', 'demo', false)).resolves.toBeUndefined()
   })
 
+  it('names the field a rejected configuration failed on', async () => {
+    const { catalog } = await setup()
+    const id = await directServer(catalog)
+    // The schema rejects the value itself, so the reason can name its field.
+    const error = await catalog.saveServerConfig('mcp', id, { type: 'streamable-http', url: 123 }).then(
+      () => undefined,
+      (reason: unknown) => reason as { fields: Array<{ field: string; message: string }> }
+    )
+    expect(error?.fields.some(entry => entry.field === 'url')).toBe(true)
+  })
+
   it('reports the mount backend on the MCP status payload', async () => {
     const { catalog } = await setup({ mcpBackend: async () => 'host' })
     expect((await catalog.mcpStatus()).backend).toBe('host')

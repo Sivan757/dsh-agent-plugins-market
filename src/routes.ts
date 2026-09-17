@@ -59,7 +59,14 @@ export function mountSuiteRoutes(
               const value = await handler(body as Record<string, unknown>, request)
               sendJson(response, 200, { ok: true, ...value })
             } catch (error) {
-              sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+              // A rejection that names its fields travels with them, so the editor
+              // can place each reason beside the input it belongs to.
+              const fields = (error as { fields?: unknown }).fields
+              sendJson(response, 400, {
+                ok: false,
+                error: error instanceof Error ? error.message : String(error),
+                ...(Array.isArray(fields) ? { fields } : {})
+              })
             }
           })()
         }
@@ -105,6 +112,14 @@ export function mountSuiteRoutes(
     if (typeof body.name !== 'string') throw new Error('MCP server name is required')
     await manager.addMcpServer(body.name, body.config)
     return {}
+  })
+
+  // Paste import: many services in one write. Each entry reports its own
+  // outcome, so one rejected definition never fails the whole paste.
+  post(MARKET_ROUTES.importMcpServers, async body => {
+    const overwrite = body['overwrite'] === true
+    const result = await manager.importMcpServers(body['servers'], overwrite)
+    return { imported: result.imported, skipped: result.skipped }
   })
 
   get(MARKET_ROUTES.lspStatus, async (_request, response) => {

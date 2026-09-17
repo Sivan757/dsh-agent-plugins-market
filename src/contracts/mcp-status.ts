@@ -4,6 +4,8 @@
 export interface McpStatusTool {
   name: string
   description?: string
+  /** The advertised input schema, kept only while it stays small enough to transport; absent otherwise. */
+  parameters?: unknown
 }
 
 /** Whether an MCP row comes from a suite or direct host observation. */

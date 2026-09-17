@@ -133,8 +133,16 @@ describe('MCP status actions', () => {
     })
     expect(document.body.textContent).toContain('mcpServiceDetail')
 
-    // The editor is embedded in the dialog itself (no intermediate toggle).
+    // The row states the reference and its state; the write field appears when
+    // the row's own control asks for it.
     expect(document.body.textContent).toContain('mcpCredentialTitle')
+    expect(document.body.querySelector('input[type="password"]')).toBeNull()
+    const configureButton = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpCredentialConfigure'))
+    expect(configureButton).toBeDefined()
+    await act(async () => {
+      configureButton!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
     expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
@@ -173,5 +181,36 @@ describe('MCP status actions', () => {
     expect(api.retryMcpMounts).toHaveBeenCalled()
     expect(document.body.textContent).toContain('mcpRetrySuccess')
     expect([...document.body.querySelectorAll('button')].some(button => button.textContent?.includes('mcpRetryConnection'))).toBe(false)
+  })
+
+  it('offers a template list that fills the new-service form', async () => {
+    await mountPanel()
+    const add = document.querySelector<HTMLButtonElement>('[aria-label="panelAdd"]')
+    expect(add).not.toBeNull()
+    await act(async () => {
+      add!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    // Two shortcuts sit above the form; the template list is one interaction in.
+    expect(document.body.textContent).toContain('mcpStarterTemplates')
+    expect(document.body.textContent).toContain('mcpStarterPaste')
+    const templates = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpStarterTemplates'))
+    expect(templates).toBeDefined()
+    await act(async () => {
+      templates!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).toContain('mcpTemplateFilesystem')
+  })
+
+  it('opens the editor from the card', async () => {
+    await mountPanel()
+    const edit = document.querySelector<HTMLButtonElement>('[aria-label="panelEdit demo__service"]')
+    expect(edit).not.toBeNull()
+    await act(async () => {
+      edit!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).toContain('mcpEditTitle')
   })
 })

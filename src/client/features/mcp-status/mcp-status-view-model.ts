@@ -83,6 +83,8 @@ export interface McpToolRow {
   /** The suite's own declaration leaves the tool out, so the user cannot open it. */
   suiteLimited: boolean
   description?: string
+  /** The advertised input schema, so the row can show what the tool takes. */
+  parameters?: unknown
 }
 
 /**
@@ -99,15 +101,16 @@ export function mcpToolRows(entry: McpStatusEntry): McpToolRow[] {
   const suiteDenied = new Set(entry.suiteDisabledTools ?? [])
   const userDenied = new Set(entry.userDisabledTools ?? [])
   const names = new Set<string>([...entry.tools.map(tool => tool.name), ...(allowedNames ?? []), ...suiteDenied, ...userDenied])
-  const descriptions = new Map(entry.tools.map(tool => [tool.name, tool.description]))
+  const observed = new Map(entry.tools.map(tool => [tool.name, tool]))
   return [...names].sort().map(name => {
     const suiteLimited = (allowedNames !== undefined && !allowedNames.includes(name)) || suiteDenied.has(name)
-    const description = descriptions.get(name)
+    const tool = observed.get(name)
     return {
       name,
       allowed: !suiteLimited && !userDenied.has(name),
       suiteLimited,
-      ...(description === undefined ? {} : { description })
+      ...(tool?.description === undefined ? {} : { description: tool.description }),
+      ...(tool?.parameters === undefined ? {} : { parameters: tool.parameters })
     }
   })
 }

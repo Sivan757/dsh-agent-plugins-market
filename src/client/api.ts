@@ -3,7 +3,7 @@ import { withBusyOperation } from './ui/busy-operation.js'
 import { RequestTimeoutError } from './request-error.js'
 import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
 import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
-import type { McpBackendInfo, OverviewPayload, ServerConfigPayload, ServerPolicyRequest, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
+import type { McpBackendInfo, MarketFieldError, OverviewPayload, ServerConfigPayload, ServerPolicyRequest, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
 
@@ -12,6 +12,7 @@ export type {
   HookPreview,
   LspPreview,
   MarkdownPreview,
+  MarketFieldError,
   McpServerDetail,
   OverviewPayload,
   ServerConfigPayload,
@@ -100,9 +101,11 @@ async function postOkJson<T>(url: string, body: Record<string, unknown>, label: 
     },
     MUTATION_TIMEOUT_MS
   )
-  const payload = (await response.json()) as T & { ok?: boolean; error?: string }
+  const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[] }
   if (!response.ok || payload.ok !== true) {
-    throw new Error(payload.error ?? `${label}: ${response.status}`)
+    // A rejection that names its fields carries them on the error, so a form can
+    // place each reason beside the input it belongs to.
+    throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields })
   }
   return payload
 }
@@ -186,6 +189,28 @@ export async function retryMcpMounts(): Promise<void> {
 export async function addMcpServer(name: string, config: Record<string, unknown>): Promise<void> {
   return withBusyOperation(async () => {
     await postAction('mcp-servers/add', { name, config })
+  })
+}
+
+/** What one pasted import wrote, and what it left out with a reason each. */
+export interface McpImportOutcome {
+  imported: string[]
+  skipped: Array<{ name: string; reason: string }>
+}
+
+/** Import several pasted services in one write; each entry reports its own outcome. */
+export async function importMcpServers(servers: Array<{ name: string; config: Record<string, unknown> }>, overwrite: boolean): Promise<McpImportOutcome> {
+  return withBusyOperation(async () => {
+    const payload = await postAction('mcp-servers/import', { servers, overwrite })
+    const imported = Array.isArray(payload['imported']) ? payload['imported'].filter((value): value is string => typeof value === 'string') : []
+    const skipped = Array.isArray(payload['skipped'])
+      ? payload['skipped'].flatMap(entry => {
+          if (typeof entry !== 'object' || entry === null) return []
+          const { name, reason } = entry as { name?: unknown; reason?: unknown }
+          return typeof name === 'string' && typeof reason === 'string' ? [{ name, reason }] : []
+        })
+      : []
+    return { imported, skipped }
   })
 }
 

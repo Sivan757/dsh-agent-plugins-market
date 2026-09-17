@@ -4,11 +4,13 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
 import { stubTranslate as t } from './helpers/translate.js'
+import { mcpGuidanceKey } from '../src/client/features/mcp-status/diagnostic-guidance.js'
 
-const apiMock = vi.hoisted(() => ({ setMcpServerTool: vi.fn(async () => {}) }))
+const apiMock = vi.hoisted(() => ({ setMcpServerTool: vi.fn(async () => {}), setMcpServerEnabled: vi.fn(async () => {}) }))
 vi.mock('../src/client/api.js', async importOriginal => ({
   ...(await importOriginal<typeof import('../src/client/api.js')>()),
-  setMcpServerTool: apiMock.setMcpServerTool
+  setMcpServerTool: apiMock.setMcpServerTool,
+  setMcpServerEnabled: apiMock.setMcpServerEnabled
 }))
 
 vi.mock('../src/client/ui/ServerConfigDetail.js', () => ({
@@ -44,12 +46,52 @@ it('has no enable switch, confirms destructive authorization and reports actual 
   expect(document.body.textContent).toContain('still offline')
   expect(document.body.textContent).not.toContain('mcpRetrySuccess')
 })
-it('prevents connection actions from using stale saved configuration', async () => {
-  await mount()
-  await act(async () => button('edit-config').click())
-  expect(button('mcpRetryConnection').disabled).toBe(true)
-  expect(button('mcpReauthorize').disabled).toBe(true)
-  expect(document.body.textContent).toContain('mcpSaveFirst')
+it('reports without an editing entry of its own', async () => {
+  await mount({ ...base, suiteId: 'demo', serverKey: 'web' })
+  // Editing is the card's action; the detail dialog stays a reading surface.
+  expect([...document.body.querySelectorAll('button')].some(node => node.textContent === 'panelEdit')).toBe(false)
+  expect(document.body.querySelector('input')).toBeNull()
+})
+it('shows one enable switch and leaves the service configuration out of the report', async () => {
+  await mount({ ...base, suiteId: 'demo', serverKey: 'web' })
+  expect(document.querySelectorAll('[role="switch"]').length).toBe(1)
+  const headings = [...document.querySelectorAll('h4')].map(node => node.textContent ?? '')
+  expect(headings.some(value => value.startsWith('mcpTools'))).toBe(true)
+  expect(headings.includes('serviceConfigLabel')).toBe(false)
+})
+it('reveals a tool’s parameters from its own row', async () => {
+  await mount({
+    ...base,
+    state: 'connected',
+    tools: [
+      {
+        name: 'read_file',
+        description: 'Read a file',
+        parameters: { type: 'object', properties: { path: { type: 'string', description: 'File to read' } }, required: ['path'] }
+      }
+    ]
+  })
+  expect(document.body.textContent).not.toContain('File to read')
+  const name = [...document.body.querySelectorAll('button')].find(node => node.textContent === 'read_file')
+  expect(name).toBeDefined()
+  await act(async () => {
+    name!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  expect(document.body.textContent).toContain('File to read')
+  expect(document.body.textContent).toContain('mcpToolParamRequired')
+})
+it('classifies a failure into the next thing to check', () => {
+  expect(mcpGuidanceKey('mount-failed', 'connect ECONNREFUSED 127.0.0.1:8000')).toBe('refused')
+  expect(mcpGuidanceKey(undefined, 'request timed out after 60000ms')).toBe('timeout')
+  expect(mcpGuidanceKey('missing-credential', 'API_TOKEN is not set')).toBe('credentials')
+  expect(mcpGuidanceKey('mount-failed', 'native MCP tool filters and startup timeouts require the built-in backend')).toBe('backend')
+  expect(mcpGuidanceKey('mount-failed', 'getaddrinfo ENOTFOUND mcp.example.test')).toBe('dns')
+  expect(mcpGuidanceKey(undefined, 'everything is fine')).toBeUndefined()
+})
+it('names the next thing to check beside the reason', async () => {
+  await mount({ ...base, state: 'failed', reason: 'connect ECONNREFUSED 127.0.0.1:8000' })
+  expect(document.body.textContent).toContain('mcpGuideRefused')
 })
 it('shows close but no connection actions for external servers', async () => {
   await mount({ ...base, kind: 'direct', canReauthorize: false })

@@ -25,6 +25,8 @@ The per-server override record stays the one place user policy lives, and it gro
 
 **The portable document stays portable.** `schemas/1.0.0|1.1.0/mcp.schema.json` closes every server definition with `additionalProperties: false`, so the timeouts ride the override record and never the `mcp.json` body or the editor's JSON text; the editor document is the connection shape with the policy fields removed.
 
+**One disclosure holds the optional inputs.** The MCP form keeps the required and credential-bearing fields in its main body — transport, command, arguments, environment, URL and headers. An **Advanced settings** disclosure carries the working directory for a stdio server, the two timeouts, and a line stating that a remote server negotiates OAuth itself on the server's 401 challenge, so the common path stays short and a rarely used input has one home.
+
 **Host compatibility is named, not hidden.** `@deepseek-ai/dsh-mcp-client` refuses a mount config that carries a startup timeout or tool filters. A save or tool toggle that would set either is rejected up front with a readable reason, the service editor disables the startup field and states why, and the tool checkboxes render disabled under the same statement. The tool-call timeout is available on both backends, because the host client enforces it. A startup value stored while the built-in client was active keeps a clear control beside the disabled field, so it can be removed without switching backends.
 
 ### The checkbox model

@@ -6,6 +6,9 @@
  * `credentials.set`, and never re-enters component state. Read-only
  * launch-environment credentials render guidance instead of a form that could
  * only fake success.
+ *
+ * One reference is one compact row: its name, its state, where the server uses
+ * it, and a control that reveals the write field on demand.
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
@@ -16,10 +19,17 @@ import type { Translate } from './index.js'
 import css from './mcp-credential.module.css'
 import { clientErrorMessage } from './ui/error-message.js'
 
-export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; refs: string[] }): ReactNode {
-  const { t, api, refs } = props
+export function McpCredentialEditor(props: {
+  t: Translate
+  api?: CredentialApi
+  refs: string[]
+  /** Where each reference is used, as `<field label> <key>` entries. */
+  usage?: Record<string, string[]>
+}): ReactNode {
+  const { t, api, refs, usage } = props
   const [views, setViews] = useState<Record<string, CredentialView>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [open, setOpen] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const refKey = refs.join('|')
@@ -88,43 +98,61 @@ export function McpCredentialEditor(props: { t: Translate; api?: CredentialApi; 
     refs.map(ref => {
       const view = views[ref]
       const refBusy = busy === ref
+      const where = usage?.[ref] ?? []
+      const expanded = open[ref] === true
+      const configured = view?.configured === true
       return h(
         'div',
         { key: ref, className: css.row },
-        h('code', { className: css.ref }, ref),
-        view === undefined
-          ? h('div', { className: css.note }, api === undefined ? t('mcpCredentialUnavailable') : t('loading'))
-          : h(
+        h(
+          'div',
+          { className: css.rowHead },
+          h('code', { className: css.ref }, ref),
+          view === undefined
+            ? h('span', { className: css.note }, api === undefined ? t('mcpCredentialUnavailable') : t('loading'))
+            : h('span', { className: configured ? css.factOk : css.factMiss }, configured ? t('mcpCredentialConfigured') : t('mcpCredentialMissing')),
+          view?.source === undefined ? null : h('span', { className: css.note }, view.source),
+          h('span', { className: css.grow }),
+          view === undefined
+            ? null
+            : view.writable
+              ? h(
+                  Button,
+                  {
+                    variant: 'ghost',
+                    size: 'sm',
+                    disabled: refBusy,
+                    'aria-expanded': expanded,
+                    'aria-label': `${t('mcpCredentialConfigure')} ${ref}`,
+                    onClick: () => setOpen(current => ({ ...current, [ref]: !expanded }))
+                  },
+                  t('mcpCredentialConfigure')
+                )
+              : h('span', { className: css.note }, t('mcpCredentialReadOnly'))
+        ),
+        where.length === 0 ? null : h('span', { className: css.where }, where.join(' · ')),
+        expanded && view?.writable === true
+          ? h(
               'div',
-              { className: css.controls },
+              { className: css.editor },
+              h('input', {
+                className: css.input,
+                type: 'password',
+                autoComplete: 'new-password',
+                value: drafts[ref] ?? '',
+                placeholder: t('mcpCredentialPlaceholder'),
+                'aria-label': ref,
+                disabled: refBusy,
+                onChange: event => setDrafts(current => ({ ...current, [ref]: (event.target).value }))
+              }),
               h(
                 'div',
-                { className: css.facts },
-                h('span', { className: view.configured ? css.factOk : css.factMiss }, view.configured ? t('mcpCredentialConfigured') : t('mcpCredentialMissing')),
-                view.source === undefined ? null : h('span', { className: css.note }, view.source)
-              ),
-              view.writable
-                ? h(
-                    'div',
-                    { className: css.editor },
-                    h('input', {
-                      className: css.input,
-                      type: 'password',
-                      autoComplete: 'new-password',
-                      value: drafts[ref] ?? '',
-                      placeholder: t('mcpCredentialPlaceholder'),
-                      disabled: refBusy,
-                      onChange: event => setDrafts(current => ({ ...current, [ref]: (event.target).value }))
-                    }),
-                    h(
-                      'div',
-                      { className: css.actions },
-                      h(Button, { variant: 'primary', size: 'sm', disabled: refBusy || (drafts[ref]?.trim() ?? '') === '', onClick: () => void save(ref) }, t('mcpCredentialSave')),
-                      view.configured ? h(Button, { variant: 'ghost', size: 'sm', disabled: refBusy, onClick: () => void unset(ref) }, t('mcpCredentialUnset')) : null
-                    )
-                  )
-                : h('div', { className: css.note }, t('mcpCredentialReadOnly'))
+                { className: css.actions },
+                h(Button, { variant: 'primary', size: 'sm', disabled: refBusy || (drafts[ref]?.trim() ?? '') === '', onClick: () => void save(ref) }, t('mcpCredentialSave')),
+                configured ? h(Button, { variant: 'ghost', size: 'sm', disabled: refBusy, onClick: () => void unset(ref) }, t('mcpCredentialUnset')) : null
+              )
             )
+          : null
       )
     })
   )

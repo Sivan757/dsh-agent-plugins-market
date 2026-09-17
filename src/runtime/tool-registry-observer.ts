@@ -6,20 +6,22 @@ import type { Context } from '@deepseek-ai/cordis'
 export interface McpToolSnapshot {
   name: string
   description?: string
+  /** The input schema the server advertised, when the host exposes it. */
+  parameters?: unknown
 }
 
 /** The host tools service subset this plugin reads. */
 interface ToolRegistryService {
-  schemas(scope?: string): ReadonlyArray<{ name: string; description: string }>
+  schemas(scope?: string): ReadonlyArray<{ name: string; description: string; parameters?: unknown }>
 }
 
 /**
  * The MCP tools the host currently publishes to the model.
  *
  * Read through the tools service's own listing API rather than its internal
- * layer structure. `schemas()` deep-clones each tool's parameter schema, which
- * this snapshot has no use for, so a failure inside it degrades to an empty
- * observation instead of taking the status surface down.
+ * layer structure. `schemas()` deep-clones each tool's parameter schema, so a
+ * failure inside it degrades to an empty observation instead of taking the
+ * status surface down.
  * @param tools - the host tools service, when it is mounted.
  * @returns one entry per `mcp__`-namespaced tool.
  */
@@ -32,7 +34,11 @@ export function inspectToolRegistry(tools: unknown): McpToolSnapshot[] {
     for (const schema of service.schemas()) {
       if (!schema.name.startsWith('mcp__')) continue
       const description = typeof schema.description === 'string' ? schema.description : undefined
-      output.push({ name: schema.name, ...(description === undefined ? {} : { description }) })
+      output.push({
+        name: schema.name,
+        ...(description === undefined ? {} : { description }),
+        ...(schema.parameters === undefined ? {} : { parameters: schema.parameters })
+      })
     }
     return output
   } catch {

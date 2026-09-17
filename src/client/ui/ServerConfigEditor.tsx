@@ -10,7 +10,7 @@ import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import { Button, IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
 import type { Translate } from '../index.js'
-import { changeTransport, parseServerConfig, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
+import { changeTransport, parseServerConfig, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
 import formCss from './form.module.css'
 import css from './detail.module.css'
@@ -36,6 +36,14 @@ export function ServerConfigEditor(props: {
   onPolicyDraftChange?: (draft: ServerPolicyDraft) => void
   /** The MCP mount backend; `host` cannot enforce a startup timeout. */
   backend?: 'builtin' | 'host'
+  /**
+   * The new-service dialog: the optional connection inputs join the disclosure,
+   * so the first screen asks for the name, the transport and the single field
+   * that transport requires.
+   */
+  createMode?: boolean
+  /** Reasons the API rejected a save, keyed by the editor field they belong to. */
+  fieldErrors?: Record<string, string>
 }): ReactNode {
   const [mode, setMode] = useState<'form' | 'json'>('form')
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -63,12 +71,13 @@ export function ServerConfigEditor(props: {
       : config.type === 'stdio'
         ? typeof config.command === 'string' && config.command.trim() !== ''
         : ['sse', 'streamable-http'].includes(String(config.type)) && typeof config.url === 'string' && config.url.trim() !== '')
-  // The advanced section is the MCP policy seat: the dialog owns the draft, so
-  // an invalid or half-typed timeout stops the save from the same validity
-  // signal the document fields use.
-  const advanced = props.policy !== undefined && props.policyDraft !== undefined && props.onPolicyDraftChange !== undefined
+  // The advanced section holds the optional inputs: what a service rarely needs
+  // plus the client policy. The dialog owns the timeout draft, so an invalid or
+  // half-typed timeout stops the save from the same validity signal the
+  // document fields use.
+  const timeouts = props.policy !== undefined && props.policyDraft !== undefined && props.onPolicyDraftChange !== undefined
   const policyValid =
-    !advanced ||
+    !timeouts ||
     (timeoutMsFromText(props.policyDraft!.toolCallTimeoutMs) !== undefined && timeoutMsFromText(props.policyDraft!.startupTimeoutMs) !== undefined)
   const valid = compatible && !hasIssue && requiredValid && policyValid
   useEffect(() => {
@@ -87,18 +96,35 @@ export function ServerConfigEditor(props: {
       return next
     })
   }
-  const textField = (key: string, label: string, required = false, full = false): ReactNode =>
-    h(
+  /** The example a server's own documentation shows for this field. */
+  const placeholderFor = (key: string): string | undefined => {
+    if (key === 'command') return props.t('detailCommandPh')
+    if (key === 'url') return props.t('detailUrlPh')
+    return undefined
+  }
+  /** The API's reason for one field, when it rejected a save. */
+  const fieldError = (key: string): ReactNode => (props.fieldErrors?.[key] === undefined ? null : h('span', { className: formCss.footerError }, props.fieldErrors[key]))
+  const textField = (key: string, label: string, required = false, full = false): ReactNode => {
+    const placeholder = placeholderFor(key)
+    return h(
       'label',
       { className: full ? `${formCss.field} ${formCss.full}` : formCss.field, key },
-      h('span', null, label),
+      h(
+        'span',
+        null,
+        label,
+        required ? h('span', { key: 'required', className: formCss.required, title: props.t('detailRequired'), 'aria-hidden': true }, '*') : null
+      ),
       h('input', {
         value: typeof config?.[key] === 'string' ? config[key] : '',
         required,
+        ...(placeholder === undefined ? {} : { placeholder }),
         'aria-label': label,
         onChange: (event: { target: HTMLInputElement }) => field(key, event.target.value === '' && !required ? undefined : event.target.value)
-      })
+      }),
+      fieldError(key)
     )
+  }
   const mapField = (key: string, label: string, addLabel: string, narrowKey = false): ReactNode =>
     h(StringRows, {
       key,
@@ -109,30 +135,37 @@ export function ServerConfigEditor(props: {
       narrowKey,
       value: config?.[key] as Record<string, string> | undefined,
       onChange: value => field(key, value),
-      onIssue: bad => issue(key, bad)
+      onIssue: bad => issue(key, bad),
+      ...(props.fieldErrors?.[key] === undefined ? {} : { error: props.fieldErrors[key] })
     })
   const type = typeof config?.type === 'string' ? config.type : 'stdio'
-  const auth = (config?.auth ?? {}) as Record<string, unknown>
   const transportField =
     props.kind === 'mcp'
       ? h(
-          'label',
+          'div',
           { className: formCss.field },
           h('span', null, props.t('detailTransport')),
           h(
-            'select',
-            {
-              value: type,
-              'aria-label': props.t('detailTransport'),
-              disabled: hasIssue,
-              onChange: (event: { target: HTMLSelectElement }) => {
-                // The selector disappears when the document cannot be parsed;
-                // this guard keeps an in-flight value from reaching `update`.
-                if (config === undefined) return
-                update(changeTransport(config, event.target.value))
-              }
-            },
-            ['stdio', 'streamable-http', 'sse'].map(value => h('option', { key: value, value }, value))
+            'div',
+            { className: formCss.seg, role: 'group', 'aria-label': props.t('detailTransport') },
+            ['stdio', 'streamable-http', 'sse'].map(value =>
+              h(
+                'button',
+                {
+                  type: 'button',
+                  key: value,
+                  'aria-pressed': type === value,
+                  disabled: hasIssue,
+                  onClick: () => {
+                    // The control reads the document it renders; this guard keeps
+                    // an in-flight value from reaching `update`.
+                    if (config === undefined) return
+                    update(changeTransport(config, value))
+                  }
+                },
+                value
+              )
+            )
           )
         )
       : null
@@ -147,8 +180,72 @@ export function ServerConfigEditor(props: {
             transportField
           )
         : h('label', { className: formCss.field }, h('span', null, props.nameField.label), props.nameField.control)
+  /**
+   * The advanced disclosure: one seat for the optional inputs. A stdio server
+   * offers its working directory there, a remote one its OAuth block, and both
+   * offer the client timeouts when the calling dialog supplies the policy.
+   */
+  const advancedFields: ReactNode[] = []
+  // Creating a service keeps the optional connection inputs in the disclosure:
+  // arguments and environment for a process, headers for a remote endpoint.
+  if (props.createMode === true && config !== undefined) {
+    if (props.kind === 'lsp' || type === 'stdio') {
+      advancedFields.push(
+        h(StringRows, {
+          key: 'args',
+          label: props.t('detailArgs'),
+          addLabel: props.t('detailAddArgs'),
+          t: props.t,
+          map: false,
+          value: config.args as string[] | undefined,
+          onChange: value => field('args', value),
+          onIssue: bad => issue('args', bad)
+        }),
+        mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
+      )
+    } else {
+      advancedFields.push(mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true))
+    }
+  }
+  if (config !== undefined) {
+    advancedFields.push(
+      type === 'stdio'
+        ? textField('cwd', props.t('detailCwd'), false, true)
+        : // OAuth is detected from the server's own 401 challenge, so the form
+          // states the behavior rather than asking for an opt-in.
+          h('span', { key: 'oauth', className: `${formCss.hint} ${formCss.full}` }, props.t('mcpOauthAuto'))
+    )
+  }
+  if (timeouts) {
+    advancedFields.push(
+      h(TimeoutField, {
+        key: 'toolCallTimeout',
+        label: props.t('mcpToolCallTimeout'),
+        resolution: props.policy!.toolCallTimeout,
+        value: props.policyDraft!.toolCallTimeoutMs,
+        disabled: props.disabled === true,
+        t: props.t,
+        onChange: value => props.onPolicyDraftChange!({ ...props.policyDraft!, toolCallTimeoutMs: value })
+      }),
+      h(TimeoutField, {
+        key: 'startupTimeout',
+        label: props.t('mcpStartupTimeout'),
+        resolution: props.policy!.startupTimeout,
+        value: props.policyDraft!.startupTimeoutMs,
+        disabled: props.disabled === true,
+        ...(props.backend === 'host' ? { blocked: props.t('mcpHostStartupUnsupported') } : {}),
+        // The input is fixed on this backend, so a value stored while the
+        // built-in client was active is offered a way out.
+        ...(props.backend === 'host' && props.policy!.startupTimeout.user !== null
+          ? { clearLabel: props.t('mcpTimeoutClearLabel', { name: props.t('mcpStartupTimeout') }), onClear: () => props.onPolicyDraftChange!({ ...props.policyDraft!, startupTimeoutMs: '' }) }
+          : {}),
+        t: props.t,
+        onChange: value => props.onPolicyDraftChange!({ ...props.policyDraft!, startupTimeoutMs: value })
+      })
+    )
+  }
   const advancedSection =
-    props.kind !== 'mcp' || !advanced
+    props.kind !== 'mcp' || advancedFields.length === 0
       ? null
       : h(
           DetailRows,
@@ -161,37 +258,12 @@ export function ServerConfigEditor(props: {
               open: advancedOpen,
               onToggle: () => setAdvancedOpen(value => !value)
             },
-            h(
-              'div',
-              { className: formCss.form },
-              h(TimeoutField, {
-                label: props.t('mcpToolCallTimeout'),
-                resolution: props.policy!.toolCallTimeout,
-                value: props.policyDraft!.toolCallTimeoutMs,
-                disabled: props.disabled === true,
-                t: props.t,
-                onChange: value => props.onPolicyDraftChange!({ ...props.policyDraft!, toolCallTimeoutMs: value })
-              }),
-              h(TimeoutField, {
-                label: props.t('mcpStartupTimeout'),
-                resolution: props.policy!.startupTimeout,
-                value: props.policyDraft!.startupTimeoutMs,
-                disabled: props.disabled === true,
-                ...(props.backend === 'host' ? { blocked: props.t('mcpHostStartupUnsupported') } : {}),
-                // The input is fixed on this backend, so a value stored while
-                // the built-in client was active is offered a way out.
-                ...(props.backend === 'host' && props.policy!.startupTimeout.user !== null
-                  ? { clearLabel: props.t('mcpTimeoutClearLabel', { name: props.t('mcpStartupTimeout') }), onClear: () => props.onPolicyDraftChange!({ ...props.policyDraft!, startupTimeoutMs: '' }) }
-                  : {}),
-                t: props.t,
-                onChange: value => props.onPolicyDraftChange!({ ...props.policyDraft!, startupTimeoutMs: value })
-              })
-            )
+            h('div', { className: formCss.form }, advancedFields)
           )
         )
   return h(
     'div',
-    { className: formCss.form },
+    { className: `${formCss.form} ${formCss.editorBody}` },
     h(
       'div',
       { className: formCss.seg },
@@ -212,6 +284,12 @@ export function ServerConfigEditor(props: {
     // Identity fields stay visible in both modes: the name identifies the
     // document and the transport decides which keys the JSON may carry.
     identityRow,
+    // Each transport configures a different set of fields, so the choice carries
+    // its own explanation — on its own line, where it cannot push one column of
+    // the identity row taller than the other.
+    mode === 'form' && props.kind === 'mcp' && config !== undefined
+      ? h('span', { className: `${formCss.hint} ${formCss.full}` }, props.t(type === 'stdio' ? 'transportHintStdio' : type === 'sse' ? 'transportHintSse' : 'transportHintHttp'))
+      : null,
     parseError ? h('div', { role: 'alert', className: css.error }, props.t('detailInvalidJson'), ' ', parseError) : null,
     mode === 'json'
       ? h(
@@ -236,51 +314,26 @@ export function ServerConfigEditor(props: {
             props.kind === 'lsp' || type === 'stdio'
               ? [
                   textField('command', props.t('detailCommand'), true, true),
-                  h(StringRows, {
-                    key: 'args',
-                    label: props.t('detailArgs'),
-                    addLabel: props.t('detailAddArgs'),
-                    t: props.t,
-                    map: false,
-                    value: config.args as string[] | undefined,
-                    onChange: value => field('args', value),
-                    onIssue: bad => issue('args', bad)
-                  }),
-                  mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
+                  ...(props.createMode === true
+                    ? []
+                    : [
+                        h(StringRows, {
+                          key: 'args',
+                          label: props.t('detailArgs'),
+                          addLabel: props.t('detailAddArgs'),
+                          t: props.t,
+                          map: false,
+                          value: config.args as string[] | undefined,
+                          onChange: value => field('args', value),
+                          onIssue: bad => issue('args', bad)
+                        }),
+                        mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
+                      ])
                 ]
-              : [textField('url', props.t('detailUrl'), true, true), mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true)],
-            props.kind === 'mcp' && type === 'stdio' ? textField('cwd', props.t('detailCwd'), false, true) : null,
-            props.kind === 'mcp' && type !== 'stdio'
-              ? h(
-                  'fieldset',
-                  { className: `${formCss.fieldset} ${formCss.full}` },
-                  h('legend', null, 'OAuth'),
-                  h(
-                    'label',
-                    { className: formCss.inlineCheck },
-                    h('input', {
-                      type: 'checkbox',
-                      checked: auth.enabled !== false,
-                      onChange: (event: { target: HTMLInputElement }) => field('auth', { ...auth, enabled: event.target.checked })
-                    }),
-                    ' ',
-                    props.t('oauthEnable')
-                  ),
-                  h(
-                    'label',
-                    { className: `${formCss.field} ${formCss.full}` },
-                    h('span', null, props.t('detailScope')),
-                    h('input', {
-                      value: typeof auth.scope === 'string' ? auth.scope : '',
-                      'aria-label': props.t('detailScope'),
-                      onChange: (event: { target: HTMLInputElement }) => {
-                        const next = { ...auth, scope: event.target.value }
-                        field('auth', next)
-                      }
-                    })
-                  )
-                )
-              : null,
+              : [
+                  textField('url', props.t('detailUrl'), true, true),
+                  ...(props.createMode === true ? [] : [mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true)])
+                ],
             props.kind === 'lsp'
               ? [
                   mapField('extensionToLanguage', props.t('detailExtensions'), props.t('detailAddExtensions'), true),
@@ -368,6 +421,8 @@ function StringRows(props: {
   value?: Record<string, string> | string[]
   onChange: (value: Record<string, string> | string[]) => void
   onIssue: (bad: boolean) => void
+  /** The API's reason for this field, when a save was rejected. */
+  error?: string
 }): ReactNode {
   const [rows, setRows] = useState<Array<[string, string]>>(() => (props.map ? Object.entries(props.value ?? {}) : ((props.value as string[]) ?? []).map(value => ['', value])))
   const [invalid, setInvalid] = useState(false)
@@ -402,6 +457,15 @@ function StringRows(props: {
         h(IconPlusOutline16)
       )
     ),
+    // An empty list is a starting point, not an empty space: the row itself is
+    // the control that adds the first line, and it says so.
+    rows.length === 0
+      ? h(
+          'button',
+          { type: 'button', className: formCss.emptyRows, onClick: () => change([['', '']]) },
+          props.map ? props.t('detailEmptyRowsMap') : props.t('detailEmptyRowsList')
+        )
+      : null,
     h(
       'div',
       { className: formCss.rows },
@@ -420,7 +484,16 @@ function StringRows(props: {
         h('input', {
           value,
           'aria-label': `${props.label} ${props.t('detailValue')} ${index + 1}`,
-          onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [row[0], event.target.value] : row)))
+          onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [row[0], event.target.value] : row))),
+          // A block copied out of a README becomes one row per line.
+          onPaste: (event: ClipboardEvent) => {
+            const pasted = event.clipboardData?.getData('text/plain') ?? ''
+            if (!pasted.includes('\n')) return
+            const parsed = rowsFromPastedText(pasted, props.map)
+            if (parsed.length === 0) return
+            event.preventDefault()
+            change([...rows.filter(([key, value]) => key !== '' || value !== ''), ...parsed])
+          }
         }),
         h(
           'button',
@@ -435,7 +508,8 @@ function StringRows(props: {
         )
       )
     ),
-      invalid ? h('span', { role: 'alert', className: formCss.footerError }, props.t('detailUniqueKeys')) : null
+      invalid ? h('span', { role: 'alert', className: formCss.footerError }, props.t('detailUniqueKeys')) : null,
+      props.error === undefined ? null : h('span', { role: 'alert', className: formCss.footerError }, props.error)
     )
   )
 }

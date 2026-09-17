@@ -65,14 +65,33 @@ describe('MCP status aggregation', () => {
     expect(declared.entries[0]?.oauthDefault).toBeUndefined()
   })
 
-  it('reads MCP tools through the tools service listing API', () => {
+  it('reads MCP tools through the tools service listing API, carrying their input schema', () => {
+    const schema = { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] }
     const runtime = {
       schemas: () => [
-        { name: 'mcp__codex__docs__read_file', description: 'Read a file' },
+        { name: 'mcp__codex__docs__read_file', description: 'Read a file', parameters: schema },
         { name: 'bash', description: 'Shell' }
       ]
     }
-    expect(inspectToolRegistry(runtime)).toEqual([{ name: 'mcp__codex__docs__read_file', description: 'Read a file' }])
+    expect(inspectToolRegistry(runtime)).toEqual([{ name: 'mcp__codex__docs__read_file', description: 'Read a file', parameters: schema }])
+  })
+
+  it('carries a tool schema into the status entry and drops one too large to transport', () => {
+    const schema = { type: 'object', properties: { path: { type: 'string' } } }
+    const huge = { type: 'object', properties: { blob: { type: 'string', description: 'x'.repeat(21_000) } } }
+    const entry = buildMcpStatus(
+      [suite()],
+      [],
+      [
+        { name: 'mcp__codex__docs__read_file', description: 'Read a file', parameters: schema },
+        { name: 'mcp__codex__docs__write_file', description: 'Write a file', parameters: huge }
+      ]
+    ).entries.find(candidate => candidate.serverKey === 'docs')
+    if (entry === undefined) throw new Error('expected the docs server row')
+    expect(entry.tools).toEqual([
+      { name: 'read_file', description: 'Read a file', parameters: schema },
+      { name: 'write_file', description: 'Write a file' }
+    ])
   })
 
   it('reports no MCP tools when the listing is absent or fails', () => {

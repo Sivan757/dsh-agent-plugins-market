@@ -116,3 +116,33 @@ describe('LSP legacy seam banner', () => {
     expect(el.textContent).not.toContain('lspSeamTitle')
   })
 })
+
+describe('LSP card actions', () => {
+  it('opens the editor from the card and leaves the report without one', async () => {
+    const api = await import('../src/client/api.js')
+    vi.mocked(api.fetchLspStatus).mockResolvedValue({ ...conflicted, legacySeam: undefined })
+    vi.mocked(api.fetchServerConfig).mockResolvedValue({
+      kind: 'lsp',
+      id: 'plugin:typescript-lsp/typescript',
+      editable: true,
+      config: { command: 'typescript-language-server', args: ['--stdio'] }
+    })
+    const el = await mountPanel()
+    const edit = el.querySelector<HTMLButtonElement>('[aria-label="panelEdit typescript"]')
+    expect(edit).not.toBeNull()
+
+    // The report itself carries no edit entry.
+    const card = [...el.querySelectorAll('[role="button"]')].find(node => (node.textContent ?? '').startsWith('typescript'))
+    await act(async () => {
+      card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).not.toContain('serviceConfigLabel')
+
+    await act(async () => {
+      edit!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).toContain('lspEditTitle')
+  })
+})

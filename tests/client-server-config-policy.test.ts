@@ -14,7 +14,7 @@ vi.mock('../src/client/api.js', async importOriginal => ({
   saveServerConfig: vi.fn(async () => {})
 }))
 
-import { McpDetailModal } from '../src/client/McpStatusPanel.js'
+import { McpConfigModal } from '../src/client/McpStatusPanel.js'
 import * as api from '../src/client/api.js'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
 
@@ -49,11 +49,28 @@ async function render(node: ReactElement): Promise<void> {
 }
 
 const input = (label: string): HTMLInputElement => document.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!
+const find = (label: string): HTMLElement | null => document.querySelector<HTMLElement>(`[aria-label="${label}"]`)
 const button = (label: string): HTMLButtonElement | undefined => [...document.querySelectorAll('button')].find(node => node.textContent?.includes(label))
 const clearTimeoutButton = (): HTMLButtonElement | undefined => [...document.querySelectorAll('button')].find(node => node.getAttribute('aria-label') === 'mcpTimeoutClearLabel')
 
-/** The editor's advanced section, driven by the policy props the dialog supplies. */
-function EditorHarness({ backend = 'builtin' as const, kind = 'mcp' as const }: { backend?: 'builtin' | 'host'; kind?: 'mcp' | 'lsp' }): ReactElement {
+/** The open disclosure's body: the group's second child is the expanded content. */
+const disclosureBody = (): HTMLElement => {
+  const group = button('mcpAdvanced')!.parentElement!
+  const body = group.children[1]
+  if (!(body instanceof HTMLElement)) throw new Error('the advanced disclosure is not open')
+  return body
+}
+
+/** The editor's advanced section, driven by the document and the policy props the dialog supplies. */
+function EditorHarness({
+  backend = 'builtin' as const,
+  kind = 'mcp' as const,
+  config = { type: 'stdio', command: 'node' }
+}: {
+  backend?: 'builtin' | 'host'
+  kind?: 'mcp' | 'lsp'
+  config?: Record<string, unknown>
+}): ReactElement {
   const [valid, setValid] = useState(false)
   const [draft, setDraft] = useState<ServerPolicyDraft>({ toolCallTimeoutMs: '', startupTimeoutMs: '' })
   return h(
@@ -61,7 +78,7 @@ function EditorHarness({ backend = 'builtin' as const, kind = 'mcp' as const }: 
     null,
     h(ServerConfigEditor, {
       kind,
-      text: JSON.stringify({ type: 'stdio', command: 'node' }),
+      text: JSON.stringify(config),
       onChange: () => {},
       t,
       backend,
@@ -88,6 +105,35 @@ describe('MCP advanced settings', () => {
     expect(input('mcpStartupTimeout').placeholder).toBe('10000')
     expect(host.textContent).toContain('mcpTimeoutInherit · mcpTimeoutFromSuite')
     expect(host.textContent).toContain('mcpTimeoutInherit · mcpTimeoutFromDefault')
+  })
+
+  it('moves the stdio working directory into the disclosure', async () => {
+    await render(h(EditorHarness, {}))
+    // The required and credential inputs stay in the main form.
+    expect(find('detailCommand')).not.toBeNull()
+    expect(host.textContent).toContain('detailArgs')
+    expect(host.textContent).toContain('detailEnv')
+    // The optional input waits behind the disclosure.
+    expect(find('detailCwd')).toBeNull()
+
+    await act(async () => button('mcpAdvanced')!.click())
+    const cwd = find('detailCwd')
+    expect(cwd).not.toBeNull()
+    expect(disclosureBody().contains(cwd)).toBe(true)
+    expect(disclosureBody().contains(input('mcpToolCallTimeout'))).toBe(true)
+    expect(disclosureBody().contains(input('mcpStartupTimeout'))).toBe(true)
+  })
+
+  it('states that a remote server negotiates OAuth itself instead of offering a switch', async () => {
+    await render(h(EditorHarness, { config: { type: 'streamable-http', url: 'https://example.test/mcp' } }))
+    expect(find('detailUrl')).not.toBeNull()
+    expect(host.textContent).not.toContain('mcpOauthAuto')
+
+    await act(async () => button('mcpAdvanced')!.click())
+    expect(find('detailCwd')).toBeNull()
+    expect(disclosureBody().textContent).toContain('mcpOauthAuto')
+    expect(disclosureBody().contains(input('mcpToolCallTimeout'))).toBe(true)
+    expect(disclosureBody().contains(input('mcpStartupTimeout'))).toBe(true)
   })
 
   it('reports an out-of-range timeout as invalid and holds the value otherwise', async () => {
@@ -157,9 +203,8 @@ describe('ServerConfigDetail policy', () => {
   })
 
   /**
-   * The service editor inside the detail dialog that supplies its footer slot.
-   * `responses` are served in order; earlier reads fall back to the plain
-   * payload, so a save's read-back always has an answer.
+   * The editor dialog on its own, which is how the panel opens it: the card's
+   * edit action mounts this dialog, so these tests do the same.
    */
   async function renderDialog(backend: 'builtin' | 'host' = 'builtin', responses: ServerConfigPayload[] = []): Promise<void> {
     const fetchMock = vi.mocked(api.fetchServerConfig)
@@ -169,9 +214,7 @@ describe('ServerConfigDetail policy', () => {
     host = document.createElement('div')
     document.body.append(host)
     root = createRoot(host)
-    await act(async () =>
-      root!.render(h(McpDetailModal, { entry: ENTRY, t, backend, onClose: () => {}, onRetry: async () => ENTRY, onReauthorize: async () => ENTRY, onRefresh: async () => ENTRY }))
-    )
+    await act(async () => root!.render(h(McpConfigModal, { entry: ENTRY, t, onClose: () => {}, onSaved: () => {} })))
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
@@ -185,6 +228,17 @@ describe('ServerConfigDetail policy', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
   }
+
+  it('places a rejected save reason on the field the API named', async () => {
+    await renderDialog()
+    // The save button only runs on a changed document.
+    await act(async () => typeInto(input('detailCommand'), 'node --flag'))
+    vi.mocked(api.saveServerConfig).mockRejectedValueOnce(
+      Object.assign(new Error('invalid MCP configuration: env.API_TOKEN must be string'), { fields: [{ field: 'env.API_TOKEN', message: 'must be string' }] })
+    )
+    await save()
+    expect(document.body.textContent).toContain('must be string')
+  })
 
   it('sends only the timeout that changed', async () => {
     await renderDialog()

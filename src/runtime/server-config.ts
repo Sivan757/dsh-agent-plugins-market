@@ -1,11 +1,30 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { MCP_SCHEMA_ID, formatSchemaErrors, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
+import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { redactMcpConfig } from './mcp-redaction.js'
 import type { LspServerSpec, Suite } from '../model/types.js'
+
+/** One rejected value, with the field it belongs to when the schema knows it. */
+export interface McpFieldError {
+  /** Dotted path inside the server object; empty for a problem with the document itself. */
+  field: string
+  message: string
+}
+
+/**
+ * A rejected MCP configuration. The message keeps the flat form the API has
+ * always returned, and `fields` carries the same reasons keyed by field so the
+ * editor can put each one beside its input.
+ */
+export class McpConfigError extends Error {
+  constructor(readonly fields: McpFieldError[]) {
+    super(`invalid MCP configuration: ${fields.map(entry => (entry.field === '' ? entry.message : `${entry.field} ${entry.message}`)).join('; ')}`)
+    this.name = 'McpConfigError'
+  }
+}
 
 /** Restore only unchanged redacted leaves, rejecting invented masked values. */
 export function restoreRedactedConfig(input: unknown, original: unknown, redacted = redactMcpConfig(original)): unknown {
@@ -25,11 +44,20 @@ export function restoreRedactedConfig(input: unknown, original: unknown, redacte
 
 export async function validateServerMcp(root: string, key: string, config: unknown) {
   const document = { $schema: MCP_SCHEMA_ID, mcpServers: { [key]: config } }
-  const errors = formatSchemaErrors(await validateAgainstSchema(MCP_SCHEMA_ID, document))
-  if (errors.length > 0) throw new Error(`invalid MCP configuration: ${errors.join('; ')}`)
+  // A JSON pointer needs its own escapes so a server key containing `/` or `~`
+  // still yields the right prefix for the field paths below.
+  const pointer = `/mcpServers/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`
+  const structural = (await validateAgainstSchema(MCP_SCHEMA_ID, document))
+    .filter(error => error.instancePath === pointer || error.instancePath.startsWith(`${pointer}/`))
+    .map(error => ({
+      field: error.instancePath.slice(pointer.length).replace(/^\//, '').replaceAll('/', '.'),
+      message: error.message
+    }))
+  if (structural.length > 0) throw new McpConfigError(structural)
   const result = await validateMcpJson(root, document)
-  const server = result.config?.servers[key]
-  if (server === undefined || result.errors.length > 0) throw new Error(`invalid MCP configuration: ${result.errors.join('; ')}`)
+  if (result.config === undefined || result.errors.length > 0) throw new McpConfigError(result.errors.map(message => ({ field: '', message })))
+  const server = result.config.servers[key]
+  if (server === undefined) throw new McpConfigError([{ field: '', message: `server "${key}" was rejected` }])
   return server
 }
 

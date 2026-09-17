@@ -69,3 +69,55 @@ export async function addUserMcpServer(agentsRoot: string, name: string, server:
 export function userMcpPath(agentsRoot: string): string {
   return join(agentsRoot, 'mcp.json')
 }
+
+/** One pasted entry: the key it lands under and the server definition it carries. */
+export interface McpImportEntry {
+  name: string
+  server: unknown
+}
+
+/** What one pasted import wrote, and what it left out with a reason each. */
+export interface McpImportResult {
+  imported: string[]
+  skipped: Array<{ name: string; reason: string }>
+}
+
+const SERVER_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
+
+/**
+ * Import several pasted servers in one write.
+ *
+ * Every entry is judged on its own so one bad definition cannot take the rest
+ * of the paste with it, and an existing name is kept unless the caller asked to
+ * overwrite. The file is written once, after every entry has been checked, so a
+ * rejected entry never lands half-written beside the accepted ones.
+ */
+export async function importUserMcpServers(agentsRoot: string, entries: readonly McpImportEntry[], overwrite = false): Promise<McpImportResult> {
+  const suite = await loadUserMcpSuite(agentsRoot)
+  if (suite.errors.length > 0) throw new Error(suite.errors.join('; '))
+  const servers: Record<string, unknown> = { ...suite.mcp.servers }
+  const imported: string[] = []
+  const skipped: Array<{ name: string; reason: string }> = []
+  for (const entry of entries) {
+    if (!SERVER_NAME_PATTERN.test(entry.name)) {
+      skipped.push({ name: entry.name, reason: 'invalid name' })
+      continue
+    }
+    if (Object.hasOwn(servers, entry.name) && !overwrite) {
+      skipped.push({ name: entry.name, reason: 'already exists' })
+      continue
+    }
+    try {
+      await validateUserMcp(agentsRoot, { $schema: MCP_SCHEMA_ID, mcpServers: { ...servers, [entry.name]: entry.server } })
+    } catch (reason) {
+      skipped.push({ name: entry.name, reason: reason instanceof Error ? reason.message : String(reason) })
+      continue
+    }
+    servers[entry.name] = entry.server
+    imported.push(entry.name)
+  }
+  if (imported.length > 0) {
+    await writeFileAtomic(userMcpPath(agentsRoot), `${JSON.stringify({ $schema: MCP_SCHEMA_ID, mcpServers: servers }, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
+  }
+  return { imported, skipped }
+}

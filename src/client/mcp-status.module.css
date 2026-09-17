@@ -57,16 +57,50 @@
   font-size: 12px;
   line-height: 18px;
 }
+/* The one action the current state offers, carried inside the reason band. */
+.reasonActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+/* The next thing to check, under the reason that produced it. */
+.reasonHint { margin: 2px 0 0; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+
+/* The block heading with its optional trailing control (the tool search). */
+.blockHeadRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* A line of context under a block heading, dimmer than the rows it introduces. */
+.blockSub { margin: 0 0 6px; color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 11px; line-height: 16px; }
+
+/* The new-service dialog's two shortcuts into a filled-in form. */
+.starter { display: flex; flex-wrap: wrap; gap: 8px; }
+.starterList { display: flex; flex-wrap: wrap; gap: 8px; }
+.starterPaste { display: flex; flex-direction: column; gap: 8px; }
+.pasteArea {
+  width: 100%;
+  min-height: 120px;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 8px;
+  font: 12px/19px ui-monospace, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+/* The paste box's own count, overwrite switch and per-entry result lines. */
+.pasteNote { margin: 0; color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 11px; line-height: 16px; }
+.pasteCheck { display: inline-flex; align-items: center; gap: 8px; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 11px; line-height: 16px; }
+.pasteOutcome { display: flex; flex-direction: column; gap: 2px; }
+.pasteOutcome p { margin: 0; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+.toolSearch { display: block; flex: 0 1 220px; min-width: 0; }
 
 .toolList { display: flex; flex-direction: column; }
-/* Two columns: the identity track sizes to its content (long MCP tool names
-   are the identity, never clipped), the description takes the remainder. */
+/* Three columns: the identity track sizes to its content (long MCP tool names
+   are the identity, never clipped), the description takes the remainder, and
+   the state note keeps its own narrow track. The 3px left border is the
+   per-row state rail. */
 .tool {
   display: grid;
-  grid-template-columns: minmax(140px, max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(140px, max-content) minmax(0, 1fr) max-content;
   gap: 12px;
   align-items: center;
-  padding: 7px 0;
+  padding: 7px 0 7px 2px;
   border-bottom: 1px solid var(--dsw-alias-border-l1, #eef1f5);
 }
 .tool:last-child { border-bottom: none; }
@@ -75,6 +109,37 @@
 .toolName { overflow: hidden; color: var(--dsw-alias-label-primary, #1f2328); text-overflow: ellipsis; white-space: nowrap; font: 11px/16px ui-monospace, Menlo, Consolas, monospace; }
 .toolDescription { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .toolNote { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+/* A tool name that opens its parameter list reads as a control, not a label. */
+.toolNameButton { padding: 0; border: none; background: none; cursor: pointer; text-align: left; }
+.toolNameButton:hover { color: var(--dsw-alias-brand-primary, #4f6ef7); }
+/* The parameter table spans the row's three tracks. */
+.toolParams { grid-column: 1 / -1; padding: 8px 0 2px 11px; }
+.toolParamsGrid {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) minmax(60px, max-content) max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: baseline;
+}
+.toolParam { display: contents; }
+.toolParamName { color: var(--dsw-alias-label-primary, #1f2328); font: 11px/16px ui-monospace, Menlo, Consolas, monospace; }
+.toolParamType { color: var(--dsw-alias-label-tertiary, #8b93a1); font: 10px/16px ui-monospace, Menlo, Consolas, monospace; }
+.toolParamRequired { color: var(--dsw-alias-state-warn-primary, #b45309); font-size: 10px; line-height: 16px; }
+.toolParamDesc { overflow-wrap: anywhere; color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 10px; line-height: 16px; }
+.toolParamsEmpty { margin: 0; color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 10px; line-height: 16px; }
+/* The row that expands the list; a text button in the flow, not a boxed CTA. */
+.toolMore {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-secondary, #667085);
+  font-size: 11px;
+  line-height: 17px;
+  cursor: pointer;
+}
+.toolMore:hover { background: var(--dsw-alias-interactive-bg-hover); }
 @media (max-width: 760px) {
   .toolbar { padding-left: 0; padding-right: 0; }
   .grid { grid-template-columns: minmax(0, 1fr); }

@@ -4,7 +4,7 @@ import type { ServerConfigPayload, ServerPolicyPayload } from '../../contracts/m
 import { fetchServerConfig, saveServerConfig } from '../api.js'
 import type { Translate } from '../index.js'
 import { ServerConfigEditor } from './ServerConfigEditor.js'
-import { parseServerConfig, policyDraftOf, policyRequestOf, type ServerKind, type ServerPolicyDraft } from './server-form.js'
+import { fieldErrorsOf, parseServerConfig, policyDraftOf, policyRequestOf, type ServerKind, type ServerPolicyDraft } from './server-form.js'
 import css from './detail.module.css'
 import { DetailFooterAction } from './DetailModal.js'
 import { clientErrorMessage } from './error-message.js'
@@ -32,6 +32,7 @@ export function ServerConfigDetail({
   const [documentDirty, setDocumentDirty] = useState(false)
   const [policy, setPolicy] = useState<ServerPolicyPayload>()
   const [backend, setBackend] = useState<'builtin' | 'host'>()
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>()
   // The draft is the dialog's own state: the timeouts sit outside the JSON
   // document, and `initial` is what "dirty" and the save patch compare against.
   const [draft, setDraft] = useState<ServerPolicyDraft>()
@@ -53,6 +54,7 @@ export function ServerConfigDetail({
   const load = async (silent = false): Promise<void> => {
     const token = ++requestToken.current
     setError(undefined)
+    setFieldErrors(undefined)
     if (!silent) {
       setLoading(true)
       setText(undefined)
@@ -90,6 +92,7 @@ export function ServerConfigDetail({
   const save = async (): Promise<void> => {
     setBusy(true)
     setError(undefined)
+    setFieldErrors(undefined)
     try {
       await saveServerConfig(kind, id, parseServerConfig(text ?? ''), policyRequestOf(draft, initialDraft))
       // Read back so the policy view, the placeholders and the dirty baseline
@@ -98,6 +101,7 @@ export function ServerConfigDetail({
       onSaved?.()
     } catch (reason) {
       setError(clientErrorMessage(t, reason))
+      setFieldErrors(fieldErrorsOf(reason))
     } finally {
       setBusy(false)
     }
@@ -119,6 +123,7 @@ export function ServerConfigDetail({
             ...(policy === undefined ? {} : { policy }),
             ...(draft === undefined ? {} : { policyDraft: draft, onPolicyDraftChange: setDraft }),
             ...(backend === undefined ? {} : { backend }),
+            ...(fieldErrors === undefined ? {} : { fieldErrors }),
             onChange: value => {
               setText(value)
               setDocumentDirty(true)

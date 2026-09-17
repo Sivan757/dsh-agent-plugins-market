@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { addUserMcpServer, loadUserMcpSuite } from '../src/runtime/mcp-direct-config.js'
+import { addUserMcpServer, importUserMcpServers, loadUserMcpSuite } from '../src/runtime/mcp-direct-config.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
 
 const roots: string[] = []
@@ -34,6 +34,32 @@ describe('user MCP persistence', () => {
     await expect(addUserMcpServer(path, 'bad', { type: 'streamable-http' })).rejects.toThrow('invalid MCP')
     expect(await readFile(join(path, 'mcp.json'), 'utf8')).toBe(before)
   })
+  it('imports many pasted services in one write and reports each outcome', async () => {
+    const path = await root()
+    await addUserMcpServer(path, 'one', { type: 'stdio', command: 'node' })
+    const result = await importUserMcpServers(
+      path,
+      [
+        { name: 'two', server: { type: 'stdio', command: 'uvx', args: ['mcp-server-fetch'] } },
+        { name: 'one', server: { type: 'stdio', command: 'node' } },
+        { name: 'bad name', server: { type: 'stdio', command: 'node' } },
+        { name: 'broken', server: { type: 'streamable-http' } }
+      ],
+      false
+    )
+    expect(result.imported).toEqual(['two'])
+    expect(result.skipped.map(entry => entry.name)).toEqual(['one', 'bad name', 'broken'])
+    expect(Object.keys((await loadUserMcpSuite(path)).mcp.servers)).toEqual(['one', 'two'])
+  })
+
+  it('replaces an existing name only when the import says so', async () => {
+    const path = await root()
+    await addUserMcpServer(path, 'one', { type: 'stdio', command: 'node' })
+    const result = await importUserMcpServers(path, [{ name: 'one', server: { type: 'stdio', command: 'uvx' } }], true)
+    expect(result.imported).toEqual(['one'])
+    expect((await loadUserMcpSuite(path)).mcp.servers['one']).toMatchObject({ command: 'uvx' })
+  })
+
   it('fails closed on corrupt storage and refuses to overwrite it', async () => {
     const path = await root()
     await writeFile(join(path, 'mcp.json'), 'broken')
