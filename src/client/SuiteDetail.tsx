@@ -1,25 +1,31 @@
 /**
- * Suite detail modal: click one suite card to browse its internals.
+ * Suite detail dialog: click one suite card to browse its internals.
  *
- * Sections: manifest overview, the skill list (each skill expands to its
- * SKILL.md body through the safe MarkdownText renderer), the validated
- * mcp.json servers (each expands to its full config — display only), the
- * command/subagent file lists, hook/LSP counts, and validation diagnostics.
+ * One status band, an overview grid that does not repeat what the header
+ * already says, and one block per surface — skills, MCP servers, commands,
+ * agent roles, hooks, LSP servers, then validation diagnostics. Every block is
+ * a list of disclosure rows that render the real content in place: a skill's
+ * SKILL.md through the safe Markdown renderer, and validated configuration
+ * through the host JSON tree.
  *
  * The MCP region is intentionally read-only: credentials and per-server
  * overrides are configured on the MCP services panel (their own detail
  * dialog), not inside the suite detail preview.
  */
 import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, JsonTree, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './ui/DetailModal.js'
 import { MarkdownDocument } from './ui/MarkdownDocument.js'
+import { DetailRow, DetailRows } from './ui/DetailRows.js'
+import { lastChangeLabel } from './ui/last-change.js'
+import { jsonTreeLabels } from './ui/json-tree-labels.js'
 import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, type SuiteDetail } from './api.js'
 import type { Translate } from './index.js'
 import { suiteLayoutLabel } from './layout-label.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import { createLatestRequestGuard } from './features/suite-detail/suite-detail-resource.js'
 import css from './market.module.css'
+import panelCss from './ui/panel.module.css'
 import { clientErrorMessage } from './ui/error-message.js'
 
 /** Toggleable surface keys paired with their translation keys. */
@@ -37,24 +43,27 @@ export interface SuiteDetailModalProps {
   sourceId: string
   suiteId: string
   onClose: () => void
+  /** Installs this suite; present only while it is not installed. */
+  onInstall?: (() => void) | undefined
+  /** Uninstalls this suite; present only while it is installed. */
+  onUninstall?: (() => void) | undefined
 }
 
-export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailModalProps): ReactNode {
+export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onUninstall }: SuiteDetailModalProps): ReactNode {
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [openSkill, setOpenSkill] = useState<string | undefined>(undefined)
+  const [openRow, setOpenRow] = useState<string | undefined>(undefined)
   const [skillText, setSkillText] = useState<string | undefined>(undefined)
   const [skillLoading, setSkillLoading] = useState(false)
   const skillRequestGuard = useRef(createLatestRequestGuard())
-  const [openMcp, setOpenMcp] = useState<string | undefined>(undefined)
-  const [openPreview, setOpenPreview] = useState<string | undefined>(undefined)
+  const [surfaceBusy, setSurfaceBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     skillRequestGuard.current.invalidate()
     setDetail(undefined)
     setError(undefined)
-    setOpenSkill(undefined)
+    setOpenRow(undefined)
     setSkillText(undefined)
     fetchSuiteDetail(sourceId, suiteId)
       .then(value => {
@@ -69,18 +78,19 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
     }
   }, [sourceId, suiteId])
 
-  const toggleSkill = async (name: string): Promise<void> => {
-    const requestId = skillRequestGuard.current.next()
-    if (openSkill === name) {
-      setOpenSkill(undefined)
+  const toggleRow = async (id: string, load?: () => Promise<string>): Promise<void> => {
+    if (openRow === id) {
+      setOpenRow(undefined)
       return
     }
-    setOpenSkill(name)
+    setOpenRow(id)
+    if (load === undefined) return
+    const requestId = skillRequestGuard.current.next()
     setSkillLoading(true)
     setSkillText(undefined)
     try {
-      const content = await fetchSkillContent(sourceId, suiteId, name)
-      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(content.content)
+      const content = await load()
+      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(content)
     } catch (reason) {
       if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(`⚠ ${clientErrorMessage(t, reason)}`)
     } finally {
@@ -88,17 +98,11 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
     }
   }
 
-  const toggleMcp = (key: string): void => {
-    setOpenMcp(openMcp === key ? undefined : key)
-  }
-
-  const [surfaceBusy, setSurfaceBusy] = useState(false)
   const toggleSurface = async (surface: string, enabled: boolean): Promise<void> => {
     setSurfaceBusy(true)
     try {
       await postAction('set-surface', { sourceId, suiteId, surface, enabled })
-      const next = await fetchSuiteDetail(sourceId, suiteId)
-      setDetail(next)
+      setDetail(await fetchSuiteDetail(sourceId, suiteId))
     } catch (reason) {
       setError(clientErrorMessage(t, reason))
     } finally {
@@ -107,17 +111,24 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
   }
 
   const layoutLabel = detail === undefined ? '' : suiteLayoutLabel(detail.layout, t)
-  const surfaceToggles = detail === undefined ? null : detail.surfaceToggles
+  const updated = detail === undefined || detail.updatedAt === null ? null : lastChangeLabel(t, detail.updatedAt)
+  const statusLabel = detail === undefined
+    ? ''
+    : detail.installed
+      ? detail.enabled
+        ? t('installedBadge')
+        : t('disabledLabel')
+      : t('notInstalledLabel')
 
   return h(DetailModal, {
     open: true,
     onClose,
-    title: detail === undefined ? t('detailTitle') : `${detail.name}${detail.version === null ? '' : ` v${detail.version}`}`,
-    description: detail === undefined ? undefined : t('detailHint'),
+    title: detail === undefined ? t('detailTitle') : detail.name,
+    // `插件套件 · <source>`: what this dialog is about. The version lives in the
+    // status band with the state and the provenance, not in the title.
+    description: detail === undefined ? undefined : `${t('detailKicker')} · ${detail.sourceId}`,
     closeLabel: t('cancel'),
-    className: css.detailDialog,
-    contentClassName: css.detailBody,
-    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))),
+    footer: footer(t, detail, { onClose, onInstall, onUninstall }),
     children: h(ErrorBoundary, {
       fallback: boundaryError => h('div', { className: css.warnLine }, `${t('actionFail')}: ${boundaryError.message}`),
       children:
@@ -127,237 +138,185 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose }: SuiteDetailM
             ? h('div', { className: css.empty }, t('loading'))
             : h(
                 'div',
-                { className: css.detailSections },
+                null,
                 h(
-                  'section',
-                  { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, t('overviewSection')),
+                  'div',
+                  { className: panelCss.hero },
+                  h(StateDot, { state: detail.installed ? (detail.enabled ? 'done' : 'idle') : 'idle' }),
                   h(
                     'div',
-                    { className: css.detailGrid },
-                    h('div', { className: css.detailCell }, h('span', { className: css.detailKey }, t('sourceLabel')), h('span', { className: css.detailValue }, detail.sourceId)),
+                    { className: panelCss.heroText },
                     h(
                       'div',
-                      { className: css.detailCell },
-                      h('span', { className: css.detailKey }, t('dimensionLabel')),
-                      h('span', { className: css.detailValue }, detail.dimension === 'user' ? t('dimensionUser') : t('dimensionProject'))
+                      { className: panelCss.heroLine },
+                      h(Tag, { tone: detail.installed ? (detail.enabled ? 'success' : 'neutral') : 'neutral' }, statusLabel),
+                      h(Tag, { tone: 'neutral' }, detail.dimension === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')),
+                      detail.version === null ? null : h(Tag, { tone: 'quiet' }, `v${detail.version}`)
                     ),
-                    h('div', { className: css.detailCell }, h('span', { className: css.detailKey }, t('layoutLabel')), h('span', { className: css.detailValue }, layoutLabel)),
-                    h(
+                    h('p', { className: panelCss.heroMono }, detail.root)
+                  )
+                ),
+                h(
+                  'div',
+                  { className: panelCss.block },
+                  h('h4', { className: panelCss.blockHead }, t('overviewSection')),
+                  h(
+                    'dl',
+                    { className: panelCss.kvGrid },
+                    kv(t('sourceLabel'), detail.sourceId, true),
+                    kv(t('layoutLabel'), layoutLabel),
+                    detail.author === null ? null : kv(t('authorLabel'), detail.author),
+                    updated === null ? null : kv(t('updatedLabel'), updated)
+                  )
+                ),
+                detail.description === null
+                  ? null
+                  : h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('detailDescriptionLabel')), h('p', { className: panelCss.detailProse }, detail.description)),
+                h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('rootLabel')), h('pre', { className: panelCss.monoBlock }, detail.root)),
+                detail.installed === false || detail.surfaceToggles === null
+                  ? null
+                  : h(
                       'div',
-                      { className: css.detailCell },
-                      h('span', { className: css.detailKey }, t('statusLabel')),
+                      { className: panelCss.block },
+                      h('h4', { className: panelCss.blockHead }, t('surfaceTogglesSection')),
                       h(
-                        'span',
-                        { className: detail.enabled ? css.okState : css.detailValue },
-                        detail.installed ? (detail.enabled ? t('installedBadge') : t('disabledLabel')) : t('notInstalledLabel')
-                      )
-                    ),
-                    detail.author === null
-                      ? null
-                      : h(
-                          'div',
-                          { className: css.detailCell },
-                          h('span', { className: css.detailKey }, t('authorLabel')),
-                          h('span', { className: css.detailValue }, detail.author)
-                        ),
-                    detail.keywords.length === 0
-                      ? null
-                      : h(
-                          'div',
-                          { className: css.detailCell },
-                          h('span', { className: css.detailKey }, t('keywordsLabel')),
-                          h('span', { className: css.detailValue }, detail.keywords.join(', '))
-                        )
-                  ),
-                  detail.description === null ? null : h('p', { className: css.detailDesc }, detail.description),
-                  h('div', { className: css.detailCell }, h('span', { className: css.detailKey }, t('rootLabel')), h('span', { className: css.mono }, detail.root)),
-                  detail.installed === false || surfaceToggles === null
-                    ? null
-                    : h(
                         'div',
-                        { className: css.detailCell },
-                        h('span', { className: css.detailKey }, t('surfaceTogglesSection')),
-                        h(
-                          'div',
-                          { className: css.surfaceToggles, title: t('surfaceTogglesHint') },
-                          ...SURFACE_TOGGLE_ROWS.map(([key, labelKey]) =>
-                            h('label', { key, className: css.surfaceToggle }, h('input', {
+                        { className: css.surfaceToggles, title: t('surfaceTogglesHint') },
+                        ...SURFACE_TOGGLE_ROWS.map(([key, labelKey]) =>
+                          h(
+                            'label',
+                            { key, className: css.surfaceToggle },
+                            h('input', {
                               type: 'checkbox',
-                              checked: surfaceToggles[key],
+                              checked: detail.surfaceToggles?.[key] === true,
                               disabled: surfaceBusy,
                               onChange: event => {
                                 void toggleSurface(key, (event.target).checked)
                               }
-                            }), t(labelKey))
+                            }),
+                            t(labelKey)
                           )
                         )
                       )
-                ),
-                h(
-                  'section',
-                  { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, `${t('skillsSection')} (${detail.skills.length})`),
-                  detail.skills.length === 0
-                    ? h('div', null, '—')
-                    : detail.skills.map(skill =>
-                        h(
-                          'div',
-                          { key: skill.name, className: css.detailItem },
-                          h(
-                            'button',
-                            {
-                              type: 'button',
-                              className: openSkill === skill.name ? css.detailItemOpen : css.detailItemRow,
-                              onClick: () => {
-                                void toggleSkill(skill.name)
-                              }
-                            },
-                            h('span', { className: css.detailItemName }, skill.name),
-                            h('span', { className: css.detailItemDesc }, skill.description),
-                            h('span', { className: css.detailChevron }, openSkill === skill.name ? '▾' : '▸')
-                          ),
-                          openSkill !== skill.name ? null : h('div', { className: css.skillContent }, skillLoading ? t('loading') : h(MarkdownDocument, { text: skillText ?? '', t }))
-                        )
-                      )
-                ),
-                h(
-                  'section',
-                  { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, `${t('mcpSection')} (${detail.mcpServers.length})`),
-                  detail.mcpErrors.length === 0
-                    ? null
-                    : h('div', { className: css.warnLine, style: { margin: '0 0 6px' } }, `⚠ ${detail.mcpErrors.join(t('sourceErrorSeparator'))}`),
-                  detail.mcpServers.length === 0
-                    ? h('div', null, '—')
-                     : detail.mcpServers.map(server => {
-                        const disabled = detail.mcpOverrides?.[server.key]?.enabled === false
-                        return h(
-                          'div',
-                          { key: server.key, className: css.detailItem },
-                          h(
-                            'button',
-                            {
-                              type: 'button',
-                              className: openMcp === server.key ? css.detailItemOpen : css.detailItemRow,
-                              onClick: () => toggleMcp(server.key)
-                            },
-                            h('span', { className: css.detailItemName }, server.key),
-                            h(
-                              'span',
-                              { className: css.detailItemDesc },
-                              `${mcpSummary(server)}${disabled ? ` · ${t('mcpOverrideDisabledBadge')}` : ''}`
-                            ),
-                            h('span', { className: css.detailChevron }, openMcp === server.key ? '▾' : '▸')
-                          ),
-                          openMcp === server.key
-                            ? h(
-                                'div',
-                                { className: css.skillContent },
-                                // Read-only preview of the validated config.
-                                // Credentials and overrides are configured on
-                                // the MCP services panel, not here.
-                                h('pre', { className: css.mono }, JSON.stringify(server, null, 2))
-                              )
-                            : null
-                        )
-                      })
-                ),
-                h(
-                  'section',
-                  { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, `${t('commandsSection')} (${detail.commands.length})`),
-                  detail.commands.length === 0
-                    ? h('div', null, '—')
-                    : detail.commands.map(command =>
-                        h(PreviewRow, {
-                          key: `c:${command.name}`,
-                          t,
-                          name: `/${command.name}`,
-                          description: command.description,
-                          open: openPreview === `c:${command.name}`,
-                          onToggle: () => setOpenPreview(openPreview === `c:${command.name}` ? undefined : `c:${command.name}`),
-                          children: h(MarkdownDocument, { text: command.content, t })
-                        })
-                      )
-                ),
-                h(
-                  'section',
-                  { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, `${t('agentsSection')} (${detail.agents.length})`),
-                  detail.agents.length === 0
-                    ? h('div', null, '—')
-                    : detail.agents.map(agent =>
-                        h(PreviewRow, {
-                          key: `a:${agent.name}`,
-                          t,
-                          name: agent.name,
-                          description: agent.description,
-                          open: openPreview === `a:${agent.name}`,
-                          onToggle: () => setOpenPreview(openPreview === `a:${agent.name}` ? undefined : `a:${agent.name}`),
-                          children: h(MarkdownDocument, { text: agent.content, t })
-                        })
-                      )
-                ),
-                h(
-                  'section',
-                  { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, `${t('hooksLabel')} (${detail.hooks.count})`),
-                  detail.hooks.count === 0
-                    ? h('div', null, '—')
-                    : detail.hooks.entries.map((hook, index) =>
-                        h(PreviewRow, {
-                          key: `h:${index}`,
-                          t,
-                          name: hook.event,
-                          description: hook.command,
-                          open: openPreview === `h:${index}`,
-                          onToggle: () => setOpenPreview(openPreview === `h:${index}` ? undefined : `h:${index}`),
-                          children: h('pre', { className: css.mono }, JSON.stringify(hook, null, 2))
-                        })
-                      )
-                ),
-                h(
-                  'section',
-                  { className: css.detailSection },
-                  h('h4', { className: css.detailHead }, `${t('lspSection')} (${detail.lsp.servers.length + detail.lsp.raw.length})`),
-                  detail.lsp.servers.length === 0 && detail.lsp.raw.length === 0
-                    ? h('div', null, '—')
-                    : [
-                        ...detail.lsp.servers.map(server =>
-                          h(PreviewRow, {
-                            key: `l:${server.key}`,
-                            t,
-                            name: server.key,
-                            description: lspSummary(server),
-                            open: openPreview === `l:${server.key}`,
-                            onToggle: () => setOpenPreview(openPreview === `l:${server.key}` ? undefined : `l:${server.key}`),
-                            children: h('pre', { className: css.mono }, JSON.stringify(server, null, 2))
-                          })
-                        ),
-                        ...detail.lsp.raw.map(entry =>
-                          h(PreviewRow, {
-                            key: `l:${entry.name}`,
-                            t,
-                            name: entry.name,
-                            open: openPreview === `l:${entry.name}`,
-                            onToggle: () => setOpenPreview(openPreview === `l:${entry.name}` ? undefined : `l:${entry.name}`),
-                            children: h('pre', { className: css.mono }, entry.content)
-                          })
-                        )
-                      ]
-                ),
-                detail.errors.length === 0
-                  ? null
-                  : h(
-                      'section',
-                      { className: css.detailSection },
-                      h('h4', { className: css.detailHead }, `${t('errors')} (${detail.errors.length})`),
-                      detail.errors.map((entry, index) => h('div', { key: index, className: css.warnLine }, entry))
+                    ),
+                block(
+                  t('skillsSection'),
+                  detail.skills.length,
+                  detail.skills.map(skill =>
+                    row(
+                      openRow,
+                      `s:${skill.name}`,
+                      skill.name,
+                      skill.description,
+                      () => void toggleRow(`s:${skill.name}`, async () => (await fetchSkillContent(sourceId, suiteId, skill.name)).content),
+                      skillLoading && openRow === `s:${skill.name}` ? h('div', { className: css.empty }, t('loading')) : h(MarkdownDocument, { text: skillText ?? '', t })
                     )
+                  )
+                ),
+                block(
+                  t('mcpSection'),
+                  detail.mcpServers.length,
+                  detail.mcpServers.map(server => {
+                    const disabled = detail.mcpOverrides?.[server.key]?.enabled === false
+                    return row(
+                      openRow,
+                      `m:${server.key}`,
+                      server.key,
+                      `${mcpSummary(server)}${disabled ? ` · ${t('mcpOverrideDisabledBadge')}` : ''}`,
+                      () => void toggleRow(`m:${server.key}`),
+                      h(JsonTree, { data: server, label: server.key, copyable: true, expandTopLevel: true, labels: jsonTreeLabels(t) })
+                    )
+                  }),
+                  detail.mcpErrors.length === 0 ? null : h('div', { className: css.warnLine }, `⚠ ${detail.mcpErrors.join(t('sourceErrorSeparator'))}`)
+                ),
+                block(
+                  t('commandsSection'),
+                  detail.commands.length,
+                  detail.commands.map(command =>
+                    row(openRow, `c:${command.name}`, `/${command.name}`, command.description, () => void toggleRow(`c:${command.name}`), h(MarkdownDocument, { text: command.content, t }))
+                  )
+                ),
+                block(
+                  t('agentsSection'),
+                  detail.agents.length,
+                  detail.agents.map(agent => row(openRow, `a:${agent.name}`, agent.name, agent.description, () => void toggleRow(`a:${agent.name}`), h(MarkdownDocument, { text: agent.content, t })))
+                ),
+                block(
+                  t('hooksLabel'),
+                  detail.hooks.count,
+                  detail.hooks.entries.map((hook, index) =>
+                    row(openRow, `h:${index}`, hook.event, hook.command, () => void toggleRow(`h:${index}`), h(JsonTree, { data: hook, label: hook.event, copyable: true, labels: jsonTreeLabels(t) }))
+                  )
+                ),
+                block(
+                  t('lspSection'),
+                  detail.lsp.servers.length + detail.lsp.raw.length,
+                  [
+                    ...detail.lsp.servers.map(server =>
+                      row(openRow, `l:${server.key}`, server.key, lspSummary(server), () => void toggleRow(`l:${server.key}`), h(JsonTree, { data: server, label: server.key, copyable: true, expandTopLevel: true, labels: jsonTreeLabels(t) }))
+                    ),
+                    ...detail.lsp.raw.map(entry =>
+                      row(openRow, `lr:${entry.name}`, entry.name, undefined, () => void toggleRow(`lr:${entry.name}`), h('pre', { className: panelCss.monoBlock }, entry.content))
+                    )
+                  ]
+                ),
+                h(
+                  'div',
+                  { className: panelCss.block },
+                  h('h4', { className: panelCss.blockHead }, `${t('errors')} (${detail.errors.length})`),
+                  detail.errors.length === 0
+                    ? h('p', { className: panelCss.detailProse }, t('diagnosticsPassed'))
+                    : detail.errors.map((entry, index) => h('div', { key: index, className: css.warnLine }, entry))
+                )
               )
     })
   })
+}
+
+function kv(label: string, value: string, mono = false): ReactNode {
+  return h('div', null, h('dt', { className: panelCss.kvKey }, label), h('dd', { className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue, title: value }, value))
+}
+
+/** One surface group. A surface the suite does not carry is left out entirely. */
+function block(head: string, count: number, rows: ReactNode[], note?: ReactNode): ReactNode {
+  if (count === 0 && rows.length === 0) return null
+  return h(
+    'div',
+    { className: panelCss.block },
+    h('h4', { className: panelCss.blockHead }, `${head} (${count})`),
+    note ?? null,
+    rows.length === 0 ? null : h(DetailRows, null, ...rows)
+  )
+}
+
+
+/** One row; its body renders only while that row is the open one. */
+function row(current: string | undefined, id: string, name: string, description: string | undefined, onToggle: () => void, body: ReactNode): ReactNode {
+  const summary = description === undefined ? undefined : description.replace(/\s+/g, ' ').trim()
+  return h(DetailRow, {
+    key: id,
+    name,
+    summary: summary === '' ? undefined : summary,
+    open: current === id,
+    onToggle,
+    children: body
+  })
+}
+
+function footer(t: Translate, detail: SuiteDetail | undefined, actions: { onClose: () => void; onInstall?: (() => void) | undefined; onUninstall?: (() => void) | undefined }): ReactNode {
+  if (detail !== undefined && !detail.installed && actions.onInstall !== undefined) {
+    return [
+      h(Button, { key: 'close', variant: 'ghost', onClick: actions.onClose }, t('mcpClose')),
+      h(Button, { key: 'install', variant: 'primary', onClick: actions.onInstall }, t('install'))
+    ]
+  }
+  if (detail !== undefined && detail.installed && actions.onUninstall !== undefined) {
+    return [
+      h(Button, { key: 'uninstall', variant: 'ghost', onClick: actions.onUninstall }, t('uninstall')),
+      h(Button, { key: 'done', variant: 'primary', onClick: actions.onClose }, t('detailDone'))
+    ]
+  }
+  return h(Button, { variant: 'ghost', onClick: actions.onClose }, t('mcpClose'))
 }
 
 function mcpSummary(server: McpServerDetail): string {
@@ -368,24 +327,4 @@ function mcpSummary(server: McpServerDetail): string {
 /** One-line summary of a declared LSP server: command plus mapped extension list. */
 function lspSummary(server: { command: string; extensions: Record<string, string> }): string {
   return [server.command, Object.keys(server.extensions).join(' ')].join(' · ')
-}
-
-function PreviewRow(props: { t: Translate; name: string; description?: string; open: boolean; onToggle: () => void; children: ReactNode }): ReactNode {
-  const { name, description, open, onToggle, children } = props
-  return h(
-    'div',
-    { className: css.detailItem },
-    h(
-      'button',
-      {
-        type: 'button',
-        className: open ? css.detailItemOpen : css.detailItemRow,
-        onClick: onToggle
-      },
-      h('span', { className: css.detailItemName }, name),
-      description === undefined ? null : h('span', { className: css.detailItemDesc }, description),
-      h('span', { className: css.detailChevron }, open ? '▾' : '▸')
-    ),
-    open ? h('div', { className: css.skillContent }, children) : null
-  )
 }

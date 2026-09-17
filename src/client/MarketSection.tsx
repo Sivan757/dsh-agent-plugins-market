@@ -7,16 +7,14 @@
  * with light-mode fallbacks so the page follows the active theme.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Button, Modal, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from './api.js'
 import { loadOverview, invalidateOverview, startSourceProgressPolling, type SourceProgressState } from './features/market/market-resource.js'
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from './features/market/market-view-model.js'
 import { SourceTabsRow, type SourceTabItem } from './features/market/SourceTabsRow.js'
 import { SourceEditorModal, type EditorState } from './features/market/SourceEditorModal.js'
-import { interpolate } from './ui/interpolate.js'
 import { InstallConfirmModal, type InstallConfirmState } from './features/market/InstallConfirmModal.js'
 import { SuiteCard } from './features/market/SuiteCard.js'
-import { StatusIcon } from './ui/StatusIcon.js'
 import type { Translate } from './index.js'
 import { ErrorBoundary } from './ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
@@ -74,8 +72,12 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const [confirm, setConfirm] = useState<ConfirmState | undefined>(undefined)
   const [installConfirm, setInstallConfirm] = useState<InstallConfirmState | undefined>(undefined)
   const [editor, setEditor] = useState<EditorState>(undefined)
-  const [detail, setDetail] = useState<{ sourceId: string; suiteId: string } | undefined>(undefined)
+  // The whole card record, so the detail dialog can offer the same install and
+  // uninstall actions the card does.
+  const [detail, setDetail] = useState<SuiteCardData | undefined>(undefined)
   const [progress, setProgress] = useState<SourceProgressState>({ step: undefined, error: undefined })
+  // The irreversible uninstall is gated behind the host's risk acknowledgement.
+  const [uninstallAck, setUninstallAck] = useState(false)
 
   const refresh = useCallback(async () => {
     invalidateOverview()
@@ -115,6 +117,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const { scopeTotals, filtered } = viewModel
 
   const openUninstall = useCallback((suite: SuiteCardData) => {
+    setUninstallAck(false)
     setConfirm({ kind: 'uninstall', sourceId: suite.sourceId, suiteId: suite.suiteId, deleteCheckout: false })
   }, [])
 
@@ -224,12 +227,11 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             searchPlaceholder: t('searchPh'),
             onSearchChange: setSearch,
             filters: [
-              { id: 'all', label: t('tabAll'), count: scopeTotals.all, icon: h(StatusIcon, { kind: 'all' }), active: tab === 'all', onSelect: () => setTab('all') },
+              { id: 'all', label: t('tabAll'), count: scopeTotals.all, active: tab === 'all', onSelect: () => setTab('all') },
               {
                 id: 'installed',
                 label: t('tabInstalled'),
                 count: scopeTotals.installed,
-                icon: h(StatusIcon, { kind: 'installed' }),
                 active: tab === 'installed',
                 onSelect: () => setTab('installed')
               },
@@ -237,14 +239,13 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                 id: 'uninstalled',
                 label: t('tabUninstalled'),
                 count: scopeTotals.all - scopeTotals.installed,
-                icon: h(StatusIcon, { kind: 'uninstalled' }),
                 active: tab === 'uninstalled',
                 onSelect: () => setTab('uninstalled')
               }
             ],
             view,
-            gridLabel: t('grid'),
-            listLabel: t('list'),
+            toListLabel: t('switchToList'),
+            toGridLabel: t('switchToGrid'),
             onViewChange: nextView => setView(nextView)
           })
         )
@@ -253,7 +254,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       busy !== undefined ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
       h(
         ResourceCollection,
-        { view, className: view === 'grid' ? css.grid : css.list },
+        { view },
         loading
           ? h('div', { className: css.empty }, t('loading'))
           : filtered.length === 0
@@ -264,7 +265,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   t,
                   suite,
                   busy: busy !== undefined,
-                  onOpen: () => setDetail({ sourceId: suite.sourceId, suiteId: suite.suiteId }),
+                  onOpen: () => setDetail(suite),
                   onInstall: () => {
                     const source = overview.sources.find(entry => entry.id === suite.sourceId)
                     setInstallConfirm({
@@ -303,34 +304,31 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
               return ok
             }
           }),
-      confirm === undefined
-        ? null
-        : h(Modal, {
+      // Removing a source also chooses whether the managed checkout goes with
+      // it, which is a choice rather than an acknowledgement, so it keeps the
+      // plain confirm; uninstall has nothing to choose and takes the host's
+      // risk acknowledgement instead.
+      confirm !== undefined && confirm.kind === 'removeSource'
+        ? h(Modal, {
             open: true,
             onClose: () => setConfirm(undefined),
-            title:
-              confirm.kind === 'uninstall'
-                ? t('uninstallConfirmTitle')
-                : interpolate(t('removeSourceConfirmTitle', { sourceId: confirm.sourceId }), { sourceId: confirm.sourceId }),
+            title: t('removeSourceConfirmTitle', { sourceId: confirm.sourceId }),
             closeLabel: t('cancel'),
-            description: confirm.kind === 'uninstall' ? t('uninstallConfirmDesc') : t('removeSourceConfirmDesc'),
-            children:
-              confirm.kind === 'removeSource'
-                ? h(
-                    'label',
-                    { className: css.confirmCheck },
-                    h('input', {
-                      type: 'checkbox',
-                      checked: confirm.deleteCheckout,
-                      onChange: event =>
-                        setConfirm({
-                          ...confirm,
-                          deleteCheckout: (event.target).checked
-                        })
-                    }),
-                    confirm.deleteCheckout ? t('removeSourceDeleteFiles') : t('removeSourceKeepFiles')
-                  )
-                : null,
+            description: t('removeSourceConfirmDesc'),
+            children: h(
+              'label',
+              { className: css.confirmCheck },
+              h('input', {
+                type: 'checkbox',
+                checked: confirm.deleteCheckout,
+                onChange: event =>
+                  setConfirm({
+                    ...confirm,
+                    deleteCheckout: (event.target).checked
+                  })
+              }),
+              confirm.deleteCheckout ? t('removeSourceDeleteFiles') : t('removeSourceKeepFiles')
+            ),
             footer: h(
               'div',
               { className: css.modalFooter },
@@ -347,14 +345,44 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                 t('confirmDelete')
               )
             )
-          }),
+          })
+        : null,
+      h(RiskConfirmation, {
+        open: confirm !== undefined && confirm.kind === 'uninstall',
+        title: t('uninstallConfirmTitle'),
+        description: t('uninstallConfirmDesc'),
+        acknowledgeLabel: t('uninstallAcknowledge'),
+        cancelLabel: t('cancel'),
+        closeLabel: t('cancel'),
+        confirmLabel: t('confirmDelete'),
+        acknowledged: uninstallAck,
+        disabled: busy !== undefined,
+        onAcknowledgedChange: setUninstallAck,
+        onCancel: () => setConfirm(undefined),
+        onConfirm: () => {
+          void confirmAction()
+        }
+      }),
       detail === undefined
         ? null
         : h(SuiteDetailModal, {
             t,
             sourceId: detail.sourceId,
             suiteId: detail.suiteId,
-            onClose: () => setDetail(undefined)
+            onClose: () => setDetail(undefined),
+            onInstall: () => {
+              const source = overview.sources.find(entry => entry.id === detail.sourceId)
+              setInstallConfirm({
+                suite: detail,
+                ...(source?.lockCommit === undefined ? {} : { lockCommit: source.lockCommit }),
+                ...(source?.local === true ? { localSource: true } : {})
+              })
+              setDetail(undefined)
+            },
+            onUninstall: () => {
+              openUninstall(detail)
+              setDetail(undefined)
+            }
           }),
       editor === undefined
         ? null

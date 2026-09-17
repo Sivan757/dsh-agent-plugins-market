@@ -1,19 +1,58 @@
+/**
+ * The one card anatomy every surface shares.
+ *
+ * A resource card is three rows: an identity row (name, provenance tag, state
+ * tag, and the action cluster on its trailing edge), a body row (the surface's
+ * own subject — description, endpoint, or command), and a source row (suite id,
+ * counts, state). The body and source rows span the full card width, so the
+ * action cluster never eats into the text.
+ *
+ * The box, the rows, and the responsive collapse live here; a surface styles
+ * only the slots inside its rows. Attribute selectors on `data-resource-state`,
+ * `data-resource-surface`, and `data-resource-view` keep this layer above the
+ * surfaces' single-class rules regardless of stylesheet order.
+ *
+ * The settings column hands a resource list roughly 560px, so the narrow
+ * container branch is the shape users see: two equal columns 4px apart, rows
+ * sized by their content, and the action cluster lifted onto the identity row
+ * where it fades in as one group on hover or keyboard focus.
+ */
+
 .card[data-resource-state] {
   box-sizing: border-box;
+  position: relative;
+  display: grid;
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
+  padding: 11px 12px 11px 13px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-left-width: 3px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   box-shadow: none;
+  cursor: pointer;
+  gap: 4px 10px;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
 }
-.card[data-resource-state='active'] { border-left-color: var(--dsw-alias-state-success-primary); }
-.card[data-resource-state='disabled'] { border-left-color: var(--dsw-alias-label-tertiary); }
-.card[data-resource-state='warning'] { border-left-color: var(--dsw-alias-state-warn-primary); }
-.card[data-resource-state='error'] { border-left-color: var(--dsw-alias-state-error-primary); }
-.card[data-resource-state]:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.card[data-resource-state='active'] {
+  border-left-color: var(--dsw-alias-state-success-primary);
+}
+.card[data-resource-state='disabled'] {
+  border-left-color: var(--dsw-alias-label-tertiary);
+}
+.card[data-resource-state='warning'] {
+  border-left-color: var(--dsw-alias-state-warn-primary);
+}
+.card[data-resource-state='error'] {
+  border-left-color: var(--dsw-alias-state-error-primary);
+}
+.card[data-resource-state]:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
 
 .collection[data-resource-view] {
   min-width: 0;
@@ -24,11 +63,346 @@
   scrollbar-gutter: stable;
   align-content: start;
   align-items: stretch;
-  gap: 12px;
 }
+/* Grid: two columns are the floor, not a stop on the way down. The settings
+   panel hands a resource list roughly 560px, which `minmax(320px, 1fr)` can
+   only fit once — hence the 280px track, which keeps two columns from ~570px
+   and three from ~860px. Below that the panel is genuinely too narrow. */
 .collection[data-resource-view='grid'] {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-auto-rows: 122px;
+  gap: 10px;
+  padding-right: 4px;
 }
-.collection[data-resource-view='list'] { display: flex; flex-direction: column; }
-.collection[data-resource-view='list'] > .card { flex-shrink: 0; }
+.collection[data-resource-view='list'] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+.collection[data-resource-view='list'] > .card {
+  flex-shrink: 0;
+}
+
+/* Grid: identity + actions share the first row; body and source span both
+   columns, so a two-line description never competes with the action cluster. */
+.collection[data-resource-view='grid'] > .card[data-resource-state] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'id act'
+    'body body'
+    'foot foot';
+}
+
+/* List: one 56px row — identity, source, body, actions left to right. */
+.collection[data-resource-view='list'] > .card[data-resource-state] {
+  height: 56px;
+  box-sizing: border-box;
+  grid-template-columns: minmax(160px, 0.85fr) minmax(210px, 1.05fr) minmax(0, 1.5fr) auto;
+  grid-template-areas: 'id foot body act';
+  align-items: center;
+  gap: 16px;
+}
+
+/* The host panel is the container, not the viewport: the plugin always renders
+   inside a resizable settings column. This is the branch the product actually
+   renders, so it carries the prototype's narrow geometry: a fixed two-column
+   grid 4px apart, rows that follow their content, and the action cluster
+   pinned to the identity row's trailing edge. */
+@container (max-width: 700px) {
+  .collection[data-resource-view='grid'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* Card-to-card spacing is the same value as the spacing between a card's
+       own identity, body, and source rows — one rhythm, not two. */
+    gap: 4px;
+    /* Content-sized rows: a fixed row height leaves a blank strip under a
+       one-line description. */
+    grid-auto-rows: max-content;
+  }
+
+  .collection[data-resource-view='grid'] > .card[data-resource-state] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    align-content: start;
+    grid-template-areas:
+      'id'
+      'body'
+      'foot';
+    gap: 4px;
+    padding: 10px 10px 10px 13px;
+  }
+
+  /* The cluster is out of flow on the first row, so the identity row reserves
+     its width instead. The reserve is one fixed value regardless of the switch
+     state, so toggling never shifts the name. */
+  .collection[data-resource-view='grid'] > .card[data-resource-state] .rowId {
+    padding-right: 88px;
+  }
+  /* Switch-only cards (MCP, LSP) do not need the icon buttons' room. */
+  .collection[data-resource-view='grid'] > .card[data-resource-surface='mcp'] .rowId,
+  .collection[data-resource-view='grid'] > .card[data-resource-surface='lsp'] .rowId {
+    padding-right: 46px;
+  }
+
+  /* The switch is an action too: the whole cluster, including it and any
+     primary CTA, fades in as one group and never moves under the pointer. */
+  .collection[data-resource-view='grid'] > .card[data-resource-state] .rowActions {
+    position: absolute;
+    top: 11px;
+    right: 10px;
+    bottom: auto;
+    margin-left: 0;
+    opacity: 0;
+    transition: opacity 0.14s ease;
+  }
+  .collection[data-resource-view='grid'] > .card[data-resource-state]:hover .rowActions,
+  .collection[data-resource-view='grid'] > .card[data-resource-state]:focus-within .rowActions {
+    opacity: 1;
+  }
+
+  /* MCP and LSP cards name their suite on the source row already, so the
+     provenance tag in the identity row would say the same thing twice and
+     crowd out a long server name. */
+  .collection[data-resource-view='grid'] > .card[data-resource-surface='mcp'] .provenanceChip,
+  .collection[data-resource-view='grid'] > .card[data-resource-surface='lsp'] .provenanceChip {
+    display: none;
+  }
+
+  .collection[data-resource-view='list'] > .card[data-resource-state] {
+    /* Stacked narrow row: identity, then source, then the description. */
+    height: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id act'
+      'foot act'
+      'body act';
+    padding-block: 10px;
+  }
+}
+
+/* Narrower still: two columns leave each description only a few characters. */
+@container (max-width: 420px) {
+  .collection[data-resource-view='grid'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- the rows every surface fills ------------------------------------- */
+
+/* A constant identity row. The action cluster is out of flow at the widths the
+   product renders, so the row's own height is what keeps cards even. */
+.rowId {
+  grid-area: id;
+  display: flex;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Every row carries its own area class. Without it an auto-placed body lands in
+   the first free cell — the empty action column of a card that has none — and
+   the description would sit beside the name. */
+.rowBody {
+  grid-area: body;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rowFoot {
+  grid-area: foot;
+  display: flex;
+  min-width: 0;
+  min-height: 16px;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+
+/* The one action cluster: top-right in the grid, trailing in the list. */
+.rowActions {
+  grid-area: act;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* ---- the slots inside a row ------------------------------------------- */
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nameMono {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+
+.version {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Two lines through a bounded block: the nested-scroll compositor paints
+   `-webkit-box` text outside its box, so clamping stays height-based. The block
+   is capped, never reserved — a one-line description leaves a shorter card. */
+.desc {
+  margin: 0;
+  max-height: 34px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.monoLine {
+  margin: 0;
+  max-height: 34px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+}
+
+/* The source row's leading value: the suite a card belongs to, set in the same
+   mono face the identity row uses for technical names. It ellipsizes before the
+   counts do — the counts are what the row is scanned for. */
+.provenance {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A user-panel tile's source row is its disk path. */
+.path {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.countValue {
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.separator {
+  flex: none;
+  color: var(--dsw-alias-label-dimmed);
+  font-size: 11px;
+}
+
+/* Flat 24px icon action (host ghost geometry, no chrome box). */
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconBtn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* Destructive action only announces itself on hover, like the platform. */
+.iconBtnDanger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.iconBtn:focus-visible,
+.rowActions :focus-visible,
+.card[data-resource-state]:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+/* Above the narrow container breakpoint the cluster stays in the grid, so only
+   the secondary icons fade — the switch and a primary CTA keep their place. */
+.revealOnHover {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.card[data-resource-state]:hover .revealOnHover,
+.card[data-resource-state]:focus-within .revealOnHover {
+  opacity: 1;
+}
+
+/* A list row is a single line: the body collapses to one line of secondary
+   text and everything stays visible. */
+.collection[data-resource-view='list'] .desc,
+.collection[data-resource-view='list'] .monoLine {
+  display: block;
+  max-height: 18px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection[data-resource-view='list'] .revealOnHover {
+  opacity: 1;
+}
+
+/* A wrapper that keeps a control's click off the card and can hang a tooltip. */
+.switchWrap,
+.warnWrap {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card[data-resource-state],
+  .revealOnHover,
+  .rowActions {
+    transition: none;
+  }
+}

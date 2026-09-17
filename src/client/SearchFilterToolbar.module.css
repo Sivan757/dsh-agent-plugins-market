@@ -1,111 +1,68 @@
 /* Shared search + filter + view-switch row.
  *
- * Flexbox, not a fixed column grid: panels pass different filter counts
- * (MCP 3, LSP 4), and a hard-coded grid template overflowed on the fourth
- * filter, pushing the view switch onto its own row and forcing a horizontal
- * scrollbar. Here the search box flexes, filter buttons keep their natural
- * width, and the spacer pushes the view switch to the trailing edge. */
+ * The filter control and the view switch are two independent segments of the
+ * same chrome, so the current filter and the current view are both readable
+ * without hovering. The search box flexes; the segments keep their natural
+ * width and are pushed to the trailing edge.
+ */
 .toolbar {
   display: flex;
-  align-items: flex-end;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   flex: none;
-}
-
-.filterGap,
-.viewGap {
-  flex: 1 0 12px;
-  min-width: 0;
 }
 
 .search {
   display: flex;
-  flex: 0 1 240px;
+  flex: 1 1 auto;
   align-items: center;
-  box-sizing: border-box;
   min-width: 0;
-  height: 36px;
 }
 
-.search input {
-  box-sizing: border-box;
+/* The host input renders its own bordered wrapper; this only lets it fill the
+   flex track and keeps the 12px settings-panel type size. */
+.searchInput {
+  flex: 1 1 auto;
   min-width: 0;
-  width: 100%;
-  height: 36px;
-  min-height: 36px;
-  max-height: 36px;
-  padding-top: 0;
-  padding-bottom: 0;
+}
+
+.searchInput input {
   font-size: 12px;
   line-height: 20px;
 }
 
-.filter,
-.filterOn {
-  display: inline-flex;
+/* 24px pills inside 3px of padding line the switch up with the 32px search
+   field, and the pill's own pressed fill is what marks the current mode. */
+.segment {
+  display: flex;
   flex: none;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-width: 54px;
-  height: 36px;
-  padding: 7px 9px;
-  color: var(--dsw-alias-label-secondary, #6b7280);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  white-space: nowrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
 }
 
-.filterOn {
-  color: var(--dsw-alias-brand-primary, #4f6ef7);
-  border-bottom-color: var(--dsw-alias-brand-primary, #4f6ef7);
-  font-weight: 600;
+/* The count keeps its own quiet colour on the pressed pill too, so the label
+   carries the selection and the number stays a count. */
+.count {
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 
-.filter svg,
-.filterOn svg,
-.viewSwitch svg {
+.segment svg {
+  display: block;
   stroke: currentColor;
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.filterCount {
-  font-variant-numeric: tabular-nums;
-}
-
-.viewSwitch {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 36px;
-  color: var(--dsw-alias-label-tertiary, #9ca3af);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  cursor: pointer;
-}
-
-.viewSwitch:hover {
-  color: var(--dsw-alias-label-primary, #1f2328);
-}
-
-.viewSwitch:focus-visible,
-.filter:focus-visible,
-.filterOn:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
-  outline-offset: 2px;
-}
-
-@container (max-width: 700px) {
+/* The toolbar stays on one row: the search field absorbs the squeeze, exactly
+   as the settings column's width changes. Only a genuinely narrow container —
+   below where the filter segments would overflow — stacks it. */
+@container (max-width: 480px) {
   .toolbar {
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -113,9 +70,5 @@
 
   .search {
     flex-basis: 100%;
-  }
-
-  .filterGap {
-    display: none;
   }
 }

@@ -1,8 +1,13 @@
 /**
  * Shared search, filter, and view controls for catalog-style settings panels.
+ *
+ * The filters are one segmented control and the view switch is a single icon
+ * button, so the current mode is always readable without hovering: the active
+ * filter carries the platform's pressed fill, and the view button shows the
+ * mode in force with that same fill.
  */
 import { createElement as h, type ReactNode } from 'react'
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconSearchOutline16, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './SearchFilterToolbar.module.css'
 
 export type SearchFilterToolbarView = 'grid' | 'list'
@@ -11,10 +16,9 @@ export interface SearchFilterToolbarFilter {
   id: string
   label: string
   count: number
-  icon: ReactNode
   active: boolean
   onSelect: () => void
-  /** Extended hover/aria explanation; falls back to the label when absent. */
+  /** Extended hover/aria explanation; falls back to the label and count. */
   hint?: string
 }
 
@@ -25,8 +29,10 @@ export interface SearchFilterToolbarProps {
   onSearchChange: (search: string) => void
   filters: readonly SearchFilterToolbarFilter[]
   view: SearchFilterToolbarView
-  gridLabel: string
-  listLabel: string
+  /** Accessible name of the view button while the grid shows: it switches to the list. */
+  toListLabel: string
+  /** Accessible name of the view button while the list shows: it switches to the grid. */
+  toGridLabel: string
   onViewChange: (view: SearchFilterToolbarView) => void
   className?: string
 }
@@ -35,53 +41,67 @@ export interface SearchFilterToolbarProps {
  * Render a consistent control row for searchable grid and list content.
  *
  * @param props - Search state, selectable filters, and view-mode state.
- * @returns Search input, filter tabs, and an accessible grid/list toggle.
+ * @returns Search input, a filter segment, and a one-button view switch.
  */
 export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode {
-  const nextView: SearchFilterToolbarView = props.view === 'grid' ? 'list' : 'grid'
-  const nextViewLabel = nextView === 'grid' ? props.gridLabel : props.listLabel
+  const grid = props.view === 'grid'
+  const viewLabel = grid ? props.toListLabel : props.toGridLabel
   return h(
     'div',
     { className: props.className === undefined ? css.toolbar : `${css.toolbar} ${props.className}`, 'data-panel-toolbar': true },
-    h(Input, {
-      className: css.search,
-      value: props.search,
-      placeholder: props.searchPlaceholder,
-      'aria-label': props.searchLabel,
-      onChange: event => props.onSearchChange((event.target).value)
-    }),
-    h('div', { className: css.filterGap }),
-    ...props.filters.map(filter =>
-      h(
-        'button',
-        {
-          key: filter.id,
-          type: 'button',
-          className: filter.active ? css.filterOn : css.filter,
-          title: filter.hint ?? `${filter.label} ${filter.count}`,
-          'aria-label': filter.hint ?? `${filter.label} ${filter.count}`,
-          'aria-pressed': filter.active,
-          onClick: filter.onSelect
-        },
-        filter.label,
-        h('span', { className: css.filterCount }, filter.count)
+    h(
+      'label',
+      { className: css.search },
+      h(Input, {
+        className: css.searchInput,
+        icon: h(IconSearchOutline16),
+        value: props.search,
+        placeholder: props.searchPlaceholder,
+        'aria-label': props.searchLabel,
+        onChange: event => props.onSearchChange((event.target).value)
+      })
+    ),
+    h(
+      'div',
+      { className: css.segment, role: 'group' },
+      ...props.filters.map(filter =>
+        h(
+          Pill,
+          {
+            key: filter.id,
+            active: filter.active,
+            title: filter.hint ?? `${filter.label} ${filter.count}`,
+            'aria-label': filter.hint ?? `${filter.label} ${filter.count}`,
+            'aria-pressed': filter.active,
+            onClick: filter.onSelect
+          },
+          filter.label,
+          h('span', { className: css.count }, filter.count)
+        )
       )
     ),
-    h('div', { className: css.viewGap }),
+    // One button, permanently pressed: the glyph and the fill report the mode in
+    // force and its accessible name says where a click leads, so the control
+    // states the present mode instead of only naming the mode it would switch to.
     h(
-      'button',
-      {
-        type: 'button',
-        className: css.viewSwitch,
-        'aria-label': nextViewLabel,
-        title: nextViewLabel,
-        onClick: () => props.onViewChange(nextView)
-      },
-      h(ViewIcon, { mode: nextView })
+      'div',
+      { className: css.segment },
+      h(
+        Pill,
+        {
+          active: true,
+          title: viewLabel,
+          'aria-label': viewLabel,
+          'aria-pressed': true,
+          onClick: () => props.onViewChange(grid ? 'list' : 'grid')
+        },
+        h(ViewIcon, { mode: props.view })
+      )
     )
   )
 }
 
+/** The two view glyphs; the host icon set has no grid glyph, so both stay drawn here. */
 function ViewIcon({ mode }: { mode: SearchFilterToolbarView }): ReactNode {
   const common = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
   return mode === 'list'
