@@ -1,5 +1,5 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
-import { realpath, unlink } from 'node:fs/promises'
+import { realpath, stat, unlink } from 'node:fs/promises'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
@@ -86,7 +86,18 @@ class PanelResources implements PanelResourceStore {
         })
       }
     }
-    return entries
+    // One pass stamps each entry's own last modification: the panel reads every
+    // file's text anyway, and both origins get the same treatment here.
+    return await Promise.all(
+      entries.map(async entry => {
+        try {
+          const stats = await stat(entry.path)
+          return { ...entry, updatedAt: new Date(stats.mtimeMs).toISOString() }
+        } catch {
+          return entry
+        }
+      })
+    )
   }
 
   async get(id: string): Promise<UserPanelEntryWire | undefined> {

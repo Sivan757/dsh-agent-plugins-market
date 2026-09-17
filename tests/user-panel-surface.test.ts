@@ -11,7 +11,7 @@ vi.mock('../src/client/api.js', () => api)
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async importOriginal => ({
   ...(await importOriginal<typeof import('@deepseek-ai/dsh-client-ui-primitives')>()),
   Button: (props: Record<string, unknown>) => h('button', props),
-  Input: (props: Record<string, unknown>) => h('input', props),
+  Input: ({ icon: _icon, ...props }: Record<string, unknown>) => h('input', props),
   Modal: ({ children, footer, title }: { children: React.ReactNode; footer: React.ReactNode; title: string }) =>
     h('section', { role: 'dialog' }, h('h2', null, title), children, footer)
 }))
@@ -31,8 +31,9 @@ const plugin = {
   disabled: false
 }
 const user = { ...plugin, id: 'user:reviewer', origin: 'user', path: '/user/reviewer.md' }
+/** Click by visible text, or by accessible name for an icon-only control. */
 async function click(text: string) {
-  const button = [...host.querySelectorAll('button')].find(item => item.textContent?.includes(text))
+  const button = [...host.querySelectorAll('button')].find(item => item.textContent?.includes(text) || item.getAttribute('aria-label') === text)
   expect(button, text).toBeDefined()
   await act(async () => button!.click())
 }
@@ -63,7 +64,7 @@ describe('unified Markdown resource panel', () => {
     api.updateUserPanelEntry.mockResolvedValue(undefined)
     await mountPanel()
     expect(api.fetchModelCatalog).not.toHaveBeenCalled()
-    await click('reviewer')
+    await click('panelEditTitle')
     const select = async (index: number, value: string) => {
       await act(async () => {
         const input = host.querySelectorAll('select')[index]
@@ -98,17 +99,19 @@ describe('unified Markdown resource panel', () => {
     expect(host.textContent).toContain('workspaceTabPersonas')
     expect(host.textContent).toContain('personasPanelDescription')
     expect(host.querySelectorAll('input').length).toBeGreaterThan(0)
-    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="list"]')!.click())
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="switchToList"]')!.click())
     await click('panelSourcePlugin')
-    expect(host.textContent).toContain('/plugins/reviewer.md')
+    // The pencil opens the filtered entry's own document; its path is a detail
+    // read-out, not an editor field, so the editor never repeats it.
+    await click('panelEditTitle')
+    expect(host.textContent).toContain('Review code')
     expect(host.textContent).not.toContain('/user/reviewer.md')
-    await click('reviewer')
     expect(host.querySelector('[role="dialog"]')?.textContent).toContain('personaRuntimeConfig')
     expect([...host.querySelectorAll('select')].map(select => select.value)).toEqual(['provider', 'model', ''])
     await click('panelSave')
     expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', plugin.id, plugin.rawText)
     await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
-    expect(host.textContent).toContain('/user/reviewer.md')
+    expect(host.textContent).toContain('reviewer')
     expect(host.querySelector('[role="dialog"]')).toBeNull()
   })
 

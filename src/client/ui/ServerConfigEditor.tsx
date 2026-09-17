@@ -1,7 +1,16 @@
+/**
+ * One JSON document backs both modes — the form and the JSON textarea are two
+ * views of the same value. Invalid JSON is retained, never silently converted
+ * or reset, and the form's own guards (unique map keys) are reported in place.
+ *
+ * The body uses the editors' shared form language, so a service editor and a
+ * document editor lay their fields out identically.
+ */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Translate } from '../index.js'
 import { changeTransport, parseServerConfig, serverFormCompatible, type ServerKind, type ServerConfig } from './server-form.js'
+import formCss from './form.module.css'
 import css from './detail.module.css'
 
 /** One JSON document backs both modes. Invalid JSON is retained, never silently converted or reset. */
@@ -12,6 +21,12 @@ export function ServerConfigEditor(props: {
   t: Translate
   disabled?: boolean
   onValidityChange?: (valid: boolean) => void
+  /**
+   * The service's name field, owned by the calling modal. When supplied it is
+   * rendered on the control row above the mode-specific body — paired with the
+   * MCP transport selector, since both are one-line identity fields.
+   */
+  nameField?: { label: string; control: ReactNode }
 }): ReactNode {
   const [mode, setMode] = useState<'form' | 'json'>('form')
   const [issues, setIssues] = useState<Record<string, boolean>>({})
@@ -55,11 +70,11 @@ export function ServerConfigEditor(props: {
       return next
     })
   }
-  const textField = (key: string, label: string, required = false): ReactNode =>
+  const textField = (key: string, label: string, required = false, full = false): ReactNode =>
     h(
       'label',
-      { className: css.field, key },
-      label,
+      { className: full ? `${formCss.field} ${formCss.full}` : formCss.field, key },
+      h('span', null, label),
       h('input', {
         value: typeof config?.[key] === 'string' ? config[key] : '',
         required,
@@ -67,36 +82,66 @@ export function ServerConfigEditor(props: {
         onChange: (event: { target: HTMLInputElement }) => field(key, event.target.value === '' && !required ? undefined : event.target.value)
       })
     )
-  const mapField = (key: string, label: string): ReactNode =>
-    h(
-      'div',
-      { className: `${css.field} ${css.wide}`, key },
-      h('span', null, label),
-      h(StringRows, {
-        key,
-        label,
-        t: props.t,
-        map: true,
-        value: config?.[key] as Record<string, string> | undefined,
-        onChange: value => field(key, value),
-        onIssue: bad => issue(key, bad)
-      })
-    )
+  const mapField = (key: string, label: string, addLabel: string, narrowKey = false): ReactNode =>
+    h(StringRows, {
+      key,
+      label,
+      addLabel,
+      t: props.t,
+      map: true,
+      narrowKey,
+      value: config?.[key] as Record<string, string> | undefined,
+      onChange: value => field(key, value),
+      onIssue: bad => issue(key, bad)
+    })
   const type = typeof config?.type === 'string' ? config.type : 'stdio'
   const auth = (config?.auth ?? {}) as Record<string, unknown>
+  const transportField =
+    props.kind === 'mcp'
+      ? h(
+          'label',
+          { className: formCss.field },
+          h('span', null, props.t('detailTransport')),
+          h(
+            'select',
+            {
+              value: type,
+              'aria-label': props.t('detailTransport'),
+              disabled: hasIssue,
+              onChange: (event: { target: HTMLSelectElement }) => {
+                // The selector disappears when the document cannot be parsed;
+                // this guard keeps an in-flight value from reaching `update`.
+                if (config === undefined) return
+                update(changeTransport(config, event.target.value))
+              }
+            },
+            ['stdio', 'streamable-http', 'sse'].map(value => h('option', { key: value, value }, value))
+          )
+        )
+      : null
+  const identityRow =
+    props.nameField === undefined
+      ? null
+      : props.kind === 'mcp'
+        ? h(
+            'div',
+            { className: formCss.formGrid },
+            h('label', { className: formCss.field }, h('span', null, props.nameField.label), props.nameField.control),
+            transportField
+          )
+        : h('label', { className: formCss.field }, h('span', null, props.nameField.label), props.nameField.control)
   return h(
     'div',
-    { className: css.section },
+    { className: formCss.form },
     h(
       'div',
-      { className: css.modes },
+      { className: formCss.seg },
       (['form', 'json'] as const).map(value =>
         h(
           'button',
           {
             type: 'button',
             key: value,
-            className: css.mode,
             'aria-pressed': mode === value,
             disabled: props.disabled || (value === 'json' && hasIssue),
             onClick: () => setMode(value)
@@ -105,81 +150,72 @@ export function ServerConfigEditor(props: {
         )
       )
     ),
+    // Identity fields stay visible in both modes: the name identifies the
+    // document and the transport decides which keys the JSON may carry.
+    identityRow,
     parseError ? h('div', { role: 'alert', className: css.error }, props.t('detailInvalidJson'), ' ', parseError) : null,
     mode === 'json'
-      ? h('textarea', {
-          className: css.raw,
-          value: props.text,
-          disabled: props.disabled,
-          spellCheck: false,
-          'aria-label': props.t('detailJson'),
-          onChange: (event: { target: HTMLTextAreaElement }) => props.onChange(event.target.value)
-        })
+      ? h(
+          'label',
+          { className: formCss.field },
+          h('span', null, props.t('detailJsonConfig')),
+          h('textarea', {
+            className: formCss.jsonArea,
+            value: props.text,
+            disabled: props.disabled,
+            spellCheck: false,
+            'aria-label': props.t('detailJson'),
+            onChange: (event: { target: HTMLTextAreaElement }) => props.onChange(event.target.value)
+          })
+        )
       : !compatible
         ? h('div', { role: 'alert', className: css.error }, props.t('detailUseJson'))
         : h(
             'fieldset',
-            { disabled: props.disabled, className: css.form, style: { border: 0, margin: 0, padding: 0 } },
-            props.kind === 'mcp'
-              ? h(
-                  'label',
-                  { className: css.field },
-                  props.t('detailTransport'),
-                  h(
-                    'select',
-                    {
-                      value: type,
-                      'aria-label': props.t('detailTransport'),
-                      disabled: hasIssue,
-                      onChange: (event: { target: HTMLSelectElement }) => update(changeTransport(config, event.target.value))
-                    },
-                    ['stdio', 'streamable-http', 'sse'].map(value => h('option', { key: value, value }, value))
-                  )
-                )
-              : null,
+            { disabled: props.disabled, className: formCss.form, style: { border: 0, margin: 0, padding: 0 } },
+            props.nameField === undefined ? transportField : null,
             props.kind === 'lsp' || type === 'stdio'
               ? [
-                  textField('command', props.t('detailCommand'), true),
-                  h(
-                    'div',
-                    { className: `${css.field} ${css.wide}`, key: 'args' },
-                    h('span', null, props.t('detailArgs')),
-                    h(StringRows, {
-                      label: props.t('detailArgs'),
-                      t: props.t,
-                      map: false,
-                      value: config.args as string[] | undefined,
-                      onChange: value => field('args', value),
-                      onIssue: bad => issue('args', bad)
-                    })
-                  ),
-                  mapField('env', props.t('detailEnv'))
+                  textField('command', props.t('detailCommand'), true, true),
+                  h(StringRows, {
+                    key: 'args',
+                    label: props.t('detailArgs'),
+                    addLabel: props.t('detailAddArgs'),
+                    t: props.t,
+                    map: false,
+                    value: config.args as string[] | undefined,
+                    onChange: value => field('args', value),
+                    onIssue: bad => issue('args', bad)
+                  }),
+                  mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
                 ]
-              : [textField('url', props.t('detailUrl'), true), mapField('headers', props.t('detailHeaders'))],
-            props.kind === 'mcp' && type === 'stdio' ? textField('cwd', props.t('detailCwd')) : null,
+              : [textField('url', props.t('detailUrl'), true, true), mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true)],
+            props.kind === 'mcp' && type === 'stdio' ? textField('cwd', props.t('detailCwd'), false, true) : null,
             props.kind === 'mcp' && type !== 'stdio'
               ? h(
-                  'div',
-                  { className: css.field },
+                  'fieldset',
+                  { className: `${formCss.fieldset} ${formCss.full}` },
+                  h('legend', null, 'OAuth'),
                   h(
                     'label',
-                    null,
+                    { className: formCss.inlineCheck },
                     h('input', {
                       type: 'checkbox',
-                    checked: auth.enabled !== false,
+                      checked: auth.enabled !== false,
                       onChange: (event: { target: HTMLInputElement }) => field('auth', { ...auth, enabled: event.target.checked })
                     }),
-                    ' OAuth'
+                    ' ',
+                    props.t('oauthEnable')
                   ),
                   h(
                     'label',
-                    { className: css.field },
-                    props.t('detailScope'),
+                    { className: `${formCss.field} ${formCss.full}` },
+                    h('span', null, props.t('detailScope')),
                     h('input', {
                       value: typeof auth.scope === 'string' ? auth.scope : '',
                       'aria-label': props.t('detailScope'),
                       onChange: (event: { target: HTMLInputElement }) => {
-                      const next = { ...auth, scope: event.target.value }
+                        const next = { ...auth, scope: event.target.value }
                         field('auth', next)
                       }
                     })
@@ -188,7 +224,7 @@ export function ServerConfigEditor(props: {
               : null,
             props.kind === 'lsp'
               ? [
-                  mapField('extensionToLanguage', props.t('detailExtensions')),
+                  mapField('extensionToLanguage', props.t('detailExtensions'), props.t('detailAddExtensions'), true),
                   ...(['initializationOptions', 'configuration'] as const).map(key =>
                     h(JsonField, { key, label: key, value: config[key], onChange: value => field(key, value), onIssue: bad => issue(key, bad) })
                   )
@@ -198,10 +234,14 @@ export function ServerConfigEditor(props: {
   )
 }
 
+/** The row editor behind a string list (arguments) and a string map (env, headers, extensions). */
 function StringRows(props: {
   label: string
+  addLabel: string
   t: Translate
   map: boolean
+  /** Key column at 26% rather than 34% (an extension mapping is a narrow key). */
+  narrowKey?: boolean
   value?: Record<string, string> | string[]
   onChange: (value: Record<string, string> | string[]) => void
   onIssue: (bad: boolean) => void
@@ -215,15 +255,40 @@ function StringRows(props: {
     props.onIssue(bad)
     if (!bad) props.onChange(props.map ? Object.fromEntries(next) : next.map(([, value]) => value))
   }
+  const keySlot = props.narrowKey === true ? formCss.rowKeyNarrow : formCss.rowKey
   return h(
     'div',
-    { className: css.rows },
-    rows.map(([key, value], index) =>
+    { className: `${formCss.field} ${formCss.full}` },
+    // The action that appends a row rides on the field's own label line, where
+    // it costs no extra height and no bordered button above the list.
+    h(
+      'div',
+      { className: formCss.rowHead },
+      h('span', null, props.label),
+      h(
+        'button',
+        {
+          type: 'button',
+          className: formCss.addIcon,
+          title: props.addLabel,
+          // The accessible name stays `<add> <what>`: it names the list the row
+          // joins.
+          'aria-label': `${props.t('panelAdd')} ${props.label}`,
+          onClick: () => change([...rows, ['', '']])
+        },
+        h(IconPlusOutline16)
+      )
+    ),
+    h(
+      'div',
+      { className: formCss.rows },
+      rows.map(([key, value], index) =>
       h(
         'div',
-        { className: css.row, key: index },
+        { className: formCss.row, key: index },
         props.map
           ? h('input', {
+              className: keySlot,
               value: key,
               'aria-label': `${props.label} ${props.t('detailKey')} ${index + 1}`,
               onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [event.target.value, row[1]] : row)))
@@ -235,10 +300,10 @@ function StringRows(props: {
           onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [row[0], event.target.value] : row)))
         }),
         h(
-          Button,
+          'button',
           {
-            variant: 'ghost',
-            size: 'sm',
+            type: 'button',
+            className: formCss.iconBtn,
             title: props.t('panelDelete'),
             'aria-label': `${props.t('panelDelete')} ${props.label} ${index + 1}`,
             onClick: () => change(rows.filter((_, i) => i !== index))
@@ -247,26 +312,22 @@ function StringRows(props: {
         )
       )
     ),
-    invalid ? h('span', { role: 'alert', className: css.error }, props.t('detailUniqueKeys')) : null,
-    h(
-      Button,
-      { variant: 'ghost', size: 'sm', title: props.t('panelAdd'), 'aria-label': `${props.t('panelAdd')} ${props.label}`, onClick: () => change([...rows, ['', '']]) },
-      h(IconPlusOutline16),
-      props.t('panelAdd')
+      invalid ? h('span', { role: 'alert', className: formCss.footerError }, props.t('detailUniqueKeys')) : null
     )
   )
 }
 
+/** One free-form JSON field (an LSP's initialization options or configuration). */
 function JsonField(props: { label: string; value: unknown; onChange: (value: unknown) => void; onIssue: (bad: boolean) => void }): ReactNode {
   const [text, setText] = useState(props.value === undefined ? '' : JSON.stringify(props.value, null, 2))
   const [error, setError] = useState('')
   return h(
     'label',
-    { className: `${css.field} ${css.wide}` },
-    props.label,
+    { className: `${formCss.field} ${formCss.full}` },
+    h('span', null, props.label),
     h('textarea', {
+      className: formCss.jsonArea,
       value: text,
-      rows: 4,
       'aria-label': props.label,
       onChange: (event: { target: HTMLTextAreaElement }) => {
         const next = event.target.value
@@ -282,6 +343,6 @@ function JsonField(props: { label: string; value: unknown; onChange: (value: unk
         }
       }
     }),
-    error ? h('span', { role: 'alert', className: css.error }, error) : null
+    error ? h('span', { role: 'alert', className: formCss.footerError }, error) : null
   )
 }

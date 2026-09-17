@@ -8,7 +8,20 @@ export function frontmatter(text: string) {
   const error = document.errors[0]
   if (error !== undefined) throw new Error(error.message)
   if (document.contents !== null && !isMap(document.contents)) throw new Error('Frontmatter must be a YAML mapping')
-  return { document, body: match === null ? text : text.slice(match[0].length), matched: match !== null }
+  return { document, body: match === null ? text : text.slice(match[0].length), matched: match !== null, raw: match === null ? '' : match[0].trimEnd() }
+}
+
+/**
+ * The `argument-hint` frontmatter value a command declares.
+ *
+ * Both the hyphenated key Claude Code uses and the camelCase alias this panel
+ * writes are accepted; anything that is not a string reads as absent.
+ */
+export function readArgumentHint(text: string): string {
+  const { document } = frontmatter(text)
+  const fields = (document.toJS() ?? {}) as Record<string, unknown>
+  const value = fields['argument-hint'] ?? fields['argumentHint']
+  return typeof value === 'string' ? value : ''
 }
 
 export function readRoleFields(text: string): { model: string; provider: string; reasoningEffort: string } {
