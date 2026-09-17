@@ -54,6 +54,13 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* The tags beside the name paint after the cluster in tree order, so the
+   cluster lifts itself above them while it is visible. */
+.collection[data-resource-view='grid'] > .card[data-resource-state]:hover .rowActions,
+.collection[data-resource-view='grid'] > .card[data-resource-state]:focus-within .rowActions {
+  z-index: 1;
+}
+
 .collection[data-resource-view] {
   min-width: 0;
   min-height: 0;
@@ -134,26 +141,26 @@
     padding: 10px 10px 10px 13px;
   }
 
-  /* The cluster is out of flow on the first row, so the identity row reserves
-     its width instead. The reserve is one fixed value regardless of the switch
-     state, so toggling never shifts the name. */
+  /* The cluster floats over the identity row's trailing end. The name keeps
+     its full width underneath; on hover the cluster paints itself over it on
+     the card's own background, so a long name stays whole until the pointer
+     arrives and is covered — never cut — where the actions land. */
   .collection[data-resource-view='grid'] > .card[data-resource-state] .rowId {
-    padding-right: 88px;
-  }
-  /* Switch-only cards (MCP, LSP) do not need the icon buttons' room. */
-  .collection[data-resource-view='grid'] > .card[data-resource-surface='mcp'] .rowId,
-  .collection[data-resource-view='grid'] > .card[data-resource-surface='lsp'] .rowId {
-    padding-right: 46px;
+    overflow: hidden;
   }
 
-  /* The switch is an action too: the whole cluster, including it and any
-     primary CTA, fades in as one group and never moves under the pointer. */
   .collection[data-resource-view='grid'] > .card[data-resource-state] .rowActions {
     position: absolute;
     top: 11px;
     right: 10px;
     bottom: auto;
     margin-left: 0;
+    padding-left: 24px;
+    /* An opaque plate: the name under the cluster has to disappear behind it,
+       and the hover tint is translucent, so the cover reads the card's resting
+       fill and the spread shadow carries it over the icon padding. */
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: 0 0 0 6px var(--dsw-alias-bg-layer-1);
     opacity: 0;
     transition: opacity 0.14s ease;
   }
@@ -221,27 +228,34 @@
   overflow: hidden;
 }
 
-/* The one action cluster: top-right in the grid, trailing in the list. */
+/* The one action cluster: top-right in the grid, trailing in the list. In the
+   narrow grid it floats over the identity row (see the container block), so it
+   keeps its own paint here. */
 .rowActions {
   grid-area: act;
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
   margin-left: auto;
+  border-radius: 8px;
 }
 
 /* ---- the slots inside a row ------------------------------------------- */
 
+/* The name never cuts itself: in the narrow grid the action cluster floats
+   above the row's trailing end and paints the card's fill over whatever it
+   lands on, so a long name stays whole until that moment. In the list view and
+   above the container branch the cluster is in flow, so the row clips instead
+   of letting the name run under the card edge. */
 .name {
   min-width: 0;
-  overflow: hidden;
   color: var(--dsw-alias-label-primary);
   font-size: 13px;
   font-weight: 600;
   line-height: 20px;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
