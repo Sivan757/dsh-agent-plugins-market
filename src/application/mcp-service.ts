@@ -30,9 +30,10 @@ import {
   applyOverride,
   loadSuiteOverrides,
   mergeOverridePatch,
-  parseTimeoutPatch,
+  parseMcpPolicyPatch,
   saveSuiteOverrides,
   withoutPolicyFields,
+  type McpPolicyPatch,
   type McpServerOverride,
   type McpSuiteOverrides
 } from '../runtime/mcp-overrides.js'
@@ -55,6 +56,10 @@ interface ResolvedServerConfig {
   root: string
   value: Record<string, unknown>
   policy?: ResolvedMcpPolicy
+  /** The user's stored override, carrying the layers the resolved policy merges away. */
+  override?: McpServerOverride
+  /** The namespace's OAuth opt-in, when the suite declares one. */
+  declaredAuth?: boolean
 }
 
 export class McpService {
@@ -123,19 +128,19 @@ export class McpService {
   /** Read effective service configuration without exposing credential literals. */
   async serverConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
     const config = await this.resolveServerConfig(kind, id)
-    const payload: ServerConfigPayload = { kind, id, editable: true, config: redactMcpConfig(config.value) as Record<string, unknown> }
+    const payload: ServerConfigPayload = { kind, id, key: config.key, editable: true, config: redactMcpConfig(config.value) as Record<string, unknown> }
     if (kind === 'mcp') {
       payload.backend = await this.backend()
-      if (config.policy !== undefined) payload.policy = serverPolicyPayload(config.policy)
+      if (config.policy !== undefined) payload.policy = serverPolicyPayload(config.policy, config.override, config.declaredAuth)
     }
     return payload
   }
 
   /**
    * Validate a complete replacement before writing; plugin checkouts remain
-   * untouched. `policy` carries the two timeouts the portable document has no
-   * seat for: an absent field keeps its stored value, `null` clears it back to
-   * the suite's declaration or the built-in default.
+   * untouched. `policy` carries what the portable document has no seat for —
+   * the two timeouts, the user's tool denials and the OAuth opt-in; an absent
+   * field keeps its stored value, `null` clears it.
    */
   async saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown, policy?: unknown): Promise<void> {
     return this.context.enqueue(async () => {
@@ -143,21 +148,21 @@ export class McpService {
       const value = restoreRedactedConfig(config, current.value)
       if (kind === 'mcp') {
         const backend = await this.backend()
-        const timeouts = parseTimeoutPatch(policy)
-        if (backend === 'host' && timeouts.startupTimeoutMs !== undefined && timeouts.startupTimeoutMs !== null) throw new Error(HOST_STARTUP_TIMEOUT_UNSUPPORTED)
-        const server = await validateServerMcp(current.root, current.key, value)
+        const patch = parseMcpPolicyPatch(policy)
+        if (backend === 'host' && patch.startupTimeoutMs !== undefined && patch.startupTimeoutMs !== null) throw new Error(HOST_STARTUP_TIMEOUT_UNSUPPORTED)
+        if (backend === 'host' && patch.disabledTools !== undefined) throw new Error(HOST_TOOL_FILTER_UNSUPPORTED)
+        const server = await validateServerMcp(current.root, current.key, value, { userOwned: isUserOwnedMcp(current.suiteKey) })
         const overrides = await loadSuiteOverrides(this.context.dataRoot, current.suiteKey)
         const existing = overrides[current.key] ?? {}
         // The complete configuration already carries every connection input, so
         // a leftover url/headers/env/args field would shadow what was just
-        // saved. Enablement, the OAuth opt-in, the user's tool denials and the
-        // policy fields the save did not touch survive.
+        // saved. Enablement and the policy fields the save did not touch survive.
         const next: McpServerOverride = { config: server }
         if (existing.enabled !== undefined) next.enabled = existing.enabled
-        if (existing.auth !== undefined) next.auth = existing.auth
-        if (existing.disabledTools !== undefined) next.disabledTools = existing.disabledTools
-        applyTimeout(next, 'toolCallTimeoutMs', timeouts.toolCallTimeoutMs, existing.toolCallTimeoutMs)
-        applyTimeout(next, 'startupTimeoutMs', timeouts.startupTimeoutMs, existing.startupTimeoutMs)
+        applyAuth(next, patch.auth, existing.auth)
+        applyToolList(next, patch.disabledTools, existing.disabledTools)
+        applyTimeout(next, 'toolCallTimeoutMs', patch.toolCallTimeoutMs, existing.toolCallTimeoutMs)
+        applyTimeout(next, 'startupTimeoutMs', patch.startupTimeoutMs, existing.startupTimeoutMs)
         overrides[current.key] = next
         await saveSuiteOverrides(this.context.dataRoot, current.suiteKey, overrides)
       } else {
@@ -367,12 +372,15 @@ export class McpService {
         for (const [key, server] of Object.entries(suite.mcp?.servers ?? {})) {
           if (id !== `plugin:${suiteKey}/${key}`) continue
           const override = (await loadSuiteOverrides(this.context.dataRoot, suiteKey))[key]
+          const declared = namespaceMcpPolicy(suite, key)
           return {
             key,
             suiteKey,
             root: suite.root,
             value: { ...withoutPolicyFields(applyOverride(server, override)) },
-            policy: resolveMcpPolicy(declaredMcpPolicy(server, namespaceMcpPolicy(suite, key)), override)
+            policy: resolveMcpPolicy(declaredMcpPolicy(server, declared), override),
+            ...(override === undefined ? {} : { override }),
+            ...(declared?.auth?.enabled === undefined ? {} : { declaredAuth: declared.auth.enabled })
           }
         }
       } else {
@@ -393,11 +401,39 @@ function splitSuiteKey(suiteKey: string): { sourceId: string; suiteId: string } 
 }
 
 /** Project one resolved policy onto the wire shape the editor renders. */
-function serverPolicyPayload(policy: ResolvedMcpPolicy): ServerPolicyPayload {
+function serverPolicyPayload(policy: ResolvedMcpPolicy, override: McpServerOverride | undefined, declaredAuth: boolean | undefined): ServerPolicyPayload {
+  const userDenied = override?.disabledTools ?? null
+  const userAuth = override?.auth?.enabled ?? null
+  const suiteAuth = declaredAuth ?? null
   return {
     toolCallTimeout: policy.toolCallTimeout,
-    startupTimeout: policy.startupTimeout
+    startupTimeout: policy.startupTimeout,
+    deniedTools: { user: userDenied, suite: policy.suiteDisabledTools ?? null, effective: policy.disabledTools ?? [] },
+    auth: { user: userAuth, suite: suiteAuth, effective: userAuth ?? suiteAuth ?? true }
   }
+}
+
+/** The user-owned MCP declaration suite: its file is local data, not a package. */
+function isUserOwnedMcp(suiteKey: string): boolean {
+  return suiteKey === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`
+}
+
+/** Write the OAuth opt-in from a save: absent keeps the stored value, `null` clears it. */
+function applyAuth(target: McpServerOverride, patch: McpPolicyPatch['auth'], stored: McpServerOverride['auth']): void {
+  if (patch === undefined) {
+    if (stored !== undefined) target.auth = stored
+    return
+  }
+  if (patch !== null) target.auth = patch
+}
+
+/** Write the user's deny list: absent keeps it, `null` clears it, entries replace it. */
+function applyToolList(target: McpServerOverride, patch: string[] | null | undefined, stored: string[] | undefined): void {
+  if (patch === undefined) {
+    if (stored !== undefined) target.disabledTools = stored
+    return
+  }
+  if (patch !== null && patch.length > 0) target.disabledTools = patch
 }
 
 /** Write one timeout from a save: absent keeps the stored value, `null` clears it, a number sets it. */

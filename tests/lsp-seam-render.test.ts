@@ -124,6 +124,7 @@ describe('LSP card actions', () => {
     vi.mocked(api.fetchServerConfig).mockResolvedValue({
       kind: 'lsp',
       id: 'plugin:typescript-lsp/typescript',
+      key: 'typescript',
       editable: true,
       config: { command: 'typescript-language-server', args: ['--stdio'] }
     })

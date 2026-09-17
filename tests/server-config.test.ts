@@ -225,6 +225,13 @@ describe('MCP service policy', () => {
     expect(error?.fields.some(entry => entry.field === 'url')).toBe(true)
   })
 
+  it('stores a user-owned service with keys this client does not know', async () => {
+    const { catalog } = await setup()
+    const id = await directServer(catalog)
+    await expect(catalog.saveServerConfig('mcp', id, { type: 'stdio', command: 'node', alwaysAllow: ['x'] })).resolves.toBeUndefined()
+    expect((await catalog.serverConfig('mcp', id)).config).toMatchObject({ command: 'node', alwaysAllow: ['x'] })
+  })
+
   it('reports the mount backend on the MCP status payload', async () => {
     const { catalog } = await setup({ mcpBackend: async () => 'host' })
     expect((await catalog.mcpStatus()).backend).toBe('host')

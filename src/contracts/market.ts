@@ -52,18 +52,44 @@ export interface ServerTimeoutPolicy {
   source: 'user' | 'suite' | 'default'
 }
 
+/** One tool list's layers: what the user stored and what the suite declares. */
+export interface ServerToolPolicy {
+  /** The user's stored list; null when the user set none. */
+  user: string[] | null
+  /** The suite's declared list; null when the suite declares none. */
+  suite: string[] | null
+  /** The list in force. */
+  effective: string[]
+}
+
+/** The OAuth opt-in's two layers. */
+export interface ServerAuthPolicy {
+  /** The user's stored value; null when the user set none. */
+  user: boolean | null
+  /** The suite's declared value; null when the suite declares none. */
+  suite: boolean | null
+  /** The value in force. */
+  effective: boolean
+}
+
 /** The MCP per-server client policy as the service editor renders it. */
 export interface ServerPolicyPayload {
   /** Per-tool-call timeout. */
   toolCallTimeout: ServerTimeoutPolicy
   /** Startup timeout. */
   startupTimeout: ServerTimeoutPolicy
+  /** The tools the service denies. */
+  deniedTools: ServerToolPolicy
+  /** The OAuth opt-in. */
+  auth: ServerAuthPolicy
 }
 
 /** Editable service configuration; masked values are preserved when unchanged. */
 export interface ServerConfigPayload {
   kind: 'mcp' | 'lsp'
   id: string
+  /** The declaration key this service carries, used to compose the document view. */
+  key: string
   editable: boolean
   config: Record<string, unknown>
   /** The stored policy and the suite declaration behind it; present for MCP services. */
@@ -72,10 +98,14 @@ export interface ServerConfigPayload {
   backend?: 'builtin' | 'host'
 }
 
-/** The timeouts a service-config save sets (`number`) or clears back to inheritance (`null`). */
+/** The policy a service-config save sets (`number`/value) or clears back to inheritance (`null`). */
 export interface ServerPolicyRequest {
   toolCallTimeoutMs?: number | null
   startupTimeoutMs?: number | null
+  /** The user's deny list; null clears it. The suite's own entries stay in force. */
+  disabledTools?: string[] | null
+  /** The user's OAuth opt-in; null clears it back to the suite's declaration. */
+  auth?: { enabled: boolean } | null
 }
 
 /** One rejected value as the API reports it: the field it belongs to and why. */

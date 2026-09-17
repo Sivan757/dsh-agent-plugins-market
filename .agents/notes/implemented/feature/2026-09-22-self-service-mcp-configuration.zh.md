@@ -31,4 +31,5 @@ Status: implemented
 ## Related
 
 - [MCP 用户策略走覆盖记录](./2026-09-21-mcp-user-policy-in-overrides.zh.md) —— 高级设置折叠区里放了什么。
+- [所有设置都由这份文档承载](./2026-09-22-document-carries-every-setting.zh.md) —— 编辑器为什么是一份文档而不是一个表单。
 - [服务详情先当档案来读](./2026-09-21-service-detail-skeleton.zh.md) —— 这些回应所填充的骨架。

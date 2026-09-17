@@ -200,6 +200,13 @@ export interface McpValidateOptions {
    *  Lenient mode (`.mcp.json`, native client file): no `$schema` requirement,
    *  unknown transports skipped per server, known transports still validated. */
   strict?: boolean
+  /**
+   * Whether the data is a distributable package: the closed field set, bare
+   * command names and plugin-relative paths apply. User-owned files are local
+   * data, so those package rules stay off while every shape and required field
+   * the client does know is still validated. Defaults to `strict`.
+   */
+  packageRules?: boolean
   /** The spec version the suite's `plugin.json` declared; mismatched `mcp.json`
    *  versions disable MCP for the plugin (§7.2.2 rule 2, §10.1). */
   manifestVersion?: string
@@ -261,6 +268,7 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
   const record = raw as Record<string, unknown>
   const errors: string[] = []
   const strict = options?.strict !== false
+  const packageRules = strict && options?.packageRules !== false
   let version: SpecVersion | undefined
   if (strict) {
     version = recognizedSpecVersion(record['$schema'])
@@ -277,7 +285,10 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
     // File-level shape only: `$schema`, `mcpServers`, unknown top-level
     // fields. Server entries are validated per server below (§7.2.2 rule 3).
     const shellErrors = (await validateAgainstSchema(version.mcpSchemaId, raw)).filter(error => !error.instancePath.startsWith('/mcpServers/'))
-    if (shellErrors.length > 0) return { errors: formatSchemaErrors(shellErrors) }
+    // User-owned data may carry keys this client does not know; they ride along
+    // rather than failing the file.
+    const fatal = packageRules ? shellErrors : shellErrors.filter(error => error.keyword !== 'additionalProperties')
+    if (fatal.length > 0) return { errors: formatSchemaErrors(fatal) }
   }
 
   // Lenient native-client files may omit the `mcpServers` wrapper and put the
@@ -295,11 +306,13 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
       errors.push(`server "${name}": not an object`)
       continue
     }
-    if (strict) {
+    if (strict && packageRules) {
       // §7.2.1 exposes `#/$defs/server` so each entry can be validated
       // independently, preserving §7.2.2 rule 3: a violation skips only its
       // own server. Validate the bare entry against that ref directly —
       // errors are then rooted at the entry itself (`/env`, `` for required).
+      // User-owned data goes straight to the per-transport checks below: its
+      // closed-set shape is deliberately not the package one.
       const serverErrors = await validateAgainstSchema(`${(version as SpecVersion).mcpSchemaId}#/$defs/server`, value)
       if (serverErrors.length > 0) {
         const rendered = new Set<string>()
@@ -354,11 +367,11 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
       errors.push(`server "${name}": stdio servers require a command`)
       continue
     }
-    if (strict && /\$\{/.test(stdioServer.command)) {
+    if (packageRules && /\$\{/.test(stdioServer.command)) {
       problems.push(`command ${JSON.stringify(stdioServer.command)} must not contain placeholders (§9.2: command is resolved as one token, not expanded)`)
     }
     const command = stdioServer.command.replace(/^\$\{([A-Z_]+)\}\//, (match, name: string) => (PLUGIN_ROOT_VARIABLES.has(name) ? './' : match))
-    if (options?.pathMode !== 'project' && command.includes('/')) {
+    if (packageRules && options?.pathMode !== 'project' && command.includes('/')) {
       if (!command.startsWith('./')) {
         problems.push(`command "${command}" must be a bare executable name or a plugin-relative path beginning with "./"`)
       } else {
@@ -369,7 +382,7 @@ export async function validateMcpJson(pluginRoot: string, raw: unknown, options?
     const declaredCwd = stdioServer.cwd
     if (declaredCwd !== undefined && typeof declaredCwd !== 'string') {
       problems.push('cwd must be a string')
-    } else if (options?.pathMode !== 'project' && declaredCwd !== undefined && ![...PLUGIN_DATA_VARIABLES].some(name => declaredCwd.startsWith(`\${${name}}`))) {
+    } else if (packageRules && options?.pathMode !== 'project' && declaredCwd !== undefined && ![...PLUGIN_DATA_VARIABLES].some(name => declaredCwd.startsWith(`\${${name}}`))) {
       // `.` is the Codex dialect spelling for the plugin root.
       const cwd = declaredCwd === '.' ? './' : declaredCwd
       const reason = await pathContainmentError(pluginRoot, cwd)

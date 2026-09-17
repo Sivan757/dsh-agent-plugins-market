@@ -34,6 +34,20 @@ describe('user MCP persistence', () => {
     await expect(addUserMcpServer(path, 'bad', { type: 'streamable-http' })).rejects.toThrow('invalid MCP')
     expect(await readFile(join(path, 'mcp.json'), 'utf8')).toBe(before)
   })
+  it('keeps keys this client does not know in the user’s own file', async () => {
+    const path = await root()
+    await writeFile(
+      join(path, 'mcp.json'),
+      JSON.stringify({
+        $schema: 'https://agent-plugins.org/schemas/1.1.0/mcp.schema.json',
+        mcpServers: { one: { type: 'stdio', command: 'node', alwaysAllow: ['x'], timeout: 30 } }
+      })
+    )
+    const suite = await loadUserMcpSuite(path)
+    expect(suite.errors.join(' | ')).toBe('')
+    expect(suite.mcp.servers['one']).toMatchObject({ command: 'node', alwaysAllow: ['x'], timeout: 30 })
+  })
+
   it('imports many pasted services in one write and reports each outcome', async () => {
     const path = await root()
     await addUserMcpServer(path, 'one', { type: 'stdio', command: 'node' })

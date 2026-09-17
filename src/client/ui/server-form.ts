@@ -1,4 +1,4 @@
-import type { ServerPolicyRequest } from '../../contracts/market.js'
+import type { ServerPolicyPayload, ServerPolicyRequest } from '../../contracts/market.js'
 
 export type ServerKind = 'mcp' | 'lsp'
 export type ServerConfig = Record<string, unknown>
@@ -32,6 +32,62 @@ export function timeoutMsFromText(raw: string): number | null | undefined {
 /** The stored values as editable text. */
 export function policyDraftOf(toolCall: number | null, startup: number | null): ServerPolicyDraft {
   return { toolCallTimeoutMs: toolCall === null ? '' : String(toolCall), startupTimeoutMs: startup === null ? '' : String(startup) }
+}
+
+/** The same drafts, read off a document's policy half. */
+export function policyDraftOfDocument(policy: Record<string, unknown>): ServerPolicyDraft {
+  // A string is what the user typed and could not be parsed yet; it comes back
+  // as written so the field keeps showing it.
+  const text = (value: unknown): string => (typeof value === 'number' || typeof value === 'string' ? String(value) : '')
+  return { toolCallTimeoutMs: text(policy['toolCallTimeoutMs']), startupTimeoutMs: text(policy['startupTimeoutMs']) }
+}
+
+/**
+ * Write the timeout drafts back into a document's policy half. An emptied field
+ * asks for inheritance, which the document spells `null` — the value the save
+ * route reads as "clear what was stored". An unparsable draft is left alone:
+ * the editor's validity signal blocks that save instead of rewriting the value.
+ */
+export function policyDocumentOfDraft(policy: Record<string, unknown>, draft: ServerPolicyDraft): Record<string, unknown> {
+  const next = { ...policy }
+  for (const [field, raw] of [
+    ['toolCallTimeoutMs', draft.toolCallTimeoutMs],
+    ['startupTimeoutMs', draft.startupTimeoutMs]
+  ] as const) {
+    const value = timeoutMsFromText(raw)
+    if (value === undefined) {
+      // A draft the field cannot parse is kept as typed, so the user sees what
+      // they wrote and the save is what refuses it.
+      next[field] = raw
+      continue
+    }
+    if (value === null) {
+      // An empty field asks for inheritance. A field that held nothing keeps
+      // holding nothing; one that held a value records the clear.
+      if (field in policy) next[field] = null
+      else delete next[field]
+      continue
+    }
+    next[field] = value
+  }
+  return next
+}
+
+/**
+ * The policy half of one save: only the entries the user changed, because a
+ * value edited on one backend must not ride along to another, where the same
+ * value can be refused. A key dropped from the document asks for inheritance,
+ * which the route reads as `null`.
+ */
+export function policyRequestOfDocuments(initial: Record<string, unknown>, current: Record<string, unknown>): Record<string, unknown> {
+  const request: Record<string, unknown> = {}
+  for (const [field, value] of Object.entries(current)) {
+    if (JSON.stringify(value) !== JSON.stringify(initial[field])) request[field] = value
+  }
+  for (const field of Object.keys(initial)) {
+    if (!(field in current)) request[field] = null
+  }
+  return request
 }
 
 /**
@@ -199,6 +255,57 @@ export function rowsFromPastedText(text: string, map: boolean): Array<[string, s
 function stripQuotes(value: string): string {
   if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) return value.slice(1, -1)
   return value
+}
+
+/** The namespace seat this client's own per-server policy rides. */
+export const HARNESS_NAMESPACE = 'com.deepseek.harness'
+
+/** One service's editable document: the portable definition plus this client's policy. */
+export interface ServerDocument {
+  config: Record<string, unknown>
+  policy: Record<string, unknown>
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+}
+
+/**
+ * Read one service document: the definition under `mcpServers`, and this
+ * client's policy under the `com.deepseek.harness` namespace — the two seats
+ * the Agent Plugins specification gives a portable `mcp.json` and its client
+ * extension. A document that omits either half reads as an empty one.
+ */
+export function parseServerDocument(text: string, key: string): ServerDocument {
+  const parsed: unknown = JSON.parse(text)
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Configuration must be a JSON object')
+  const record = parsed as Record<string, unknown>
+  const config = asRecord(asRecord(record['mcpServers'])?.[key]) ?? {}
+  const namespace = asRecord(record[HARNESS_NAMESPACE])
+  const policy = asRecord(asRecord(namespace?.['mcpServers'])?.[key]) ?? {}
+  return { config, policy }
+}
+
+/** Write the document back in the shape the specification seats it in. */
+export function composeServerDocument(key: string, config: Record<string, unknown>, policy: Record<string, unknown>): string {
+  const document: Record<string, unknown> = { mcpServers: { [key]: config } }
+  if (Object.keys(policy).length > 0) document[HARNESS_NAMESPACE] = { mcpServers: { [key]: policy } }
+  return JSON.stringify(document, null, 2)
+}
+
+/**
+ * The policy half of a document, built from what the user stored. Suite
+ * declarations stay out: the editor shows them as the value in force, and a
+ * document that repeated them would invite an edit the client cannot honour.
+ */
+export function serverPolicyDocument(policy: ServerPolicyPayload | undefined): Record<string, unknown> {
+  if (policy === undefined) return {}
+  const document: Record<string, unknown> = {}
+  if (policy.toolCallTimeout.user !== null) document['toolCallTimeoutMs'] = policy.toolCallTimeout.user
+  if (policy.startupTimeout.user !== null) document['startupTimeoutMs'] = policy.startupTimeout.user
+  if (policy.deniedTools.user !== null) document['disabledTools'] = policy.deniedTools.user
+  if (policy.auth.user !== null) document['auth'] = { enabled: policy.auth.user }
+  return document
 }
 
 /**

@@ -25,6 +25,12 @@ Everything a portable suite cannot express because the v1 format fixes its compo
 
 Namespace values are the suite's defaults rather than a ceiling the user cannot reach. A stored user override may set either timeout, and that value wins over the declaration; a user may add tool names to the deny list, while the allow-list and the suite's own deny entries stay in force. Tool filtering only ever tightens. The override record lives outside the suite checkout, so a package refresh never clobbers it and the namespace file stays source-owned. The host compatibility client (`@deepseek-ai/dsh-mcp-client`) enforces neither the tool lists nor a startup timeout, so a server mounted through it carries no such value; the built-in bridge is where those take effect.
 
+## User-owned declarations
+
+`~/.agents/mcp.json` is local data rather than a distributable package. Keys this client does not know are stored back exactly as written, and the package-only rules — a closed server shape, bare command names, plugin-relative paths — do not apply to it. A suite's packaged `mcp.json` keeps every one of them, because a package carrying fields this client cannot honour is one it cannot promise to mount.
+
+The editor reads the same two seats a suite declares, for one server at a time: the portable definition under `mcpServers` and this client's policy under `com.deepseek.harness`. The form writes only the half it owns, so a field it has no control for — a key another client introduced, a policy entry the form does not show — survives both a form edit and a JSON edit. Only the policy entries the user changed are sent on save; an entry the document drops asks for inheritance.
+
 ## Failure behavior
 
 | Situation                                               | Behavior                                                    |

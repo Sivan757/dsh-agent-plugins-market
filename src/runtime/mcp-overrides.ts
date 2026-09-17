@@ -170,6 +170,47 @@ export function parseTimeoutPatch(raw: unknown): McpTimeoutPatch {
   }
 }
 
+/** The client policy a service-config save may carry alongside the definition. */
+export interface McpPolicyPatch {
+  toolCallTimeoutMs?: number | null
+  startupTimeoutMs?: number | null
+  /** The user's deny list; null clears it, an absent field keeps it. */
+  disabledTools?: string[] | null
+  /** The user's OAuth opt-in; null clears it, an absent field keeps it. */
+  auth?: { enabled: boolean; scope?: string } | null
+}
+
+/**
+ * Validate a client-supplied policy patch. An absent field keeps its stored
+ * value, `null` clears it back to the suite's declaration or the default, and
+ * any other shape is rejected with the reason it failed.
+ */
+export function parseMcpPolicyPatch(raw: unknown): McpPolicyPatch {
+  if (raw === undefined) return {}
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error('policy must be an object')
+  const record = raw as Record<string, unknown>
+  const patch: McpPolicyPatch = {}
+  if (record['toolCallTimeoutMs'] !== undefined) patch.toolCallTimeoutMs = timeoutField(record['toolCallTimeoutMs'], 'tool call timeout')
+  if (record['startupTimeoutMs'] !== undefined) patch.startupTimeoutMs = timeoutField(record['startupTimeoutMs'], 'startup timeout')
+  if (record['disabledTools'] !== undefined) {
+    if (record['disabledTools'] === null) patch.disabledTools = null
+    else {
+      const names = toolNames(record['disabledTools'])
+      if (names === undefined && (record['disabledTools'] as unknown[]).length > 0) throw new Error('denied tools must be a list of tool names')
+      patch.disabledTools = names ?? []
+    }
+  }
+  if (record['auth'] !== undefined) {
+    if (record['auth'] === null) patch.auth = null
+    else {
+      const auth = sanitizeAuth(record['auth'])
+      if (auth === undefined) throw new Error('auth must be an object with a boolean "enabled"')
+      patch.auth = auth
+    }
+  }
+  return patch
+}
+
 function timeoutField(value: unknown, label: string): number | null {
   if (value === null) return null
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0 || value > MAX_TIMEOUT_MS) {

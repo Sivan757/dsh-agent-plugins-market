@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ServerConfigPayload, ServerPolicyPayload } from '../src/contracts/market.js'
 import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
-import type { ServerPolicyDraft } from '../src/client/ui/server-form.js'
+import { composeServerDocument, type ServerPolicyDraft } from '../src/client/ui/server-form.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
@@ -32,7 +32,9 @@ afterEach(async () => {
 function policyOf(toolCall: number | null, startup: number | null): ServerPolicyPayload {
   return {
     toolCallTimeout: { user: toolCall, suite: 30_000, effective: toolCall ?? 30_000, source: toolCall === null ? 'suite' : 'user' },
-    startupTimeout: { user: startup, suite: null, effective: startup ?? 10_000, source: startup === null ? 'default' : 'user' }
+    startupTimeout: { user: startup, suite: null, effective: startup ?? 10_000, source: startup === null ? 'default' : 'user' },
+    deniedTools: { user: null, suite: null, effective: [] },
+    auth: { user: null, suite: null, effective: true }
   }
 }
 
@@ -78,7 +80,8 @@ function EditorHarness({
     null,
     h(ServerConfigEditor, {
       kind,
-      text: JSON.stringify(config),
+      serverKey: 'service',
+      text: kind === 'mcp' ? composeServerDocument('service', config, {}) : JSON.stringify(config),
       onChange: () => {},
       t,
       backend,
@@ -196,6 +199,7 @@ describe('ServerConfigDetail policy', () => {
   const payload = (backend: 'builtin' | 'host', policy: ServerPolicyPayload = POLICY): ServerConfigPayload => ({
     kind: 'mcp',
     id: ENTRY.id,
+    key: 'service',
     editable: true,
     config: { type: 'stdio', command: 'node' },
     backend,
@@ -247,6 +251,14 @@ describe('ServerConfigDetail policy', () => {
     expect(button('save')?.disabled).toBe(false)
     await save()
     expect(api.saveServerConfig).toHaveBeenCalledWith('mcp', 'plugin:demo/service', { type: 'stdio', command: 'node' }, { toolCallTimeoutMs: 120_000 })
+  })
+
+  it('submits a policy written into the document', async () => {
+    await renderDialog()
+    await act(async () => button('detailJson')!.click())
+    await act(async () => typeInto(input('detailJson'), composeServerDocument('service', { type: 'stdio', command: 'node' }, { toolCallTimeoutMs: 120_000, disabledTools: ['x'] })))
+    await save()
+    expect(api.saveServerConfig).toHaveBeenCalledWith('mcp', 'plugin:demo/service', { type: 'stdio', command: 'node' }, { toolCallTimeoutMs: 120_000, disabledTools: ['x'] })
   })
 
   it('clears a timeout back to inheritance when its field is emptied', async () => {

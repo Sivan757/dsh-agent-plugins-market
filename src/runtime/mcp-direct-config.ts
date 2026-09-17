@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { MCP_SCHEMA_ID, formatSchemaErrors, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
+import { MCP_SCHEMA_ID, validateMcpJson } from '../catalog/validate.js'
 import { effectiveSurfaces, type McpSuiteConfig, type Suite } from '../model/types.js'
 
 export const USER_MCP_SOURCE = '@user-mcp'
@@ -45,11 +45,15 @@ export async function loadUserMcpSuite(agentsRoot: string): Promise<Suite & { mc
   }
 }
 
+/**
+ * The user's own declaration file is local data, not a distributable package:
+ * keys this client does not know ride along untouched rather than failing the
+ * whole file, and the closed-set rule the package schema applies to suites
+ * does not apply here.
+ */
 async function validateUserMcp(agentsRoot: string, raw: unknown): Promise<McpSuiteConfig> {
-  const errors = formatSchemaErrors(await validateAgainstSchema(MCP_SCHEMA_ID, raw))
-  if (errors.length > 0) throw new Error(`invalid MCP configuration: ${errors.join('; ')}`)
-  const result = await validateMcpJson(agentsRoot, raw)
-  if (result.config === undefined || result.errors.length > 0) throw new Error(result.errors.join('; '))
+  const result = await validateMcpJson(agentsRoot, raw, { packageRules: false })
+  if (result.config === undefined || result.errors.length > 0) throw new Error(`invalid MCP configuration: ${result.errors.join('; ')}`)
   return result.config
 }
 

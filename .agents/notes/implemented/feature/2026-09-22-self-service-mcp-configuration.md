@@ -31,4 +31,5 @@ Configuring an MCP service was one-way: a save either succeeded or produced a si
 ## Related
 
 - [MCP user policy rides the override record](./2026-09-21-mcp-user-policy-in-overrides.md) — what the advanced disclosure holds.
+- [The document carries every setting](./2026-09-22-document-carries-every-setting.md) — why the editor is a document rather than a form.
 - [The service detail reads as a record](./2026-09-21-service-detail-skeleton.md) — the skeleton these answers fill in.

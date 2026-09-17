@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
-import { parsePastedServer, parsePastedServers, rowsFromPastedText } from '../src/client/ui/server-form.js'
+import { composeServerDocument, parsePastedServer, parsePastedServers, rowsFromPastedText } from '../src/client/ui/server-form.js'
 import { MarkdownDocument } from '../src/client/ui/MarkdownDocument.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
@@ -19,12 +19,15 @@ afterEach(async () => {
 })
 
 function Harness({ initial }: { initial: string }) {
-  const [text, setText] = useState(initial)
+  // The editor edits the document the specification seats a service in: the
+  // definition under `mcpServers` plus this client's policy namespace. These
+  // cases supply the definition and read the definition back.
+  const [text, setText] = useState(composeServerDocument('service', JSON.parse(initial) as Record<string, unknown>, {}))
   const [valid, setValid] = useState(false)
   return h(
     'div',
     null,
-    h(ServerConfigEditor, { kind: 'mcp', text, onChange: setText, t, onValidityChange: setValid }),
+    h(ServerConfigEditor, { kind: 'mcp', serverKey: 'service', text, onChange: setText, t, onValidityChange: setValid }),
     h('output', { 'data-value': true }, text),
     h('output', { 'data-valid': true }, String(valid))
   )
@@ -46,7 +49,7 @@ async function change(label: string, value: string) {
   expect(input).not.toBeNull()
   await act(async () => typeInto(input, value))
 }
-const value = () => JSON.parse(host.querySelector('[data-value]')!.textContent) as Record<string, unknown>
+const value = () => (JSON.parse(host.querySelector('[data-value]')!.textContent) as { mcpServers: Record<string, Record<string, unknown>> }).mcpServers['service'] ?? {}
 
 describe('shared resource detail editors', () => {
   it('offers the advanced disclosure without policy timeouts when no policy props are supplied', async () => {
@@ -82,10 +85,16 @@ describe('shared resource detail editors', () => {
     await click('detailForm')
     expect(host.textContent).toContain('detailUseJson')
     await click('detailJson')
-    await change('detailJson', JSON.stringify({ type: 'sse', url: 'https://example.test/mcp', headers: { Authorization: '[redacted]' } }))
+    await change('detailJson', composeServerDocument('service', { type: 'sse', url: 'https://example.test/mcp', headers: { Authorization: '[redacted]' } }, {}))
     await click('detailForm')
     expect((host.querySelector('[aria-label="detailUrl"]') as HTMLInputElement).value).toBe('https://example.test/mcp')
     expect(value().headers).toEqual({ Authorization: '[redacted]' })
+  })
+
+  it('keeps a key the form has no control for across a form edit', async () => {
+    await mount({ type: 'stdio', command: 'node', alwaysAllow: ['x'] })
+    await change('detailCommand', 'python')
+    expect(value()).toMatchObject({ command: 'python', alwaysAllow: ['x'] })
   })
 
   it('requires unique keys, blocks saving incomplete rows and retains exact argument values', async () => {

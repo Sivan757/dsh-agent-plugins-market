@@ -10,7 +10,7 @@ import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import { Button, IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
 import type { Translate } from '../index.js'
-import { changeTransport, parseServerConfig, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
+import { changeTransport, composeServerDocument, parseServerConfig, parseServerDocument, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
 import formCss from './form.module.css'
 import css from './detail.module.css'
@@ -42,6 +42,8 @@ export function ServerConfigEditor(props: {
    * that transport requires.
    */
   createMode?: boolean
+  /** The declaration key this service carries; MCP documents are keyed by it. */
+  serverKey?: string
   /** Reasons the API rejected a save, keyed by the editor field they belong to. */
   fieldErrors?: Record<string, string>
 }): ReactNode {
@@ -49,9 +51,16 @@ export function ServerConfigEditor(props: {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [issues, setIssues] = useState<Record<string, boolean>>({})
   let parsed: ServerConfig | undefined
+  let policy: Record<string, unknown> = {}
   let parseError: string | undefined
   try {
-    parsed = parseServerConfig(props.text)
+    if (props.kind === 'mcp') {
+      const document = parseServerDocument(props.text, props.serverKey ?? '')
+      parsed = document.config
+      policy = document.policy
+    } else {
+      parsed = parseServerConfig(props.text)
+    }
   } catch (error) {
     parseError = error instanceof Error ? error.message : String(error)
   }
@@ -83,7 +92,10 @@ export function ServerConfigEditor(props: {
   useEffect(() => {
     props.onValidityChange?.(valid)
   }, [valid, props.onValidityChange])
-  const update = (next: ServerConfig): void => props.onChange(JSON.stringify(next, null, 2))
+  // The form edits one half of the document; the other half rides along, so a
+  // policy written in JSON survives a form edit and the definition survives a
+  // policy edit.
+  const update = (next: ServerConfig): void => props.onChange(props.kind === 'mcp' ? composeServerDocument(props.serverKey ?? '', next, policy) : JSON.stringify(next, null, 2))
   const field = (key: string, value: unknown): void => {
     const next = { ...config }
     if (value === undefined) delete next[key]
