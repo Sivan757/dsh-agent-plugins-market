@@ -194,7 +194,10 @@ export async function discoverMcp(root: string, errors: string[], manifest?: Sui
   const declared = portable ? undefined : resolved?.components?.mcpServers
   // Portable mode reads exactly the fixed location `mcp.json` (§7.2.1), so
   // the candidate list is the location itself rather than a fallback probe.
-  const fallback = portable ? 'mcp.json' : layout === 'kimi' ? undefined : await firstComponentFile(root, names)
+  // The file is optional for portable suites too — §7.2 fixes its location,
+  // not its presence — so an absent file resolves to zero servers without a
+  // diagnostic; an existing but unreadable path still fails loudly below.
+  const fallback = portable ? ((await isFile(join(root, 'mcp.json'))) ? 'mcp.json' : undefined) : layout === 'kimi' ? undefined : await firstComponentFile(root, names)
   const additive = layout === 'zcode' || layout === 'claude-code'
   const values =
     declared === undefined
