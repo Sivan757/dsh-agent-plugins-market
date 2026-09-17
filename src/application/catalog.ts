@@ -293,6 +293,16 @@ export class Catalog implements MarketService {
     await this.mcp.setOverride(sourceId, suiteId, serverKey, override)
   }
 
+  /**
+   * Enable or disable one declared MCP server, addressed by the same
+   * source-qualified suite id its status row carries. Disabling writes an
+   * override rather than editing the suite's `mcp.json`, so a refresh cannot
+   * clobber the user's choice.
+   */
+  async setMcpServerEnabled(suiteKey: string, serverKey: string, enabled: boolean): Promise<void> {
+    await this.mcp.setServerEnabled(suiteKey, serverKey, enabled)
+  }
+
   /** Re-run the MCP reconcile pass without changing any catalog state. */
   async retryMounts(): Promise<void> {
     await this.mcp.retryMounts()

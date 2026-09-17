@@ -192,6 +192,26 @@ export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   })
 }
 
+/**
+ * Enable or disable one declared MCP server.
+ *
+ * @param suiteId - the source-qualified suite id the status row carries.
+ * @param serverKey - the server key inside that suite's declaration.
+ * @param enabled - the state the user asked for.
+ */
+export async function setMcpServerEnabled(suiteId: string, serverKey: string, enabled: boolean): Promise<void> {
+  return withBusyOperation(async () => {
+    await postAction('set-mcp-server-enabled', { suiteId, serverKey, enabled })
+  })
+}
+
+/** Enable or disable one declared language server by its status-row id. */
+export async function setLspServerEnabled(id: string, enabled: boolean): Promise<void> {
+  return withBusyOperation(async () => {
+    await postAction('lsp-servers/enabled', { id, enabled })
+  })
+}
+
 export async function fetchMcpBackend(): Promise<McpBackendInfo> {
   return getJson<McpBackendInfo>(MARKET_ROUTES.mcpBackend, 'mcp backend failed')
 }

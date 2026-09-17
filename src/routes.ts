@@ -276,6 +276,18 @@ export function mountSuiteRoutes(
     return {}
   })
 
+  // Enable or disable one declared MCP server. Addressed by the same
+  // source-qualified suite id the status rows carry, so the card can toggle a
+  // server without holding the source and suite ids apart.
+  post(MARKET_ROUTES.setMcpServerEnabled, async body => {
+    const suiteKey = textField(body['suiteId'] ?? '', 'MCP suite id')
+    const serverKey = textField(body['serverKey'] ?? '', 'MCP server key')
+    const enabled = body['enabled']
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setMcpServerEnabled(suiteKey, serverKey, enabled)
+    return {}
+  })
+
   // Manual MCP reconcile: retries failed mounts and clears residual tools
   // without touching any catalog state.
   post(MARKET_ROUTES.mcpRetry, async () => {

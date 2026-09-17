@@ -36,6 +36,7 @@ function service(): MarketService {
     setEnabled: async () => {},
     setSurface: async () => {},
     setMcpOverride: async () => {},
+    setMcpServerEnabled: async () => {},
     addMcpServer: async () => {},
     saveServerConfig: async () => {},
     addLspServer: async () => {},

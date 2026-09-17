@@ -42,6 +42,8 @@ export interface MarketMutations {
   setEnabled(sourceId: string, suiteId: string, enabled: boolean): Promise<void>
   setSurface(sourceId: string, suiteId: string, surface: SuiteSurfaceKey, enabled: boolean): Promise<void>
   setMcpOverride(sourceId: string, suiteId: string, serverKey: string, override: McpServerOverride | null): Promise<void>
+  /** Enable or disable one declared MCP server by its source-qualified suite id. */
+  setMcpServerEnabled(suiteKey: string, serverKey: string, enabled: boolean): Promise<void>
   /** Validate and persist the user's direct LSP server table. */
   setLspServers(raw: unknown): Promise<LspServerTable>
   setLspServerEnabled(id: string, enabled: boolean): Promise<void>

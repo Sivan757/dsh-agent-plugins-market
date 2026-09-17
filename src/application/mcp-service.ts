@@ -144,6 +144,17 @@ export class McpService {
   }
 
   /**
+   * Enable or disable one declared server, addressed by the source-qualified
+   * suite id the status rows carry. The qualified id is split here rather than
+   * by callers so the separator stays a server-side detail.
+   */
+  async setServerEnabled(suiteKey: string, serverKey: string, enabled: boolean): Promise<void> {
+    const separator = suiteKey.indexOf('/')
+    if (separator <= 0) throw new Error(`invalid suite id "${suiteKey}"`)
+    await this.setOverride(suiteKey.slice(0, separator), suiteKey.slice(separator + 1), serverKey, { enabled })
+  }
+
+  /**
    * Re-run the MCP reconcile pass: retries failed mounts and clears residual
    * tools, without changing any catalog state.
    *
