@@ -124,7 +124,7 @@ MCP 详情仅为失败的托管服务或残留挂载显示重试；当前后端�
 
 使用 `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }` 这样的引用。缺失引用时阻止启动并显示 `needs-credentials`。宿主凭据只写不读，不会将字面 token 写入套件状态或 override JSON。只读的启动环境值需要修改后重启 DSH。
 
-`mcp.json` 使用严格 schema 校验。`.mcp.json` 支持常见兼容形式：顶层 server map、`http` / `local` transport 别名、省略 type 时通过 `command` 推断，以及 `${CLAUDE_PLUGIN_ROOT}`、`${CLAUDE_PLUGIN_DATA}`、`${NAME:-default}` 占位符。无效服务会诊断并跳过，不会带着部分配置启动。
+`mcp.json` 使用严格 schema 校验，并遵循 agent-plugins 规范的失败边界：违反 schema 的单个服务条目被跳过，文件其余部分继续生效；文件级问题（`$schema` 无法识别或与清单版本不一致）会让该套件的 MCP 整体停用并给出诊断。两个已发布版本都能校验：`$schema` 可写 1.0.0 或 1.1.0，同一套件的两个文件必须写同一个版本。逐服务器的客户端策略——OAuth 授权、工具允许/拒绝清单、超时策略——写在套件的 [`com.deepseek.harness`](../../schemas/com.deepseek.harness/spec.md) 命名空间里，不写进 `mcp.json`。可移植 `mcp.json` 里的占位符样式文本保持原样：只有 `${PLUGIN_ROOT}` 与 `${PLUGIN_DATA}` 会替换，凭据引用应写在 MCP 服务面板或覆盖配置里，挂载时解析。`.mcp.json`（其它布局）支持常见兼容形式：顶层 server map、`http` / `local` transport 别名、省略 type 时通过 `command` 推断，以及 `${CLAUDE_PLUGIN_ROOT}`、`${CLAUDE_PLUGIN_DATA}`、`${NAME:-default}` 占位符。无效服务会诊断并跳过，不会带着部分配置启动。
 
 套件文件里写的路径变量会在注入时替换成实际值：`${CLAUDE_PLUGIN_ROOT}`（及 Codex、ZCode、Qoder 各自的拼写）指向套件 checkout，`${CLAUDE_PLUGIN_DATA}` 指向该套件的数据目录，`${CLAUDE_SKILL_DIR}` 指向技能自身目录，`${CLAUDE_PROJECT_DIR}` 指向当前会话的项目目录。技能正文、斜杠命令、子代理提示、LSP 声明和启动指令都会替换；hooks 命令由宿主桥替换插件根与项目目录，因此 hooks 里拿不到 `${CLAUDE_PLUGIN_DATA}`。项目自带的 `.claude/` 等原生目录不算插件，其中的插件路径变量保持原样。
 

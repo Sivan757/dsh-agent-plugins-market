@@ -41,7 +41,9 @@ describe('mcp-config: suite mcp.json → bridge rows', () => {
     expectTransport(db, 'stdio')
     expect(db.command).toBe('/tmp/my-suite/bin/db')
     expect(db.args).toEqual(['--root', '/tmp/my-suite'])
-    expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    // §9.1: the client injects PLUGIN_ROOT and PLUGIN_DATA into the child
+    // environment after the configured env overlay.
+    expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/demo/my-suite' })
     // `cwd` is resolved against the suite root, so it carries the host's spelling.
     expect(db.cwd).toBe(resolve('/tmp/my-suite', 'data'))
     expectTransport(web, 'streamable-http')
@@ -202,14 +204,15 @@ describe('mcp-config: source-scoped identity', () => {
     // The request's suiteId — the mount registry key — is qualified on both.
     expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
     expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
-    // Per-suite PLUGIN_DATA directories are qualified too.
+    // Per-suite PLUGIN_DATA directories are qualified too (§9.1 injects both
+    // variables into the child environment).
     const [dbA] = first.mounts.map(mount => mount.config)
     if (dbA === undefined) throw new Error('expected the demo source to mount its stdio server')
     expectTransport(dbA, 'stdio')
-    expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/demo/my-suite' })
     const [dbB] = second.mounts.map(mount => mount.config)
     if (dbB === undefined) throw new Error('expected the other source to mount its stdio server')
     expectTransport(dbB, 'stdio')
-    expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
+    expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/other/my-suite' })
   })
 })

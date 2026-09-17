@@ -2,20 +2,20 @@
 
 [English](layout-coverage.md) | 中文
 
-`schemas/` 的当前契约包含十种布局：八种客户端/约定方言、agent-plugins v1（schema 位于 `1.0.0`）及无清单技能集合。十种布局都有可执行发现测试，不以 schema 通过或其它高优先级清单成功读取同一仓库代替兼容性证明。
+`schemas/` 的当前契约包含十种布局：八种客户端/约定方言、agent-plugins v1（schema 位于 `1.0.0` 与 `1.1.0`，另有 [`com.deepseek.harness` 命名空间契约](../../schemas/com.deepseek.harness/spec.md)）及无清单技能集合。十种布局都有可执行发现测试，不以 schema 通过或其它高优先级清单成功读取同一仓库代替兼容性证明。
 
-| 布局             | README 仓库快照                                       | 独立核验内容                                                                      |
-| ---------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Claude Code      | `grafana/mcp-grafana`                                 | 清单身份、内联 MCP                                                                |
-| Codex            | `saadeghi/daisyui`                                    | 自身清单、技能；契约用例补充 API marketplace 和叠加路径                           |
-| Cursor           | `EveryInc/compound-engineering-plugin`                | 自身清单与实际产出套件的 Cursor marketplace；契约用例补充无 schema MCP 和组件覆盖 |
-| Kimi Code        | `obra/superpowers`                                    | 兼容路径与主清单路径、启动技能、附加技能指令                                      |
-| Universal        | `muratcankoylan/Agent-Skills-for-Context-Engineering` | 自身清单与技能集合                                                                |
-| agent-plugins v1 | `saadeghi/daisyui`                                    | 内置 schema、根清单身份                                                           |
-| ZCode            | `zenstory-ai/oh-story-claudecode`                     | 自身 marketplace、自定义命令路径、全部四项 process hooks 声明                     |
-| Qoder CLI        | `DietrichGebert/ponytail`                             | 自身身份及声明的 `qoder-hooks.json`                                               |
-| GitHub Copilot   | `headroomlabs-ai/headroom`                            | 自身 marketplace 与嵌套插件清单、hooks 目录；ponytail 补充 Copilot 原生事件名称   |
-| 技能集合         | 上述 Universal 仓库，测试中移除清单                   | 原始 SKILL.md 无清单仍可发现                                                      |
+| 布局 | README 仓库快照 | 独立核验内容 |
+| --- | --- | --- |
+| Claude Code | `grafana/mcp-grafana` | 清单身份、内联 MCP |
+| Codex | `saadeghi/daisyui` | 自身清单、技能；契约用例补充 API marketplace 和叠加路径 |
+| Cursor | `EveryInc/compound-engineering-plugin` | 自身清单与实际产出套件的 Cursor marketplace；契约用例补充无 schema MCP 和组件覆盖 |
+| Kimi Code | `obra/superpowers` | 兼容路径与主清单路径、启动技能、附加技能指令 |
+| Universal | `muratcankoylan/Agent-Skills-for-Context-Engineering` | 自身清单与技能集合 |
+| agent-plugins v1 | `saadeghi/daisyui` | 内置 schema、根清单身份；契约用例补充 `com.deepseek.harness` 命名空间的扩展能力（命令、代理、hooks、LSP）与逐服务器 MCP 策略 |
+| ZCode | `zenstory-ai/oh-story-claudecode` | 自身 marketplace、自定义命令路径、全部四项 process hooks 声明 |
+| Qoder CLI | `DietrichGebert/ponytail` | 自身身份及声明的 `qoder-hooks.json` |
+| GitHub Copilot | `headroomlabs-ai/headroom` | 自身 marketplace 与嵌套插件清单、hooks 目录；ponytail 补充 Copilot 原生事件名称 |
+| 技能集合 | 上述 Universal 仓库，测试中移除清单 | 原始 SKILL.md 无清单仍可发现 |
 
 ## 测试设计
 

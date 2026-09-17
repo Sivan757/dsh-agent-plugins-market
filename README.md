@@ -150,16 +150,16 @@ The table says per layout whether this plugin reads a given surface at all. **Ye
 | [Qoder CLI](https://docs.qoder.com/cli/plugins-reference) `.qoder-plugin/`                                    | Yes    | Yes     | Yes      | Partial | Partial | Partial |
 | [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) | Yes    | Yes     | Yes      | Yes     | Partial | Yes     |
 | Universal compatibility layout `.plugin/`                                                                     | Yes    | Yes     | Yes      | Yes     | Partial | Yes     |
-| [agent-plugins](https://agent-plugins.org)                                                                    | Yes    | Partial | Partial  | Yes     | Partial | Partial |
+| [agent-plugins](https://agent-plugins.org)                                                                    | Yes    | Yes     | Yes      | Yes     | Yes     | Yes     |
 | Manifest-less skill collection                                                                                | Yes    | Yes     | Yes      | Yes     | Partial | Partial |
 | Project-native directories                                                                                    | Yes    | Yes     | Yes      | Yes     | Partial | No      |
 
-- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `SKILL.md` files.
+- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `SKILL.md` files. A conformant agent-plugins package is the exception: skills come from one level of `skills/` subdirectories, exactly as its specification requires.
 - **Agents and commands** are read as Markdown (`agents/*.md`, `commands/*.md`). Cursor plugin commands accept `.md`, `.mdc`, `.markdown` and `.txt`. Codex and Kimi native agent/command formats (TOML, YAML) have no adapter yet.
 - **MCP** covers declared files, inline tables and arrays. Cursor's schema-less `mcp.json` and agent-plugins' strict `mcp.json` both work; Kimi Code is inline-only. Codex app connectors stay outside this adapter.
 - **Hooks** map the command-style events DSH has an equivalent for; events without one (for example `afterFileEdit`) are reported instead of simulated. Cursor's native events are not read.
 - **LSP** accepts declared files, arrays and inline tables plus the conventional `.lsp.json` / `lsp.json` locations. Declarations inside a project are reported but not mounted: the host LSP registry is global. Some layouts only expose LSP directories for preview.
-- **agent-plugins** standardizes portable skills and MCP only. Agents, commands and hooks for that layout are read through this plugin's shared directory conventions, not through the specification.
+- **agent-plugins** suites read the portable core (`skills/`, `mcp.json`) per the specification, plus this plugin's [`com.deepseek.harness`](schemas/com.deepseek.harness/spec.md) extension namespace for commands, agents, hooks, LSP and per-server MCP policy (OAuth, tool lists, timeouts). Root-level `commands/`, `agents/`, `hooks/` and `.mcp.json` files belong to other layouts and are reported as unread for this dialect; inline manifest component keys are reported and ignored per §5.2. Both recognized releases (1.0.0, 1.1.0) validate against their own vendored schemas.
 - **Universal** is a compatibility-layout label used by this plugin; the [OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins) documents the same `.plugin/plugin.json` location and a [Vercel repository](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json) uses it, but no cross-vendor specification exists.
 
 Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped.
@@ -209,7 +209,7 @@ Only when you tick **also delete the managed market directory** in the confirmat
 ## More documentation
 
 - [Usage guide](docs/user/usage.md): installation, source configuration, storage, host requirements, project layouts, MCP / LSP and feedback settings.
-- [Plugin specifications](schemas/README.md): per-dialect reference schemas and evidence, plus the vendored agent-plugins v1.0.0 contracts.
+- [Plugin specifications](schemas/README.md): per-dialect reference schemas and evidence, the vendored agent-plugins v1 contracts (1.0.0, 1.1.0), and the [`com.deepseek.harness` namespace contract](schemas/com.deepseek.harness/spec.md).
 - [Compatibility report](docs/reference/compat-report.md): one real repository per schema, with commits, schema verdicts and scanner output.
 - [Contributing](CONTRIBUTING.md): development setup, checks and PR workflow.
 - [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).

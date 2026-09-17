@@ -98,7 +98,7 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     const dirs = await readdir(fileURLToPath(new URL('../schemas/', import.meta.url)), { withFileTypes: true })
     expect(samples.map(sample => sample.schema).sort()).toEqual(
       dirs
-        .filter(dir => dir.isDirectory() && !['1.0.0', 'skill-collection'].includes(dir.name))
+        .filter(dir => dir.isDirectory() && !['1.0.0', '1.1.0', 'skill-collection', 'com.deepseek.harness'].includes(dir.name))
         .map(dir => dir.name)
         .sort()
     )

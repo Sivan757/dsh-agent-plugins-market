@@ -66,15 +66,23 @@ describe('schemas library', () => {
   })
 
   it('pins the vendored agent-plugins ids to the runtime constants', () => {
-    const vendored = new Map(schemas.filter(schema => schema.relative.startsWith('1.0.0/')).map(schema => [schema.relative, schema.document['$id']]))
+    const vendored = new Map(
+      schemas.filter(schema => schema.relative.startsWith('1.0.0/') || schema.relative.startsWith('1.1.0/')).map(schema => [schema.relative, schema.document['$id']])
+    )
     expect(vendored.get('1.0.0/plugin.schema.json')).toBe(PLUGIN_SCHEMA_ID)
     expect(vendored.get('1.0.0/mcp.schema.json')).toBe(MCP_SCHEMA_ID)
+    // 1.1.0 is vendored alongside: its schemas differ only in the version string.
+    expect(vendored.get('1.1.0/plugin.schema.json')).toBe(PLUGIN_SCHEMA_ID.replace('/1.0.0/', '/1.1.0/'))
+    expect(vendored.get('1.1.0/mcp.schema.json')).toBe(MCP_SCHEMA_ID.replace('/1.0.0/', '/1.1.0/'))
   })
 
   it('pairs every dialect schema with a marketplace schema and a spec document', async () => {
-    // `1.0.0/` is the vendored upstream directory: its schemas are documented
-    // by schemas/agent-plugins/spec.md and schemas/README.md, not a sibling file.
-    const directories = (await readdir(SCHEMAS_DIR, { withFileTypes: true })).filter(entry => entry.isDirectory() && entry.name !== '1.0.0').map(entry => entry.name)
+    // `1.0.0/` and `1.1.0/` are vendored upstream directories: their schemas
+    // are documented by schemas/agent-plugins/spec.md and schemas/README.md,
+    // not a sibling file.
+    const directories = (await readdir(SCHEMAS_DIR, { withFileTypes: true }))
+      .filter(entry => entry.isDirectory() && entry.name !== '1.0.0' && entry.name !== '1.1.0')
+      .map(entry => entry.name)
     expect(directories.length).toBeGreaterThanOrEqual(9)
     for (const directory of directories) {
       const files = await readdir(join(SCHEMAS_DIR, directory))

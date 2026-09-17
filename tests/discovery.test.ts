@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
 import { Catalog } from '../src/application/catalog.js'
-import { validateMcpJson, validatePluginManifest, expandPlaceholders, pathContainmentError } from '../src/catalog/validate.js'
+import { validateMcpJson, validatePluginManifest, pathContainmentError, remoteUrlError, headersError } from '../src/catalog/validate.js'
 import { required } from './helpers/fixture.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -169,19 +169,50 @@ describe('discovery: containment of broken content', () => {
 })
 
 describe('validate: manifest and mcp.json', () => {
-  it('accepts the recognized 1.0.0 schema', async () => {
-    const errors = await validatePluginManifest({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'ok' })
-    expect(errors).toEqual([])
+  it('accepts the recognized 1.0.0 schema with no fatal or ignored verdicts', async () => {
+    const verdict = await validatePluginManifest({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'ok' })
+    expect(verdict.fatal).toEqual([])
+    expect(verdict.ignored).toEqual([])
+  })
+
+  it('accepts the recognized 1.1.0 schema (explicit compatible mapping)', async () => {
+    const verdict = await validatePluginManifest({ $schema: 'https://agent-plugins.org/schemas/1.1.0/plugin.schema.json', name: 'ok' })
+    expect(verdict.fatal).toEqual([])
+    expect(verdict.ignored).toEqual([])
   })
 
   it('rejects an unknown $schema', async () => {
-    const errors = await validatePluginManifest({ $schema: 'https://example.com/other.json', name: 'ok' })
-    expect(errors.some(error => error.includes('unrecognized'))).toBe(true)
+    const verdict = await validatePluginManifest({ $schema: 'https://example.com/other.json', name: 'ok' })
+    expect(verdict.fatal.some(error => error.message.includes('unrecognized'))).toBe(true)
   })
 
   it('rejects a missing name', async () => {
-    const errors = await validatePluginManifest({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json' })
-    expect(errors.some(error => error.includes('name'))).toBe(true)
+    const verdict = await validatePluginManifest({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json' })
+    expect(verdict.fatal.some(error => error.instancePath === '/name' || error.message.includes('name'))).toBe(true)
+  })
+
+  it('reports unknown top-level fields as ignored, keeping the manifest valid (§5.2)', async () => {
+    const verdict = await validatePluginManifest({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: 'ok',
+      commands: ['x'],
+      lspServers: { t: {} }
+    })
+    expect(verdict.fatal).toEqual([])
+    expect(verdict.ignored.map(error => error.keyword)).toEqual(['additionalProperties', 'additionalProperties'])
+    expect(verdict.ignored[0]?.message).toContain('"commands"')
+    expect(verdict.ignored[1]?.message).toContain('"lspServers"')
+  })
+
+  it('reports extensions subtree violations as ignored, never fatal (§8.1)', async () => {
+    const verdict = await validatePluginManifest({
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+      name: 'ok',
+      extensions: { 'com.other.client': 'not-an-object', 'com.deepseek.harness': { schemaVersion: true } }
+    })
+    expect(verdict.fatal).toEqual([])
+    expect(verdict.ignored.length).toBeGreaterThan(0)
+    expect(verdict.ignored.every(error => error.instancePath.startsWith('/extensions'))).toBe(true)
   })
 
   it('enforces §4 path containment for stdio command', async () => {
@@ -197,6 +228,19 @@ describe('validate: manifest and mcp.json', () => {
     expect(Object.keys(valid.servers)).toEqual(['good'])
   })
 
+  it('skips a server that violates the schema and keeps the rest alive (§7.2.2 rule 3)', async () => {
+    const { config, errors } = await validateMcpJson('/tmp/fixture-root', {
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+      mcpServers: {
+        broken: { type: 'stdio', command: './ok', env: { PLUGIN_ROOT: '/hijack' } },
+        fine: { type: 'stdio', command: 'ok' }
+      }
+    })
+    const valid = required(config, 'a config kept after dropping the schema-invalid server')
+    expect(Object.keys(valid.servers)).toEqual(['fine'])
+    expect(errors.some(error => error.startsWith('server "broken":') && (error.includes('PLUGIN_ROOT') || error.includes('must NOT be valid')))).toBe(true)
+  })
+
   it('rejects unknown mcp.json $schema wholesale', async () => {
     const { config, errors } = await validateMcpJson('/tmp/fixture-root', {
       $schema: 'https://example.com/mcp.json',
@@ -206,9 +250,69 @@ describe('validate: manifest and mcp.json', () => {
     expect(errors.length).toBeGreaterThan(0)
   })
 
+  it('disables MCP when mcp.json declares a different spec version than the manifest (§10.1)', async () => {
+    const { config, errors } = await validateMcpJson(
+      '/tmp/fixture-root',
+      { $schema: 'https://agent-plugins.org/schemas/1.1.0/mcp.schema.json', mcpServers: {} },
+      { manifestVersion: '1.0.0' }
+    )
+    expect(config).toBeUndefined()
+    expect(errors.some(error => error.includes('must match'))).toBe(true)
+  })
+
   it('rejects a stdio command without ./ prefix when it is a path', async () => {
     const reason = await pathContainmentError('/tmp/root', '../escape')
     expect(reason).toContain('must begin')
+  })
+
+  it('rejects a portable stdio command carrying placeholders (§9.2)', async () => {
+    const { config, errors } = await validateMcpJson('/tmp/fixture-root', {
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+      mcpServers: { p: { type: 'stdio', command: '${PLUGIN_ROOT}/bin/run' } }
+    })
+    expect(config?.servers['p']).toBeUndefined()
+    expect(errors.some(error => error.includes('placeholders'))).toBe(true)
+  })
+
+  it('keeps unrecognized placeholder-like text literal in portable values (§9.2)', async () => {
+    const { config, errors } = await validateMcpJson('/tmp/fixture-root', {
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+      mcpServers: { p: { type: 'stdio', command: 'run', args: ['--flag', '${NOT_A_PLACEHOLDER}'] } }
+    })
+    expect(errors).toEqual([])
+    expect(config?.servers['p']).toMatchObject({ args: ['--flag', '${NOT_A_PLACEHOLDER}'] })
+  })
+
+  it.each([
+    ['http on a public host', 'http://api.example.com/mcp', 'https'],
+    ['user information in the URL', 'https://user:pass@api.example.com/mcp', 'user information'],
+    ['a URL fragment', 'https://api.example.com/mcp#frag', 'fragment']
+  ])('rejects %s (§7.2.1)', async (_label, url, expected) => {
+    expect(remoteUrlError(url)).toContain(expected)
+  })
+
+  it('allows plain http only for loopback hosts (§7.2.1)', () => {
+    expect(remoteUrlError('http://localhost:3000/mcp')).toBeUndefined()
+    expect(remoteUrlError('http://127.0.0.1:3000/mcp')).toBeUndefined()
+    expect(remoteUrlError('https://api.example.com/mcp')).toBeUndefined()
+  })
+
+  it('rejects duplicate header names under different casing (§7.2.1)', () => {
+    expect(headersError({ Authorization: 'Bearer a', AUTHORIZATION: 'Bearer b' })).toContain('more than once')
+    expect(headersError({ 'X-Tenant': 't' })).toBeUndefined()
+  })
+
+  it('skips a remote server with an invalid URL and keeps the rest alive (§7.2.2 rule 3)', async () => {
+    const { config, errors } = await validateMcpJson('/tmp/fixture-root', {
+      $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+      mcpServers: {
+        bad: { type: 'streamable-http', url: 'http://api.example.com/mcp' },
+        good: { type: 'streamable-http', url: 'https://api.example.com/mcp' }
+      }
+    })
+    const valid = required(config, 'a config kept after dropping the bad remote server')
+    expect(Object.keys(valid.servers)).toEqual(['good'])
+    expect(errors.some(error => error.includes('bad') && error.includes('https'))).toBe(true)
   })
 
   it('reads a top-level server map leniently (Claude Code .mcp.json shorthand)', async () => {
@@ -231,24 +335,6 @@ describe('validate: manifest and mcp.json', () => {
     const { config, errors } = await validateMcpJson('/tmp/fixture-root', { mcpServers: { [name]: server } }, { strict: false })
     expect(errors).toEqual([])
     expect(required(config, 'a config for the normalized stdio server').servers[name]).toMatchObject({ type: 'stdio', command })
-  })
-})
-
-describe('validate: placeholder expansion', () => {
-  it('expands PLUGIN_ROOT, PLUGIN_DATA, and process env', () => {
-    expect(expandPlaceholders('${PLUGIN_ROOT}/a ${PLUGIN_DATA}/b ${HOME}/c', '/p', '/d', { HOME: '/h' })).toBe('/p/a /d/b /h/c')
-    expect(expandPlaceholders('${UNSET_VAR}', '/p', '/d')).toBe('')
-  })
-
-  it('honors Claude Code ${NAME:-default} fallbacks', () => {
-    expect(expandPlaceholders('${API_KEY:-none}', '/p', '/d', {})).toBe('none')
-    expect(expandPlaceholders('${API_KEY:-none}', '/p', '/d', { API_KEY: 'real' })).toBe('real')
-    expect(expandPlaceholders('${API_KEY:-none}', '/p', '/d', { API_KEY: '' })).toBe('none')
-    expect(expandPlaceholders('${API_KEY:-}', '/p', '/d', {})).toBe('')
-  })
-
-  it('expands Claude Code CLAUDE_PLUGIN_ROOT/DATA aliases', () => {
-    expect(expandPlaceholders('--cwd ${CLAUDE_PLUGIN_ROOT} ${CLAUDE_PLUGIN_DATA}/x', '/p', '/d')).toBe('--cwd /p /d/x')
   })
 })
 

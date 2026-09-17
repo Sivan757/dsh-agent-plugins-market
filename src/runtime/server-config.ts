@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
+import { MCP_SCHEMA_ID, formatSchemaErrors, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { redactMcpConfig } from './mcp-redaction.js'
@@ -25,7 +25,7 @@ export function restoreRedactedConfig(input: unknown, original: unknown, redacte
 
 export async function validateServerMcp(root: string, key: string, config: unknown) {
   const document = { $schema: MCP_SCHEMA_ID, mcpServers: { [key]: config } }
-  const errors = await validateAgainstSchema(MCP_SCHEMA_ID, document)
+  const errors = formatSchemaErrors(await validateAgainstSchema(MCP_SCHEMA_ID, document))
   if (errors.length > 0) throw new Error(`invalid MCP configuration: ${errors.join('; ')}`)
   const result = await validateMcpJson(root, document)
   const server = result.config?.servers[key]

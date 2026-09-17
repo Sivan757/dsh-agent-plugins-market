@@ -2,7 +2,7 @@
 
 English | [中文](layout-coverage.zh.md)
 
-The active contracts in `schemas/` describe ten layouts: eight client/convention dialects, agent-plugins v1 (whose schemas are vendored under `1.0.0`), and a manifest-less skill collection. All ten have executable discovery tests. This is not inferred from schema validity or from a higher-priority manifest reading the same repository.
+The active contracts in `schemas/` describe ten layouts: eight client/convention dialects, agent-plugins v1 (whose schemas are vendored under `1.0.0` and `1.1.0`, plus the [`com.deepseek.harness` namespace contract](../../schemas/com.deepseek.harness/spec.md)), and a manifest-less skill collection. All ten have executable discovery tests. This is not inferred from schema validity or from a higher-priority manifest reading the same repository.
 
 | Layout | README repository fixture | Independently checked behavior |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ The active contracts in `schemas/` describe ten layouts: eight client/convention
 | Cursor | `EveryInc/compound-engineering-plugin` | Own manifest and productive Cursor marketplace; schema-less MCP and component overrides in contract cases |
 | Kimi Code | `obra/superpowers` | Compatibility and primary manifest paths, startup skill, appended skill instructions |
 | Universal | `muratcankoylan/Agent-Skills-for-Context-Engineering` | Own manifest and skill collection |
-| agent-plugins v1 | `saadeghi/daisyui` | Vendored schema and portable root identity |
+| agent-plugins v1 | `saadeghi/daisyui` | Vendored schemas, portable root identity; extension surfaces (commands, agents, hooks, LSP) and per-server MCP policy from the `com.deepseek.harness` namespace in contract cases |
 | ZCode | `zenstory-ai/oh-story-claudecode` | Own marketplace, custom commands path, all four process-hook declarations |
 | Qoder CLI | `DietrichGebert/ponytail` | Own identity and declared `qoder-hooks.json` |
 | GitHub Copilot | `headroomlabs-ai/headroom` | Own marketplace and nested plugin manifest, hooks directory; ponytail also exercises Copilot native event names |

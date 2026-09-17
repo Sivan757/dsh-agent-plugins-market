@@ -13,9 +13,11 @@ describe('installed and user panel resources', () => {
       for (const id of ['active', 'unused']) {
         await mkdir(join(root, '.sources', id), { recursive: true })
         await cp('tests/fixtures/v1-suite', join(root, '.sources', id), { recursive: true })
-        await mkdir(join(root, '.sources', id, 'agents'), { recursive: true })
+        // Extension-surface agents live under the client namespace directory
+        // (Agent Plugins §8.2); the portable dialect does not read a root `agents/`.
+        await mkdir(join(root, '.sources', id, 'com.deepseek.harness', 'agents'), { recursive: true })
         await writeFile(
-          join(root, '.sources', id, 'agents', 'reviewer.md'),
+          join(root, '.sources', id, 'com.deepseek.harness', 'agents', 'reviewer.md'),
           '---\ndescription: Review code\nmodel: vendor/model\ntools: [read, search]\nmetadata:\n  team: core\n---\nReview carefully.'
         )
       }
