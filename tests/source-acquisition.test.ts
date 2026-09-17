@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { crc32 } from 'node:zlib'
 import { zipSync } from 'fflate'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { codeloadTarballUrl } from '../src/application/catalog.js'
 import { archiveFormatOf, archiveInstall, downloadArchive } from '../src/catalog/archive.js'
@@ -193,6 +193,19 @@ describe('archive acquisition', () => {
     const sha256 = await downloadArchive(`${baseUrl}/fixture.zip`, temp, { allowHttp: true })
     expect(sha256).toMatch(/^[0-9a-f]{64}$/)
     await rm(temp, { force: true })
+  })
+
+  it('rejects a redirect whose final URL downgrades HTTPS to HTTP', async () => {
+    const temp = join(await mkdtemp(join(tmpdir(), 'dsh-archive-redirect-')), 'payload.zip')
+    const response = new Response(FIXTURE_ZIP)
+    Object.defineProperty(response, 'url', { value: 'http://unsafe.example/payload.zip' })
+    vi.stubGlobal('fetch', async () => response)
+    try {
+      await expect(downloadArchive('https://trusted.example/payload.zip', temp)).rejects.toThrow(/redirected to non-https/i)
+    } finally {
+      vi.unstubAllGlobals()
+      await rm(temp, { force: true })
+    }
   })
 
   it('pins the extraction bomb limits to sane ratios', async () => {

@@ -72,6 +72,19 @@ export async function downloadArchive(url: string, tempFile: string, options: Ar
   const timeoutMs = options.timeoutMs ?? DEFAULT_ARCHIVE_TIMEOUT_MS
   const response = await fetch(trimmed, { signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' })
   if (!response.ok) throw new Error(`archive download failed: HTTP ${response.status} for ${trimmed}`)
+  // Fetch follows redirects. The origin was checked above, but the final URL
+  // must preserve the HTTPS-only policy as well; otherwise a trusted HTTPS URL
+  // could downgrade the payload request to plain HTTP.
+  if (options.allowHttp !== true) {
+    const finalUrl = response.url === '' ? trimmed : response.url
+    let finalProtocol: string
+    try {
+      finalProtocol = new URL(finalUrl).protocol
+    } catch {
+      throw new Error('archive redirected to an invalid URL')
+    }
+    if (finalProtocol !== 'https:') throw new Error('archive redirected to non-https URL')
+  }
   const declared = Number(response.headers.get('content-length') ?? '0')
   if (Number.isFinite(declared) && declared > ARCHIVE_MAX_BYTES) {
     throw new Error(`archive exceeds the ${ARCHIVE_MAX_BYTES} byte limit: ${declared}`)

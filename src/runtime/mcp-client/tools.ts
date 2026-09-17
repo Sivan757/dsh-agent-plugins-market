@@ -25,6 +25,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonSchemaNode } from './json-schema-subset.js'
 import { assertSupportedJsonSchema } from './json-schema-subset.js'
 import { containsImage, extractText, prepareImageProjection, type PreparedProjection } from './projection.js'
+import { redactErrorMessage } from '../mcp-redaction.js'
 import type { JsonValue, McpResult, ToolDefinition, ToolExecution, ToolExecutionResult, ToolHost } from './host-contract.js'
 
 export type { JsonValue, McpResult, ToolDefinition, ToolExecution, ToolExecutionResult, ToolHost } from './host-contract.js'
@@ -160,7 +161,7 @@ export async function syncTools(client: Client, host: ToolHost, opts: ToolBridge
     // registration occupies this server's namespace. Roll back so the model
     // sees either the full generation or none of it — never a partial set.
     for (const dispose of disposers.values()) dispose()
-    host.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${String(error)}`)
+    host.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${redactErrorMessage(String(error))}`)
     if (opts.registrationFailure === 'throw') throw error
     return new Map()
   }

@@ -29,9 +29,12 @@
  */
 
 import { createServer, type IncomingMessage, type Server } from 'node:http'
+import { randomBytes } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 import { type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { OAuthClientInformation, OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { credentialKey, scrubbedParentEnv, type CredentialKey, type CredentialRecordStore } from './host-seams.js'
+import { redactErrorMessage, redactUrl } from '../mcp-redaction.js'
 import { PLUGIN_NAME, PLUGIN_VERSION } from './plugin-identity.js'
 import type { OAuthStorageConfig } from './config.js'
 
@@ -89,6 +92,17 @@ function asMcpAuthRecord(record: unknown): McpAuthRecord['payload'] | undefined 
 }
 
 /**
+ * Merge one locally changed durable field without overwriting a concurrent
+ * process's update. If the value read before the mutation no longer matches
+ * the store's locked current value, the current value wins conservatively.
+ */
+function mergeDurableField<T>(base: T | undefined, desired: T | undefined, current: T | undefined): T | undefined {
+  if (isDeepStrictEqual(base, desired)) return current
+  if (isDeepStrictEqual(base, current)) return desired
+  return current
+}
+
+/**
  * Error thrown when the human leg fails or is abandoned: the browser never
  * returned, the callback carried an OAuth error, or no browser could open.
  * The transport surfaces it from `connect`; the supervisor's reconnect loop
@@ -116,7 +130,7 @@ export const platformBrowserOpener: BrowserOpener = async (authorizationUrl, ser
     detached: platform !== 'win32'
   })
   child.once('error', error => {
-    log(`${serverName}: could not open a browser automatically (${String(error)}); open this URL manually: ${authorizationUrl.toString()}`)
+    log(`${serverName}: could not open a browser automatically (${redactErrorMessage(String(error))}); open this URL manually: ${redactUrl(authorizationUrl.toString())}`)
   })
   child.once('spawn', () => {
     child.unref()
@@ -136,6 +150,8 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
   private providerState: ProviderState = {}
   /** The transport generation whose `finishAuth` completes the browser leg. */
   private activeTransport: { finishAuth(code: string): Promise<void> } | undefined
+  /** One process-local OAuth state value for the current browser leg. */
+  private expectedState: string | undefined
   /** Resolves `true` when the leg saved tokens, `false` when it failed; undefined while no leg is open. */
   private browserLegSettled: PromiseWithResolvers<boolean> | undefined
   private callbackServer: Server | undefined
@@ -177,6 +193,13 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     }
   }
 
+  /** Issue one unpredictable state value for the SDK's authorization request. */
+  state(): string {
+    const state = randomBytes(32).toString('base64url')
+    this.expectedState = state
+    return state
+  }
+
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
     return (await this.load()).clientInformation
   }
@@ -210,6 +233,11 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     if (transport === undefined) {
       throw new AuthorizationAbortedError(`${this.serverName}: no active transport to complete authorization into`)
     }
+    // The SDK normally calls state() before this hook. Keep a defensive path
+    // for direct callers too, and overwrite any caller-supplied value with the
+    // state issued by this provider.
+    const state = this.expectedState ?? this.state()
+    authorizationUrl.searchParams.set('state', state)
     this.browserLegSettled = Promise.withResolvers()
     let succeeded = false
     try {
@@ -258,6 +286,7 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     this.callbackServer?.close(() => undefined)
     this.callbackServer = undefined
     this.boundPort = undefined
+    this.expectedState = undefined
   }
 
   saveCodeVerifier(codeVerifier: string): Promise<void> {
@@ -326,16 +355,39 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
   private async mutate(mutator: (state: ProviderState) => void): Promise<void> {
     const run = this.writeChain.then(async () => {
       await this.load()
+      const base = {
+        clientInformation: this.providerState.clientInformation,
+        tokens: this.providerState.tokens
+      }
       mutator(this.providerState)
       if (this.store === undefined) return
-      const record: McpAuthRecord = {
-        kind: 'grant',
-        payload: {
-          ...(this.providerState.clientInformation === undefined ? {} : { clientInformation: this.providerState.clientInformation }),
-          ...(this.providerState.tokens === undefined ? {} : { tokens: this.providerState.tokens })
-        }
+      const desired = {
+        clientInformation: this.providerState.clientInformation,
+        tokens: this.providerState.tokens
       }
-      await this.store.modifyRecord(this.recordKey, () => Promise.resolve(record))
+      const saved = await this.store.modifyRecord(this.recordKey, async current => {
+        const currentPayload = asMcpAuthRecord(current)
+        // Never replace a record owned by another credential provider just
+        // because this process raced it; the next read will observe it as
+        // absent and the caller can decide what to do.
+        if (current !== undefined && currentPayload === undefined) return current
+        const payload = currentPayload ?? {}
+        const clientInformation = mergeDurableField(base.clientInformation, desired.clientInformation, payload.clientInformation)
+        const tokens = mergeDurableField(base.tokens, desired.tokens, payload.tokens)
+        const merged: McpAuthRecord = {
+          kind: 'grant',
+          payload: {
+            ...(clientInformation === undefined ? {} : { clientInformation }),
+            ...(tokens === undefined ? {} : { tokens })
+          }
+        }
+        return merged
+      })
+      const savedPayload = asMcpAuthRecord(saved)
+      this.providerState = {
+        ...(savedPayload ?? {}),
+        ...(this.providerState.codeVerifier === undefined ? {} : { codeVerifier: this.providerState.codeVerifier })
+      }
     })
     // A failed write must not poison the chain; the caller's rejection is the
     // signal, and the next write re-reads whatever is durable now.
@@ -357,7 +409,7 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
       })
       server.on('error', error => {
         this.clearCallbackTimer()
-        reject(new AuthorizationAbortedError(`${this.serverName}: loopback callback server failed: ${String(error)}`))
+        reject(new AuthorizationAbortedError(`${this.serverName}: loopback callback server failed: ${redactErrorMessage(String(error))}`))
       })
       server.listen(this.storage.callbackPort ?? 0, '127.0.0.1', () => {
         const address = server.address()
@@ -388,21 +440,36 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
     const oauthError = url.searchParams.get('error')
     const code = url.searchParams.get('code')
-    const respond = (status: number, message: string): void => {
+    const respond = (status: number, message: string, closeServer = true): void => {
       // Drain the request, then answer with a plain page the user can close.
       request.resume()
       request.socket.end(
         `HTTP/1.1 ${status} ${status === 200 ? 'OK' : 'Bad Request'}\r\n` + 'content-type: text/plain; charset=utf-8\r\nconnection: close\r\n\r\n' + `${message}\n`
       )
-      request.on('close', () => {
-        server.close(() => undefined)
-      })
+      if (closeServer) {
+        request.on('close', () => {
+          server.close(() => undefined)
+        })
+      }
+    }
+    // Keep the listener alive for malformed or forged callbacks so the real
+    // browser redirect can still complete the same authorization leg.
+    if (url.pathname !== '/callback') {
+      respond(404, 'Not an OAuth callback endpoint.', false)
+      return
+    }
+    const expectedState = this.expectedState
+    const callbackState = url.searchParams.get('state')
+    if (expectedState === undefined || callbackState !== expectedState) {
+      respond(400, 'Authorization callback carried an invalid state.', false)
+      return
     }
     this.clearCallbackTimer()
     this.callbackServer = undefined
     this.boundPort = undefined
+    this.expectedState = undefined
     if (oauthError !== null) {
-      const description = url.searchParams.get('error_description') ?? ''
+      const description = redactErrorMessage(url.searchParams.get('error_description') ?? '')
       respond(400, `Authorization failed: ${oauthError}${description === '' ? '' : ` — ${description}`}`)
       reject(new AuthorizationAbortedError(`${this.serverName}: the authorization server returned "${oauthError}"${description === '' ? '' : ` (${description})`}`))
       return

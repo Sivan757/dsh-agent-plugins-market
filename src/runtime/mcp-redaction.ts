@@ -51,6 +51,15 @@ export function redactUrl(raw: string): string {
   return safeQuery === '' ? base : `${base}?${safeQuery}`
 }
 
+/**
+ * Redact every URL embedded in an error message before the message reaches a
+ * log line or a diagnostic: connection failures echo the server's endpoint,
+ * and endpoints carry credential-bearing queries.
+ */
+export function redactErrorMessage(raw: string): string {
+  return raw.replace(/https?:\/\/[^\s"'<>]+/gi, value => redactUrl(value))
+}
+
 function splitOnce(value: string, separator: string): [string, string] {
   const index = value.indexOf(separator)
   if (index === -1) return [value, '']

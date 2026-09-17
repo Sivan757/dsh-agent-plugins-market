@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { redactMcpConfig, redactUrl, isSensitiveKey } from '../src/runtime/mcp-redaction.js'
+import { redactErrorMessage, redactMcpConfig, redactUrl, isSensitiveKey } from '../src/runtime/mcp-redaction.js'
 import { credentialRefsInServer } from '../src/runtime/mcp-config.js'
 
 describe('MCP config redaction', () => {
@@ -34,6 +34,12 @@ describe('MCP config redaction', () => {
     // A placeholder in a URL is a reference, not a secret.
     expect(redactUrl('https://example.com/mcp?key=${TOKEN}')).toBe('https://example.com/mcp?key=${TOKEN}')
     expect(redactUrl('https://example.com/mcp')).toBe('https://example.com/mcp')
+  })
+
+  it('redacts embedded urls inside an error message', () => {
+    expect(redactErrorMessage('request failed for https://example.test/mcp?token=secret&trace=1')).toBe('request failed for https://example.test/mcp?token=[redacted]&trace=1')
+    // Text around the url survives untouched; a message without a url is a no-op.
+    expect(redactErrorMessage('loopback callback server failed: EADDRINUSE')).toBe('loopback callback server failed: EADDRINUSE')
   })
 
   it('preserves every reference in one url query', () => {
