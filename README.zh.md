@@ -71,7 +71,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 ```
 
 1. 重启 DSH，打开 **设置 → Agent Plugins 市场**。
-2. 在**插件市场**添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。插件不预置来源。
+2. 在**插件市场**添加来源，例如 `https://github.com/anthropics/claude-plugins-official`，或第一方演示集合 [dsh-agent-plugins](https://github.com/Sivan757/dsh-agent-plugins)。插件不预置来源。
 3. 打开套件查看内容，确认后安装，并确保套件已启用。
 4. 如果套件提供技能，先在**技能**页签查看，再在聊天中输入 `/` 查找允许手动调用的技能。如果提供 MCP，前往 **MCP 服务**检查状态，处理凭据或连接提示后再使用工具。
 
