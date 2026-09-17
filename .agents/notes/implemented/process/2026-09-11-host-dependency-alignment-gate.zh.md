@@ -15,7 +15,7 @@ Status: implemented
 
 `scripts/check-host-alignment.mjs` 解析宿主发布线，并在任何一项与它不一致时失败。
 
-**基线是解析出来的，不是存下来的。** 脚本向 registry 查询 manifest 声明的、或源码引入的每个 `@deepseek-ai/dsh-*` 包的 `next` dist-tag，并要求整个家族收敛到同一个版本——家族是同步发版的，出现分歧属于错误而非投票。默认刻意不用 `latest`：dsh 家族发布在 `next`，而 `latest` 落后好几个 minor。`--host-version` 显式指定基线并跳过网络；`--channel` 选择其他 dist-tag；`node_modules/.cache/` 下五分钟缓存让提交路径保持轻快，`--offline` 宁可拒绝也不猜。
+**基线是解析出来的，不是存下来的。** 脚本向 registry 查询 `@deepseek-ai/dsh` 的 `latest` dist-tag——它是消费方实际安装的包，也是家族里唯一用 `latest` 指向已发布版本的成员——并要求声明的每个包都携带这一个版本。`--host-version` 显式指定基线并跳过网络；`--channel` 选择其他 dist-tag；`node_modules/.cache/` 下五分钟缓存让提交路径保持轻快，`--offline` 宁可拒绝也不猜。用哪个 tag 回答这个问题，见[以 latest 发布线解析基线](2026-09-22-latest-release-line-baseline.zh.md)，它取代了先前逐包解析 `next` 的做法。
 
 **六条规则，对应配置漂移的六种方式：**
 

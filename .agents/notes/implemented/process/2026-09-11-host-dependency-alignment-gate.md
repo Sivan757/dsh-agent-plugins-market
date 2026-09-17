@@ -15,7 +15,7 @@ Nothing detected either one: `check:refactor` reads the tree, and the tree was i
 
 `scripts/check-host-alignment.mjs` resolves the host release line and fails unless everything agrees with it.
 
-**The baseline is resolved, not stored.** The script asks the registry for the `next` dist-tag of every `@deepseek-ai/dsh-*` package the manifest declares or the source imports, and requires the family to agree on one version — the family publishes in lockstep, so a disagreement is an error, not a vote. `latest` is deliberately not the default: the `dsh` family publishes to `next` while `latest` lags several minor lines behind. `--host-version` pins a baseline explicitly and skips the network; `--channel` selects another dist-tag; a five-minute cache under `node_modules/.cache/` keeps the pre-commit path fast, and `--offline` refuses rather than guessing.
+**The baseline is resolved, not stored.** The script asks the registry for the `latest` dist-tag of `@deepseek-ai/dsh` — the package a consumer installs, and the only family member whose `latest` names a released line — and requires every declared package to carry that one version. `--host-version` pins a baseline explicitly and skips the network; `--channel` selects another dist-tag; a five-minute cache under `node_modules/.cache/` keeps the pre-commit path fast, and `--offline` refuses rather than guessing. Which tag answers the question is [resolved from the latest release line](2026-09-22-latest-release-line-baseline.md), which replaced the earlier per-package `next` resolution.
 
 **Six rules, each a distinct way the config drifts:**
 
