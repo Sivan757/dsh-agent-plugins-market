@@ -37,9 +37,9 @@ npm 包包含构建后的 `lib/` 和 `client/`。GitHub 安装通过 `prepare` �
 
 ## 配置市场源
 
-发布包不预置来源。以下仅为你自己的 profile 可选配置示例。
+有一个来源不需要配置：插件为第一方套件集合仓库预置了一条记录，id 为 `dsh-agent-plugins`。它与其他 Git 来源完全一致——点**刷新**克隆并列出其中的套件，然后在市场页安装、停用或删除。登记本身不发起网络访问，因此刚登记的来源在首次刷新前显示为未克隆；并且与通过配置预置的来源一样，删除它会被下次激活撤销。
 
-源持久化在 `~/.dsh/agent-plugins/state.json`，也可用 cordis 配置预置（也是“持久种子”，启动时自动补齐缺失源）：
+其余来源由你自己添加。源持久化在 `~/.dsh/agent-plugins/state.json`，也可用 cordis 配置预置（也是“持久种子”，启动时自动补齐缺失源）：
 
 ```yaml
 - id: dsh-agent-plugins-market

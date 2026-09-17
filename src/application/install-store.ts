@@ -73,7 +73,7 @@ export class InstallStore {
     })
   }
 
-  /** Append config-seeded sources missing from user state and persist them. */
+  /** Append seeded sources missing from user state and persist them. */
   async mergeSources(sources: SourceRef[]): Promise<void> {
     const existing = new Set(this.context.state.sources.map(source => source.id))
     const additions = sources.filter(source => !existing.has(source.id))

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../src/index.js'
+import { presetSourceRef } from '../src/model/preset-source.js'
 import { RuntimeReconciler } from '../src/runtime/reconciler.js'
 
 interface RegisteredTool {
@@ -82,6 +83,10 @@ describe('dsh-agent-plugins-market host entry', () => {
     await apply(context as never)
 
     expect(registrations.map(tool => tool.name)).not.toContain('agent_plugins')
+    // Activation presets the first-party source record so the market lists it
+    // on the first open; nothing here clones it.
+    const state = JSON.parse(await readFile(join(root, 'agent-plugins', 'state.json'), 'utf8')) as { sources: Array<{ id: string; url: string; kind?: string }> }
+    expect(state.sources).toEqual([presetSourceRef()])
     // Dispose the instance: a live plugin keeps reconciling and would leak
     // calls into the next test's RuntimeReconciler spy.
     cleanups.forEach(cleanup => cleanup())

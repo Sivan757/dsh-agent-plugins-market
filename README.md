@@ -51,6 +51,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 - **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
 - **Sources.** Add a Git repository, a local directory or an archive (`.zip` / `.tar.gz` / `.tgz` / `.tar`); adopt a checkout you cloned yourself; refresh on demand; delete a managed checkout when you remove its source.
+- **First-party source.** The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run with no URL to paste. It is an ordinary Git source from there on — refresh it to fetch, then install and toggle its suites like any other.
 - **Downloads that fit your network.** Pick a download region — default `auto` follows the interface language, or choose global / China mainland — and the plugin routes `github.com` clones through the matching mirror. A proxy and per-invocation tuning live in the host config.
 - **Runtime surfaces.** Enabled suites inject into sessions: skills into the catalog and slash menu, commands as `/name`, agent personas into the subagent catalog, MCP tools with an `mcp__` prefix, hooks onto host lifecycle events, and language servers through the `lsp` tool.
 - **MCP.** A built-in bridge runs stdio, Streamable HTTP with OAuth and legacy SSE without a host MCP client. `${VAR}` references resolve from the host credential store or the launch environment; per-server overrides disable or patch a declaration without editing the source; an optional host-client compatibility mode is available. Tools register as `mcp__<suite>__<server>__<tool>`.
@@ -71,7 +72,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 ```
 
 1. Restart DSH and open **Settings → Agent Plugins Market**.
-2. In **Market**, add a source, for example `https://github.com/anthropics/claude-plugins-official` — or the first-party demo collection [dsh-agent-plugins](https://github.com/Sivan757/dsh-agent-plugins). No sources are preconfigured.
+2. The market already lists the first-party source; press **Refresh** to fetch its suites. To pull in more, add a source, for example `https://github.com/anthropics/claude-plugins-official`.
 3. Open a suite, review its contents, then install it and ensure it is enabled.
 4. For a suite with skills, check the **Skills** tab and type `/` in chat to find its user-invocable skills. For an MCP suite, check **MCP services** and resolve any credential or connection notice before using its tools.
 
@@ -193,6 +194,10 @@ Use **Add** in **MCP services** or **LSP servers**. The declaration is validated
 **Do sources refresh automatically?**
 
 Only when **Background source updates** is on: every configured source is then refreshed every 6 hours, starting one interval after you enable it. The switch is off by default, and the refresh button always works.
+
+**Where do the suites that appear without adding a source come from?**
+
+The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run; press **Refresh** to fetch its suites. From there it behaves like any other source — including removal, which the next activation undoes just as it does for a source seeded through configuration.
 
 **What if a source download fails?**
 

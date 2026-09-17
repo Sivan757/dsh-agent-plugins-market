@@ -51,6 +51,7 @@
 
 - **十种套件布局。** Claude Code、Codex、Cursor、Kimi Code、ZCode、Qoder CLI、GitHub Copilot CLI、Universal `.plugin/`、[agent-plugins](https://agent-plugins.org) 与无清单技能集合。
 - **来源。** 添加 Git 仓库、本地目录或压缩包（`.zip` / `.tar.gz` / `.tgz` / `.tar`）；收编自己克隆的目录；按需刷新；删除来源时可一并删除受管目录。
+- **第一方来源。** 插件预置一条指向自身套件集合的仓库源记录，所以首次运行市场里就列出该仓库，不需要粘贴任何地址。此后它就是普通 Git 来源——刷新以拉取，再像其他来源一样安装与启停其中的套件。
 - **适合你网络的下载方式。** 下载区域设置（默认 `auto` 跟随界面语言，也可显式选择全球或中国大陆）决定 `github.com` 克隆走的镜像前缀；代理与单次调用调优在宿主配置里。
 - **运行时能力。** 启用套件会注入会话：技能进入目录与斜杠菜单，命令以 `/名称` 调用，代理角色进入子代理目录，MCP 工具以 `mcp__` 前缀注册，hooks 挂到宿主生命周期事件，语言服务器通过 `lsp` 工具使用。
 - **MCP。** 内置桥接无需宿主 MCP 客户端，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE。`${VAR}` 引用从宿主凭据服务或启动环境解析；按服务覆盖可禁用或修补声明，不必修改源文件；也可选用宿主客户端兼容模式。工具名为 `mcp__<套件>__<服务>__<工具>`。
@@ -71,7 +72,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 ```
 
 1. 重启 DSH，打开 **设置 → Agent Plugins 市场**。
-2. 在**插件市场**添加来源，例如 `https://github.com/anthropics/claude-plugins-official`，或第一方演示集合 [dsh-agent-plugins](https://github.com/Sivan757/dsh-agent-plugins)。插件不预置来源。
+2. 市场里已经列出第一方来源；点**刷新**即可拉取其中的套件。想补充更多内容时再添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。
 3. 打开套件查看内容，确认后安装，并确保套件已启用。
 4. 如果套件提供技能，先在**技能**页签查看，再在聊天中输入 `/` 查找允许手动调用的技能。如果提供 MCP，前往 **MCP 服务**检查状态，处理凭据或连接提示后再使用工具。
 
@@ -193,6 +194,10 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 **来源会自动更新吗？**
 
 只有开启**后台自动更新来源**后才会：开启后每 6 小时刷新一次全部已配置来源，第一次刷新在开启满一个周期之后。该开关默认关闭，刷新按钮始终可用。
+
+**没有添加任何来源，市场里的套件是从哪来的？**
+
+插件预置一条指向自身套件集合的仓库源记录，所以首次运行市场里就列出该仓库；点**刷新**即可拉取其中的套件。此后它与其他来源完全一致——包括删除：和通过配置预置的来源一样，下次激活会重新登记。
 
 **来源下载失败怎么办？**
 

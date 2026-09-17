@@ -37,9 +37,9 @@ If managing the profile manually, install the package and include `dsh-agent-plu
 
 ## Configure marketplace sources
 
-The published bundle does not preconfigure sources. The following is an optional example for your own profile.
+One source needs no configuration: the plugin presets a record for the first-party collection repository under the id `dsh-agent-plugins`. It is a Git source like any other — press **Refresh** to clone it and list its suites, then install, disable or remove it in the market page. Registration performs no network access, so a freshly registered source shows as not cloned until the first refresh; and like a source seeded through configuration, removing it is undone by the next activation.
 
-Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (and re-adds missing ids on every boot):
+Everything else you add yourself. Sources persist in `~/.dsh/agent-plugins/state.json`; cordis config seeds them (and re-adds missing ids on every boot):
 
 ```yaml
 - id: dsh-agent-plugins-market
