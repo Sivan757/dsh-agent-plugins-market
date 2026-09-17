@@ -54,9 +54,9 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 - **First-party source.** The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run with no URL to paste. It is an ordinary Git source from there on — refresh it to fetch, then install and toggle its suites like any other.
 - **Downloads that fit your network.** Pick a download region — default `auto` follows the interface language, or choose global / China mainland — and the plugin routes `github.com` clones through the matching mirror. A proxy and per-invocation tuning live in the host config.
 - **Runtime surfaces.** Enabled suites inject into sessions: skills into the catalog and slash menu, commands as `/name`, agent personas into the subagent catalog, MCP tools with an `mcp__` prefix, hooks onto host lifecycle events, and language servers through the `lsp` tool.
-- **MCP.** A built-in bridge runs stdio, Streamable HTTP with OAuth and legacy SSE without a host MCP client. `${VAR}` references resolve from the host credential store or the launch environment; per-server overrides disable or patch a declaration without editing the source, set the tool-call and startup timeouts, and switch individual tools off; an optional host-client compatibility mode is available. Tools register as `mcp__<suite>__<server>__<tool>`.
+- **MCP.** A built-in bridge runs stdio, Streamable HTTP with OAuth and legacy SSE without a host MCP client. `${VAR}` references resolve from the host credential store or the launch environment; per-server overrides disable or patch a declaration without editing the source, set the tool-call and startup timeouts, and switch individual tools off; a new service starts from a template or a pasted definition whose entries each report their own outcome, and **Test connection** verifies a stored configuration on its own connection; an optional host-client compatibility mode is available. Tools register as `mcp__<suite>__<server>__<tool>`.
 - **LSP.** Self-provisioned: installing the plugin is the whole setup, and the `lsp` tool mounts only while a language server is wanted. The server executable itself must be on `PATH`. Upgrading from a release that asked you to expose LSP from your profile? A profile that still carries that hand-added layer reports a seam conflict; the LSP panel names the file and removes the layer for you, keeping a backup.
-- **Agent personas and delegation.** Role cards save an exact provider, model and reasoning effort; they appear in the session catalog and run through `subagent_run`, which starts a durable background child and returns its id immediately.
+- **Agent personas and delegation.** Role cards save an exact provider, model and reasoning effort; they appear in the session catalog and run through `subagent_role`, which starts a durable background child and returns its id immediately.
 - **Project dimension.** Skills, agents, commands, MCP servers and hooks are read from the project's own directories with no install step.
 - **Your own resources.** Author skills, commands and agent personas as Markdown under `~/.agents/`, then edit them or disable them without deleting the files.
 - **Background source updates.** Optionally refresh every configured source on a timer; off by default.
@@ -82,14 +82,14 @@ Requirements, profile configuration and alternative installs: [usage guide](docs
 
 The workspace has six tabs:
 
-| Tab            | Use it to                                                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                              |
-| Skills         | Browse skills and create or edit your own reusable instructions.                                                                             |
-| Commands       | Manage prompt templates invoked as `/name`.                                                                                                  |
-| Agent personas | Manage role instructions and save an exact provider, model and reasoning effort per role; delegate in the background through `subagent_run`. |
-| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                           |
-| LSP servers    | Add and configure language servers and inspect their runtime status.                                                                         |
+| Tab            | Use it to                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                               |
+| Skills         | Browse skills and create or edit your own reusable instructions.                                                                              |
+| Commands       | Manage prompt templates invoked as `/name`.                                                                                                   |
+| Agent personas | Manage role instructions and save an exact provider, model and reasoning effort per role; delegate in the background through `subagent_role`. |
+| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                            |
+| LSP servers    | Add and configure language servers and inspect their runtime status.                                                                          |
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
 
@@ -107,12 +107,12 @@ Supported **runtime surfaces** describe what DSH can use:
 | --- | --- |
 | Skills | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded. |
 | Commands | Slash commands through the host command service. |
-| Agents | Dynamic subagent catalog and `subagent_run`; requires host agents, tools, LLM, subagent and session-persistence services. |
+| Agents | Dynamic subagent catalog and `subagent_role`; requires host agents, tools, LLM, subagent and session-persistence services. |
 | MCP | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available; it enforces the tool-call timeout but not tool filters or a startup timeout. |
 | Hooks | The command-hook subset mapped by `dsh-hooks-claude-code`. |
 | LSP | Self-provisioned: installing the plugin is the whole setup, and `lsp` mounts only while a language server is wanted; the server executable must be on `PATH`. |
 
-Agent roles appear in the session catalog and run through `subagent_run(agent, prompt)`. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/user/agent-roles.md) for the frontmatter fields and limits.
+Agent roles appear in the session catalog and run through `subagent_role(agent, prompt)`. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/user/agent-roles.md) for the frontmatter fields and limits.
 
 ### Layout detection precedence
 

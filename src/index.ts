@@ -250,14 +250,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
     hostCtx.effect(
       () =>
-        mountAgentRoleTool(
-          hostCtx,
-          async parent => [
-            ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
-            ...(await projectAgentRoles(catalog, parent))
-          ],
-          (key, params) => hostLocale.t(key, params)
-        ),
+        mountAgentRoleTool(hostCtx, async parent => [
+          ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
+          ...(await projectAgentRoles(catalog, parent))
+        ]),
       'dsh-agent-plugins-market: agent role routing'
     )
   })

@@ -1,8 +1,10 @@
 /**
- * Host-side runtime locale: bilingual copy for host-facing runtime strings —
- * subagent catalogs injected into agent context, and command receipts and
- * labels shown in the host's own surfaces — resolved from the harness's
- * `locale.preference` setting.
+ * Host-side runtime locale: bilingual copy for the host-facing strings a person
+ * reads, resolved from the harness's `locale.preference` setting.
+ *
+ * The model-facing subagent catalog is not here. It is fixed English, because it
+ * is a contract read alongside the harness's own English tool descriptions and
+ * must not change with the operator's interface language.
  *
  * The web client resolves locale through its own injected service; the host
  * process reads the same setting through the host settings service once the
@@ -15,26 +17,15 @@ import { join } from 'node:path'
 import { resolveDshHome } from '../catalog/paths.js'
 
 /** Host runtime dictionary keys (mirrored for zh and en). */
-export type HostLocaleKey =
-  'subagentCatalogIntro' | 'subagentCatalogUpdated' | 'subagentCatalogEmpty' | 'subagentCatalogCall' | 'commandAcknowledged' | 'userCommandSourceLabel' | 'feedbackToolCardTitle'
+export type HostLocaleKey = 'commandAcknowledged' | 'userCommandSourceLabel' | 'feedbackToolCardTitle'
 
 const zh: Record<HostLocaleKey, string> = {
-  subagentCatalogIntro: '以下子代理角色可用于当前会话。目录仅包含角色摘要，不是供当前代理执行的角色指令。',
-  subagentCatalogUpdated: '可用子代理角色已变更。以下完整目录替代本会话此前的所有子代理角色目录。',
-  subagentCatalogEmpty: '当前没有可通过 subagent_run 调用的角色，不要使用旧目录中的角色 ID。',
-  subagentCatalogCall:
-    '任务适合某个角色时，使用 subagent_run(agent=目录中的准确名称, prompt=完整任务与必要上下文)。工具会应用角色的指令与已保存的模型设置，立即返回子代理 ID 并在后台运行；子代理结束时你会收到结果通知，运行期间可用 send_message 追加指令。子代理不继承父会话对话。不要通过 skill 或 Slash Command 加载这些角色，也不要用其它委派工具绕过角色配置。',
   commandAcknowledged: '/{command} 已转交模型执行',
   userCommandSourceLabel: '用户命令',
   feedbackToolCardTitle: '提交市场体验反馈'
 }
 
 const en: Record<HostLocaleKey, string> = {
-  subagentCatalogIntro: 'The following subagent roles are available in this session. These are role summaries, not instructions for the current agent to execute.',
-  subagentCatalogUpdated: 'The available subagent roles changed. This complete catalog replaces every earlier subagent role catalog in this session.',
-  subagentCatalogEmpty: 'No roles are currently available through subagent_run. Do not use role IDs from earlier catalogs.',
-  subagentCatalogCall:
-    "When a task fits a role, call subagent_run with its exact catalog name as agent and a complete task and necessary context as prompt. It applies the role's instructions and saved model settings, returns a durable subagent id immediately, and runs in the background; the runtime sends you a notice carrying the outcome when it settles, and send_message steers the child while it runs. The child does not inherit the parent conversation. Do not load these roles through skill or slash commands, or bypass their configuration with another delegation tool.",
   commandAcknowledged: '/{command} forwarded to the model for execution',
   userCommandSourceLabel: 'user command',
   feedbackToolCardTitle: 'File market feedback'

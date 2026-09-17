@@ -12,7 +12,7 @@ Status: implemented
 
 ## Decision
 
-`subagent_run(agent, prompt)` 是宿主 continuation seam 之上的一层薄角色封装。它解析目录中的角色，把卡片正文作为子代理 persona，并在 `spawn` 后端用 `ctx.subagents.startContinuable` 启动一个可继续子代理，在 inbox 接受时返回 `{ subagentId }`。它**不等待结果**：运行时投递 `subagent-settled` 通知，携带结果与收尾消息；运行期间可用 `send_message` 追加指令，`list_agents` 可列出它。
+`subagent_role(agent, prompt, provider?, model?, reasoning_effort?, run_in_background?)` 是宿主子代理接缝之上的一层薄角色封装。它解析目录中的角色，把卡片正文作为子代理 persona，并在 `spawn` 后端用 `ctx.subagents.startContinuable` 启动一个可继续子代理，在 inbox 接受时返回 `{ kind: 'continuable', subagentId }`。它**不等待结果**：运行时投递 `subagent-settled` 通知，携带结果与收尾消息；运行期间可用 `send_message` 追加指令，`list_agents` 可列出它。传 `run_in_background: false` 时改用宿主的一次性 `start`，返回 `{ kind: 'foreground', runId, output }` 并携带子代理报告。
 
 路由只有"精确"或"继承"两种结果。只有当卡片**同时**声明 `provider` 与 `model` 时，它才贡献子代理 LLM 选项；该组合连同可选的 `reasoning_effort`，在子代理启动前经 `llm.resolveCallConfig` 校验一次。其余任何写法——单独模型 id、`provider/model` 字符串、`sonnet` 这类 Claude 别名、只写 `provider`、不受支持的强度——都会经诊断出口上报，子代理改为继承父代理路由。裸 id 解析器与 `provider/model` 语法糖均已删除。
 
@@ -41,7 +41,7 @@ Status: implemented
 - 555 张卡片从必然失败变为可用父代理工具集运行；另外 328 张同时声明了不可解析模型的卡片，现在继承父代理路由而不是中止。
 - 既有的 `subagents_run(role=…)` 调用方会在三个维度上断裂：工具名、`agent` 参数，以及不再有可等待的结果。
 - 我们放弃的东西：frontmatter 不再能表达每角色的最小权限。一张想只读的卡片无法声明这一点，子代理会拿到父代理的工具集。
-- 测试固定了：不含工具字段的严格解析、精确路由经预检生效、每种非精确声明都降级并给出诊断、预检期间触发的取消、`startContinuable` 的请求形状（含不携带 `toolFilter`）、以 `agent` 参数注册 `subagent_run`、目录条目省略非精确路由，以及编辑器在无 `tools` 控件时的忽略路由提示。
+- 测试固定了：不含工具字段的严格解析、精确路由经预检生效、调用路由优先于卡片路由、每种非精确声明都降级并给出诊断、预检期间触发的取消、`startContinuable` 的请求形状（含不携带 `toolFilter`）、前台 `start` 路径及其释放、以 `subagent` 参数面注册 `subagent_role`、目录条目省略非精确路由，以及编辑器在无 `tools` 控件时的忽略路由提示。
 
 ## Related decisions
 
