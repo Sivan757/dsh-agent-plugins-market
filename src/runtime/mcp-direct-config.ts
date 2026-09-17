@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
+import { MCP_SCHEMA_ID, formatSchemaErrors, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
 import { effectiveSurfaces, type McpSuiteConfig, type Suite } from '../model/types.js'
 
 export const USER_MCP_SOURCE = '@user-mcp'
@@ -46,7 +46,7 @@ export async function loadUserMcpSuite(agentsRoot: string): Promise<Suite & { mc
 }
 
 async function validateUserMcp(agentsRoot: string, raw: unknown): Promise<McpSuiteConfig> {
-  const errors = await validateAgainstSchema(MCP_SCHEMA_ID, raw)
+  const errors = formatSchemaErrors(await validateAgainstSchema(MCP_SCHEMA_ID, raw))
   if (errors.length > 0) throw new Error(`invalid MCP configuration: ${errors.join('; ')}`)
   const result = await validateMcpJson(agentsRoot, raw)
   if (result.config === undefined || result.errors.length > 0) throw new Error(result.errors.join('; '))

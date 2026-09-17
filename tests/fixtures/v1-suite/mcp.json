@@ -2,6 +2,6 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
     "toolbox": { "type": "stdio", "command": "./bin/toolbox", "args": ["--root", "${PLUGIN_ROOT}"], "env": { "DATA_DIR": "${PLUGIN_DATA}/cache" }, "cwd": "./data" },
-    "remote": { "type": "streamable-http", "url": "https://example.com/mcp", "headers": { "Authorization": "Bearer ${MCP_TOKEN}" } }
+    "remote": { "type": "streamable-http", "url": "https://example.com/mcp", "headers": { "X-Tenant": "public" } }
   }
 }

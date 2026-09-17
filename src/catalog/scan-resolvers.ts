@@ -18,15 +18,20 @@
  * 3. `FlatCollectionsStrategy` — the terminal fallback: manifest-less
  *    `<root>/<name>/SKILL.md` collections.
  */
-import { realpath } from 'node:fs/promises'
+import { realpath, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { isWithin, sanitizeId } from './paths.js'
 import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
-import type { DiscoveredSuite, SuiteComponents, SuiteDimension, SuiteManifest } from '../model/types.js'
+import { EXTENSION_NAMESPACE, NAMESPACE_DIR, NAMESPACE_HOOKS_FILE, NAMESPACE_LSP_FILE } from '../model/layouts.js'
+import type { DiscoveredSuite, ProjectHooks, SuiteComponents, SuiteDimension, SuiteManifest } from '../model/types.js'
 import { componentDeclarations, hasSuiteManifest, readManifest, readMarketplaces, syntheticManifestName, type MarketplaceEntry } from './manifests.js'
 import { countSurfaces, discoverMcp, discoverSkills, listMdFiles } from './surfaces.js'
 import { discoverMarkdownResources, isUnknownArray } from './component-files.js'
+import type { SuiteMarkdownResource } from '../model/types.js'
 import { discoverSuiteHooks, discoverSuiteLsp, discoverSystemPrompt } from './suite-components.js'
+import { parseLspServers } from './lsp-spec.js'
+import { normalizeHookDocuments } from './project-hooks.js'
+import type { LspSuiteConfig } from '../model/types.js'
 import type { ScanChain, ScanContext, ScanFilter, ScanResolution, ScanResult } from './scan-pipeline.js'
 import { runScanChain } from './scan-pipeline.js'
 
@@ -378,16 +383,18 @@ export async function readSuite(
   notes: string[] = []
 ): Promise<DiscoveredSuite | undefined> {
   const errors: string[] = []
+  const manifestNotes: string[] = []
   const fallbacks: string[] = []
   const declaredManifest = await hasSuiteManifest(root)
-  let manifest = declaredManifest ? await readManifest(root, errors, hint, fallbacks) : await syntheticManifest(root)
-  if (declaredManifest && (manifest === undefined || errors.length > 0)) {
+  let manifest = declaredManifest ? await readManifest(root, errors, hint, fallbacks, manifestNotes) : await syntheticManifest(root)
+  if (declaredManifest && manifest === undefined) {
     notes.push(...errors, ...fallbacks, `suite ${root}: rejected declared manifest`)
     return undefined
   }
   // A lower-priority manifest carried the suite: keep the reason the
   // higher-priority declaration was skipped visible without failing the suite.
   if (fallbacks.length > 0) notes.push(`suite ${root}: a higher-priority manifest was rejected`, ...fallbacks)
+  notes.push(...manifestNotes)
   // A declaration-only suite (official CC lsp plugins ship just a README):
   // the marketplace entry's inline lspServers are its manifest.
   if (manifest === undefined && hint !== undefined && Object.keys(componentDeclarations(hint)).length > 0) {
@@ -403,31 +410,47 @@ export async function readSuite(
     }
   }
   if (manifest === undefined) return undefined
+  // The portable v1 dialect reads only the spec's fixed locations plus this
+  // client's extension namespace (§6.1, §8.2): skills and MCP from their
+  // fixed locations, extension surfaces from `com.deepseek.harness/`.
+  // Marketplace-entry and hint declarations carry no inline components for
+  // this dialect, so `components` stays empty and every discovery call below
+  // takes its namespace path.
+  const portable = manifest.layout === 'agent-plugin-v1'
+  // The namespace seats (manifest data and directory) open only when the
+  // suite declares our namespace with a supported contract version; an
+  // unsupported or missing declaration reads the portable core alone.
+  const namespaceOpen = portable && (manifest.harness !== undefined || manifest.schemaVersion !== undefined) && namespaceReadable(manifest)
   let declared = manifest.components?.skills
   if (declared !== undefined && (manifest.layout === 'claude-code' || manifest.layout === 'codex') && (await isDirectory(join(root, 'skills')))) {
     declared = ['skills', ...(isUnknownArray(declared) ? declared : [declared])]
   }
-  const skills = await discoverSkills(root, errors, declared)
+  if (portable) await noteUnreadRootComponents(root, notes)
+  const skills = await discoverSkills(root, errors, declared, portable)
   if (manifest.layout === 'skill-collection' && skills.length === 0) {
     notes.push(...errors)
     return undefined
   }
-  const mcp = await discoverMcp(root, errors, manifest)
+  const mcp = await discoverMcp(root, errors, manifest, portable)
   // Effective component declarations include marketplace fallbacks and manifest overrides.
-  const lsp = await discoverSuiteLsp(root, manifest, errors)
-  const hooks = await discoverSuiteHooks(root, manifest, errors)
-  const resources = {
-    commands: await discoverMarkdownResources(
-      root,
-      'commands',
-      manifest.components?.commands,
-      manifest.path,
-      errors,
-      manifest.layout === 'cursor' ? ['.md', '.mdc', '.markdown', '.txt'] : ['.md']
-    ),
-    agents: await discoverMarkdownResources(root, 'agents', manifest.components?.agents, manifest.path, errors)
-  }
-  const systemPrompt = await discoverSystemPrompt(root, manifest, errors)
+  const lsp = namespaceOpen ? await discoverNamespaceLsp(root, manifest, errors, notes) : await discoverSuiteLsp(root, manifest, errors)
+  const hooks = namespaceOpen ? await discoverNamespaceHooks(root, manifest, errors, notes) : await discoverSuiteHooks(root, manifest, errors)
+  const resources = namespaceOpen
+    ? await discoverNamespaceMarkdown(root, notes)
+    : portable
+      ? { commands: [], agents: [] }
+      : {
+          commands: await discoverMarkdownResources(
+            root,
+            'commands',
+            manifest.components?.commands,
+            manifest.path,
+            errors,
+            manifest.layout === 'cursor' ? ['.md', '.mdc', '.markdown', '.txt'] : ['.md']
+          ),
+          agents: await discoverMarkdownResources(root, 'agents', manifest.components?.agents, manifest.path, errors)
+        }
+  const systemPrompt = portable ? undefined : await discoverSystemPrompt(root, manifest, errors)
   const surfaces = await countSurfaces(root, skills, mcp, lsp)
   surfaces.commands = resources.commands.length
   surfaces.agents = resources.agents.length
@@ -484,4 +507,88 @@ async function syntheticManifest(root: string): Promise<SuiteManifest | undefine
     id: sanitizeId(name),
     name
   }
+}
+
+// ---------------------------------------------------------------------------
+// Extension namespace surfaces (Agent Plugins §8.2)
+//
+// A portable v1 suite carries this client's extension surfaces in the
+// top-level directory named after the namespace. Contents outside it — the
+// dialect root directories other layouts read — are package files this
+// manager does not mount for the portable dialect, and their presence is
+// reported through scan notes rather than read silently.
+// ---------------------------------------------------------------------------
+
+/** Root component locations other dialects read; under v1 their presence is reported, never read. */
+const ROOT_COMPONENT_DIRS = ['commands', 'agents', 'hooks'] as const
+/** `.mcp.json` is an alternative MCP path the portable format forbids; `mcp.json` itself is the fixed location. */
+const ROOT_COMPONENT_FILES = ['hooks.json', 'lsp.json', '.lsp.json', '.mcp.json'] as const
+
+/**
+ * Whether the namespace contract allows reading the extension seats: the
+ * manifest must carry our namespace with a supported `schemaVersion`. A
+ * directory without manifest data stays closed until the suite declares the
+ * contract, so a name collision on the filesystem cannot silently activate
+ * extension reading.
+ */
+function namespaceReadable(manifest: SuiteManifest): boolean {
+  return manifest.harness !== undefined
+}
+
+/** Report portable-suite content this manager does not mount, so nothing fails silently. */
+async function noteUnreadRootComponents(root: string, notes: string[]): Promise<void> {
+  for (const dir of ROOT_COMPONENT_DIRS) {
+    if (await isDirectory(join(root, dir)))
+      notes.push(`suite ${root}: "${dir}/" is outside the portable layout and the ${EXTENSION_NAMESPACE} namespace; not read for this dialect`)
+  }
+  for (const file of ROOT_COMPONENT_FILES) {
+    if (await isFile(join(root, file))) notes.push(`suite ${root}: "${file}" is outside the portable layout; not read for this dialect`)
+  }
+}
+
+/** Commands and agents from `<namespace>/commands/` and `<namespace>/agents/`. */
+async function discoverNamespaceMarkdown(root: string, notes: string[]): Promise<{ commands: SuiteMarkdownResource[]; agents: SuiteMarkdownResource[] }> {
+  const namespaceRoot = join(root, NAMESPACE_DIR)
+  if (!(await isDirectory(namespaceRoot))) return { commands: [], agents: [] }
+  const errors: string[] = []
+  const commands = await discoverMarkdownResources(namespaceRoot, 'commands', undefined, join(namespaceRoot, 'plugin.json'), errors)
+  const agents = await discoverMarkdownResources(namespaceRoot, 'agents', undefined, join(namespaceRoot, 'plugin.json'), errors)
+  notes.push(...errors.map(error => `${EXTENSION_NAMESPACE}: ${error}`))
+  return { commands, agents }
+}
+
+/** Hooks from `<namespace>/hooks/hooks.json`, normalized through the command-hook bridge. */
+async function discoverNamespaceHooks(root: string, manifest: SuiteManifest, errors: string[], notes: string[]): Promise<ProjectHooks | undefined> {
+  const file = join(root, NAMESPACE_HOOKS_FILE)
+  if (!(await isFile(file))) return undefined
+  let value: unknown
+  try {
+    value = JSON.parse(await readFile(file, 'utf8'))
+  } catch (error) {
+    notes.push(`${NAMESPACE_HOOKS_FILE}: unparsable (${error instanceof Error ? error.message : String(error)})`)
+    return undefined
+  }
+  const events = (value as { hooks?: unknown })?.hooks ?? value
+  if (typeof events !== 'object' || events === null) {
+    notes.push(`${NAMESPACE_HOOKS_FILE}: must contain an event table`)
+    return undefined
+  }
+  return normalizeHookDocuments(root, [{ file: NAMESPACE_HOOKS_FILE, settings: { hooks: events } }], errors)
+}
+
+/** LSP servers from `<namespace>/lsp.json`. */
+async function discoverNamespaceLsp(root: string, manifest: SuiteManifest, errors: string[], notes: string[]): Promise<LspSuiteConfig | undefined> {
+  const file = join(root, NAMESPACE_LSP_FILE)
+  if (!(await isFile(file))) return undefined
+  let value: unknown
+  try {
+    value = JSON.parse(await readFile(file, 'utf8'))
+  } catch (error) {
+    notes.push(`${NAMESPACE_LSP_FILE}: unparsable (${error instanceof Error ? error.message : String(error)})`)
+    return undefined
+  }
+  const servers: LspSuiteConfig['servers'] = Object.create(null) as LspSuiteConfig['servers']
+  const document = (value as { lspServers?: unknown }).lspServers ?? value
+  Object.assign(servers, parseLspServers(document, notes))
+  return Object.keys(servers).length > 0 ? { servers } : undefined
 }

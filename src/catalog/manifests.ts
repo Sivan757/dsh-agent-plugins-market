@@ -23,9 +23,10 @@ import { join } from 'node:path'
 import { sanitizeId } from './paths.js'
 import { isFile } from './fs-probes.js'
 import { isRecord } from './component-files.js'
-import { isRecognizedSchema, validatePluginManifest } from './validate.js'
-import type { SuiteManifest, SuiteComponents } from '../model/types.js'
-import { PLUGIN_LAYOUTS, MANIFEST_ALIASES, MARKETPLACE_PATHS, type ManifestKind } from '../model/layouts.js'
+import { formatSchemaErrors, isRecognizedSchema, validatePluginManifest } from './validate.js'
+import { EXTENSION_NAMESPACE, NAMESPACE_SCHEMA_VERSIONS, V1_IGNORED_MANIFEST_KEYS, type ManifestKind } from '../model/layouts.js'
+import type { HarnessMcpPolicy, HarnessNamespace, SuiteManifest, SuiteComponents } from '../model/types.js'
+import { PLUGIN_LAYOUTS, MANIFEST_ALIASES, MARKETPLACE_PATHS } from '../model/layouts.js'
 
 export type { ManifestKind } from '../model/layouts.js'
 
@@ -73,6 +74,7 @@ interface ParsedRecord {
   homepage?: unknown
   keywords?: unknown
   $schema?: unknown
+  extensions?: unknown
 }
 
 export function componentDeclarations(record: object): SuiteComponents {
@@ -89,19 +91,26 @@ export function componentDeclarations(record: object): SuiteComponents {
  * go to `fallbacks`, so the winner stays usable while the caller can still
  * report why the higher-priority declaration was ignored. The winner's own
  * diagnostics stay in `errors` and remain fatal.
+ *
+ * `notes` carries the winner's non-fatal diagnostics — §5.2 unknown
+ * top-level fields, §8.1 extension data problems. Callers surface them
+ * without failing the suite.
  */
 export async function readManifest(
   root: string,
   errors: string[],
   hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined,
-  fallbacks: string[] = []
+  fallbacks: string[] = [],
+  notes: string[] = []
 ): Promise<SuiteManifest | undefined> {
   const candidates = await detectManifests(root)
   for (const [index, candidate] of candidates.entries()) {
     const attempt: string[] = []
-    const manifest = await readOneManifest(root, candidate, attempt, hint)
+    const attemptNotes: string[] = []
+    const manifest = await readOneManifest(root, candidate, attempt, hint, attemptNotes)
     if (manifest !== undefined) {
       errors.push(...attempt)
+      notes.push(...attemptNotes)
       return manifest
     }
     if (index === candidates.length - 1) errors.push(...attempt)
@@ -115,7 +124,8 @@ async function readOneManifest(
   root: string,
   candidate: ManifestCandidate,
   errors: string[],
-  hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined
+  hint: ({ name?: string; version?: string; description?: string } & SuiteComponents) | undefined,
+  notes: string[] = []
 ): Promise<SuiteManifest | undefined> {
   let raw: unknown
   try {
@@ -157,21 +167,46 @@ async function readOneManifest(
       }
     }
   }
-  const problems = kind === 'agent-plugin-v1' ? await validatePluginManifest(raw) : []
-  if (problems.length > 0) {
-    errors.push(...problems.map(problem => `${candidate.path}: ${problem}`))
+  // v1 validation verdicts split per §5.2: fatal violations reject this
+  // candidate (the next one by priority is tried), ignored violations —
+  // unknown top-level fields and the whole `extensions` subtree — are
+  // reported through `notes` and the manifest keeps loading.
+  const verdict = kind === 'agent-plugin-v1' ? await validatePluginManifest(raw) : undefined
+  if (verdict !== undefined && verdict.fatal.length > 0) {
+    errors.push(...formatSchemaErrors(verdict.fatal).map(problem => `${candidate.path}: ${problem}`))
     return undefined
   }
+  const ignored: string[] = verdict === undefined ? [] : formatSchemaErrors(verdict.ignored)
+  if (kind === 'agent-plugin-v1') {
+    // §5.2 / §6.1: the portable manifest carries no component configuration
+    // and no client semantics beyond `extensions`; every inline key this
+    // manager would otherwise read is an unknown top-level field here.
+    for (const key of V1_IGNORED_MANIFEST_KEYS) {
+      if ((raw as Record<string, unknown>)[key] !== undefined) ignored.push(`${key}: not part of the portable manifest; ignored`)
+    }
+  }
+  notes.push(...ignored.map(problem => `${candidate.path}: ${problem}`))
+  const harness = kind === 'agent-plugin-v1' ? parseHarnessExtension(record['extensions'], notes) : undefined
   const name = pickString(record.name) ?? hint?.name ?? syntheticManifestName(root)
   const version = pickString(record.version) ?? hint?.version
   const description = pickString(record.description) ?? hint?.description
   const author = record.author as { name?: string; url?: string } | undefined
   return {
-    components: { ...componentDeclarations(hint ?? {}), ...fallbackComponents, ...componentDeclarations(raw) },
-    ...(typeof (raw as Record<string, unknown>).skillInstructions === 'string' ? { skillInstructions: (raw as Record<string, unknown>).skillInstructions as string } : {}),
-    ...(typeof (raw as Record<string, unknown>).systemPrompt === 'string' ? { systemPrompt: (raw as Record<string, unknown>).systemPrompt as string } : {}),
-    ...(typeof (raw as Record<string, unknown>).systemPromptPath === 'string' ? { systemPromptPath: (raw as Record<string, unknown>).systemPromptPath as string } : {}),
-    ...(typeof (raw as { sessionStart?: { skill?: unknown } }).sessionStart?.skill === 'string'
+    components: {
+      ...(kind === 'agent-plugin-v1' ? {} : componentDeclarations(hint ?? {})),
+      ...fallbackComponents,
+      ...(kind === 'agent-plugin-v1' ? {} : componentDeclarations(raw))
+    },
+    ...(typeof (raw as Record<string, unknown>).skillInstructions === 'string' && kind !== 'agent-plugin-v1'
+      ? { skillInstructions: (raw as Record<string, unknown>).skillInstructions as string }
+      : {}),
+    ...(typeof (raw as Record<string, unknown>).systemPrompt === 'string' && kind !== 'agent-plugin-v1'
+      ? { systemPrompt: (raw as Record<string, unknown>).systemPrompt as string }
+      : {}),
+    ...(typeof (raw as Record<string, unknown>).systemPromptPath === 'string' && kind !== 'agent-plugin-v1'
+      ? { systemPromptPath: (raw as Record<string, unknown>).systemPromptPath as string }
+      : {}),
+    ...(kind !== 'agent-plugin-v1' && typeof (raw as { sessionStart?: { skill?: unknown } }).sessionStart?.skill === 'string'
       ? { startupSkill: (raw as { sessionStart: { skill: string } }).sessionStart.skill }
       : {}),
     layout: kind,
@@ -188,8 +223,91 @@ async function readOneManifest(
           ? { author: pickString(record.homepage) }
           : {}),
     keywords: Array.isArray(record.keywords) ? (record.keywords as unknown[]).filter((entry): entry is string => typeof entry === 'string') : [],
-    ...(isRecognizedSchema(record.$schema) ? { schemaVersion: record.$schema as string } : {})
+    ...(isRecognizedSchema(record.$schema) ? { schemaVersion: record.$schema as string } : {}),
+    ...(harness === undefined ? {} : { harness })
   }
+}
+
+/**
+ * Read this client's §8.1 extension data from a v1 manifest's `extensions`
+ * object. Unknown namespaces are ignored without validating their contents
+ * (§8.1); our own namespace is validated against the namespace contract, and
+ * an unusable value is reported through `notes` instead of failing the
+ * plugin.
+ *
+ * @returns the parsed namespace data, or undefined when the suite declares
+ *   none; diagnostics land in `notes`.
+ */
+function parseHarnessExtension(extensions: unknown, notes: string[]): HarnessNamespace | undefined {
+  if (!isRecord(extensions) || extensions[EXTENSION_NAMESPACE] === undefined) return undefined
+  return parseHarnessNamespace(extensions[EXTENSION_NAMESPACE], notes)
+}
+
+/** Validate one namespace value against the namespace contract; diagnostics go to `notes`. */
+function parseHarnessNamespace(value: unknown, notes: string[]): HarnessNamespace | undefined {
+  if (!isRecord(value)) {
+    notes.push(`extensions.${EXTENSION_NAMESPACE}: value must be an object; ignored`)
+    return undefined
+  }
+  const schemaVersion = value['schemaVersion']
+  if (typeof schemaVersion !== 'string' || !NAMESPACE_SCHEMA_VERSIONS.has(schemaVersion)) {
+    notes.push(
+      `extensions.${EXTENSION_NAMESPACE}: unsupported or missing schemaVersion ${JSON.stringify(schemaVersion)}; supported: ${[...NAMESPACE_SCHEMA_VERSIONS].join(', ')}; namespace extensions are ignored`
+    )
+    return undefined
+  }
+  const policies: Record<string, HarnessMcpPolicy> = Object.create(null) as Record<string, HarnessMcpPolicy>
+  const rawPolicies = value['mcpServers']
+  if (rawPolicies !== undefined) {
+    if (!isRecord(rawPolicies)) {
+      notes.push(`extensions.${EXTENSION_NAMESPACE}.mcpServers: value must be an object; ignored`)
+      return { schemaVersion, mcpServers: policies }
+    }
+    for (const [name, policy] of Object.entries(rawPolicies)) {
+      if (!isRecord(policy)) {
+        notes.push(`extensions.${EXTENSION_NAMESPACE}.mcpServers.${name}: policy must be an object; ignored`)
+        continue
+      }
+      const auth = policy['auth']
+      if (
+        auth !== undefined &&
+        (!isRecord(auth) || (auth['enabled'] !== undefined && typeof auth['enabled'] !== 'boolean') || (auth['scope'] !== undefined && typeof auth['scope'] !== 'string'))
+      ) {
+        notes.push(`extensions.${EXTENSION_NAMESPACE}.mcpServers.${name}.auth: invalid auth declaration; ignored`)
+        continue
+      }
+      const enabledTools = optionalStringArray(policy['enabledTools'], `extensions.${EXTENSION_NAMESPACE}.mcpServers.${name}.enabledTools`, notes)
+      const disabledTools = optionalStringArray(policy['disabledTools'], `extensions.${EXTENSION_NAMESPACE}.mcpServers.${name}.disabledTools`, notes)
+      const startupTimeoutMs = optionalPositiveNumber(policy['startupTimeoutMs'], `extensions.${EXTENSION_NAMESPACE}.mcpServers.${name}.startupTimeoutMs`, notes)
+      const toolCallTimeoutMs = optionalPositiveNumber(policy['toolCallTimeoutMs'], `extensions.${EXTENSION_NAMESPACE}.mcpServers.${name}.toolCallTimeoutMs`, notes)
+      policies[name] = {
+        ...(enabledTools === undefined ? {} : { enabledTools }),
+        ...(disabledTools === undefined ? {} : { disabledTools }),
+        ...(startupTimeoutMs === undefined ? {} : { startupTimeoutMs }),
+        ...(toolCallTimeoutMs === undefined ? {} : { toolCallTimeoutMs }),
+        ...(auth === undefined || !isRecord(auth) ? {} : { auth: { enabled: auth['enabled'] !== false, ...(typeof auth['scope'] === 'string' ? { scope: auth['scope'] } : {}) } })
+      }
+    }
+  }
+  return { schemaVersion, mcpServers: policies }
+}
+
+function optionalStringArray(value: unknown, label: string, notes: string[]): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || !value.every(entry => typeof entry === 'string')) {
+    notes.push(`${label}: must be an array of strings; ignored`)
+    return undefined
+  }
+  return value
+}
+
+function optionalPositiveNumber(value: unknown, label: string, notes: string[]): number | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    notes.push(`${label}: must be a positive number; ignored`)
+    return undefined
+  }
+  return value
 }
 
 function pickString(value: unknown): string | undefined {

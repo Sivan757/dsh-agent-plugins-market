@@ -4,5 +4,15 @@
   "version": "1.2.3",
   "description": "A portable v1 suite",
   "author": { "name": "Fixture Author" },
-  "keywords": ["fixture", "v1"]
+  "keywords": ["fixture", "v1"],
+  "extensions": {
+    "com.other.client": { "unrelated": true },
+    "com.deepseek.harness": {
+      "schemaVersion": "1.0.0",
+      "mcpServers": {
+        "remote": { "auth": { "enabled": true, "scope": "mcp:read" }, "toolCallTimeoutMs": 45000 },
+        "ghost": { "enabledTools": ["ping"] }
+      }
+    }
+  }
 }

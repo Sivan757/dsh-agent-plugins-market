@@ -15,6 +15,24 @@ export type ManifestKind = (typeof PLUGIN_LAYOUTS)[number]['kind']
 /** Kimi Code's primary spelling precedes its compatibility spelling within that dialect. */
 export const MANIFEST_ALIASES: Partial<Record<ManifestKind, readonly string[]>> = { kimi: ['kimi.plugin.json'] }
 
+/**
+ * This client's Agent Plugins extension namespace (§8): manifest data rides
+ * `plugin.json` `extensions` under this key, and file-based extensions live
+ * in the top-level directory named exactly this. The namespace contract
+ * version is declared inside the manifest data.
+ */
+export const EXTENSION_NAMESPACE = 'com.deepseek.harness'
+/** Namespace contract versions this manager implements. */
+export const NAMESPACE_SCHEMA_VERSIONS: ReadonlySet<string> = new Set(['1.0.0'])
+/** Namespace directory locations, relative to the plugin root. */
+export const NAMESPACE_DIR = EXTENSION_NAMESPACE
+export const NAMESPACE_HOOKS_FILE = joinNamespace(NAMESPACE_DIR, 'hooks', 'hooks.json')
+export const NAMESPACE_LSP_FILE = joinNamespace(NAMESPACE_DIR, 'lsp.json')
+
+function joinNamespace(...parts: string[]): string {
+  return parts.join('/')
+}
+
 /** Equivalent plugin-owned path variables; these never resolve as credentials. */
 export const PLUGIN_ROOT_VARIABLES: ReadonlySet<string> = new Set(['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT', 'ZCODE_PLUGIN_ROOT', 'QODER_PLUGIN_ROOT'])
 export const PLUGIN_DATA_VARIABLES: ReadonlySet<string> = new Set(['PLUGIN_DATA', 'CLAUDE_PLUGIN_DATA', 'ZCODE_PLUGIN_DATA', 'QODER_PLUGIN_DATA'])
@@ -79,3 +97,22 @@ export const PROJECT_LAYOUTS = [
 
 /** Marketplace catalogs follow manifest layout order; the shared root catalog is the fallback. */
 export const MARKETPLACE_PATHS: readonly string[] = [...PLUGIN_LAYOUTS.flatMap(layout => layout.marketplaces), 'marketplace.json']
+
+/**
+ * Inline top-level manifest keys this manager reads for the portable v1
+ * dialect. The specification's closed manifest schema carries none of them
+ * (§5.2, §6.1), so under `agent-plugin-v1` they are reported as unknown
+ * top-level fields and ignored; every other dialect keeps reading them.
+ */
+export const V1_IGNORED_MANIFEST_KEYS: readonly string[] = [
+  'skills',
+  'commands',
+  'agents',
+  'hooks',
+  'mcpServers',
+  'lspServers',
+  'skillInstructions',
+  'systemPrompt',
+  'systemPromptPath',
+  'sessionStart'
+]

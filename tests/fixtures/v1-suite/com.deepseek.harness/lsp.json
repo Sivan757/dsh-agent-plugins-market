@@ -1,0 +1,9 @@
+{
+  "lspServers": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": { ".ts": "typescript", ".js": "javascript" }
+    }
+  }
+}
