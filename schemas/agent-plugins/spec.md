@@ -43,9 +43,9 @@ v1 defines exactly these two component types. Commands, hooks, agents, rules, an
 
 The specification defines no marketplace format — catalogs of v1 suites are a vendor-side convention, and the standard assigns them no schema. This manager reads three catalog shapes over v1 suite roots, in the shared scan order:
 
-1. `.claude-plugin/marketplace.json` (Claude Code shape) — the format the first-party collection [dsh-agent-plugins](https://github.com/Sivan757/dsh-agent-plugins) ships.
+1. `.claude-plugin/marketplace.json` (Claude Code shape).
 2. Root `marketplace.json` — the fallback catalog for layouts without a dedicated one.
-3. No catalog at all — rooted discovery walks the checkout (up to four levels deep) and reads every directory carrying a v1 manifest, so a bare collection is scannable without any catalog file.
+3. No catalog at all — rooted discovery walks the checkout (up to four levels deep) and reads every directory carrying a v1 manifest, so a bare collection is scannable without any catalog file. The first-party collection [dsh-agent-plugins](https://github.com/Sivan757/dsh-agent-plugins) ships this shape: suites under `plugins/`, no catalog manifest.
 
 A catalog entry's `name`/`version`/`description` are fallbacks: a conformant suite's own `plugin.json` wins for every field it declares. Entries may add display metadata the portable manifest cannot express (`category`, `keywords`). Entry sources resolve relative to the catalog's checkout; with no `source`, each entry resolves against the catalog checkout's own containers.
 
