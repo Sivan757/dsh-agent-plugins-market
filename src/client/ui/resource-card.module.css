@@ -141,32 +141,44 @@
     padding: 10px 10px 10px 13px;
   }
 
-  /* The cluster floats over the identity row's trailing end. The name keeps
-     its full width underneath; on hover the cluster paints itself over it on
-     the card's own background, so a long name stays whole until the pointer
-     arrives and is covered — never cut — where the actions land. */
-  .collection[data-resource-view='grid'] > .card[data-resource-state] .rowId {
+  /* The cluster floats over the identity row's trailing end, so the name and
+     the description's first line keep their full width underneath; on hover
+     the cluster covers what it lands on, never cuts it. The row and the body
+     clip at the card's edge so a spilled name cannot leave the rounded frame. */
+  .collection[data-resource-view='grid'] > .card[data-resource-state] .rowId,
+  .collection[data-resource-view='grid'] > .card[data-resource-state] .rowBody {
     overflow: hidden;
   }
 
   .collection[data-resource-view='grid'] > .card[data-resource-state] .rowActions {
     position: absolute;
-    top: 11px;
-    right: 10px;
+    top: 8px;
+    right: 8px;
     bottom: auto;
     margin-left: 0;
-    padding-left: 24px;
-    /* An opaque plate: the name under the cluster has to disappear behind it,
-       and the hover tint is translucent, so the cover reads the card's resting
-       fill and the spread shadow carries it over the icon padding. */
+    gap: 4px;
+    padding: 4px 6px;
+    border-radius: 16px;
+    /* An opaque plate hugging the controls: whatever the cluster lands on has
+       to disappear behind it. The hover tint is translucent, so the plate
+       reads the card's resting fill, and its spread shadow carries that fill
+       over the plate's own padding, feathering the edge into the card instead
+       of ending in a visible line across the text. */
     background: var(--dsw-alias-bg-layer-1);
-    box-shadow: 0 0 0 6px var(--dsw-alias-bg-layer-1);
+    box-shadow: 0 0 6px 8px var(--dsw-alias-bg-layer-1);
     opacity: 0;
     transition: opacity 0.14s ease;
   }
   .collection[data-resource-view='grid'] > .card[data-resource-state]:hover .rowActions,
   .collection[data-resource-view='grid'] > .card[data-resource-state]:focus-within .rowActions {
     opacity: 1;
+  }
+
+  /* While the plate is visible the card carries the hover tint behind it, so
+     the plate and the card read as one surface with the controls on top. */
+  .collection[data-resource-view='grid'] > .card[data-resource-state]:hover,
+  .collection[data-resource-view='grid'] > .card[data-resource-state]:focus-within {
+    background: var(--dsw-alias-bg-layer-1);
   }
 
   /* MCP and LSP cards name their suite on the source row already, so the

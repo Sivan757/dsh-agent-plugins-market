@@ -281,7 +281,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 | L5 | 弹窗顶部间距归一 | `panel.module.css`：`.editorDialog` 自设 `gap: 12px` 并清掉宿主 `.body` 的 `margin-top: 20px`（宿主按「标题下有一句说明」设定间距，这些编辑器没有说明） | 标题到第一个字段实测 12px，此前约 52px |
 | L6 | fieldset 图例不再压边框线 | `form.module.css`：`.fieldset` 顶部内边距改为 2px，图例的行盒自己占住上边框，文字改 `label-secondary`、行高 18px | `运行配置` / `OAuth` 图例与边框线不再重叠 |
 | L7 | 行列表新增按钮与面板头部加号统一 | `form.module.css` 的 `.addIcon` 由 20px/次级色改为 24px/`brand-primary`，悬停、禁用态与卡片 `.iconBtn` 同规格；行列表头保持 24px 行高 | MCP 行列表 `+` 与面板头部 `+` 实测同为 24×24、同色、同圆角 |
-| L8 | 名称完整显示，悬停操作盖在顶层 | 窄栅格里名称不再自行截断（去掉 `overflow: hidden`/`ellipsis`，身份行只留 `overflow: hidden` 防溢出卡片边缘）；操作簇浮在身份行尾端，自带卡片底色的不透明底板（`bg-layer-1` + 6px 外扩阴影），并以 `z-index: 1` 盖过旁边的归属标签 | 长名称卡（46 字符）静止时全名可见、与「用户」标签并排；悬停时操作簇覆盖名称尾部与标签，底板下无残影 |
+| L8 | 名称完整显示，悬停操作盖在顶层 | 窄栅格里名称不再自行截断（去掉 `overflow: hidden`/`ellipsis`，身份行与正文行只留 `overflow: hidden` 防溢出卡片边缘）；操作簇浮在身份行尾端，自带胶囊形不透明底板（`bg-layer-1`、圆角 16、外扩阴影羽化边缘），`z-index: 1` 盖过归属标签；悬停期间卡片保持原底色，底板与卡片浑然一体 | 长名称卡（46 字符）静止时全名可见；悬停时操作簇覆盖名称尾部与标签，无硬边、无残影；安装 CTA / 刷新 / 删除 / 开关同板 |
 
 > 取舍写在 `2026-09-16-workspace-document-editor-single-view` 的 Alternatives 里：并排两栏保留、隐藏式预览、防抖实时预览、标题行标签条，均被否决。
 
