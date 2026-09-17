@@ -22,7 +22,7 @@ let body = readFileSync(bundlePath, 'utf8')
 if (existsSync(cssPath)) {
   const css = readFileSync(cssPath, 'utf8')
   const cssLiteral = JSON.stringify(css)
-  const injection = `(function(){if(typeof document!=="undefined"){var s=document.createElement("style");s.setAttribute("data-dsh-client","${id}");s.textContent=${cssLiteral};document.head.appendChild(s);}})();`
+  const injection = `(function(){if(typeof document!=="undefined"){var s=document.createElement("style");s.setAttribute("data-dsh-client",${JSON.stringify(id)});s.textContent=${cssLiteral};document.head.appendChild(s);}})();`
   const importPattern = /import\s*['"]\.\/style\.css['"];?/
   if (importPattern.test(body)) {
     body = body.replace(importPattern, injection)
