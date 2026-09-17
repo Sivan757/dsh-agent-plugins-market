@@ -52,6 +52,18 @@
   min-height: 220px;
 }
 
+/* A field whose input shares its line with one trailing action. */
+.fieldRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.fieldRow > input {
+  flex: 1 1 auto;
+}
+
 .field input:focus-visible,
 .field select:focus-visible,
 .field textarea:focus-visible {

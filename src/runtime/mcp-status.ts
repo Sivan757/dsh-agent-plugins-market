@@ -47,7 +47,7 @@ export function buildMcpStatus(
     // definitions only appear after their suite is both installed and enabled.
     if (suite.mcp === undefined || suite.installedAt === undefined || !suite.enabled) continue
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
-    for (const { serverKey, server: effective, override, enabled, credentialRefs: refs } of effectiveMcpServers(suite, overrides.get(suiteKey))) {
+    for (const { serverKey, server: effective, override, enabled, credentialRefs: refs, policy } of effectiveMcpServers(suite, overrides.get(suiteKey))) {
       const serverName = deriveServerName(suite.id, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
@@ -92,6 +92,9 @@ export function buildMcpStatus(
         advertisedTools: tools.length > 0,
         retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',
         ...(effective.type === 'stdio' || effective.auth !== undefined ? {} : { oauthDefault: true }),
+        ...(policy.enabledTools === undefined ? {} : { suiteEnabledTools: policy.enabledTools }),
+        ...(policy.suiteDisabledTools === undefined ? {} : { suiteDisabledTools: policy.suiteDisabledTools }),
+        ...(override?.disabledTools === undefined ? {} : { userDisabledTools: override.disabledTools }),
         ...(diagnostic?.code === undefined ? {} : { code: diagnostic.code }),
         ...(reason === undefined ? {} : { reason }),
         ...(credentialRefs.length === 0 ? {} : { credentialRefs })

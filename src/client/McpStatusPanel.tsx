@@ -8,13 +8,13 @@ import { parseServerConfig } from './ui/server-form.js'
 import { PanelActions, PanelHeader } from './ui/panel.js'
 import { mcpDetailActions } from './features/mcp-status/detail-actions.js'
 import type { Translate } from './index.js'
-import { addMcpServer, fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from './api.js'
+import { addMcpServer, fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, setMcpServerEnabled, setMcpServerTool, type McpStatusEntry, type McpStatusPayload } from './api.js'
 import type { CredentialApi } from './credentials.js'
 import { McpCredentialEditor } from './McpCredentialEditor.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
-import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
+import { deriveMcpStatusViewModel, mcpToolRows, MCP_FILTERS, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
 import css from './mcp-status.module.css'
 import rc from './ui/resource-card.module.css'
 import panelCss from './ui/panel.module.css'
@@ -151,6 +151,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           entry: selected,
           t,
           credentials,
+          backend: payload.backend ?? 'builtin',
           onClose: () => {
             setSelected(undefined)
             refresh()
@@ -274,6 +275,7 @@ export function McpDetailModal({
   entry,
   t,
   credentials,
+  backend,
   onClose,
   onRetry,
   onReauthorize,
@@ -282,6 +284,8 @@ export function McpDetailModal({
   entry: McpStatusEntry
   t: Translate
   credentials?: CredentialApi
+  /** The mount backend; `host` cannot enforce tool filters. */
+  backend: 'builtin' | 'host'
   onClose: () => void
   onRetry: (entryId: string) => Promise<McpStatusEntry>
   onReauthorize: (id: string, serverName: string) => Promise<McpStatusEntry>
@@ -291,7 +295,24 @@ export function McpDetailModal({
   const [dirty, setDirty] = useState(false)
   const [confirmAuth, setConfirmAuth] = useState(false)
   const [feedback, setFeedback] = useState<{ error: boolean; text: string }>()
+  const [toolBusy, setToolBusy] = useState(false)
   const actions = mcpDetailActions(entry)
+  const tools = mcpToolRows(entry)
+  // A foreign mount belongs to another owner, and a host-observed row has no
+  // declaration here, so those tool lists stay read-only; a declared server
+  // keeps a switch per tool.
+  const toolsEditable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
+  const toggleTool = (tool: string, enabled: boolean): void => {
+    const suiteId = entry.suiteId
+    const serverKey = entry.serverKey
+    if (suiteId === undefined || serverKey === undefined) return
+    setToolBusy(true)
+    setFeedback(undefined)
+    void setMcpServerTool(suiteId, serverKey, tool, enabled)
+      .then(() => onRefresh(entry.id))
+      .catch(reason => setFeedback({ error: true, text: clientErrorMessage(t, reason) }))
+      .finally(() => setToolBusy(false))
+  }
   const run = async (authorize: boolean): Promise<void> => {
     setConfirmAuth(false)
     setPending(true)
@@ -444,18 +465,34 @@ export function McpDetailModal({
       h(
         'div',
         { className: panelCss.block },
-        h('h4', { className: panelCss.blockHead }, `${t('mcpTools')} (${entry.tools.length})`),
-        entry.tools.length === 0
+        h('h4', { className: panelCss.blockHead }, `${t('mcpTools')} (${tools.length})`),
+        tools.length === 0
           ? h('p', { className: panelCss.detailProse }, entry.advertisedTools === false && entry.state === 'degraded' ? t('mcpZeroTools') : t('mcpNoTools'))
           : h(
               'div',
               { className: css.toolList },
-              entry.tools.map(tool =>
+              toolsEditable && backend === 'host' ? h('p', { className: panelCss.detailProse }, t('mcpHostToolsUnsupported')) : null,
+              tools.map(tool =>
                 h(
                   'div',
                   { key: tool.name, className: css.tool },
-                  h('span', { className: css.toolName }, tool.name),
-                  tool.description === undefined || tool.description === '' ? null : h('span', { className: css.toolDescription }, tool.description)
+                  h(
+                    'span',
+                    { className: css.toolIdentity },
+                    toolsEditable
+                      ? h('input', {
+                          type: 'checkbox',
+                          checked: tool.allowed,
+                          disabled: toolBusy || tool.suiteLimited || backend === 'host',
+                          'aria-label': `${t('mcpAllowTool')} ${tool.name}`,
+                          onChange: (event: { target: HTMLInputElement }) => toggleTool(tool.name, event.target.checked)
+                        })
+                      : null,
+                    h('span', { className: css.toolName }, tool.name)
+                  ),
+                  tool.suiteLimited
+                    ? h('span', { className: css.toolNote }, t('mcpToolSuiteLimited'))
+                    : tool.description === undefined || tool.description === '' ? null : h('span', { className: css.toolDescription }, tool.description)
                 )
               )
             )

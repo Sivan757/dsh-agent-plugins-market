@@ -97,7 +97,7 @@ export function mountSuiteRoutes(
   post(MARKET_ROUTES.saveServerConfig, async body => {
     if (body.kind !== 'mcp' && body.kind !== 'lsp') throw new Error('invalid service kind')
     if (typeof body.id !== 'string' || body.id === '') throw new Error('missing service id')
-    await manager.saveServerConfig(body.kind, body.id, body.config)
+    await manager.saveServerConfig(body.kind, body.id, body.config, body.policy)
     return {}
   })
 
@@ -285,6 +285,20 @@ export function mountSuiteRoutes(
     const enabled = body['enabled']
     if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
     await manager.setMcpServerEnabled(suiteKey, serverKey, enabled)
+    return {}
+  })
+
+  // Allow or deny one tool of a declared MCP server. Addressed by the same
+  // source-qualified suite id the status rows carry; the denial lands in the
+  // override record, so the suite's own mcp.json stays source-owned.
+  post(MARKET_ROUTES.setMcpServerTool, async body => {
+    const suiteKey = textField(body['suiteId'] ?? '', 'MCP suite id')
+    const serverKey = textField(body['serverKey'] ?? '', 'MCP server key')
+    const tool = textField(body['tool'] ?? '', 'MCP tool name')
+    const enabled = body['enabled']
+    if (tool === '') throw new Error('missing MCP tool name')
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setMcpServerToolEnabled(suiteKey, serverKey, tool, enabled)
     return {}
   })
 

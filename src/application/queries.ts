@@ -24,7 +24,7 @@ export interface MarketQueries {
 
 /** Mutating market operations required by HTTP routes. */
 export interface MarketMutations {
-  saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown): Promise<void>
+  saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown, policy?: unknown): Promise<void>
   addMcpServer(name: string, server: unknown): Promise<void>
   addLspServer(name: string, config: unknown): Promise<void>
   addSource(input: SourceInput): Promise<SourceRef>
@@ -44,6 +44,8 @@ export interface MarketMutations {
   setMcpOverride(sourceId: string, suiteId: string, serverKey: string, override: McpServerOverride | null): Promise<void>
   /** Enable or disable one declared MCP server by its source-qualified suite id. */
   setMcpServerEnabled(suiteKey: string, serverKey: string, enabled: boolean): Promise<void>
+  /** Allow or deny one tool of a declared MCP server by its source-qualified suite id. */
+  setMcpServerToolEnabled(suiteKey: string, serverKey: string, tool: string, enabled: boolean): Promise<void>
   /** Validate and persist the user's direct LSP server table. */
   setLspServers(raw: unknown): Promise<LspServerTable>
   setLspServerEnabled(id: string, enabled: boolean): Promise<void>

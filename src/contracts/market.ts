@@ -31,6 +31,7 @@ export const MARKET_ROUTES = {
   mcpOverrides: `${MARKET_API_PREFIX}mcp-overrides`,
   setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`,
   setMcpServerEnabled: `${MARKET_API_PREFIX}set-mcp-server-enabled`,
+  setMcpServerTool: `${MARKET_API_PREFIX}set-mcp-server-tool`,
   mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
   mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
   mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
@@ -38,12 +39,42 @@ export const MARKET_ROUTES = {
   userPanel: `${MARKET_API_PREFIX}user-panel`
 } as const
 
+/** One timeout's three layers: the user's value, the suite declaration, and the value in force. */
+export interface ServerTimeoutPolicy {
+  /** The user's stored value; null when the user inherits. */
+  user: number | null
+  /** The suite's declared value; null when the suite declares none. */
+  suite: number | null
+  /** The value in force. */
+  effective: number
+  /** Which layer supplied `effective`. */
+  source: 'user' | 'suite' | 'default'
+}
+
+/** The MCP per-server client policy as the service editor renders it. */
+export interface ServerPolicyPayload {
+  /** Per-tool-call timeout. */
+  toolCallTimeout: ServerTimeoutPolicy
+  /** Startup timeout. */
+  startupTimeout: ServerTimeoutPolicy
+}
+
 /** Editable service configuration; masked values are preserved when unchanged. */
 export interface ServerConfigPayload {
   kind: 'mcp' | 'lsp'
   id: string
   editable: boolean
   config: Record<string, unknown>
+  /** The stored policy and the suite declaration behind it; present for MCP services. */
+  policy?: ServerPolicyPayload
+  /** The MCP mount backend; `host` cannot enforce startup timeouts or tool filters. */
+  backend?: 'builtin' | 'host'
+}
+
+/** The timeouts a service-config save sets (`number`) or clears back to inheritance (`null`). */
+export interface ServerPolicyRequest {
+  toolCallTimeoutMs?: number | null
+  startupTimeoutMs?: number | null
 }
 
 /** Public model identities and exact-model reasoning options; never provider configuration. */
@@ -134,6 +165,9 @@ export type McpServerOverrideWire = {
   headers?: Record<string, string>
   env?: Record<string, string>
   args?: string[]
+  toolCallTimeoutMs?: number
+  startupTimeoutMs?: number
+  disabledTools?: string[]
 }
 
 /** Overrides for one suite keyed by mcp.json server key. */

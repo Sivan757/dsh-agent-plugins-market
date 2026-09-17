@@ -19,3 +19,7 @@ The namespace carries what the portable format cannot: commands, agent roles, ho
 - A v1 suite without the namespace contributes skills and MCP only — by design. Our own suite fixtures declare the namespace.
 - Vendored-schema updates are again a pure copy from upstream; `schemas/com.deepseek.harness/` evolves under its own `schemaVersion`.
 - `PLUGIN_DATA` is created before any stdio spawn and both variables are injected after the configured env overlay (§9.1), so data-directory `cwd`/`args` references work on first launch.
+
+## Related
+
+- [MCP user policy rides the override record](../feature/2026-09-21-mcp-user-policy-in-overrides.md) — the namespace declaration is the suite's default: the service editor's Advanced settings may override either timeout, user tool denials only tighten the declared filtering, and the suite's allow-list cannot be widened.

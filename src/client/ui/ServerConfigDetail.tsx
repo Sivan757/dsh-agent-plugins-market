@@ -1,9 +1,10 @@
-import { createElement as h, useEffect, useState, type ReactNode } from 'react'
+import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ServerConfigPayload, ServerPolicyPayload } from '../../contracts/market.js'
 import { fetchServerConfig, saveServerConfig } from '../api.js'
 import type { Translate } from '../index.js'
 import { ServerConfigEditor } from './ServerConfigEditor.js'
-import { parseServerConfig, type ServerKind } from './server-form.js'
+import { parseServerConfig, policyDraftOf, policyRequestOf, type ServerKind, type ServerPolicyDraft } from './server-form.js'
 import css from './detail.module.css'
 import { DetailFooterAction } from './DetailModal.js'
 import { clientErrorMessage } from './error-message.js'
@@ -28,38 +29,72 @@ export function ServerConfigDetail({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(true)
-  const [dirty, setDirty] = useState(false)
+  const [documentDirty, setDocumentDirty] = useState(false)
+  const [policy, setPolicy] = useState<ServerPolicyPayload>()
+  const [backend, setBackend] = useState<'builtin' | 'host'>()
+  // The draft is the dialog's own state: the timeouts sit outside the JSON
+  // document, and `initial` is what "dirty" and the save patch compare against.
+  const [draft, setDraft] = useState<ServerPolicyDraft>()
+  const [initialDraft, setInitialDraft] = useState<ServerPolicyDraft>()
+  // A late response from an earlier kind/id must not land on this editor, and
+  // the reload after a save invalidates whatever read was still in flight.
+  const requestToken = useRef(0)
+  const policyDirty = draft !== undefined && initialDraft !== undefined && (draft.toolCallTimeoutMs !== initialDraft.toolCallTimeoutMs || draft.startupTimeoutMs !== initialDraft.startupTimeoutMs)
+  const dirty = documentDirty || policyDirty
   useEffect(() => {
     onDirtyChange?.(dirty)
   }, [dirty, onDirtyChange])
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    setText(undefined)
+
+  /**
+   * Read the service again and rebuild every derived value from the response.
+   * `silent` keeps the editor mounted for the read-back that follows a save, so
+   * the user stays in the section they were editing.
+   */
+  const load = async (silent = false): Promise<void> => {
+    const token = ++requestToken.current
     setError(undefined)
-    setDirty(false)
-    void fetchServerConfig(kind, id)
-      .then(result => {
-        if (!active) return
-        setEditable(result.editable)
-        setText(result.config === undefined ? undefined : JSON.stringify(result.config, null, 2))
-      })
-      .catch(reason => {
-        if (active) setError(String(reason))
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+    if (!silent) {
+      setLoading(true)
+      setText(undefined)
+      setPolicy(undefined)
+      setDraft(undefined)
+      setInitialDraft(undefined)
+    }
+    try {
+      const result: ServerConfigPayload = await fetchServerConfig(kind, id)
+      if (requestToken.current !== token) return
+      setEditable(result.editable)
+      setText(result.config === undefined ? undefined : JSON.stringify(result.config, null, 2))
+      setPolicy(result.policy)
+      setBackend(result.backend)
+      if (result.policy !== undefined) {
+        const loaded = policyDraftOf(result.policy.toolCallTimeout.user, result.policy.startupTimeout.user)
+        setDraft(loaded)
+        setInitialDraft(loaded)
+      }
+      setDocumentDirty(false)
+    } catch (reason) {
+      if (requestToken.current === token) setError(String(reason))
+    } finally {
+      if (!silent && requestToken.current === token) setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
     return () => {
-      active = false
+      requestToken.current += 1
     }
   }, [kind, id])
+
   const save = async (): Promise<void> => {
     setBusy(true)
     setError(undefined)
     try {
-      await saveServerConfig(kind, id, parseServerConfig(text ?? ''))
-      setDirty(false)
+      await saveServerConfig(kind, id, parseServerConfig(text ?? ''), policyRequestOf(draft, initialDraft))
+      // Read back so the policy view, the placeholders and the dirty baseline
+      // all describe what was stored, not what the form remembered.
+      await load(true)
       onSaved?.()
     } catch (reason) {
       setError(clientErrorMessage(t, reason))
@@ -81,9 +116,12 @@ export function ServerConfigDetail({
             t,
             disabled: busy || !editable,
             onValidityChange: setValid,
+            ...(policy === undefined ? {} : { policy }),
+            ...(draft === undefined ? {} : { policyDraft: draft, onPolicyDraftChange: setDraft }),
+            ...(backend === undefined ? {} : { backend }),
             onChange: value => {
               setText(value)
-              setDirty(true)
+              setDocumentDirty(true)
             }
           }),
     loading || (error && text === undefined)

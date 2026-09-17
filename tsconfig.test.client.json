@@ -27,6 +27,7 @@
     "tests/client-page-mode.test.ts",
     "tests/client-plugin-card.test.ts",
     "tests/client-role-reasoning.test.ts",
+    "tests/client-server-config-policy.test.ts",
     "tests/client-shared-labels.test.ts",
     "tests/client-view-models.test.ts",
     "tests/client-workspace-view.test.ts",

@@ -5,7 +5,16 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { toMcpMounts } from '../src/runtime/mcp-config.js'
-import { applyOverride, loadSuiteOverrides, mergeOverridePatch, sanitizeOverridePatch, sanitizeOverrides, saveSuiteOverrides } from '../src/runtime/mcp-overrides.js'
+import {
+  applyOverride,
+  loadSuiteOverrides,
+  mergeOverridePatch,
+  parseTimeoutPatch,
+  sanitizeOverridePatch,
+  sanitizeOverrides,
+  saveSuiteOverrides,
+  withoutPolicyFields
+} from '../src/runtime/mcp-overrides.js'
 import { expectTransport } from './helpers/bridge-config.js'
 import { effectiveSurfaces, type McpServerStreamableHttp, type Suite } from '../src/model/types.js'
 
@@ -52,6 +61,16 @@ describe('sanitizeOverridePatch credential safety', () => {
     expect(sanitizeOverridePatch({ headers: { Authorization: 'Bearer literal-secret' } })).toBeUndefined()
     expect(sanitizeOverridePatch({ headers: { Authorization: 'Bearer ${MCP_TOKEN}' } })).toEqual({ headers: { Authorization: 'Bearer ${MCP_TOKEN}' } })
   })
+
+  it('carries the policy fields and drops an unusable timeout', () => {
+    expect(sanitizeOverridePatch({ toolCallTimeoutMs: 120_000, startupTimeoutMs: 30_000, disabledTools: ['beta'], enabled: false })).toEqual({
+      enabled: false,
+      toolCallTimeoutMs: 120_000,
+      startupTimeoutMs: 30_000,
+      disabledTools: ['beta']
+    })
+    expect(sanitizeOverridePatch({ toolCallTimeoutMs: 0, disabledTools: [] })).toBeUndefined()
+  })
 })
 
 describe('applyOverride', () => {
@@ -73,6 +92,16 @@ describe('applyOverride', () => {
     const source: McpServerStreamableHttp = { ...httpServer, auth: { enabled: true } }
     const merged = applyOverride(source, { auth: { enabled: false } }) as McpServerStreamableHttp
     expect(merged.auth).toEqual({ enabled: false })
+  })
+
+  it('applies the user policy fields onto the server', () => {
+    const merged = applyOverride(httpServer, { toolCallTimeoutMs: 9_000, startupTimeoutMs: 5_000, disabledTools: ['beta'] }) as McpServerStreamableHttp
+    expect(merged).toMatchObject({ toolCallTimeoutMs: 9_000, startupTimeoutMs: 5_000, disabledTools: ['beta'] })
+  })
+
+  it('drops the client policy fields from the portable document', () => {
+    const portable = withoutPolicyFields({ type: 'stdio', command: 'node', toolCallTimeoutMs: 9_000, startupTimeoutMs: 5_000, disabledTools: ['beta'] })
+    expect(portable).toEqual({ type: 'stdio', command: 'node' })
   })
 })
 
@@ -125,6 +154,44 @@ describe('sanitizeOverrides auth', () => {
   })
 })
 
+describe('sanitizeOverrides policy', () => {
+  it('keeps the timeouts and deduplicates the deny list', () => {
+    const sanitized = sanitizeOverrides({
+      docs: { toolCallTimeoutMs: 120_000, startupTimeoutMs: 30_000, disabledTools: ['beta', 'beta', '', 'alpha'], enabledTools: ['alpha'] }
+    })
+    expect(sanitized['docs']).toEqual({ toolCallTimeoutMs: 120_000, startupTimeoutMs: 30_000, disabledTools: ['beta', 'alpha'] })
+  })
+
+  it('drops a timeout outside the timer range or of the wrong type', () => {
+    expect(sanitizeOverrides({ docs: { toolCallTimeoutMs: 0 } })).toEqual({})
+    expect(sanitizeOverrides({ docs: { toolCallTimeoutMs: -1 } })).toEqual({})
+    expect(sanitizeOverrides({ docs: { startupTimeoutMs: 2_147_483_648 } })).toEqual({})
+    expect(sanitizeOverrides({ docs: { startupTimeoutMs: '30s' } })).toEqual({})
+    expect(sanitizeOverrides({ docs: { toolCallTimeoutMs: 3_600_000 } })).toEqual({ docs: { toolCallTimeoutMs: 3_600_000 } })
+  })
+
+  it('reads an empty or name-less deny list as nothing denied', () => {
+    expect(sanitizeOverrides({ docs: { disabledTools: [] } })).toEqual({})
+    expect(sanitizeOverrides({ docs: { disabledTools: ['', 3] } })).toEqual({})
+  })
+})
+
+describe('parseTimeoutPatch', () => {
+  it('accepts a whole-millisecond value and null as a clear', () => {
+    expect(parseTimeoutPatch(undefined)).toEqual({})
+    expect(parseTimeoutPatch({ toolCallTimeoutMs: null })).toEqual({ toolCallTimeoutMs: null })
+    expect(parseTimeoutPatch({ toolCallTimeoutMs: 1_500, startupTimeoutMs: 200 })).toEqual({ toolCallTimeoutMs: 1_500, startupTimeoutMs: 200 })
+  })
+
+  it('rejects anything outside the timer range with a readable reason', () => {
+    expect(() => parseTimeoutPatch({ toolCallTimeoutMs: 0 })).toThrow('tool call timeout')
+    expect(() => parseTimeoutPatch({ toolCallTimeoutMs: 1.5 })).toThrow('tool call timeout')
+    expect(() => parseTimeoutPatch({ startupTimeoutMs: 2_147_483_648 })).toThrow('startup timeout')
+    expect(() => parseTimeoutPatch({ startupTimeoutMs: '5000' })).toThrow('startup timeout')
+    expect(() => parseTimeoutPatch('soon')).toThrow('policy must be an object')
+  })
+})
+
 describe('toMcpMounts with source-declared auth', () => {
   it('forwards auth into the dsh-mcp-client mount config', async () => {
     const suite = httpSuite()
@@ -161,6 +228,16 @@ describe('mergeOverridePatch', () => {
   it('lets an explicit patch value replace a stored one', () => {
     const merged = mergeOverridePatch({ headers: { authorization: 'Bearer ${OLD}' } }, { headers: { authorization: 'Bearer ${NEW}' } })
     expect(merged.headers).toEqual({ authorization: 'Bearer ${NEW}' })
+  })
+
+  it('carries the policy fields and replaces the deny list wholesale', () => {
+    const merged = mergeOverridePatch({ disabledTools: ['alpha'], startupTimeoutMs: 5_000 }, { disabledTools: ['beta'], toolCallTimeoutMs: 9_000 })
+    expect(merged).toEqual({ enabled: true, startupTimeoutMs: 5_000, toolCallTimeoutMs: 9_000, disabledTools: ['beta'] })
+  })
+
+  it('keeps a stored timeout when the patch carries none', () => {
+    const merged = mergeOverridePatch({ toolCallTimeoutMs: 9_000 }, { enabled: false })
+    expect(merged).toEqual({ enabled: false, toolCallTimeoutMs: 9_000 })
   })
 })
 

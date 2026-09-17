@@ -1,8 +1,9 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { deriveServerName, toMcpMounts } from '../src/runtime/mcp-config.js'
+import { deriveServerName, effectiveMcpServers, resolveMcpPolicy, toMcpMounts } from '../src/runtime/mcp-config.js'
 import { expectTransport } from './helpers/bridge-config.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import type { McpServerOverride } from '../src/runtime/mcp-overrides.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {
@@ -164,6 +165,65 @@ describe('mcp-config: credential references', () => {
     expectTransport(db, 'stdio')
     expect(db.args).toEqual(['v', 'v'])
     expect(lookups).toBe(1)
+  })
+})
+
+describe('mcp-config: suite declaration meets the user override', () => {
+  /** The shared fixture plus a namespace policy on its `web` server. */
+  function policySuite(): Suite {
+    const base = suite()
+    return {
+      ...base,
+      manifest: {
+        ...base.manifest,
+        harness: {
+          schemaVersion: '1.0.0',
+          mcpServers: { web: { enabledTools: ['alpha', 'beta'], disabledTools: ['gamma'], toolCallTimeoutMs: 30_000, startupTimeoutMs: 5_000 } }
+        }
+      }
+    }
+  }
+
+  it('lets the user timeout win over the suite declaration', () => {
+    const [, web] = effectiveMcpServers(policySuite(), { web: { toolCallTimeoutMs: 90_000 } })
+    if (web === undefined) throw new Error('expected the fixture to project its web server')
+    expect(web.server.toolCallTimeoutMs).toBe(90_000)
+    expect(web.policy.toolCallTimeout).toEqual({ user: 90_000, suite: 30_000, effective: 90_000, source: 'user' })
+    // The startup timeout the user did not touch keeps the declared value.
+    expect(web.server.startupTimeoutMs).toBe(5_000)
+    expect(web.policy.startupTimeout).toEqual({ user: null, suite: 5_000, effective: 5_000, source: 'suite' })
+  })
+
+  it('falls back to the built-in defaults and leaves an undeclared startup timeout absent', () => {
+    const rows = effectiveMcpServers(policySuite())
+    const web = rows.find(row => row.serverKey === 'web')
+    const db = rows.find(row => row.serverKey === 'db')
+    if (web === undefined || db === undefined) throw new Error('expected the fixture to project its web and db servers')
+    expect(web.policy.toolCallTimeout.source).toBe('suite')
+    // The built-in bridge applies its own startup default at connect time; an
+    // undeclared value stays absent so host compatibility mode still mounts.
+    expect(db.server.toolCallTimeoutMs).toBe(60_000)
+    expect(db.server.startupTimeoutMs).toBeUndefined()
+    expect(db.policy.startupTimeout).toEqual({ user: null, suite: null, effective: 10_000, source: 'default' })
+  })
+
+  it('unions the deny lists and never widens the suite allow-list', () => {
+    const rows = effectiveMcpServers(policySuite(), { web: { disabledTools: ['delta'] } })
+    const web = rows.find(row => row.serverKey === 'web')
+    if (web === undefined) throw new Error('expected the fixture to project its web server')
+    expect(web.server.disabledTools).toEqual(['gamma', 'delta'])
+    expect(web.server.enabledTools).toEqual(['alpha', 'beta'])
+    // A tool the suite left out of its allow-list stays out whatever the user
+    // stores: the deny list is the only tool field an override can carry.
+    const widened = resolveMcpPolicy({ enabledTools: ['alpha', 'beta'] }, { enabledTools: ['zeta'] } as McpServerOverride)
+    expect(widened.enabledTools).toEqual(['alpha', 'beta'])
+  })
+
+  it('sends the resolved policy into the mount config', async () => {
+    const { mounts } = await toMcpMounts(policySuite(), '/tmp/data', { web: { toolCallTimeoutMs: 90_000, disabledTools: ['delta'] } }, alwaysResolves)
+    const web = mounts.find(mount => mount.serverKey === 'web')?.config
+    if (web === undefined) throw new Error('expected the fixture to mount its web server')
+    expect(web).toMatchObject({ toolCallTimeoutMs: 90_000, startupTimeoutMs: 5_000, enabledTools: ['alpha', 'beta'], disabledTools: ['gamma', 'delta'] })
   })
 })
 

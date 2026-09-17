@@ -21,11 +21,11 @@
  */
 import { createHash } from 'node:crypto'
 import type { Config, SseConfig } from './mcp-client/config.js'
-import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-client/config.js'
+import { DEFAULT_STARTUP_TIMEOUT_MS, DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-client/config.js'
 import { resolveCwd } from '../catalog/validate.js'
 import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
 import { applyOverride, type McpServerOverride, type McpSuiteOverrides } from './mcp-overrides.js'
-import type { HarnessMcpPolicy, McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
+import type { HarnessMcpPolicy, McpServer, McpServerPolicy, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'
 
 /** The max length the bridge accepts for a serverName. */
@@ -49,6 +49,34 @@ export interface EffectiveMcpServer {
   enabled: boolean
   /** External credential references the effective definition needs. */
   credentialRefs: string[]
+  /** The suite declaration and the user's override as they resolved. */
+  policy: ResolvedMcpPolicy
+}
+
+/** One timeout as three layers: what the user set, what the suite declared, and the value in force. */
+export interface McpTimeoutResolution {
+  /** The user's stored value; null when the user inherits. */
+  user: number | null
+  /** The suite's declared value; null when the suite declares none. */
+  suite: number | null
+  /** The value in force. */
+  effective: number
+  /** Which layer supplied `effective`. */
+  source: 'user' | 'suite' | 'default'
+}
+
+/** One server's client policy after the suite declaration and the user's override meet. */
+export interface ResolvedMcpPolicy {
+  /** Suite allow-list; the user cannot widen it. */
+  enabledTools?: string[]
+  /** The suite's own deny list. */
+  suiteDisabledTools?: string[]
+  /** Effective deny list: the suite's own entries unioned with the user's. */
+  disabledTools?: string[]
+  /** Per-tool-call timeout. */
+  toolCallTimeout: McpTimeoutResolution
+  /** Startup timeout. */
+  startupTimeout: McpTimeoutResolution
 }
 
 export type McpMountFailureCode =
@@ -127,7 +155,7 @@ export function isPortableMcp(suite: Suite): boolean {
  * Server keys in the namespace match the server's own name in `mcp.json`;
  * `serverKey` is that name at discovery time.
  */
-function namespacePolicy(suite: Suite, serverKey: string): HarnessMcpPolicy | undefined {
+export function namespaceMcpPolicy(suite: Suite, serverKey: string): HarnessMcpPolicy | undefined {
   return suite.manifest.harness?.mcpServers?.[serverKey]
 }
 
@@ -150,11 +178,12 @@ export function effectiveMcpServers(suite: Suite, overrides: McpSuiteOverrides =
   const portable = isPortableMcp(suite)
   for (const [serverKey, source] of Object.entries(suite.mcp?.servers ?? {})) {
     const override = overrides[serverKey]
-    const server = applyOverride(source, override)
-    const policy = namespacePolicy(suite, serverKey)
-    const effective = mergeServerPolicy(server, policy)
+    const declared = namespaceMcpPolicy(suite, serverKey)
+    const policy = resolveMcpPolicy(declaredMcpPolicy(source, declared), override)
+    const connection = applyNamespaceAuth(applyOverride(source, override), declared)
+    const effective = applyMcpPolicy(connection, policy)
     const credentialRefs = portable ? credentialRefsInServer(overrideValues(override)) : credentialRefsInServer(effective)
-    rows.push({ serverKey, server: effective, override, enabled: override?.enabled !== false, credentialRefs })
+    rows.push({ serverKey, server: effective, override, enabled: override?.enabled !== false, credentialRefs, policy })
   }
   return rows
 }
@@ -173,25 +202,84 @@ function overrideValues(override: McpServerOverride | undefined): McpServer {
 }
 
 /**
- * Apply the namespace policy onto one parsed server: client-owned fields
- * (auth, tool lists, timeouts) fill values the portable format cannot carry.
- * A remote server keeps its OAuth opt-out from the policy; a policy on a
- * portable server also supplies the credential seam the portable file may not
- * declare.
+ * The suite's declared per-server policy. The `com.deepseek.harness`
+ * namespace seat carries the policy a portable `mcp.json` has no room for and
+ * wins over an inline declaration; dialect-native files declare it inline.
  */
-function mergeServerPolicy<T extends McpServer>(server: T, policy: HarnessMcpPolicy | undefined): T {
-  if (policy === undefined) return server
-  const patched: T = {
-    ...server,
-    ...('enabledTools' in policy && policy.enabledTools !== undefined ? { enabledTools: policy.enabledTools } : {}),
-    ...('disabledTools' in policy && policy.disabledTools !== undefined ? { disabledTools: policy.disabledTools } : {}),
-    ...('startupTimeoutMs' in policy && policy.startupTimeoutMs !== undefined ? { startupTimeoutMs: policy.startupTimeoutMs } : {}),
-    ...('toolCallTimeoutMs' in policy && policy.toolCallTimeoutMs !== undefined ? { toolCallTimeoutMs: policy.toolCallTimeoutMs } : {}),
-    ...(server.type !== 'stdio' && policy.auth !== undefined
-      ? { auth: { enabled: policy.auth.enabled, ...(policy.auth.scope === undefined ? {} : { scope: policy.auth.scope }) } }
-      : {})
+export function declaredMcpPolicy(server: McpServerPolicy, policy: HarnessMcpPolicy | undefined): McpServerPolicy {
+  const enabledTools = policy?.enabledTools ?? server.enabledTools
+  const disabledTools = policy?.disabledTools ?? server.disabledTools
+  const startupTimeoutMs = policy?.startupTimeoutMs ?? server.startupTimeoutMs
+  const toolCallTimeoutMs = policy?.toolCallTimeoutMs ?? server.toolCallTimeoutMs
+  return {
+    ...(enabledTools === undefined ? {} : { enabledTools }),
+    ...(disabledTools === undefined ? {} : { disabledTools }),
+    ...(startupTimeoutMs === undefined ? {} : { startupTimeoutMs }),
+    ...(toolCallTimeoutMs === undefined ? {} : { toolCallTimeoutMs })
   }
-  return patched
+}
+
+/**
+ * Bring the suite's declaration and the user's override together.
+ *
+ * A timeout is a plain override: the user's value wins, a declaration fills in
+ * when the user set none, and the built-in default stands behind both. Tool
+ * filtering only tightens: the effective deny list is the suite's entries
+ * unioned with the user's, and the suite's allow-list stands as declared, so a
+ * user cannot open a tool the suite left out.
+ */
+export function resolveMcpPolicy(declared: McpServerPolicy, override: McpServerOverride | undefined): ResolvedMcpPolicy {
+  const enabledTools = dedupe(declared.enabledTools)
+  const suiteDisabledTools = dedupe(declared.disabledTools)
+  const disabledTools = dedupe([...(declared.disabledTools ?? []), ...(override?.disabledTools ?? [])])
+  return {
+    ...(enabledTools === undefined ? {} : { enabledTools }),
+    ...(suiteDisabledTools === undefined ? {} : { suiteDisabledTools }),
+    ...(disabledTools === undefined ? {} : { disabledTools }),
+    toolCallTimeout: timeoutResolution(override?.toolCallTimeoutMs, declared.toolCallTimeoutMs, DEFAULT_TOOL_CALL_TIMEOUT_MS),
+    startupTimeout: timeoutResolution(override?.startupTimeoutMs, declared.startupTimeoutMs, DEFAULT_STARTUP_TIMEOUT_MS)
+  }
+}
+
+function timeoutResolution(user: number | undefined, suite: number | undefined, fallback: number): McpTimeoutResolution {
+  const effective = user ?? suite ?? fallback
+  return {
+    user: user ?? null,
+    suite: suite ?? null,
+    effective,
+    source: user !== undefined ? 'user' : suite !== undefined ? 'suite' : 'default'
+  }
+}
+
+/** Apply one resolved policy onto a server, in the shape the bridge reads. */
+function applyMcpPolicy<T extends McpServer>(server: T, policy: ResolvedMcpPolicy): T {
+  return {
+    ...server,
+    toolCallTimeoutMs: policy.toolCallTimeout.effective,
+    // An undeclared startup timeout stays absent: the built-in bridge applies
+    // its own default at connect time, and host compatibility mode, which
+    // cannot enforce one, keeps accepting the server.
+    ...(policy.startupTimeout.source === 'default' ? {} : { startupTimeoutMs: policy.startupTimeout.effective }),
+    ...(policy.enabledTools === undefined ? {} : { enabledTools: policy.enabledTools }),
+    ...(policy.disabledTools === undefined ? {} : { disabledTools: policy.disabledTools })
+  }
+}
+
+/**
+ * Apply the namespace policy's OAuth seat onto one server. A remote server
+ * keeps its OAuth opt-out from the namespace; a policy on a portable server
+ * also supplies the credential seam the portable file may not declare.
+ */
+function applyNamespaceAuth<T extends McpServer>(server: T, policy: HarnessMcpPolicy | undefined): T {
+  if (policy?.auth === undefined || server.type === 'stdio') return server
+  return { ...server, auth: { enabled: policy.auth.enabled, ...(policy.auth.scope === undefined ? {} : { scope: policy.auth.scope }) } }
+}
+
+/** Deduplicate a tool-name list, preserving declaration order; an empty result is absent. */
+function dedupe(values: string[] | undefined): string[] | undefined {
+  if (values === undefined) return undefined
+  const names = [...new Set(values.filter(name => name !== ''))]
+  return names.length > 0 ? names : undefined
 }
 
 /** Find external credential references used by one MCP server definition. */

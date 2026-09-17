@@ -7,9 +7,11 @@
  * document editor lay their fields out identically.
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
 import type { Translate } from '../index.js'
-import { changeTransport, parseServerConfig, serverFormCompatible, type ServerKind, type ServerConfig } from './server-form.js'
+import { changeTransport, parseServerConfig, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
+import { DetailRow, DetailRows } from './DetailRows.js'
 import formCss from './form.module.css'
 import css from './detail.module.css'
 
@@ -27,8 +29,16 @@ export function ServerConfigEditor(props: {
    * MCP transport selector, since both are one-line identity fields.
    */
   nameField?: { label: string; control: ReactNode }
+  /** The MCP policy behind the document: stored timeouts, suite declaration, effective values. */
+  policy?: ServerPolicyPayload
+  /** The timeouts as editable text, owned by the calling dialog; absent hides the advanced section. */
+  policyDraft?: ServerPolicyDraft
+  onPolicyDraftChange?: (draft: ServerPolicyDraft) => void
+  /** The MCP mount backend; `host` cannot enforce a startup timeout. */
+  backend?: 'builtin' | 'host'
 }): ReactNode {
   const [mode, setMode] = useState<'form' | 'json'>('form')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [issues, setIssues] = useState<Record<string, boolean>>({})
   let parsed: ServerConfig | undefined
   let parseError: string | undefined
@@ -53,7 +63,14 @@ export function ServerConfigEditor(props: {
       : config.type === 'stdio'
         ? typeof config.command === 'string' && config.command.trim() !== ''
         : ['sse', 'streamable-http'].includes(String(config.type)) && typeof config.url === 'string' && config.url.trim() !== '')
-  const valid = compatible && !hasIssue && requiredValid
+  // The advanced section is the MCP policy seat: the dialog owns the draft, so
+  // an invalid or half-typed timeout stops the save from the same validity
+  // signal the document fields use.
+  const advanced = props.policy !== undefined && props.policyDraft !== undefined && props.onPolicyDraftChange !== undefined
+  const policyValid =
+    !advanced ||
+    (timeoutMsFromText(props.policyDraft!.toolCallTimeoutMs) !== undefined && timeoutMsFromText(props.policyDraft!.startupTimeoutMs) !== undefined)
+  const valid = compatible && !hasIssue && requiredValid && policyValid
   useEffect(() => {
     props.onValidityChange?.(valid)
   }, [valid, props.onValidityChange])
@@ -130,6 +147,48 @@ export function ServerConfigEditor(props: {
             transportField
           )
         : h('label', { className: formCss.field }, h('span', null, props.nameField.label), props.nameField.control)
+  const advancedSection =
+    props.kind !== 'mcp' || !advanced
+      ? null
+      : h(
+          DetailRows,
+          null,
+          h(
+            DetailRow,
+            {
+              name: props.t('mcpAdvanced'),
+              summary: props.t('mcpAdvancedSummary'),
+              open: advancedOpen,
+              onToggle: () => setAdvancedOpen(value => !value)
+            },
+            h(
+              'div',
+              { className: formCss.form },
+              h(TimeoutField, {
+                label: props.t('mcpToolCallTimeout'),
+                resolution: props.policy!.toolCallTimeout,
+                value: props.policyDraft!.toolCallTimeoutMs,
+                disabled: props.disabled === true,
+                t: props.t,
+                onChange: value => props.onPolicyDraftChange!({ ...props.policyDraft!, toolCallTimeoutMs: value })
+              }),
+              h(TimeoutField, {
+                label: props.t('mcpStartupTimeout'),
+                resolution: props.policy!.startupTimeout,
+                value: props.policyDraft!.startupTimeoutMs,
+                disabled: props.disabled === true,
+                ...(props.backend === 'host' ? { blocked: props.t('mcpHostStartupUnsupported') } : {}),
+                // The input is fixed on this backend, so a value stored while
+                // the built-in client was active is offered a way out.
+                ...(props.backend === 'host' && props.policy!.startupTimeout.user !== null
+                  ? { clearLabel: props.t('mcpTimeoutClearLabel', { name: props.t('mcpStartupTimeout') }), onClear: () => props.onPolicyDraftChange!({ ...props.policyDraft!, startupTimeoutMs: '' }) }
+                  : {}),
+                t: props.t,
+                onChange: value => props.onPolicyDraftChange!({ ...props.policyDraft!, startupTimeoutMs: value })
+              })
+            )
+          )
+        )
   return h(
     'div',
     { className: formCss.form },
@@ -230,7 +289,71 @@ export function ServerConfigEditor(props: {
                   )
                 ]
               : null
+          ),
+    advancedSection
+  )
+}
+
+/**
+ * One advanced timeout field: raw milliseconds text, with the effective value
+ * as its placeholder, a line naming where an inherited value comes from, and an
+ * optional control that empties the field back to inheritance.
+ */
+function TimeoutField(props: {
+  label: string
+  resolution: ServerTimeoutPolicy
+  value: string
+  disabled: boolean
+  /** Why the field cannot be used here; absent when it can. */
+  blocked?: string | undefined
+  /** Accessible name of the clear control; absent with `onClear`. */
+  clearLabel?: string | undefined
+  onClear?: (() => void) | undefined
+  t: Translate
+  onChange: (value: string) => void
+}): ReactNode {
+  const invalid = timeoutMsFromText(props.value) === undefined
+  const hint = invalid
+    ? props.t('mcpTimeoutInvalid')
+    : props.value.trim() === ''
+      ? `${props.t('mcpTimeoutInherit')} · ${props.resolution.suite === null ? props.t('mcpTimeoutFromDefault') : props.t('mcpTimeoutFromSuite')}`
+      : props.t('mcpTimeoutUserSet')
+  return h(
+    'div',
+    { className: `${formCss.field} ${formCss.full}` },
+    h('span', null, props.label),
+    h(
+      'div',
+      { className: formCss.fieldRow },
+      h('input', {
+        // A text field with a numeric keypad: a number field's value
+        // sanitization blanks anything it cannot parse, which would read as
+        // "inherit" and save the timeout away instead of showing the typo.
+        type: 'text',
+        inputMode: 'numeric',
+        value: props.value,
+        placeholder: String(props.resolution.effective),
+        'aria-label': props.label,
+        disabled: props.disabled || props.blocked !== undefined,
+        onChange: (event: { target: HTMLInputElement }) => props.onChange(event.target.value)
+      }),
+      props.onClear === undefined
+        ? null
+        : h(
+            Button,
+            {
+              variant: 'ghost',
+              size: 'sm',
+              type: 'button',
+              disabled: props.disabled,
+              ...(props.clearLabel === undefined ? {} : { 'aria-label': props.clearLabel }),
+              onClick: props.onClear
+            },
+            props.t('mcpTimeoutClear')
           )
+    ),
+    h('span', { className: invalid ? formCss.footerError : formCss.hint }, hint),
+    props.blocked === undefined ? null : h('span', { className: formCss.hint }, props.blocked)
   )
 }
 

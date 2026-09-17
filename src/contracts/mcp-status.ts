@@ -43,6 +43,12 @@ export interface McpStatusEntry {
    *  runs the OAuth flow when the server answers 401, which the redacted
    *  configuration alone cannot show. */
   oauthDefault?: boolean
+  /** Suite allow-list for this server's tools; absent when the suite narrows nothing. */
+  suiteEnabledTools?: string[]
+  /** Tools the suite's own declaration leaves out. */
+  suiteDisabledTools?: string[]
+  /** Tools the user turned off through the panel. */
+  userDisabledTools?: string[]
 }
 
 /** The MCP status response returned by the host. */
@@ -51,4 +57,7 @@ export interface McpStatusPayload {
   observedAt: string
   totals: { all: number; connected: number; degraded: number; failed: number; needsCredentials: number; orphaned: number; disabled: number; foreign: number }
   directObservationOnly: boolean
+  /** The mount backend the rows were observed under; `host` cannot enforce tool
+   *  filters or startup timeouts, so the panel disables those controls. */
+  backend?: 'builtin' | 'host'
 }

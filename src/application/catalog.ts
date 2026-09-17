@@ -279,8 +279,8 @@ export class Catalog implements MarketService {
   }
 
   /** Validate a complete replacement before writing; plugin checkouts remain untouched. */
-  async saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown): Promise<void> {
-    await this.mcp.saveServerConfig(kind, id, config)
+  async saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown, policy?: unknown): Promise<void> {
+    await this.mcp.saveServerConfig(kind, id, config, policy)
   }
 
   /** One suite's persisted MCP overrides, addressed by qualified suite id. */
@@ -301,6 +301,15 @@ export class Catalog implements MarketService {
    */
   async setMcpServerEnabled(suiteKey: string, serverKey: string, enabled: boolean): Promise<void> {
     await this.mcp.setServerEnabled(suiteKey, serverKey, enabled)
+  }
+
+  /**
+   * Allow or deny one tool of a declared MCP server, addressed by the same
+   * source-qualified suite id its status row carries. The denial lands in the
+   * override record, so the suite's own `mcp.json` stays source-owned.
+   */
+  async setMcpServerToolEnabled(suiteKey: string, serverKey: string, tool: string, enabled: boolean): Promise<void> {
+    await this.mcp.setServerToolEnabled(suiteKey, serverKey, tool, enabled)
   }
 
   /** Re-run the MCP reconcile pass without changing any catalog state. */

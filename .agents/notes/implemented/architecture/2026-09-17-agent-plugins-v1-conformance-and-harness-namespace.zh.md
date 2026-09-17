@@ -19,3 +19,7 @@
 - 未声明命名空间的 v1 套件只贡献技能与 MCP——这是设计使然。本仓库自己的套件样本已声明命名空间。
 - vendored schema 的更新重新变回纯粹的上游复制；`schemas/com.deepseek.harness/` 按自己的 `schemaVersion` 演进。
 - `PLUGIN_DATA` 在任何 stdio 启动前创建，两个变量在配置 env 叠加之后注入（§9.1），数据目录的 `cwd`/`args` 引用首次启动即可用。
+
+## 相关
+
+- [MCP 用户策略走覆盖记录](../feature/2026-09-21-mcp-user-policy-in-overrides.zh.md) —— 命名空间声明是套件给出的默认值：服务配置的高级设置可以覆盖两个超时，用户的工具拒绝只让声明好的过滤收得更紧，套件白名单不可放宽。

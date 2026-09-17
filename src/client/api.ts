@@ -3,7 +3,7 @@ import { withBusyOperation } from './ui/busy-operation.js'
 import { RequestTimeoutError } from './request-error.js'
 import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
 import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
-import type { McpBackendInfo, OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
+import type { McpBackendInfo, OverviewPayload, ServerConfigPayload, ServerPolicyRequest, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
 
@@ -14,6 +14,10 @@ export type {
   MarkdownPreview,
   McpServerDetail,
   OverviewPayload,
+  ServerConfigPayload,
+  ServerPolicyPayload,
+  ServerPolicyRequest,
+  ServerTimeoutPolicy,
   SkillContent,
   SourceOverview,
   SourceProgress,
@@ -103,19 +107,19 @@ async function postOkJson<T>(url: string, body: Record<string, unknown>, label: 
   return payload
 }
 
-export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promise<import('../contracts/market.js').ServerConfigPayload> {
+export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
   return withBusyOperation(async () => {
     const url = `${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`
     const response = await boundedFetch(url, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
-    const body = (await response.json()) as import('../contracts/market.js').ServerConfigPayload & { error?: string }
+    const body = (await response.json()) as ServerConfigPayload & { error?: string }
     if (!response.ok) throw new Error(body.error ?? `Server configuration failed: ${response.status}`)
     return body
   })
 }
 
-export async function saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: Record<string, unknown>): Promise<void> {
+export async function saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: Record<string, unknown>, policy?: ServerPolicyRequest): Promise<void> {
   return withBusyOperation(async () => {
-    await postAction('server-config/save', { kind, id, config })
+    await postAction('server-config/save', { kind, id, config, ...(policy === undefined ? {} : { policy }) })
   })
 }
 
@@ -202,6 +206,20 @@ export async function reauthorizeMcpServer(serverName: string): Promise<void> {
 export async function setMcpServerEnabled(suiteId: string, serverKey: string, enabled: boolean): Promise<void> {
   return withBusyOperation(async () => {
     await postAction('set-mcp-server-enabled', { suiteId, serverKey, enabled })
+  })
+}
+
+/**
+ * Allow or deny one tool of a declared MCP server.
+ *
+ * @param suiteId - the source-qualified suite id the status row carries.
+ * @param serverKey - the server key inside that suite's declaration.
+ * @param tool - the tool's raw name inside the server's namespace.
+ * @param enabled - whether the tool is allowed.
+ */
+export async function setMcpServerTool(suiteId: string, serverKey: string, tool: string, enabled: boolean): Promise<void> {
+  return withBusyOperation(async () => {
+    await postAction('set-mcp-server-tool', { suiteId, serverKey, tool, enabled })
   })
 }
 

@@ -23,6 +23,8 @@ Everything a portable suite cannot express because the v1 format fixes its compo
 - **Commands, agent roles, hooks, LSP declarations.** The specification records these component types as outside the format "until their formats converge"; the namespace is where they live for this client.
 - **Per-server client policy** (`extensions["com.deepseek.harness"].mcpServers`): OAuth authorization, tool allow/deny lists, and timeout policies for servers declared in the portable `mcp.json`. The portable file stays schema-clean; client-specific fields ride the namespace, keyed by the server's own name.
 
+Namespace values are the suite's defaults rather than a ceiling the user cannot reach. A stored user override may set either timeout, and that value wins over the declaration; a user may add tool names to the deny list, while the allow-list and the suite's own deny entries stay in force. Tool filtering only ever tightens. The override record lives outside the suite checkout, so a package refresh never clobbers it and the namespace file stays source-owned. The host compatibility client (`@deepseek-ai/dsh-mcp-client`) enforces neither the tool lists nor a startup timeout, so a server mounted through it carries no such value; the built-in bridge is where those take effect.
+
 ## Failure behavior
 
 | Situation                                               | Behavior                                                    |

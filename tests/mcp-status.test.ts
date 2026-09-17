@@ -132,6 +132,28 @@ describe('MCP status aggregation', () => {
     expect(payload.totals).toMatchObject({ all: 2, disabled: 1 })
   })
 
+  it('reports the suite and user tool lists behind the checkbox states', () => {
+    // A denied tool leaves the live registry, so the stored lists are what let
+    // the panel keep it on screen and switchable.
+    const declared = suite({
+      manifest: {
+        layout: 'agent-plugin-v1',
+        path: '/tmp/codex/plugin.json',
+        id: 'codex',
+        name: 'codex',
+        harness: { schemaVersion: '1.0.0', mcpServers: { app: { enabledTools: ['alpha', 'beta'], disabledTools: ['gamma'] } } }
+      }
+    })
+    const overrides = new Map([['codex-plugin/codex', { app: { disabledTools: ['delta'] } }]])
+    const payload = buildMcpStatus([declared], [], [], overrides)
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.suiteEnabledTools).toEqual(['alpha', 'beta'])
+    expect(app.suiteDisabledTools).toEqual(['gamma'])
+    expect(app.userDisabledTools).toEqual(['delta'])
+    // The effective configuration unions the two deny lists for the mount.
+    expect(app.config).toMatchObject({ enabledTools: ['alpha', 'beta'], disabledTools: ['gamma', 'delta'] })
+  })
+
   it('reports missing credential references without exposing values', () => {
     const payload = buildMcpStatus(
       [suite()],

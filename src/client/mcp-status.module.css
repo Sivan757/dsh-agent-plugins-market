@@ -59,8 +59,8 @@
 }
 
 .toolList { display: flex; flex-direction: column; }
-/* Two columns: the name track sizes to its content (long MCP tool names are
-   the identity, never clipped), the description takes the remainder. */
+/* Two columns: the identity track sizes to its content (long MCP tool names
+   are the identity, never clipped), the description takes the remainder. */
 .tool {
   display: grid;
   grid-template-columns: minmax(140px, max-content) minmax(0, 1fr);
@@ -70,8 +70,11 @@
   border-bottom: 1px solid var(--dsw-alias-border-l1, #eef1f5);
 }
 .tool:last-child { border-bottom: none; }
+/* The allow checkbox and the name share the identity track. */
+.toolIdentity { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .toolName { overflow: hidden; color: var(--dsw-alias-label-primary, #1f2328); text-overflow: ellipsis; white-space: nowrap; font: 11px/16px ui-monospace, Menlo, Consolas, monospace; }
 .toolDescription { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.toolNote { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8b93a1); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 @media (max-width: 760px) {
   .toolbar { padding-left: 0; padding-right: 0; }
   .grid { grid-template-columns: minmax(0, 1fr); }

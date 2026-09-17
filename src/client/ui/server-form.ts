@@ -1,5 +1,57 @@
+import type { ServerPolicyRequest } from '../../contracts/market.js'
+
 export type ServerKind = 'mcp' | 'lsp'
 export type ServerConfig = Record<string, unknown>
+
+/** The largest timeout a bridge config and the host timer can hold. */
+export const TIMEOUT_MAX_MS = 2_147_483_647
+
+/**
+ * The two timeouts as the editor holds them: raw millisecond text, where an
+ * empty field means "inherit". They sit outside the JSON document because the
+ * portable server shape has no seat for them.
+ */
+export interface ServerPolicyDraft {
+  toolCallTimeoutMs: string
+  startupTimeoutMs: string
+}
+
+/**
+ * Read one timeout field: empty inherits (`null`), a positive whole number of
+ * milliseconds within the timer range is the value, and anything else is
+ * `undefined`, which leaves the editor unsaveable.
+ */
+export function timeoutMsFromText(raw: string): number | null | undefined {
+  const text = raw.trim()
+  if (text === '') return null
+  if (!/^\d+$/.test(text)) return undefined
+  const value = Number(text)
+  return Number.isSafeInteger(value) && value > 0 && value <= TIMEOUT_MAX_MS ? value : undefined
+}
+
+/** The stored values as editable text. */
+export function policyDraftOf(toolCall: number | null, startup: number | null): ServerPolicyDraft {
+  return { toolCallTimeoutMs: toolCall === null ? '' : String(toolCall), startupTimeoutMs: startup === null ? '' : String(startup) }
+}
+
+/**
+ * The policy request for one save: only the timeouts whose text moved from the
+ * loaded baseline. A value the user edited on one backend therefore never rides
+ * along to another, where the same value can be refused.
+ */
+export function policyRequestOf(draft: ServerPolicyDraft | undefined, initial: ServerPolicyDraft | undefined): ServerPolicyRequest | undefined {
+  if (draft === undefined || initial === undefined) return undefined
+  const request: ServerPolicyRequest = {}
+  if (draft.toolCallTimeoutMs !== initial.toolCallTimeoutMs) {
+    const value = timeoutMsFromText(draft.toolCallTimeoutMs)
+    if (value !== undefined) request.toolCallTimeoutMs = value
+  }
+  if (draft.startupTimeoutMs !== initial.startupTimeoutMs) {
+    const value = timeoutMsFromText(draft.startupTimeoutMs)
+    if (value !== undefined) request.startupTimeoutMs = value
+  }
+  return Object.keys(request).length === 0 ? undefined : request
+}
 
 export function parseServerConfig(text: string): ServerConfig {
   const value: unknown = JSON.parse(text)
