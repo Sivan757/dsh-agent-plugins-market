@@ -9,6 +9,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.7.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.7.0...dsh-agent-plugins-market-v0.7.1) (2026-09-18)
+
+
+### Features
+
+* **hooks:** read project .agents hook files ([c2d6ee6](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c2d6ee6524055ac6ffc060778c9e1a32f13ac7da))
+* **market:** redraw cards, filters and detail dialogs on the prototype ([71ca733](https://github.com/Sivan757/dsh-agent-plugins-market/commit/71ca733360bcd66af18210892d960c5c00fbb4d9))
+* **mcp:** let the status cards switch declared servers off ([ffddd3a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ffddd3a26a2ba1bdf3a7f1d64f2ef4f66b4bb518))
+* **panels:** give the editors one form and a real document editor ([88bb8e3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/88bb8e33ba37fd8092f035fc3da6375b6cc5b934))
+* **panels:** publish user skills on the harness reader's terms ([4b387a5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/4b387a5615e24fc8b48d8ae72ee31d79af19e124))
+* **runtime:** resolve suite path variables and run dynamic context ([683ab75](https://github.com/Sivan757/dsh-agent-plugins-market/commit/683ab750b54ca2d8d05626c8f64e1ae795e2a33f))
+* **settings:** take settings, card and browser state from the host ([5d52b93](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5d52b93c826151246cfd2cd1d554c0b836cc8f56))
+
+
+### Bug Fixes
+
+* **cards:** round and feather the hover plate, keep the card fill flat ([7785b7a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7785b7af2e81c144313cd44cdea43e0609becad6))
+* **cards:** show the whole name and let the hover actions cover it ([3b567df](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3b567df7431ff8c8214a5ae6b65a470adb187359))
+* **commands:** forward commands as identified user messages ([252ebc6](https://github.com/Sivan757/dsh-agent-plugins-market/commit/252ebc6b32e1b8489e7e359626d5b352230fa820))
+* **deps:** take eslint/js 10 and keep katex on the host's version ([2686a97](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2686a976ce4c40fe9647172759a69297576eaa0c))
+* **mcp:** settle the reconcile pass before answering an override write ([5320c7e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5320c7e4894728746cbc7ce6832310bbedc3ea57))
+* **runtime:** read optional host services through the service store ([a440922](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a440922bae23e06cb25cda72a413a880058c7dc1))
+
+
+### Miscellaneous Chores
+
+* **release:** pin this release to 0.7.1 ([9e47c97](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9e47c97f93fc946f684d08679b8ea001c9cf42df))
+
 ## [0.7.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.6.2...dsh-agent-plugins-market-v0.7.0) (2026-09-13)
 
 
