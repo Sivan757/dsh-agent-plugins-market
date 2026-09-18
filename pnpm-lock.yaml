@@ -28,7 +28,7 @@ importers:
         version: 3.18.2
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
-        version: 1.30.0(supports-color@7.2.0)(zod@4.6.2)
+        version: 1.30.0(supports-color@7.2.0)(zod@4.6.5)
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
@@ -43,7 +43,7 @@ importers:
         version: 2.9.1
       zod:
         specifier: ^4.4.3
-        version: 4.6.2
+        version: 4.6.5
     devDependencies:
       '@codemirror/commands':
         specifier: ^6.11.0
@@ -136,8 +136,8 @@ importers:
         specifier: ^10.9.1
         version: 10.10.0(supports-color@7.2.0)
       immer:
-        specifier: ^11.1.18
-        version: 11.1.18
+        specifier: ^10.2.0
+        version: 10.2.0
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1
@@ -203,7 +203,7 @@ importers:
         version: 4.1.11(@types/node@22.20.2)(@vitest/coverage-v8@4.1.11)(jsdom@30.0.1)(vite@8.2.2(@types/node@22.20.2)(esbuild@0.28.2)(yaml@2.9.1))
       zustand:
         specifier: ~4.4.7
-        version: 4.4.7(@types/react@18.3.31)(immer@11.1.18)(react@18.3.1)
+        version: 4.4.7(@types/react@18.3.31)(immer@10.2.0)(react@18.3.1)
 
   docs-site:
     dependencies:
@@ -2474,8 +2474,8 @@ packages:
     resolution: {integrity: sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw==}
     engines: {node: '>= 4'}
 
-  immer@11.1.18:
-    resolution: {integrity: sha512-EQyQtLiYW029lyoczMl/Hh4Xu7cDecSc58JRYpHyL4tIAu3eqd1yJzQX04d2BZHDkzFFvm6qJEJWOtfDSWAXbQ==}
+  immer@10.2.0:
+    resolution: {integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==}
 
   import-without-cache@0.4.0:
     resolution: {integrity: sha512-NkJQA7oZ4YHQhd2+H3BoRFKF3d/XNsiKpHZCQEMH9pDX27hQQLsTyOocyRgaIVtf8gHX3Nt3LPkR4e5EdtPAGQ==}
@@ -3907,6 +3907,9 @@ packages:
   zod@4.6.2:
     resolution: {integrity: sha512-lh5RCAGFa1Cm2hjtNwLQhSs/AsqdWnTQaBER9fEwN/88pSh7KOtJavtBx/0VlkN/uFd61SwYmljLMDAsHlvzBQ==}
 
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+
   zustand@4.4.7:
     resolution: {integrity: sha512-QFJWJMdlETcI69paJwhSMJz7PPWjVP8Sjhclxmxmxv/RYI7ZOvR5BHX+ktH0we9gTWQMxcne8q1OY8xxz604gw==}
     engines: {node: '>=12.7.0'}
@@ -4363,7 +4366,7 @@ snapshots:
       '@deepseek-ai/dsh-util-crypto': 0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)
       '@deepseek-ai/dsh-util-values': 0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)
       '@deepseek-ai/schemastery': 3.18.2
-      zod: 4.6.2
+      zod: 4.6.5
 
   '@deepseek-ai/dsh-lsp-stdio@0.1.5-rc.2(5372b838350dc9c577360b0a79c6656a)':
     dependencies:
@@ -4393,8 +4396,8 @@ snapshots:
       '@deepseek-ai/dsh-timeout': 0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)
       '@deepseek-ai/dsh-tools': 0.1.5-rc.2(7f9e302786cf21e030eafe960666842c)
       '@deepseek-ai/schemastery': 3.18.2
-      '@modelcontextprotocol/sdk': 1.30.0(supports-color@7.2.0)(zod@4.6.2)
-      zod: 4.6.2
+      '@modelcontextprotocol/sdk': 1.30.0(supports-color@7.2.0)(zod@4.6.5)
+      zod: 4.6.5
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
@@ -4890,7 +4893,7 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.4': {}
 
-  '@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.2)':
+  '@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.5)':
     dependencies:
       '@hono/node-server': 2.1.1(hono@4.13.7)
       ajv: 8.20.0
@@ -4907,8 +4910,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.0
       raw-body: 3.0.2
-      zod: 4.6.2
-      zod-to-json-schema: 3.25.2(zod@4.6.2)
+      zod: 4.6.5
+      zod-to-json-schema: 3.25.2(zod@4.6.5)
     transitivePeerDependencies:
       - supports-color
 
@@ -6172,7 +6175,7 @@ snapshots:
 
   ignore@7.0.6: {}
 
-  immer@11.1.18: {}
+  immer@10.2.0: {}
 
   import-without-cache@0.4.0: {}
 
@@ -7689,18 +7692,20 @@ snapshots:
       '@yuku-parser/binding-win32-arm64': 0.8.7
       '@yuku-parser/binding-win32-x64': 0.8.7
 
-  zod-to-json-schema@3.25.2(zod@4.6.2):
+  zod-to-json-schema@3.25.2(zod@4.6.5):
     dependencies:
-      zod: 4.6.2
+      zod: 4.6.5
 
   zod@4.6.2: {}
 
-  zustand@4.4.7(@types/react@18.3.31)(immer@11.1.18)(react@18.3.1):
+  zod@4.6.5: {}
+
+  zustand@4.4.7(@types/react@18.3.31)(immer@10.2.0)(react@18.3.1):
     dependencies:
       use-sync-external-store: 1.2.0(react@18.3.1)
     optionalDependencies:
       '@types/react': 18.3.31
-      immer: 11.1.18
+      immer: 10.2.0
       react: 18.3.1
 
   zwitch@2.0.4: {}
