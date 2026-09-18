@@ -140,6 +140,12 @@ export class McpService {
       }
       await saveSuiteOverrides(this.context.dataRoot, suiteKey, overrides)
       await this.context.notifyChanged(true)
+      // The status surface reads the live tool registry, so an immediate read
+      // races the reconciler's teardown: a just-disabled server still carries
+      // its observed tools and reports the orphaned state with its switch on
+      // until the pass finishes. Joining the pass here is bounded — one stuck
+      // mount costs the request its deadline, never the plugin.
+      await this.context.refreshSettled()
     })
   }
 
