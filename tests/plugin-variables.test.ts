@@ -119,7 +119,9 @@ describe('suite text surfaces resolve their paths', () => {
     await expect(registry.reconcile([withDefaultSurfaces({ ...suite, enabled: true })])).resolves.toEqual([])
     const data = suiteDataDir(DATA_ROOT, suite.sourceId, suite.id)
     expect(forward(host.registered, { session: { header: { cwd: PROJECT_DIR } } }, 'focus')).toBe(
-      `node "${join(suite.root, 'scripts', 'rescue.mjs')}" --cache "${data}/cache" --root "${PROJECT_DIR}" focus`
+      // The variable resolves to the suite root; the `/scripts/...` after it is
+      // the author's text and stays exactly as written, on every platform.
+      `node "${suite.root}/scripts/rescue.mjs" --cache "${data}/cache" --root "${PROJECT_DIR}" focus`
     )
     registry.disposeAll()
   })
@@ -146,7 +148,7 @@ describe('suite text surfaces resolve their paths', () => {
     const entry = { name: resource.name, path: resource.file, description: '', disabled: false, suiteRoot: suite.root, suiteData: data }
 
     const policy = await readAgentRole(entry, PROJECT_DIR)
-    expect(policy.content).toContain(join(suite.root, 'scripts', 'rescue.mjs'))
+    expect(policy.content).toContain(`${suite.root}/scripts/rescue.mjs`)
     expect(policy.content).toContain(PROJECT_DIR)
     const [summary] = await agentRoleCatalog([entry], new AbortController().signal, undefined, PROJECT_DIR)
     expect(summary?.description).toContain(`${data}/cache`)
@@ -161,7 +163,9 @@ describe('suite text surfaces resolve their paths', () => {
     const [candidate] = await provider.list({})
     if (candidate === undefined) throw new Error('expected the suite to list one skill')
     const content = (await provider.get(candidate, { cwd: PROJECT_DIR }))?.content ?? ''
-    expect(content).toContain(join(suite.root, 'greet.mjs'))
+    expect(content).toContain(`${suite.root}/greet.mjs`)
+    // ${CLAUDE_SKILL_DIR} is a path the product builds itself, so it carries
+    // the host's separators rather than the author's.
     expect(content).toContain(join(suite.root, 'skills', 'greet'))
     expect(content).toContain(suiteDataDir(DATA_ROOT, suite.sourceId, suite.id))
     expect(content).toContain(PROJECT_DIR)
