@@ -163,7 +163,7 @@
     "clsx": "^2.1.1",
     "dependency-cruiser": "^18.2.0",
     "eslint": "^10.9.1",
-    "immer": "^10.2.0",
+    "immer": "^11.1.18",
     "jsdom": "^30.0.1",
     "katex": "^0.16.47",
     "mdast-util-from-markdown": "^2.0.3",
