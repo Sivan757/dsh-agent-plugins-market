@@ -14,7 +14,7 @@ import { createHash } from 'node:crypto'
 import type { Config, SseConfig } from './mcp-client/config.js'
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-client/config.js'
 import { resolveCwd } from '../catalog/validate.js'
-import { qualifiedSuiteId } from '../catalog/paths.js'
+import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
 import { applyOverride, type McpServerOverride, type McpSuiteOverrides } from './mcp-overrides.js'
 import type { McpServer, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'
@@ -149,7 +149,7 @@ async function toResolvedMount(
 ): Promise<{ request?: McpMountRequest; failure?: McpMountFailure }> {
   if (server.type === 'sse') {
     // The market bridge supports the legacy HTTP+SSE transport natively.
-    const expand = expander(suite, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id)), resolver)
+    const expand = expander(suite, suiteDataDir(pluginDataRoot, suite.sourceId, suite.id), resolver)
     const url = await expand.one(server.url)
     const headers = await expand.map(server.headers ?? {})
     const missing = unique([...url.missing, ...headers.missing])
@@ -165,7 +165,7 @@ async function toResolvedMount(
     }
     return { request: { suiteId: qualifiedSuiteId(suite.sourceId, suite.id), serverKey, config: sseConfig } }
   }
-  const expand = expander(suite, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id)), resolver)
+  const expand = expander(suite, suiteDataDir(pluginDataRoot, suite.sourceId, suite.id), resolver)
   const serverName = deriveServerName(suite.id, serverKey)
   if (server.type === 'stdio') {
     const args = await expand.all(server.args ?? [])
@@ -183,7 +183,7 @@ async function toResolvedMount(
           command: server.command.startsWith('./') ? joinInside(suite.root, server.command.slice(2)) : server.command,
           args: args.values,
           env: env.values,
-          cwd: resolveCwd(cwd.value, suite.root, joinInside(pluginDataRoot, qualifiedSuiteId(suite.sourceId, suite.id))),
+          cwd: resolveCwd(cwd.value, suite.root, suiteDataDir(pluginDataRoot, suite.sourceId, suite.id)),
           ...bridgePolicy(server),
           failOnStartupError: true
         }
@@ -227,6 +227,9 @@ function mapAuth(auth: { enabled: boolean; scope?: string }): { enabled: boolean
 function bridgePolicy(server: McpServer) {
   return {
     toolCallTimeoutMs: server.toolCallTimeoutMs ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    // Only a DECLARED startup timeout is a policy: host compatibility mode
+    // cannot enforce one, so an undeclared server stays enforceable there and
+    // the built-in bridge applies its own default at connect time.
     ...(server.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: server.startupTimeoutMs }),
     ...(server.enabledTools === undefined ? {} : { enabledTools: server.enabledTools }),
     ...(server.disabledTools === undefined ? {} : { disabledTools: server.disabledTools })

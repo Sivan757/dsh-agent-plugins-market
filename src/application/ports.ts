@@ -11,8 +11,8 @@
  */
 import type { LspServerSpec, SourceKind } from '../model/types.js'
 export type { McpBackendInfo } from '../contracts/market.js'
+import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../runtime/mcp-backend.js'
-import type { DownloadRegionSetting } from '../runtime/regions.js'
 import type { LspMountStatusSource } from '../runtime/lsp-status.js'
 import type { McpToolSnapshot } from '../runtime/mcp-status.js'
 

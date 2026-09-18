@@ -104,6 +104,15 @@ export function qualifiedSuiteId(sourceId: string, suiteId: string): string {
   return `${sourceId}/${suiteId}`
 }
 
+/**
+ * The data directory `${PLUGIN_DATA}` resolves to for one suite: a
+ * source-qualified directory under the plugin storage root, shared by every
+ * surface of that suite so MCP servers, skills and commands see one location.
+ */
+export function suiteDataDir(dataRoot: string, sourceId: string, suiteId: string): string {
+  return `${dataRoot.replace(/[\\/]$/, '')}/${qualifiedSuiteId(sourceId, suiteId)}`
+}
+
 /** The slice of a `node:path` implementation a containment test needs. */
 export interface PathFlavor {
   relative(from: string, to: string): string

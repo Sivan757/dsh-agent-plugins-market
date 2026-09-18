@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Input, IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutline16, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './ui/DetailModal.js'
 import { ServerConfigEditor } from './ui/ServerConfigEditor.js'
 import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
@@ -8,14 +8,16 @@ import { parseServerConfig } from './ui/server-form.js'
 import { PanelActions, PanelHeader } from './ui/panel.js'
 import { mcpDetailActions } from './features/mcp-status/detail-actions.js'
 import type { Translate } from './index.js'
-import { addMcpServer, fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, type McpStatusEntry, type McpStatusPayload } from './api.js'
+import { addMcpServer, fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from './api.js'
 import type { CredentialApi } from './credentials.js'
 import { McpCredentialEditor } from './McpCredentialEditor.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
-import { deriveMcpStatusViewModel, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
+import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
 import css from './mcp-status.module.css'
+import rc from './ui/resource-card.module.css'
+import panelCss from './ui/panel.module.css'
 import { withBusyOperation } from './ui/busy-operation.js'
 import { clientErrorMessage } from './ui/error-message.js'
 
@@ -74,6 +76,21 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       .finally(() => setLoading(false))
   }
 
+  // Written through the suite's override record, so the suite's own `mcp.json`
+  // stays source-owned. Disabled servers are not mounted at all.
+  const toggle = (entry: McpStatusEntry): void => {
+    const suiteId = entry.suiteId
+    const serverKey = entry.serverKey
+    if (suiteId === undefined || serverKey === undefined) return
+    setError(undefined)
+    withBusyOperation(() => setMcpServerEnabled(suiteId, serverKey, entry.state === 'disabled'))
+      .then(() => fetchMcpStatus())
+      .then(setPayload)
+      .catch(caught => {
+        setError(clientErrorMessage(t, caught))
+      })
+  }
+
   useEffect(() => {
     refresh()
   }, [])
@@ -94,18 +111,17 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       searchLabel: t('mcpSearch'),
       searchPlaceholder: t('mcpSearch'),
       onSearchChange: setSearch,
-      filters: (['all', 'direct', 'plugin'] as Filter[]).map(kind => ({
+      filters: MCP_FILTERS.map(kind => ({
         id: kind,
         label: filterLabel(t, kind),
         count: filterCounts[kind],
-        icon: h(McpFilterIcon, { kind }),
         active: filter === kind,
         onSelect: () => setFilter(kind),
         hint: mcpFilterHint(t, kind)
       })),
       view,
-      gridLabel: t('grid'),
-      listLabel: t('list'),
+      toListLabel: t('switchToList'),
+      toGridLabel: t('switchToGrid'),
       onViewChange: nextView => setView(nextView)
     }),
     error !== undefined
@@ -116,8 +132,8 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           ? h('div', { className: css.empty }, t('mcpEmpty'))
           : h(
               ResourceCollection,
-              { view, className: view === 'grid' ? css.grid : css.list },
-              filtered.map(entry => h(McpCard, { key: entry.id, entry, t, onClick: () => setSelected(entry) }))
+              { view },
+              filtered.map(entry => h(McpCard, { key: entry.id, entry, t, onClick: () => setSelected(entry), onToggle: () => toggle(entry) }))
             ),
     adding
       ? h(McpAddModal, {
@@ -146,13 +162,49 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   )
 }
 
+/** The state tag's tone; a healthy server reads as success. */
+function mcpTagTone(state: McpStatusEntry['state']): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (state === 'connected') return 'success'
+  if (state === 'failed' || state === 'orphaned') return 'danger'
+  if (state === 'disabled' || state === 'foreign') return 'neutral'
+  return 'warning'
+}
+
+/** The one-line verdict the detail's status band shows. */
+function mcpStateLabel(t: Translate, state: McpStatusEntry['state']): string {
+  if (state === 'connected') return t('mcpConnected')
+  if (state === 'degraded') return t('mcpDegraded')
+  if (state === 'failed') return t('mcpFailed')
+  if (state === 'needs-credentials') return t('mcpNeedsCredentials')
+  if (state === 'orphaned') return t('mcpOrphaned')
+  if (state === 'foreign') return t('mcpForeign')
+  // The same word the `已禁用` filter tab uses, so the chip and the tab that
+  // finds it agree.
+  return t('panelFilterDisabled')
+}
+
+/** One label/value pair in a detail dialog's overview grid. */
+function kvCell(label: string, value: string, mono = false): ReactNode {
+  return h('div', null, h('dt', { className: panelCss.kvKey }, label), h('dd', { className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue, title: value }, value))
+}
+
+/** The card dot colour: the states the detail dialog also reports. */
+function mcpDotState(state: McpStatusEntry['state']): 'done' | 'warning' | 'error' | 'idle' {
+  if (state === 'connected') return 'done'
+  if (state === 'failed' || state === 'orphaned') return 'error'
+  if (state === 'disabled' || state === 'foreign') return 'idle'
+  return 'warning'
+}
+
 /**
- * One inventory row: state dot, server name, tool count, and endpoint.
- *
- * The reason text, the actions (retry, reauthorize), and the configuration
- * editor live in the detail dialog, so a wall of failing rows stays scannable.
+ * One inventory card: the server name with its state tag on the identity row
+ * and the enable switch on its trailing edge; the endpoint on the body row;
+ * tool count and transport on the source row. The reason text, the state
+ * label's long form, and the remaining actions (retry, reauthorize,
+ * configuration) live in the detail dialog, so a wall of failing cards stays
+ * scannable.
  */
-function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; onClick: () => void }): ReactNode {
+function McpCard({ entry, t, onClick, onToggle }: { entry: McpStatusEntry; t: Translate; onClick: () => void; onToggle: () => void }): ReactNode {
   const interactive = {
     role: 'button' as const,
     tabIndex: 0,
@@ -164,53 +216,53 @@ function McpCard({ entry, t, onClick }: { entry: McpStatusEntry; t: Translate; o
       onClick()
     }
   }
+  const toolCount = entry.tools.length === 1 ? t('mcpTool') : t('mcpTools')
+  // A foreign mount belongs to another MCP client, so this plugin cannot
+  // switch it; everything else it declared is its own to enable or disable.
+  const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
+  const disabled = entry.state === 'disabled'
   return h(
     ResourceCard,
     {
-      className: css.card,
       state: entry.state === 'connected' ? 'active' : entry.state === 'disabled' ? 'disabled' : entry.state === 'failed' || entry.state === 'orphaned' ? 'error' : 'warning',
+      surface: 'mcp',
       ...interactive
     },
     h(
       'div',
-      { className: css.cardBody },
+      { className: rc.rowId },
+      h('span', { className: `${rc.name} ${rc.nameMono}` }, entry.name),
+      h(Tag, { tone: mcpTagTone(entry.state) }, mcpStateLabel(t, entry.state)),
+      h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect')))
+    ),
+    h(
+      'div',
+      { className: rc.rowActions },
       h(
-        'div',
-        { className: css.cardTop },
-        h('span', { className: `${css.statusDot} ${css[`status${entry.state}`]}`, 'aria-hidden': true }),
-        h('span', { className: css.service }, h('span', { className: css.name }, entry.name)),
-        h('span', { className: css.toolCount }, entry.tools.length === 1 ? `${entry.tools.length} ${t('mcpTool')}` : `${entry.tools.length} ${t('mcpTools')}`)
-      ),
-      h('p', { className: css.endpoint }, entry.endpoint ?? t('mcpObservedEndpoint'))
-      // Reason text, the state pill, and every action (retry, configure,
-      // details) live in the detail dialog: the card keeps only the identity
-      // line and the endpoint, so a wall of red cards stays scannable.
+        'span',
+        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
+        h(Switch, {
+          checked: !disabled,
+          disabled: !switchable,
+          label: disabled ? t('enable') : t('disable'),
+          title: disabled ? t('enable') : t('disable'),
+          onChange: onToggle
+        })
+      )
+    ),
+    h('p', { className: `${rc.rowBody} ${rc.monoLine}` }, entry.endpoint ?? t('mcpObservedEndpoint')),
+    h(
+      'div',
+      { className: rc.rowFoot },
+      h('span', { className: rc.provenance, title: entry.suiteId ?? entry.source }, entry.kind === 'plugin' ? entry.suiteId ?? entry.source ?? '—' : t('mcpDirect')),
+      h('span', { className: rc.separator }, '·'),
+      h('span', { className: rc.count }, h('span', { className: rc.countValue }, String(entry.tools.length)), ' ', toolCount),
+      h('span', { className: rc.separator }, '·'),
+      h('span', { className: rc.count }, entry.transport)
     )
   )
 }
 
-function McpSourceIcon({ kind }: { kind: 'plugin' | 'direct' }): ReactNode {
-  const common = { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
-  return kind === 'plugin'
-    ? h(
-        'svg',
-        common,
-        h('path', {
-          d: 'M6 2.5v2H4A1.5 1.5 0 0 0 2.5 6v2h2a1.5 1.5 0 1 1 0 3h-2v2A1.5 1.5 0 0 0 4 14.5h2v-2a1.5 1.5 0 1 1 3 0v2h2a1.5 1.5 0 0 0 1.5-1.5v-2h-2a1.5 1.5 0 1 1 0-3h2V6A1.5 1.5 0 0 0 11 4.5H9v-2a1.5 1.5 0 1 0-3 0Z'
-        })
-      )
-    : h('svg', common, h('circle', { cx: 8, cy: 5, r: 2.2 }), h('path', { d: 'M3.5 13c.6-2.2 2.1-3.3 4.5-3.3s3.9 1.1 4.5 3.3' }))
-}
-
-function McpFilterIcon({ kind }: { kind: Filter }): ReactNode {
-  if (kind === 'plugin') return h(McpSourceIcon, { kind: 'plugin' })
-  if (kind === 'direct') return h(McpSourceIcon, { kind: 'direct' })
-  return h(
-    'svg',
-    { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
-    h('path', { d: 'M2.5 5 8 2.5 13.5 5 8 7.5 2.5 5Zm0 3L8 10.5 13.5 8M2.5 11 8 13.5 13.5 11' })
-  )
-}
 
 /**
  * The detail dialog owns every action and every long text: state, reason,
@@ -262,7 +314,6 @@ export function McpDetailModal({
     title: entry.name,
     description: t('mcpServiceDetail'),
     closeLabel: t('mcpClose'),
-    className: css.detailDialog,
     contentClassName: css.detailBody,
     footer: h(
       'div',
@@ -303,7 +354,7 @@ export function McpDetailModal({
     ),
     children: h(
       'div',
-      { className: css.detail },
+      null,
       feedback ? h('p', { role: feedback.error ? 'alert' : 'status', className: feedback.error ? css.error : css.retryEchoSuccess }, feedback.text) : null,
       confirmAuth
         ? h(
@@ -328,26 +379,36 @@ export function McpDetailModal({
       entry.state === 'needs-credentials' ? h('p', { className: css.reasonText }, t('mcpConfigureCredentialsFirst')) : null,
       h(
         'div',
-        { className: css.detailHero },
-        h('span', { className: `${css.statusDot} ${css[`status${entry.state}`]}`, 'aria-hidden': true }),
+        { className: panelCss.hero },
+        h(StateDot, { state: mcpDotState(entry.state) }),
         h(
           'div',
-          { className: css.detailHeroText },
-          entry.endpoint === undefined ? null : h('p', { className: css.detailEndpoint }, entry.endpoint),
-          // Source and transport live in the dialog rather than on the card:
-          // the qualified suite id disambiguates same-named servers from
-          // different sources (e.g. two context7 installs). The authorization
-          // note rides here too: a server that declares no `auth` block still
-          // runs the OAuth flow, and the configuration below cannot show that.
+          { className: panelCss.heroText },
           h(
-            'p',
-            { className: css.detailEndpoint },
-            [
-              entry.kind === 'plugin' ? `${t('mcpPlugin')}: ${entry.suiteId ?? entry.source ?? '—'}` : t('mcpDirect'),
-              entry.transport,
-              ...(entry.oauthDefault === true ? [t('mcpOauthDefault')] : [])
-            ].join(' · ')
-          )
+            'div',
+            { className: panelCss.heroLine },
+            h(Tag, { tone: mcpTagTone(entry.state) }, mcpStateLabel(t, entry.state)),
+            h(Tag, null, entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect')),
+            h(Tag, { tone: 'quiet' }, entry.transport),
+            // A server that declares no `auth` block still runs the OAuth flow
+            // when it answers 401, and the redacted configuration cannot show
+            // that, so the note rides on the status band.
+            entry.oauthDefault === true ? h(Tag, { tone: 'quiet' }, t('mcpOauthDefault')) : null
+          ),
+          h('p', { className: panelCss.heroMono }, entry.endpoint ?? t('mcpObservedEndpoint'))
+        )
+      ),
+      h(
+        'div',
+        { className: panelCss.block },
+        h('h4', { className: panelCss.blockHead }, t('overviewSection')),
+        h(
+          'dl',
+          { className: panelCss.kvGrid },
+          kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteId ?? entry.source ?? '—' : t('mcpDirect'), true),
+          kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser')),
+          kvCell(t('detailTransport'), entry.transport, true),
+          kvCell(t('mcpServerKeyLabel'), entry.serverKey ?? entry.name, true)
         )
       ),
       // A foreign mount is informational: the localized hint (per cause —
@@ -367,9 +428,9 @@ export function McpDetailModal({
       entry.kind === 'direct' && !entry.managed ? h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, t('mcpDirectBoundary'))) : null,
       entry.credentialRefs?.length === 0 || entry.credentialRefs === undefined ? null : h(McpCredentialEditor, { t, api: credentials, refs: entry.credentialRefs }),
       h(
-        'section',
-        { className: css.detailSection },
-        h('h4', { className: css.detailHead }, t('mcpConfig')),
+        'div',
+        { className: panelCss.block },
+        h('h4', { className: panelCss.blockHead }, t('serviceConfigLabel')),
         h(ServerConfigDetail, {
           kind: 'mcp',
           id: entry.id,
@@ -381,11 +442,11 @@ export function McpDetailModal({
         })
       ),
       h(
-        'section',
-        { className: css.detailSection },
-        h('h4', { className: css.detailHead }, `${t('mcpTools')} (${entry.tools.length})`),
+        'div',
+        { className: panelCss.block },
+        h('h4', { className: panelCss.blockHead }, `${t('mcpTools')} (${entry.tools.length})`),
         entry.tools.length === 0
-          ? h('div', { className: css.detailEmpty }, entry.advertisedTools === false && entry.state === 'degraded' ? t('mcpZeroTools') : t('mcpNoTools'))
+          ? h('p', { className: panelCss.detailProse }, entry.advertisedTools === false && entry.state === 'degraded' ? t('mcpZeroTools') : t('mcpNoTools'))
           : h(
               'div',
               { className: css.toolList },
@@ -423,30 +484,38 @@ function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => voi
     title: t('mcpAddTitle'),
     onClose: busy ? () => {} : onClose,
     closeLabel: t('cancel'),
-    className: css.detailDialog,
     contentClassName: css.detailBody,
     footer: h(
       'div',
       { className: css.modalFooter },
-      h(Button, { variant: 'ghost', disabled: busy, onClick: onClose }, t('cancel')),
-      h(Button, { disabled: busy || name.trim() === '' || !valid, onClick: save }, t('save'))
+      h('span', { className: css.modalFooterHint }, t('editorFooterCreate')),
+      h('div', { className: css.modalFooterGrow }),
+      h(Button, { variant: 'outline', disabled: busy, onClick: onClose }, t('cancel')),
+      h(Button, { variant: 'primary', disabled: busy || name.trim() === '' || !valid, onClick: save }, t('editorCreate'))
     ),
     children: h(
       'div',
       { className: css.detail },
-      h(
-        'label',
-        null,
-        t('mcpServerName'),
-        h(Input, {
-          value: name,
-          placeholder: t('mcpServerName'),
-          'aria-label': t('mcpServerName'),
-          disabled: busy,
-          onChange: (event: { target: { value: string } }) => setName(event.target.value)
-        })
-      ),
-      h(ServerConfigEditor, { kind: 'mcp', text: config, onChange: setConfig, t, disabled: busy, onValidityChange: setValid }),
+      h(ServerConfigEditor, {
+        kind: 'mcp',
+        text: config,
+        onChange: setConfig,
+        t,
+        disabled: busy,
+        onValidityChange: setValid,
+        nameField: {
+          label: t('mcpServerName'),
+          // A native control from the editors' own form sheet: the platform
+          // `Input` draws its own edge, which nested a second box inside the field.
+          control: h('input', {
+            value: name,
+            placeholder: t('mcpServerNamePh'),
+            'aria-label': t('mcpServerName'),
+            disabled: busy,
+            onChange: (event: { target: { value: string } }) => setName(event.target.value)
+          })
+        }
+      }),
       error === undefined ? null : h('div', { role: 'alert', className: css.error }, error)
     )
   })
@@ -455,6 +524,7 @@ function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => voi
 function filterLabel(t: Translate, kind: Filter): string {
   if (kind === 'plugin') return t('mcpPlugin')
   if (kind === 'direct') return t('mcpDirect')
+  if (kind === 'disabled') return t('panelFilterDisabled')
   return t('mcpAll')
 }
 
@@ -462,5 +532,6 @@ function filterLabel(t: Translate, kind: Filter): string {
 function mcpFilterHint(t: Translate, kind: Filter): string {
   if (kind === 'plugin') return t('mcpFilterPluginHint')
   if (kind === 'direct') return t('mcpFilterDirectHint')
+  if (kind === 'disabled') return t('mcpFilterDisabledHint')
   return t('mcpFilterAllHint')
 }

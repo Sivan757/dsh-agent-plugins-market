@@ -13,8 +13,10 @@ Status: implemented
 
 - **Token 对齐。** 所有未定义 token 重映射到 design-platform 对应物（fallback 同步更新为平台亮色值）：`bg-hover`/`bg-active` → `interactive-bg-hover`/`-active`；`bg-selected` → `state-business-tertiary`；`bg-success`/`bg-warn` → `state-success-tertiary`/`state-warn-tertiary`；`bg-error` → `interactive-bg-hover-danger`；`state-neutral`（开关关闭态轨道）→ `label-dimmed`（harness 自家开关轨道用 `border-l2`，在本控件 38×22 的尺寸下过淡）；`danger` 按语境拆分——警告框 → `state-warn-label`，破坏性悬停 → `state-error-primary`；`text-2` → `label-secondary`；`accent` → `brand-primary-new-colorprimary-new-color`；`border` → `border-l2`。
 - **卡片示能对齐 MCP 卡片。** 已安装套件带 3px 左侧边条——启用为 success 绿、停用为 `label-tertiary` 灰；未安装无边条。卡片同时获得 MCP 卡片的悬停处理（border-l3、interactive-bg-hover、柔和阴影），因为整卡点击即进入套件详情。
-- **操作扁平化。** 刷新与卸载改为内联扁平图标按钮（透明底、悬停 `interactive-bg-hover`、卸载带破坏性悬停着色），几何沿用 harness `Button` ghost 规格；启用开关移到卡片最右侧。安装/添加源 CTA 保持主色文字按钮。
-- **`✓ 已安装` 徽章移除**——安装状态由边条承载、启用状态由开关承载，再用文字复述两者属于冗余。`installedBadge` 保留在 locales（套件详情面板仍在用），surface 计数标签移到 `source · layout` 之下独立成行。
+- **操作扁平化。** 刷新与卸载改为内联扁平图标按钮（透明底、悬停 `interactive-bg-hover`、卸载带破坏性悬停着色），几何沿用 harness `Button` ghost 规格；启用开关读在这一簇的最后。安装/添加源 CTA 保持主色文字按钮。
+- **`✓ 已安装` 徽章移除**——安装状态由边条承载、启用状态由开关承载，再用文字复述两者属于冗余。`installedBadge` 保留在 locales（套件详情面板仍在用）。
+
+操作簇落在卡片的身份行，计数标签与来源同行；布局标签移入套件详情的概览。两者都源自 [工作台六页统一卡片句法并接入宿主示能](2026-09-14-workspace-card-anatomy-and-host-affordances.zh.md)，那份记录把这张卡片的语言扩展到全部六个页面。
 
 ## Alternatives considered
 

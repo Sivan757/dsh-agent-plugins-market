@@ -155,7 +155,7 @@ The table says per layout whether this plugin reads a given surface at all. **Ye
 | Project-native directories                                                                                    | Yes    | Yes     | Yes      | Yes     | Partial | No      |
 
 - **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `SKILL.md` files.
-- **Agents and commands** are read as Markdown (`agents/*.md`, `commands/*.md`). Cursor commands must be `.md`; its `.mdc`, `.markdown` and `.txt` variants are not read. Codex and Kimi native agent/command formats (TOML, YAML) have no adapter yet.
+- **Agents and commands** are read as Markdown (`agents/*.md`, `commands/*.md`). Cursor plugin commands accept `.md`, `.mdc`, `.markdown` and `.txt`. Codex and Kimi native agent/command formats (TOML, YAML) have no adapter yet.
 - **MCP** covers declared files, inline tables and arrays. Cursor's schema-less `mcp.json` and agent-plugins' strict `mcp.json` both work; Kimi Code is inline-only. Codex app connectors stay outside this adapter.
 - **Hooks** map the command-style events DSH has an equivalent for; events without one (for example `afterFileEdit`) are reported instead of simulated. Cursor's native events are not read.
 - **LSP** accepts declared files, arrays and inline tables plus the conventional `.lsp.json` / `lsp.json` locations. Declarations inside a project are reported but not mounted: the host LSP registry is global. Some layouts only expose LSP directories for preview.
@@ -166,7 +166,7 @@ Reading a layout does not guarantee every behavior of its original platform. Inv
 
 ### Project layout switch
 
-The plugin settings card has **Scan project Agent layouts** (`dsh-agent-plugins-market.scanProjectLayouts`, default off). It controls one thing: whether the project you are working in contributes skills, commands, agent roles, MCP servers and hooks from its own directories (`.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder`, `.github`). Turning it on adds those candidates immediately and turning it off removes them; configured sources and installed suites are unaffected.
+The plugin settings card has **Scan project Agent layouts** (`dsh-agent-plugins-market.scanProjectLayouts`, default off). It controls one thing: whether the project you are working in contributes skills, commands, agent roles, MCP servers and hooks from its own directories (`.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder`, `.github`). Turning it on adds those candidates; turning it off removes them on the next discovery pass. The card applies a switch when you save it, and each setting offers Use default while it carries your own value. Configured sources and installed suites are unaffected.
 
 [Project layouts](docs/user/usage.md#project-layouts) lists the directories and files read per layout and how they are mounted.
 

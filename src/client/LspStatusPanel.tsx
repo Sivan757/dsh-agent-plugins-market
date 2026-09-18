@@ -11,7 +11,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './ui/DetailModal.js'
 import { ServerConfigEditor } from './ui/ServerConfigEditor.js'
 import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
@@ -22,6 +22,7 @@ import {
   addLspServer,
   fetchLspStatus,
   migrateLspSeam,
+  setLspServerEnabled,
   type LspLegacySeam,
   type LspLegacySeamMigration,
   type LspStatusEntry,
@@ -30,10 +31,14 @@ import {
 } from './api.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
+import { DetailRow, DetailRows } from './ui/DetailRows.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
 import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './features/lsp-status/lsp-status-view-model.js'
 import css from './mcp-status.module.css'
+import rc from './ui/resource-card.module.css'
+import panelCss from './ui/panel.module.css'
 import { clientErrorMessage } from './ui/error-message.js'
+import { withBusyOperation } from './ui/busy-operation.js'
 
 interface LspStatusPanelProps {
   t: Translate
@@ -46,17 +51,20 @@ const EMPTY_STATUS: LspStatusPayload = {
   hostMissing: true
 }
 
-const FILTER_LABEL_KEYS: Record<LspStatusFilter, 'lspAll' | 'lspPlugin' | 'lspDirect'> = {
-  all: 'lspAll',
-  plugin: 'lspPlugin',
-  direct: 'lspDirect'
+/** Filter tab label; the switched-off tab reuses the shared panel wording. */
+function lspFilterLabel(t: Translate, kind: LspStatusFilter): string {
+  if (kind === 'plugin') return t('lspPlugin')
+  if (kind === 'direct') return t('lspDirect')
+  if (kind === 'disabled') return t('panelFilterDisabled')
+  return t('lspAll')
 }
 
 /** Tooltip text per filter: the counts alone do not explain the grouping. */
-const FILTER_HINT_KEYS: Record<LspStatusFilter, 'lspFilterAllHint' | 'lspFilterPluginHint' | 'lspFilterDirectHint'> = {
-  all: 'lspFilterAllHint',
-  plugin: 'lspFilterPluginHint',
-  direct: 'lspFilterDirectHint'
+function lspFilterHint(t: Translate, kind: LspStatusFilter): string {
+  if (kind === 'plugin') return t('lspFilterPluginHint')
+  if (kind === 'direct') return t('lspFilterDirectHint')
+  if (kind === 'disabled') return t('lspFilterDisabledHint')
+  return t('lspFilterAllHint')
 }
 
 /** Language-server inventory with per-state overview and per-server detail. */
@@ -80,6 +88,18 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         setError(clientErrorMessage(t, caught))
       })
       .finally(() => setLoading(false))
+  }
+
+  // Switching a server off keeps its declaration on disk and drops the mount;
+  // the failure detail the user saw before is not rewritten.
+  const toggle = (entry: LspStatusEntry): void => {
+    setError(undefined)
+    withBusyOperation(() => setLspServerEnabled(entry.id, entry.state === 'disabled'))
+      .then(() => fetchLspStatus())
+      .then(setPayload)
+      .catch(caught => {
+        setError(clientErrorMessage(t, caught))
+      })
   }
 
   useEffect(() => {
@@ -139,16 +159,15 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       onSearchChange: setSearch,
       filters: LSP_FILTERS.map(key => ({
         id: key,
-        label: t(FILTER_LABEL_KEYS[key]),
+        label: lspFilterLabel(t, key),
         count: filterCounts[key],
-        icon: h(LspFilterIcon, { k: key }),
         active: filter === key,
         onSelect: () => setFilter(key),
-        hint: t(FILTER_HINT_KEYS[key])
+        hint: lspFilterHint(t, key)
       })),
       view,
-      gridLabel: t('grid'),
-      listLabel: t('list'),
+      toListLabel: t('switchToList'),
+      toGridLabel: t('switchToGrid'),
       onViewChange: nextView => setView(nextView)
     }),
     error !== undefined
@@ -159,8 +178,8 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
           ? h('div', { className: css.empty }, t('lspEmpty'))
           : h(
               ResourceCollection,
-              { view, className: view === 'grid' ? css.grid : css.list },
-              filtered.map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry) }))
+              { view },
+              filtered.map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry), onToggle: () => toggle(entry) }))
             ),
     selected === undefined ? null : h(LspDetailModal, { entry: selected, t, onClose: () => { setSelected(undefined); refresh() } }),
     editorOpen
@@ -260,28 +279,65 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
     onClose: busy ? () => {} : onClose,
     title: t('lspAddTitle'),
     closeLabel: t('cancel'),
-    className: css.detailDialog,
     contentClassName: css.detailBody,
     footer: h(
       'div',
       { className: css.modalFooter },
-      h(Button, { variant: 'ghost', disabled: busy, onClick: onClose }, t('cancel')),
-      h(Button, { variant: 'primary', disabled: busy || !valid || name.trim() === '', onClick: () => { void save() } }, t('lspSave'))
+      h('span', { className: css.modalFooterHint }, t('editorFooterCreate')),
+      h('div', { className: css.modalFooterGrow }),
+      h(Button, { variant: 'outline', disabled: busy, onClick: onClose }, t('cancel')),
+      h(Button, { variant: 'primary', disabled: busy || !valid || name.trim() === '', onClick: () => { void save() } }, t('editorCreate'))
     ),
     children: h(
       'div',
       { className: css.detail },
       error === undefined ? null : h('div', { className: css.error }, error),
-      h('label', null, t('lspServerName'), h(Input, { value: name, disabled: busy, 'aria-label': t('lspServerName'), onChange: (event: { target: { value: string } }) => setName(event.target.value) })),
-      h(ServerConfigEditor, { kind: 'lsp', text, onChange: setText, t, disabled: busy, onValidityChange: setValid })
+      h(ServerConfigEditor, {
+        kind: 'lsp',
+        text,
+        onChange: setText,
+        t,
+        disabled: busy,
+        onValidityChange: setValid,
+        nameField: {
+          label: t('lspServerName'),
+          // A native control from the editors' own form sheet: the platform
+          // `Input` draws its own edge, which nested a second box inside the field.
+          control: h('input', {
+            value: name,
+            placeholder: t('lspServerNamePh'),
+            disabled: busy,
+            'aria-label': t('lspServerName'),
+            onChange: (event: { target: { value: string } }) => setName(event.target.value)
+          })
+        }
+      })
     )
   })
 }
 
-/** Lean row: state dot, server key, command. The card accent + status dot
- *  carry the state; no redundant pill for the healthy case. Kind badge shows
- *  where the declaration comes from (suite vs user configuration). */
-function LspRow({ entry, t, onOpen }: { entry: LspStatusEntry; t: Translate; onOpen: () => void }): ReactNode {
+/** The card dot colour, and the tag tone a non-mounted state renders with. */
+function lspDotState(state: LspStatusState): 'done' | 'warning' | 'ongoing' | 'error' | 'idle' {
+  if (state === 'mounted') return 'done'
+  if (state === 'starting') return 'ongoing'
+  if (state === 'failed' || state === 'conflict') return 'error'
+  if (state === 'disabled') return 'idle'
+  return 'warning'
+}
+
+function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (state === 'mounted') return 'success'
+  if (state === 'failed' || state === 'conflict') return 'danger'
+  if (state === 'disabled') return 'neutral'
+  return 'warning'
+}
+
+/**
+ * One language-server card: the server key with its state tag on the identity
+ * row and the enable switch on its trailing edge; the command on the body row;
+ * the declaring suite and the extension count on the source row.
+ */
+function LspRow({ entry, t, onOpen, onToggle }: { entry: LspStatusEntry; t: Translate; onOpen: () => void; onToggle: () => void }): ReactNode {
   const interactive = {
     role: 'button' as const,
     tabIndex: 0,
@@ -292,24 +348,39 @@ function LspRow({ entry, t, onOpen }: { entry: LspStatusEntry; t: Translate; onO
       onOpen()
     }
   }
-  const showPill = entry.state !== 'mounted'
+  const extensions = Object.keys(entry.extensions).length
+  const disabled = entry.state === 'disabled'
   return h(
     ResourceCard,
-    { className: css.card, state: entry.state === 'mounted' ? 'active' : entry.state === 'disabled' ? 'disabled' : entry.state === 'failed' || entry.state === 'conflict' ? 'error' : 'warning', ...interactive },
+    { state: entry.state === 'mounted' ? 'active' : disabled ? 'disabled' : entry.state === 'failed' || entry.state === 'conflict' ? 'error' : 'warning', surface: 'lsp', ...interactive },
     h(
       'div',
-      { className: css.cardBody },
+      { className: rc.rowId },
+      h('span', { className: `${rc.name} ${rc.nameMono}` }, entry.serverKey),
+      h(Tag, { tone: lspTagTone(entry.state) }, stateLabel(t, entry.state)),
+      h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')))
+    ),
+    h(
+      'div',
+      { className: rc.rowActions },
       h(
-        'div',
-        { className: css.cardTop },
-        h('span', { className: `${css.statusDot} ${css[`status${dotClass(entry.state)}`]}`, 'aria-hidden': true }),
-        h('span', { className: css.service }, h('span', { className: css.name }, entry.serverKey)),
-        entry.kind === 'plugin'
-          ? h('span', { className: css.sourcePlugin }, entry.suiteName)
-          : h('span', { className: css.sourceDirect }, t('lspDirect')),
-        showPill ? h('span', { className: `${css.statePill} ${css[`state${pillClass(entry.state)}`]}` }, stateLabel(t, entry.state)) : null
-      ),
-      h('p', { className: css.endpoint }, [entry.command, ...entry.args].join(' ')),
+        'span',
+        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
+        h(Switch, {
+          checked: !disabled,
+          label: disabled ? t('enable') : t('disable'),
+          title: disabled ? t('enable') : t('disable'),
+          onChange: onToggle
+        })
+      )
+    ),
+    h('p', { className: `${rc.rowBody} ${rc.monoLine}` }, [entry.command, ...entry.args].join(' ')),
+    h(
+      'div',
+      { className: rc.rowFoot },
+      h('span', { className: rc.provenance, title: entry.kind === 'plugin' ? entry.suiteName : entry.serverKey }, entry.kind === 'plugin' ? entry.suiteName : t('lspDirect')),
+      h('span', { className: rc.separator }, '·'),
+      h('span', { className: rc.count }, h('span', { className: rc.countValue }, String(extensions)), ' ', t('lspExtensionCount'))
     )
   )
 }
@@ -321,62 +392,72 @@ function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Trans
     title: entry.serverKey,
     description: t('lspDetailSubtitle'),
     closeLabel: t('cancel'),
-    className: css.detailDialog,
     contentClassName: css.detailBody,
-    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))),
+    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))),
     children: h(
       'div',
-      { className: css.detail },
+      null,
       h(
         'div',
-        { className: css.detailHero },
-        h('span', { className: `${css.statusDot} ${css[`status${dotClass(entry.state)}`]}`, 'aria-hidden': true }),
+        { className: panelCss.hero },
+        h(StateDot, { state: lspDotState(entry.state) }),
         h(
           'div',
-          { className: css.detailHeroText },
-          // The status dot carries the healthy verdict; only non-healthy
-          // states get an explicit pill.
-          entry.state === 'mounted' ? null : h('span', { className: `${css.statePill} ${css[`state${pillClass(entry.state)}`]}` }, stateLabel(t, entry.state)),
-          h('p', { className: css.detailEndpoint }, `${entry.suiteName} · ${entry.sourceId}`)
+          { className: panelCss.heroText },
+          h(
+            'div',
+            { className: panelCss.heroLine },
+            h(Tag, { tone: lspTagTone(entry.state) }, stateLabel(t, entry.state)),
+            h(Tag, null, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')),
+            entry.kind === 'plugin' ? h(Tag, { tone: 'quiet' }, entry.suiteName) : null
+          ),
+          h('p', { className: panelCss.heroMono }, [entry.command, ...entry.args].join(' '))
+        )
+      ),
+      h(
+        'div',
+        { className: panelCss.block },
+        h('h4', { className: panelCss.blockHead }, t('overviewSection')),
+        h(
+          'dl',
+          { className: panelCss.kvGrid },
+          kv(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
+          kv(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
+          kv(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true),
+          kv(t('detailCommand'), entry.command, true)
         )
       ),
       entry.reason === undefined
         ? null
         : h(
             'div',
-            { className: css.reasonBox },
-            h('span', { className: css.reasonLabel }, t('lspReasonLabel')),
-            h('p', { className: css.reasonText }, entry.reason)
+            { className: panelCss.block },
+            h('h4', { className: panelCss.blockHead }, t('lspReasonLabel')),
+            h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, entry.reason))
           ),
-      h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t })
+      h(
+        'div',
+        { className: panelCss.block },
+        h('h4', { className: panelCss.blockHead }, `${t('detailExtensions')} (${Object.keys(entry.extensions).length})`),
+        h(
+          DetailRows,
+          null,
+          ...Object.entries(entry.extensions).map(([extension, language]) => h(DetailRow, { key: extension, name: extension, summary: language, expandable: false }))
+        )
+      ),
+      h(
+        'div',
+        { className: panelCss.block },
+        h('h4', { className: panelCss.blockHead }, t('serviceConfigLabel')),
+        h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t })
+      )
     )
   })
 }
 
-/** Filter icons mirroring McpFilterIcon's language: shared glyph shapes for
- *  all/plugin/direct so the two panels read as one system. */
-function LspFilterIcon({ k }: { k: LspStatusFilter }): ReactNode {
-  const common = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
-  if (k === 'plugin') {
-    return h('svg', common, h('path', { d: 'M6 2.5v2H4A1.5 1.5 0 0 0 2.5 6v2h2a1.5 1.5 0 1 1 0 3h-2v2A1.5 1.5 0 0 0 4 14.5h2v-2a1.5 1.5 0 1 1 3 0v2h2a1.5 1.5 0 0 0 1.5-1.5v-2h-2a1.5 1.5 0 1 1 0-3h2V6A1.5 1.5 0 0 0 11 4.5H9v-2a1.5 1.5 0 1 0-3 0Z' }))
-  }
-  if (k === 'direct') {
-    return h('svg', common, h('circle', { cx: 8, cy: 5, r: 2.2 }), h('path', { d: 'M3.5 13c.6-2.2 2.1-3.3 4.5-3.3s3.9 1.1 4.5 3.3' }))
-  }
-  return h('svg', common, h('path', { d: 'M2.5 5 8 2.5 13.5 5 8 7.5 2.5 5Zm0 3L8 10.5 13.5 8M2.5 11 8 13.5 13.5 11' }))
-}
-
-/** The status-dot CSS suffix (lowercase state names in the stylesheet). */
-function dotClass(state: LspStatusState): string {
-  return state === 'host-missing' ? 'host-missing' : state
-}
-
-/** The state-pill CSS suffix; conflict borrows the failed palette and
- *  starting borrows the warn palette. */
-function pillClass(state: LspStatusState): string {
-  if (state === 'conflict') return 'failed'
-  if (state === 'starting') return 'host-missing'
-  return state
+/** One label/value pair in a detail dialog's overview grid. */
+function kv(label: string, value: string, mono = false): ReactNode {
+  return h('div', null, h('dt', { className: panelCss.kvKey }, label), h('dd', { className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue, title: value }, value))
 }
 
 function stateLabel(t: Translate, state: LspStatusState): string {

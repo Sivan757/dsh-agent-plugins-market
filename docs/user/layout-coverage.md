@@ -23,11 +23,13 @@ The active contracts in `schemas/` describe ten layouts: eight client/convention
 
 `tests/real-layouts.test.ts` checks provenance, validates real manifests against their schemas, scans the original multi-layout tree, then materializes a second tree with competing manifests suppressed at every suite root. Productive marketplace provenance comes from the scanner itself. It also checks runtime command readers, hook normalization, detail projections, and Kimi instruction loading. The skill-collection and primary-Kimi cases are explicit derived layout variants, not claims about unmodified upstream locations.
 
-`tests/component-declarations.test.ts` covers schema forms not present in every sample: file/directory/array paths, Cursor text extensions, MCP file/inline arrays, file LSP configs, Qoder inline commands, Kimi hooks/system prompts/catalog aliases, marketplace pluginRoot and entry-only declarations, Codex API catalogs, and containment/fail-closed cases.
+`tests/component-declarations.test.ts` covers schema forms not present in every sample: file/directory/array paths, Cursor text extensions, MCP file/inline arrays, file LSP configs, Qoder inline commands, Kimi hooks/system prompts/catalog aliases, marketplace pluginRoot and entry-only declarations, Codex API catalogs, and containment/fail-closed cases. `tests/project-hooks.test.ts` covers the project dimension: settings-table and standalone hook files, the bare event table a `hooks.json` may carry, malformed-file fail-closed behavior, and the private runtime snapshot the bridge mounts.
 
 ## Implementation
 
 `component-files.ts` resolves contained paths and normalized resources; `suite-components.ts` normalizes hook and LSP declarations. Catalog counts, command/agent providers, role routing and detail panels consume those same resources. Invalid explicit hooks cannot revive the default hook file. Inline manifest commands remain read-only in the resource editor.
+
+The project dimension reuses that normalization through `native-project.ts`, so `.agents/hooks/hooks.json` and `.agents/hooks.json` mount exactly like a suite's own `hooks.json`; a standalone file may hold the bare event table or a `hooks` key.
 
 A metadata-only root `plugin.json` keeps its existing identity but inherits missing component declarations from its co-located Claude manifest. The unmodified ponytail fixture verifies this behavior; otherwise its root name-only file would still hide its real hooks despite passing isolated tests.
 

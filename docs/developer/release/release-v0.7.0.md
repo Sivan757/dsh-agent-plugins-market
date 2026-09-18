@@ -1,6 +1,8 @@
 # 发版材料：v0.7.0
 
-> 基准：`dsh-agent-plugins-market-v0.6.2`（2026-09-10）之后 dev 上的 92 个提交（7 个 `feat:`，0 个 breaking）→ release-please 按 semver 自动升 **minor：0.7.0**。状态：`dev` 已推送（`ade79f1`），领先 `origin/main` 91 个提交。
+> 基准：`dsh-agent-plugins-market-v0.6.2`（2026-09-10）之后 dev 上的 94 个提交（7 个 `feat:`，0 个 breaking）→ release-please 按 semver 自动升 **minor：0.7.0**。
+>
+> **状态：已发布（2026-09-13）。** `dev` → `main` 走 PR #53（merge commit `bc5d063`），Release PR #54（`1cf2c24`）合并于 `2ffdfae`；tag `dsh-agent-plugins-market-v0.7.0`、GitHub Release、npm `latest = 0.7.0` 均已确认。`main` 与 `dev` 已收敛。
 
 ---
 
@@ -15,7 +17,7 @@
 - [x] `pnpm run check:host-alignment` ✅ 基线 `0.1.5-rc.2`（`next`），11 个包全部对齐
 - [x] `pnpm install --frozen-lockfile` + `prepare`（typecheck + build）✅
 - [x] `npm pack --dry-run` ✅ 212 个文件，含 `lib/`、`client/`、`schemas/`、`cordis.patch.yml`、双语 README
-- [ ] 推送后 CI（quality / CodeQL / Windows / docs-pages）全绿
+- [x] 推送后 CI 全绿：quality / windows / CodeQL / Analyze / Dependency review ✅（PR #53 与 Release PR #54 均通过；bot 开的 Release PR 需要在 Actions 页面手动 approve 一次才会跑）
 
 ### 2. 交付面
 
@@ -24,7 +26,8 @@
 - [x] `dependabot.yml`：删掉冗余的 `/docs-site` 条目（pnpm workspace 只有一个锁文件，该条目把每次升级拆成 manifest PR + lockfile PR，两者都过不了 `--frozen-lockfile`），补 `@types/node >=23` ignore
 - [x] 安全公告：main 上 12 条 dependabot 告警涉及的 6 个包全部落到已修补版本（见下）
 - [x] 依赖对齐：`@types/react-dom` `^19.2.4` → `~18.3.0`（与 `react-dom` 18.3.1 及宿主 `dsh-ui-primitives` 一致）
-- [ ] 删除两个已合并的远端分支（`chore/host-fs-seam`、`fix/windows-path-containment`）——**需你确认后执行**
+- [x] 远端分支清理：`chore/host-fs-seam`、`fix/windows-path-containment`、陈旧的 release-please 分支均已删除；远端只剩 `main`、`dev`（release-please 会在下次发版时重建自己的分支）
+- [x] 安全公告复核后追加：`fix(deps)` 把 6 个受影响的传递依赖全部升到已修补版本
 
 ### 2.1 安全公告（GitHub Advisory）
 
@@ -44,7 +47,7 @@ main 的锁文件上 12 条告警、6 个包。**全部已在 dev 的锁文件�
 ### 3. 行为变更确认
 
 - [ ] **升级路径必测**：profile 里还留着旧版手工 LSP 层时，LSP 面板出现一次性升级横幅 → 点击移除 → 备份生成 → 语言服务器恢复挂载
-- [ ] 手工冒烟（真机）：
+- [ ] 手工冒烟（真机，发布后补齐）：
   - 市场页六个页签、搜索/筛选/网格切换
   - 新装一个 LSP 套件（或直配一条 `lspServers`）→ 状态从 `starting` 落到 `mounted`
   - MCP 服务详情：连接 / 断开 / 重新授权
@@ -53,12 +56,12 @@ main 的锁文件上 12 条告警、6 个包。**全部已在 dev 的锁文件�
 
 ### 4. 发布流程（release-please 内嵌于 `npm-publish.yml`，详见 [release-process.md](release-process.md)）
 
-- [x] `git push origin dev` ✅（`ade79f1`）
-- [ ] 开 dev → main 的 PR，CI 绿后合并
-- [ ] 确认 release-please 开出 **0.7.0** 的 Release PR（head 固定为 `release-please--branches--main--components--dsh-agent-plugins-market`，base 为 main），核对 `package.json` / CHANGELOG 小节 / `.release-please-manifest.json` 三处一致
-- [ ] quality + CodeQL 绿后合并 Release PR（**合并前需你确认**）
-- [ ] 合并后同 workflow 自动：打 tag `dsh-agent-plugins-market-v0.7.0`、建 GitHub Release、OIDC 发布 npm
-- [ ] 抽查 `npm view dsh-agent-plugins-market dist-tags` 与 `@latest` 安装冒烟
+- [x] `git push origin dev` ✅
+- [x] 开 dev → main 的 PR #53，CI 绿后合并 ✅
+- [x] release-please 开出 **0.7.0** 的 Release PR #54，三处核对一致（`package.json` `0.7.0` / CHANGELOG `## [0.7.0]` / `.release-please-manifest.json` `"0.7.0"`）✅
+- [x] quality + windows + CodeQL 绿后合并 Release PR #54 ✅
+- [x] 合并后同 workflow 自动完成：tag `dsh-agent-plugins-market-v0.7.0`（指向 `2ffdfae`）、GitHub Release 已发布、OIDC 发布 npm ✅
+- [x] `npm view dsh-agent-plugins-market dist-tags.latest` = `0.7.0`；下载 tarball 校验：`lib/`、`client/`、`schemas/`、`cordis.patch.yml`、双语 README 齐全，LSP 三件套在 `dependencies` ✅
 
 ### 5. 发布后
 

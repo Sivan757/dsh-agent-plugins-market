@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createUserPanelStores, UserPanelSkillProvider } from '../src/runtime/user-panels.js'
@@ -48,6 +48,105 @@ describe('user panel stores', () => {
   })
 })
 
+describe('user panel directory-shaped skills', () => {
+  /** Write a skill the way other Agent tools do: one directory holding SKILL.md. */
+  async function writeDirectorySkill(root: string, name: string, text: string): Promise<string> {
+    const dir = join(root, 'skills', name)
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'SKILL.md'), text, 'utf8')
+    return dir
+  }
+
+  it('lists, edits, and deletes the document of a directory-shaped skill, leaving its resources in place', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const dir = await writeDirectorySkill(root, 'skill-creator', '---\nname: skill-creator\ndescription: authors skills\n---\nBody')
+      await mkdir(join(dir, 'references'), { recursive: true })
+      await writeFile(join(dir, 'references', 'schemas.md'), 'schema notes')
+
+      const stores = createUserPanelStores(root)
+      const listed = await stores.skills.list()
+      expect(listed.map(entry => [entry.name, entry.shape, entry.disabled])).toEqual([['skill-creator', 'skill-directory', false]])
+      expect(listed[0]?.path).toBe(join(dir, 'SKILL.md'))
+      expect(listed[0]?.description).toBe('authors skills')
+
+      // Editing rewrites the document the panel serves, not a new flat sibling.
+      await stores.skills.update('skill-creator', '---\nname: skill-creator\ndescription: authors skills\ndisabled: true\n---\nEdited body')
+      expect(await readFile(join(dir, 'SKILL.md'), 'utf8')).toContain('Edited body')
+      await expect(stat(join(root, 'skills', 'skill-creator.md'))).rejects.toThrow()
+      expect((await stores.skills.get('skill-creator'))?.disabled).toBe(true)
+
+      // Removal takes that document; files beside it belong to whichever tool authored the skill.
+      await stores.skills.remove('skill-creator')
+      expect(await stores.skills.list()).toEqual([])
+      expect(await readFile(join(dir, 'references', 'schemas.md'), 'utf8')).toBe('schema notes')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('removes a skill directory once removal leaves it empty', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const dir = await writeDirectorySkill(root, 'lonely', '---\nname: lonely\ndescription: alone\n---\nBody')
+      const stores = createUserPanelStores(root)
+      await stores.skills.remove('lonely')
+      await expect(stat(dir)).rejects.toThrow()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('prefers the directory spelling when a name exists in both shapes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      await writeDirectorySkill(root, 'dual', '---\nname: dual\ndescription: directory copy\n---\nDirectory body')
+      await writeFile(join(root, 'skills', 'dual.md'), '---\nname: dual\ndescription: flat copy\n---\nFlat body')
+
+      const stores = createUserPanelStores(root)
+      const resolved = await stores.skills.get('dual')
+      expect(resolved?.shape).toBe('skill-directory')
+      expect(resolved?.description).toBe('directory copy')
+      expect((await stores.skills.list()).map(entry => entry.name)).toEqual(['dual'])
+
+      await stores.skills.update('dual', '---\nname: dual\ndescription: edited\n---\nEdited')
+      expect(await readFile(join(root, 'skills', 'dual', 'SKILL.md'), 'utf8')).toContain('Edited')
+      expect(await readFile(join(root, 'skills', 'dual.md'), 'utf8')).toContain('Flat body')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('creates flat entries and refuses a name a directory already uses', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      await writeDirectorySkill(root, 'taken', '---\nname: taken\ndescription: taken\n---\nBody')
+      const stores = createUserPanelStores(root)
+      await expect(stores.skills.create('taken', 'x')).rejects.toThrow(/already exists/)
+      const created = await stores.skills.create('fresh', '---\nname: fresh\ndescription: fresh\n---\nBody')
+      expect(created.shape).toBe('file')
+      expect(await readFile(join(root, 'skills', 'fresh.md'), 'utf8')).toContain('Body')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps commands and personas flat-only', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      await mkdir(join(root, 'commands', 'nested'), { recursive: true })
+      await writeFile(join(root, 'commands', 'nested', 'SKILL.md'), '---\ndescription: nested\n---\nBody')
+      const stores = createUserPanelStores(root)
+      expect(await stores.commands.list()).toEqual([])
+      await expect(stores.commands.update('nested', 'x')).rejects.toThrow(/no entry named/)
+      await stores.commands.remove('nested')
+      expect((await stat(join(root, 'commands', 'nested', 'SKILL.md'))).isFile()).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('user panel skill provider', () => {
   it('surfaces only enabled skills, keeping personas out of the skill registry', async () => {
     const root = await mkdtemp(join(tmpdir(), 'panels-'))
@@ -77,10 +176,9 @@ describe('user panel skill provider', () => {
     const root = await mkdtemp(join(tmpdir(), 'panels-'))
     try {
       const stores = createUserPanelStores(root)
-      await stores.skills.create('ok-name', '---\ndescription: fine\n---\nBody')
+      await stores.skills.create('ok-name', '---\nname: ok-name\ndescription: fine\n---\nBody')
       // A stray underscored file on disk (written out-of-band) never reaches
       // discovery: the registry would drop or reject it.
-      const { writeFile } = await import('node:fs/promises')
       await writeFile(join(root, 'skills', 'my_skill.md'), '---\ndescription: underscored\n---\nBody', 'utf8')
       const provider = new UserPanelSkillProvider(stores.skills)
       const names = (await provider.list({})).map(entry => entry.name)
@@ -107,14 +205,151 @@ describe('user panel skill provider', () => {
     const root = await mkdtemp(join(tmpdir(), 'panels-'))
     try {
       const stores = createUserPanelStores(root)
-      await stores.skills.create('notes', '---\ndescription: take notes\n---\nBody')
+      await stores.skills.create('notes', '---\nname: notes\ndescription: take notes\n---\nBody')
       const provider = new UserPanelSkillProvider(stores.skills)
       const [candidate] = await provider.list({})
       if (candidate === undefined) throw new Error('expected the panel skill to list one candidate')
       // `dsh-skill-filesystem` maps `~/.agents/skills` at rank 500 and a lower
-      // rank wins a duplicate name. At or above that, the host's reader serves
-      // these files instead and the panel's `disabled` flag stops applying.
+      // rank wins a duplicate name within one layer, so the panel's localized
+      // description and name precedence apply to the entries it serves.
       expect(candidate.rank).toBeLessThan(500)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('resolves relative resources beside a directory-shaped skill and serves both shapes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const dir = join(root, 'skills', 'canonical')
+      await mkdir(dir, { recursive: true })
+      await writeFile(join(dir, 'SKILL.md'), '---\nname: canonical\ndescription: cross-tool shape\n---\nBody')
+      const stores = createUserPanelStores(root)
+      await stores.skills.create('notes', '---\nname: notes\ndescription: flat shape\n---\nFlat body')
+
+      const provider = new UserPanelSkillProvider(stores.skills)
+      const candidates = await provider.list({})
+      expect(candidates.map(entry => entry.name).sort()).toEqual(['canonical', 'notes'])
+      // A flat entry's resources live in the panel directory; a directory-shaped
+      // skill owns its own, so `references/…` next to its SKILL.md resolves.
+      expect(candidates.find(entry => entry.name === 'canonical')?.resourceBase).toEqual({ kind: 'directory', path: dir })
+      expect(candidates.find(entry => entry.name === 'notes')?.resourceBase).toEqual({ kind: 'directory', path: join(root, 'skills') })
+
+      const loaded = await provider.get(
+        candidates.find(entry => entry.name === 'canonical')!,
+        {}
+      )
+      expect(loaded?.content).toBe('Body')
+      expect(loaded?.resourceBase).toEqual({ kind: 'directory', path: dir })
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('names an entry by what its document declares, and edits it through that name', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const dir = join(root, 'skills', 'renamed')
+      await mkdir(dir, { recursive: true })
+      await writeFile(join(dir, 'SKILL.md'), '---\nname: original-name\ndescription: dir shape\n---\nBody')
+      await writeFile(join(root, 'skills', 'legacy.md'), '---\nname: legacy-skill\ndescription: flat shape\n---\nFlat body')
+
+      const stores = createUserPanelStores(root)
+      const entries = await stores.skills.list()
+      // The declared name is the entry's name; the path keeps the file identity.
+      expect(entries.map(entry => [entry.name, entry.path])).toEqual([
+        ['legacy-skill', join(root, 'skills', 'legacy.md')],
+        ['original-name', join(dir, 'SKILL.md')]
+      ])
+
+      // The registry gets that same name, so one file is one skill.
+      const provider = new UserPanelSkillProvider(stores.skills)
+      const candidates = await provider.list({})
+      expect(candidates.map(entry => entry.name)).toEqual(['legacy-skill', 'original-name'])
+
+      const loaded = await provider.get(
+        candidates.find(entry => entry.name === 'original-name')!,
+        {}
+      )
+      expect(loaded?.content).toBe('Body')
+      expect(loaded?.path).toBe(join(dir, 'SKILL.md'))
+
+      // Editing and deleting resolve the declared name back to the file.
+      await stores.skills.update('legacy-skill', '---\nname: legacy-skill\ndescription: edited\n---\nEdited body')
+      expect(await readFile(join(root, 'skills', 'legacy.md'), 'utf8')).toContain('Edited body')
+      await stores.skills.remove('original-name')
+      expect(await stores.skills.list()).toHaveLength(1)
+      await expect(stat(join(dir, 'SKILL.md'))).rejects.toThrow()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('reads the harness invocation pair as the skills panel off state', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      await mkdir(join(root, 'skills'), { recursive: true })
+      const skill = (extra: string): string => `---\n${extra}\ndescription: shape\n---\nBody`
+      // Both controls off is the state the panel switch writes.
+      await writeFile(join(root, 'skills', 'both-off.md'), skill('name: both-off\ndisable-model-invocation: true\nuser-invocable: false'))
+      // One control alone is an authoring choice, not the panel's off state.
+      await writeFile(join(root, 'skills', 'model-off.md'), skill('name: model-off\ndisable-model-invocation: true'))
+      await writeFile(join(root, 'skills', 'user-off.md'), skill('name: user-off\nuser-invocable: false'))
+      // An entry an older release disabled still reads as off.
+      await writeFile(join(root, 'skills', 'legacy.md'), skill('name: legacy\ndisabled: true'))
+      // Commands are switched through `disabled`; the invocation pair is not their control.
+      await mkdir(join(root, 'commands'), { recursive: true })
+      await writeFile(join(root, 'commands', 'both-off.md'), skill('name: both-off\ndisable-model-invocation: true\nuser-invocable: false'))
+
+      const stores = createUserPanelStores(root)
+      expect((await stores.skills.list()).map(entry => [entry.name, entry.disabled])).toEqual([
+        ['both-off', true],
+        ['legacy', true],
+        ['model-off', false],
+        ['user-off', false]
+      ])
+      expect((await stores.commands.list()).map(entry => [entry.name, entry.disabled])).toEqual([['both-off', false]])
+
+      const provider = new UserPanelSkillProvider(stores.skills)
+      expect((await provider.list({})).map(entry => entry.name)).toEqual(['model-off', 'user-off'])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a document the harness reader would reject, disabled and with the reason', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      // Every document below is one the harness's `dsh-skill-filesystem`
+      // reader drops from the same directory; publishing any of them would
+      // advertise a skill only a market-equipped session can load.
+      await mkdir(join(root, 'skills'), { recursive: true })
+      await writeFile(join(root, 'skills', 'broken.md'), '---\nname: [\n---\nBody')
+      await writeFile(join(root, 'skills', 'display.md'), '---\nname: My Skill\ndescription: display\n---\nBody')
+      await writeFile(join(root, 'skills', 'nodesc.md'), '---\nname: nodesc\n---\nBody')
+      await writeFile(join(root, 'skills', 'plain.md'), 'just prose\n')
+
+      const stores = createUserPanelStores(root)
+      const entries = await stores.skills.list()
+      expect(entries.map(entry => [entry.name, entry.disabled])).toEqual([
+        ['broken', true],
+        ['display', true],
+        ['nodesc', true],
+        ['plain', true]
+      ])
+      expect(entries.map(entry => entry.metadata['validationError'])).toEqual([
+        expect.stringContaining('Invalid frontmatter'),
+        'invalid skill name "My Skill"',
+        'frontmatter requires name and description',
+        'missing YAML frontmatter'
+      ])
+      expect(await new UserPanelSkillProvider(stores.skills).list({})).toEqual([])
+
+      // Listing it disabled is what keeps it fixable: the document stays
+      // addressable by its panel name.
+      expect((await stores.skills.get('plain'))?.content).toBe('just prose\n')
+      await stores.skills.update('plain', '---\nname: plain\ndescription: fixed\n---\nBody')
+      expect((await stores.skills.get('plain'))?.disabled).toBe(false)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

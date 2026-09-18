@@ -29,6 +29,7 @@ import { createTransport } from './transport.js'
 import { syncTools } from './tools.js'
 import type { ToolBridgeOptions, ToolDisposers, ToolHost } from './tools.js'
 import type { Config } from './config.js'
+import { DEFAULT_STARTUP_TIMEOUT_MS } from './config.js'
 
 /** Automatic reconnect policy for one MCP server connection. */
 export interface ReconnectConfig {
@@ -132,9 +133,11 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
     registrationFailure: 'contain',
     serverName: config.serverName,
     toolCallTimeoutMs: config.toolCallTimeoutMs,
+    // Every attempt is bounded: an unreachable server must not hold its
+    // process, transport and browser leg while nothing can arrive.
+    startupTimeoutMs: config.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
     ...(config.enabledTools === undefined ? {} : { enabledTools: config.enabledTools }),
-    ...(config.disabledTools === undefined ? {} : { disabledTools: config.disabledTools }),
-    ...(config.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: config.startupTimeoutMs })
+    ...(config.disabledTools === undefined ? {} : { disabledTools: config.disabledTools })
   }
   // The initial sync uses 'throw' when failOnStartupError is configured, so
   // a registration conflict propagates to the startup-await path. Re-syncs
@@ -302,8 +305,7 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       host.logger.info(message)
     })
     try {
-      if (config.startupTimeoutMs === undefined) await generation.connect(transport)
-      else await generation.connect(transport, { timeout: config.startupTimeoutMs })
+      await generation.connect(transport, { timeout: opts.startupTimeoutMs })
       if (hasClosed()) {
         attemptSettled = true
         generationDown(generation)

@@ -17,15 +17,20 @@ import { discoverNativeProjectSuites } from './native-project.js'
 
 /** Discover suites from the selected configured or project checkouts. */
 export async function discoverSourceList(sources: SourceRef[], dimension: SuiteDimension, dimensionRoot: string): Promise<DiscoveredSuite[]> {
-  return (await discoverSourceListWithNotes(sources, dimension, dimensionRoot)).suites
+  return (await discoverSourceListWithNotes(sources, dimension, dimensionRoot, true)).suites
 }
 
-/** Discover suites plus per-source scan diagnostics for one dimension. */
+/**
+ * Discover suites plus per-source scan diagnostics for one dimension.
+ * @param scanProjectLayouts - whether the project's own native Agent directories
+ *   join the scan. Required on purpose: the switch has one owner (the host
+ *   settings document), so a default here would be a second copy of it.
+ */
 export async function discoverSourceListWithNotes(
   sources: SourceRef[],
   dimension: SuiteDimension,
   dimensionRoot: string,
-  scanProjectLayouts = false
+  scanProjectLayouts: boolean
 ): Promise<{ suites: DiscoveredSuite[]; scanNotes: Record<string, string[]> }> {
   const checkoutRoot = sourcesDir(dimensionRoot)
   const listed = new Set(sources.map(source => source.id))

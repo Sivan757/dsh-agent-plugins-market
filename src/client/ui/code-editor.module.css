@@ -1,0 +1,22 @@
+/* The editing surface's frame; CodeMirror's own skin comes from the theme in
+   CodeEditor.tsx, built from the platform tokens. */
+.editor {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-sizing: border-box;
+  flex-direction: column;
+}
+
+/* CodeMirror is a flex column of its own; letting it grow into the frame keeps
+   the frame's floor authoritative instead of the document's length. */
+.editor :global(.cm-editor) {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor :global(.cm-scroller) {
+  overflow: auto;
+}

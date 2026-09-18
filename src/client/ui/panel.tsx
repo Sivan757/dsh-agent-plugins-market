@@ -9,20 +9,40 @@
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, Input, Modal, IconLoadingOutline16, IconPlusOutline16, IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, IconLoadingOutline16, IconPlusOutline16, IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './panel.module.css'
+import cardCss from './resource-card.module.css'
+import formCss from './form.module.css'
 import { beginBusyOperation } from './busy-operation.js'
+import { CodeEditor } from './CodeEditor.js'
 import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
 import type { Translate } from '../index.js'
-import detailCss from './detail.module.css'
 import { clientErrorMessage } from './error-message.js'
 
 /** The trailing header commands have one position and one visual treatment. */
 export function PanelActions(props: { addLabel?: string; onAdd?: () => void; refreshLabel?: string; onRefresh?: () => void; busy?: boolean }): ReactNode {
-  return h('div', { className: css.headerActions },
-    props.onAdd === undefined ? null : h(Button, { variant: 'ghost', size: 'sm', disabled: props.busy, title: props.addLabel, 'aria-label': props.addLabel, onClick: props.onAdd }, h(IconPlusOutline16), props.addLabel),
-    props.onRefresh === undefined ? null : h(Button, { variant: 'ghost', size: 'sm', disabled: props.busy, title: props.refreshLabel, 'aria-label': props.refreshLabel, onClick: props.onRefresh }, h(IconRefreshOutline16)))
+  // Flat 24px icon buttons, the same geometry as the actions inside a card: the
+  // header holds two icons instead of a text button, so its width no longer
+  // changes with the language. The labels move to `title` and `aria-label`.
+  return h(
+    'div',
+    { className: css.headerActions },
+    props.onAdd === undefined
+      ? null
+      : h(
+          'button',
+          { type: 'button', className: cardCss.iconBtn, disabled: props.busy, title: props.addLabel, 'aria-label': props.addLabel, onClick: props.onAdd },
+          h(IconPlusOutline16)
+        ),
+    props.onRefresh === undefined
+      ? null
+      : h(
+          'button',
+          { type: 'button', className: cardCss.iconBtn, disabled: props.busy, title: props.refreshLabel, 'aria-label': props.refreshLabel, onClick: props.onRefresh },
+          h(IconRefreshOutline16)
+        )
+  )
 }
 
 /** Shared heading geometry for all resource tabs. */
@@ -54,11 +74,6 @@ function BusyLease(): ReactNode {
   return null
 }
 
-/** The source badge: where an entry comes from (suite plugin vs user). */
-export function SourceBadge(props: { kind: 'plugin' | 'user'; label: string; detail?: string }): ReactNode {
-  return h('span', { className: props.kind === 'plugin' ? css.badgePlugin : css.badgeUser, title: props.detail ?? props.label }, props.label)
-}
-
 /** Editor state for the shared entry editor modal. */
 export interface PanelEditorState {
   /** 'create' starts a blank draft; 'edit' loads the entry's raw text. */
@@ -75,9 +90,18 @@ export function EntryEditorModal(props: {
   open: boolean
   state: PanelEditorState | undefined
   title: string
+  /** One line above the body: the segmented control that swaps edit and preview. */
+  modeControl?: ReactNode
   nameLabel: string
+  /** Placeholder for the name field; defaults to the label. */
+  namePlaceholder?: string
   textLabel: string
-  hint?: string
+  /** Shown opposite the dialog's buttons; says what happens after saving. */
+  footerHint?: string
+  /** A short field that pairs with the name on the create row (e.g. argument hint). */
+  renderNamePairField?: (text: string, onChange: (text: string) => void) => ReactNode
+  /** True once the caller has switched the body to the rendered draft. */
+  showPreview?: boolean
   busy?: boolean
   saveError?: string
   saveLabel?: string
@@ -88,18 +112,38 @@ export function EntryEditorModal(props: {
 }): ReactNode {
   const [draft, setDraft] = useState<PanelEditorState | undefined>(props.state)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [mode, setMode] = useState<'preview' | 'edit'>(props.state?.mode === 'create' ? 'edit' : 'preview')
   useEffect(() => {
     setDraft(props.state)
     setError(undefined)
-    setMode(props.state?.mode === 'create' ? 'edit' : 'preview')
   }, [props.state, props.open])
   if (!props.open || props.state === undefined) return null
   const current = draft ?? props.state
+  const submit = (): void => {
+    if (current.name.trim() === '') {
+      setError(props.nameLabel)
+      return
+    }
+    void props
+      .onSave({ ...current, name: current.name.trim() })
+      .then(ok => {
+        // A failed save keeps the modal open; the panel-level error strip also
+        // carries the message, so only clear a stale inline validation error.
+        if (ok) setError(undefined)
+      })
+      .catch(reason => setError(clientErrorMessage(props.t, reason)))
+  }
+  const nameControl = h('input', {
+    value: current.name,
+    disabled: props.busy,
+    placeholder: props.namePlaceholder ?? props.nameLabel,
+    'aria-label': props.nameLabel,
+    onChange: (event: { target: HTMLInputElement }) => setDraft({ ...current, name: event.target.value })
+  })
   return h(
     DetailModal,
     {
       open: true,
+      size: 'lg',
       onClose: () => {
         if (props.busy !== true) props.onClose()
       },
@@ -109,73 +153,43 @@ export function EntryEditorModal(props: {
       contentClassName: css.editorBody,
       footer: h(
         'div',
-        { className: css.editorFooter },
-        (error ?? props.saveError) === undefined ? null : h('span', { className: css.editorError, role: 'alert' }, error ?? props.saveError),
-        h(Button, { variant: 'ghost', disabled: props.busy, onClick: props.onClose }, props.cancelLabel ?? '×'),
-        h(
-          Button,
-          {
-            variant: 'primary',
-            disabled: props.busy === true,
-            onClick: () => {
-              if (current.name.trim() === '') {
-                setError(props.nameLabel)
-                return
-              }
-              void props
-                .onSave({ ...current, name: current.name.trim() })
-                .then(ok => {
-                  // A failed save keeps the modal open; the panel-level
-                  // error strip also carries the message, so only clear a
-                  // stale inline validation error here.
-                  if (ok) setError(undefined)
-                })
-                .catch(reason => setError(clientErrorMessage(props.t, reason)))
-            }
-          },
-          props.saveLabel ?? '✓'
-        )
+        { className: formCss.footer },
+        (error ?? props.saveError) === undefined ? null : h('span', { className: formCss.footerError, role: 'alert' }, error ?? props.saveError),
+        props.footerHint === undefined ? null : h('span', { className: formCss.footerHint }, props.footerHint),
+        h('div', { className: formCss.grow }),
+        h(Button, { variant: 'outline', disabled: props.busy, onClick: props.onClose }, props.cancelLabel ?? '×'),
+        h(Button, { variant: 'primary', disabled: props.busy === true, onClick: submit }, props.saveLabel ?? '✓')
       )
     },
-    h(
-      'div',
-      { className: css.editorForm },
-      props.state.mode === 'create'
-        ? h(
-            'label',
-            { className: css.editorLabel },
-            props.nameLabel,
-            h(Input, {
-              value: current.name,
-              disabled: props.busy,
-              placeholder: props.nameLabel,
-              'aria-label': props.nameLabel,
-              onChange: (event: { target: HTMLInputElement }) => setDraft({ ...current, name: event.target.value })
-            })
-          )
+    // The identity row sits above the body: an entry's name is the one field
+    // the document cannot supply.
+    props.state.mode !== 'create'
+      ? null
+      : props.renderNamePairField === undefined
+        ? h('label', { className: formCss.field }, h('span', null, props.nameLabel), nameControl)
         : h(
             'div',
-            { className: css.editorNameRow },
-            h('code', { className: css.editorPath }, props.state.path ?? props.state.name)
+            { className: formCss.formGrid },
+            h('label', { className: formCss.field }, h('span', null, props.nameLabel), nameControl),
+            props.renderNamePairField(current.text, text => setDraft({ ...current, text }))
           ),
-      props.renderFields?.(current.text, text => setDraft({ ...current, text })),
-      props.hint === undefined ? null : h('p', { className: css.editorHint }, props.hint),
-      h('div', { className: detailCss.modes }, (['preview', 'edit'] as const).map(value => h('button', { type: 'button', className: detailCss.mode, 'aria-pressed': mode === value, onClick: () => setMode(value), key: value }, props.t(value === 'preview' ? 'detailPreview' : 'detailMarkdown')))),
-      mode === 'preview' ? h(MarkdownDocument, { text: current.text, t: props.t }) : h(
-        'label',
-        { className: css.editorLabel },
-        props.textLabel,
-        h('textarea', {
-          className: css.editorArea,
+    props.renderFields?.(current.text, text => setDraft({ ...current, text })),
+    // The document's own row: its label with the view switch on the same line,
+    // then one view at a time. Switching to the preview renders the draft once;
+    // nothing re-renders while the author types in the editing view.
+    props.modeControl === undefined && props.textLabel === undefined
+      ? null
+      : h('div', { className: formCss.rowHead }, props.textLabel === undefined ? null : h('span', null, props.textLabel), props.modeControl),
+    props.showPreview === true
+      ? h('div', { className: formCss.previewBox }, h(MarkdownDocument, { text: current.text, t: props.t }))
+      : h(CodeEditor, {
           value: current.text,
+          onChange: (text: string) => setDraft({ ...current, text }),
+          language: 'markdown',
+          label: props.textLabel,
           disabled: props.busy,
-          rows: 14,
-          spellCheck: false,
-          'aria-label': props.textLabel,
-          onChange: (event: { target: HTMLTextAreaElement }) => setDraft({ ...current, text: event.target.value })
+          minHeight: 300
         })
-      )
-    )
   )
 }
 

@@ -30,6 +30,7 @@ export const MARKET_ROUTES = {
   setSurface: `${MARKET_API_PREFIX}set-surface`,
   mcpOverrides: `${MARKET_API_PREFIX}mcp-overrides`,
   setMcpOverride: `${MARKET_API_PREFIX}set-mcp-override`,
+  setMcpServerEnabled: `${MARKET_API_PREFIX}set-mcp-server-enabled`,
   mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
   mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
   mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
@@ -248,6 +249,8 @@ export interface SuiteDetail {
   description: string | null
   author: string | null
   keywords: string[]
+  /** Last modification of the suite checkout, as an ISO timestamp; null when it cannot be read. */
+  updatedAt: string | null
   layout: string
   dimension: string
   root: string
@@ -277,6 +280,7 @@ export interface SkillContent {
 
 /** A user panel entry (skills / commands / agent personas) over HTTP. */
 export interface UserPanelEntryWire {
+  /** Entry name: the name its document declares, else the file's base name. */
   name: string
   description: string
   disabled: boolean
@@ -288,7 +292,13 @@ export interface UserPanelEntryWire {
   suiteName?: string
   metadata: Record<string, unknown>
   path: string
+  /** The entry file's last modification, as an ISO timestamp. */
+  updatedAt?: string | null
   content: string
+  /** Suite checkout root of a plugin-provided file; runtime consumers resolve `${PLUGIN_ROOT}` against it. */
+  suiteRoot?: string
+  /** The suite's `${PLUGIN_DATA}` directory, for the same runtime resolution. */
+  suiteData?: string
 }
 
 /** The user panel surface the market exposes. */

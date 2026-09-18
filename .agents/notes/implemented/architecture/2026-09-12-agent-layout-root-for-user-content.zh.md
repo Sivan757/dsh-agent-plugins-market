@@ -10,14 +10,14 @@ Status: implemented
 
 自建资源与手写服务声明迁到共用的 Agent 布局根目录 `~/.agents`（测试与特殊家目录可用 `$DSH_AGENTS_HOME` 覆盖）：
 
-- `skills/`、`commands/`、`agents/` —— 仍是原来的扁平 Markdown 条目与 frontmatter 语法，`UserPanelStore` 只改根目录。
+- `skills/`、`commands/`、`agents/` —— 仍是原来的 Markdown 条目与 frontmatter 语法，`UserPanelStore` 只改根目录。技能面板其后在扁平文件之外增加了跨工具的 `<name>/SKILL.md` 形态，见[技能目录形态决策](../feature/2026-09-14-user-skill-directory-spelling.zh.md)。
 - `mcp.json`（`mcpServers`）与 `lsp.json`（`lspServers`）—— 工作区新增按钮的写入位置。
 
 插件状态仍在 `$DSH_HOME/agent-plugins`：`.sources/`、`state.json`、`data/`（覆盖配置、`${PLUGIN_DATA}` 目录、反馈限流时间戳）以及持久化的 LSP 启停集合。两个根刻意分开：缓存与安装状态属于插件，自建内容属于用户。
 
 编辑已安装套件内资源时的包含性判断改为对照 catalog 的用户根目录，而不再对照面板目录——面板已不在托管 checkout 的那棵树里。
 
-宿主自己的 `dsh-skill-filesystem` 把同一个 `~/.agents/skills` 目录映射为它的 `user-agents` 根，rank 500；同名技能由 rank 小者胜。因此面板 provider 定在 440：高到能继续服务它自己拥有的条目——面板的 `disabled` frontmatter 与本地化描述才真正生效——又低到让项目根（100-300）与用户 `~/.dsh` 技能（400）仍然压过它；同时低于 suite 的用户 rank（450），因此用户手写的技能会赢过已安装套件发布的同名技能。
+宿主自己的 `dsh-skill-filesystem` 把同一个 `~/.agents/skills` 目录映射为它的 `user-agents` 根，rank 500；同一层内同名技能由 rank 小者胜。因此面板 provider 定在 440：对它服务的条目而言排在那个读取器之前，它发布的声明名与本地化描述才是生效的那一份；又排在项目根（100-300）与用户 `~/.dsh` 技能（400）之后；同时低于 suite 的用户 rank（450），因此用户手写的技能会赢过已安装套件发布的同名技能。面板的停用状态不靠 rank：开关会把宿主自己的 invocation 开关对写进文档，那个读取器会解析它、它的消费方会执行它，见[面板与宿主读取器对齐的决策](../feature/2026-09-14-user-skill-directory-spelling.zh.md)。
 
 启动时在读取任何存储之前完成迁移：`user/{skills,commands,agents}` 与 `data/user/...` 迁入 `~/.agents/<kind>`，`data/mcp-servers.json` 与 `data/lsp-servers.json` 迁入 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。搬空的旧面板目录会被删除；内容冲突则保留在原路径并阻止激活，报出该路径。
 
@@ -25,7 +25,7 @@ Status: implemented
 
 **继续用单一根目录。** 否决：这正是要修的问题——用户内容对 `.agents/` 约定所服务的那些工具不可读。
 
-**同时把技能改成跨工具的 `skills/<name>/SKILL.md` 目录形态。** 本次否决：面板按条目编辑单个文档，且扁平 `skills/*.md` 也是被接受的写法；目录形态是独立改动，需要独立迁移。
+**同时把技能改成跨工具的 `skills/<name>/SKILL.md` 目录形态。** 本次否决：面板按条目编辑单个文档，且扁平 `skills/*.md` 也是被接受的写法；目录形态是独立改动，需要独立迁移。该改动其后作为独立变更落地且无需迁移（[技能目录形态决策](../feature/2026-09-14-user-skill-directory-spelling.zh.md)）：面板现在同时服务两种写法，新建条目仍写扁平写法。
 
 **把 `~/.agents` 当作普通来源发现，而不是面板存储。** 否决：面板需要增删改与 `disabled` frontmatter 控制，catalog 读取器不提供这些。
 
@@ -35,7 +35,7 @@ Status: implemented
 
 与宿主自己的读取器共用 `skills/` 的代价是：每个条目多一份被遮蔽的候选，每个被遮蔽的名字多一条宿主 warning——方向由 rank 决定。面板赢下这次取舍，因为它是唯一知道用户已禁用该条目的读取器。
 
-这份代价还是按 profile 有界的：web bundle 关掉了宿主的 `skill-filesystem` 行（`packages/bundle/web-app/cordis.patch.yml`），因为在那一层由 preset 负责本地发现，所以只有 base 系 profile 才同时存在两个读取器。把条目留在这个共享目录仍然是取舍的正确一侧：为了省掉一份重复候选而把它们搬回插件私有存储，等于把用户内容放回"其它 Agent 工具读不到"的地方，而那正是本决策要修的问题。
+这份代价并不按 profile 有界。web bundle 关掉了 base 的宿主 `skill-filesystem` 行（`packages/bundle/web-app/cordis.patch.yml`），因为在那一层由 preset 负责本地发现；但每个随包发布的 preset 自己都挂了一份 `skill-filesystem` 行，所以会话会经由两个 provider 读取这个目录。把条目留在这个共享目录仍然是取舍的正确一侧：为了省掉一份重复候选而把它们搬回插件私有存储，等于把用户内容放回"其它 Agent 工具读不到"的地方，而那正是本决策要修的问题。
 
 ## 验证
 

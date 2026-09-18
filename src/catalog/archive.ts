@@ -287,7 +287,7 @@ async function assertBoundedTree(root: string): Promise<void> {
         stack.push(path)
         continue
       }
-      let size = 0
+      let size: number
       try {
         size = (await stat(path)).size
       } catch {

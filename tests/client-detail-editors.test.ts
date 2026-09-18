@@ -48,11 +48,11 @@ async function change(label: string, value: string) {
 const value = () => JSON.parse(host.querySelector('[data-value]')!.textContent) as Record<string, unknown>
 
 describe('shared resource detail editors', () => {
-  it('renders Markdown as markup and metadata as a definition list without rendering HTML injection', () => {
+  it('renders Markdown as markup with the frontmatter as authored, without HTML injection', () => {
     const markup = renderToStaticMarkup(
       h(MarkdownDocument, { t, text: '---\nname: reviewer\ntools: [Read, Grep]\nmetadata:\n  priority: 2\n---\n# Review\n\n**Carefully**\n\n<script>alert(1)</script>' })
     )
-    expect(markup).toContain('<dl')
+    expect(markup).toContain('<pre')
     expect(markup).toContain('priority')
     expect(markup).toContain('Read')
     expect(markup).toContain('<strong>Carefully</strong>')

@@ -30,12 +30,12 @@ describe('SearchFilterToolbar', () => {
           searchPlaceholder: 'Search services',
           onSearchChange: () => {},
           filters: [
-            { id: 'all', label: 'All', count: 3, icon: h('svg'), active: true, onSelect: () => {} },
-            { id: 'plugin', label: 'Plugin', count: 2, icon: h('svg'), active: false, onSelect: () => {} }
+            { id: 'all', label: 'All', count: 3, active: true, onSelect: () => {} },
+            { id: 'plugin', label: 'Plugin', count: 2, active: false, onSelect: () => {} }
           ],
           view,
-          gridLabel: 'Grid',
-          listLabel: 'List',
+          toGridLabel: 'Switch to grid',
+          toListLabel: 'Switch to list',
           onViewChange: setView
         }),
         h('output', { 'data-view': view }, view)
@@ -48,12 +48,20 @@ describe('SearchFilterToolbar', () => {
     act(() => root!.render(h(Harness)))
 
     expect(host.querySelector('input')?.getAttribute('aria-label')).toBe('Search services')
+    // Two filter segments plus the single view button, all named.
     expect(host.querySelectorAll('button[aria-label]').length).toBe(3)
-    expect(host.querySelector('button[aria-label="List"]')).not.toBeNull()
+    // The view control reports the mode in force: the grid glyph is showing,
+    // so its name offers the list, and it is pressed.
+    expect(host.querySelector('button[aria-label="Switch to list"]')).not.toBeNull()
+    expect(host.querySelector('button[aria-label="Switch to list"]')?.getAttribute('aria-pressed')).toBe('true')
+    // The accessible name carries the count so the filter reads unambiguously.
+    expect(host.querySelector('button[aria-label="All 3"]')?.getAttribute('aria-pressed')).toBe('true')
 
-    act(() => host!.querySelector<HTMLButtonElement>('button[aria-label="List"]')!.click())
+    act(() => host!.querySelector<HTMLButtonElement>('button[aria-label="Switch to list"]')!.click())
 
     expect(host.querySelector('output')?.getAttribute('data-view')).toBe('list')
-    expect(host.querySelector('button[aria-label="Grid"]')).not.toBeNull()
+    // Now the list glyph shows, so the same single control offers the grid.
+    expect(host.querySelector('button[aria-label="Switch to grid"]')).not.toBeNull()
+    expect(host.querySelector('button[aria-label="Switch to list"]')).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 # DSH 插件开发规范（DeepSeek Harness Plugin Development Standard）
 
-- 版本：1.0.0 · 运行时基线：**本机实际运行的 dsh CLI**（全局安装，`dsh -V` 实测）；宿主依赖范围见本仓库 `package.json` 的 `peerDependencies`。文中「rc.2 实测」事实取自 dsh `0.1.1-rc.2`。
+- 版本：1.1.0 · 运行时基线：**本机实际运行的 dsh CLI**（全局安装，`dsh -V` 实测）；宿主依赖范围见本仓库 `package.json` 的 `peerDependencies`。文中「rc.2 实测」事实取自 dsh `0.1.1-rc.2`。
 - 参考实现：本仓库 `dsh-agent-plugins-market`（已发布的成熟 DSH 插件）
 - 受众优先级：**AI Agent 执行优先，人类复核友好**。条款为祈使句，用 MUST / SHOULD / MAY（RFC 2119 语义）；多数小节附「依据」，指向真实文件或命令供人抽查。
 - 配套脚手架：独立项目 `dsh-plugin-scaffold`（`~/workspace/dsh-plugin-scaffold`，从零起步复制即用）；其根目录 `AGENTS.md` 是本规范的**自包含执行投影**（复制出去后无需携带本文即可执行）。
@@ -43,7 +43,7 @@ Web GUI(浏览器) ──window.__ModuleLoader__──▶ 插件 client 面(单�
 
 - `exports` 双入口：`.`（host，构建产物 `lib/index.js`）与 `./client`（浏览器 bundle）。
 - `dsh.bundle.patch` 指向包内 `cordis.patch.yml`，后者用 `insert: [{id, name}]` 把插件行插入 profile layer 栈。
-- `dsh.client.inject` 列出 client 面要 `require()` 的官方客户端模块（常用：`dsh-client-connection / -runtime / -locale / -ui-settings / -ui-theme`）。注意：inject 列表不含 ui-primitives，但它可以直接 require（附录 A）。
+- `dsh.client.inject` 列出 client 面要 `require()` 的官方客户端模块（常用：`dsh-client-locale / -ui-settings / -ui-theme / -api-remotes`）。注意两点：inject 列表**不是** externals 白名单——它只声明 factory 到达顺序，实际可 `require` 的是平台 seed table（`PLATFORM_MODULES`）；`dsh-client-ui-primitives` 与 `dsh-client-store` 都不在 inject 里但可直接 require（见附录 A）。
 - `peerDependencies` 声明 `@deepseek-ai/cordis` 及用到的官方能力包；可选能力加 `peerDependenciesMeta.optional` 并优雅降级。注意安装包**不会**替你安装任何 peer（dsh profile 设 `autoInstallPeers: false`）：本插件要自己保证可用的能力必须放进 `dependencies` 并由插件自行挂载，而安装包已共享供给的服务包必须留作 peer——自带副本会遮蔽安装包那份并产生第二个服务实例。动态 `import()` 的官方包同样必须声明：只 import 不声明，缺包时该 surface 只剩一行诊断，没有任何版本契约可对齐（`pnpm run check:host-alignment` 会拦下这种漏声明）。
 - 构建产物（`lib/`、`client/`）由 `prepare`、`prepack` 生成，随 `files` 进入发布包；不纳入版本管理。
 
@@ -53,7 +53,7 @@ Web GUI(浏览器) ──window.__ModuleLoader__──▶ 插件 client 面(单�
 
 - 函数式插件：named exports `name` / `inject` / `apply(ctx, config)`，无 default export。
 - `inject` 只声明硬依赖；可选服务一律 `ctx.get('xxx') !== undefined` 判空后使用。
-- 未在 `inject` 声明的服务，禁止以 `ctx.serviceName` 属性访问。
+- 未在 `inject` 声明的服务，禁止以 `ctx.serviceName` 属性访问。Cordis 的属性解析只沿读取方 fiber 的**祖先**查找，宿主从兄弟 fiber 提供的服务（`shell`、`tools`）会抛 `cannot get property "<name>" without inject`；`ctx.get` 读全局服务表，与拓扑无关。该拓扑由 `tests/host-service-seam.test.ts` 钉住：服务来自兄弟 fiber，读取方只声明自己的 `inject`。
 
 ### 2.3 Client bundle
 
@@ -91,15 +91,26 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 
 「外部格式方言」（layout dialect）与「运行时 surface」是两条独立扩展轴。**MUST**：新增/修改对外部格式的支持只落在 catalog + `tests/fixtures`；runtime mounts 与 client **永不**解析外部源格式。
 
-### 3.4 读模型唯一接缝
+### 3.4 宿主能力优先（复用先于自研）
+
+宿主已经提供的同一项能力——设置命名空间、持久化存储、定时器、浏览器状态 store、配置卡片契约、列举 API、路径与环境净化——**MUST** 优先使用宿主的那一份，不得自建平行实现。
+
+- 自研 **MUST** 给出「宿主那份为什么不够」的具体理由，并把理由写进该改动的 Agent Note / ADR 的 `## Alternatives considered`。
+- 判定依据 **MUST** 是**已发布包**，不是 harness monorepo 源码 checkout（与 §8 E2 同源理由）：`npm view <pkg>@<基线> dist.tarball`，再查该 tarball 的 `files`/`exports`。仓库里存在 ≠ 已发布；只发布 `lib/*.js` + `.d.ts` 的包，其 `src/` **不可 import**，只能照契约自建。
+- 引入的宿主包按其性质声明依赖（服务包 peer + 精确 dev 镜像；自行装入消费方 profile 的才用 dependencies），并以 `check:host-alignment` 收口。
+- 单点事实（默认值、极性、字段名、键语法）**MUST** 只有一个家；宿主已持有该事实时，本插件只引用、不复述。
+
+> 依据：AGENTS.md「Reuse the host's own capability before building one」；.agents/notes/implemented/architecture/2026-09-13-settings-and-card-ride-the-host.md（含复用清单与经审视后保留的自建项）。
+
+### 3.5 读模型唯一接缝
 
 凡涉及「发现内容 × 用户状态」的推导（概览、详情、启用集、状态投影），**MUST** 收敛到一个 application 深模块；消费方直连它，禁止各自重算。兼容 facade 必须带测试与显式删除条件，条件满足立即删除。
 
-### 3.5 内容与状态分离
+### 3.6 内容与状态分离
 
 外部来源内容（发现结果，可随时重建）与用户所有物（安装状态、启用开关）是两类事实，**MUST** 分开建模与存储；只有用户动作能改变后者。
 
-### 3.6 生命周期可逆性
+### 3.7 生命周期可逆性
 
 一切副作用（服务注册、事件监听、定时器、子进程、HTTP 路由、DOM）**MUST** 挂在 `ctx.effect(fn, label)` 或返回 disposer 的官方 API 上，保证 stop/update/undefine 全量回收。
 
@@ -160,7 +171,7 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 
 **流程规则：**
 
-- **P1** 动手前先搜已有方案（开源实现、仓库既有代码、官方包），评估复用后再自研。
+- **P1** 动手前先搜已有方案（开源实现、仓库既有代码、官方包），评估复用后再自研。宿主已有同一项能力时，**必须**用它而不是自建（§3.4 为硬约束；自研理由进 Agent Note 的 `## Alternatives considered`）。
 - **P2** 能力不确定时先查类型定义/实际导出再写调用；接口类型缺失的运行时能力守卫调用（§4）。
 - **P3** 每次改动收尾跑满质量门并如实报告本地实测输出。
 - **P4** 验证与审查只报告本地实际状态；**未经用户明确批准不 commit、不 push**。
@@ -185,7 +196,8 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 **已验证：**
 
 - Client bundle 由 `window.__ModuleLoader__.load({ id, factory })` 装载；CSS 必须内联注入 head。
-- Client `dsh.client.inject` 表不含 `dsh-client-ui-primitives`，但可直接 `require('@deepseek-ai/dsh-client-ui-primitives')`。
+- Client `dsh.client.inject` 表不含 `dsh-client-ui-primitives`，但可直接 `require('@deepseek-ai/dsh-client-ui-primitives')`；`dsh-client-store` 同理（`createSnapshotStore(init, { persist: { name } })` 即平台自带的 localStorage 持久化，勿自建浏览器 store）。两者都是 `PLATFORM_MODULES` 的 seed word，直接 require 即可。
+- host 侧可复用能力（rc.1/rc.2 均已发布且在标准 profile 中）：`dsh-timeout` 的 `deadline`/`MAX_TIMER_DELAY_MS`、`dsh-credentials` 的 `credentialKey`、`dsh-subprocess` 的 `scrubbedParentEnv`、`dsh-attachment` 的 `isImageAdmissionError`；定时器座位 `ctx.interval`/`ctx.timeout`/`ctx.debounce` 由 base bundle 挂载的 `cordis-plugin-timer` 提供，随 fiber 自动释放。
 - Host `ctx.sessions` / `ctx.workspaces` 的 `refresh` 在 rc.2 接口类型上不存在、运行时实例存在 → 守卫调用。
 - `settings.section` 槽位仅新版 Web 壳提供；legacy 壳需 page-mode 回退分支（探测后二选一，不重复渲染）。
 

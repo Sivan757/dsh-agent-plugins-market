@@ -33,9 +33,10 @@ export class RuntimeReconciler {
 
   constructor(ctx: Context, dataRoot: string, t: HostTranslate = bindHostLocale(undefined)) {
     this.mcp = new McpMountRegistry(ctx, dataRoot)
-    this.commands = new CommandMountRegistry(ctx, t)
+    this.commands = new CommandMountRegistry(ctx, t, dataRoot)
     this.hooks = new HooksMountRegistry(ctx)
     this.lspRegistry = new LspMountRegistry(ctx)
+    this.lspRegistry.setPluginDataRoot(dataRoot)
   }
 
   /** The LSP mount registry, consumed by the LSP status surface. */

@@ -3,7 +3,7 @@ import type { ProjectHooks } from '../model/types.js'
 import { readProjectDocument } from './project-config.js'
 import type { ProjectHookFormat } from '../model/layouts.js'
 
-const EVENTS = new Set(['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SubagentStart', 'SubagentStop'])
+const EVENTS: ReadonlySet<string> = new Set(['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SubagentStart', 'SubagentStop'])
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -17,6 +17,19 @@ function declarationText(value: unknown): string {
   return String(value)
 }
 
+/**
+ * Present one read document as the settings shape the shared validator reads:
+ * a standalone hook file may carry the bare event table instead of a `hooks`
+ * key. A recognized top-level event name is the marker — a document with no
+ * event name at the top stays verbatim, so an ordinary settings file missing
+ * `hooks` is still not accepted as a bare event table.
+ */
+function settingsDocument(settings: Record<string, unknown>, format: ProjectHookFormat): Record<string, unknown> {
+  if (format !== 'claude' || settings.hooks !== undefined) return settings
+  const isEventTable = Object.keys(settings).some(key => EVENTS.has(key))
+  return isEventTable ? { ...settings, hooks: settings } : settings
+}
+
 /** Merge settings layers additively, deduplicating identical event/matcher/command triples. */
 export async function discoverProjectHooks(
   projectRoot: string,
@@ -28,7 +41,7 @@ export async function discoverProjectHooks(
   for (const file of files) {
     const settings = await readProjectDocument(projectRoot, file, errors)
     if (settings === null) return undefined
-    if (settings !== undefined) documents.push({ file, settings })
+    if (settings !== undefined) documents.push({ file, settings: settingsDocument(settings, format) })
   }
   return normalizeHookDocuments(projectRoot, documents, errors, format)
 }

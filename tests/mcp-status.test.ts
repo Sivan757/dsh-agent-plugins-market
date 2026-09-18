@@ -65,21 +65,26 @@ describe('MCP status aggregation', () => {
     expect(declared.entries[0]?.oauthDefault).toBeUndefined()
   })
 
-  it('reads MCP tools from the optional tool-layer snapshot adapter', () => {
+  it('reads MCP tools through the tools service listing API', () => {
     const runtime = {
-      layers: {
-        merge: (_scope: undefined, pick: (layer: { tools: { entries: () => Array<[string, unknown]> } }) => unknown) =>
-          pick({
-            tools: {
-              entries: () => [
-                ['mcp__codex__docs__read_file', { description: 'Read a file' }],
-                ['bash', { description: 'Shell' }]
-              ]
-            }
-          })
-      }
+      schemas: () => [
+        { name: 'mcp__codex__docs__read_file', description: 'Read a file' },
+        { name: 'bash', description: 'Shell' }
+      ]
     }
     expect(inspectToolRegistry(runtime)).toEqual([{ name: 'mcp__codex__docs__read_file', description: 'Read a file' }])
+  })
+
+  it('reports no MCP tools when the listing is absent or fails', () => {
+    expect(inspectToolRegistry(undefined)).toEqual([])
+    expect(inspectToolRegistry({})).toEqual([])
+    expect(
+      inspectToolRegistry({
+        schemas: () => {
+          throw new Error('unavailable')
+        }
+      })
+    ).toEqual([])
   })
 
   it('omits MCP servers from uninstalled or disabled suites', () => {

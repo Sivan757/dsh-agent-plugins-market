@@ -1,0 +1,327 @@
+/**
+ * The one form language the six editors share.
+ *
+ * Every value here is the design prototype's editor sheet: a 12px semibold
+ * label above a 12px input with 7/9 padding, 8px radius and a 1px border; a
+ * mono textarea that keeps a 240px floor; a segmented control drawn as one
+ * bordered track; and a dashed read-only box. The panels' toolbars and cards
+ * keep the platform's own controls — this sheet exists for the editor bodies,
+ * where the prototype's geometry is the reference a reviewer compares against.
+ */
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field > label,
+.field > span,
+.field > .rowHead > span {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.field input,
+.field select,
+.field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.field textarea {
+  min-height: 240px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 19px;
+  resize: vertical;
+}
+
+/* The JSON view of a service document is shorter than a whole document body. */
+.jsonArea {
+  min-height: 220px;
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+
+.hint {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 16px;
+}
+
+/* The body of a form-mode editor: one column, one gap between every field. */
+.form {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Two one-line fields on one row (a name and its transport, a name and a
+   command's argument hint). */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+/* One bordered track holding its options, not a row of separate buttons. */
+.seg {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+}
+
+
+
+.seg button {
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.seg button:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.seg button:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+/* A fact the editor will not let you change, framed so it does not read as an
+   input you forgot to fill in. */
+.readonly {
+  padding: 7px 9px;
+  border: 1px dashed var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+/* One editable row of a list (an argument, an environment variable, a header,
+   an extension mapping). */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.row input {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+}
+
+.rowKey {
+  flex: 0 0 34%;
+}
+
+.rowKeyNarrow {
+  flex: 0 0 26%;
+}
+
+.rowActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+
+/* Flat 24px icon action, the same geometry the cards use. */
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* A labelled line: the field's own label on the left, its action or view
+   switch on the right. */
+.rowHead {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Flat 24px icon action, the host ghost geometry the cards and panel headers
+   use; the row head gives it the label's line. */
+.addIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+}
+
+.addIcon:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.addIcon:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.addIcon svg {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.inlineCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+}
+
+/* A group of related fields (a role's runtime configuration, an OAuth block). */
+.fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  /* The legend's own line box holds the top edge of the frame, so the padding
+     above the first row can stay small. */
+  padding: 2px 12px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+}
+
+.fieldset legend {
+  padding: 0 4px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.fieldset > .hint,
+.fieldset > .full {
+  grid-column: 1 / -1;
+}
+
+/* ---- the document editor's rendered view ------------------------------- */
+
+.previewBox {
+  min-height: 300px;
+  padding: 12px 14px;
+  /* matches the editor frame so both views read as one body */
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* ---- the dialog footer ------------------------------------------------- */
+
+.footer {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+
+.footerHint {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.grow {
+  flex: 1 1 auto;
+}
+
+.footerError {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg button,
+  .addIcon,
+  .iconBtn {
+    transition: none;
+  }
+}
+
+@container (max-width: 700px) {
+  .formGrid,
+  .fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

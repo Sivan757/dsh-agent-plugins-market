@@ -15,6 +15,15 @@ import type { McpServerPolicy } from '../../model/types.js'
 /** Default timeout for individual MCP tool calls (ms). */
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
 
+/**
+ * How long one connection attempt may spend initializing (ms). A server that
+ * never answers would otherwise hold its process, transport and browser leg
+ * until the SDK's own 60-second request default expired; a working server
+ * handshakes well under a second, and a genuinely slow one can declare its own
+ * `startupTimeoutMs`.
+ */
+export const DEFAULT_STARTUP_TIMEOUT_MS = 10_000
+
 /** Valid `serverName`, kept below the public tool-name budget. */
 export const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
 

@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
+import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { Catalog } from '../src/application/catalog.js'
 import { mountProjectCommands } from '../src/runtime/project-runtime.js'
 import { bindHostLocale } from '../src/runtime/host-locale.js'
+import { required } from './helpers/fixture.js'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -14,7 +16,7 @@ afterEach(async () => {
 
 interface Definition {
   name: string
-  handler(invocation: { agent: unknown; rawInput: string }): { kind: string }
+  handler(invocation: { agent: unknown; rawInput: string }): { kind: string } | Promise<{ kind: string }>
 }
 
 function agent(cwd: string) {
@@ -29,6 +31,9 @@ function agent(cwd: string) {
       inject: (_services: string[], callback: (scope: unknown) => void) => {
         const cleanups: Array<() => void> = []
         callback({
+          // No optional service resolves on this scope: the template's
+          // placeholders stay literal, as they do on a profile without a shell.
+          get: () => undefined,
           commands: {
             register: (definition: Definition) => {
               if (definitions.has(definition.name)) throw new Error('duplicate command')
@@ -91,11 +96,16 @@ describe('project command lifecycle', () => {
     await mounted.refresh()
     for (const current of [first, second]) {
       expect([...current.definitions.keys()]).toEqual(['review'])
-      expect(current.definitions.get('review')!.handler({ agent: current, rawInput: ' my diff' }).kind).toBe('success')
+      await expect(current.definitions.get('review')!.handler({ agent: current, rawInput: ' my diff' })).resolves.toMatchObject({ kind: 'success' })
     }
     // The forward is the template verbatim: no plugin or suite decorator line,
     // which would be text the command author never wrote.
-    expect(first.messages).toEqual([{ content: [{ type: 'text', text: 'First project my diff' }], source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' } }])
+    expect(first.messages).toHaveLength(1)
+    const forwarded = required(first.messages[0] as UserMessage | undefined, 'the project command to forward one follow-up')
+    expect(forwarded.id).toMatch(/^\S+$/)
+    expect(forwarded.role).toBe('user')
+    expect(forwarded.content).toEqual([{ type: 'text', text: 'First project my diff' }])
+    expect(forwarded.source).toEqual({ kind: 'plugin', plugin: 'dsh-agent-plugins-market' })
     expect(JSON.stringify(first.messages)).not.toContain('Second project')
     expect(JSON.stringify(second.messages)).toContain('Second project my diff')
 

@@ -51,7 +51,6 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-api-remotes",
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-theme"
@@ -98,10 +97,14 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-attachment": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-credentials": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-hooks-claude-code": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-llm": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-mcp-client": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-skill": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-subprocess": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-timeout": "^0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "^0.1.5-rc.2"
   },
   "peerDependenciesMeta": {
@@ -130,14 +133,26 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@codemirror/commands": "^6.11.0",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.4",
+    "@codemirror/view": "^6.43.11",
     "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-attachment": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-store": "0.1.5-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-credentials": "0.1.5-rc.2",
     "@deepseek-ai/dsh-hooks-claude-code": "0.1.5-rc.2",
     "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.1.5-rc.2",
     "@deepseek-ai/dsh-skill": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-subprocess": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-timeout": "0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@shikijs/langs": "^4.4.3",
     "@tsdown/css": "^0.22.14",
     "@types/node": "^22.15.0",
@@ -148,6 +163,7 @@
     "clsx": "^2.1.1",
     "dependency-cruiser": "^18.2.0",
     "eslint": "^10.9.1",
+    "immer": "^10.2.0",
     "jsdom": "^30.0.1",
     "katex": "^0.16.47",
     "mdast-util-from-markdown": "^2.0.3",
@@ -168,7 +184,8 @@
     "tsdown": "^0.22.14",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.67.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "zustand": "~4.4.7"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"

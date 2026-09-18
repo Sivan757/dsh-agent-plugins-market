@@ -26,9 +26,10 @@ function createContext(options: {
     update: async () => {}
   }
   return {
-    // The plugin context exposes the tools service directly, like the host's
-    // service proxy does; `inject` only defers the callback that consumes it.
-    ...(options.tools === undefined ? {} : { tools: options.tools }),
+    // Services resolve through this lookup only: a real fiber that does not
+    // inject `tools` throws on the property read, so hanging it here would make
+    // this stub pass where the mounted plugin does not.
+    get: (name: string) => (name === 'tools' ? options.tools : undefined),
     inject: (services: string[], callback: (value: unknown) => void) => {
       if (services.includes('settings')) callback({ settings: { register: () => scope } })
       if (services.length === 1 && services.includes('tools') && options.tools !== undefined) callback({ tools: options.tools })
@@ -73,6 +74,8 @@ describe('dsh-agent-plugins-market host entry', () => {
         }
       },
       effect: (effect: () => () => void) => cleanups.push(effect()),
+      // No service resolves here, so the timer seat takes its plain-handle fallback.
+      get: () => undefined,
       logger: { warn: () => {} }
     }
 

@@ -27,6 +27,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
 import { platformBrowserOpener } from './mcp-client/oauth.js'
+import { toolsServiceOf } from './tool-registry-observer.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -43,11 +44,9 @@ const SUBMIT_COOLDOWN_MS = 60_000
 /** Timeout for one `gh issue create` invocation. */
 const GH_TIMEOUT_MS = 30_000
 
-/** Host surface this plugin needs for the feedback tool. */
-interface ToolsHost {
-  tools?: {
-    register(definition: unknown): () => void
-  }
+/** The tools-registry slice the feedback tool registers on. */
+interface ToolRegistry {
+  register(definition: unknown): () => void
 }
 
 /** One accepted or rejected submission outcome, mirrored to the model. */
@@ -235,9 +234,12 @@ const FEEDBACK_DESCRIPTION =
  * on this host.
  */
 export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: string, params?: Record<string, string>) => string): (() => void) | undefined {
-  const host = hostCtx as unknown as ToolsHost
-  if (typeof host.tools?.register !== 'function') return undefined
-  return host.tools.register(
+  // Read the service store rather than the context property: this plugin's own
+  // fiber injects `skills` and `commands` only, and the host provides `tools`
+  // from a sibling fiber, so a property read throws on every profile.
+  const tools = toolsServiceOf(hostCtx) as ToolRegistry | undefined
+  if (typeof tools?.register !== 'function') return undefined
+  return tools.register(
     defineTool({
       name: FEEDBACK_TOOL_NAME,
       description: FEEDBACK_DESCRIPTION,

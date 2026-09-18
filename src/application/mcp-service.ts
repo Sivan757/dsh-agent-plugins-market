@@ -140,7 +140,24 @@ export class McpService {
       }
       await saveSuiteOverrides(this.context.dataRoot, suiteKey, overrides)
       await this.context.notifyChanged(true)
+      // The status surface reads the live tool registry, so an immediate read
+      // races the reconciler's teardown: a just-disabled server still carries
+      // its observed tools and reports the orphaned state with its switch on
+      // until the pass finishes. Joining the pass here is bounded — one stuck
+      // mount costs the request its deadline, never the plugin.
+      await this.context.refreshSettled()
     })
+  }
+
+  /**
+   * Enable or disable one declared server, addressed by the source-qualified
+   * suite id the status rows carry. The qualified id is split here rather than
+   * by callers so the separator stays a server-side detail.
+   */
+  async setServerEnabled(suiteKey: string, serverKey: string, enabled: boolean): Promise<void> {
+    const separator = suiteKey.indexOf('/')
+    if (separator <= 0) throw new Error(`invalid suite id "${suiteKey}"`)
+    await this.setOverride(suiteKey.slice(0, separator), suiteKey.slice(separator + 1), serverKey, { enabled })
   }
 
   /**

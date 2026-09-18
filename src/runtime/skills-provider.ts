@@ -7,10 +7,11 @@
  * `.agents/skills` (200) but beat custom (300); user suites (450) lose to
  * the user's own `~/.dsh/skills` (400) and beat `~/.agents/skills` (500).
  *
- * Bodies are rewritten on load: `${CLAUDE_PLUGIN_ROOT}` (which Claude Code
- * authors write into skill prose) is substituted with the suite root, and the
- * resource base points at the skill directory, so CC-authored skills work
- * verbatim under the harness.
+ * Bodies are rewritten on load: the path variables Claude Code authors write
+ * into skill prose (`${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}`,
+ * `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_SKILL_DIR}`) are substituted, `` !`cmd` ``
+ * dynamic-context placeholders run, and the resource base points at the skill
+ * directory, so CC-authored skills work verbatim under the harness.
  */
 import { readFile } from 'node:fs/promises'
 import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillSource } from '@deepseek-ai/dsh-skill'
@@ -18,7 +19,9 @@ import type { Catalog } from '../application/catalog.js'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 import type { Suite, SuiteSkill } from '../model/types.js'
 import { parseFrontmatterRecord } from './user-store.js'
-import { PLUGIN_ROOT_VARIABLES } from '../model/layouts.js'
+import { expandPluginPaths, pluginRootOf } from '../catalog/plugin-variables.js'
+import { suiteDataDir } from '../catalog/paths.js'
+import { injectDynamicContext, type ShellSeam } from './dynamic-context.js'
 
 export const SUITE_PROJECT_SOURCE = 'agent-plugin-project' satisfies SkillSource
 export const SUITE_USER_SOURCE = 'agent-plugin-user' satisfies SkillSource
@@ -30,7 +33,18 @@ interface SkillLocator {
   skillInstructions?: string
   file: string
   directory: string
-  suiteRoot: string
+  /** Absent for a project-native skill, whose directory carries no plugin root. */
+  suiteRoot?: string
+  /** The suite's `${PLUGIN_DATA}` directory; absent for a project-native skill. */
+  data?: string
+}
+
+/** Runtime inputs the provider cannot read off one suite. */
+export interface SuiteSkillProviderOptions {
+  /** Plugin storage root holding each suite's data directory. */
+  dataRoot?: string
+  /** Resolves the live shell seam; absent keeps dynamic-context placeholders literal. */
+  shell?: () => ShellSeam | undefined
 }
 
 interface LocatedSkill {
@@ -44,7 +58,10 @@ interface LocatedSkill {
 export class SuiteSkillProvider implements SkillProvider {
   readonly name = 'agent-plugin'
 
-  constructor(private readonly manager: Catalog) {}
+  constructor(
+    private readonly manager: Catalog,
+    private readonly options: SuiteSkillProviderOptions = {}
+  ) {}
 
   async list(options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const located = await this.locate(options.cwd)
@@ -62,7 +79,7 @@ export class SuiteSkillProvider implements SkillProvider {
     return unique.map(entry => this.candidateFor(entry))
   }
 
-  async get(candidate: SkillCandidate, _options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
+  async get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
     const locator = candidate.locator as SkillLocator
     let text: string
     try {
@@ -77,9 +94,22 @@ export class SuiteSkillProvider implements SkillProvider {
     }
     const parsed = parseSkillFrontmatter(text, candidate.name)
     if (typeof parsed === 'string') return undefined
-    const content = [stripFrontmatter(text), ...(locator.skillInstructions === undefined ? [] : [locator.skillInstructions])]
-      .join('\n\n')
-      .replace(/\$\{([A-Z_]+)\}/g, (match, name: string) => (PLUGIN_ROOT_VARIABLES.has(name) ? locator.suiteRoot : match))
+    const authored = [stripFrontmatter(text), ...(locator.skillInstructions === undefined ? [] : [locator.skillInstructions])].join('\n\n')
+    const withPaths = expandPluginPaths(authored, {
+      ...(locator.suiteRoot === undefined ? {} : { root: locator.suiteRoot }),
+      ...(locator.data === undefined ? {} : { data: locator.data }),
+      skillDir: locator.directory,
+      ...(options.cwd === undefined ? {} : { projectDir: options.cwd })
+    })
+    const shell = this.options.shell?.()
+    const content =
+      shell === undefined
+        ? withPaths
+        : await injectDynamicContext(withPaths, {
+            shell,
+            ...(options.cwd === undefined ? {} : { workdir: options.cwd }),
+            ...(options.signal === undefined ? {} : { signal: options.signal })
+          })
     return {
       name: parsed.name,
       description: candidate.description,
@@ -109,7 +139,12 @@ export class SuiteSkillProvider implements SkillProvider {
         ...(entry.suite.manifest.skillInstructions === undefined ? {} : { skillInstructions: entry.suite.manifest.skillInstructions }),
         file: entry.skill.file,
         directory: entry.skill.directory,
-        suiteRoot: entry.suite.root
+        ...(pluginRootOf(entry.suite) === undefined
+          ? {}
+          : {
+              suiteRoot: entry.suite.root,
+              ...(this.options.dataRoot === undefined ? {} : { data: suiteDataDir(this.options.dataRoot, entry.suite.sourceId, entry.suite.id) })
+            })
       } satisfies SkillLocator,
       path: entry.skill.file,
       resourceBase: { kind: 'directory', path: entry.skill.directory }

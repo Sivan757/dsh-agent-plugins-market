@@ -4,8 +4,8 @@
  * and legacy SSE) or through the host's `@deepseek-ai/dsh-mcp-client`
  * (compatibility mode: no OAuth, no SSE, but the host-native implementation).
  *
- * The choice is a host settings namespace (`dsh-agent-plugins-market`,
- * `mcpEnhanced: boolean`, default true) registered by the plugin's node half:
+ * The choice is the `mcpEnhanced` field of the market's host settings
+ * namespace (see `contracts/settings.ts`) registered by the plugin's node half:
  * the registration is what makes the host 插件配置 tab serve our card, the
  * client card binds it for state, and the node half watches it to remount
  * servers when the switch flips. `readMcpBackend` remains only as the
@@ -18,25 +18,23 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
+import { MARKET_SETTINGS_DEFAULTS } from '../contracts/settings.js'
 
 /** The MCP mount backend the market uses for suite servers. */
 export type McpBackend = 'builtin' | 'host'
 
-/** Settings namespace this plugin registers; the key the plugin-config tab pairs our card by. */
-export const MCP_SETTINGS_NAMESPACE = 'dsh-agent-plugins-market'
-
-/** Schema of the market settings namespace: the switches this plugin's config card serves. */
+/**
+ * Schema of the market settings namespace: the switches this plugin's config
+ * card serves, with the defaults declared to the host. The values themselves
+ * belong to {@link MARKET_SETTINGS_DEFAULTS}; this schema states them, it does
+ * not own them.
+ */
 export const MarketSettingsSchema = z.object({
-  /** ON (default) = the built-in bridge with OAuth and SSE; OFF = host client compat mode. */
-  mcpEnhanced: z.boolean().default(true),
-  /** Read native Agent layouts under the project root; OFF (default) scans configured sources only. */
-  scanProjectLayouts: z.boolean().default(false),
-  /** Download region for GitHub acquisition; `auto` follows the interface language. */
-  downloadRegion: z.union([z.const('auto'), z.const('global'), z.const('china')]).default('auto'),
-  /** ON (default) = the `report_market_issue` model tool is registered; OFF = unregistered. */
-  feedbackEnabled: z.boolean().default(true),
-  /** ON = refresh every configured source in the background; OFF (default) = never. */
-  autoUpdateSources: z.boolean().default(false)
+  mcpEnhanced: z.boolean().default(MARKET_SETTINGS_DEFAULTS.mcpEnhanced),
+  scanProjectLayouts: z.boolean().default(MARKET_SETTINGS_DEFAULTS.scanProjectLayouts),
+  downloadRegion: z.union([z.const('auto'), z.const('global'), z.const('china')]).default(MARKET_SETTINGS_DEFAULTS.downloadRegion),
+  feedbackEnabled: z.boolean().default(MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
+  autoUpdateSources: z.boolean().default(MARKET_SETTINGS_DEFAULTS.autoUpdateSources)
 })
 
 /** Path of the legacy persisted settings file under the plugin data root. */

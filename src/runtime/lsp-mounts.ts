@@ -31,7 +31,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { DIRECT_LSP_SUITE_ID } from './lsp-status.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { describeLegacySeam, findLegacyLspSeams, type LegacyLspSeam } from './profile-seam.js'
-import { qualifiedSuiteId } from '../catalog/paths.js'
+import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
+import { expandPluginPaths, pluginRootOf, type PluginPathContext } from '../catalog/plugin-variables.js'
 import { effectiveSurfaces, type Suite } from '../model/types.js'
 
 export interface LspMountDiagnostic {
@@ -74,6 +75,16 @@ export function toLspServerConfig(spec: {
     ...(spec.env === undefined ? {} : { env: spec.env }),
     ...(spec.initializationOptions === undefined ? {} : { initializationOptions: spec.initializationOptions }),
     ...(spec.configuration === undefined ? {} : { configuration: spec.configuration })
+  }
+}
+
+/** Resolve author-written paths in one declaration before the host spawns the server. */
+export function expandLspServerConfig(config: LspStdioServerConfig, context: PluginPathContext): LspStdioServerConfig {
+  return {
+    ...config,
+    command: expandPluginPaths(config.command, context),
+    args: config.args.map(argument => expandPluginPaths(argument, context)),
+    ...(config.env === undefined ? {} : { env: Object.fromEntries(Object.entries(config.env).map(([key, value]) => [key, expandPluginPaths(value, context)])) })
   }
 }
 
@@ -136,6 +147,8 @@ export class LspMountRegistry {
   private capabilityFailure: CapabilityFailure | undefined
   /** Latest diagnostic per suite id; cleared when its suite mounts or leaves the wanted set. */
   private readonly lastDiagnostics = new Map<string, LspMountDiagnostic>()
+  /** Plugin storage root holding each suite's `${PLUGIN_DATA}` directory; unset leaves the variable verbatim. */
+  private pluginDataRoot?: string
   /** Direct (user-configured) server provider; defaults to none. */
   private directProvider: () => Promise<Record<string, import('../model/types.js').LspServerSpec>> = async () => ({})
   private disabledProvider: () => Promise<Set<string>> = async () => new Set()
@@ -179,7 +192,12 @@ export class LspMountRegistry {
       // otherwise shadow each other's mount and diagnostics.
       const key = qualifiedSuiteId(suite.sourceId, suite.id)
       const config: Record<string, LspStdioServerConfig> = {}
-      for (const spec of servers) if (!disabled.has(`${key}/${spec.key}`)) config[`${key}/${spec.key}`] = toLspServerConfig(spec)
+      const root = pluginRootOf(suite)
+      const context: PluginPathContext = {
+        ...(root === undefined ? {} : { root }),
+        ...(root === undefined || this.pluginDataRoot === undefined ? {} : { data: suiteDataDir(this.pluginDataRoot, suite.sourceId, suite.id) })
+      }
+      for (const spec of servers) if (!disabled.has(`${key}/${spec.key}`)) config[`${key}/${spec.key}`] = expandLspServerConfig(toLspServerConfig(spec), context)
       if (Object.keys(config).length > 0) wanted.set(key, { suite, config })
     }
     // Direct user-configured servers ride the same mount path under the
@@ -327,6 +345,11 @@ export class LspMountRegistry {
         this.ctx.logger?.warn?.(`[dsh-agent-plugins-market] LSP capability teardown failed: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
+  }
+
+  /** Install the plugin storage root per-suite data directories resolve against. */
+  setPluginDataRoot(root: string): void {
+    this.pluginDataRoot = root
   }
 
   /** Install the direct (user-configured) server provider used at reconcile time. */

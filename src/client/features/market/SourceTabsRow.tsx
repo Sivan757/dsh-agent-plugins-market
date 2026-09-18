@@ -7,8 +7,9 @@
  * folded the grid is lifted out of the flow at a fixed two-row height with a
  * bottom fade hinting at the rest; hovering or focusing it grows the same grid
  * as an overlay, so the card grid below never moves. Picking a source folds the
- * strip again at once. Chips keep their id order — the selected source is not
- * moved to the front.
+ * strip again at once. The caller decides chip order: MarketSection puts `全部`
+ * first, then the selected source, then the rest by id, so the scope the user
+ * just picked stays visible once the strip folds.
  */
 import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type ReactNode } from 'react'
 import { SourceTab } from './SourceTab.js'

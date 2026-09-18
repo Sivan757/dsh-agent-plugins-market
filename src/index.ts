@@ -22,7 +22,7 @@ import { RuntimeReconciler } from './runtime/reconciler.js'
 import { ReconcileScheduler } from './runtime/reconcile-scheduler.js'
 import { MarketSettingsNamespace } from './runtime/settings-namespace.js'
 import { deleteMcpAuthGrant } from './runtime/mcp-auth-record.js'
-import { inspectToolRegistry } from './runtime/tool-registry-observer.js'
+import { inspectToolRegistry, toolsServiceOf } from './runtime/tool-registry-observer.js'
 import { migratePluginStorage } from './runtime/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agent-role-router.js'
 import { projectAgentRoles } from './application/project-agent-roles.js'
@@ -31,9 +31,10 @@ import { createPanelResources } from './application/panel-resources.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
+import { shellSeamOf, type ShellSeam } from './runtime/dynamic-context.js'
 import { loadLspServers } from './runtime/lsp-direct-config.js'
 import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
-import { bindHostLocale, loadHostLocale, type HostTranslate } from './runtime/host-locale.js'
+import { bindHostLocale, loadHostLocale, readHostLocalePreference, setHostLocaleSource, type HostTranslate } from './runtime/host-locale.js'
 import { createUserPanelStores } from './runtime/user-panels.js'
 import { SourceAutoUpdater } from './runtime/source-auto-update.js'
 import { UserPanelSkillProvider } from './runtime/user-panels.js'
@@ -80,10 +81,20 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   // Host runtime copy resolves from the harness `locale.preference` setting;
   // the async settings read lands before the first session starts in practice.
   const hostLocale: { t: HostTranslate } = { t: bindHostLocale(undefined) }
-  void loadHostLocale().then(locale => {
-    hostLocale.t = locale.t
-    providerControl?.invalidate()
-    userPanelControl?.invalidate()
+  const refreshHostLocale = (): void => {
+    void loadHostLocale().then(locale => {
+      hostLocale.t = locale.t
+      providerControl?.invalidate()
+      userPanelControl?.invalidate()
+    })
+  }
+  void refreshHostLocale()
+  // The locale preference the GUI writes is owned by the host settings service:
+  // read it there rather than re-parsing the document, and re-bind once the
+  // service lands (the locale namespace may register after this plugin).
+  ctx.inject(['settings'], settingsCtx => {
+    setHostLocaleSource(() => readHostLocalePreference(settingsCtx))
+    refreshHostLocale()
   })
 
   const runtime = new RuntimeReconciler(ctx, dataRoot, key => hostLocale.t(key))
@@ -166,9 +177,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   // port below is read at call time: this plugin's apply may run before the
   // credentials, tools and settings services provision, and a snapshot taken
   // here would be permanently undefined even after the service is live.
-  let toolsRegistry: unknown
+  // Read at call time: the tools service provisions after apply() returns.
+  let toolsRegistry: unknown = toolsServiceOf(ctx)
   const ports: CatalogPortsOverride = {
-    mcpToolSnapshot: () => (toolsRegistry === undefined ? [] : inspectToolRegistry(toolsRegistry)),
+    mcpToolSnapshot: () => inspectToolRegistry(toolsRegistry),
     credentialsStore: {
       deleteGrantRecord: async serverName => {
         const store = (ctx as unknown as { get?: (name: string) => unknown }).get?.('credentials')
@@ -216,9 +228,12 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     })
     .catch(() => {})
 
+  // The shell seam resolves lazily: the service may land after this plugin, and
+  // a profile without one keeps dynamic-context placeholders literal.
+  const shellSeam = (): ShellSeam | undefined => shellSeamOf(ctx)
   ctx.skills.registerProvider(control => {
     providerControl = control
-    return new SuiteSkillProvider(catalog)
+    return new SuiteSkillProvider(catalog, { dataRoot, shell: shellSeam })
   })
 
   // User panel skills ride a second provider so a panel
@@ -245,10 +260,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
 
   ctx.inject(['agents'], hostCtx => {
     hostCtx.effect(() => {
-      const mounted = mountProjectCommands(hostCtx, catalog, key => hostLocale.t(key))
+      const mounted = mountProjectCommands(hostCtx, catalog, key => hostLocale.t(key), dataRoot)
       const mcp = mountProjectMcp(hostCtx, catalog, dataRoot)
       const hooks = mountProjectHooks(hostCtx, catalog)
-      const prompts = mountSuiteInstructions(hostCtx, catalog)
+      const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot)
       projectCommands = mounted
       projectMcp = mcp
       projectHooks = hooks

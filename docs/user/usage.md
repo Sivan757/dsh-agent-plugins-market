@@ -4,7 +4,7 @@ English | [简体中文](usage.zh.md) | [README](../../README.md)
 
 ## Host requirements
 
-The plugin configuration card carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), and the **experience feedback tool**.
+The plugin configuration card carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), and the **experience feedback tool**. The card stages what you pick and applies it when you press Save, so what is on screen is what saving writes; a setting marked **customized** also offers **Use default**, which hands that one setting back to the plugin. **Download region** starts on **Follow interface language**, and choosing it again clears your explicit choice.
 
 Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environment references, tool allow/deny lists and timeouts are preserved; unsupported fields are diagnosed. Project LSP is not mounted because the host registry is global; this plugin does not modify host APIs.
 
@@ -86,27 +86,27 @@ Plugin state lives under `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it 
 
 Content you author yourself lives in the shared Agent layout root, `~/.agents/` (`$DSH_AGENTS_HOME` overrides it) — the same directory shape this plugin reads from a project's `.agents/`:
 
-| Path        | Contents                                           |
-| ----------- | -------------------------------------------------- |
-| `skills/`   | Your skill Markdown files                          |
-| `commands/` | Your command Markdown files                        |
-| `agents/`   | Your persona Markdown files                        |
-| `mcp.json`  | MCP services added in the workspace (`mcpServers`) |
-| `lsp.json`  | LSP servers added in the workspace (`lspServers`)  |
+| Path        | Contents                                                         |
+| ----------- | ---------------------------------------------------------------- |
+| `skills/`   | Your skills: `<name>.md`, or the tool-authored `<name>/SKILL.md` |
+| `commands/` | Your command Markdown files                                      |
+| `agents/`   | Your persona Markdown files                                      |
+| `mcp.json`  | MCP services added in the workspace (`mcpServers`)               |
+| `lsp.json`  | LSP servers added in the workspace (`lspServers`)                |
 
-User entries support `disabled: true` frontmatter to stop registration without deleting the file. Commands forward their body to the model, replacing `$ARGUMENTS` with the invocation text. User personas appear in the dynamic [subagent catalog](agent-roles.md), not the skill or slash-command menus.
+User entries support `disabled: true` frontmatter to stop registration without deleting the file. The skills panel switches a skill by writing the harness's own `disable-model-invocation: true` with `user-invocable: false` — the one off state every reader of that file honors — and drops the older `disabled` key on the first switch. A skill in the `<name>/SKILL.md` spelling keeps whatever sits beside that document; deleting it from the panel removes the document only, never the `references/` or `scripts/` files another tool put there. A skill registers under the `name` its frontmatter declares — the name the panel shows — and one the harness reader would reject is listed under its file name, disabled, with the reason instead of joining the catalog. Commands forward their body to the model, replacing `$ARGUMENTS` with the invocation text. User personas appear in the dynamic [subagent catalog](agent-roles.md), not the skill or slash-command menus.
 
 Project-dimension state and checkouts live under `<project>/.dsh/agent-plugins/`. Native layouts listed under [project layouts](#project-layouts) are read in place without install state. Project skills win same-name conflicts with installed user suites, and a skill you author under the Agent layout root wins over a suite skill of the same name. Rename an entry if it is shadowed.
 
 ### Project layouts
 
-**Scan project Agent layouts** is off by default. With it on, the project a session runs in contributes its own resources; turning it off removes every candidate below immediately. Configured sources and installed suites are unaffected. Files are read in place and are never installed, rewritten or deleted.
+**Scan project Agent layouts** is off by default. With it on, the project a session runs in contributes its own resources; saving with it off removes every candidate below on the next discovery pass. Configured sources and installed suites are unaffected. Files are read in place and are never installed, rewritten or deleted.
 
 Skill directories are read under `.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder` and `.github`. Portable Markdown agents are enabled for all of them except `.codex` and `.kimi`, whose TOML/YAML formats need separate adapters. Role execution resolves the calling session's project. Project commands, supported MCP servers and mapped command hooks register in each agent's scoped context and refresh on session startup or catalog changes.
 
 MCP reads root `.mcp.json`, `.cursor/mcp.json`, and the `mcpServers` tables in `.qoder/settings.json` and `.qoder/settings.local.json` (local keys override project keys). ZCode reads `mcp.servers` from `zcode.json` and `.zcode/config.json`, with `.agents/mcp.json` as an empty-native-table fallback. Codex reads `[mcp_servers.*]` from `.codex/config.toml` through `smol-toml`, preserving stdio/HTTP configuration, environment and header references, enabled flags, tool filters and timeouts; unsupported server options are diagnosed. Relative executables resolve from the project root.
 
-Claude/Qoder settings hooks and enabled ZCode configuration hooks use the bridge's supported command-event subset. Validated hooks become private temporary runtime files that are removed on teardown; project files stay unchanged. Project LSP is diagnosed and not mounted: the host LSP registry does not isolate projects.
+Claude/Qoder settings hooks, the Agent layout's `.agents/hooks/hooks.json` or `.agents/hooks.json` (either a bare event table or a `hooks` key), and enabled ZCode configuration hooks use the bridge's supported command-event subset. Validated hooks become private temporary runtime files that are removed on teardown; project files stay unchanged. Project LSP is diagnosed and not mounted: the host LSP registry does not isolate projects.
 
 Unmanaged user checkouts do not become runtime installations just because they exist on disk. Adopt and install them explicitly. There is no file watcher; project discovery snapshots are cached for five seconds.
 
@@ -126,6 +126,10 @@ Use references such as `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. Missing referen
 
 `mcp.json` uses strict schema validation. `.mcp.json` supports common compatibility forms: top-level server maps, `http` / `local` transport aliases, omitted type inferred from `command`, and `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${NAME:-default}` placeholders. Invalid servers are diagnosed and skipped rather than started with partial configuration.
 
+Path variables written in suite files resolve to real values at injection time: `${CLAUDE_PLUGIN_ROOT}` (and the Codex, ZCode and Qoder spellings) points at the suite checkout, `${CLAUDE_PLUGIN_DATA}` at that suite's data directory, `${CLAUDE_SKILL_DIR}` at the skill's own directory, and `${CLAUDE_PROJECT_DIR}` at the calling session's project directory. Skill bodies, slash commands, agent personas, LSP declarations and startup instructions all resolve them; the host bridge resolves the plugin root and project directory in hook commands, so a hook command never receives `${CLAUDE_PLUGIN_DATA}`. A project's own `.claude/` and similar native directories are not plugins, and the plugin variables in them stay as written.
+
+`` !`command` `` in a skill body or slash command is dynamic context: the command runs in the session directory and its output replaces the placeholder, and a multi-line command goes in a ` ```! ` code block. A command that fails, times out or is cancelled aborts the whole invocation with the command's output instead of injecting half of it. A skill or command from an enabled suite therefore runs the shell commands it ships when you invoke it, so review a suite's contents before installing it.
+
 ### Hooks and LSP
 
 Hooks use the bridge's mapped command-hook subset at SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart and SubagentStop. This is not full Claude Code runtime compatibility.
@@ -144,11 +148,11 @@ For vulnerability reports, follow the [security policy](../../SECURITY.md).
 
 The `feedbackEnabled` setting defaults to `true`. When the host provides tools and settings, it enables the model-facing `report_market_issue` tool, which files an issue in this plugin's GitHub repository — through the `gh` CLI when it is installed and authenticated, otherwise through `GITHUB_TOKEN` / `GH_TOKEN`. With none of those available nothing is filed: the tool opens a prefilled "new issue" page in the browser and returns the complete issue text and link to the model, which hands them to you. Accepted submissions have a 60-second cooldown. Disable the setting in the plugin configuration card to unregister the tool.
 
-The workspace tabs share a saved grid/list preference; search and filters remain resource-specific. Add and refresh are header actions. MCP Add validates a JSON server declaration and persists it under `~/.agents/mcp.json`, then mounts it through the plugin bridge; LSP Add does the same into `~/.agents/lsp.json`. Invalid declarations and duplicate names are rejected. Existing host-owned MCP services remain observation-only.
+The workspace tabs share a saved grid/list preference; search and filters remain resource-specific. Add and refresh are header actions. Every card carries its enable switch, MCP and LSP services included, so a service can be stopped without opening its detail. The market filters by install state; the other five surfaces filter by owner — user, plugin — and by switched-off entries, whose count is the number of rows that filter shows. MCP Add validates a JSON server declaration and persists it under `~/.agents/mcp.json`, then mounts it through the plugin bridge; LSP Add does the same into `~/.agents/lsp.json`. Invalid declarations and duplicate names are rejected. Existing host-owned MCP services remain observation-only.
 
 ### Resource detail editing
 
-Details use a shared 1120px maximum-width dialog, constrained to the viewport. Markdown preview separates YAML frontmatter from the rendered body; raw editing preserves unknown keys and comments. MCP forms cover transport, command, arguments, working directory, environment, URL, headers and OAuth; LSP forms cover command, arguments, environment, extension mapping, initialization options and configuration. Invalid JSON and incomplete map rows remain editable but cannot be saved.
+Details and editors share one dialog in three widths — 460px for a confirmation, 640px for a short form, 880px for a detail or an editor — constrained to the viewport. A resource's card carries its identity line (name, owning tag, and the state tag when a service is switched off, failing, or degraded), a two-line description or endpoint, and a source row naming the owning suite, with its actions on the identity line and revealed on hover or keyboard focus; opening it shows the overview, the description, and its contents grouped by surface, each row expanding in place. Markdown preview shows the frontmatter as authored above the rendered body; raw editing preserves unknown keys and comments, and the editor offers the source with line numbers and syntax highlighting, with a switch to the rendered draft beside its title. What saving does is stated beside the buttons, and a command's `argument-hint` has its own field beside the name. MCP forms cover transport, command, arguments, working directory, environment, URL, headers and OAuth; LSP forms cover command, arguments, environment, extension mapping, initialization options and configuration. Invalid JSON and incomplete map rows remain editable but cannot be saved. Uninstalling a suite asks you to acknowledge what leaves the profile before the action is available.
 
 `GET /api/agent-plugins/server-config?kind=mcp|lsp&id=...` returns the full editable configuration; `POST /api/agent-plugins/server-config/save` replaces that service config. Plugin MCP replacements persist in its existing override file; plugin LSP replacements persist in `data/lsp-overrides.json`. Checkouts stay untouched. Unchanged `[redacted]` fields preserve original secrets. Modified config remounts through the plugin runtime. Host-observed MCP remains read-only. `POST /api/agent-plugins/lsp-servers/add` creates one named direct service without replacing others.
 

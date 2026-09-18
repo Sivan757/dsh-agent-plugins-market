@@ -155,7 +155,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 | 项目原生目录                                                                                                  | 支持 | 支持 | 支持 | 支持 | 部分   | 不支持 |
 
 - **技能**读取清单声明的路径与约定的 `skills/` 目录，也支持平铺的 `SKILL.md` 文件。
-- **代理与命令**按 Markdown 读取（`agents/*.md`、`commands/*.md`）。Cursor 命令只读 `.md`，不读 `.mdc`、`.markdown`、`.txt`；Codex 与 Kimi 的原生代理/命令格式（TOML、YAML）尚未适配。
+- **代理与命令**按 Markdown 读取（`agents/*.md`、`commands/*.md`）。Cursor 插件命令接受 `.md`、`.mdc`、`.markdown`、`.txt`；Codex 与 Kimi 的原生代理/命令格式（TOML、YAML）尚未适配。
 - **MCP** 支持声明的文件、内联表与数组。Cursor 的无 schema `mcp.json` 与 agent-plugins 的严格 `mcp.json` 都能读取；Kimi Code 只读内联声明。Codex 的 app 连接器不在适配范围内。
 - **Hooks** 只映射 DSH 有对应点的命令类事件；没有对应点的事件（例如 `afterFileEdit`）给出诊断而不伪造执行。Cursor 的原生事件不读取。
 - **LSP** 支持声明的文件、数组、内联表，以及约定的 `.lsp.json` / `lsp.json` 位置。项目内的 LSP 声明只给诊断、不挂载：宿主 LSP 注册表是全局的。部分布局只提供目录预览。
@@ -166,7 +166,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 ### 项目布局开关
 
-插件设置卡提供**扫描项目 Agent 布局**（`dsh-agent-plugins-market.scanProjectLayouts`，默认关闭）。它只控制一件事：当前项目是否把自己目录（`.claude`、`.agents`、`.codex`、`.cursor`、`.kimi`、`.zcode`、`.qoder`、`.github`）里的技能、命令、代理角色、MCP 服务与 hooks 贡献到会话里。开启后立即纳入这些候选，关闭后立即移除；配置源与已安装套件不受影响。
+插件设置卡提供**扫描项目 Agent 布局**（`dsh-agent-plugins-market.scanProjectLayouts`，默认关闭）。它只控制一件事：当前项目是否把自己目录（`.claude`、`.agents`、`.codex`、`.cursor`、`.kimi`、`.zcode`、`.qoder`、`.github`）里的技能、命令、代理角色、MCP 服务与 hooks 贡献到会话里。开启后纳入这些候选，关闭后在下一轮发现时移除。卡片在你保存时生效，设置带着你自己填的值时也提供「恢复默认」。配置源与已安装套件不受影响。
 
 每种布局读取哪些目录与文件、如何挂载，见[项目布局](docs/user/usage.zh.md#项目布局)。
 

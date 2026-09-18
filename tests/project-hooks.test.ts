@@ -59,9 +59,71 @@ describe('native project hook normalization', () => {
     await writeFile(join(project, '.claude/settings.local.json'), '{"disableAllHooks":true}')
     expect(await discoverProjectHooks(project, ['.claude/settings.json', '.claude/settings.local.json'], [])).toBeUndefined()
   })
+
+  it('reads a bare event table from the Agent layout hook files', async () => {
+    const project = await root()
+    await mkdir(join(project, '.agents/hooks'), { recursive: true })
+    await writeFile(join(project, '.agents/hooks/hooks.json'), JSON.stringify({ PreToolUse: [hook('echo nested')] }))
+    await writeFile(join(project, '.agents/hooks.json'), JSON.stringify({ hooks: { SessionStart: [hook('echo root')] } }))
+    const errors: string[] = []
+    const result = await discoverProjectHooks(project, ['.agents/hooks/hooks.json', '.agents/hooks.json'], errors)
+    expect(errors).toEqual([])
+    expect(result?.events.PreToolUse?.flatMap(group => group.hooks.map(entry => entry.command))).toEqual(['echo nested'])
+    expect(result?.events.SessionStart?.flatMap(group => group.hooks.map(entry => entry.command))).toEqual(['echo root'])
+  })
+
+  it('drops every declared hook set when one Agent layout hook file is malformed', async () => {
+    const project = await root()
+    await mkdir(join(project, '.agents'), { recursive: true })
+    await writeFile(join(project, '.agents/hooks.json'), JSON.stringify({ PreToolUse: [{ hooks: [{ type: 'command' }] }] }))
+    const errors: string[] = []
+    expect(await discoverProjectHooks(project, ['.agents/hooks.json'], errors)).toBeUndefined()
+    expect(errors.join()).toContain('invalid PreToolUse command hook')
+  })
+
+  it('leaves a settings table without hooks to ordinary validation', async () => {
+    const project = await root()
+    await writeFile(join(project, '.claude/settings.json'), JSON.stringify({ model: 'sonnet' }))
+    const errors: string[] = []
+    expect(await discoverProjectHooks(project, ['.claude/settings.json'], errors)).toBeUndefined()
+    expect(errors).toEqual([])
+  })
 })
 
 describe('native hook bridge lifecycle', () => {
+  it('mounts the Agent layout hook file as one project suite surface', async () => {
+    const project = await root()
+    await mkdir(join(project, '.agents/hooks'), { recursive: true })
+    await writeFile(join(project, '.agents/hooks/hooks.json'), JSON.stringify({ PreToolUse: [hook('echo nested')] }))
+    await writeFile(join(project, '.agents/hooks.json'), JSON.stringify({ hooks: { SessionStart: [hook('echo root')] } }))
+    const snapshots: string[] = []
+    const host = {
+      plugin: (_plugin: unknown, config: { configPath: string }) => {
+        snapshots.push(config.configPath)
+        return { await: async () => {}, dispose: async () => {} }
+      }
+    }
+    const registry = new HooksMountRegistry(host as unknown as Context)
+    try {
+      const suites = await discoverNativeProjectSuites(project, 'project')
+      const suite = suites.find(entry => entry.id === 'agents-native')
+      if (suite === undefined) throw new Error('expected the .agents project layout to be discovered')
+      expect(suite.surfaces.hooks).toBe(2)
+      expect(suite.activeSurfaces?.hooks).toBe(true)
+      expect(suite.hooks?.projectRoot).toBe(project)
+      expect(suite.hooks?.events.PreToolUse?.[0]?.hooks[0]?.command).toBe('echo nested')
+      expect(await registry.reconcile(suites.map(entry => withDefaultSurfaces(entry)))).toEqual([])
+      expect(snapshots).toHaveLength(1)
+      const [snapshot] = snapshots
+      if (snapshot === undefined) throw new Error('expected the hook config to mount once')
+      const mounted = JSON.parse(await readFile(snapshot, 'utf8')) as { hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>> }
+      expect(mounted.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe('echo nested')
+      expect(mounted.hooks.SessionStart?.[0]?.hooks[0]?.command).toBe('echo root')
+    } finally {
+      await registry.disposeAll()
+    }
+  })
+
   it('uses a private runtime snapshot, remounts changed config and removes temporary files', async () => {
     const project = await root()
     const settingsPath = join(project, '.claude/settings.json')

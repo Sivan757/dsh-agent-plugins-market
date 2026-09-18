@@ -11,17 +11,27 @@ export function DetailFooterAction({ children }: { children: ReactNode }): React
   return target === null ? null : createPortal(children, target)
 }
 
-/** One wide, viewport-bounded dialog for all resource details and editors. */
-export function DetailModal(props: ComponentProps<typeof Modal>): ReactNode {
+/** One of the three shipped dialog widths: confirm, small form, or detail. */
+export type DetailSize = 'sm' | 'md' | 'lg'
+
+function sizeClass(size: DetailSize): string {
+  if (size === 'sm') return css.sizeSm ?? ''
+  if (size === 'md') return css.sizeMd ?? ''
+  return css.sizeLg ?? ''
+}
+
+/** One dialog chrome for every resource detail and editor. */
+export function DetailModal(props: ComponentProps<typeof Modal> & { size?: DetailSize }): ReactNode {
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
+  const { size = 'lg', ...modal } = props
   return h(
     FooterTarget.Provider,
     { value: target },
     h(Modal, {
-      ...props,
-      className: `${props.className ?? ''} ${css.dialog}`,
-      contentClassName: `${props.contentClassName ?? ''} ${css.body}`,
-      footer: h('div', { className: css.footer }, props.footer, h('div', { ref: setTarget, className: css.footerSlot }))
+      ...modal,
+      className: `${modal.className ?? ''} ${css.dialog} ${sizeClass(size)}`,
+      contentClassName: `${modal.contentClassName ?? ''} ${css.body}`,
+      footer: h('div', { className: css.footer }, modal.footer, h('div', { ref: setTarget, className: css.footerSlot }))
     })
   )
 }

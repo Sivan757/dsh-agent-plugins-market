@@ -55,4 +55,30 @@ describe('installed and user panel resources', () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  it('edits a directory-shaped user skill through its name id, keeping the cross-tool spelling', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'market-panels-'))
+    try {
+      const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
+      await catalog.load()
+      const dir = join(root, 'skills', 'canonical')
+      await mkdir(dir, { recursive: true })
+      await writeFile(join(dir, 'SKILL.md'), '---\nname: canonical\ndescription: cross-tool shape\n---\nBody')
+      const panels = createPanelResources(catalog, createUserPanelStores(root))
+
+      const row = (await panels.skills.list()).find(entry => entry.origin === 'user')
+      expect(row?.name).toBe('canonical')
+      // A user entry carries no id: the client addresses it by name.
+      expect(row?.id).toBeUndefined()
+
+      const changed = '---\nname: canonical\ndescription: edited\n---\nChanged'
+      await panels.skills.update('canonical', changed)
+      expect(await readFile(join(dir, 'SKILL.md'), 'utf8')).toBe(changed)
+
+      await panels.skills.remove('canonical')
+      expect((await panels.skills.list()).some(entry => entry.origin === 'user')).toBe(false)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })

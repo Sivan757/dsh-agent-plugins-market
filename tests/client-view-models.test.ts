@@ -69,11 +69,15 @@ describe('client catalog view models', () => {
     expect(result.filtered.map(suite => suite.suiteId)).toEqual(['one'])
   })
 
-  it('derives MCP active rows and filter counts without disabled entries', () => {
+  it('derives MCP rows and counts, keeping switched-off rows reachable by filter', () => {
     const result = deriveMcpStatusViewModel(mcpStatus, 'direct', 'https://two')
-    expect(result.activeEntries.map(entry => entry.id)).toEqual(['plugin:one', 'direct:two'])
-    expect(result.filterCounts).toEqual({ all: 2, plugin: 1, direct: 1 })
+    expect(result.activeEntries.map(entry => entry.id)).toEqual(['plugin:one', 'direct:two', 'disabled:three'])
+    expect(result.filterCounts).toEqual({ all: 3, plugin: 2, direct: 1, disabled: 1 })
     expect(result.filtered.map(entry => entry.id)).toEqual(['direct:two'])
+
+    // The switched-off tab lists exactly the rows it counted.
+    const off = deriveMcpStatusViewModel(mcpStatus, 'disabled', '')
+    expect(off.filtered.map(entry => entry.id)).toEqual(['disabled:three'])
   })
 
   it('records a repeat-filtering baseline for a 5,000-card payload', () => {

@@ -1,20 +1,36 @@
-/** A suite card in the market grid/list. */
+/**
+ * A suite card. One anatomy for every surface: identity row (name, version,
+ * provenance tag) with the action cluster on its trailing edge, a full-width
+ * description, and a source row carrying the counts.
+ */
 import { createElement as h, type HTMLAttributes, type ReactElement, type ReactNode } from 'react'
-import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutline16, IconTrashOutline16, Switch, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../index.js'
-import { ToggleSwitch } from '../../ui/ToggleSwitch.js'
-import css from '../../market.module.css'
+import rc from '../../ui/resource-card.module.css'
 import { ResourceCard } from '../../ui/ResourceCard.js'
-import { suiteLayoutLabel } from '../../layout-label.js'
+
+/** Surface counts render as `label <number>`, separated by a middot. */
+function countList(t: Translate, suite: SuiteCardData): Array<[string, number]> {
+  return (
+    [
+      [t('surfaceSkills'), suite.surfaces.skills],
+      [t('surfaceMcp'), suite.surfaces.mcp],
+      [t('surfaceHooks'), suite.surfaces.hooks],
+      [t('surfaceCommands'), suite.surfaces.commands],
+      [t('surfaceAgents'), suite.surfaces.agents],
+      [t('surfaceLsp'), suite.surfaces.lsp]
+    ] as Array<[string, number]>
+  ).filter(([, count]) => count > 0)
+}
 
 /**
- * A tooltip anchor. `Tooltip` clones its child and chains its own hover/focus
- * handlers onto it, so the anchor must expose a span's handler props.
+ * A warning chip. `Tooltip` clones its child and chains its own hover/focus
+ * handlers onto it, so the anchor is a plain span with an explicit prop type.
  */
 function warnAnchor(text: string): ReactElement<HTMLAttributes<HTMLSpanElement>> {
-  const props: HTMLAttributes<HTMLSpanElement> = { className: css.warnLine }
-  return h('span', props, text)
+  const props: HTMLAttributes<HTMLSpanElement> = { className: rc.warnWrap }
+  return h('span', props, h(Tag, { tone: 'warning' }, text))
 }
 
 export interface SuiteCardProps {
@@ -31,88 +47,65 @@ export interface SuiteCardProps {
 
 export function SuiteCard(props: SuiteCardProps): ReactNode {
   const { t, suite, busy } = props
-  const tags: Array<[string, number]> = (
-    [
-      [t('surfaceSkills'), suite.surfaces.skills],
-      [t('surfaceMcp'), suite.surfaces.mcp],
-      [t('surfaceHooks'), suite.surfaces.hooks],
-      [t('surfaceCommands'), suite.surfaces.commands],
-      [t('surfaceAgents'), suite.surfaces.agents],
-      [t('surfaceLsp'), suite.surfaces.lsp]
-    ] as Array<[string, number]>
-  ).filter(([, count]) => count > 0)
-  const layoutLabel = suiteLayoutLabel(suite.layout, t)
+  const counts = countList(t, suite)
   const isRemote = suite.remoteUrl !== undefined
   const mcpErrors = suite.mcpErrors ?? []
-  const hasTagRow = tags.length > 0 || suite.errors.length > 0 || mcpErrors.length > 0
+  const provenance = isRemote ? t('remoteRef') : suite.dimension === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
   const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
     event.stopPropagation()
     callback()
   }
-  // Installed cards carry the MCP card's left accent: green = enabled, gray = disabled.
-  return h(
-    ResourceCard,
-    { className: css.card, state: suite.installed && suite.enabled ? 'active' : 'disabled', onClick: props.onOpen },
-    h(
-      'div',
-      { className: css.cardTop },
-      h(
-        'div',
-        { className: css.cardTitle },
-        h('span', { className: css.cardName }, suite.name),
-        suite.version === undefined ? null : h('span', { className: css.version }, `v${suite.version}`)
-      ),
-      h(
-        'div',
-        { className: css.cardActions },
-        suite.installed
-          ? [
+  // The card itself is the click target, so every control inside it has to keep
+  // its own click from reaching the card.
+  const toolbarStop = (event: { stopPropagation(): void }): void => event.stopPropagation()
+
+  const actions = suite.installed
+    ? [
+        h(
+          'button',
+          {
+            key: 'refresh',
+            type: 'button',
+            className: `${rc.iconBtn} ${rc.revealOnHover}`,
+            title: t('refresh'),
+            'aria-label': t('refresh'),
+            disabled: busy,
+            onClick: stop(props.onRefresh)
+          },
+          h(IconRefreshOutline16)
+        ),
+        h(
+          'button',
+          {
+            key: 'uninstall',
+            type: 'button',
+            className: `${rc.iconBtn} ${rc.iconBtnDanger} ${rc.revealOnHover}`,
+            title: t('uninstall'),
+            'aria-label': t('uninstall'),
+            disabled: busy,
+            onClick: stop(props.onUninstall)
+          },
+          h(IconTrashOutline16)
+        ),
+        // The enable switch reads last, at the cluster's trailing edge.
+        h(
+          'span',
+          { key: 'toggle', className: rc.switchWrap, onClick: toolbarStop },
+          h(Switch, {
+            checked: suite.enabled,
+            disabled: busy,
+            label: suite.enabled ? t('disable') : t('enable'),
+            title: suite.enabled ? t('disable') : t('enable'),
+            onChange: props.onToggle
+          })
+        )
+      ]
+    : [
+        isRemote
+          ? h(
+              'span',
+              { key: 'addSource', className: `${rc.switchWrap} ${rc.revealOnHover}` },
               h(
-                'button',
-                {
-                  key: 'refresh',
-                  type: 'button',
-                  className: css.iconBtn,
-                  title: t('refresh'),
-                  disabled: busy,
-                  onClick: stop(props.onRefresh)
-                },
-                h(
-                  'svg',
-                  { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                  h('path', { d: 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8' }),
-                  h('path', { d: 'M21 3v5h-5' })
-                )
-              ),
-              h(
-                'button',
-                {
-                  key: 'uninstall',
-                  type: 'button',
-                  className: `${css.iconBtn} ${css.iconBtnDanger}`,
-                  title: t('uninstall'),
-                  disabled: busy,
-                  onClick: stop(props.onUninstall)
-                },
-                h(
-                  'svg',
-                  { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                  h('path', { d: 'M3 6h18' }),
-                  h('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6' }),
-                  h('path', { d: 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' })
-                )
-              ),
-              // The enable switch reads last, at the card's trailing edge.
-              h(ToggleSwitch, {
-                key: 'toggle',
-                on: suite.enabled,
-                disabled: busy,
-                title: suite.enabled ? t('disable') : t('enable'),
-                onChange: props.onToggle
-              })
-            ]
-          : isRemote
-            ? h(
                 Button,
                 {
                   variant: 'primary',
@@ -123,7 +116,11 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
                 },
                 t('addSource')
               )
-            : h(
+            )
+          : h(
+              'span',
+              { key: 'install', className: `${rc.switchWrap} ${rc.revealOnHover}` },
+              h(
                 Button,
                 {
                   variant: 'primary',
@@ -133,33 +130,39 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
                 },
                 t('install')
               )
-      )
-    ),
-    h('p', { className: css.desc }, suite.description ?? ''),
+            )
+      ]
+
+  return h(
+    ResourceCard,
+    { state: suite.installed && suite.enabled ? 'active' : 'disabled', surface: 'market', onClick: props.onOpen },
     h(
       'div',
-      { className: css.meta },
-      h('span', { className: css.src }, `${suite.sourceId} · ${isRemote ? t('remoteRef') : suite.dimension === 'user' ? t('dimensionUser') : t('dimensionProject')}`),
-      h('span', { className: css.tag }, layoutLabel)
+      { className: rc.rowId },
+      h('span', { className: rc.name }, suite.name),
+      suite.version === undefined ? null : h('span', { className: rc.version }, `v${suite.version}`),
+      h(Tag, { tone: 'neutral' }, provenance)
     ),
-    hasTagRow
-      ? h(
-          'div',
-          { className: css.tagRow },
-          ...tags.map(([label, count]) => h('span', { key: label, className: css.tag }, `${label} ${count}`)),
-          suite.errors.length === 0
-            ? null
-            : h(Tooltip, {
-                label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')),
-                children: warnAnchor(`⚠ ${t('errors')} ${suite.errors.length}`)
-              }),
-          mcpErrors.length === 0
-            ? null
-            : h(Tooltip, {
-                label: mcpErrors.slice(0, 8).join(t('sourceErrorSeparator')),
-                children: warnAnchor(`⚠ ${t('mcpSection')} ${mcpErrors.length}`)
-              })
-        )
-      : null
+    h('div', { className: rc.rowActions }, ...actions),
+    h('p', { className: `${rc.rowBody} ${rc.desc}` }, suite.description ?? ''),
+    h(
+      'div',
+      { className: rc.rowFoot },
+      h('span', { className: rc.provenance, title: suite.sourceId }, suite.sourceId),
+      ...counts.flatMap(([label, count]) => [
+        h('span', { key: `sep-${label}`, className: rc.separator }, '·'),
+        h('span', { key: label, className: rc.count }, label, ' ', h('span', { className: rc.countValue }, String(count)))
+      ]),
+      suite.errors.length === 0
+        ? null
+        : h('span', { key: 'errors', className: rc.separator }, '·'),
+      suite.errors.length === 0
+        ? null
+        : h(Tooltip, { label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')), children: warnAnchor(`⚠ ${t('errors')} ${suite.errors.length}`) }),
+      mcpErrors.length === 0 ? null : h('span', { key: 'mcpSep', className: rc.separator }, '·'),
+      mcpErrors.length === 0
+        ? null
+        : h(Tooltip, { label: mcpErrors.slice(0, 8).join(t('sourceErrorSeparator')), children: warnAnchor(`⚠ ${t('mcpSection')} ${mcpErrors.length}`) })
+    )
   )
 }

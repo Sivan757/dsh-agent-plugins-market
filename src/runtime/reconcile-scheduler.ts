@@ -13,6 +13,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Suite } from '../model/types.js'
 import type { McpMountDiagnostic } from './mcp-mounts.js'
 import type { RuntimeReconciler } from './reconciler.js'
+import { coalesce, type CoalescedTrigger } from './timer-seat.js'
 
 /** The catalog surface one reconcile pass reads from and publishes to. */
 export interface ReconcileHost {
@@ -30,7 +31,7 @@ export class ReconcileScheduler {
   private requested = false
   private pass: Promise<void> | undefined
   private readonly pendingCredentialRefs = new Set<string>()
-  private credentialFlush: ReturnType<typeof setTimeout> | undefined
+  private readonly credentialFlush: CoalescedTrigger
   private readonly releaseCredentialUpdates: () => void
 
   constructor(
@@ -39,12 +40,13 @@ export class ReconcileScheduler {
     private readonly host: ReconcileHost
   ) {
     const eventHost = ctx as unknown as { on?: (event: string, listener: (ref: string) => void) => () => void }
+    // One reconcile per burst of credential updates: the host fires one event
+    // per reference, and every mount that reads them must see the whole set.
+    this.credentialFlush = coalesce(ctx, () => this.flushCredentialUpdates(), CREDENTIAL_DEBOUNCE_MS)
     this.releaseCredentialUpdates =
       eventHost.on?.('credentials/reference-updated', ref => {
         this.pendingCredentialRefs.add(ref)
-        if (this.credentialFlush !== undefined) clearTimeout(this.credentialFlush)
-        this.credentialFlush = setTimeout(() => this.flushCredentialUpdates(), CREDENTIAL_DEBOUNCE_MS)
-        this.credentialFlush.unref?.()
+        this.credentialFlush()
       }) ?? (() => {})
   }
 
@@ -69,8 +71,7 @@ export class ReconcileScheduler {
   dispose(): void {
     this.disposed = true
     this.releaseCredentialUpdates()
-    if (this.credentialFlush !== undefined) clearTimeout(this.credentialFlush)
-    this.credentialFlush = undefined
+    this.credentialFlush.dispose()
     this.pendingCredentialRefs.clear()
   }
 
@@ -107,7 +108,6 @@ export class ReconcileScheduler {
    * mid-reconcile is never dropped.
    */
   private flushCredentialUpdates(): void {
-    this.credentialFlush = undefined
     const refs = [...this.pendingCredentialRefs]
     this.pendingCredentialRefs.clear()
     // Re-read the catalog first: an unknown ref means the snapshot predates

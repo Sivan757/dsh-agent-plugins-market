@@ -2,6 +2,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Catalog } from '../application/catalog.js'
 import { CommandMountRegistry } from './commands-mounts.js'
+import { expandPluginPaths, pluginRootOf } from '../catalog/plugin-variables.js'
+import { suiteDataDir } from '../catalog/paths.js'
 import type { HostTranslate } from './host-locale.js'
 import { McpMountRegistry } from './mcp-mounts.js'
 import { HooksMountRegistry } from './hooks-mounts.js'
@@ -21,8 +23,8 @@ interface AgentMount {
 }
 
 /** Mount under existing and newly created agents; the caller owns refresh and teardown. */
-export function mountProjectCommands(ctx: Context, catalog: Catalog, t: HostTranslate): { refresh(): Promise<void>; dispose(): Promise<void> } {
-  return mountProjectSurface(ctx, catalog, 'commands', scope => new CommandMountRegistry(scope, t))
+export function mountProjectCommands(ctx: Context, catalog: Catalog, t: HostTranslate, dataRoot?: string): { refresh(): Promise<void>; dispose(): Promise<void> } {
+  return mountProjectSurface(ctx, catalog, 'commands', scope => new CommandMountRegistry(scope, t, dataRoot))
 }
 
 /** MCP uses a separate injected child so network startup cannot delay local commands. */
@@ -40,18 +42,22 @@ export function mountProjectHooks(ctx: Context, catalog: Catalog): { refresh(): 
 }
 
 /** Kimi's startup skill and system-prompt declarations use the existing scoped prompt service. */
-export function mountSuiteInstructions(ctx: Context, catalog: Catalog): { refresh(): Promise<void>; dispose(): Promise<void> } {
+export function mountSuiteInstructions(ctx: Context, catalog: Catalog, dataRoot?: string): { refresh(): Promise<void>; dispose(): Promise<void> } {
   return mountProjectSurface(
     ctx,
     catalog,
     'systemPrompt',
-    scope => {
+    (scope, agent) => {
       let text = ''
       const host = scope as unknown as { systemPrompt: { section(value: { name: string; order: number; text(): string }): () => void } }
       const dispose = host.systemPrompt.section({ name: 'agent-plugins:instructions', order: 500, text: () => text })
       return {
         async reconcile(projectSuites) {
-          const result = await suiteInstructions([...(await catalog.enabledUserSuites()), ...projectSuites])
+          const projectDir = agent.session.header.cwd
+          const result = await suiteInstructions([...(await catalog.enabledUserSuites()), ...projectSuites], {
+            ...(dataRoot === undefined ? {} : { dataRoot }),
+            ...(projectDir === undefined ? {} : { projectDir })
+          })
           text = result.text
           return result.errors
         },
@@ -65,12 +71,31 @@ export function mountSuiteInstructions(ctx: Context, catalog: Catalog): { refres
   )
 }
 
-export async function suiteInstructions(suites: readonly Suite[]): Promise<{ text: string; errors: Array<{ suiteId: string; reason: string }> }> {
+/** Runtime paths one instruction pass can resolve; a variable without one stays verbatim. */
+export interface SuiteInstructionPaths {
+  /** Plugin storage root holding each suite's `${PLUGIN_DATA}` directory. */
+  dataRoot?: string
+  /** Directory of the session the instructions are injected into. */
+  projectDir?: string
+}
+
+export async function suiteInstructions(
+  suites: readonly Suite[],
+  paths: SuiteInstructionPaths = {}
+): Promise<{ text: string; errors: Array<{ suiteId: string; reason: string }> }> {
   const chunks: string[] = []
   const errors: Array<{ suiteId: string; reason: string }> = []
   for (const suite of suites) {
     if (!suite.enabled || suite.activeSurfaces.skills === false) continue
-    if (suite.systemPrompt !== undefined) chunks.push(suite.systemPrompt)
+    // Startup instructions are author-written suite text like any other
+    // surface: the paths they name have to resolve before the model reads them.
+    const root = pluginRootOf(suite)
+    const context = {
+      ...(root === undefined ? {} : { root, ...(paths.dataRoot === undefined ? {} : { data: suiteDataDir(paths.dataRoot, suite.sourceId, suite.id) }) }),
+      ...(paths.projectDir === undefined ? {} : { projectDir: paths.projectDir })
+    }
+    const expand = (text: string): string => expandPluginPaths(text, context)
+    if (suite.systemPrompt !== undefined) chunks.push(expand(suite.systemPrompt))
     if (suite.manifest.startupSkill === undefined) continue
     const skill = suite.skills.find(skill => skill.name === suite.manifest.startupSkill)
     if (skill === undefined) {
@@ -80,8 +105,8 @@ export async function suiteInstructions(suites: readonly Suite[]): Promise<{ tex
     try {
       const content = await readFile(skill.file, 'utf8')
       if (parseFrontmatterRecord(content).disabled === true) continue
-      chunks.push(stripFrontmatter(content))
-      if (suite.manifest.skillInstructions !== undefined) chunks.push(suite.manifest.skillInstructions)
+      chunks.push(expand(stripFrontmatter(content)))
+      if (suite.manifest.skillInstructions !== undefined) chunks.push(expand(suite.manifest.skillInstructions))
     } catch {
       errors.push({ suiteId: `${suite.sourceId}/${suite.id}`, reason: `startup skill ${skill.name} is unreadable` })
     }
