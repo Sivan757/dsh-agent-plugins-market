@@ -86,7 +86,7 @@ export async function readSkillContent(suite: Suite, skillName: string): Promise
   try {
     content = await readFile(skill.file, 'utf8')
   } catch (error) {
-    throw new Error(`skill file unreadable: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`skill file unreadable: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
   }
   return { name: skill.name, description: skill.description, content, path: skill.file }
 }

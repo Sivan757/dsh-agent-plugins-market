@@ -152,7 +152,7 @@
     "@deepseek-ai/dsh-subprocess": "0.1.5-rc.2",
     "@deepseek-ai/dsh-timeout": "0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@shikijs/langs": "^4.4.3",
     "@tsdown/css": "^0.22.14",
     "@types/node": "^22.15.0",

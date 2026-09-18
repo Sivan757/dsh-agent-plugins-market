@@ -28,6 +28,12 @@ updates:
       # type-check APIs the shipped runtime does not have.
       - dependency-name: '@types/node'
         versions: ['>=23']
+      # This devDependency exists so vitest can inline the host's
+      # dsh-client-ui-primitives, which renders TeX through katex and declares
+      # ^0.16.47. Running the inlined copy against a newer major would test
+      # rendering the host does not ship.
+      - dependency-name: 'katex'
+        versions: ['>=0.17']
 
   - package-ecosystem: github-actions
     directory: '/'
