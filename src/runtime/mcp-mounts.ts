@@ -17,6 +17,7 @@ import { toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './m
 import { mcpCredentialResolver } from './mcp-credentials.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
+import { redactErrorMessage } from './mcp-redaction.js'
 import type { Suite } from '../model/types.js'
 
 export interface McpMountDiagnostic {
@@ -287,7 +288,7 @@ export class McpMountRegistry {
           // Ignore teardown errors: the startup failure is the real signal.
         }
       }
-      return { reason: `mount failed: ${error instanceof Error ? error.message : String(error)}`, code: 'mount-failed' }
+      return { reason: `mount failed: ${redactErrorMessage(error instanceof Error ? error.message : String(error))}`, code: 'mount-failed' }
     }
     this.live.set(mountKey(request.suiteId, request.serverKey), {
       suiteId: request.suiteId,
@@ -307,7 +308,7 @@ export class McpMountRegistry {
       this.names.delete(live.serverName)
       return undefined
     } catch (error) {
-      const reason = `unmount failed: ${error instanceof Error ? error.message : String(error)}`
+      const reason = `unmount failed: ${redactErrorMessage(error instanceof Error ? error.message : String(error))}`
       this.ctx.logger?.warn(`[dsh-agent-plugins-market] ${reason} (${live.suiteId}/${live.serverKey})`)
       return reason
     }
