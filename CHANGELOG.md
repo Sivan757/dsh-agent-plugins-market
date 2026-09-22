@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.7.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.7.1...dsh-agent-plugins-market-v0.7.2) (2026-09-22)
+
+
+### Miscellaneous Chores
+
+* **release:** pin this release to 0.7.2 ([0b1c026](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0b1c0264e08d2a2b5facd373f52775996a8d2578))
+
 ## [0.7.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.7.0...dsh-agent-plugins-market-v0.7.1) (2026-09-18)
 
 
