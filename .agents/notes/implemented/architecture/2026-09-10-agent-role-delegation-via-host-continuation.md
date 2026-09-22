@@ -12,7 +12,7 @@ The host, meanwhile, owns the same capability properly: `ctx.subagents` exposes 
 
 ## Decision
 
-`subagent_run(agent, prompt)` is a thin role layer over the host continuation seam. It resolves a catalog role, applies the card body as the child persona, and starts a durable child with `ctx.subagents.startContinuable` on the `spawn` backend, returning `{ subagentId }` at inbox acceptance. It never waits for the result: the runtime delivers a `subagent-settled` notice carrying the outcome and closing message, `send_message` steers the child while it runs, and `list_agents` lists it.
+`subagent_role(agent, prompt, provider?, model?, reasoning_effort?, run_in_background?)` is a thin role layer over the host subagent seam. It resolves a catalog role, applies the card body as the child persona, and starts a durable child with `ctx.subagents.startContinuable` on the `spawn` backend, returning `{ kind: 'continuable', subagentId }` at inbox acceptance. It never waits for the result: the runtime delivers a `subagent-settled` notice carrying the outcome and closing message, `send_message` steers the child while it runs, and `list_agents` lists it. `run_in_background: false` uses the host's one-shot `start` instead, returning `{ kind: 'foreground', runId, output }` with the child's report.
 
 Routing is exact-or-inherited. A card contributes child LLM options only when it declares **both** `provider` and `model`; that pair, plus any `reasoning_effort`, is validated once through `llm.resolveCallConfig` before the child starts. Every other declaration — a bare model id, a `provider/model` string, a Claude alias such as `sonnet`, a lone `provider`, an unsupported effort — is reported through the diagnostic sink and the child inherits the parent route. The bare-id resolver and the `provider/model` sugar are gone.
 
@@ -41,7 +41,7 @@ The catalog advertises a route only for an exact `provider` + `model` pair, so i
 - 555 cards move from certain failure to running with the parent's tool set; the 328 that also declared an unresolvable model now inherit the parent route instead of aborting.
 - Existing callers of `subagents_run(role=…)` break on all three axes: the tool name, the `agent` parameter, and the absence of an awaited result.
 - What we gave up: frontmatter can no longer express per-role least privilege. A card that wants to be read-only cannot say so, and the child receives the parent's tool set.
-- Tests pin strict parsing without tool fields, exact-route application through preflight, degradation with a diagnostic for every inexact declaration, cancellation raised during preflight, the `startContinuable` request shape (including the absence of `toolFilter`), `subagent_run` registration with an `agent` parameter, catalog entries that omit an inexact route, and the editor's ignored-route warning with no `tools` control.
+- Tests pin strict parsing without tool fields, exact-route application through preflight, call-over-card route precedence, degradation with a diagnostic for every inexact declaration, cancellation raised during preflight, the `startContinuable` request shape (including the absence of `toolFilter`), the foreground `start` path with its disposal, `subagent_role` registration with the `subagent` parameter surface, catalog entries that omit an inexact route, and the editor's ignored-route warning with no `tools` control.
 
 ## Related decisions
 

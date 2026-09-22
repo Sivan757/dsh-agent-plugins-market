@@ -10,7 +10,7 @@ Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量�
 
 - Node.js 22 或更高版本、DSH Web profile 和宿主技能服务（`ctx.skills`）。Git 来源需要 Git。
 - 当前包声明的 DSH 宿主包版本范围为 `^0.1.5-rc.2`。这是依赖声明，不代表已验证所有功能或历史 Web 外壳的最低支持版本。
-- 斜杠命令需要宿主命令服务。`subagent_run` 角色委派需要 agents、tools、LLM、subagents 与会话持久化服务；它启动一个可继续的后台子代理，应用已保存的角色指令与角色声明的精确路由，并立即返回子代理 ID 而不等待结果。
+- 斜杠命令需要宿主命令服务。`subagent_role` 角色委派需要 agents、tools、LLM、subagents 与会话持久化服务；默认启动一个可继续的后台子代理，应用已保存的角色指令与角色声明或调用覆盖的路由，并立即返回子代理 ID 而不等待结果；传 `run_in_background: false` 则改为在前台运行一次并把报告作为本次调用的结果返回，传 `run_in_background: true` 则作为受跟踪的后台任务运行，并额外需要宿主 jobs 注册表（`@deepseek-ai/dsh-jobs` 与 `@deepseek-ai/dsh-tool-jobs`）。
 - MCP 默认使用内置桥接。宿主客户端兼容模式还需要 `@deepseek-ai/dsh-mcp-client`，hooks 需要 `@deepseek-ai/dsh-hooks-claude-code`。
 - LSP 支持会随插件安装 `@deepseek-ai/dsh-lsp`、`dsh-lsp-stdio`、`dsh-tool-lsp`，并在启用的套件声明语言服务器时自动挂载，无需额外 profile 配置。只有语言服务器的可执行程序需要本机可用。
 - 宿主凭据服务是可选的。缺失时环境变量引用从启动环境解析，变更后需要重启。
@@ -37,9 +37,9 @@ npm 包包含构建后的 `lib/` 和 `client/`。GitHub 安装通过 `prepare` �
 
 ## 配置市场源
 
-发布包不预置来源。以下仅为你自己的 profile 可选配置示例。
+有一个来源不需要配置：插件为第一方套件集合仓库预置了一条记录，id 为 `dsh-agent-plugins`。它与其他 Git 来源完全一致——点**刷新**克隆并列出其中的套件，然后在市场页安装、停用或删除。登记本身不发起网络访问，因此刚登记的来源在首次刷新前显示为未克隆；并且与通过配置预置的来源一样，删除它会被下次激活撤销。
 
-源持久化在 `~/.dsh/agent-plugins/state.json`，也可用 cordis 配置预置（也是“持久种子”，启动时自动补齐缺失源）：
+其余来源由你自己添加。源持久化在 `~/.dsh/agent-plugins/state.json`，也可用 cordis 配置预置（也是“持久种子”，启动时自动补齐缺失源）：
 
 ```yaml
 - id: dsh-agent-plugins-market
@@ -124,7 +124,7 @@ MCP 详情仅为失败的托管服务或残留挂载显示重试；当前后端�
 
 使用 `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }` 这样的引用。缺失引用时阻止启动并显示 `needs-credentials`。宿主凭据只写不读，不会将字面 token 写入套件状态或 override JSON。只读的启动环境值需要修改后重启 DSH。
 
-`mcp.json` 使用严格 schema 校验。`.mcp.json` 支持常见兼容形式：顶层 server map、`http` / `local` transport 别名、省略 type 时通过 `command` 推断，以及 `${CLAUDE_PLUGIN_ROOT}`、`${CLAUDE_PLUGIN_DATA}`、`${NAME:-default}` 占位符。无效服务会诊断并跳过，不会带着部分配置启动。
+`mcp.json` 使用严格 schema 校验，并遵循 agent-plugins 规范的失败边界：违反 schema 的单个服务条目被跳过，文件其余部分继续生效；文件级问题（`$schema` 无法识别或与清单版本不一致）会让该套件的 MCP 整体停用并给出诊断。两个已发布版本都能校验：`$schema` 可写 1.0.0 或 1.1.0，同一套件的两个文件必须写同一个版本。逐服务器的客户端策略——OAuth 授权、工具允许/拒绝清单、超时策略——写在套件的 [`com.deepseek.harness`](../../schemas/com.deepseek.harness/spec.md) 命名空间里，不写进 `mcp.json`。可移植 `mcp.json` 里的占位符样式文本保持原样：只有 `${PLUGIN_ROOT}` 与 `${PLUGIN_DATA}` 会替换，凭据引用应写在 MCP 服务面板或覆盖配置里，挂载时解析。`.mcp.json`（其它布局）支持常见兼容形式：顶层 server map、`http` / `local` transport 别名、省略 type 时通过 `command` 推断，以及 `${CLAUDE_PLUGIN_ROOT}`、`${CLAUDE_PLUGIN_DATA}`、`${NAME:-default}` 占位符。无效服务会诊断并跳过，不会带着部分配置启动。
 
 套件文件里写的路径变量会在注入时替换成实际值：`${CLAUDE_PLUGIN_ROOT}`（及 Codex、ZCode、Qoder 各自的拼写）指向套件 checkout，`${CLAUDE_PLUGIN_DATA}` 指向该套件的数据目录，`${CLAUDE_SKILL_DIR}` 指向技能自身目录，`${CLAUDE_PROJECT_DIR}` 指向当前会话的项目目录。技能正文、斜杠命令、子代理提示、LSP 声明和启动指令都会替换；hooks 命令由宿主桥替换插件根与项目目录，因此 hooks 里拿不到 `${CLAUDE_PLUGIN_DATA}`。项目自带的 `.claude/` 等原生目录不算插件，其中的插件路径变量保持原样。
 
@@ -152,9 +152,11 @@ Git 获取通过 `execFile` 执行，不经过 shell；刷新使用 shallow fetc
 
 ### 资源详情编辑
 
-详情与编辑器共用同一个窗口，按用途分三档宽度——确认 460px、短表单 640px、详情与编辑器 880px——并受视口宽高约束。资源卡片由身份行（名称、归属标签，以及服务停用、失败或降级时的状态胶囊）、两行描述或端点、以及写出归属套件的来源行组成，操作按钮就在身份行上、悬停或键盘聚焦时现形；打开后可以看到概览、描述与按类型分组的内容，每一行都能就地展开。Markdown 预览把 frontmatter 按原文展示在渲染正文之上；原文编辑保留未知字段和注释，编辑器提供带行号与语法高亮的源码，标题旁的按钮可切换到渲染后的草稿。保存的后果写在按钮旁，命令的 `argument-hint` 在名称旁有自己的字段。MCP 表单包含传输协议、命令、参数、工作目录、环境变量、URL、请求头及 OAuth；LSP 表单包含命令、参数、环境变量、扩展名映射、初始化选项和配置。非法 JSON 与未完成的键值行保留为可修改草稿，但不能保存。卸载套件前需要先确认会离开当前 profile 的内容，确认后卸载操作才可用。
+详情与编辑器共用同一个窗口，按用途分三档宽度——确认 460px、短表单 640px、详情与编辑器 880px——并受视口宽高约束。资源卡片由身份线（名称与归属标签）与前缘一条表示状态的颜色边条、两行描述或端点、以及写出归属套件的来源行组成，操作按钮就在身份行上、悬停或键盘聚焦时现形；打开后可以看到概览、描述与按类型分组的内容，每一行都能就地展开。Markdown 预览把 frontmatter 按原文展示在渲染正文之上；原文编辑保留未知字段和注释，编辑器提供带行号与语法高亮的源码，标题旁的按钮可切换到渲染后的草稿。保存的后果写在按钮旁，命令的 `argument-hint` 在名称旁有自己的字段。MCP 表单用分段控件选择传输方式，每个选项都注明它配置哪些字段；命令、参数、环境变量、URL 与请求头留在主体，编辑入口在卡片上、启用开关的左侧，点开的是与新建流程同一个弹窗；详情弹窗只报告状态、能力与凭据。编辑器展示的是同一份文档——`mcpServers` 下的可移植定义，加上 `com.deepseek.harness` 命名空间里本客户端的策略——因此表单可以只覆盖常用字段，其余设置都能以 JSON 写入。你自己声明的服务会原样保留本客户端不认识的键；套件随包发布的 `mcp.json` 对这些键保持闭集。新建服务时只问名称、传输方式与该传输方式唯一必需的字段，并提供两条自动填表的入口：常见服务的模板，或从其它客户端配置文件粘贴来的定义；**高级设置**折叠区承载其余部分——stdio 服务的工作目录、说明远程服务在服务端 401 挑战时自行协商 OAuth 的一行文字，以及毫秒计的工具调用超时与启动超时，输入框以当前生效值作为占位内容，并有一行说明它来自你自己的设置、套件声明还是内置默认值。把超时留空即恢复为继承，保存时只写回你改动过的字段。宿主兼容后端不执行启动超时，因此该输入被固定，并在先前存过值时提供一个清除操作。保存被拒绝时，每条原因都落到接口点名的字段旁。粘贴框会读取 `mcpServers` 映射里的每一条，就地给出各自结果，并可覆盖同名服务；环境变量与请求头接受整块 `KEY=VALUE` 或 `Key: Value` 行的粘贴。LSP 表单包含命令、参数、环境变量、扩展名映射、初始化选项和配置，并沿用同一套分工：详情只报告，编辑入口在卡片上。非法 JSON、未完成的键值行以及越界的超时都保留为可修改草稿，但不能保存。卸载套件前需要先确认会离开当前 profile 的内容，确认后卸载操作才可用。
 
-`GET /api/agent-plugins/server-config?kind=mcp|lsp&id=...` 获取完整可编辑配置；`POST /api/agent-plugins/server-config/save` 替换对应服务配置。插件 MCP 配置写入已有覆盖文件，插件 LSP 配置写入 `data/lsp-overrides.json`，不会修改 checkout。未修改的 `[redacted]` 字段保留原凭据。配置修改通过插件运行时重新挂载。宿主自行管理的 MCP 服务保持只读。`POST /api/agent-plugins/lsp-servers/add` 独立新增一个服务，不覆盖其他服务。
+MCP 服务详情为每个工具列出一个勾选框。勾选表示允许；取消勾选会写入一条拒绝，让该工具在实时注册表丢弃它之后仍然留在列表中，因此可以再次勾选。被套件声明限定的工具显示为未勾选且不可修改，并注明原因来自套件。公布了参数结构的工具，点击名称就能展开它的参数列表。列表默认显示前八行并给出其余数量，服务公布的工具超过八个时提供按名称过滤，需要时再展开。宿主观测到的服务，以及由其它 MCP 客户端挂载的服务，这份列表保持只读。
+
+`GET /api/agent-plugins/server-config?kind=mcp|lsp&id=...` 获取完整可编辑配置，对 MCP 还返回策略视图与挂载后端；`POST /api/agent-plugins/server-config/save` 替换对应服务配置，并接受可选的 `policy: { toolCallTimeoutMs, startupTimeoutMs }`，数值表示设置超时，`null` 表示清除并恢复继承。`POST /api/agent-plugins/set-mcp-server-tool` 接收 `{ suiteId, serverKey, tool, enabled }`，把工具拒绝写入覆盖记录。插件 MCP 配置写入已有覆盖文件，插件 LSP 配置写入 `data/lsp-overrides.json`，不会修改 checkout。未修改的 `[redacted]` 字段保留原凭据。配置修改通过插件运行时重新挂载。宿主自行管理的 MCP 服务保持只读。`POST /api/agent-plugins/lsp-servers/add` 独立新增一个服务，不覆盖其他服务。
 
 ## 格式细节与开发
 

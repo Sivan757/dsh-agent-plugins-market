@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepseek.com/schemas/dsh-agent-plugins-market/namespace.schema.json",
+  "$comment": "Authored contract for the com.deepseek.harness client extension namespace (Agent Plugins §8.1). Documentation-grade: the runtime applies the strategy-chain rules in src/catalog, not this file. The extension namespace is client-defined by specification; this schema records what this manager reads.",
+  "title": "com.deepseek.harness namespace extension data",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Namespace contract version the suite was written against. Only 1.0.0 is implemented; any other value skips both namespace seats and keeps the portable core."
+    },
+    "mcpServers": {
+      "type": "object",
+      "description": "Per-server client policy keyed by the server's own name in the suite's portable mcp.json. Names without a matching server are reported and ignored.",
+      "additionalProperties": { "$ref": "#/$defs/serverPolicy" }
+    }
+  },
+  "$defs": {
+    "serverPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "type": "object",
+          "description": "OAuth 2.1 authorization for Streamable HTTP / SSE servers that answer 401 with a challenge; the flow activates on the server's first 401.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true, "description": "Enable the OAuth flow (default true; false opts out explicitly)." },
+            "scope": { "type": "string", "description": "Space-separated scope string requested during authorization." }
+          }
+        },
+        "enabledTools": { "type": "array", "items": { "type": "string" }, "description": "Allow-list of model-facing tool names; absent means all tools." },
+        "disabledTools": { "type": "array", "items": { "type": "string" }, "description": "Deny-list of model-facing tool names applied after the allow-list." },
+        "startupTimeoutMs": { "type": "number", "exclusiveMinimum": 0, "description": "Milliseconds allowed between spawn and a completed MCP handshake before the mount fails." },
+        "toolCallTimeoutMs": { "type": "number", "exclusiveMinimum": 0, "description": "Milliseconds allowed for one tool call before it is cancelled." }
+      }
+    }
+  }
+}

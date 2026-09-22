@@ -1,8 +1,9 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { deriveServerName, toMcpMounts } from '../src/runtime/mcp-config.js'
+import { deriveServerName, effectiveMcpServers, resolveMcpPolicy, toMcpMounts } from '../src/runtime/mcp-config.js'
 import { expectTransport } from './helpers/bridge-config.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import type { McpServerOverride } from '../src/runtime/mcp-overrides.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {
@@ -41,7 +42,9 @@ describe('mcp-config: suite mcp.json → bridge rows', () => {
     expectTransport(db, 'stdio')
     expect(db.command).toBe('/tmp/my-suite/bin/db')
     expect(db.args).toEqual(['--root', '/tmp/my-suite'])
-    expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    // §9.1: the client injects PLUGIN_ROOT and PLUGIN_DATA into the child
+    // environment after the configured env overlay.
+    expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/demo/my-suite' })
     // `cwd` is resolved against the suite root, so it carries the host's spelling.
     expect(db.cwd).toBe(resolve('/tmp/my-suite', 'data'))
     expectTransport(web, 'streamable-http')
@@ -165,6 +168,65 @@ describe('mcp-config: credential references', () => {
   })
 })
 
+describe('mcp-config: suite declaration meets the user override', () => {
+  /** The shared fixture plus a namespace policy on its `web` server. */
+  function policySuite(): Suite {
+    const base = suite()
+    return {
+      ...base,
+      manifest: {
+        ...base.manifest,
+        harness: {
+          schemaVersion: '1.0.0',
+          mcpServers: { web: { enabledTools: ['alpha', 'beta'], disabledTools: ['gamma'], toolCallTimeoutMs: 30_000, startupTimeoutMs: 5_000 } }
+        }
+      }
+    }
+  }
+
+  it('lets the user timeout win over the suite declaration', () => {
+    const [, web] = effectiveMcpServers(policySuite(), { web: { toolCallTimeoutMs: 90_000 } })
+    if (web === undefined) throw new Error('expected the fixture to project its web server')
+    expect(web.server.toolCallTimeoutMs).toBe(90_000)
+    expect(web.policy.toolCallTimeout).toEqual({ user: 90_000, suite: 30_000, effective: 90_000, source: 'user' })
+    // The startup timeout the user did not touch keeps the declared value.
+    expect(web.server.startupTimeoutMs).toBe(5_000)
+    expect(web.policy.startupTimeout).toEqual({ user: null, suite: 5_000, effective: 5_000, source: 'suite' })
+  })
+
+  it('falls back to the built-in defaults and leaves an undeclared startup timeout absent', () => {
+    const rows = effectiveMcpServers(policySuite())
+    const web = rows.find(row => row.serverKey === 'web')
+    const db = rows.find(row => row.serverKey === 'db')
+    if (web === undefined || db === undefined) throw new Error('expected the fixture to project its web and db servers')
+    expect(web.policy.toolCallTimeout.source).toBe('suite')
+    // The built-in bridge applies its own startup default at connect time; an
+    // undeclared value stays absent so host compatibility mode still mounts.
+    expect(db.server.toolCallTimeoutMs).toBe(60_000)
+    expect(db.server.startupTimeoutMs).toBeUndefined()
+    expect(db.policy.startupTimeout).toEqual({ user: null, suite: null, effective: 10_000, source: 'default' })
+  })
+
+  it('unions the deny lists and never widens the suite allow-list', () => {
+    const rows = effectiveMcpServers(policySuite(), { web: { disabledTools: ['delta'] } })
+    const web = rows.find(row => row.serverKey === 'web')
+    if (web === undefined) throw new Error('expected the fixture to project its web server')
+    expect(web.server.disabledTools).toEqual(['gamma', 'delta'])
+    expect(web.server.enabledTools).toEqual(['alpha', 'beta'])
+    // A tool the suite left out of its allow-list stays out whatever the user
+    // stores: the deny list is the only tool field an override can carry.
+    const widened = resolveMcpPolicy({ enabledTools: ['alpha', 'beta'] }, { enabledTools: ['zeta'] } as McpServerOverride)
+    expect(widened.enabledTools).toEqual(['alpha', 'beta'])
+  })
+
+  it('sends the resolved policy into the mount config', async () => {
+    const { mounts } = await toMcpMounts(policySuite(), '/tmp/data', { web: { toolCallTimeoutMs: 90_000, disabledTools: ['delta'] } }, alwaysResolves)
+    const web = mounts.find(mount => mount.serverKey === 'web')?.config
+    if (web === undefined) throw new Error('expected the fixture to mount its web server')
+    expect(web).toMatchObject({ toolCallTimeoutMs: 90_000, startupTimeoutMs: 5_000, enabledTools: ['alpha', 'beta'], disabledTools: ['gamma', 'delta'] })
+  })
+})
+
 describe('mcp-config: serverName derivation', () => {
   it('joins sanitized ids with __', () => {
     expect(deriveServerName('my-suite', 'db')).toBe('my-suite__db')
@@ -202,14 +264,15 @@ describe('mcp-config: source-scoped identity', () => {
     // The request's suiteId — the mount registry key — is qualified on both.
     expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
     expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
-    // Per-suite PLUGIN_DATA directories are qualified too.
+    // Per-suite PLUGIN_DATA directories are qualified too (§9.1 injects both
+    // variables into the child environment).
     const [dbA] = first.mounts.map(mount => mount.config)
     if (dbA === undefined) throw new Error('expected the demo source to mount its stdio server')
     expectTransport(dbA, 'stdio')
-    expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache' })
+    expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/demo/my-suite' })
     const [dbB] = second.mounts.map(mount => mount.config)
     if (dbB === undefined) throw new Error('expected the other source to mount its stdio server')
     expectTransport(dbB, 'stdio')
-    expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache' })
+    expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/other/my-suite' })
   })
 })

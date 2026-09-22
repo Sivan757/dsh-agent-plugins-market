@@ -74,3 +74,43 @@ function searchableFor(payload: McpStatusPayload): SearchableEntry[] {
   searchableCache.set(payload, searchable)
   return searchable
 }
+
+/** One row of the detail dialog's tool list. */
+export interface McpToolRow {
+  name: string
+  /** The tool registers on the next mount. */
+  allowed: boolean
+  /** The suite's own declaration leaves the tool out, so the user cannot open it. */
+  suiteLimited: boolean
+  description?: string
+  /** The advertised input schema, so the row can show what the tool takes. */
+  parameters?: unknown
+}
+
+/**
+ * Every tool worth listing: what the server registered, plus every name the
+ * suite or the user mentions.
+ *
+ * A denied tool leaves the live registry, so the stored lists are the only
+ * thing keeping it on screen and available to switch back on. The suite's
+ * allow-list and deny list both read as suite-limited; the user's own denials
+ * stay selectable.
+ */
+export function mcpToolRows(entry: McpStatusEntry): McpToolRow[] {
+  const allowedNames = entry.suiteEnabledTools
+  const suiteDenied = new Set(entry.suiteDisabledTools ?? [])
+  const userDenied = new Set(entry.userDisabledTools ?? [])
+  const names = new Set<string>([...entry.tools.map(tool => tool.name), ...(allowedNames ?? []), ...suiteDenied, ...userDenied])
+  const observed = new Map(entry.tools.map(tool => [tool.name, tool]))
+  return [...names].sort().map(name => {
+    const suiteLimited = (allowedNames !== undefined && !allowedNames.includes(name)) || suiteDenied.has(name)
+    const tool = observed.get(name)
+    return {
+      name,
+      allowed: !suiteLimited && !userDenied.has(name),
+      suiteLimited,
+      ...(tool?.description === undefined ? {} : { description: tool.description }),
+      ...(tool?.parameters === undefined ? {} : { parameters: tool.parameters })
+    }
+  })
+}

@@ -12,9 +12,12 @@
  *    declared contract at all: it degrades to the `host-missing` diagnostic with nothing to
  *    align or audit.
  *
- * This gate resolves the host release line from the registry (`next` by default — the
- * `@deepseek-ai/dsh-*` family publishes to `next`, while `latest` lags), then fails unless every
- * declared and referenced host dependency matches that one baseline:
+ * This gate resolves the host release line from the registry (`latest` by default), then fails
+ * unless every declared and referenced host dependency matches that one baseline. The baseline is
+ * the `latest` version of `@deepseek-ai/dsh` itself: it is the package a consumer installs, and the
+ * only family member whose `latest` tracks the shipped release line. The capability packages
+ * publish in lockstep to `next`, while their own `latest` tags still sit on early placeholders, so
+ * they cannot decide the baseline.
  *
  * - a `dependencies` entry carries `^<baseline>`: this plugin provisions that capability itself,
  *   so pnpm installs it into the consuming profile (a dsh profile sets `autoInstallPeers: false`,
@@ -34,7 +37,7 @@
  *
  * Options:
  *   --host-version <v>   Pin the baseline explicitly; skips registry resolution.
- *   --channel <tag>      Registry dist-tag to resolve (default: next).
+ *   --channel <tag>      Registry dist-tag to resolve (default: latest).
  *   --fix                Rewrite package.json and pnpm-workspace.yaml into alignment.
  *   --json               Emit a machine-readable report.
  *   --offline            Resolve from the local dist-tag cache only.
@@ -56,6 +59,12 @@ const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'host-alignment', 'dist-
 
 /** Host capability packages share this scope prefix and one release version. */
 const HOST_PREFIX = '@deepseek-ai/dsh-'
+/**
+ * The package whose dist-tag is the family release line. A consumer installs the CLI, and the
+ * capability packages carry placeholder `latest` tags from their first publishes, so the CLI is
+ * the only family member that can answer which version has actually shipped.
+ */
+const HOST_ANCHOR = '@deepseek-ai/dsh'
 /** Client modules are host-supplied bundle externals, not installable capabilities. */
 const CLIENT_PREFIX = '@deepseek-ai/dsh-client-'
 /** Cordis is the plugin container; it tracks its own 4.x line, not the dsh family version. */
@@ -70,7 +79,7 @@ const option = (name, fallback) => {
   return index === -1 || argv[index + 1] === undefined ? fallback : argv[index + 1]
 }
 
-const channel = option('channel', 'next')
+const channel = option('channel', 'latest')
 const forcedVersion = option('host-version', process.env.DSH_HOST_VERSION)
 const cacheTtlMs = Number(option('cache-ttl', '300')) * 1000
 const useJson = flag('json')
@@ -167,20 +176,18 @@ async function resolveDistTags(names) {
 }
 
 /**
- * The one baseline every host package must carry. The family publishes in lockstep, so a
- * disagreement between packages means the gate cannot decide what "aligned" means.
+ * The one baseline every host package must carry: the anchor's version on the selected channel.
+ *
+ * The capability packages are queried for their own liveness, not as a vote — their `latest` tags
+ * disagree because each was published to `latest` once and then moved to `next`, so a family
+ * agreement test would reject the only channel that names a shipped version.
  */
 function baselineFrom(tags) {
-  const versions = new Map()
-  for (const [name, distTags] of tags) {
-    const version = distTags[channel]
-    versions.set(version, [...(versions.get(version) ?? []), name])
+  const version = tags.get(HOST_ANCHOR)?.[channel]
+  if (typeof version !== 'string') {
+    throw new Error(`${HOST_ANCHOR}: registry has no ${channel} dist-tag to resolve the baseline from`)
   }
-  if (versions.size > 1) {
-    const detail = [...versions].map(([version, names]) => `${version} (${names.join(', ')})`).join('; ')
-    throw new Error(`the ${channel} channel disagrees across the @deepseek-ai/dsh-* family: ${detail}`)
-  }
-  return [...versions.keys()][0]
+  return version
 }
 
 /** Every host package whose aligned pin requires the supply-chain escape hatch to carry the baseline. */
@@ -370,7 +377,7 @@ async function main() {
   const candidates = [...new Set([...declared, ...surface.keys()])].sort()
   if (candidates.length === 0) throw new Error('no @deepseek-ai/dsh-* dependencies to align')
 
-  const tags = await resolveDistTags(candidates)
+  const tags = await resolveDistTags([...candidates, HOST_ANCHOR])
   const baseline = baselineFrom(tags)
 
   let workspaceText = await read(WORKSPACE_PATH)

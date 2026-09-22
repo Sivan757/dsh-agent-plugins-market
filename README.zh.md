@@ -51,11 +51,12 @@
 
 - **十种套件布局。** Claude Code、Codex、Cursor、Kimi Code、ZCode、Qoder CLI、GitHub Copilot CLI、Universal `.plugin/`、[agent-plugins](https://agent-plugins.org) 与无清单技能集合。
 - **来源。** 添加 Git 仓库、本地目录或压缩包（`.zip` / `.tar.gz` / `.tgz` / `.tar`）；收编自己克隆的目录；按需刷新；删除来源时可一并删除受管目录。
+- **第一方来源。** 插件预置一条指向自身套件集合的仓库源记录，所以首次运行市场里就列出该仓库，不需要粘贴任何地址。此后它就是普通 Git 来源——刷新以拉取，再像其他来源一样安装与启停其中的套件。
 - **适合你网络的下载方式。** 下载区域设置（默认 `auto` 跟随界面语言，也可显式选择全球或中国大陆）决定 `github.com` 克隆走的镜像前缀；代理与单次调用调优在宿主配置里。
 - **运行时能力。** 启用套件会注入会话：技能进入目录与斜杠菜单，命令以 `/名称` 调用，代理角色进入子代理目录，MCP 工具以 `mcp__` 前缀注册，hooks 挂到宿主生命周期事件，语言服务器通过 `lsp` 工具使用。
-- **MCP。** 内置桥接无需宿主 MCP 客户端，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE。`${VAR}` 引用从宿主凭据服务或启动环境解析；按服务覆盖可禁用或修补声明，不必修改源文件；也可选用宿主客户端兼容模式。工具名为 `mcp__<套件>__<服务>__<工具>`。
+- **MCP。** 内置桥接无需宿主 MCP 客户端，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE。`${VAR}` 引用从宿主凭据服务或启动环境解析；按服务覆盖可禁用或修补声明，不必修改源文件，可设置工具调用超时与启动超时，也可逐个关闭工具；新建服务可以从模板或粘贴的定义开始，粘贴的每一条各自给出结果；还可选用宿主客户端兼容模式。工具名为 `mcp__<套件>__<服务>__<工具>`。
 - **LSP。** 随插件自带：安装插件即完成全部设置，`lsp` 工具只在确有语言服务器需求时挂载；语言服务器可执行文件本身需在 `PATH` 中。从「需要你自己在 profile 里暴露 LSP」的版本升级上来时，若 profile 里还留着那层手工配置，会报接缝冲突；LSP 面板会指出该文件并代为移除这一层，且保留备份。
-- **代理角色与委派。** 角色卡片保存精确的供应商、模型与思考强度；角色出现在会话目录中，通过 `subagent_run` 运行，立即返回可继续的后台子代理 ID。
+- **代理角色与委派。** 角色卡片保存精确的供应商、模型与思考强度；角色出现在会话目录中，通过 `subagent_role` 运行，立即返回可继续的后台子代理 ID。
 - **项目维度。** 项目自身的技能、代理、命令、MCP 服务与 hooks 无需安装即被发现。
 - **自建资源。** 技能、命令和代理角色以 Markdown 保存在 `~/.agents/` 下，可随时编辑或禁用而不删除文件。
 - **后台自动更新来源。** 可选：按定时器刷新全部已配置来源；默认关闭。
@@ -71,7 +72,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 ```
 
 1. 重启 DSH，打开 **设置 → Agent Plugins 市场**。
-2. 在**插件市场**添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。插件不预置来源。
+2. 市场里已经列出第一方来源；点**刷新**即可拉取其中的套件。想补充更多内容时再添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。
 3. 打开套件查看内容，确认后安装，并确保套件已启用。
 4. 如果套件提供技能，先在**技能**页签查看，再在聊天中输入 `/` 查找允许手动调用的技能。如果提供 MCP，前往 **MCP 服务**检查状态，处理凭据或连接提示后再使用工具。
 
@@ -81,14 +82,14 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 工作区包含六个页签：
 
-| 页签     | 可以做什么                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------ |
-| 插件市场 | 添加来源、预览套件、安装 / 卸载、启用 / 禁用和刷新。                                       |
-| 技能     | 浏览技能，创建或编辑自己的可复用指令。                                                     |
-| 命令     | 管理通过 `/名称` 调用的提示词模板。                                                        |
-| 代理角色 | 管理角色指令并为每个角色保存精确的供应商、模型与思考强度；通过 `subagent_run` 在后台委派。 |
-| MCP 服务 | 自行新增服务或配置已安装的服务及其凭据与授权，查看连接状态并重试失败的服务。               |
-| LSP 服务 | 新增并配置语言服务器，查看运行状态。                                                       |
+| 页签     | 可以做什么                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------- |
+| 插件市场 | 添加来源、预览套件、安装 / 卸载、启用 / 禁用和刷新。                                        |
+| 技能     | 浏览技能，创建或编辑自己的可复用指令。                                                      |
+| 命令     | 管理通过 `/名称` 调用的提示词模板。                                                         |
+| 代理角色 | 管理角色指令并为每个角色保存精确的供应商、模型与思考强度；通过 `subagent_role` 在后台委派。 |
+| MCP 服务 | 自行新增服务或配置已安装的服务及其凭据与授权，查看连接状态并重试失败的服务。                |
+| LSP 服务 | 新增并配置语言服务器，查看运行状态。                                                        |
 
 **来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件；安装并启用套件决定其运行时能力是否生效。
 
@@ -102,16 +103,16 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 支持的**运行时能力（runtime surface）**描述 DSH 能使用什么：
 
-| 能力  | 支持情况与条件                                                                                                          |
-| ----- | ----------------------------------------------------------------------------------------------------------------------- |
-| 技能  | 接入宿主技能目录，允许手动调用的技能出现在斜杠菜单；展开支持的根路径占位符。                                            |
-| 命令  | 通过宿主命令服务注册斜杠命令。                                                                                          |
-| 代理  | 动态子代理目录与 `subagent_run`；需要宿主 agents、tools、LLM、subagents 与会话持久化服务。                              |
-| MCP   | 默认使用内置桥接，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE；也可切换宿主客户端兼容模式。                      |
-| Hooks | 运行 `dsh-hooks-claude-code` 桥接映射支持的 command-hook 子集。                                                         |
-| LSP   | 随插件自带：安装插件即安装 LSP 支持包，`lsp` 工具只在确有语言服务器需求时挂载；语言服务器可执行文件本身需在 `PATH` 中。 |
+| 能力  | 支持情况与条件                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 技能  | 接入宿主技能目录，允许手动调用的技能出现在斜杠菜单；展开支持的根路径占位符。                                                                           |
+| 命令  | 通过宿主命令服务注册斜杠命令。                                                                                                                         |
+| 代理  | 动态子代理目录与 `subagent_role`；需要宿主 agents、tools、LLM、subagents 与会话持久化服务。                                                            |
+| MCP   | 默认使用内置桥接，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE；也可切换宿主客户端兼容模式，该模式执行工具调用超时，但不执行工具过滤与启动超时。 |
+| Hooks | 运行 `dsh-hooks-claude-code` 桥接映射支持的 command-hook 子集。                                                                                        |
+| LSP   | 随插件自带：安装插件即安装 LSP 支持包，`lsp` 工具只在确有语言服务器需求时挂载；语言服务器可执行文件本身需在 `PATH` 中。                                |
 
-代理角色显示在会话目录中，并通过 `subagent_run(agent, prompt)` 执行。角色可以保存精确的 `provider` + `model` 与 `reasoning_effort`；其余声明一律忽略，子代理改为继承父会话路由。`tools` 与 `disallowedTools` 会保留在文件中但不会生效。frontmatter 字段与边界见[代理角色](docs/user/agent-roles.zh.md)。
+代理角色显示在会话目录中，并通过 `subagent_role(agent, prompt)` 执行。角色可以保存精确的 `provider` + `model` 与 `reasoning_effort`；其余声明一律忽略，子代理改为继承父会话路由。`tools` 与 `disallowedTools` 会保留在文件中但不会生效。frontmatter 字段与边界见[代理角色](docs/user/agent-roles.zh.md)。
 
 ### 布局识别优先级
 
@@ -150,16 +151,16 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 | [Qoder CLI](https://docs.qoder.com/cli/plugins-reference) `.qoder-plugin/`                                    | 支持 | 支持 | 支持 | 部分 | 部分   | 部分   |
 | [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) | 支持 | 支持 | 支持 | 支持 | 部分   | 支持   |
 | Universal 兼容布局 `.plugin/`                                                                                 | 支持 | 支持 | 支持 | 支持 | 部分   | 支持   |
-| [agent-plugins](https://agent-plugins.org)                                                                    | 支持 | 部分 | 部分 | 支持 | 部分   | 部分   |
+| [agent-plugins](https://agent-plugins.org)                                                                    | 支持 | 支持 | 支持 | 支持 | 支持   | 支持   |
 | 无清单技能集合                                                                                                | 支持 | 支持 | 支持 | 支持 | 部分   | 部分   |
 | 项目原生目录                                                                                                  | 支持 | 支持 | 支持 | 支持 | 部分   | 不支持 |
 
-- **技能**读取清单声明的路径与约定的 `skills/` 目录，也支持平铺的 `SKILL.md` 文件。
+- **技能**读取清单声明的路径与约定的 `skills/` 目录，也支持平铺的 `SKILL.md` 文件。合规的 agent-plugins 套件是例外：技能只来自 `skills/` 一层子目录，与其规范一致。
 - **代理与命令**按 Markdown 读取（`agents/*.md`、`commands/*.md`）。Cursor 插件命令接受 `.md`、`.mdc`、`.markdown`、`.txt`；Codex 与 Kimi 的原生代理/命令格式（TOML、YAML）尚未适配。
 - **MCP** 支持声明的文件、内联表与数组。Cursor 的无 schema `mcp.json` 与 agent-plugins 的严格 `mcp.json` 都能读取；Kimi Code 只读内联声明。Codex 的 app 连接器不在适配范围内。
 - **Hooks** 只映射 DSH 有对应点的命令类事件；没有对应点的事件（例如 `afterFileEdit`）给出诊断而不伪造执行。Cursor 的原生事件不读取。
 - **LSP** 支持声明的文件、数组、内联表，以及约定的 `.lsp.json` / `lsp.json` 位置。项目内的 LSP 声明只给诊断、不挂载：宿主 LSP 注册表是全局的。部分布局只提供目录预览。
-- **agent-plugins** 规范只定义可移植的技能与 MCP；该布局的代理、命令与 hooks 按本插件的共用目录约定读取，不是规范能力。
+- **agent-plugins** 套件按规范读取可移植核心（`skills/`、`mcp.json`），另通过本插件的 [`com.deepseek.harness`](schemas/com.deepseek.harness/spec.md) 扩展命名空间承载命令、代理、hooks、LSP 与逐服务器 MCP 策略（OAuth、工具清单、超时）。该布局下根目录的 `commands/`、`agents/`、`hooks/` 与 `.mcp.json` 属于其它布局，给出「未读取」诊断；清单内联组件键按 §5.2 报告后忽略。两个受支持的版本（1.0.0、1.1.0）各自按内置 schema 校验。
 - **Universal** 是本插件使用的兼容布局名称：[OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins)文档同样使用 `.plugin/plugin.json`，[Vercel 仓库](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json)也在使用，但不存在跨厂商规范。
 
 能读取一种布局，并不保证复现原平台的全部行为。无效声明会被诊断并跳过。
@@ -194,6 +195,10 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 
 只有开启**后台自动更新来源**后才会：开启后每 6 小时刷新一次全部已配置来源，第一次刷新在开启满一个周期之后。该开关默认关闭，刷新按钮始终可用。
 
+**没有添加任何来源，市场里的套件是从哪来的？**
+
+插件预置一条指向自身套件集合的仓库源记录，所以首次运行市场里就列出该仓库；点**刷新**即可拉取其中的套件。此后它与其他来源完全一致——包括删除：和通过配置预置的来源一样，下次激活会重新登记。
+
 **来源下载失败怎么办？**
 
 可以使用本地目录、收编手动克隆的仓库，或配置代理与镜像，见[配置市场源](docs/user/usage.zh.md#配置市场源)。
@@ -209,7 +214,7 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 ## 更多文档
 
 - [使用指南](docs/user/usage.zh.md)：安装、来源配置、存储、宿主要求、项目布局、MCP / LSP 和反馈设置。
-- [插件规范](schemas/README.md)：各布局的参考 schema 与依据，以及内置的 agent-plugins v1.0.0 契约。
+- [插件规范](schemas/README.md)：各布局的参考 schema 与依据、内置的 agent-plugins 契约（1.0.0、1.1.0），以及 [`com.deepseek.harness` 命名空间契约](schemas/com.deepseek.harness/spec.md)。
 - [兼容性报告](docs/reference/compat-report.md)：每个 schema 一个真实仓库，含提交号、schema 结论与扫描器输出。
 - [贡献指南](CONTRIBUTING.md)：开发环境、检查命令和 PR 流程。
 - [安全政策](SECURITY.md) · [版本记录](CHANGELOG.md) · [MIT 许可](LICENSE)。

@@ -40,6 +40,7 @@ import { SourceAutoUpdater } from './runtime/source-auto-update.js'
 import { UserPanelSkillProvider } from './runtime/user-panels.js'
 import { UserCommandMountRegistry } from './runtime/user-commands.js'
 import type { SourceRef } from './model/types.js'
+import { presetSourceRef } from './model/preset-source.js'
 
 export const name = 'dsh-agent-plugins-market'
 export const inject = ['skills', 'commands']
@@ -201,7 +202,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
-  await catalog.mergeSources(config.sources ?? [])
+  // Configured seeds first, then the record this plugin presets: the market
+  // lists the first-party collection on the first open, and the ordinary
+  // refresh path clones it. Registration performs no network access.
+  await catalog.mergeSources([...(config.sources ?? []), presetSourceRef()])
   const resources = createPanelResources(catalog, panels)
   runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides(await catalog.enabledUserSuites()))
   runtime.lsp.setDirectProvider(async () => (await loadLspServers(agentsRoot)).servers)
@@ -246,14 +250,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
     hostCtx.effect(
       () =>
-        mountAgentRoleTool(
-          hostCtx,
-          async parent => [
-            ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
-            ...(await projectAgentRoles(catalog, parent))
-          ],
-          (key, params) => hostLocale.t(key, params)
-        ),
+        mountAgentRoleTool(hostCtx, async parent => [
+          ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
+          ...(await projectAgentRoles(catalog, parent))
+        ]),
       'dsh-agent-plugins-market: agent role routing'
     )
   })

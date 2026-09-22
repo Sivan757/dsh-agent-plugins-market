@@ -5,6 +5,7 @@ import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from 
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../runtime/mcp-overrides.js'
 import type { McpBackend } from '../runtime/mcp-backend.js'
+import type { McpImportResult } from '../runtime/mcp-direct-config.js'
 import type { ServerConfigPayload } from '../contracts/market.js'
 import type { LspServerTable, McpBackendInfo, SourceInput, SourcePatch } from './ports.js'
 
@@ -24,8 +25,10 @@ export interface MarketQueries {
 
 /** Mutating market operations required by HTTP routes. */
 export interface MarketMutations {
-  saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown): Promise<void>
+  saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown, policy?: unknown): Promise<void>
   addMcpServer(name: string, server: unknown): Promise<void>
+  /** Import several pasted services in one write; each entry reports its own outcome. */
+  importMcpServers(servers: unknown, overwrite: boolean): Promise<McpImportResult>
   addLspServer(name: string, config: unknown): Promise<void>
   addSource(input: SourceInput): Promise<SourceRef>
   updateSource(sourceId: string, patch: SourcePatch): Promise<void>
@@ -44,6 +47,8 @@ export interface MarketMutations {
   setMcpOverride(sourceId: string, suiteId: string, serverKey: string, override: McpServerOverride | null): Promise<void>
   /** Enable or disable one declared MCP server by its source-qualified suite id. */
   setMcpServerEnabled(suiteKey: string, serverKey: string, enabled: boolean): Promise<void>
+  /** Allow or deny one tool of a declared MCP server by its source-qualified suite id. */
+  setMcpServerToolEnabled(suiteKey: string, serverKey: string, tool: string, enabled: boolean): Promise<void>
   /** Validate and persist the user's direct LSP server table. */
   setLspServers(raw: unknown): Promise<LspServerTable>
   setLspServerEnabled(id: string, enabled: boolean): Promise<void>

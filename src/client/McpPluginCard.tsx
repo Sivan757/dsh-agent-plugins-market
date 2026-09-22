@@ -18,7 +18,7 @@ import css from './market.module.css'
 /** Locale subset the card needs (structural — the host binds the real one). */
 type CardTranslate = (key: string, params?: Record<string, unknown>) => string
 
-/** Copy of the four boolean switches, in display order. */
+/** Copy of the boolean switches, in display order. */
 const SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled'] as const
 
 /** Copy keys of each switch. */

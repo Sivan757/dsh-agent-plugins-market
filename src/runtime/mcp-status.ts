@@ -1,6 +1,6 @@
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
-import type { McpStatusEntry, McpStatusPayload, McpStatusState } from '../contracts/mcp-status.js'
+import type { McpStatusEntry, McpStatusPayload, McpStatusState, McpStatusTool } from '../contracts/mcp-status.js'
 import { inspectToolRegistry, type McpToolSnapshot } from './tool-registry-observer.js'
 import { redactMcpConfig, redactUrl } from './mcp-redaction.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
@@ -47,7 +47,7 @@ export function buildMcpStatus(
     // definitions only appear after their suite is both installed and enabled.
     if (suite.mcp === undefined || suite.installedAt === undefined || !suite.enabled) continue
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
-    for (const { serverKey, server: effective, override, enabled, credentialRefs: refs } of effectiveMcpServers(suite, overrides.get(suiteKey))) {
+    for (const { serverKey, server: effective, override, enabled, credentialRefs: refs, policy } of effectiveMcpServers(suite, overrides.get(suiteKey))) {
       const serverName = deriveServerName(suite.id, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
@@ -88,10 +88,13 @@ export function buildMcpStatus(
         transport: effective.type,
         endpoint: endpointOf(effective),
         config: redactMcpConfig(effective) as Record<string, unknown>,
-        tools: disabled && !orphaned ? [] : tools.map(tool => ({ name: tool.name, ...(tool.description === undefined ? {} : { description: tool.description }) })),
+        tools: disabled && !orphaned ? [] : observedTools(tools),
         advertisedTools: tools.length > 0,
         retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',
         ...(effective.type === 'stdio' || effective.auth !== undefined ? {} : { oauthDefault: true }),
+        ...(policy.enabledTools === undefined ? {} : { suiteEnabledTools: policy.enabledTools }),
+        ...(policy.suiteDisabledTools === undefined ? {} : { suiteDisabledTools: policy.suiteDisabledTools }),
+        ...(override?.disabledTools === undefined ? {} : { userDisabledTools: override.disabledTools }),
         ...(diagnostic?.code === undefined ? {} : { code: diagnostic.code }),
         ...(reason === undefined ? {} : { reason }),
         ...(credentialRefs.length === 0 ? {} : { credentialRefs })
@@ -116,7 +119,7 @@ export function buildMcpStatus(
         transport: stale.server.type,
         endpoint: endpointOf(stale.server),
         config: redactMcpConfig(stale.server) as Record<string, unknown>,
-        tools: tools.map(tool => ({ name: tool.name, ...(tool.description === undefined ? {} : { description: tool.description }) })),
+        tools: observedTools(tools),
         reason: 'MCP tools remain after this plugin was disabled or uninstalled',
         ...(staleRefs.length === 0 ? {} : { credentialRefs: staleRefs })
       })
@@ -128,7 +131,7 @@ export function buildMcpStatus(
       kind: 'direct',
       state: 'connected',
       transport: 'observed',
-      tools: tools.map(tool => ({ name: tool.name, ...(tool.description === undefined ? {} : { description: tool.description }) }))
+      tools: observedTools(tools)
     })
   }
 
@@ -143,6 +146,17 @@ export function buildMcpStatus(
     foreign: entries.filter(entry => entry.state === 'foreign').length
   }
   return { entries, observedAt: new Date().toISOString(), totals, directObservationOnly: true }
+}
+
+/** One tool projection for the status wire: the input schema rides along only while it stays small. */
+const MAX_SCHEMA_CHARS = 20_000
+
+function observedTools(tools: readonly McpToolSnapshot[]): McpStatusTool[] {
+  return tools.map(tool => ({
+    name: tool.name,
+    ...(tool.description === undefined ? {} : { description: tool.description }),
+    ...(tool.parameters === undefined || JSON.stringify(tool.parameters).length > MAX_SCHEMA_CHARS ? {} : { parameters: tool.parameters })
+  }))
 }
 
 function groupObservedTools(observed: readonly McpToolSnapshot[], knownServerNames: ReadonlySet<string>): Map<string, McpToolSnapshot[]> {
@@ -168,7 +182,11 @@ function groupObservedTools(observed: readonly McpToolSnapshot[], knownServerNam
     }
     if (serverName === undefined || rawName === undefined || rawName === '') continue
     const list = grouped.get(serverName) ?? []
-    list.push({ name: rawName, ...(tool.description === undefined ? {} : { description: tool.description }) })
+    list.push({
+      name: rawName,
+      ...(tool.description === undefined ? {} : { description: tool.description }),
+      ...(tool.parameters === undefined ? {} : { parameters: tool.parameters })
+    })
     grouped.set(serverName, list)
   }
   return grouped

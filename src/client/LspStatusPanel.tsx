@@ -11,7 +11,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconEditOutline16, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './ui/DetailModal.js'
 import { ServerConfigEditor } from './ui/ServerConfigEditor.js'
 import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
@@ -76,6 +76,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const [search, setSearch] = useState('')
   const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<LspStatusEntry | undefined>(undefined)
+  const [editing, setEditing] = useState<LspStatusEntry>()
   const [editorOpen, setEditorOpen] = useState(false)
   const [seamMigration, setSeamMigration] = useState<LspLegacySeamMigration | undefined>(undefined)
 
@@ -179,9 +180,12 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
           : h(
               ResourceCollection,
               { view },
-              filtered.map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry), onToggle: () => toggle(entry) }))
+              filtered.map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry), onToggle: () => toggle(entry), onEdit: () => setEditing(entry) }))
             ),
     selected === undefined ? null : h(LspDetailModal, { entry: selected, t, onClose: () => { setSelected(undefined); refresh() } }),
+    // The editor is the dialog the add flow uses, opened from the card's own
+    // edit action rather than from inside the detail report.
+    editing === undefined ? null : h(LspConfigModal, { entry: editing, t, onClose: () => setEditing(undefined), onSaved: refresh }),
     editorOpen
       ? h(LspConfigEditor, {
           t,
@@ -278,6 +282,8 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
     open: true,
     onClose: busy ? () => {} : onClose,
     title: t('lspAddTitle'),
+    // A short form: the dialog takes the form width, not the detail width.
+    size: 'md',
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,
     footer: h(
@@ -298,6 +304,7 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
         onChange: setText,
         t,
         disabled: busy,
+        createMode: true,
         onValidityChange: setValid,
         nameField: {
           label: t('lspServerName'),
@@ -337,7 +344,7 @@ function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | '
  * row and the enable switch on its trailing edge; the command on the body row;
  * the declaring suite and the extension count on the source row.
  */
-function LspRow({ entry, t, onOpen, onToggle }: { entry: LspStatusEntry; t: Translate; onOpen: () => void; onToggle: () => void }): ReactNode {
+function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry; t: Translate; onOpen: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
   const interactive = {
     role: 'button' as const,
     tabIndex: 0,
@@ -357,12 +364,29 @@ function LspRow({ entry, t, onOpen, onToggle }: { entry: LspStatusEntry; t: Tran
       'div',
       { className: rc.rowId },
       h('span', { className: `${rc.name} ${rc.nameMono}` }, entry.serverKey),
-      h(Tag, { tone: lspTagTone(entry.state) }, stateLabel(t, entry.state)),
+      // The state rail on the card's leading edge carries the state; a written
+      // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')))
     ),
     h(
       'div',
       { className: rc.rowActions },
+      // The editor is the dialog the add flow uses; it sits just before the
+      // switch, where the row's actions end.
+      h(
+        'button',
+        {
+          type: 'button',
+          className: rc.iconBtn,
+          title: t('panelEdit'),
+          'aria-label': `${t('panelEdit')} ${entry.serverKey}`,
+          onClick: (event: { stopPropagation(): void }) => {
+            event.stopPropagation()
+            onEdit()
+          }
+        },
+        h(IconEditOutline16)
+      ),
       h(
         'span',
         { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
@@ -423,8 +447,7 @@ function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Trans
           { className: panelCss.kvGrid },
           kv(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
           kv(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
-          kv(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true),
-          kv(t('detailCommand'), entry.command, true)
+          kv(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true)
         )
       ),
       entry.reason === undefined
@@ -445,13 +468,25 @@ function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Trans
           ...Object.entries(entry.extensions).map(([extension, language]) => h(DetailRow, { key: extension, name: extension, summary: language, expandable: false }))
         )
       ),
-      h(
-        'div',
-        { className: panelCss.block },
-        h('h4', { className: panelCss.blockHead }, t('serviceConfigLabel')),
-        h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t })
-      )
     )
+  })
+}
+
+/**
+ * The editor dialog for one language server: a form of its own, opened from the
+ * card's edit action and sharing the add flow's dialog.
+ */
+function LspConfigModal({ entry, t, onClose, onSaved }: { entry: LspStatusEntry; t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
+  return h(DetailModal, {
+    open: true,
+    title: t('lspEditTitle'),
+    description: entry.serverKey,
+    closeLabel: t('cancel'),
+    onClose,
+    size: 'md',
+    contentClassName: css.detailBody,
+    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))),
+    children: h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t, onSaved })
   })
 }
 

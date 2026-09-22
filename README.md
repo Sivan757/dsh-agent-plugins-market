@@ -51,11 +51,12 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 - **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
 - **Sources.** Add a Git repository, a local directory or an archive (`.zip` / `.tar.gz` / `.tgz` / `.tar`); adopt a checkout you cloned yourself; refresh on demand; delete a managed checkout when you remove its source.
+- **First-party source.** The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run with no URL to paste. It is an ordinary Git source from there on — refresh it to fetch, then install and toggle its suites like any other.
 - **Downloads that fit your network.** Pick a download region — default `auto` follows the interface language, or choose global / China mainland — and the plugin routes `github.com` clones through the matching mirror. A proxy and per-invocation tuning live in the host config.
 - **Runtime surfaces.** Enabled suites inject into sessions: skills into the catalog and slash menu, commands as `/name`, agent personas into the subagent catalog, MCP tools with an `mcp__` prefix, hooks onto host lifecycle events, and language servers through the `lsp` tool.
-- **MCP.** A built-in bridge runs stdio, Streamable HTTP with OAuth and legacy SSE without a host MCP client. `${VAR}` references resolve from the host credential store or the launch environment; per-server overrides disable or patch a declaration without editing the source; an optional host-client compatibility mode is available. Tools register as `mcp__<suite>__<server>__<tool>`.
+- **MCP.** A built-in bridge runs stdio, Streamable HTTP with OAuth and legacy SSE without a host MCP client. `${VAR}` references resolve from the host credential store or the launch environment; per-server overrides disable or patch a declaration without editing the source, set the tool-call and startup timeouts, and switch individual tools off; a new service starts from a template or a pasted definition whose entries each report their own outcome; an optional host-client compatibility mode is available. Tools register as `mcp__<suite>__<server>__<tool>`.
 - **LSP.** Self-provisioned: installing the plugin is the whole setup, and the `lsp` tool mounts only while a language server is wanted. The server executable itself must be on `PATH`. Upgrading from a release that asked you to expose LSP from your profile? A profile that still carries that hand-added layer reports a seam conflict; the LSP panel names the file and removes the layer for you, keeping a backup.
-- **Agent personas and delegation.** Role cards save an exact provider, model and reasoning effort; they appear in the session catalog and run through `subagent_run`, which starts a durable background child and returns its id immediately.
+- **Agent personas and delegation.** Role cards save an exact provider, model and reasoning effort; they appear in the session catalog and run through `subagent_role`, which starts a durable background child and returns its id immediately.
 - **Project dimension.** Skills, agents, commands, MCP servers and hooks are read from the project's own directories with no install step.
 - **Your own resources.** Author skills, commands and agent personas as Markdown under `~/.agents/`, then edit them or disable them without deleting the files.
 - **Background source updates.** Optionally refresh every configured source on a timer; off by default.
@@ -71,7 +72,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 ```
 
 1. Restart DSH and open **Settings → Agent Plugins Market**.
-2. In **Market**, add a source, for example `https://github.com/anthropics/claude-plugins-official`. No sources are preconfigured.
+2. The market already lists the first-party source; press **Refresh** to fetch its suites. To pull in more, add a source, for example `https://github.com/anthropics/claude-plugins-official`.
 3. Open a suite, review its contents, then install it and ensure it is enabled.
 4. For a suite with skills, check the **Skills** tab and type `/` in chat to find its user-invocable skills. For an MCP suite, check **MCP services** and resolve any credential or connection notice before using its tools.
 
@@ -81,14 +82,14 @@ Requirements, profile configuration and alternative installs: [usage guide](docs
 
 The workspace has six tabs:
 
-| Tab            | Use it to                                                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                              |
-| Skills         | Browse skills and create or edit your own reusable instructions.                                                                             |
-| Commands       | Manage prompt templates invoked as `/name`.                                                                                                  |
-| Agent personas | Manage role instructions and save an exact provider, model and reasoning effort per role; delegate in the background through `subagent_run`. |
-| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                           |
-| LSP servers    | Add and configure language servers and inspect their runtime status.                                                                         |
+| Tab            | Use it to                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                               |
+| Skills         | Browse skills and create or edit your own reusable instructions.                                                                              |
+| Commands       | Manage prompt templates invoked as `/name`.                                                                                                   |
+| Agent personas | Manage role instructions and save an exact provider, model and reasoning effort per role; delegate in the background through `subagent_role`. |
+| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                            |
+| LSP servers    | Add and configure language servers and inspect their runtime status.                                                                          |
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
 
@@ -102,16 +103,16 @@ Supported **layout dialects** describe how files are organized. The [shared prio
 
 Supported **runtime surfaces** describe what DSH can use:
 
-| Surface  | Runtime support and conditions                                                                                                                                |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Skills   | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded.                                                                |
-| Commands | Slash commands through the host command service.                                                                                                              |
-| Agents   | Dynamic subagent catalog and `subagent_run`; requires host agents, tools, LLM, subagent and session-persistence services.                                     |
-| MCP      | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available.                     |
-| Hooks    | The command-hook subset mapped by `dsh-hooks-claude-code`.                                                                                                    |
-| LSP      | Self-provisioned: installing the plugin is the whole setup, and `lsp` mounts only while a language server is wanted; the server executable must be on `PATH`. |
+| Surface | Runtime support and conditions |
+| --- | --- |
+| Skills | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded. |
+| Commands | Slash commands through the host command service. |
+| Agents | Dynamic subagent catalog and `subagent_role`; requires host agents, tools, LLM, subagent and session-persistence services. |
+| MCP | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available; it enforces the tool-call timeout but not tool filters or a startup timeout. |
+| Hooks | The command-hook subset mapped by `dsh-hooks-claude-code`. |
+| LSP | Self-provisioned: installing the plugin is the whole setup, and `lsp` mounts only while a language server is wanted; the server executable must be on `PATH`. |
 
-Agent roles appear in the session catalog and run through `subagent_run(agent, prompt)`. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/user/agent-roles.md) for the frontmatter fields and limits.
+Agent roles appear in the session catalog and run through `subagent_role(agent, prompt)`. A role may save an exact `provider` plus `model` pair and a `reasoning_effort`; every other declaration is ignored and the child inherits the parent route. `tools` and `disallowedTools` are preserved in the file but never applied. See [agent roles](docs/user/agent-roles.md) for the frontmatter fields and limits.
 
 ### Layout detection precedence
 
@@ -150,16 +151,16 @@ The table says per layout whether this plugin reads a given surface at all. **Ye
 | [Qoder CLI](https://docs.qoder.com/cli/plugins-reference) `.qoder-plugin/`                                    | Yes    | Yes     | Yes      | Partial | Partial | Partial |
 | [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) | Yes    | Yes     | Yes      | Yes     | Partial | Yes     |
 | Universal compatibility layout `.plugin/`                                                                     | Yes    | Yes     | Yes      | Yes     | Partial | Yes     |
-| [agent-plugins](https://agent-plugins.org)                                                                    | Yes    | Partial | Partial  | Yes     | Partial | Partial |
+| [agent-plugins](https://agent-plugins.org)                                                                    | Yes    | Yes     | Yes      | Yes     | Yes     | Yes     |
 | Manifest-less skill collection                                                                                | Yes    | Yes     | Yes      | Yes     | Partial | Partial |
 | Project-native directories                                                                                    | Yes    | Yes     | Yes      | Yes     | Partial | No      |
 
-- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `SKILL.md` files.
+- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `SKILL.md` files. A conformant agent-plugins package is the exception: skills come from one level of `skills/` subdirectories, exactly as its specification requires.
 - **Agents and commands** are read as Markdown (`agents/*.md`, `commands/*.md`). Cursor plugin commands accept `.md`, `.mdc`, `.markdown` and `.txt`. Codex and Kimi native agent/command formats (TOML, YAML) have no adapter yet.
 - **MCP** covers declared files, inline tables and arrays. Cursor's schema-less `mcp.json` and agent-plugins' strict `mcp.json` both work; Kimi Code is inline-only. Codex app connectors stay outside this adapter.
 - **Hooks** map the command-style events DSH has an equivalent for; events without one (for example `afterFileEdit`) are reported instead of simulated. Cursor's native events are not read.
 - **LSP** accepts declared files, arrays and inline tables plus the conventional `.lsp.json` / `lsp.json` locations. Declarations inside a project are reported but not mounted: the host LSP registry is global. Some layouts only expose LSP directories for preview.
-- **agent-plugins** standardizes portable skills and MCP only. Agents, commands and hooks for that layout are read through this plugin's shared directory conventions, not through the specification.
+- **agent-plugins** suites read the portable core (`skills/`, `mcp.json`) per the specification, plus this plugin's [`com.deepseek.harness`](schemas/com.deepseek.harness/spec.md) extension namespace for commands, agents, hooks, LSP and per-server MCP policy (OAuth, tool lists, timeouts). Root-level `commands/`, `agents/`, `hooks/` and `.mcp.json` files belong to other layouts and are reported as unread for this dialect; inline manifest component keys are reported and ignored per §5.2. Both recognized releases (1.0.0, 1.1.0) validate against their own vendored schemas.
 - **Universal** is a compatibility-layout label used by this plugin; the [OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins) documents the same `.plugin/plugin.json` location and a [Vercel repository](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json) uses it, but no cross-vendor specification exists.
 
 Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped.
@@ -194,6 +195,10 @@ Use **Add** in **MCP services** or **LSP servers**. The declaration is validated
 
 Only when **Background source updates** is on: every configured source is then refreshed every 6 hours, starting one interval after you enable it. The switch is off by default, and the refresh button always works.
 
+**Where do the suites that appear without adding a source come from?**
+
+The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run; press **Refresh** to fetch its suites. From there it behaves like any other source — including removal, which the next activation undoes just as it does for a source seeded through configuration.
+
 **What if a source download fails?**
 
 Use a local directory, adopt a manual checkout, or configure a proxy / mirror. See [source configuration](docs/user/usage.md#configure-marketplace-sources).
@@ -209,7 +214,7 @@ Only when you tick **also delete the managed market directory** in the confirmat
 ## More documentation
 
 - [Usage guide](docs/user/usage.md): installation, source configuration, storage, host requirements, project layouts, MCP / LSP and feedback settings.
-- [Plugin specifications](schemas/README.md): per-dialect reference schemas and evidence, plus the vendored agent-plugins v1.0.0 contracts.
+- [Plugin specifications](schemas/README.md): per-dialect reference schemas and evidence, the vendored agent-plugins v1 contracts (1.0.0, 1.1.0), and the [`com.deepseek.harness` namespace contract](schemas/com.deepseek.harness/spec.md).
 - [Compatibility report](docs/reference/compat-report.md): one real repository per schema, with commits, schema verdicts and scanner output.
 - [Contributing](CONTRIBUTING.md): development setup, checks and PR workflow.
 - [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).

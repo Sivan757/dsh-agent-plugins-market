@@ -16,7 +16,7 @@ function service(): MarketService {
       directObservationOnly: true
     }),
     sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
-    serverConfig: async (kind, id) => ({ kind, id, editable: true, config: {} }),
+    serverConfig: async (kind, id) => ({ kind, id, key: 'service', editable: true, config: {} }),
     lspStatus: async () => ({ entries: [], observedAt: '', totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 }, hostMissing: false }),
     lspServers: async () => ({}),
     mcpOverrides: async () => ({}),
@@ -37,7 +37,9 @@ function service(): MarketService {
     setSurface: async () => {},
     setMcpOverride: async () => {},
     setMcpServerEnabled: async () => {},
+    setMcpServerToolEnabled: async () => {},
     addMcpServer: async () => {},
+    importMcpServers: async () => ({ imported: [], skipped: [] }),
     saveServerConfig: async () => {},
     addLspServer: async () => {},
     setLspServers: async () => ({}),
@@ -409,5 +411,58 @@ describe('market HTTP routes', () => {
     expect(removals).toEqual([{ id: 'duckdb-skills', deleteCheckout: true }])
 
     dispose()
+  })
+
+  it('forwards a tool allow/deny toggle and the policy that rides a config save', async () => {
+    const routes: RouteTable = new Map()
+    const calls: unknown[] = []
+    const policyService: MarketService = {
+      ...service(),
+      setMcpServerToolEnabled: async (suiteKey, serverKey, tool, enabled) => {
+        calls.push(['tool', suiteKey, serverKey, tool, enabled])
+      },
+      saveServerConfig: async (kind, id, config, policy) => {
+        calls.push(['save', kind, id, config, policy])
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, policyService)
+    try {
+      const toolResponse = response()
+      await routes.get(MARKET_ROUTES.setMcpServerTool)!(
+        postRequest(MARKET_ROUTES.setMcpServerTool, { suiteId: 'demo/suite', serverKey: 'db', tool: 'read', enabled: false }),
+        toolResponse
+      )
+      await settle()
+      expect(toolResponse.value()).toEqual({ ok: true })
+
+      const saveResponse = response()
+      const saveHandler = routes.get(MARKET_ROUTES.saveServerConfig)!
+      await saveHandler(
+        postRequest(MARKET_ROUTES.saveServerConfig, { kind: 'mcp', id: 'plugin:demo/suite/db', config: { type: 'stdio', command: 'node' }, policy: { toolCallTimeoutMs: 1_000 } }),
+        saveResponse
+      )
+      await settle()
+      expect(saveResponse.value()).toEqual({ ok: true })
+
+      expect(calls).toEqual([
+        ['tool', 'demo/suite', 'db', 'read', false],
+        ['save', 'mcp', 'plugin:demo/suite/db', { type: 'stdio', command: 'node' }, { toolCallTimeoutMs: 1_000 }]
+      ])
+    } finally {
+      dispose()
+    }
+  })
+
+  it('rejects a tool toggle without a tool name', async () => {
+    const routes: RouteTable = new Map()
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, service())
+    try {
+      const output = response()
+      await routes.get(MARKET_ROUTES.setMcpServerTool)!(postRequest(MARKET_ROUTES.setMcpServerTool, { suiteId: 'demo/suite', serverKey: 'db', tool: '', enabled: true }), output)
+      await settle()
+      expect(output.value()).toEqual({ ok: false, error: 'missing MCP tool name' })
+    } finally {
+      dispose()
+    }
   })
 })

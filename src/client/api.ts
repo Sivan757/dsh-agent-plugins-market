@@ -3,7 +3,7 @@ import { withBusyOperation } from './ui/busy-operation.js'
 import { RequestTimeoutError } from './request-error.js'
 import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
 import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
-import type { McpBackendInfo, OverviewPayload, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
+import type { McpBackendInfo, MarketFieldError, OverviewPayload, ServerConfigPayload, ServerPolicyRequest, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
 
@@ -12,8 +12,13 @@ export type {
   HookPreview,
   LspPreview,
   MarkdownPreview,
+  MarketFieldError,
   McpServerDetail,
   OverviewPayload,
+  ServerConfigPayload,
+  ServerPolicyPayload,
+  ServerPolicyRequest,
+  ServerTimeoutPolicy,
   SkillContent,
   SourceOverview,
   SourceProgress,
@@ -96,26 +101,28 @@ async function postOkJson<T>(url: string, body: Record<string, unknown>, label: 
     },
     MUTATION_TIMEOUT_MS
   )
-  const payload = (await response.json()) as T & { ok?: boolean; error?: string }
+  const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[] }
   if (!response.ok || payload.ok !== true) {
-    throw new Error(payload.error ?? `${label}: ${response.status}`)
+    // A rejection that names its fields carries them on the error, so a form can
+    // place each reason beside the input it belongs to.
+    throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields })
   }
   return payload
 }
 
-export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promise<import('../contracts/market.js').ServerConfigPayload> {
+export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
   return withBusyOperation(async () => {
     const url = `${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`
     const response = await boundedFetch(url, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
-    const body = (await response.json()) as import('../contracts/market.js').ServerConfigPayload & { error?: string }
+    const body = (await response.json()) as ServerConfigPayload & { error?: string }
     if (!response.ok) throw new Error(body.error ?? `Server configuration failed: ${response.status}`)
     return body
   })
 }
 
-export async function saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: Record<string, unknown>): Promise<void> {
+export async function saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: Record<string, unknown>, policy?: ServerPolicyRequest): Promise<void> {
   return withBusyOperation(async () => {
-    await postAction('server-config/save', { kind, id, config })
+    await postAction('server-config/save', { kind, id, config, ...(policy === undefined ? {} : { policy }) })
   })
 }
 
@@ -185,6 +192,28 @@ export async function addMcpServer(name: string, config: Record<string, unknown>
   })
 }
 
+/** What one pasted import wrote, and what it left out with a reason each. */
+export interface McpImportOutcome {
+  imported: string[]
+  skipped: Array<{ name: string; reason: string }>
+}
+
+/** Import several pasted services in one write; each entry reports its own outcome. */
+export async function importMcpServers(servers: Array<{ name: string; config: Record<string, unknown> }>, overwrite: boolean): Promise<McpImportOutcome> {
+  return withBusyOperation(async () => {
+    const payload = await postAction('mcp-servers/import', { servers, overwrite })
+    const imported = Array.isArray(payload['imported']) ? payload['imported'].filter((value): value is string => typeof value === 'string') : []
+    const skipped = Array.isArray(payload['skipped'])
+      ? payload['skipped'].flatMap(entry => {
+          if (typeof entry !== 'object' || entry === null) return []
+          const { name, reason } = entry as { name?: unknown; reason?: unknown }
+          return typeof name === 'string' && typeof reason === 'string' ? [{ name, reason }] : []
+        })
+      : []
+    return { imported, skipped }
+  })
+}
+
 /** Drop one server's OAuth grant so its next mount re-runs browser authorization. */
 export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   return withBusyOperation(async () => {
@@ -202,6 +231,20 @@ export async function reauthorizeMcpServer(serverName: string): Promise<void> {
 export async function setMcpServerEnabled(suiteId: string, serverKey: string, enabled: boolean): Promise<void> {
   return withBusyOperation(async () => {
     await postAction('set-mcp-server-enabled', { suiteId, serverKey, enabled })
+  })
+}
+
+/**
+ * Allow or deny one tool of a declared MCP server.
+ *
+ * @param suiteId - the source-qualified suite id the status row carries.
+ * @param serverKey - the server key inside that suite's declaration.
+ * @param tool - the tool's raw name inside the server's namespace.
+ * @param enabled - whether the tool is allowed.
+ */
+export async function setMcpServerTool(suiteId: string, serverKey: string, tool: string, enabled: boolean): Promise<void> {
+  return withBusyOperation(async () => {
+    await postAction('set-mcp-server-tool', { suiteId, serverKey, tool, enabled })
   })
 }
 

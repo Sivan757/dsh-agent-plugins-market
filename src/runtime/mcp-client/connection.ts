@@ -24,6 +24,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { MAX_TIMER_DELAY_MS } from './host-seams.js'
+import { redactErrorMessage } from '../mcp-redaction.js'
 import { PLUGIN_NAME, PLUGIN_VERSION } from './plugin-identity.js'
 import { createTransport } from './transport.js'
 import { syncTools } from './tools.js'
@@ -273,7 +274,7 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       } catch (error) {
         // Fetch-phase failure: the previous generation is still registered
         // and `disposers` still owns it — keep serving the last good list.
-        if (!disposed) host.logger.error(`${label}: tool re-sync failed: ${String(error)}`)
+        if (!disposed) host.logger.error(`${label}: tool re-sync failed: ${redactErrorMessage(String(error))}`)
       }
     })
     /**
@@ -316,7 +317,7 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       if (firstAttemptError === undefined) firstAttemptError = error
       // Disposal clears current ownership before it closes the generation, so
       // only a live supervisor reports an attempt failure.
-      if (isCurrent(generation)) host.logger.warn(`${label}: connection attempt failed: ${String(error)}`)
+      if (isCurrent(generation)) host.logger.warn(`${label}: connection attempt failed: ${redactErrorMessage(String(error))}`)
       // A pending browser leg outlives the initialize timeout: the human is
       // mid-approval. Hold this generation open — transport and loopback
       // listener stay alive — until the leg settles; abandoning it would

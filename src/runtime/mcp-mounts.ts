@@ -10,13 +10,15 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
+import { mkdir } from 'node:fs/promises'
 import * as mcpBridge from './mcp-client/bridge.js'
 import type { McpBackend } from './mcp-backend.js'
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
-import { qualifiedSuiteId } from '../catalog/paths.js'
+import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
+import { redactErrorMessage } from './mcp-redaction.js'
 import type { Suite } from '../model/types.js'
 
 export interface McpMountDiagnostic {
@@ -217,6 +219,16 @@ export class McpMountRegistry {
 
   /** Mount one precomputed request (source config merged with overrides). */
   private async mountWith(request: McpMountRequest): Promise<{ reason: string; code: McpMountFailureCode } | undefined> {
+    // §9.1: the client-managed PLUGIN_DATA directory must exist and be
+    // writable before any plugin subprocess starts. Created recursively and
+    // idempotently on every mount so an uninstalled-then-reinstalled suite
+    // starts over with a fresh directory while an update keeps its contents.
+    if (request.config.transport === 'stdio') {
+      const separator = request.suiteId.indexOf('/')
+      const sourceId = separator === -1 ? request.suiteId : request.suiteId.slice(0, separator)
+      const suiteId = separator === -1 ? request.suiteId : request.suiteId.slice(separator + 1)
+      await mkdir(suiteDataDir(this.pluginDataRoot, sourceId, suiteId), { recursive: true })
+    }
     const owner = this.serverOwner(request.config.serverName)
     if (owner !== undefined) {
       // Two sources shipping the same suite/server pair derive one serverName:
@@ -287,7 +299,7 @@ export class McpMountRegistry {
           // Ignore teardown errors: the startup failure is the real signal.
         }
       }
-      return { reason: `mount failed: ${error instanceof Error ? error.message : String(error)}`, code: 'mount-failed' }
+      return { reason: `mount failed: ${redactErrorMessage(error instanceof Error ? error.message : String(error))}`, code: 'mount-failed' }
     }
     this.live.set(mountKey(request.suiteId, request.serverKey), {
       suiteId: request.suiteId,
@@ -307,7 +319,7 @@ export class McpMountRegistry {
       this.names.delete(live.serverName)
       return undefined
     } catch (error) {
-      const reason = `unmount failed: ${error instanceof Error ? error.message : String(error)}`
+      const reason = `unmount failed: ${redactErrorMessage(error instanceof Error ? error.message : String(error))}`
       this.ctx.logger?.warn(`[dsh-agent-plugins-market] ${reason} (${live.suiteId}/${live.serverKey})`)
       return reason
     }

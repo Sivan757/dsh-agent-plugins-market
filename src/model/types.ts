@@ -99,6 +99,8 @@ export interface SuiteManifest {
   keywords?: string[]
   /** For agent-plugin-v1: the recognized `$schema` identifier. */
   schemaVersion?: string
+  /** Parsed `com.deepseek.harness` extension data; present when the suite declares the namespace. */
+  harness?: HarnessNamespace
 }
 
 /** Raw layout declarations are resolved once by the catalog into runtime resources. */
@@ -144,6 +146,40 @@ export interface SuiteSurfaceCounts {
   lsp: number
 }
 
+/**
+ * Client-specific manifest data under the `com.deepseek.harness` extension
+ * namespace (Agent Plugins §8.1), carried by `plugin.json` `extensions`.
+ */
+export interface HarnessExtension {
+  /** Namespace contract version this suite was written against. */
+  schemaVersion: string
+  /**
+   * Client policy for portable `mcp.json` servers, keyed by the server's own
+   * name in `mcp.json`; entries without a matching server are reported and
+   * ignored.
+   */
+  mcpServers?: Record<string, HarnessMcpPolicy>
+}
+
+/**
+ * dsh-owned per-server policy for a portable MCP server: OAuth 2.1
+ * authorization for servers that answer `401` with a challenge, tool
+ * allow/deny lists, and timeout policies. These fields are outside the
+ * portable `mcp.json` schema by design (§7.2.1), so they ride the extension
+ * namespace instead of the package file.
+ */
+export interface HarnessMcpPolicy extends McpServerPolicy {
+  /** Opt in to OAuth 2.1 authorization (on by default; `enabled: false` opts out). */
+  auth?: { enabled: boolean; scope?: string }
+}
+
+/** Parsed namespace extension data of one suite, with server names pre-matched. */
+export interface HarnessNamespace {
+  schemaVersion: string
+  /** Policy applied on top of the suite's portable MCP servers. */
+  mcpServers: Record<string, HarnessMcpPolicy>
+}
+
 /** agent-plugins.org v1 `mcp.json` server variants. */
 export interface McpServerPolicy {
   enabledTools?: string[]
@@ -164,7 +200,7 @@ export interface McpServerStreamableHttp extends McpServerPolicy {
   type: 'streamable-http'
   url: string
   headers?: Record<string, string>
-  /** Opt in to OAuth 2.1 authorization for servers that answer `401` with a challenge (on by default; `enabled: false` opts out). */
+  /** OAuth 2.1 authorization; portable files take it from the namespace policy, dialect-native files declare it inline. */
   auth?: { enabled: boolean; scope?: string }
 }
 

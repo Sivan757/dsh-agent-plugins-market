@@ -14,12 +14,18 @@ describe('host locale', () => {
   it('resolves en for en-prefixed preferences', () => {
     const t = bindHostLocale('en-US')
     expect(t('commandAcknowledged', { command: 'review' })).toBe('/review forwarded to the model for execution')
-    expect(t('subagentCatalogCall')).toContain('subagent_run')
+    expect(t('feedbackToolCardTitle')).toBe('File market feedback')
   })
 
-  it('provides explicit catalog replacement and clearing guidance in both languages', () => {
-    expect(bindHostLocale('zh')('subagentCatalogUpdated')).toContain('替代')
-    expect(bindHostLocale('en')('subagentCatalogEmpty')).toContain('Do not use role IDs')
+  it('translates only the strings a person reads', () => {
+    // The model-facing subagent catalog is fixed English and lives in
+    // `subagent-catalog.ts`; this dictionary must not carry it.
+    for (const preference of ['zh', 'en']) {
+      const t = bindHostLocale(preference)
+      expect(t('commandAcknowledged', { command: 'review' }).length).toBeGreaterThan(0)
+      expect(t('userCommandSourceLabel').length).toBeGreaterThan(0)
+      expect(t('feedbackToolCardTitle').length).toBeGreaterThan(0)
+    }
   })
 
   it('reads locale.preference from a settings file when present', async () => {

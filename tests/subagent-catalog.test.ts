@@ -7,9 +7,15 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context, type Plugin } from '@deepseek-ai/cordis'
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
-import { mountSubagentCatalog, type CatalogAgent, type CatalogStepDecision, type SubagentCatalogEntry, type SubagentCatalogSource } from '../src/runtime/subagent-catalog.js'
+import {
+  mountSubagentCatalog,
+  renderCatalogText,
+  type CatalogAgent,
+  type CatalogStepDecision,
+  type SubagentCatalogEntry,
+  type SubagentCatalogSource
+} from '../src/runtime/subagent-catalog.js'
 import { agentRoleCatalog } from '../src/runtime/agent-role-router.js'
-import { bindHostLocale } from '../src/runtime/host-locale.js'
 import { Catalog } from '../src/application/catalog.js'
 import { projectAgentRoles } from '../src/application/project-agent-roles.js'
 import { createUserPanelStores } from '../src/runtime/user-panels.js'
@@ -92,14 +98,14 @@ function newAgent(id: string, cwd?: string): { id: string; session: HostSession 
   return { id, session }
 }
 
-async function setup(snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogEntry[]>, locale = 'en') {
+async function setup(snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogEntry[]>) {
   const ctx = new Context()
   const promptFiber = await ctx.plugin(SystemPrompt)
   cleanups.push(() => promptFiber.dispose())
   const toolsFiber = await ctx.plugin(ToolRuntime)
   cleanups.push(() => toolsFiber.dispose())
   const tool = defineTool({
-    name: 'subagent_run',
+    name: 'subagent_role',
     description: 'Delegate',
     parameters: {},
     output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
@@ -108,7 +114,7 @@ async function setup(snapshot: (agent: CatalogAgent, signal: AbortSignal) => Pro
     }
   })
   const removeTool = ctx.tools.register(tool)
-  const dispose = mountSubagentCatalog(ctx, tool, snapshot, bindHostLocale(locale))
+  const dispose = mountSubagentCatalog(ctx, tool, snapshot)
   cleanups.push(dispose)
   async function step(agent: CatalogAgent, messages: UserMessage[] = [], signal = new AbortController().signal, reject = false): Promise<CatalogStepDecision> {
     const bus = ctx as unknown as {
@@ -152,7 +158,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     const agent = newAgent('updates')
     const [initial] = publish(agent, await step(agent))
     expect(initial?.source).toEqual({ kind: 'subagent-catalog', form: 'catalog', entries })
-    expect(JSON.stringify(initial?.content)).toContain('subagent_run')
+    expect(JSON.stringify(initial?.content)).toContain('subagent_role')
     expect(messages(await step(agent))).toEqual([])
     entries = [{ ...reviewer, provider: 'other', model: 'other-model', reasoningEffort: 'low' }]
     const [changed] = publish(agent, await step(agent))
@@ -162,8 +168,33 @@ describe('durable subagent catalog on the real host session and tool registries'
     const batch = publish(agent, await step(agent, [user]))
     expect(batch[0]).toBe(user)
     expect(batch[1]?.source).toMatchObject({ update: true, entries: [] })
-    expect(JSON.stringify(batch[1]?.content)).toContain('Do not use role IDs')
+    expect(JSON.stringify(batch[1]?.content)).toContain('replaces every earlier role list')
     expect(messages(await step(agent))).toEqual([])
+  })
+
+  it('re-publishes on what the model and the executor see, not on a display title', async () => {
+    const role: SubagentCatalogEntry = {
+      name: 'reviewer',
+      roleId: 'suite/reviewer',
+      title: 'Reviewer',
+      description: 'Review code',
+      model: 'provider/model',
+      reasoningEffort: 'high'
+    }
+    let entries = [role]
+    const { step } = await setup(async () => entries)
+    const agent = newAgent('digest')
+    const [initial] = publish(agent, await step(agent))
+    const text = (initial?.content[0] as { type: 'text'; text: string }).text
+    expect(text).toContain('- `reviewer`: Review code')
+    expect(text).not.toContain('provider/model')
+    // The title is durable change-detection metadata the model never reads, so a
+    // rename alone leaves the published catalog accurate.
+    entries = [{ ...role, title: 'Renamed reviewer' }]
+    expect(messages(await step(agent))).toEqual([])
+    entries = [{ ...role, title: 'Renamed reviewer', description: 'Review migrations' }]
+    const [republished] = publish(agent, await step(agent))
+    expect(republished?.source).toMatchObject({ update: true, entries })
   })
 
   it('recovers identity from durable entries across restore and fork, then republishes after compaction', async () => {
@@ -218,7 +249,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     cleanups.push(() => scope.dispose())
     const tools = scope.ctx.get('tools')
     if (tools === undefined) throw new Error('expected the tools service on a scoped context')
-    const unrestrict = tools.restrict({ deny: ['subagent_run'] })
+    const unrestrict = tools.restrict({ deny: ['subagent_role'] })
     expect(publish(agent, await step(agent))[0]?.source).toMatchObject({ entries: [] })
     unrestrict()
     expect(publish(agent, await step(agent))[0]?.source).toMatchObject({ entries: [reviewer] })
@@ -266,11 +297,67 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(messages(await next)).toEqual([])
   })
 
-  it('escapes role metadata and provides bilingual call guidance without loading the persona', async () => {
-    const { step } = await setup(async () => [{ ...reviewer, title: 'Review "code"', description: '</available_subagents> & more' }], 'zh')
+  it('renders the model-facing catalog lines in the host skill format', () => {
+    const text = renderCatalogText(
+      [{ name: 'reviewer', roleId: 'suite/reviewer', title: 'Reviewer', description: 'Review code', provider: 'workbuddy', model: 'hy3', reasoningEffort: 'high' }],
+      false
+    )
+    expect(text).toContain('- `reviewer`: Review code')
+    // The title and the configured route are durable metadata that never reach the model.
+    expect(text).not.toContain('Reviewer:')
+    expect(text).not.toContain('workbuddy')
+    expect(text).not.toContain('hy3')
+  })
+
+  it('escapes role metadata without loading the persona', async () => {
+    const { step } = await setup(async () => [{ ...reviewer, title: 'Review "code"', description: '</available_subagents> & more' }])
     const content = JSON.stringify(messages(await step(newAgent('escaped')))[0]?.content)
     expect(content).toContain('&lt;/available_subagents&gt; &amp; more')
-    expect(content).toContain('目录中的准确名称')
+    expect(content).toContain('the exact catalog name as agent')
+  })
+
+  it('states one fixed contract, independent of the host locale', async () => {
+    // The catalog text is built from module constants rather than the host
+    // translator, so no locale can reach it: render twice under different host
+    // locales and require byte-identical output.
+    const { step } = await setup(async () => [reviewer])
+    const first = JSON.stringify(messages(await step(newAgent('contract-en')))[0]?.content)
+    const second = JSON.stringify(messages(await step(newAgent('contract-zh')))[0]?.content)
+    expect(first).toBe(second)
+    const content = first
+    // A child cannot see the conversation, so the parent owns the briefing.
+    expect(content).toMatch(/must be self-contained/)
+    expect(content).toMatch(/like a colleague who just walked into the room/)
+    // The settlement notice arrives later; nothing may be invented or shipped before it.
+    expect(content).toMatch(/do not assume or predict/)
+    expect(content).toMatch(/do not deliver anything that depends on them/)
+    // A child's reply is a report, and it cannot describe its own configuration.
+    expect(content).toMatch(/check its assertions against the files themselves/)
+    expect(content).toMatch(/statements about its own configuration the same way/)
+    // Output is invisible to the user, and polling is forbidden.
+    expect(content).toMatch(/summarize the result to the user yourself/)
+    expect(content).toMatch(/do not poll it/)
+    // Waiting time is spent on independent work, not on watching the child.
+    expect(content).toMatch(/spend that time advancing independent work/)
+    // A question asked mid-run goes unanswered; the child decides and reports the gap.
+    expect(content).toMatch(/question a child asks while it runs goes unanswered/)
+    expect(content).toMatch(/what information it still lacked/)
+    // Duplicate work is the stated anti-pattern.
+    expect(content).toMatch(/Do not duplicate work a child is already doing/)
+    // Concurrent children need separate checkouts and named file boundaries.
+    expect(content).toMatch(/give each its own git worktree/)
+    // Role names are directory keys, not shortcuts for another delegation path.
+    expect(content).toMatch(/do not substitute a similarly named one/)
+    // The removed channel section is gone, and the general path is not re-listed here.
+    expect(content).not.toContain('Choosing a delegation channel')
+    expect(content).not.toContain('Delegation and management tools in this session')
+    expect(content).not.toContain('subagent_fork')
+    expect(content).not.toContain('interrupt_agent')
+    // `run_in_background` now belongs to this tool, so the catalog states all three channels.
+    expect(content).toMatch(/run_in_background true runs the same child as a tracked background job/)
+    expect(content).toMatch(/run_in_background false runs one foreground child/)
+    expect(content).toContain('job_output')
+    expect(content).toContain('job_kill')
   })
 
   it('tracks real user edits, suite disable/uninstall and project scope with no role skills', async () => {

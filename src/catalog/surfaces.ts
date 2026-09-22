@@ -10,10 +10,10 @@
  * thrown discovery.
  */
 import { readFile, readdir, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { parseSkillFrontmatter } from './skills-parse.js'
 import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
-import { validateMcpJson } from './validate.js'
+import { validateMcpJson, pathContainmentError, recognizedSpecVersion } from './validate.js'
 import { readManifest } from './manifests.js'
 import type { LspSuiteConfig, McpServer, McpSuiteConfig, SuiteManifest, SuiteSkill, SuiteSurfaceCounts } from '../model/types.js'
 import { componentDocuments, componentPath, firstComponentFile, isUnknownArray } from './component-files.js'
@@ -39,15 +39,26 @@ async function declaredSkillDirs(root: string, declared: unknown, errors: string
   return dirs
 }
 
-/** Discover SKILL.md files under the suite's skills directory, up to 3 levels deep. */
-export async function discoverSkills(root: string, errors: string[], declared?: unknown): Promise<SuiteSkill[]> {
+/**
+ * Discover SKILL.md files under the suite's skills directory, up to 3 levels
+ * deep. Portable v1 suites (§7.1) instead discover exactly one level of
+ * `skills/` subdirectories each carrying a `SKILL.md` — the spec forbids
+ * recursive deeper search and root-level or flat skill files are outside the
+ * portable discovery shape.
+ */
+export async function discoverSkills(root: string, errors: string[], declared?: unknown, portable = false): Promise<SuiteSkill[]> {
   const skills: SuiteSkill[] = []
-  const rootSkill = join(root, 'SKILL.md')
-  const rootName = root.split(/[\\/]/).at(-1) ?? 'plugin'
-  const rootParsed = await parseOneSkill(rootSkill, root, rootName, errors)
-  if (rootParsed !== undefined) skills.push(rootParsed)
   const skillsDirs = await declaredSkillDirs(root, declared, errors)
-  if (declared === undefined) {
+  if (!portable) {
+    const rootSkill = join(root, 'SKILL.md')
+    const rootName = root.split(/[\\/]/).at(-1) ?? 'plugin'
+    const rootParsed = await parseOneSkill(rootSkill, root, rootName, errors)
+    if (rootParsed !== undefined) skills.push(rootParsed)
+    if (declared === undefined) {
+      const fallback = join(root, 'skills')
+      if (await isDirectory(fallback)) skillsDirs.push(fallback)
+    }
+  } else if (declared === undefined) {
     const fallback = join(root, 'skills')
     if (await isDirectory(fallback)) skillsDirs.push(fallback)
   }
@@ -58,6 +69,24 @@ export async function discoverSkills(root: string, errors: string[], declared?: 
     skills.push(skill)
   }
   for (const skillsDir of skillsDirs) {
+    if (portable) {
+      // §7.1: each immediate child directory containing `SKILL.md` is one
+      // skill; no deeper descendants are searched and flat files are not
+      // skills. Each candidate also passes a realpath containment check so a
+      // symlink pointing outside the plugin root is skipped (§4.1 boundary 3).
+      for (const child of await listChildDirs(skillsDir)) {
+        const skillFile = join(child, 'SKILL.md')
+        if (!(await isFile(skillFile))) continue
+        const reason = await pathContainmentError(root, `./${relative(root, skillFile).replace(/\\/g, '/')}`)
+        if (reason !== undefined) {
+          errors.push(`skill "${child.split(/[\\/]/).at(-1) ?? ''}": ${reason}`)
+          continue
+        }
+        const name = child.split(/[\\/]/).at(-1) ?? ''
+        pushUnique(await parseOneSkill(skillFile, child, name, errors))
+      }
+      continue
+    }
     if (await isFile(skillsDir)) {
       pushUnique(await parseOneSkill(skillsDir, dirname(skillsDir), '', errors))
       continue
@@ -141,12 +170,17 @@ async function parseOneSkill(file: string, directory: string, fallbackName: stri
   return { ...verdict, directory }
 }
 
-/** Read the suite's MCP config: `mcp.json` or `.mcp.json`, else the winning manifest's inline `mcpServers`. */
-export async function discoverMcp(root: string, errors: string[], manifest?: SuiteManifest): Promise<McpSuiteConfig | undefined> {
+/**
+ * Read the suite's MCP config: `mcp.json` or `.mcp.json`, else the winning
+ * manifest's inline `mcpServers`. Portable v1 suites read only `mcp.json` at
+ * the plugin root (§7.2.1: no alternative core path, no inline declarations).
+ */
+export async function discoverMcp(root: string, errors: string[], manifest?: SuiteManifest, portable = false): Promise<McpSuiteConfig | undefined> {
   const resolved = manifest ?? (await readManifest(root, errors, undefined))
   const layout = resolved?.layout
-  const names =
-    layout === 'zcode'
+  const names = portable
+    ? ['mcp.json']
+    : layout === 'zcode'
       ? ['.mcp.json']
       : layout === 'qoder'
         ? ['.mcp.json', 'mcp.json']
@@ -157,8 +191,13 @@ export async function discoverMcp(root: string, errors: string[], manifest?: Sui
             : layout === 'cursor'
               ? ['mcp.json']
               : ['mcp.json', '.mcp.json']
-  const declared = resolved?.components?.mcpServers
-  const fallback = layout === 'kimi' ? undefined : await firstComponentFile(root, names)
+  const declared = portable ? undefined : resolved?.components?.mcpServers
+  // Portable mode reads exactly the fixed location `mcp.json` (§7.2.1), so
+  // the candidate list is the location itself rather than a fallback probe.
+  // The file is optional for portable suites too — §7.2 fixes its location,
+  // not its presence — so an absent file resolves to zero servers without a
+  // diagnostic; an existing but unreadable path still fails loudly below.
+  const fallback = portable ? ((await isFile(join(root, 'mcp.json'))) ? 'mcp.json' : undefined) : layout === 'kimi' ? undefined : await firstComponentFile(root, names)
   const additive = layout === 'zcode' || layout === 'claude-code'
   const values =
     declared === undefined
@@ -173,8 +212,11 @@ export async function discoverMcp(root: string, errors: string[], manifest?: Sui
   let schema = ''
   for (const document of documents) {
     const isBareFile = document.path === join(root, 'mcp.json')
-    const strict = isBareFile && (layout === 'agent-plugin-v1' || (declared === undefined && layout !== 'cursor' && layout !== 'qoder'))
-    const result = await validateMcpJson(root, document.value, { strict })
+    const strict = portable || (isBareFile && (layout === 'agent-plugin-v1' || (declared === undefined && layout !== 'cursor' && layout !== 'qoder')))
+    const result = await validateMcpJson(root, document.value, {
+      strict,
+      ...(portable && resolved?.schemaVersion !== undefined ? { manifestVersion: recognizedSpecVersion(resolved.schemaVersion)?.version } : {})
+    })
     errors.push(...result.errors)
     if (result.config === undefined) return undefined
     Object.assign(servers, result.config.servers)

@@ -68,7 +68,7 @@ const metadata = {
 }
 
 describe('role reasoning effort selector', () => {
-  it('loads exact-model options, preserves saved aliases and saves the value consumed by subagent_run', async () => {
+  it('loads exact-model options, preserves saved aliases and saves the value consumed by subagent_role', async () => {
     await mount('---\nprovider: p\nmodel: a\nreasoningEffort: high\nmetadata: {tier: 2}\n---\nRole body', async () => metadata)
     expect([...select('personaReasoningEffort').options].map(option => option.value)).toEqual(['', 'low', 'high'])
     expect(select('personaReasoningEffort').value).toBe('high')

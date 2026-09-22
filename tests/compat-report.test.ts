@@ -62,10 +62,10 @@ interface PinnedSample {
 
 const report = JSON.parse(await readFile(join(ROOT, 'docs', 'reference', 'compat-report.json'), 'utf8')) as Report
 const config = JSON.parse(await readFile(join(ROOT, 'scripts', 'compat-sources.json'), 'utf8')) as { samples: PinnedSample[] }
-/** Dialect directories that ship a plugin schema; `1.0.0/` is vendored and `skill-collection/` has no manifest. */
+/** Dialect directories that ship a plugin schema; the vendored `1.0.0/` and `1.1.0/` directories and `skill-collection/` (no manifest) are excluded. */
 const schemaDirectories: string[] = []
 for (const entry of await readdir(join(ROOT, 'schemas'), { withFileTypes: true })) {
-  if (!entry.isDirectory() || entry.name === '1.0.0') continue
+  if (!entry.isDirectory() || entry.name === '1.0.0' || entry.name === '1.1.0') continue
   const files = await readdir(join(ROOT, 'schemas', entry.name))
   if (files.includes('plugin.schema.json')) schemaDirectories.push(entry.name)
 }

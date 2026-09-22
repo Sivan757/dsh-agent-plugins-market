@@ -20,6 +20,9 @@ import type { McpServerSse, McpServerStreamableHttp, McpServerStdio } from '../m
 /** HTTP-shaped server sources (url + headers carriers) overrides can edit. */
 type McpServerHttp = McpServerStreamableHttp | McpServerSse
 
+/** The largest timeout a bridge config and the host timer can hold. */
+export const MAX_TIMEOUT_MS = 2_147_483_647
+
 /** Per-server override record; absent fields pass through from the source. */
 export type McpServerOverride = {
   /** Validated complete user configuration, retaining source-owned identity. */
@@ -36,6 +39,18 @@ export type McpServerOverride = {
   args?: string[]
   /** Replaces the OAuth block (streamable-http only); `enabled: false` disables a source-declared flow. */
   auth?: { enabled: boolean; scope?: string }
+  /** Per-tool-call timeout in milliseconds; absent inherits the suite's value or the bridge default. */
+  toolCallTimeoutMs?: number
+  /** Startup timeout in milliseconds; absent inherits the suite's value or the bridge default. */
+  startupTimeoutMs?: number
+  /** Tool names the user turned off; the suite's own deny list stays in force beside them. */
+  disabledTools?: string[]
+}
+
+/** Timeout fields a policy save can set (`number`) or clear back to inheritance (`null`). */
+export interface McpTimeoutPatch {
+  toolCallTimeoutMs?: number | null
+  startupTimeoutMs?: number | null
 }
 
 /** Overrides for one suite, keyed by mcp.json server key. */
@@ -89,9 +104,36 @@ export function sanitizeOverrides(raw: unknown): McpSuiteOverrides {
     if (Array.isArray(record['args']) && record['args'].every(entry => typeof entry === 'string')) {
       override.args = record['args']
     }
+    const toolCallTimeoutMs = timeoutMs(record['toolCallTimeoutMs'])
+    if (toolCallTimeoutMs !== undefined) override.toolCallTimeoutMs = toolCallTimeoutMs
+    const startupTimeoutMs = timeoutMs(record['startupTimeoutMs'])
+    if (startupTimeoutMs !== undefined) override.startupTimeoutMs = startupTimeoutMs
+    const disabledTools = toolNames(record['disabledTools'])
+    if (disabledTools !== undefined) override.disabledTools = disabledTools
     if (Object.keys(override).length > 0) result[serverKey] = override
   }
   return result
+}
+
+/**
+ * Keep a timeout that a millisecond count can hold. Anything else passes
+ * nothing through, so one malformed field cannot take the rest of the record
+ * with it.
+ */
+function timeoutMs(raw: unknown): number | undefined {
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0 || raw > MAX_TIMEOUT_MS) return undefined
+  return raw
+}
+
+/**
+ * Keep a tool-name list for a deny list: non-empty names, deduplicated, with
+ * the empty result reading as "nothing denied" so the field never persists as
+ * an empty array.
+ */
+function toolNames(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const names = [...new Set(raw.filter((entry): entry is string => typeof entry === 'string' && entry !== ''))]
+  return names.length > 0 ? names : undefined
 }
 
 /** Keep a well-formed auth block; anything else passes nothing through. */
@@ -113,6 +155,71 @@ export function sanitizeOverridePatch(patch: unknown): McpServerOverride | undef
 }
 
 /**
+ * Validate one policy save as it arrives over the wire. An absent field leaves
+ * its stored value alone, `null` clears one back to inheritance, and a positive
+ * whole number of milliseconds within the timer range sets it; anything else
+ * rejects the save with a readable reason.
+ */
+export function parseTimeoutPatch(raw: unknown): McpTimeoutPatch {
+  if (raw === undefined) return {}
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error('policy must be an object')
+  const record = raw as Record<string, unknown>
+  return {
+    ...(record['toolCallTimeoutMs'] === undefined ? {} : { toolCallTimeoutMs: timeoutField(record['toolCallTimeoutMs'], 'tool call timeout') }),
+    ...(record['startupTimeoutMs'] === undefined ? {} : { startupTimeoutMs: timeoutField(record['startupTimeoutMs'], 'startup timeout') })
+  }
+}
+
+/** The client policy a service-config save may carry alongside the definition. */
+export interface McpPolicyPatch {
+  toolCallTimeoutMs?: number | null
+  startupTimeoutMs?: number | null
+  /** The user's deny list; null clears it, an absent field keeps it. */
+  disabledTools?: string[] | null
+  /** The user's OAuth opt-in; null clears it, an absent field keeps it. */
+  auth?: { enabled: boolean; scope?: string } | null
+}
+
+/**
+ * Validate a client-supplied policy patch. An absent field keeps its stored
+ * value, `null` clears it back to the suite's declaration or the default, and
+ * any other shape is rejected with the reason it failed.
+ */
+export function parseMcpPolicyPatch(raw: unknown): McpPolicyPatch {
+  if (raw === undefined) return {}
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error('policy must be an object')
+  const record = raw as Record<string, unknown>
+  const patch: McpPolicyPatch = {}
+  if (record['toolCallTimeoutMs'] !== undefined) patch.toolCallTimeoutMs = timeoutField(record['toolCallTimeoutMs'], 'tool call timeout')
+  if (record['startupTimeoutMs'] !== undefined) patch.startupTimeoutMs = timeoutField(record['startupTimeoutMs'], 'startup timeout')
+  if (record['disabledTools'] !== undefined) {
+    if (record['disabledTools'] === null) patch.disabledTools = null
+    else {
+      const names = toolNames(record['disabledTools'])
+      if (names === undefined && (record['disabledTools'] as unknown[]).length > 0) throw new Error('denied tools must be a list of tool names')
+      patch.disabledTools = names ?? []
+    }
+  }
+  if (record['auth'] !== undefined) {
+    if (record['auth'] === null) patch.auth = null
+    else {
+      const auth = sanitizeAuth(record['auth'])
+      if (auth === undefined) throw new Error('auth must be an object with a boolean "enabled"')
+      patch.auth = auth
+    }
+  }
+  return patch
+}
+
+function timeoutField(value: unknown, label: string): number | null {
+  if (value === null) return null
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0 || value > MAX_TIMEOUT_MS) {
+    throw new Error(`${label} must be a positive whole number of milliseconds no greater than ${MAX_TIMEOUT_MS}`)
+  }
+  return value
+}
+
+/**
  * Merge one client patch into the override already on disk.
  *
  * The UI redacts secret-shaped values before rendering them, so a patch built
@@ -131,7 +238,18 @@ export function mergeOverridePatch(existing: McpServerOverride, patch: McpServer
     ...(headers === undefined ? {} : { headers }),
     ...(env === undefined ? {} : { env }),
     ...(patch.args !== undefined ? { args: patch.args } : existing.args === undefined ? {} : { args: existing.args }),
-    ...(patch.auth !== undefined ? { auth: patch.auth } : existing.auth === undefined ? {} : { auth: existing.auth })
+    ...(patch.auth !== undefined ? { auth: patch.auth } : existing.auth === undefined ? {} : { auth: existing.auth }),
+    ...(patch.toolCallTimeoutMs !== undefined
+      ? { toolCallTimeoutMs: patch.toolCallTimeoutMs }
+      : existing.toolCallTimeoutMs === undefined
+        ? {}
+        : { toolCallTimeoutMs: existing.toolCallTimeoutMs }),
+    ...(patch.startupTimeoutMs !== undefined
+      ? { startupTimeoutMs: patch.startupTimeoutMs }
+      : existing.startupTimeoutMs === undefined
+        ? {}
+        : { startupTimeoutMs: existing.startupTimeoutMs }),
+    ...(patch.disabledTools !== undefined ? { disabledTools: patch.disabledTools } : existing.disabledTools === undefined ? {} : { disabledTools: existing.disabledTools })
   }
 }
 
@@ -171,20 +289,46 @@ function stringMap(value: unknown): Record<string, string> | undefined {
  */
 export function applyOverride(server: McpServerStdio | McpServerHttp, override: McpServerOverride | undefined): McpServerStdio | McpServerHttp {
   if (override === undefined) return server
+  const policy = policyFields(override)
   if (override.config !== undefined) server = override.config
   if (server.type === 'stdio') {
     return {
       ...server,
+      ...policy,
       ...(override.args !== undefined ? { args: override.args } : {}),
       ...(override.env !== undefined ? { env: override.env } : {})
     }
   }
   return {
     ...server,
+    ...policy,
     ...(override.url !== undefined ? { url: override.url } : {}),
     ...(override.headers !== undefined ? { headers: override.headers } : {}),
     ...(override.auth !== undefined ? { auth: override.auth } : {})
   }
+}
+
+/** The user-owned policy fields of one override, in server shape. */
+function policyFields(override: McpServerOverride): Record<string, unknown> {
+  return {
+    ...(override.toolCallTimeoutMs === undefined ? {} : { toolCallTimeoutMs: override.toolCallTimeoutMs }),
+    ...(override.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: override.startupTimeoutMs }),
+    ...(override.disabledTools === undefined ? {} : { disabledTools: override.disabledTools })
+  }
+}
+
+/**
+ * One server with its client policy fields removed: the shape the portable
+ * `mcp.json` schema accepts. The service editor renders and saves this shape,
+ * so a timeout never reaches a document that has no seat for it.
+ */
+export function withoutPolicyFields<T extends McpServerStdio | McpServerHttp>(server: T): T {
+  const portable = { ...server } as Record<string, unknown>
+  delete portable['enabledTools']
+  delete portable['disabledTools']
+  delete portable['startupTimeoutMs']
+  delete portable['toolCallTimeoutMs']
+  return portable as T
 }
 
 function sanitizeFileName(raw: string): string {
