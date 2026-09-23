@@ -351,7 +351,11 @@ export interface SkillContent {
 
 /** A user panel entry (skills / commands / agent personas) over HTTP. */
 export interface UserPanelEntryWire {
-  /** Entry name: the name its document declares, else the file's base name. */
+  /**
+   * Entry name: the name its document declares, else its document name — the
+   * file's base name, or, on a panel that reads subdirectories, the document's
+   * path relative to the panel directory (`git/commit`).
+   */
   name: string
   description: string
   disabled: boolean

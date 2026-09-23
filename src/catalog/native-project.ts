@@ -50,7 +50,7 @@ export async function discoverNativeProjectSuites(projectRoot: string, dimension
     if (native.dirName === '.github') lspFiles.push('lsp.json')
     for (const path of lspFiles) {
       if (await isFile(join(projectRoot, path))) {
-        errors.push(`${path}: project LSP configuration is not mounted; the host LSP registry does not isolate projects`)
+        errors.push(`${path.replace(/\\/g, '/')}: project LSP configuration is not mounted; the host LSP registry does not isolate projects`)
       }
     }
     // Skills live in `<dir>/skills/<name>/SKILL.md` — the same shape as the

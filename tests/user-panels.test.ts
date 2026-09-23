@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createUserPanelStores, UserPanelSkillProvider } from '../src/runtime/user-panels.js'
@@ -131,18 +131,112 @@ describe('user panel directory-shaped skills', () => {
     }
   })
 
-  it('keeps commands and personas flat-only', async () => {
+  it('keeps the skills panel at top-level documents and directories', async () => {
     const root = await mkdtemp(join(tmpdir(), 'panels-'))
     try {
-      await mkdir(join(root, 'commands', 'nested'), { recursive: true })
-      await writeFile(join(root, 'commands', 'nested', 'SKILL.md'), '---\ndescription: nested\n---\nBody')
+      await mkdir(join(root, 'skills'), { recursive: true })
+      await writeFile(join(root, 'skills', 'flat.md'), '---\nname: flat\ndescription: flat\n---\nBody')
+      await writeDirectorySkill(root, 'top', '---\nname: top\ndescription: top\n---\nBody')
+      await mkdir(join(root, 'skills', 'top', 'deep'), { recursive: true })
+      await writeFile(join(root, 'skills', 'top', 'deep', 'nested.md'), '---\nname: nested\ndescription: nested\n---\nBody')
+
       const stores = createUserPanelStores(root)
-      expect(await stores.commands.list()).toEqual([])
-      await expect(stores.commands.update('nested', 'x')).rejects.toThrow(/no entry named/)
-      await stores.commands.remove('nested')
-      expect((await stat(join(root, 'commands', 'nested', 'SKILL.md'))).isFile()).toBe(true)
+      // The harness's own reader of this directory walks no deeper than one
+      // level, so the panel serves the same files it does.
+      expect((await stores.skills.list()).map(entry => entry.name).sort()).toEqual(['flat', 'top'])
+      expect(await stores.skills.get('top/deep/nested')).toBeUndefined()
+      expect(await stores.skills.get('nested')).toBeUndefined()
     } finally {
       await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('nested user panel entries', () => {
+  it('lists a nested command and persona by their relative paths and addresses them by that name', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      await mkdir(join(root, 'commands', 'tools', 'git'), { recursive: true })
+      await writeFile(join(root, 'commands', 'tools', 'git', 'commit.md'), '---\ndescription: commit staged work\n---\nCommit: $ARGUMENTS')
+      await mkdir(join(root, 'agents', 'review'), { recursive: true })
+      await writeFile(join(root, 'agents', 'review', 'code.md'), '---\ndescription: review code\n---\nReview the code')
+
+      const stores = createUserPanelStores(root)
+      expect((await stores.commands.list()).map(entry => entry.name)).toEqual(['tools/git/commit'])
+      expect((await stores.agents.list()).map(entry => entry.name)).toEqual(['review/code'])
+
+      const command = await stores.commands.get('tools/git/commit')
+      expect(command?.path).toBe(join(root, 'commands', 'tools', 'git', 'commit.md'))
+      expect(command?.description).toBe('commit staged work')
+
+      // Update and remove address the document through the same nested name.
+      await stores.commands.update('tools/git/commit', '---\ndescription: commit staged work\n---\nEdited: $ARGUMENTS')
+      expect(await readFile(join(root, 'commands', 'tools', 'git', 'commit.md'), 'utf8')).toContain('Edited: $ARGUMENTS')
+      expect((await stores.commands.get('tools/git/commit'))?.content).toContain('Edited: $ARGUMENTS')
+      await stores.commands.remove('tools/git/commit')
+      expect(await stores.commands.list()).toEqual([])
+      // Removing the command leaves the persona, and the empty category directories, alone.
+      expect((await stores.agents.list()).map(entry => entry.name)).toEqual(['review/code'])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('creates a nested document at its relative path and refuses an occupied name', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const stores = createUserPanelStores(root)
+      const created = await stores.commands.create('git/commit', '---\ndescription: commit staged work\n---\nBody')
+      expect(created.name).toBe('git/commit')
+      expect(created.shape).toBe('file')
+      // The parent directory is created by the write itself.
+      expect(await readFile(join(root, 'commands', 'git', 'commit.md'), 'utf8')).toContain('Body')
+      await expect(stores.commands.create('git/commit', '---\ndescription: duplicate\n---\nBody')).rejects.toThrow(/already exists/)
+      expect((await stores.commands.list()).map(entry => entry.name)).toEqual(['git/commit'])
+
+      // A nested persona applies the panel's own per-segment grammar too.
+      const persona = await stores.agents.create('review/code', '---\ndescription: review code\n---\nReview')
+      expect(persona.name).toBe('review/code')
+      expect(await readFile(join(root, 'agents', 'review', 'code.md'), 'utf8')).toContain('Review')
+      await expect(stores.agents.create('review/my_code', '---\ndescription: x\n---\nBody')).rejects.toThrow(/invalid name/)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects names outside the path grammar at every entry point', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const stores = createUserPanelStores(root)
+      for (const name of ['../x', '/x', 'a//b', 'a/../b', 'A/B', 'a\\b']) {
+        await expect(stores.commands.create(name, '---\ndescription: x\n---\nBody')).rejects.toThrow(/invalid name/)
+        await expect(stores.commands.update(name, '---\ndescription: x\n---\nBody')).rejects.toThrow(/invalid entry name/)
+        await expect(stores.commands.remove(name)).rejects.toThrow(/invalid entry name/)
+        expect(await stores.commands.get(name)).toBeUndefined()
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('skips dot-directories, node_modules, and symlinks while walking nested panels', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    const outside = await mkdtemp(join(tmpdir(), 'panels-outside-'))
+    try {
+      await mkdir(join(root, 'commands', 'git'), { recursive: true })
+      await writeFile(join(root, 'commands', 'git', 'commit.md'), '---\ndescription: commit\n---\nBody')
+      await mkdir(join(root, 'commands', '.hidden'), { recursive: true })
+      await writeFile(join(root, 'commands', '.hidden', 'secret.md'), '---\ndescription: secret\n---\nBody')
+      await mkdir(join(root, 'commands', 'node_modules', 'pkg'), { recursive: true })
+      await writeFile(join(root, 'commands', 'node_modules', 'pkg', 'tool.md'), '---\ndescription: tool\n---\nBody')
+      await writeFile(join(outside, 'escape.md'), '---\ndescription: escape\n---\nBody')
+      await symlink(outside, join(root, 'commands', 'linked'))
+
+      const stores = createUserPanelStores(root)
+      expect((await stores.commands.list()).map(entry => entry.name)).toEqual(['git/commit'])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+      await rm(outside, { recursive: true, force: true })
     }
   })
 })

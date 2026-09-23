@@ -22,6 +22,77 @@ afterEach(async () => {
 })
 
 describe('native project MCP configurations', () => {
+  it('reads the Agent layout MCP file into the agents suite instead of the ZCode one', async () => {
+    const project = await root()
+    await mkdir(join(project, '.agents'))
+    await mkdir(join(project, '.zcode'))
+    await writeFile(join(project, '.agents/mcp.json'), '{"mcpServers":{"agents":{"command":"agents-server"}}}')
+
+    const suites = await discoverNativeProjectSuites(project, 'project')
+    // ZCode declares no server of its own, and the `.agents` file is not its
+    // fallback: the ZCode layout contributes no surface at all.
+    expect(suites.map(suite => suite.id)).toEqual(['agents-native'])
+    const [suite] = suites
+    if (suite === undefined) throw new Error('expected the .agents MCP file to resolve to the agents suite')
+    expect(Object.keys(suite.mcp!.servers)).toEqual(['agents'])
+    expect(suite.surfaces.mcp).toBe(1)
+    expect(suite.activeSurfaces).toMatchObject({ mcp: true, skills: true, hooks: false, lsp: false })
+    expect(suite.root).toBe(join(project, '.agents'))
+    // Validation roots the entry at the project, so the mount runs from there.
+    expect(suite.mcp!.root).toBe(project)
+    const { mounts, failures } = await toMcpMounts(withDefaultSurfaces(suite), join(project, '.dsh/agent-plugins/data'))
+    expect(failures).toEqual([])
+    expect(mounts).toHaveLength(1)
+    expect(mounts[0]).toMatchObject({ suiteId: 'native/agents-native', serverKey: 'agents' })
+    expect(mounts[0]?.config).toMatchObject({ command: 'agents-server', cwd: project })
+  })
+
+  it('keeps ZCode reading its own files when the agents file also declares servers', async () => {
+    const project = await root()
+    await mkdir(join(project, '.agents'))
+    await mkdir(join(project, '.zcode'))
+    await writeFile(join(project, '.agents/mcp.json'), '{"mcpServers":{"agents":{"command":"agents-server"}}}')
+    await writeFile(join(project, '.zcode/config.json'), '{"mcp":{"servers":{"native":{"command":"native-server"},"off":{"command":"disabled-server","enabled":false}}}}')
+
+    const suites = await discoverNativeProjectSuites(project, 'project')
+    const zcode = suites.find(suite => suite.id === 'zcode-native')
+    const agents = suites.find(suite => suite.id === 'agents-native')
+    if (zcode === undefined || agents === undefined) throw new Error('expected both the ZCode and agents layouts to resolve')
+    // Each suite carries only its own file's servers: no fallback either way.
+    expect(Object.keys(zcode.mcp!.servers)).toEqual(['native'])
+    expect(Object.keys(agents.mcp!.servers)).toEqual(['agents'])
+    expect(agents.errors).toEqual([])
+    expect(zcode.errors).toEqual([])
+    // A server the file disables is gone rather than redeclared by another layout.
+    expect(await discoverProjectMcp(project, ['zcode.json', '.zcode/config.json'], [], 'zcode')).toMatchObject({
+      root: project,
+      servers: { native: { command: 'native-server' } }
+    })
+    // The plain command form already reaches the mount builder as a stdio server.
+    const { mounts } = await toMcpMounts(withDefaultSurfaces(agents), join(project, '.dsh/agent-plugins/data'))
+    expect(mounts.map(mount => `${mount.suiteId}/${mount.serverKey}`)).toEqual(['native/agents-native/agents'])
+  })
+
+  it('fails a malformed Agent layout MCP file closed without touching other layouts', async () => {
+    const project = await root()
+    await mkdir(join(project, '.agents'))
+    await mkdir(join(project, '.zcode'))
+    await writeFile(join(project, '.agents/mcp.json'), '{"mcpServers":{"broken":{"command":"unterminated"}}')
+    await writeFile(join(project, '.zcode/config.json'), '{"mcp":{"servers":{"native":{"command":"native-server"}}}}')
+
+    const suites = await discoverNativeProjectSuites(project, 'project')
+    const agents = suites.find(suite => suite.id === 'agents-native')
+    const zcode = suites.find(suite => suite.id === 'zcode-native')
+    // The malformed file disables MCP for the agents suite; the layout still
+    // yields a suite so its diagnostic is visible, carrying nothing to mount.
+    if (agents === undefined) throw new Error('expected the malformed .agents MCP file to keep a diagnosed suite')
+    expect(agents.errors).toEqual(['.agents/mcp.json: project configuration is invalid JSON'])
+    expect(agents.mcp).toBeUndefined()
+    expect(agents.surfaces.mcp).toBe(0)
+    expect(zcode?.errors).toEqual([])
+    expect(Object.keys(zcode!.mcp!.servers)).toEqual(['native'])
+  })
+
   it('reads Codex TOML and carries credentials, tool restrictions and timeouts into bridge requests', async () => {
     const project = await root()
     await mkdir(join(project, '.codex'))
@@ -133,16 +204,6 @@ tool_timeout_sec = nan
     const snapshot = await catalog.readProjectCatalog(project)
     expect(snapshot.enabledSuites[0]?.activeSurfaces.lsp).toBe(false)
     expect(snapshot.scanNotes?.local?.join('\n')).toContain('project LSP declarations are not mounted')
-  })
-  it('reads ZCode nested servers and uses the agents fallback only when no native server exists', async () => {
-    const project = await root()
-    await mkdir(join(project, '.zcode'))
-    await mkdir(join(project, '.agents'))
-    await writeFile(join(project, '.agents/mcp.json'), '{"mcpServers":{"fallback":{"command":"fallback"}}}')
-    const files = ['zcode.json', '.zcode/config.json']
-    expect(Object.keys((await discoverProjectMcp(project, files, [], 'zcode'))!.servers)).toEqual(['fallback'])
-    await writeFile(join(project, '.zcode/config.json'), '{"mcp":{"servers":{"native":{"command":"native"},"off":{"command":"disabled","enabled":false}}}}')
-    expect(Object.keys((await discoverProjectMcp(project, files, [], 'zcode'))!.servers)).toEqual(['native'])
   })
   it('reads Qoder MCP keys only, merges local overrides, and supports native absolute commands', async () => {
     const project = await root()

@@ -2,7 +2,7 @@
 
 # dsh-agent-plugins-market
 
-**[DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness)的插件市场与 Agent 能力管理工作区。**
+**在 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 之内，一站式管理 skills、subagent、MCP、LSP，兼容 Claude Code、Codex、Cursor、Kimi 等 agent plugins 体系。**
 
 复用 Claude Code、Codex、Cursor、Kimi 等已识别布局中支持的内容，在 DSH Web 界面管理自己的技能、命令、代理角色、MCP 服务和 LSP 服务。
 
@@ -93,7 +93,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 **来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件；安装并启用套件决定其运行时能力是否生效。
 
-你自己创作的内容都放在共用的 Agent 布局根目录：技能、命令和角色是 `~/.agents/` 下的 Markdown 文件，工作区里新增的 MCP 与 LSP 服务分别保存在 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。项目原生资源继续保留在项目中。路径和优先级见[存储与发现](docs/user/usage.zh.md#存储与发现)。
+你自己创作的内容都放在共用的 Agent 布局根目录：技能、命令和角色是 `~/.agents/` 下的 Markdown 文件，命令 hooks 放在 `~/.agents/hooks.json`（或 `~/.agents/hooks/hooks.json`），工作区里新增的 MCP 与 LSP 服务分别保存在 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。命令与角色按任意子目录深度读取，因此其它工具写在 `~/.agents/commands/git/commit.md` 的文件可用 `/git-commit` 调用。项目原生资源继续保留在项目中。路径和优先级见[存储与发现](docs/user/usage.zh.md#存储与发现)。
 
 六个页签共用持久化的卡片/列表偏好。新增、刷新统一位于页头；资源状态条为绿色时表示生效中。
 
@@ -155,7 +155,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 | 无清单技能集合                                                                                                | 支持 | 支持 | 支持 | 支持 | 部分   | 部分   |
 | 项目原生目录                                                                                                  | 支持 | 支持 | 支持 | 支持 | 部分   | 不支持 |
 
-- **技能**读取清单声明的路径与约定的 `skills/` 目录，也支持平铺的 `SKILL.md` 文件。合规的 agent-plugins 套件是例外：技能只来自 `skills/` 一层子目录，与其规范一致。
+- **技能**读取清单声明的路径与约定的 `skills/` 目录，也支持平铺的 `<name>.md` 文件。自带 `SKILL.md` 的路径就是一个技能：与它并列的文档属于该技能，不作为技能读取。合规的 agent-plugins 套件是例外：技能只来自 `skills/` 一层子目录，与其规范一致。
 - **代理与命令**按 Markdown 读取（`agents/*.md`、`commands/*.md`）。Cursor 插件命令接受 `.md`、`.mdc`、`.markdown`、`.txt`；Codex 与 Kimi 的原生代理/命令格式（TOML、YAML）尚未适配。
 - **MCP** 支持声明的文件、内联表与数组。Cursor 的无 schema `mcp.json` 与 agent-plugins 的严格 `mcp.json` 都能读取；Kimi Code 只读内联声明。Codex 的 app 连接器不在适配范围内。
 - **Hooks** 只映射 DSH 有对应点的命令类事件；没有对应点的事件（例如 `afterFileEdit`）给出诊断而不伪造执行。Cursor 的原生事件不读取。
@@ -220,3 +220,11 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 - [安全政策](SECURITY.md) · [版本记录](CHANGELOG.md) · [MIT 许可](LICENSE)。
 - [领域词汇](CONTEXT.md) · [架构设计](docs/developer/decisions/0001-catalog-centered-modular-refactor.md)。
 - [代理角色与存储](docs/user/agent-roles.zh.md)：已安装资源编辑、角色模型路由与目录迁移。
+
+## 交流群
+
+扫描下方二维码加入 **dsh-agent-plugins-market** 微信群，提问与提需求都可以在群里说。
+
+<div align="center">
+  <img src="docs/screenshots/wechat-group.webp" alt="dsh-agent-plugins-market 微信群二维码" width="240" />
+</div>

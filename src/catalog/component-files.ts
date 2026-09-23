@@ -2,6 +2,7 @@
 import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { extname, join, relative, resolve } from 'node:path'
 import type { SuiteMarkdownResource } from '../model/types.js'
+import { commandCallName } from '../model/command-names.js'
 import { PLUGIN_ROOT_VARIABLES } from '../model/layouts.js'
 import { isFile } from './fs-probes.js'
 import { isWithin } from './paths.js'
@@ -158,6 +159,7 @@ export async function resourceText(resource: SuiteMarkdownResource): Promise<str
   return resource.content ?? (await readFile(resource.file, 'utf8'))
 }
 
+/** Registration name of a command resource; one rule governs suite, project-native, and user-panel commands. */
 export function resourceCommandName(name: string): string {
-  return name.replaceAll('/', '-').replaceAll('\\', '-').toLowerCase()
+  return commandCallName(name)
 }

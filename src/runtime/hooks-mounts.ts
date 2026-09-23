@@ -6,9 +6,12 @@
  *
  * The bridge is a cordis function plugin (`inject: ['shell']`) whose config
  * is a single `configPath` plus `pluginRoot` for `${CLAUDE_PLUGIN_ROOT}`
- * substitution — exactly the shape a suite hook file needs. Mounts reconcile
- * on every enable/disable/install/uninstall; a missing bridge package, a
- * broken hook file, or a mount failure is contained per suite.
+ * substitution — exactly the shape a suite hook file needs. `projectDir` is
+ * forwarded only for hooks declared by a project layout; user Agent layout
+ * hooks carry none, so the bridge defaults `${CLAUDE_PROJECT_DIR}` to the
+ * calling session's workspace. Mounts reconcile on every
+ * enable/disable/install/uninstall; a missing bridge package, a broken hook
+ * file, or a mount failure is contained per suite.
  */
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
@@ -102,7 +105,7 @@ export class HooksMountRegistry {
       handle = mountCtx.plugin(bridge, {
         configPath,
         pluginRoot: suite.root,
-        ...(suite.hooks === undefined ? {} : { projectDir: suite.hooks.projectRoot })
+        ...(suite.hooks?.projectRoot === undefined ? {} : { projectDir: suite.hooks.projectRoot })
       })
       await handle.await()
       this.live.set(key, handle)

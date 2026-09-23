@@ -115,6 +115,32 @@ describe('unified Markdown resource panel', () => {
     expect(host.querySelector('[role="dialog"]')).toBeNull()
   })
 
+  it('renders a nested command under its flattened call name in the card and the detail', async () => {
+    const command = {
+      ...user,
+      id: 'user:git/commit',
+      name: 'git/commit',
+      description: 'Commit staged work',
+      path: '/user/commands/git/commit.md',
+      rawText: '---\ndescription: Commit staged work\n---\nCommit: $ARGUMENTS',
+      content: 'Commit: $ARGUMENTS'
+    }
+    api.fetchUserPanel.mockResolvedValue([command])
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'commands' })))
+
+    // The slash menu only accepts `git-commit`, so the card shows that name
+    // rather than the `git/commit` path the panel addresses the document by.
+    expect([...host.querySelectorAll('span')].some(span => span.textContent === '/git-commit')).toBe(true)
+
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    expect(card).not.toBeNull()
+    await act(async () => card!.click())
+    expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('/git-commit')
+  })
+
   it('switches a skill through the harness invocation pair, never the panel key', async () => {
     const on = {
       ...user,

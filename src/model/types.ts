@@ -293,7 +293,8 @@ export interface Suite extends DiscoveredSuite {
 }
 
 export interface ProjectHooks {
-  projectRoot: string
+  /** Absent when the hooks belong to the user Agent layout root: the bridge then defaults `${CLAUDE_PROJECT_DIR}` to the calling session's workspace. */
+  projectRoot?: string
   events: Record<string, Array<{ matcher?: string; hooks: Array<{ type: 'command'; command: string; timeout?: number }> }>>
 }
 

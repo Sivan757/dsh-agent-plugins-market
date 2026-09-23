@@ -350,6 +350,22 @@ describe('discovery: manifest-less skill collection layout', () => {
   })
 })
 
+describe('discovery: manifest-declared skill directories', () => {
+  it('reads a declared skill directory as one skill and leaves its reference documents alone', async () => {
+    const suites = await discoverSuitesInSource(join(fixtures, 'declared-skill-dirs'), 'declared', 'user')
+    expect(suites).toHaveLength(1)
+    const suite = required(suites[0], 'the declared-skill-dirs fixture to yield one suite')
+    expect(suite.skills.map(skill => skill.name).sort()).toEqual(['codebase-design', 'teach'])
+    // A document beside a skill's own SKILL.md belongs to that skill: reading it
+    // as a flat skill would invent a skill and report every reference as
+    // malformed. One of them carries valid frontmatter, so a scan that reads it
+    // registers a skill nobody declared rather than only producing a diagnostic.
+    expect(suite.errors).toEqual([])
+    expect(suite.skills.some(skill => skill.name === 'frontmatter-reference')).toBe(false)
+    expect(suite.surfaces.skills).toBe(2)
+  })
+})
+
 describe('suite detail and skill content (market detail endpoints)', () => {
   it('lists skills, mcp servers, and file lists from the v1 fixture', async () => {
     const userRoot = await mkdtemp(join(tmpdir(), 'dsh-agent-plugins-det-'))

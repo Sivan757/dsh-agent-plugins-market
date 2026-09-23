@@ -2,7 +2,7 @@
 
 # dsh-agent-plugins-market
 
-**A plugin marketplace and agent capability workspace for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).**
+**A one-stop skills, subagent, MCP and LSP manager inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.**
 
 Reuse supported content from Claude Code, Codex, Cursor, Kimi and other recognized layouts, and manage your own skills, commands, agent personas, MCP services and LSP servers in the DSH Web GUI.
 
@@ -93,7 +93,7 @@ The workspace has six tabs:
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
 
-Everything you author yourself lives in the shared Agent layout root: skills, commands and personas as Markdown under `~/.agents/`, and the MCP and LSP services you add in the workspace in `~/.agents/mcp.json` and `~/.agents/lsp.json`. Project-native resources stay in the project. See [storage and discovery](docs/user/usage.md#storage-and-discovery) for paths and precedence.
+Everything you author yourself lives in the shared Agent layout root: skills, commands and personas as Markdown under `~/.agents/`, command hooks in `~/.agents/hooks.json` (or `~/.agents/hooks/hooks.json`), and the MCP and LSP services you add in the workspace in `~/.agents/mcp.json` and `~/.agents/lsp.json`. Commands and personas are read at any subdirectory depth, so a file another tool wrote at `~/.agents/commands/git/commit.md` is callable as `/git-commit`. Project-native resources stay in the project. See [storage and discovery](docs/user/usage.md#storage-and-discovery) for paths and precedence.
 
 All six tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active.
 
@@ -155,7 +155,7 @@ The table says per layout whether this plugin reads a given surface at all. **Ye
 | Manifest-less skill collection                                                                                | Yes    | Yes     | Yes      | Yes     | Partial | Partial |
 | Project-native directories                                                                                    | Yes    | Yes     | Yes      | Yes     | Partial | No      |
 
-- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `SKILL.md` files. A conformant agent-plugins package is the exception: skills come from one level of `skills/` subdirectories, exactly as its specification requires.
+- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `<name>.md` files. A path that carries its own `SKILL.md` is one skill: the documents beside it belong to that skill and are not read as skills. A conformant agent-plugins package is the exception: skills come from one level of `skills/` subdirectories, exactly as its specification requires.
 - **Agents and commands** are read as Markdown (`agents/*.md`, `commands/*.md`). Cursor plugin commands accept `.md`, `.mdc`, `.markdown` and `.txt`. Codex and Kimi native agent/command formats (TOML, YAML) have no adapter yet.
 - **MCP** covers declared files, inline tables and arrays. Cursor's schema-less `mcp.json` and agent-plugins' strict `mcp.json` both work; Kimi Code is inline-only. Codex app connectors stay outside this adapter.
 - **Hooks** map the command-style events DSH has an equivalent for; events without one (for example `afterFileEdit`) are reported instead of simulated. Cursor's native events are not read.
@@ -220,3 +220,11 @@ Only when you tick **also delete the managed market directory** in the confirmat
 - [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).
 - [Domain glossary](CONTEXT.md) · [Architecture](docs/developer/decisions/0001-catalog-centered-modular-refactor.md).
 - [Agent roles and storage](docs/user/agent-roles.md): installed-resource editing, model routing and migration.
+
+## Community
+
+Scan the QR code to join the **dsh-agent-plugins-market** WeChat group, where we answer questions and take feature requests.
+
+<div align="center">
+  <img src="docs/screenshots/wechat-group.webp" alt="WeChat group QR code for dsh-agent-plugins-market" width="240" />
+</div>

@@ -18,6 +18,7 @@ import type { McpBackend } from '../runtime/mcp-backend.js'
 import { loadUserMcpSuite, type McpImportResult } from '../runtime/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
 import { loadSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
+import { loadUserHooksSuite } from '../runtime/user-hooks.js'
 import { applyLspOverrides } from '../runtime/server-config.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
 import { CatalogContext, type CatalogGitOptions, type CatalogOptions } from './catalog-context.js'
@@ -129,8 +130,14 @@ export class Catalog implements MarketService {
     )
     const sources = state.sources.filter(source => enabledSources.has(source.id))
     const suites = sources.length === 0 ? [] : (await this.snapshots.build({ ...state, sources }, 'user', this.context.userRoot)).enabledSuites
-    const direct = await loadUserMcpSuite(this.context.agentsRoot)
-    return applyLspOverrides(this.context.dataRoot, Object.keys(direct.mcp.servers).length === 0 ? suites : [...suites, direct])
+    // The user's own Agent layout declarations ride the same mount registries
+    // as an installed suite: each direct suite joins the list only when it
+    // declares the content its surface count reports, so an absent or empty
+    // file costs no mount pass.
+    const mcp = await loadUserMcpSuite(this.context.agentsRoot)
+    const hooks = await loadUserHooksSuite(this.context.agentsRoot)
+    const direct = [...(Object.keys(mcp.mcp.servers).length === 0 ? [] : [mcp]), ...(hooks.surfaces.hooks === 0 ? [] : [hooks])]
+    return applyLspOverrides(this.context.dataRoot, direct.length === 0 ? suites : [...suites, ...direct])
   }
 
   /** The full market overview from one user snapshot. */

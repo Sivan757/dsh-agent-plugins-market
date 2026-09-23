@@ -29,7 +29,7 @@ The active contracts in `schemas/` describe ten layouts: eight client/convention
 
 `component-files.ts` resolves contained paths and normalized resources; `suite-components.ts` normalizes hook and LSP declarations. Catalog counts, command/agent providers, role routing and detail panels consume those same resources. Invalid explicit hooks cannot revive the default hook file. Inline manifest commands remain read-only in the resource editor.
 
-The project dimension reuses that normalization through `native-project.ts`, so `.agents/hooks/hooks.json` and `.agents/hooks.json` mount exactly like a suite's own `hooks.json`; a standalone file may hold the bare event table or a `hooks` key.
+The project dimension reuses that normalization through `native-project.ts`, so `.agents/hooks/hooks.json` and `.agents/hooks.json` mount exactly like a suite's own `hooks.json`; a standalone file may hold the bare event table or a `hooks` key. `.agents/mcp.json` is that layout's own `mcpServers` document, beside root `.mcp.json` for Claude Code and `.cursor/mcp.json` for Cursor; ZCode reads its own files only. The user Agent layout root `~/.agents/` carries the same surfaces: the panel-authored skills, commands and personas, the same two hook file names, and hand-written `mcp.json` / `lsp.json` declarations.
 
 A metadata-only root `plugin.json` keeps its existing identity but inherits missing component declarations from its co-located Claude manifest. The unmodified ponytail fixture verifies this behavior; otherwise its root name-only file would still hide its real hooks despite passing isolated tests.
 

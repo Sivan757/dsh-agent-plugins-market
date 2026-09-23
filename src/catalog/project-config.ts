@@ -48,7 +48,6 @@ export async function discoverProjectMcp(
     found = true
     Object.assign(servers, table)
   }
-  if (format === 'zcode' && Object.keys(servers).length === 0) return discoverProjectMcp(projectRoot, ['.agents/mcp.json'], errors)
   if (!found) return undefined
   for (const [key, server] of Object.entries(servers)) {
     if (typeof server === 'object' && server !== null && (server as Record<string, unknown>).enabled === false) delete servers[key]

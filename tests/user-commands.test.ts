@@ -21,13 +21,8 @@ interface Definition {
 }
 
 /** A host context whose `commands` registry records the live registrations. */
-async function mountOneCommand(): Promise<{ store: Awaited<ReturnType<typeof createUserPanelStores>>['commands']; registered: Map<string, Definition> }> {
-  const root = await mkdtemp(join(tmpdir(), 'market-user-commands-'))
-  roots.push(root)
-  const panels = createUserPanelStores(join(root, 'agents'))
-  await panels.commands.create('do-thing', '---\ndescription: Do the thing\n---\nDo the thing: $ARGUMENTS')
-  const registered = new Map<string, Definition>()
-  const context = {
+function commandHost(registered: Map<string, Definition>): Context {
+  return {
     commands: {
       register: (definition: Definition) => {
         registered.set(definition.name, definition)
@@ -36,10 +31,30 @@ async function mountOneCommand(): Promise<{ store: Awaited<ReturnType<typeof cre
         }
       }
     }
-  }
-  const registry = new UserCommandMountRegistry(context as unknown as Context, panels.commands, bindHostLocale(undefined))
-  expect(await registry.reconcile()).toEqual([])
-  return { store: panels.commands, registered }
+  } as unknown as Context
+}
+
+/** Seed a user commands panel with the given documents and reconcile it once. */
+async function mountCommands(documents: Record<string, string>): Promise<{
+  store: Awaited<ReturnType<typeof createUserPanelStores>>['commands']
+  registered: Map<string, Definition>
+  diagnostics: string[]
+}> {
+  const root = await mkdtemp(join(tmpdir(), 'market-user-commands-'))
+  roots.push(root)
+  const panels = createUserPanelStores(join(root, 'agents'))
+  for (const [name, text] of Object.entries(documents)) await panels.commands.create(name, text)
+  const registered = new Map<string, Definition>()
+  const registry = new UserCommandMountRegistry(commandHost(registered), panels.commands, bindHostLocale(undefined))
+  const diagnostics = await registry.reconcile()
+  return { store: panels.commands, registered, diagnostics }
+}
+
+/** One flat command, its panel store, and its live registration. */
+async function mountOneCommand(): Promise<{ store: Awaited<ReturnType<typeof createUserPanelStores>>['commands']; registered: Map<string, Definition> }> {
+  const { store, registered, diagnostics } = await mountCommands({ 'do-thing': '---\ndescription: Do the thing\n---\nDo the thing: $ARGUMENTS' })
+  expect(diagnostics).toEqual([])
+  return { store, registered }
 }
 
 describe('user command mounts', () => {
@@ -74,5 +89,34 @@ describe('user command mounts', () => {
     }
     const registry = new UserCommandMountRegistry(context as unknown as Context, store, bindHostLocale(undefined))
     expect(await registry.reconcile()).toEqual([])
+  })
+
+  it('registers a nested command under its flattened call name', async () => {
+    const { registered, diagnostics } = await mountCommands({ 'git/commit': '---\ndescription: Commit staged work\n---\nCommit: $ARGUMENTS' })
+    expect(diagnostics).toEqual([])
+    // The panel addresses `git/commit`; the slash menu only accepts `git-commit`.
+    expect([...registered.keys()]).toEqual(['git-commit'])
+    const definition = registered.get('git-commit')
+    if (definition === undefined) throw new Error('expected the nested user command to register as git-commit')
+    expect(definition.description).toBe('[用户命令] Commit staged work')
+
+    const messages: unknown[] = []
+    const result = definition.handler({ agent: { followup: (message: unknown) => messages.push(message) }, rawInput: ' now' })
+    expect(result).toEqual({ kind: 'success', text: '/git-commit 已转交模型执行' })
+    const forwarded = required(messages[0] as UserMessage | undefined, 'the nested user command to forward one follow-up')
+    expect(forwarded.content).toEqual([{ type: 'text', text: 'Commit: now' }])
+  })
+
+  it('registers one of two commands that flatten to the same call name and diagnoses the other', async () => {
+    const { registered, diagnostics } = await mountCommands({
+      'git-commit': '---\ndescription: Flat spelling\n---\nFlat: $ARGUMENTS',
+      'git/commit': '---\ndescription: Nested spelling\n---\nNested: $ARGUMENTS'
+    })
+    expect([...registered.keys()]).toEqual(['git-commit'])
+    expect(diagnostics).toHaveLength(1)
+    // The diagnostic names both documents, so the shadowed one stays findable.
+    expect(diagnostics[0]).toContain('git-commit')
+    expect(diagnostics[0]).toContain('git/commit')
+    expect(diagnostics[0]).toContain('shadowed')
   })
 })

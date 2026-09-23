@@ -27,7 +27,7 @@ Namespace values are the suite's defaults rather than a ceiling the user cannot 
 
 ## User-owned declarations
 
-`~/.agents/mcp.json` is local data rather than a distributable package. Keys this client does not know are stored back exactly as written, and the package-only rules — a closed server shape, bare command names, plugin-relative paths — do not apply to it. A suite's packaged `mcp.json` keeps every one of them, because a package carrying fields this client cannot honour is one it cannot promise to mount.
+`~/.agents/mcp.json` is local data rather than a distributable package. Keys this client does not know are stored back exactly as written, and the package-only rules — a closed server shape, bare command names, plugin-relative paths — do not apply to it. A suite's packaged `mcp.json` keeps every one of them, because a package carrying fields this client cannot honour is one it cannot promise to mount. `$schema` is optional here: a file another Agent tool wrote is read as this release's dialect when the key is absent, and a declared version this client does not recognize is rejected.
 
 The editor reads the same two seats a suite declares, for one server at a time: the portable definition under `mcpServers` and this client's policy under `com.deepseek.harness`. The form writes only the half it owns, so a field it has no control for — a key another client introduced, a policy entry the form does not show — survives both a form edit and a JSON edit. Only the policy entries the user changed are sent on save; an entry the document drops asks for inheritance.
 

@@ -2,15 +2,19 @@
  * User command mounting: every enabled entry of the user commands panel
  * registers as a dsh slash command, so user-authored quick replies behave
  * exactly like suite commands — the body with `$ARGUMENTS` substituted rides
- * one follow-up message on the receiving agent. Reconciled on every catalog
- * change, keyed `user/<name>`.
+ * one follow-up message on the receiving agent. A nested entry registers
+ * under its flattened call name (`git/commit` → `git-commit`) while the panel
+ * keeps addressing it by path; when two entries flatten to one call name the
+ * first registers and the other is reported. Reconciled on every catalog
+ * change, keyed by the call name.
  * @module runtime/user-commands
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
+import { commandCallName } from '../model/command-names.js'
 import type { HostTranslate } from './host-locale.js'
-import { USER_ENTRY_NAME } from './user-store.js'
+import { USER_ENTRY_PATH } from './user-store.js'
 import type { UserPanelStore } from './user-panels.js'
 
 /** Host surface this registry touches (mirrors commands-mounts.ts). */
@@ -53,12 +57,22 @@ export class UserCommandMountRegistry {
     const diagnostics: string[] = []
     const entries = await this.store.list()
     const wanted = new Map<string, UserCommandSpec>()
+    // Registration is keyed by call name, so two entries that flatten to the
+    // same one cannot silently shadow each other.
+    const owners = new Map<string, string>()
     for (const entry of entries) {
       if (entry.disabled) continue
-      if (!USER_ENTRY_NAME.test(entry.name)) continue
-      wanted.set(entry.name, {
-        name: entry.name,
-        description: entry.description === '' ? `[${this.t('userCommandSourceLabel')}] ${entry.name}` : `[${this.t('userCommandSourceLabel')}] ${entry.description}`,
+      if (!USER_ENTRY_PATH.test(entry.name)) continue
+      const callName = commandCallName(entry.name)
+      const owner = owners.get(callName)
+      if (owner !== undefined) {
+        diagnostics.push(`command "${callName}": "${entry.name}" is shadowed by "${owner}" — both flatten to the same call name`)
+        continue
+      }
+      owners.set(callName, entry.name)
+      wanted.set(callName, {
+        name: callName,
+        description: entry.description === '' ? `[${this.t('userCommandSourceLabel')}] ${callName}` : `[${this.t('userCommandSourceLabel')}] ${entry.description}`,
         ...(typeof entry.metadata['argument-hint'] === 'string' && entry.metadata['argument-hint'] !== '' ? { hint: entry.metadata['argument-hint'] } : {}),
         body: entry.content
       })

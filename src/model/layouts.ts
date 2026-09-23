@@ -71,6 +71,7 @@ export const PROJECT_LAYOUTS = [
     dirName: '.agents',
     label: 'agents',
     subdirs: ['skills', 'agents', 'commands'],
+    mcpFiles: ['.agents/mcp.json'],
     hookFiles: ['.agents/hooks/hooks.json', '.agents/hooks.json']
   },
   { dirName: '.codex', label: 'Codex', subdirs: ['skills'], mcpFiles: ['.codex/config.toml'], mcpFormat: 'codex' },

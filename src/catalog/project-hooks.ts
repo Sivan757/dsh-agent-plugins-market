@@ -22,9 +22,10 @@ function declarationText(value: unknown): string {
  * a standalone hook file may carry the bare event table instead of a `hooks`
  * key. A recognized top-level event name is the marker — a document with no
  * event name at the top stays verbatim, so an ordinary settings file missing
- * `hooks` is still not accepted as a bare event table.
+ * `hooks` is still not accepted as a bare event table. Exported because the
+ * user Agent layout root reads the same standalone file shapes.
  */
-function settingsDocument(settings: Record<string, unknown>, format: ProjectHookFormat): Record<string, unknown> {
+export function standaloneHookDocument(settings: Record<string, unknown>, format: ProjectHookFormat = 'claude'): Record<string, unknown> {
   if (format !== 'claude' || settings.hooks !== undefined) return settings
   const isEventTable = Object.keys(settings).some(key => EVENTS.has(key))
   return isEventTable ? { ...settings, hooks: settings } : settings
@@ -41,14 +42,18 @@ export async function discoverProjectHooks(
   for (const file of files) {
     const settings = await readProjectDocument(projectRoot, file, errors)
     if (settings === null) return undefined
-    if (settings !== undefined) documents.push({ file, settings: settingsDocument(settings, format) })
+    if (settings !== undefined) documents.push({ file, settings: standaloneHookDocument(settings, format) })
   }
   return normalizeHookDocuments(projectRoot, documents, errors, format)
 }
 
-/** Pure validation shared by native settings and plugin file/inline declarations. */
+/**
+ * Pure validation shared by native settings and plugin file/inline
+ * declarations. `projectRoot` is absent for hooks declared in the user Agent
+ * layout root, which belong to no project.
+ */
 export function normalizeHookDocuments(
-  projectRoot: string,
+  projectRoot: string | undefined,
   documents: Array<{ file: string; settings: Record<string, unknown> }>,
   errors: string[],
   format: ProjectHookFormat = 'claude'
@@ -77,7 +82,7 @@ export function normalizeHookDocuments(
     }
     for (const [event, groups] of Object.entries(eventTable)) {
       if (!EVENTS.has(event)) {
-        errors.push(`${file}: unsupported project hook event ${event}`)
+        errors.push(`${file}: unsupported hook event ${event}`)
         continue
       }
       if (!Array.isArray(groups)) {
@@ -118,7 +123,7 @@ export function normalizeHookDocuments(
             return undefined
           }
           if (hook.async === true || hook.asyncRewake === true) {
-            errors.push(`${file}: asynchronous project hooks are unsupported`)
+            errors.push(`${file}: asynchronous hooks are unsupported`)
             continue
           }
           const key = JSON.stringify([event, matcher, hook.command])
@@ -136,5 +141,5 @@ export function normalizeHookDocuments(
       }
     }
   }
-  return !disabled && Object.keys(events).length > 0 ? { projectRoot, events } : undefined
+  return !disabled && Object.keys(events).length > 0 ? { ...(projectRoot === undefined ? {} : { projectRoot }), events } : undefined
 }

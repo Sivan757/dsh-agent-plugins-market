@@ -5,13 +5,17 @@
  * frontmatter rules the catalog uses, so user entries look exactly like suite
  * entries to the runtime mounts.
  *
- * An entry is one document. Skills also accept the cross-tool directory
- * spelling (`<name>/SKILL.md`) that other Agent tools and the harness's own
- * reader of `~/.agents/skills` author; commands and personas are flat only.
+ * An entry is one document. A flat panel reads the immediate `<name>.md`
+ * children of its directory; a nested panel (commands and agent personas)
+ * reads every `.md` document at any depth and names each by its path relative
+ * to that directory. Skills also accept the cross-tool directory spelling
+ * (`<name>/SKILL.md`) that other Agent tools and the harness's own reader of
+ * `~/.agents/skills` author, and read it from the top level only.
  * @module runtime/user-store
  */
 
 import { readdir, readFile, rmdir, rm, stat } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { parseDocument, stringify } from 'yaml'
@@ -22,8 +26,16 @@ export function userEntryDir(agentsRoot: string, kind: 'skills' | 'commands' | '
   return join(agentsRoot, kind)
 }
 
-/** `[a-z][a-z0-9_-]*` — the grammar every panel entry name must satisfy. */
+/** `[a-z][a-z0-9_-]*` — one segment of a panel entry name. */
 export const USER_ENTRY_NAME = /^[a-z][a-z0-9_-]*$/
+
+/**
+ * The path grammar a nested panel entry name satisfies: one or more
+ * {@link USER_ENTRY_NAME} segments joined by `/`. It rejects `..`, leading or
+ * trailing separators, empty segments, backslashes, and uppercase, so the name
+ * stays a path relative to the panel directory.
+ */
+export const USER_ENTRY_PATH = /^[a-z][a-z0-9_-]*(?:\/[a-z][a-z0-9_-]*)*$/
 
 /** The file name of a directory-shaped skill's document. */
 export const SKILL_ENTRY_FILE = 'SKILL.md'
@@ -70,10 +82,12 @@ async function isFile(file: string, strict: boolean): Promise<boolean> {
 
 /**
  * Resolve one entry name to its document, taking the first shape the path
- * exists in. Names outside the entry grammar never touch the filesystem.
+ * exists in. A nested panel accepts a path name (`git/commit`); a flat panel
+ * accepts a single segment. Names outside the panel's grammar never touch the
+ * filesystem.
  */
-export async function resolveEntryDocument(dir: string, name: string, shapes: readonly EntryShape[], strict = false): Promise<EntryDocument | undefined> {
-  if (!USER_ENTRY_NAME.test(name)) return undefined
+export async function resolveEntryDocument(dir: string, name: string, shapes: readonly EntryShape[], strict = false, nested = false): Promise<EntryDocument | undefined> {
+  if (!(nested ? USER_ENTRY_PATH : USER_ENTRY_NAME).test(name)) return undefined
   for (const shape of shapes) {
     const file = entryDocumentPath(dir, name, shape)
     if (await isFile(file, strict)) return { name, file, directory: dirname(file), shape }
@@ -81,8 +95,18 @@ export async function resolveEntryDocument(dir: string, name: string, shapes: re
   return undefined
 }
 
-/** Every entry document the served shapes expose, deduplicated by name at the first shape that has it. */
-export async function listEntryDocuments(dir: string, strict = false, shapes: readonly EntryShape[] = ['file']): Promise<EntryDocument[]> {
+/**
+ * Every entry document the served shapes expose. A flat panel reads immediate
+ * children only; a nested panel walks every subdirectory to any depth and
+ * names each entry by its path relative to `dir`. Entries are deduplicated by
+ * name at the first shape that has it.
+ */
+export async function listEntryDocuments(dir: string, strict = false, shapes: readonly EntryShape[] = ['file'], nested = false): Promise<EntryDocument[]> {
+  const found = new Map<string, EntryDocument>()
+  if (nested) {
+    await collectNestedEntryDocuments(dir, '', shapes, strict, found)
+    return [...found.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }
   let entries: string[]
   try {
     entries = await readdir(dir)
@@ -90,7 +114,6 @@ export async function listEntryDocuments(dir: string, strict = false, shapes: re
     if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     return []
   }
-  const found = new Map<string, EntryDocument>()
   for (const entry of entries.sort()) {
     const name = entry.endsWith('.md') ? entry.slice(0, -3) : shapes.includes('skill-directory') ? entry : undefined
     if (name === undefined || !USER_ENTRY_NAME.test(name)) continue
@@ -102,6 +125,40 @@ export async function listEntryDocuments(dir: string, strict = false, shapes: re
     }
   }
   return [...found.values()]
+}
+
+/**
+ * Recursively collect the entry documents under one directory. Dot-directories,
+ * `node_modules`, and symlinks are skipped, so the walk cannot follow a link
+ * out of the panel directory; every segment must satisfy the entry grammar, so
+ * a discovered name stays a relative path. `prefix` is that path so far, with
+ * `/` separators and no trailing slash.
+ */
+async function collectNestedEntryDocuments(dir: string, prefix: string, shapes: readonly EntryShape[], strict: boolean, found: Map<string, EntryDocument>): Promise<void> {
+  let entries: Dirent[]
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch (error) {
+    if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    return
+  }
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.isSymbolicLink() || entry.name.startsWith('.') || entry.name === 'node_modules') continue
+    if (entry.isDirectory()) {
+      if (!USER_ENTRY_NAME.test(entry.name)) continue
+      const name = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+      if (shapes.includes('skill-directory') && (await isFile(join(dir, entry.name, SKILL_ENTRY_FILE), strict))) {
+        found.set(name, { name, file: join(dir, entry.name, SKILL_ENTRY_FILE), directory: join(dir, entry.name), shape: 'skill-directory' })
+      }
+      await collectNestedEntryDocuments(join(dir, entry.name), name, shapes, strict, found)
+      continue
+    }
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+    const segment = entry.name.slice(0, -3)
+    if (!USER_ENTRY_NAME.test(segment)) continue
+    const name = prefix === '' ? segment : `${prefix}/${segment}`
+    found.set(name, { name, file: join(dir, entry.name), directory: dir, shape: 'file' })
+  }
 }
 
 /** Parse full YAML metadata without flattening arrays, mappings, or multiline strings. */
@@ -179,8 +236,8 @@ export interface UserEntryFile {
 }
 
 /** List entries across the served shapes; strict runtime snapshots propagate I/O errors instead of publishing partial inventories. */
-export async function listEntryFiles(dir: string, strict = false, shapes: readonly EntryShape[] = ['file']): Promise<UserEntryFile[]> {
-  const documents = await listEntryDocuments(dir, strict, shapes)
+export async function listEntryFiles(dir: string, strict = false, shapes: readonly EntryShape[] = ['file'], nested = false): Promise<UserEntryFile[]> {
+  const documents = await listEntryDocuments(dir, strict, shapes, nested)
   const found: UserEntryFile[] = []
   for (const document of documents) {
     const parsed = await readEntryDocument(document, strict)
@@ -204,13 +261,15 @@ export async function writeEntryDocument(document: EntryDocument, text: string):
 }
 
 /**
- * Enforce the entry-name grammar at every filesystem choke point. The name
- * is interpolated into `join(dir, name + '.md')`, so an unchecked name with
- * separators or `..` could address any `.md` file (or directory) on disk —
- * read, write, and delete all go through this guard.
+ * Enforce the entry-name path grammar at every filesystem choke point. The
+ * name is interpolated into `join(dir, name + '.md')`, so an unchecked name
+ * with separators or `..` could address any `.md` file (or directory) on disk
+ * — read, write, and delete all go through this guard. Whether the panel
+ * accepts a nested path or a single segment is decided where a caller-supplied
+ * name enters the store (`resolveEntryDocument` and the store's own checks).
  */
 function assertEntryName(name: string): void {
-  if (!USER_ENTRY_NAME.test(name)) throw new Error(`invalid entry name "${name}" — use lowercase letters, digits, dashes, or underscores, starting with a letter`)
+  if (!USER_ENTRY_PATH.test(name)) throw new Error(`invalid entry name "${name}" — use lowercase letters, digits, dashes, or underscores, starting with a letter`)
 }
 
 /**
@@ -227,8 +286,8 @@ export async function deleteEntryDocument(document: EntryDocument): Promise<void
 }
 
 /** Whether an entry document with that name exists in any served shape. */
-export async function entryExists(dir: string, name: string, shapes: readonly EntryShape[] = ['file']): Promise<boolean> {
-  return (await resolveEntryDocument(dir, name, shapes)) !== undefined
+export async function entryExists(dir: string, name: string, shapes: readonly EntryShape[] = ['file'], nested = false): Promise<boolean> {
+  return (await resolveEntryDocument(dir, name, shapes, false, nested)) !== undefined
 }
 
 /** Serialize a frontmatter block from a shallow record (deterministic key order). */
