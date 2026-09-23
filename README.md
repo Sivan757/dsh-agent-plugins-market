@@ -220,3 +220,11 @@ Only when you tick **also delete the managed market directory** in the confirmat
 - [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).
 - [Domain glossary](CONTEXT.md) · [Architecture](docs/developer/decisions/0001-catalog-centered-modular-refactor.md).
 - [Agent roles and storage](docs/user/agent-roles.md): installed-resource editing, model routing and migration.
+
+## Community
+
+Scan the QR code to join the **dsh-agent-plugins-market** WeChat group, where we answer questions and take feature requests.
+
+<div align="center">
+  <img src="docs/screenshots/wechat-group.webp" alt="WeChat group QR code for dsh-agent-plugins-market" width="240" />
+</div>

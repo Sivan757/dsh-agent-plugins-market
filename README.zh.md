@@ -220,3 +220,11 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 - [安全政策](SECURITY.md) · [版本记录](CHANGELOG.md) · [MIT 许可](LICENSE)。
 - [领域词汇](CONTEXT.md) · [架构设计](docs/developer/decisions/0001-catalog-centered-modular-refactor.md)。
 - [代理角色与存储](docs/user/agent-roles.zh.md)：已安装资源编辑、角色模型路由与目录迁移。
+
+## 交流群
+
+扫描下方二维码加入 **dsh-agent-plugins-market** 微信群，提问与提需求都可以在群里说。
+
+<div align="center">
+  <img src="docs/screenshots/wechat-group.webp" alt="dsh-agent-plugins-market 微信群二维码" width="240" />
+</div>
