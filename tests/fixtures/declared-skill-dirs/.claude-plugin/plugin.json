@@ -1,0 +1,6 @@
+{
+  "name": "declared-skill-dirs",
+  "version": "1.0.0",
+  "description": "Claude dialect manifest listing individual skill directories (mattpocock shape).",
+  "skills": ["./skills/engineering/codebase-design", "./skills/productivity/teach"]
+}

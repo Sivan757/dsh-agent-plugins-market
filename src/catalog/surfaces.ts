@@ -4,7 +4,8 @@
  *
  * Skills honor any path the winning manifest declares (`skills` may be a
  * string, an array, or absent), scan up to three levels of nesting, and
- * dedupe by frontmatter name. MCP reads both `mcp.json` and the dot-prefixed
+ * dedupe by frontmatter name. A path carrying its own `SKILL.md` is one skill
+ * and nothing else inside it is read. MCP reads both `mcp.json` and the dot-prefixed
  * `.mcp.json`, tolerating unknown transports per server. Every read is
  * fail-closed: broken files produce a diagnostic and are skipped, never a
  * thrown discovery.
@@ -41,10 +42,12 @@ async function declaredSkillDirs(root: string, declared: unknown, errors: string
 
 /**
  * Discover SKILL.md files under the suite's skills directory, up to 3 levels
- * deep. Portable v1 suites (§7.1) instead discover exactly one level of
- * `skills/` subdirectories each carrying a `SKILL.md` — the spec forbids
- * recursive deeper search and root-level or flat skill files are outside the
- * portable discovery shape.
+ * deep. A path that carries `SKILL.md` is one skill directory — a manifest may
+ * list those individually — and only that document is read from it. Portable
+ * v1 suites (§7.1) instead discover exactly one level of `skills/`
+ * subdirectories each carrying a `SKILL.md` — the spec forbids recursive
+ * deeper search and root-level or flat skill files are outside the portable
+ * discovery shape.
  */
 export async function discoverSkills(root: string, errors: string[], declared?: unknown, portable = false): Promise<SuiteSkill[]> {
   const skills: SuiteSkill[] = []
@@ -91,15 +94,19 @@ export async function discoverSkills(root: string, errors: string[], declared?: 
       pushUnique(await parseOneSkill(skillsDir, dirname(skillsDir), '', errors))
       continue
     }
-    for (const name of await listMdFiles(skillsDir)) {
-      pushUnique(await parseOneSkill(join(skillsDir, name), skillsDir, name.replace(/\.md$/, ''), errors))
-    }
-    // A declared path may be one skill directory (a manifest listing
-    // individual skills, e.g. mattpocock) or a container of skills.
+    // A directory carrying its own `SKILL.md` is one skill, whether a manifest
+    // declared it individually (mattpocock lists every skill directory) or the
+    // conventional container happens to be one. Everything beside that
+    // `SKILL.md` — `references/`, `scripts/`, the notes and formats a skill
+    // attaches — belongs to it, so those documents are neither parsed as flat
+    // skills nor reported as malformed ones.
     if (await isFile(join(skillsDir, 'SKILL.md'))) {
       const name = skillsDir.split(/[\\/]/).at(-1) ?? ''
       pushUnique(await parseOneSkill(join(skillsDir, 'SKILL.md'), skillsDir, name, errors))
       continue
+    }
+    for (const name of await listMdFiles(skillsDir)) {
+      pushUnique(await parseOneSkill(join(skillsDir, name), skillsDir, name.replace(/\.md$/, ''), errors))
     }
     for (const child of await listChildDirs(skillsDir)) {
       const name = child.split(/[\\/]/).at(-1) ?? ''

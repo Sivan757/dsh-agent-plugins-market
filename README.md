@@ -155,7 +155,7 @@ The table says per layout whether this plugin reads a given surface at all. **Ye
 | Manifest-less skill collection                                                                                | Yes    | Yes     | Yes      | Yes     | Partial | Partial |
 | Project-native directories                                                                                    | Yes    | Yes     | Yes      | Yes     | Partial | No      |
 
-- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `SKILL.md` files. A conformant agent-plugins package is the exception: skills come from one level of `skills/` subdirectories, exactly as its specification requires.
+- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `<name>.md` files. A path that carries its own `SKILL.md` is one skill: the documents beside it belong to that skill and are not read as skills. A conformant agent-plugins package is the exception: skills come from one level of `skills/` subdirectories, exactly as its specification requires.
 - **Agents and commands** are read as Markdown (`agents/*.md`, `commands/*.md`). Cursor plugin commands accept `.md`, `.mdc`, `.markdown` and `.txt`. Codex and Kimi native agent/command formats (TOML, YAML) have no adapter yet.
 - **MCP** covers declared files, inline tables and arrays. Cursor's schema-less `mcp.json` and agent-plugins' strict `mcp.json` both work; Kimi Code is inline-only. Codex app connectors stay outside this adapter.
 - **Hooks** map the command-style events DSH has an equivalent for; events without one (for example `afterFileEdit`) are reported instead of simulated. Cursor's native events are not read.
