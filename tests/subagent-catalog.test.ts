@@ -90,7 +90,7 @@ afterEach(async () => {
 
 // Session log format version the installed host accepts; `dsh-session` validates it strictly and
 // exports no constant for it. Bump it in the same change as the host dependency baseline.
-const SESSION_HEADER_VERSION = 3
+const SESSION_HEADER_VERSION = 4
 
 function newAgent(id: string, cwd?: string): { id: string; session: HostSession } {
   const session = Session.create(SessionId(id), [], { version: SESSION_HEADER_VERSION, id: SessionId(id), createdAt: 0, isSeeded: false, ...(cwd === undefined ? {} : { cwd }) })
@@ -211,7 +211,7 @@ describe('durable subagent catalog on the real host session and tool registries'
     restored.session.append('turn/start', { turn: 2 })
     const catalog = restored.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'subagent-catalog')
     if (catalog === undefined) throw new Error('expected a published subagent catalog event')
-    restored.session.append('user/message', createUserMessage({ source: { kind: 'plugin', plugin: 'compact' }, content: [{ type: 'text', text: 'Summary' }] }), {
+    restored.session.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'Summary' }] }), {
       surfaceOp: { op: 'replace', startSeq: catalog.seq, endSeq: catalog.seq },
       sourceEventSeqs: [catalog.seq]
     })

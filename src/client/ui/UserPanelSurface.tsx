@@ -6,7 +6,7 @@
  * @module client/ui/UserPanelSurface
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { IconEditOutline16, IconTrashOutline16, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconEditOutlineMedium, IconTrashOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanel, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
 import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
@@ -329,7 +329,7 @@ function UserEntryRow(props: {
       h(
         'button',
         { type: 'button', className: `${rc.iconBtn} ${rc.revealOnHover}`, 'aria-label': t('panelEditTitle'), disabled: props.busy, title: t('panelEditTitle'), onClick: stop(props.onEdit) },
-        h(IconEditOutline16)
+        h(IconEditOutlineMedium)
       ),
       h(
         'button',
@@ -341,7 +341,7 @@ function UserEntryRow(props: {
           title: t('panelDelete'),
           onClick: stop(props.onDelete)
         },
-        h(IconTrashOutline16)
+        h(IconTrashOutlineMedium)
       ),
       h(
         'span',

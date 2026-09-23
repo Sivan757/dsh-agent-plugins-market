@@ -33,21 +33,23 @@ function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?
         listeners.delete(listener)
       }
     },
-    set: async (field: string, next: unknown) => {
+    set: async (field: string, next: unknown): Promise<boolean> => {
       if (writesFail) throw new Error('write rejected')
       user = { ...user, [field]: next }
       value = { ...value, [field]: next }
       for (const listener of listeners) listener()
+      return true
     },
-    unset: async (field: string) => {
+    unset: async (field: string): Promise<boolean> => {
       if (writesFail) throw new Error('write rejected')
       const next = { ...user }
       delete next[field]
       user = next
       value = { ...value, [field]: MARKET_SETTINGS_DEFAULTS[field as keyof MarketSettings] }
       for (const listener of listeners) listener()
+      return true
     },
-    mutate: async () => {},
+    mutate: async () => true,
     setWritable: (next: boolean) => {
       writable = next
     },

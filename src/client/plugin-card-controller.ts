@@ -20,7 +20,7 @@
  * @module client/plugin-card-controller
  */
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { MARKET_SETTINGS_DEFAULTS, type DownloadRegionSetting, type MarketSettingKey, type MarketSettings } from '../contracts/settings.js'
 import type { McpBackendInfo } from './api.js'
 
@@ -126,11 +126,11 @@ export class MarketPluginCardController {
   private disposed = false
 
   /**
-   * @param scope - the bound settings scope for the market namespace.
+   * @param scope - the host configuration form for the market namespace.
    * @param probe - reads the live host-client and region state from the market API.
    */
   constructor(
-    private readonly scope: SettingsScope<MarketSettings>,
+    private readonly scope: ConfigForm<MarketSettings>,
     private readonly probeSource: () => Promise<McpBackendInfo>
   ) {
     this.store = createSnapshotStore(this.projection())

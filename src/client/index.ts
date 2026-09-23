@@ -9,7 +9,7 @@ import { createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BusyOverlay } from './ui/BusyOverlay.js'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../contracts/settings.js'
 import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
@@ -38,9 +38,11 @@ interface SlotsService {
   register(meta: Record<string, unknown>, component: (props: never) => unknown): (() => void) | undefined
 }
 
-/** The host settings-scope service: the browser mirror of a Host-owned namespace. */
-interface SettingsScopeService {
-  bind<T>(options: { namespace: string }): SettingsScope<T>
+/** The host settings service: forms and the served-namespace watch, browser mirror of Host-owned namespaces. */
+interface ConfigFormsService {
+  get<T>(entryId: string): ConfigForm<T>
+  /** Run register while any of the namespaces is served; its disposer runs when none is or the disposer runs. */
+  whileServed(namespaces: readonly string[], register: (served: ReadonlySet<string>) => () => void): () => void
 }
 
 /** The client cordis context this plugin relies on (structural subset). */
@@ -48,6 +50,7 @@ interface SuiteClientContext {
   effect(callback: () => unknown, label?: string): void
   /** Late service resolution; absent on hosts predating cross-plugin inject. */
   inject?(services: string[], callback: (resolved: Record<string, unknown>) => void): void
+  configForms?: ConfigFormsService
   locale: LocaleService
   slots: SlotsService
   remote: { credentials: CredentialRemote }
@@ -97,26 +100,32 @@ export function apply(ctx: SuiteClientContext): void {
     subscribeLocale: ctx.locale.subscribe === undefined ? undefined : (listener) => ctx.locale.subscribe!(listener),
   }), 'dsh-agent-plugins-market: legacy page mode')
 
-  // The host 插件配置 tab card. Registration rides the injected scope's slots
-  // (the dshmarket / dsh-rewind pattern): the card's form binds the market's
-  // settings namespace — the namespace the node half registers, which is also
-  // what makes the tab serve our card at all.
-  ctx.inject?.(['settingsScope'], (scoped: { settingsScope?: SettingsScopeService; slots?: SlotsService }) => {
-    const service = scoped.settingsScope
+  // The host Plugins page card. Registration rides the settings service's
+  // whileServed watch: the card's form reads the market's settings namespace —
+  // the namespace the node half registers, which is also what makes the page
+  // serve our card at all. The order seats the market after the official
+  // settings pages (shell 10, agent-loop 20, subagent 30, web-search 40).
+  ctx.inject?.(['configForms'], (scoped: { configForms?: ConfigFormsService; slots?: SlotsService }) => {
+    const service = scoped.configForms
     const slots = scoped.slots
     if (service === undefined || slots === undefined) return
-    slots.inject('settings.plugin.item', () => {
-      // One form per declaration lifetime: a collapsed and re-declared slot
-      // gets a live controller rather than the disposed one from before.
-      const card = new MarketPluginCardController(service.bind<MarketSettings>({ namespace: NS }), fetchMcpBackend)
+    // One controller per served lifetime: when the namespace stops being
+    // served the registration unwinds, and a re-served namespace gets a live
+    // controller rather than the disposed one from before.
+    let card: MarketPluginCardController | undefined
+    service.whileServed([NS], () => {
+      card = new MarketPluginCardController(service.get<MarketSettings>(NS), fetchMcpBackend)
       const dispose = slots.register({
-        name: 'settings.plugin.item',
-        key: NS,
+        name: 'plugins.item',
+        id: NS,
+        order: 50,
+        label: () => t('nav'),
         locale: NS,
-        inject: () => card.inject(),
+        inject: () => card!.inject(),
       }, McpPluginCard)
       return () => {
-        card.dispose()
+        card?.dispose()
+        card = undefined
         if (typeof dispose === 'function') dispose()
       }
     })

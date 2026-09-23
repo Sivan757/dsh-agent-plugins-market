@@ -31,3 +31,5 @@ The family-agreement rule is gone. The capability packages are still queried, so
 ## Related decisions
 
 Partially supersedes [force the host dependency baseline to one release line before it can ship](2026-09-11-host-dependency-alignment-gate.md): the three gate points, the six rules, the two provisioning sections and the `--fix` behaviour remain in force; which tag defines the baseline, and whether the capability packages vote on it, change here.
+
+The channel choice here is superseded in full by [resolve the alignment baseline from the prerelease candidate line](2026-09-23-next-channel-baseline.md): the anchor-package resolution, the provisioning rules and the `--fix` behaviour carry forward, while the default tag returns to `next` once the family's publish flow showed `latest` lagging behind the only line consumers install.

@@ -16,6 +16,7 @@ import { commandCallName } from '../model/command-names.js'
 import type { HostTranslate } from './host-locale.js'
 import { USER_ENTRY_PATH } from './user-store.js'
 import type { UserPanelStore } from './user-panels.js'
+import { pluginMarketSource } from './plugin-message-source.js'
 
 /** Host surface this registry touches (mirrors commands-mounts.ts). */
 interface CommandsHost {
@@ -105,7 +106,7 @@ export class UserCommandMountRegistry {
             agent.followup(
               createUserMessage({
                 content: [{ type: 'text', text }],
-                source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' }
+                source: pluginMarketSource()
               })
             )
             return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }

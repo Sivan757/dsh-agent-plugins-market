@@ -12,12 +12,15 @@
  *    declared contract at all: it degrades to the `host-missing` diagnostic with nothing to
  *    align or audit.
  *
- * This gate resolves the host release line from the registry (`latest` by default), then fails
- * unless every declared and referenced host dependency matches that one baseline. The baseline is
- * the `latest` version of `@deepseek-ai/dsh` itself: it is the package a consumer installs, and the
- * only family member whose `latest` tracks the shipped release line. The capability packages
- * publish in lockstep to `next`, while their own `latest` tags still sit on early placeholders, so
- * they cannot decide the baseline.
+ * This gate resolves the host release line from the registry (`next` by default), then fails
+ * unless every declared and referenced host dependency matches that one baseline. The harness
+ * family publishes prerelease candidates (rc and later) to `next` and repoints `latest` only at
+ * stable releases, so while the host runs a prerelease line `next` is the only tag naming the
+ * version consumers actually install; `latest` lags behind by whole candidate lines. The baseline
+ * is the `next` version of `@deepseek-ai/dsh` itself: it is the package a consumer installs, and
+ * the only family member whose tags track the release line. The capability packages publish in
+ * lockstep to `next`, while their own `latest` tags still sit on early placeholders, so they
+ * cannot decide the baseline.
  *
  * - a `dependencies` entry carries `^<baseline>`: this plugin provisions that capability itself,
  *   so pnpm installs it into the consuming profile (a dsh profile sets `autoInstallPeers: false`,
@@ -37,7 +40,7 @@
  *
  * Options:
  *   --host-version <v>   Pin the baseline explicitly; skips registry resolution.
- *   --channel <tag>      Registry dist-tag to resolve (default: latest).
+ *   --channel <tag>      Registry dist-tag to resolve (default: next).
  *   --fix                Rewrite package.json and pnpm-workspace.yaml into alignment.
  *   --json               Emit a machine-readable report.
  *   --offline            Resolve from the local dist-tag cache only.
@@ -79,7 +82,7 @@ const option = (name, fallback) => {
   return index === -1 || argv[index + 1] === undefined ? fallback : argv[index + 1]
 }
 
-const channel = option('channel', 'latest')
+const channel = option('channel', 'next')
 const forcedVersion = option('host-version', process.env.DSH_HOST_VERSION)
 const cacheTtlMs = Number(option('cache-ttl', '300')) * 1000
 const useJson = flag('json')
@@ -178,9 +181,10 @@ async function resolveDistTags(names) {
 /**
  * The one baseline every host package must carry: the anchor's version on the selected channel.
  *
- * The capability packages are queried for their own liveness, not as a vote — their `latest` tags
- * disagree because each was published to `latest` once and then moved to `next`, so a family
- * agreement test would reject the only channel that names a shipped version.
+ * `next` is the default because the harness family publishes prerelease candidates there and only
+ * repoints `latest` at stable releases; the 2026-09-22 note that moved the default to `latest`
+ * judged a `next` tag nobody would release, which no longer describes the family's flow (see the
+ * superseding note).
  */
 function baselineFrom(tags) {
   const version = tags.get(HOST_ANCHOR)?.[channel]

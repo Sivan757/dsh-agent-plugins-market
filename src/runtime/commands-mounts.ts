@@ -22,6 +22,7 @@ import type { Suite, SuiteMarkdownResource } from '../model/types.js'
 import { defaultMarkdownResources, resourceText, resourceCommandName } from '../catalog/component-files.js'
 import { bindHostLocale, type HostTranslate } from './host-locale.js'
 import { injectDynamicContext, shellSeamOf, type ShellSeam } from './dynamic-context.js'
+import { pluginMarketSource } from './plugin-message-source.js'
 
 export interface CommandMountDiagnostic {
   suiteId: string
@@ -141,7 +142,7 @@ export class CommandMountRegistry {
               agent.followup(
                 createUserMessage({
                   content: [{ type: 'text', text: body }],
-                  source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' }
+                  source: pluginMarketSource()
                 })
               )
               return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
@@ -155,7 +156,7 @@ export class CommandMountRegistry {
             agent.followup(
               createUserMessage({
                 content: [{ type: 'text', text }],
-                source: { kind: 'plugin', plugin: 'dsh-agent-plugins-market' }
+                source: pluginMarketSource()
               })
             )
             return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }

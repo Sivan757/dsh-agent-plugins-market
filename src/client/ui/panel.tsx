@@ -9,7 +9,7 @@
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, Modal, IconLoadingOutline16, IconPlusOutline16, IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, IconLoadingOutlineMedium, IconPlusOutlineMedium, IconRefreshOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './panel.module.css'
 import cardCss from './resource-card.module.css'
 import formCss from './form.module.css'
@@ -33,14 +33,14 @@ export function PanelActions(props: { addLabel?: string; onAdd?: () => void; ref
       : h(
           'button',
           { type: 'button', className: cardCss.iconBtn, disabled: props.busy, title: props.addLabel, 'aria-label': props.addLabel, onClick: props.onAdd },
-          h(IconPlusOutline16)
+          h(IconPlusOutlineMedium)
         ),
     props.onRefresh === undefined
       ? null
       : h(
           'button',
           { type: 'button', className: cardCss.iconBtn, disabled: props.busy, title: props.refreshLabel, 'aria-label': props.refreshLabel, onClick: props.onRefresh },
-          h(IconRefreshOutline16)
+          h(IconRefreshOutlineMedium)
         )
   )
 }
@@ -63,7 +63,7 @@ export function BusyIndicator(props: { label?: string; overlay?: boolean }): Rea
   return h(
     'div',
     { className: css.busyLine, role: 'status' },
-    h('span', { className: `${css.spinner} ${css.spinning}`, 'aria-hidden': true }, h(IconLoadingOutline16)),
+    h('span', { className: `${css.spinner} ${css.spinning}`, 'aria-hidden': true }, h(IconLoadingOutlineMedium)),
     props.label === undefined ? null : h('span', { className: css.busyLabel }, props.label)
   )
 }

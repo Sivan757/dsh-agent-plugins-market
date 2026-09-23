@@ -1,5 +1,5 @@
 import { createElement as h, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { IconLoadingOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconLoadingOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import { busySnapshot, operationTarget, subscribeBusy } from './busy-operation.js'
 import type { Translate } from '../index.js'
 import css from './busy-overlay.module.css'
@@ -154,7 +154,7 @@ function ActiveOverlay({ target, t, visible, slow }: { target: HTMLElement; t: T
       ? h(
           'div',
           { className: css.content },
-          h('span', { className: css.spinner, 'aria-hidden': true }, h(IconLoadingOutline16, { size: 28 })),
+          h('span', { className: css.spinner, 'aria-hidden': true }, h(IconLoadingOutlineMedium, { size: 28 })),
           h('strong', { className: css.label }, t('panelWorking')),
           h('div', { className: css.hintViewport }, h('p', { key: message, className: css.hint }, hints[message])),
           slow ? h('p', { className: css.warning, role: 'alert' }, t('busyLongRunning')) : null

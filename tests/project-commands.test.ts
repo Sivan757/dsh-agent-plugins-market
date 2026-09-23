@@ -105,7 +105,7 @@ describe('project command lifecycle', () => {
     expect(forwarded.id).toMatch(/^\S+$/)
     expect(forwarded.role).toBe('user')
     expect(forwarded.content).toEqual([{ type: 'text', text: 'First project my diff' }])
-    expect(forwarded.source).toEqual({ kind: 'plugin', plugin: 'dsh-agent-plugins-market' })
+    expect(forwarded.source).toEqual({ kind: 'plugin-market', form: 'instructions' })
     expect(JSON.stringify(first.messages)).not.toContain('Second project')
     expect(JSON.stringify(second.messages)).toContain('Second project my diff')
 

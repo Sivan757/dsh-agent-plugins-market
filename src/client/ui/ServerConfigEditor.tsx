@@ -7,7 +7,7 @@
  * document editor lay their fields out identically.
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineMedium, IconTrashOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
 import type { Translate } from '../index.js'
 import { changeTransport, composeServerDocument, parseServerConfig, parseServerDocument, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
@@ -466,7 +466,7 @@ function StringRows(props: {
           'aria-label': `${props.t('panelAdd')} ${props.label}`,
           onClick: () => change([...rows, ['', '']])
         },
-        h(IconPlusOutline16)
+        h(IconPlusOutlineMedium)
       )
     ),
     // An empty list is a starting point, not an empty space: the row itself is
@@ -516,7 +516,7 @@ function StringRows(props: {
             'aria-label': `${props.t('panelDelete')} ${props.label} ${index + 1}`,
             onClick: () => change(rows.filter((_, i) => i !== index))
           },
-          h(IconTrashOutline16)
+          h(IconTrashOutlineMedium)
         )
       )
     ),

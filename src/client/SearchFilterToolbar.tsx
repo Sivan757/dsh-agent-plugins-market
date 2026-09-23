@@ -7,7 +7,7 @@
  * mode in force with that same fill.
  */
 import { createElement as h, type ReactNode } from 'react'
-import { IconSearchOutline16, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconSearchOutlineMedium, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './SearchFilterToolbar.module.css'
 
 export type SearchFilterToolbarView = 'grid' | 'list'
@@ -54,7 +54,7 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
       { className: css.search },
       h(Input, {
         className: css.searchInput,
-        icon: h(IconSearchOutline16),
+        icon: h(IconSearchOutlineMedium),
         value: props.search,
         placeholder: props.searchPlaceholder,
         'aria-label': props.searchLabel,

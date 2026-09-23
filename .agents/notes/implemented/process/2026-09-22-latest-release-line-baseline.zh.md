@@ -31,3 +31,5 @@ Status: implemented
 ## Related decisions
 
 部分取代 [force the host dependency baseline to one release line before it can ship](2026-09-11-host-dependency-alignment-gate.md)：三处门禁、六条规则、两个供给段与 `--fix` 行为继续有效；由哪个 tag 定义基线、能力包是否参与投票，由本篇改定。
+
+这里的通道选择已被 [从预发布候选线解析对齐基线](2026-09-23-next-channel-baseline.md) 完整取代：锚点包解析、供给规则与 `--fix` 行为继续沿用，而默认 tag 依家族发布流程（`latest` 落后于消费方唯一在用的线）回到 `next`。

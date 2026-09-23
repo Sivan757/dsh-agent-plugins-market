@@ -166,16 +166,19 @@ function mountProjectSurface(
     mounts.delete(agent)
     await mount?.fiber.dispose()
   }
-  const unwatchCreated = ctx.on('agent/created', ({ agent }) => attach(agent as unknown as ProjectAgent))
-  const unwatchDisposed = ctx.on('agent/disposed', ({ agent }) => {
-    void detach(agent as unknown as ProjectAgent).catch(warn)
-  })
-  const unwatchStart = ctx.on('agent/session-start', ({ agent }) => {
-    attach(agent)
+  // One lifecycle listener covers every startup path: the host merged the old
+  // agent/session-start emit into agent/created (which now carries the
+  // startup/resume/clear/compact source) and fires it serially.
+  const unwatchCreated = ctx.on('agent/created', ({ agent }): undefined => {
+    const projectAgent = agent as unknown as ProjectAgent
+    attach(projectAgent)
     // The refresh chain can reject — its queue body re-reads the project
     // catalog — and the host emits this event without awaiting the listener,
     // so an unhandled rejection here would surface at every session start.
-    void mounts.get(agent)?.refresh().catch(warn)
+    void mounts.get(projectAgent)?.refresh().catch(warn)
+  })
+  const unwatchDisposed = ctx.on('agent/disposed', ({ agent }) => {
+    void detach(agent as unknown as ProjectAgent).catch(warn)
   })
   for (const agent of host.agents.list()) attach(agent)
   return {
@@ -186,7 +189,6 @@ function mountProjectSurface(
       disposed = true
       unwatchCreated()
       unwatchDisposed()
-      unwatchStart()
       await Promise.all([...mounts.keys()].map(detach))
     }
   }

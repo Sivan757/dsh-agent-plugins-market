@@ -10,7 +10,7 @@
  * @module client/ui/DetailRows
  */
 import { createElement as h, type ReactNode } from 'react'
-import { IconChevronDownOutline14, IconChevronRightOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronDownOutlineMedium, IconChevronRightOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './detail-rows.module.css'
 
 /** One group of rows; the bordered frame the prototype draws them in. */
@@ -52,7 +52,7 @@ export function DetailRow(props: {
       },
       header[0],
       header[1],
-      h('span', { className: css.chevron, 'aria-hidden': true }, open ? h(IconChevronDownOutline14) : h(IconChevronRightOutline14))
+      h('span', { className: css.chevron, 'aria-hidden': true }, open ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
     ),
     open ? h('div', { className: css.body }, props.children) : null
   )

@@ -11,7 +11,7 @@
  * @module client/McpPluginCard
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { IconChevronDownOutline14, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronDownOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarketPluginCardActions, MarketPluginCardState, MarketSwitchField, MarketSwitchState } from './plugin-card-controller.js'
 import css from './market.module.css'
 
@@ -123,7 +123,7 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
       h(
         'span',
         { className: open ? `${css.pluginChevron} ${css.pluginChevronOpen}` : css.pluginChevron },
-        h(IconChevronDownOutline14, { size: 14 })
+        h(IconChevronDownOutlineMedium)
       )
     ),
     open

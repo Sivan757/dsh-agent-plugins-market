@@ -72,7 +72,7 @@ describe('user command mounts', () => {
     expect(forwarded.id).toMatch(/^\S+$/)
     expect(forwarded.role).toBe('user')
     expect(forwarded.content).toEqual([{ type: 'text', text: 'Do the thing: now' }])
-    expect(forwarded.source).toEqual({ kind: 'plugin', plugin: 'dsh-agent-plugins-market' })
+    expect(forwarded.source).toEqual({ kind: 'plugin-market', form: 'instructions' })
   })
 
   it('keeps the source label in the slash-menu description and drops disabled entries', async () => {

@@ -4,7 +4,7 @@
  * description, and a source row carrying the counts.
  */
 import { createElement as h, type HTMLAttributes, type ReactElement, type ReactNode } from 'react'
-import { Button, IconRefreshOutline16, IconTrashOutline16, Switch, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Switch, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../index.js'
 import rc from '../../ui/resource-card.module.css'
@@ -72,7 +72,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
             disabled: busy,
             onClick: stop(props.onRefresh)
           },
-          h(IconRefreshOutline16)
+          h(IconRefreshOutlineMedium)
         ),
         h(
           'button',
@@ -85,7 +85,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
             disabled: busy,
             onClick: stop(props.onUninstall)
           },
-          h(IconTrashOutline16)
+          h(IconTrashOutlineMedium)
         ),
         // The enable switch reads last, at the cluster's trailing edge.
         h(
