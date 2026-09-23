@@ -8,6 +8,7 @@
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { IconEditOutline16, IconTrashOutline16, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanel, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
+import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
 import { SearchFilterToolbar } from '../SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ResourceCard.js'
@@ -293,7 +294,8 @@ function UserEntryRow(props: {
   onDelete: () => void
 }): ReactNode {
   const { entry, t } = props
-  const title = props.kind === 'commands' ? `/${entry.name}` : entry.name
+  // A command registers under its flattened call name, so the card shows that.
+  const title = props.kind === 'commands' ? `/${commandCallName(entry.name)}` : entry.name
   const mono = props.kind === 'commands'
   // A rejected document cannot be switched on: its state is recomputed from the
   // document, so the fix is editing the document.

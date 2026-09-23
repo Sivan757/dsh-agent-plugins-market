@@ -41,7 +41,7 @@ describe('native project hook normalization', () => {
     const errors: string[] = []
     const result = await discoverProjectHooks(project, ['.claude/settings.json', '.claude/settings.local.json'], errors)
     expect(result?.events.PreToolUse?.flatMap(group => group.hooks.map(entry => entry.command))).toEqual(['echo one', 'echo two'])
-    expect(errors.join('\n')).toContain('unsupported project hook event FutureEvent')
+    expect(errors.join('\n')).toContain('unsupported hook event FutureEvent')
     expect(errors.join('\n')).toContain('unsupported Stop hook type prompt')
   })
 

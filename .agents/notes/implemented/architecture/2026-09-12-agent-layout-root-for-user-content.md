@@ -12,6 +12,7 @@ Hand-authored resources and hand-written service declarations move to the shared
 
 - `skills/`, `commands/`, `agents/` — the same Markdown entries and frontmatter grammar as before; `UserPanelStore` changes only its root. The skills panel later gained the cross-tool `<name>/SKILL.md` spelling beside its flat files, per [the skill directory spelling decision](../feature/2026-09-14-user-skill-directory-spelling.md).
 - `mcp.json` (`mcpServers`) and `lsp.json` (`lspServers`) — where the workspace's Add buttons write.
+- `hooks/hooks.json`, then `hooks.json` — the same command-hook documents the project `.agents/` layout reads. This bullet, the recursive `commands/` and `agents/` reading, and the `$schema`-less `mcp.json` read arrived with [the `.agents` surface-parity decision](2026-09-22-agents-layout-full-surface-parity.md).
 
 Plugin state stays under `$DSH_HOME/agent-plugins`: `.sources/`, `state.json`, `data/` (overrides, `${PLUGIN_DATA}` directories, the feedback rate-limit stamp) and the persisted LSP enable set. The two roots are deliberately different: caches and install state are ours, authored content is the user's.
 

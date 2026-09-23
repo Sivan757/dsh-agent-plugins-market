@@ -12,15 +12,21 @@
  * personas follow Claude Code agents frontmatter (`name`, `description`,
  * optional `whenToUse`, `tools`, `model`, `disabled`).
  *
- * Only the skills panel serves the cross-tool `<name>/SKILL.md` directory
- * spelling beside its own flat entries; commands and personas stay flat.
+ * Every panel reads the flat `<name>.md` children of its directory. The
+ * commands and agent-persona panels also read every `.md` document at any
+ * depth, addressing a nested entry by its path relative to the panel
+ * directory (`git/commit`, `review/code`), so subdirectories another Agent
+ * tool writes are picked up. The skills panel keeps the cross-tool
+ * `<name>/SKILL.md` directory spelling and reads it from the top level only,
+ * matching the harness's own reader of `~/.agents/skills`.
  *
  * An entry's name is the one its document declares — the same name the
- * harness reader derives from that file — and the panel addresses, edits, and
- * deletes the entry by that name. A document that reader would reject is
- * listed disabled with the reason instead of joining the catalog, and a skill
- * is switched off by writing that reader's own invocation controls, so the off
- * state lives in the file rather than in this provider.
+ * harness reader derives from that file — else its document name, and the
+ * panel addresses, edits, and deletes the entry by that name. A document that
+ * reader would reject is listed disabled with the reason instead of joining
+ * the catalog, and a skill is switched off by writing that reader's own
+ * invocation controls, so the off state lives in the file rather than in this
+ * provider.
  * @module runtime/user-panels
  */
 
@@ -36,6 +42,7 @@ import {
   resolveEntryDocument,
   SKILL_ENTRY_SHAPES,
   USER_ENTRY_NAME,
+  USER_ENTRY_PATH,
   userEntryDir,
   writeEntryDocument,
   writeEntryFile,
@@ -63,7 +70,11 @@ const USER_PANEL_RANK = 440
 
 /** A user panel entry as the HTTP layer serializes it. */
 export interface UserPanelEntry {
-  /** Entry name: the name its document declares, else the file's base name (or the skill directory's). */
+  /**
+   * Entry name: the name its document declares, else its document name — the
+   * file's base name, or, on a nested panel, the document's path relative to
+   * the panel directory (`git/commit`).
+   */
   name: string
   description: string
   /** True when the entry is disabled, either by its `disabled` frontmatter key or by a failed validation. */
@@ -82,10 +93,16 @@ export interface UserPanelEntry {
 
 /** How one panel store treats names and on-disk spellings. */
 export interface UserPanelStoreOptions {
-  /** Extra name grammar for this panel (runs after USER_ENTRY_NAME). */
+  /** Extra grammar one path segment must satisfy (runs after USER_ENTRY_NAME on each segment). */
   extraNameCheck?: (name: string) => boolean
   /** The document spellings this panel serves, most preferred first. */
   shapes?: readonly EntryShape[]
+  /**
+   * Read every subdirectory of the panel directory and address an entry by its
+   * path relative to that directory. Off for the skills panel, whose reader
+   * sees top-level documents only.
+   */
+  nested?: boolean
   /**
    * Rejection for a document this panel must not register, or `undefined` when
    * it may. Skills validate against the harness reader that shares their
@@ -106,6 +123,8 @@ export interface UserPanelStoreOptions {
 export class UserPanelStore {
   private readonly shapes: readonly EntryShape[]
   private readonly extraNameCheck: (name: string) => boolean
+  private readonly namePattern: RegExp
+  private readonly nested: boolean
   private readonly validate: ((file: UserEntryFile) => string | undefined) | undefined
   private readonly honorInvocationControls: boolean
 
@@ -116,6 +135,8 @@ export class UserPanelStore {
   ) {
     this.shapes = options.shapes ?? ['file']
     this.extraNameCheck = options.extraNameCheck ?? (() => true)
+    this.nested = options.nested === true
+    this.namePattern = this.nested ? USER_ENTRY_PATH : USER_ENTRY_NAME
     this.validate = options.validate
     this.honorInvocationControls = options.honorInvocationControls === true
   }
@@ -129,20 +150,21 @@ export class UserPanelStore {
     return this.dirPath()
   }
 
+  /** The path grammar plus the panel's per-segment extra grammar. */
   private validName(name: string): boolean {
-    return USER_ENTRY_NAME.test(name) && this.extraNameCheck(name)
+    return this.namePattern.test(name) && name.split('/').every(segment => this.extraNameCheck(segment))
   }
 
   /**
    * Resolve the document one entry name addresses. The name a panel entry
-   * carries is the one its document declares, which is only the file name by
-   * convention, so a name that matches no path is matched against the
+   * carries is the one its document declares, which is only the document path
+   * by convention, so a name that matches no path is matched against the
    * declared names of the served documents.
    */
   private async document(name: string): Promise<EntryDocument | undefined> {
-    const direct = await resolveEntryDocument(this.dir, name, this.shapes)
+    const direct = await resolveEntryDocument(this.dir, name, this.shapes, false, this.nested)
     if (direct !== undefined) return direct
-    for (const candidate of await listEntryDocuments(this.dir, false, this.shapes)) {
+    for (const candidate of await listEntryDocuments(this.dir, false, this.shapes, this.nested)) {
       const file = await readEntryDocument(candidate)
       if (file?.name === name) return candidate
     }
@@ -151,7 +173,7 @@ export class UserPanelStore {
 
   /** Every entry, sorted by name; strict snapshots propagate temporary I/O failures. */
   async list(strict = false): Promise<UserPanelEntry[]> {
-    const files = await listEntryFiles(this.dir, strict, this.shapes)
+    const files = await listEntryFiles(this.dir, strict, this.shapes, this.nested)
     return files.map(file => this.serialize(file))
   }
 
@@ -199,10 +221,10 @@ export class UserPanelStore {
     }
   }
 
-  /** Create an entry; refuses an occupied name. New entries use the flat spelling. */
+  /** Create an entry; refuses an occupied name. New entries use the flat `<name>.md` spelling, creating any parent directories. */
   async create(name: string, text: string): Promise<UserPanelEntry> {
     if (!this.validName(name)) throw new Error(`invalid name "${name}" — use lowercase letters, digits, and dashes, starting with a letter or digit`)
-    if (await entryExists(this.dir, name, this.shapes)) throw new Error(`an entry named "${name}" already exists`)
+    if (await entryExists(this.dir, name, this.shapes, this.nested)) throw new Error(`an entry named "${name}" already exists`)
     await writeEntryFile(this.dir, name, text)
     const created = await this.get(name)
     if (created === undefined) throw new Error(`entry "${name}" vanished after write`)
@@ -219,7 +241,7 @@ export class UserPanelStore {
 
   /** Delete one entry; a missing file is a no-op (idempotent delete). */
   async remove(name: string): Promise<void> {
-    if (!USER_ENTRY_NAME.test(name)) throw new Error(`invalid entry name "${name}"`)
+    if (!this.namePattern.test(name)) throw new Error(`invalid entry name "${name}"`)
     const document = await this.document(name)
     if (document === undefined) return
     await deleteEntryDocument(document)
@@ -239,17 +261,18 @@ export function createUserPanelStores(agentsRoot: string): {
       validate: file => skillEntryRejection(file.text),
       honorInvocationControls: true
     }),
-    commands: new UserPanelStore(agentsRoot, 'commands'),
-    agents: new UserPanelStore(agentsRoot, 'agents', { extraNameCheck: isUserSkillEntryName })
+    commands: new UserPanelStore(agentsRoot, 'commands', { nested: true }),
+    agents: new UserPanelStore(agentsRoot, 'agents', { extraNameCheck: isUserSkillEntryName, nested: true })
   }
 }
 
 /**
- * The skills/agents panels accept only harness skill-grammar names
+ * The skills/agents panels accept only harness skill-grammar path segments
  * (`[a-z0-9-]`, no underscores): a candidate name reaching the skill
  * registry's `get()` with an invalid name is dropped there, and several
- * consumers validate strictly, so `_`-named entries would be dead weight.
- * Commands keep the looser command grammar (`_` allowed).
+ * consumers validate strictly, so `_`-named entries would be dead weight. A
+ * nested persona applies this to each segment. Commands keep the looser
+ * command grammar (`_` allowed).
  */
 export function isUserSkillEntryName(name: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)

@@ -10,6 +10,7 @@ import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
 import { lastChangeLabel } from './last-change.js'
+import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
 import type { UserPanelEntry, UserPanelKind } from '../api.js'
 import css from './panel.module.css'
@@ -36,7 +37,8 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   const [open, setOpen] = useState(false)
   const updated = entry.updatedAt === undefined || entry.updatedAt === null ? null : lastChangeLabel(t, entry.updatedAt)
   const provenance = entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
-  const title = kind === 'commands' ? `/${entry.name}` : entry.name
+  // A command registers under its flattened call name, so the dialog title shows that.
+  const title = kind === 'commands' ? `/${commandCallName(entry.name)}` : entry.name
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
   const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key))
   return h(

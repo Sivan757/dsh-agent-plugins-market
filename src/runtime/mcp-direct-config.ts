@@ -8,11 +8,7 @@ export const USER_MCP_SOURCE = '@user-mcp'
 export const USER_MCP_SUITE = 'user-mcp'
 
 /**
- * User-created services reuse the owned bridge lifecycle without changing host configuration.
- *
- * The declarations live in the shared Agent layout root
- * (`~/.agents/mcp.json`), so a service the user adds by hand is ordinary
- * `mcpServers` JSON in the same place other Agent tools look.
+ * Load the user's own MCP declaration file.
  *
  * The suite always carries an `mcp` document — an absent or malformed
  * `mcp.json` leaves an empty one — so callers read `.mcp.servers` directly
@@ -37,9 +33,10 @@ export async function loadUserMcpSuite(agentsRoot: string): Promise<Suite & { mc
     surfaces: { skills: 0, mcp: Object.keys(mcp.servers).length, commands: 0, agents: 0, hooks: 0, lsp: 0 },
     dimension: 'user',
     enabled: true,
-    // A user-created suite has no install entry and no overrides, so every
-    // surface keeps its enabled default.
-    activeSurfaces: effectiveSurfaces(undefined),
+    // The suite declares MCP only: the other surfaces would otherwise make the
+    // command registry read this root a second time beside the user-command
+    // panel registry.
+    activeSurfaces: effectiveSurfaces({ skills: false, hooks: false, commands: false, agents: false, lsp: false }),
     installedAt: 'user',
     errors
   }
@@ -50,11 +47,24 @@ export async function loadUserMcpSuite(agentsRoot: string): Promise<Suite & { mc
  * keys this client does not know ride along untouched rather than failing the
  * whole file, and the closed-set rule the package schema applies to suites
  * does not apply here.
+ *
+ * A hand-written file may omit `$schema` entirely, so the baseline identifier
+ * is filled in before validation: the document then reads as the baseline
+ * release while every shape and required field the client does know is still
+ * validated. A rejected document keeps the file's own declarations out of the
+ * mount and reports the reason, the same fail-closed rule the write paths
+ * apply.
  */
 async function validateUserMcp(agentsRoot: string, raw: unknown): Promise<McpSuiteConfig> {
-  const result = await validateMcpJson(agentsRoot, raw, { packageRules: false })
+  const document = isRecord(raw) && raw['$schema'] === undefined ? { ...raw, $schema: MCP_SCHEMA_ID } : raw
+  const result = await validateMcpJson(agentsRoot, document, { packageRules: false })
   if (result.config === undefined || result.errors.length > 0) throw new Error(`invalid MCP configuration: ${result.errors.join('; ')}`)
   return result.config
+}
+
+/** Whether a parsed user document is the JSON object the MCP validator reads. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Add one service atomically; reject collisions and malformed config before writing. */

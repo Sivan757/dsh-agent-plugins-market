@@ -29,7 +29,7 @@
 
 `component-files.ts` 负责受限路径与归一化资源，`suite-components.ts` 归一化 hooks 和 LSP 声明。目录计数、命令/代理提供器、角色路由、详情面板使用同一组资源。显式 hooks 无效时不会回退执行默认文件。清单内联命令在资源编辑器中保持只读。
 
-项目维度通过 `native-project.ts` 复用同一套归一化，因此 `.agents/hooks/hooks.json` 与 `.agents/hooks.json` 的挂载方式与套件自身的 `hooks.json` 一致；独立文件既可写裸事件表，也可写 `hooks` 键。
+项目维度通过 `native-project.ts` 复用同一套归一化，因此 `.agents/hooks/hooks.json` 与 `.agents/hooks.json` 的挂载方式与套件自身的 `hooks.json` 一致；独立文件既可写裸事件表，也可写 `hooks` 键。`.agents/mcp.json` 是该布局自己的 `mcpServers` 文档，与 Claude Code 的根 `.mcp.json`、Cursor 的 `.cursor/mcp.json` 并列；ZCode 只读自己的文件。用户 Agent 布局根目录 `~/.agents/` 承载同样的运行面：面板创作或读取的技能、命令与角色，同样两个文件名的 hooks，以及手写的 `mcp.json`、`lsp.json` 声明。
 
 仅含元数据的根 `plugin.json` 保留现有身份，但会从同根 Claude 清单补充缺失的组件声明。未修改的 ponytail 快照验证这一行为，避免根名称文件继续遮蔽真实 hooks，却在隔离测试中表现正常。
 

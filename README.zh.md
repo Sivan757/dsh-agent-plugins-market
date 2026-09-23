@@ -93,7 +93,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 
 **来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件；安装并启用套件决定其运行时能力是否生效。
 
-你自己创作的内容都放在共用的 Agent 布局根目录：技能、命令和角色是 `~/.agents/` 下的 Markdown 文件，工作区里新增的 MCP 与 LSP 服务分别保存在 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。项目原生资源继续保留在项目中。路径和优先级见[存储与发现](docs/user/usage.zh.md#存储与发现)。
+你自己创作的内容都放在共用的 Agent 布局根目录：技能、命令和角色是 `~/.agents/` 下的 Markdown 文件，命令 hooks 放在 `~/.agents/hooks.json`（或 `~/.agents/hooks/hooks.json`），工作区里新增的 MCP 与 LSP 服务分别保存在 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。命令与角色按任意子目录深度读取，因此其它工具写在 `~/.agents/commands/git/commit.md` 的文件可用 `/git-commit` 调用。项目原生资源继续保留在项目中。路径和优先级见[存储与发现](docs/user/usage.zh.md#存储与发现)。
 
 六个页签共用持久化的卡片/列表偏好。新增、刷新统一位于页头；资源状态条为绿色时表示生效中。
 

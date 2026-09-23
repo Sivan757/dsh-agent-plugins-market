@@ -12,6 +12,7 @@ Status: implemented
 
 - `skills/`、`commands/`、`agents/` —— 仍是原来的 Markdown 条目与 frontmatter 语法，`UserPanelStore` 只改根目录。技能面板其后在扁平文件之外增加了跨工具的 `<name>/SKILL.md` 形态，见[技能目录形态决策](../feature/2026-09-14-user-skill-directory-spelling.zh.md)。
 - `mcp.json`（`mcpServers`）与 `lsp.json`（`lspServers`）—— 工作区新增按钮的写入位置。
+- `hooks/hooks.json`，然后是 `hooks.json` —— 与项目 `.agents/` 布局读取的同一批命令 hook 文档。这一条、`commands/` 与 `agents/` 的递归读取，以及不带 `$schema` 的 `mcp.json` 读取，随 [`.agents` 运行面对齐决策](2026-09-22-agents-layout-full-surface-parity.zh.md)落地。
 
 插件状态仍在 `$DSH_HOME/agent-plugins`：`.sources/`、`state.json`、`data/`（覆盖配置、`${PLUGIN_DATA}` 目录、反馈限流时间戳）以及持久化的 LSP 启停集合。两个根刻意分开：缓存与安装状态属于插件，自建内容属于用户。
 
