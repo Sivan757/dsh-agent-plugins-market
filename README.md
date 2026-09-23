@@ -2,7 +2,7 @@
 
 # dsh-agent-plugins-market
 
-**A plugin marketplace and agent capability workspace for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).**
+**A one-stop skills, subagent, MCP and LSP manager inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.**
 
 Reuse supported content from Claude Code, Codex, Cursor, Kimi and other recognized layouts, and manage your own skills, commands, agent personas, MCP services and LSP servers in the DSH Web GUI.
 

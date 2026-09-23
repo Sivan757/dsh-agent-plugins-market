@@ -2,7 +2,7 @@
 
 # dsh-agent-plugins-market
 
-**[DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness)的插件市场与 Agent 能力管理工作区。**
+**在 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 之内，一站式管理 skills、subagent、MCP、LSP，兼容 Claude Code、Codex、Cursor、Kimi 等 agent plugins 体系。**
 
 复用 Claude Code、Codex、Cursor、Kimi 等已识别布局中支持的内容，在 DSH Web 界面管理自己的技能、命令、代理角色、MCP 服务和 LSP 服务。
 
