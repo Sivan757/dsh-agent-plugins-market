@@ -12,3 +12,6 @@ coverage/
 # IDE state
 .idea/
 *.local.*
+
+# local pnpm store created by tooling runs
+.pnpm-store/

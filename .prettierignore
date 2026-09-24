@@ -21,3 +21,5 @@ docs/compat-report.md
 docs/compat-report.json
 docs/reference/compat-report.md
 docs/reference/compat-report.json
+
+.pnpm-store/
