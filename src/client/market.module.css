@@ -599,9 +599,6 @@
 }
 
 .pluginCardBody {
-  border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  margin: 0 16px;
-  padding: 4px 0 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -710,15 +707,12 @@
 .pluginCardFooter {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  margin-top: 4px;
+  padding-top: 16px;
 }
 
 .pluginCardFooter .pluginCardError {
-  margin-right: auto;
+  flex: 1;
 }
 
 .pluginCardDiscard,

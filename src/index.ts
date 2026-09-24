@@ -13,8 +13,12 @@
  * self-contained: suites' MCP servers mount through the market's own bridge
  * plugin on the host `tools` registry.
  */
-import type { Context } from '@deepseek-ai/cordis'
+import { type Context, type Volatile } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/cosmokit'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
+import z from '@deepseek-ai/schemastery'
+import { MarketSettingsFields } from './runtime/mcp-backend.js'
+import type { DownloadRegionSetting } from './contracts/settings.js'
 import { Catalog } from './application/catalog.js'
 import type { CatalogPortsOverride } from './application/ports.js'
 import { settlesWithin } from './runtime/deadline.js'
@@ -46,6 +50,7 @@ export const name = 'dsh-agent-plugins-market'
 export const inject = ['skills', 'commands']
 
 /** Host configuration. */
+/** Host configuration; the five market settings arrive as volatile references the host updates in place. */
 export interface Config {
   /** User-dimension suite root; defaults to `~/.dsh/agent-plugins` (`$DSH_HOME/agent-plugins`). */
   userRoot?: string
@@ -68,9 +73,68 @@ export interface Config {
     fallbackTarball?: boolean
     allowHttpArchives?: boolean
   }
+  /** MCP mount backend switch; updated live through the host settings service. */
+  mcpEnhanced: Volatile<boolean | undefined>
+  /** Project-layout discovery switch; updated live through the host settings service. */
+  scanProjectLayouts: Volatile<boolean | undefined>
+  /** Download region choice; updated live through the host settings service. */
+  downloadRegion: Volatile<DownloadRegionSetting | undefined>
+  /** Experience-feedback tool switch; updated live through the host settings service. */
+  feedbackEnabled: Volatile<boolean | undefined>
+  /** Background source-update switch; updated live through the host settings service. */
+  autoUpdateSources: Volatile<boolean | undefined>
 }
 
-export async function apply(ctx: Context, config: Config = {}): Promise<void> {
+/**
+ * Schemastery projection the host loader reads: the five volatile fields become
+ * the `dsh-agent-plugins-market` settings namespace (the Plugins panel's
+ * configuration page reads it), while the startup fields stay plain.
+ */
+/** The schema's input face: every field optional, exactly what a profile patch may carry. */
+export interface ConfigInput {
+  userRoot?: string | null
+  dataRoot?: string | null
+  sources?: unknown
+  git?: {
+    proxy?: string | null
+    insteadOf?: Record<string, unknown>
+    timeoutMs?: number | null
+    cloneRetry?: boolean | null
+    fallbackTarball?: boolean | null
+    allowHttpArchives?: boolean | null
+  }
+  mcpEnhanced?: boolean | null
+  scanProjectLayouts?: boolean | null
+  downloadRegion?: 'auto' | 'global' | 'china' | null
+  feedbackEnabled?: boolean | null
+  autoUpdateSources?: boolean | null
+}
+
+export const Config = z.object({
+  userRoot: z.union([z.string(), z.const(undefined)]),
+  dataRoot: z.union([z.string(), z.const(undefined)]),
+  sources: z.any(),
+  git: z.object({
+    proxy: z.string(),
+    insteadOf: z.dict(z.string(), z.any()),
+    timeoutMs: z.natural(),
+    cloneRetry: z.boolean(),
+    fallbackTarball: z.boolean(),
+    allowHttpArchives: z.boolean()
+  }),
+  mcpEnhanced: MarketSettingsFields.mcpEnhanced.volatile(),
+  scanProjectLayouts: MarketSettingsFields.scanProjectLayouts.volatile(),
+  downloadRegion: MarketSettingsFields.downloadRegion.volatile(),
+  feedbackEnabled: MarketSettingsFields.feedbackEnabled.volatile(),
+  autoUpdateSources: MarketSettingsFields.autoUpdateSources.volatile()
+})
+
+const undefinedRef = { get: () => undefined as never }
+
+export async function apply(
+  ctx: Context,
+  config: Config = { mcpEnhanced: undefinedRef, scanProjectLayouts: undefinedRef, downloadRegion: undefinedRef, feedbackEnabled: undefinedRef, autoUpdateSources: undefinedRef }
+): Promise<void> {
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
   const agentsRoot = resolveAgentsRoot()
@@ -165,7 +229,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   // Background source updates: off until the settings switch says otherwise.
   const autoUpdate = new SourceAutoUpdater(ctx, () => catalog.refreshSource())
 
-  const settings = new MarketSettingsNamespace(ctx, dataRoot, hostLocale, {
+  const settings = new MarketSettingsNamespace(ctx, config, dataRoot, hostLocale, {
     setScanProjectLayouts: enabled => catalog.setScanProjectLayouts(enabled),
     refreshMcpMounts: () => {
       void Promise.all([scheduler.request(), projectMcp?.refresh()]).catch(() => {})

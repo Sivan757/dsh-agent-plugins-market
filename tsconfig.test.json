@@ -29,6 +29,7 @@
     "tests/client-mcp-detail.test.ts",
     "tests/client-page-mode.test.ts",
     "tests/client-plugin-card.test.ts",
+    "tests/client-plugins-item-views.test.ts",
     "tests/client-role-reasoning.test.ts",
     "tests/client-server-config-policy.test.ts",
     "tests/client-shared-labels.test.ts",

@@ -1,32 +1,30 @@
 /**
- * The host settings namespace this plugin registers.
+ * The market settings the host carries in this plugin's own config: the loader
+ * projects the entry's `Config` schema into the `dsh-agent-plugins-market`
+ * settings namespace, so the Plugins panel's configuration page reads and
+ * writes these five switches, and the host updates the volatile references in
+ * place on every change (emitting `loader/volatile-update`).
  *
- * The registration is also what makes the host's plugin-config tab serve this
- * plugin's card, and it carries the MCP mount backend, the download region,
- * the project-layout switch, the experience-feedback tool switch, and the
- * background source-update switch. `settings.register`
- * throws on a duplicate namespace, so there is exactly one inject block and one
- * registration.
- *
- * The whole callback is failure-contained on purpose: a throw inside it is
- * INVISIBLE in the UI (the inject resolves asynchronously and cordis only logs
- * it) and silently removes the namespace from `settings.describe`, which is
- * what hides the plugin-config card. Every failure mode lands in the logger
- * with a loud prefix instead.
+ * Every consumer reads through {@link MarketSettingsNamespace.settings} so
+ * "the field is absent" has exactly one answer —
+ * {@link resolveMarketSettings} — instead of each caller inventing its own
+ * fallback for the window before the host applies its first value.
  *
  * @module runtime/settings-namespace
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { MARKET_SETTINGS_NAMESPACE, resolveMarketSettings, type DownloadRegionSetting, type MarketSettings } from '../contracts/settings.js'
+import { resolveMarketSettings, type DownloadRegionSetting, type MarketSettings } from '../contracts/settings.js'
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from './feedback-tool.js'
 import type { HostLocaleKey, HostTranslate } from './host-locale.js'
-import { MarketSettingsSchema, readMcpBackend, type McpBackend } from './mcp-backend.js'
+import type { McpBackend } from './mcp-backend.js'
 
-/** The scope the host hands back for a registered namespace. */
-interface SettingsScope {
-  get(): MarketSettings
-  watch(callback: () => void): () => void
-  update(patch: Partial<MarketSettings>): Promise<void>
+/** The five volatile references the entry's config carries for this namespace. */
+export interface MarketSettingRefs {
+  mcpEnhanced: { get(): boolean | undefined }
+  scanProjectLayouts: { get(): boolean | undefined }
+  downloadRegion: { get(): DownloadRegionSetting | undefined }
+  feedbackEnabled: { get(): boolean | undefined }
+  autoUpdateSources: { get(): boolean | undefined }
 }
 
 /** Runtime reactions the namespace drives. */
@@ -40,7 +38,6 @@ export interface SettingsNamespaceHost {
 }
 
 export class MarketSettingsNamespace {
-  private scope: SettingsScope | undefined
   private readonly watchers: Array<() => void> = []
   private feedbackDisposer: (() => void) | undefined
   /**
@@ -53,44 +50,29 @@ export class MarketSettingsNamespace {
 
   constructor(
     private readonly ctx: Context,
+    private readonly refs: MarketSettingRefs,
     private readonly dataRoot: string,
     private readonly locale: { t: HostTranslate },
     private readonly host: SettingsNamespaceHost
   ) {}
 
-  /** Register the namespace; the host resolves it whenever the settings service mounts. */
+  /** Subscribe the runtime reactions to live settings updates. */
   mount(): void {
-    this.ctx.inject(['settings'], settingsCtx => this.register(settingsCtx))
-  }
-
-  /** The persisted MCP backend choice; the built-in client until registration lands. */
-  async backend(): Promise<McpBackend> {
-    return this.settings().mcpEnhanced ? 'builtin' : 'host'
-  }
-
-  /**
-   * Persist a backend choice.
-   * @throws when the settings service is not mounted.
-   */
-  async setBackend(backend: McpBackend): Promise<void> {
-    if (this.scope === undefined) throw new Error('the settings service is not mounted')
-    await this.scope.update({ mcpEnhanced: backend !== 'host' })
-  }
-
-  /** The persisted download-region setting. */
-  async downloadRegion(): Promise<DownloadRegionSetting> {
-    return this.settings().downloadRegion
-  }
-
-  /**
-   * The resolved settings, whether or not the namespace is registered yet.
-   *
-   * Every reader goes through here so "the field is absent" has exactly one
-   * answer — {@link resolveMarketSettings} — instead of each caller inventing
-   * its own fallback for the window before registration lands.
-   */
-  private settings(): MarketSettings {
-    return resolveMarketSettings(this.scope?.get())
+    this.syncProjectLayouts()
+    this.syncAutoUpdateSources()
+    this.syncFeedbackTool()
+    let previousBackend = this.settings().mcpEnhanced
+    const watcher = this.ctx.on('loader/volatile-update' as Parameters<Context['on']>[0], () => {
+      const backend = this.settings().mcpEnhanced
+      if (backend !== previousBackend) {
+        previousBackend = backend
+        this.host.refreshMcpMounts()
+      }
+      this.syncProjectLayouts()
+      this.syncAutoUpdateSources()
+      this.syncFeedbackTool()
+    })
+    this.watchers.push(watcher)
   }
 
   /** Release every watcher and unmount the feedback tool. */
@@ -100,49 +82,36 @@ export class MarketSettingsNamespace {
     this.feedbackDisposer = undefined
   }
 
-  private register(settingsCtx: unknown): void {
-    try {
-      this.ctx.logger?.info?.('[dsh-agent-plugins-market] settings inject resolved — registering namespace')
-      const settings = (
-        settingsCtx as {
-          settings: {
-            register(ns: string, schema: unknown): SettingsScope
-          }
-        }
-      ).settings
-      const scope = settings.register(MARKET_SETTINGS_NAMESPACE, MarketSettingsSchema)
-      this.scope = scope
-      this.ctx.logger?.info?.('[dsh-agent-plugins-market] settings namespace registered — plugin-config card will serve')
-      this.syncProjectLayouts()
-      this.watchers.push(scope.watch(() => this.syncProjectLayouts()))
-      this.syncAutoUpdateSources()
-      this.watchers.push(scope.watch(() => this.syncAutoUpdateSources()))
-      // One-time migration from the earlier data-root settings.json choice.
-      void readMcpBackend(this.dataRoot).then(backend => {
-        if (backend === 'host') void scope.update({ mcpEnhanced: false }).catch(() => {})
-      })
-      let previousBackend = this.settings().mcpEnhanced
-      this.watchers.push(
-        scope.watch(() => {
-          const backend = this.settings().mcpEnhanced
-          if (backend === previousBackend) return
-          previousBackend = backend
-          this.host.refreshMcpMounts()
-        })
-      )
-      // The experience-feedback model tool: gated by the namespace's
-      // `feedbackEnabled` field (default on); the switch unregisters it. The
-      // tool mount is doubly contained — its failure must never take the
-      // settings namespace (and with it the config card) down with it. The
-      // mount outcome is logged on every transition so an absent
-      // `report_market_issue` in a session is traceable to its cause.
-      this.syncFeedbackTool()
-      this.watchers.push(scope.watch(() => this.syncFeedbackTool()))
-    } catch (error) {
-      this.ctx.logger?.error?.(
-        `[dsh-agent-plugins-market] settings namespace registration failed — the plugin-config card will be hidden this boot: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
-      )
-    }
+  /**
+   * The resolved settings, from the volatile references the host updates in place.
+   */
+  private settings(): MarketSettings {
+    return resolveMarketSettings({
+      mcpEnhanced: this.refs.mcpEnhanced.get(),
+      scanProjectLayouts: this.refs.scanProjectLayouts.get(),
+      downloadRegion: this.refs.downloadRegion.get(),
+      feedbackEnabled: this.refs.feedbackEnabled.get(),
+      autoUpdateSources: this.refs.autoUpdateSources.get()
+    })
+  }
+
+  /** The persisted MCP backend choice; the built-in client until the host applies a value. */
+  async backend(): Promise<McpBackend> {
+    return this.settings().mcpEnhanced ? 'builtin' : 'host'
+  }
+
+  /**
+   * Legacy write path for the backend choice: the value now lives in the host
+   * settings document, edited from the Plugins panel's configuration page, so
+   * this accepts the request and lets the volatile reference decide.
+   */
+  async setBackend(backend: McpBackend): Promise<void> {
+    this.ctx.logger?.info?.(`[dsh-agent-plugins-market] legacy MCP backend write (${backend}) ignored — the value lives in the host settings document`)
+  }
+
+  /** The persisted download-region setting. */
+  async downloadRegion(): Promise<DownloadRegionSetting> {
+    return this.settings().downloadRegion
   }
 
   /** Apply the background source-update switch. */
