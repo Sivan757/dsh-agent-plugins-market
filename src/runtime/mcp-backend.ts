@@ -29,13 +29,15 @@ export type McpBackend = 'builtin' | 'host'
  * belong to {@link MARKET_SETTINGS_DEFAULTS}; this schema states them, it does
  * not own them.
  */
-export const MarketSettingsSchema = z.object({
+export const MarketSettingsFields = {
   mcpEnhanced: z.boolean().default(MARKET_SETTINGS_DEFAULTS.mcpEnhanced),
   scanProjectLayouts: z.boolean().default(MARKET_SETTINGS_DEFAULTS.scanProjectLayouts),
   downloadRegion: z.union([z.const('auto'), z.const('global'), z.const('china')]).default(MARKET_SETTINGS_DEFAULTS.downloadRegion),
   feedbackEnabled: z.boolean().default(MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
   autoUpdateSources: z.boolean().default(MARKET_SETTINGS_DEFAULTS.autoUpdateSources)
-})
+} as const
+
+export const MarketSettingsSchema = z.object(MarketSettingsFields)
 
 /** Path of the legacy persisted settings file under the plugin data root. */
 export function marketSettingsPath(dataRoot: string): string {
