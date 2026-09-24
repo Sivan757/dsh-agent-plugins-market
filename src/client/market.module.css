@@ -710,7 +710,6 @@
 .pluginCardFooter {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
@@ -718,7 +717,7 @@
 }
 
 .pluginCardFooter .pluginCardError {
-  margin-right: auto;
+  flex: 1;
 }
 
 .pluginCardDiscard,
