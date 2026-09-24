@@ -9,6 +9,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.8.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.7.2...dsh-agent-plugins-market-v0.8.0) (2026-09-24)
+
+
+### Features
+
+* **agents:** read every surface the .agents layout carries ([dc5766c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/dc5766c89e59e7ce78d7bbf32731a84cfc9d4e28))
+
+
+### Bug Fixes
+
+* **catalog:** read a skill directory as one skill ([db824cd](https://github.com/Sivan757/dsh-agent-plugins-market/commit/db824cd84f3fdc69ad0ea9431a1733d9a0aff315))
+* **catalog:** report the project LSP diagnostic with POSIX separators ([a11b497](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a11b4970bf8df781ebc21bc79edfb10fc4c125de))
+
 ## [0.7.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.7.1...dsh-agent-plugins-market-v0.7.2) (2026-09-22)
 
 
