@@ -1,7 +1,7 @@
 /** A source tab with trailing edit and delete controls. */
 import { createElement as h, type ReactNode } from 'react'
 import type { Translate } from '../../index.js'
-import css from '../../market.module.css'
+import css from './market.module.css'
 
 export interface SourceTabProps {
   t: Translate

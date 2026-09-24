@@ -10,7 +10,8 @@ src/
                 (config, overrides, redaction, status, backend), state/ (stores, migrations),
                 panels/ (document stores) — imports no runtime module (gated)
   catalog/      pure source scanning: manifests, dialects, scan pipeline, fs probes, lsp-spec validation
-  client/       Web market page (React + CSS modules), bilingual locales.ts
+  client/       Web market page: entry, transport (api.ts), bilingual locales.ts at the root; features/
+                (mcp, lsp, market, settings-card), workspace/, shared ui/
   contracts/    API request/response types shared by routes and client (imports nothing); mcp.ts and
                 lsp.ts hold the backend selector and mount-diagnostic wire shapes
   model/        domain records only (suite, source, surfaces) — no Node APIs

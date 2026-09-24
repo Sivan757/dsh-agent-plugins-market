@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createLatestRequestGuard } from '../src/client/features/suite-detail/suite-detail-resource.js'
+import { createLatestRequestGuard } from '../src/client/features/market/suite-detail-resource.js'
 
 describe('suite detail request guard', () => {
   it('marks only the latest request as current', () => {

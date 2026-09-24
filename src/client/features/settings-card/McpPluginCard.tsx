@@ -20,7 +20,7 @@ import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MarketPluginCardActions, MarketPluginCardState, MarketSwitchField, MarketSwitchState } from './plugin-card-controller.js'
-import css from './market.module.css'
+import css from '../market/market.module.css'
 
 /** Copy of the boolean switches, in display order. */
 const SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled'] as const

@@ -11,9 +11,9 @@ import { createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { PluginWorkspace } from './PluginWorkspace.js'
 import { shouldUseLegacyPageMode } from './page-mode-selection.js'
-import type { Translate } from './index.js'
-import type { CredentialApi } from './credentials.js'
-import css from './market.module.css'
+import type { Translate } from '../index.js'
+import type { CredentialApi } from '../credentials.js'
+import css from '../features/market/market.module.css'
 
 /** Browser-side inputs required by the legacy page-mode adapter. */
 export interface LegacyPageModeOptions {

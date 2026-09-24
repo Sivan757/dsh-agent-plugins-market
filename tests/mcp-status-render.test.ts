@@ -83,7 +83,7 @@ vi.mock('../src/client/api.js', () => ({
   retryMcpMounts: vi.fn()
 }))
 
-import { McpStatusPanel } from '../src/client/McpStatusPanel.js'
+import { McpStatusPanel } from '../src/client/features/mcp/StatusPanel.js'
 import type { CredentialApi } from '../src/client/credentials.js'
 import type { Translate } from '../src/client/index.js'
 

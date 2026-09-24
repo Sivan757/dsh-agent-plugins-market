@@ -13,11 +13,11 @@ import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../contracts/settings.js'
 import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
-import { PluginWorkspace } from './PluginWorkspace.js'
-import { McpPluginCard } from './McpPluginCard.js'
-import { MarketPluginCardController } from './plugin-card-controller.js'
+import { PluginWorkspace } from './workspace/PluginWorkspace.js'
+import { McpPluginCard } from './features/settings-card/McpPluginCard.js'
+import { MarketPluginCardController } from './features/settings-card/plugin-card-controller.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
-import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './page-mode.js'
+import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './workspace/page-mode.js'
 
 /** The settings namespace this plugin registers, and the key the host pairs our card by. */
 const NS = MARKET_SETTINGS_NAMESPACE

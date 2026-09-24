@@ -57,7 +57,7 @@ vi.mock('../src/client/features/market/market-resource.js', () => ({
   startSourceProgressPolling: vi.fn(() => ({ stop: () => {} }))
 }))
 
-import { MarketSection } from '../src/client/MarketSection.js'
+import { MarketSection } from '../src/client/features/market/MarketSection.js'
 import type { Translate } from '../src/client/index.js'
 
 // A permissive translate that returns the key — enough to render labels.

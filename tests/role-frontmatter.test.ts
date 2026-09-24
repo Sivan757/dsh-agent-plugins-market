@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { readRoleFields, updateFrontmatter, updateRoleReasoning } from '../src/client/features/personas/frontmatter.js'
+import { readRoleFields, updateFrontmatter, updateRoleReasoning } from '../src/client/ui/frontmatter.js'
 
 describe('role metadata editing', () => {
   it('changes routing fields without corrupting nested metadata, comments or Markdown', () => {

@@ -17,7 +17,7 @@ vi.mock('../src/client/api.js', async importOriginal => ({
 vi.mock('../src/client/ui/ServerConfigDetail.js', () => ({
   ServerConfigDetail: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => h('button', { onClick: () => onDirtyChange(true) }, 'edit-config')
 }))
-import { McpDetailModal } from '../src/client/McpStatusPanel.js'
+import { McpDetailModal } from '../src/client/features/mcp/McpDetailModal.js'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: ReturnType<typeof createRoot>
 afterEach(async () => {

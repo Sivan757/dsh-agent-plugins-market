@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { deriveMarketViewModel } from '../src/client/features/market/market-view-model.js'
-import { deriveMcpStatusViewModel } from '../src/client/features/mcp-status/mcp-status-view-model.js'
+import { deriveMcpStatusViewModel } from '../src/client/features/mcp/mcp-status-view-model.js'
 import type { OverviewData } from '../src/client/api.js'
 import type { McpStatusPayload } from '../src/contracts/mcp-status.js'
 

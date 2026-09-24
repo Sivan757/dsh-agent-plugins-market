@@ -58,7 +58,7 @@ vi.mock('../src/client/api.js', () => ({
   saveServerConfig: vi.fn()
 }))
 
-import { LspStatusPanel } from '../src/client/LspStatusPanel.js'
+import { LspStatusPanel } from '../src/client/features/lsp/LspStatusPanel.js'
 import type { Translate } from '../src/client/index.js'
 
 const t: Translate = key => String(key)

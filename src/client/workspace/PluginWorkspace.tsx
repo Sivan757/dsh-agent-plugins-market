@@ -10,12 +10,12 @@
  * @module client/PluginWorkspace
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import type { Translate } from './index.js'
-import type { CredentialApi } from './credentials.js'
-import { MarketSection } from './MarketSection.js'
-import { McpStatusPanel } from './McpStatusPanel.js'
-import { LspStatusPanel } from './LspStatusPanel.js'
-import { UserPanelSurface } from './ui/UserPanelSurface.js'
+import type { Translate } from '../index.js'
+import type { CredentialApi } from '../credentials.js'
+import { MarketSection } from '../features/market/MarketSection.js'
+import { McpStatusPanel } from '../features/mcp/StatusPanel.js'
+import { LspStatusPanel } from '../features/lsp/LspStatusPanel.js'
+import { UserPanelSurface } from '../ui/UserPanelSurface.js'
 import css from './workspace.module.css'
 
 /** The six workspace tabs in display order. */

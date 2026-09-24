@@ -12,7 +12,7 @@ vi.mock('../src/client/api.js', () => ({
   fetchServerConfig: vi.fn(),
   saveServerConfig: vi.fn()
 }))
-import { LspDetailModal } from '../src/client/LspStatusPanel.js'
+import { LspDetailModal } from '../src/client/features/lsp/LspStatusPanel.js'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 let root: ReturnType<typeof createRoot>

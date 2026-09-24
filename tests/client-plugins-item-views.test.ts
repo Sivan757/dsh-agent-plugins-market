@@ -5,8 +5,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import { MarketPluginCardController, type MarketPluginCardState } from '../src/client/plugin-card-controller.js'
-import { McpPluginCard } from '../src/client/McpPluginCard.js'
+import { MarketPluginCardController, type MarketPluginCardState } from '../src/client/features/settings-card/plugin-card-controller.js'
+import { McpPluginCard } from '../src/client/features/settings-card/McpPluginCard.js'
 
 /** The renderer-side props of the entry, written out so the test binds only what the host binds. */
 interface EntryProps {

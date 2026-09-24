@@ -50,6 +50,26 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/application' },
       to: { path: '^src/runtime(/|\\.)' }
+    },
+    {
+      // Feature folders are peers, not layers: code in one feature may not import a
+      // sibling feature's modules. A \1 backreference would not work here — inside
+      // to.path it refers to the to-regex's own (empty) groups and would flag
+      // self-folder imports too. dependency-cruiser's equivalent is the $1 group
+      // placeholder, substituted from the from.path capture. The trailing lookahead
+      // keeps cross-feature .css imports legal; the panels share one design vocabulary.
+      name: 'client-feature-cannot-import-sibling-feature',
+      severity: 'error',
+      from: { path: '^src/client/features/([^/]+)' },
+      to: { path: '^src/client/features/(?!$1(?:/|\\.))(?![^']*\\.css)' }
+    },
+    {
+      // Shared controls stay generic: ui/ may not reach into a feature or the
+      // workspace shell; the dependency direction is features -> ui only.
+      name: 'client-ui-cannot-import-features',
+      severity: 'error',
+      from: { path: '^src/client/ui' },
+      to: { path: '^src/client/(features|workspace)' }
     }
   ],
   options: {

@@ -13,11 +13,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
-import { describeCredential, setCredential, unsetCredential, type CredentialApi, type CredentialView } from './credentials.js'
-import { BusyIndicator } from './ui/panel.js'
-import type { Translate } from './index.js'
+import { describeCredential, setCredential, unsetCredential, type CredentialApi, type CredentialView } from '../../credentials.js'
+import { BusyIndicator } from '../../ui/panel.js'
+import type { Translate } from '../../index.js'
 import css from './mcp-credential.module.css'
-import { clientErrorMessage } from './ui/error-message.js'
+import { clientErrorMessage } from '../../ui/error-message.js'
 
 export function McpCredentialEditor(props: {
   t: Translate

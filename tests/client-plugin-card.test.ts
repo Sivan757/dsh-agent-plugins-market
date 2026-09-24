@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import { MarketPluginCardController } from '../src/client/plugin-card-controller.js'
+import { MarketPluginCardController } from '../src/client/features/settings-card/plugin-card-controller.js'
 
 /** A settings scope double: the host's mirror, with writes applied on demand. */
 function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?: boolean; ready?: boolean } = {}) {

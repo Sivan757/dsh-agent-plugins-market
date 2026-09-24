@@ -1,5 +1,5 @@
 .surface {
-  composes: shell from './ui/panel.module.css';
+  composes: shell from '../../ui/panel.module.css';
   display: flex;
   min-width: 0;
   min-height: 0;

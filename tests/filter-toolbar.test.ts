@@ -3,7 +3,7 @@
 import { act, createElement as h, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SearchFilterToolbar, type SearchFilterToolbarView } from '../src/client/SearchFilterToolbar.js'
+import { SearchFilterToolbar, type SearchFilterToolbarView } from '../src/client/ui/SearchFilterToolbar.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 

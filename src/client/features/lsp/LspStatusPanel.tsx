@@ -12,12 +12,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, IconEditOutlineMedium, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-import { DetailModal } from './ui/DetailModal.js'
-import { ServerConfigEditor } from './ui/ServerConfigEditor.js'
-import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
-import { parseServerConfig } from './ui/server-form.js'
-import { PanelHeader, PanelActions } from './ui/panel.js'
-import type { Translate } from './index.js'
+import { DetailModal } from '../../ui/DetailModal.js'
+import { ServerConfigEditor } from '../../ui/ServerConfigEditor.js'
+import { ServerConfigDetail } from '../../ui/ServerConfigDetail.js'
+import { parseServerConfig } from '../../ui/server-form.js'
+import { PanelHeader, PanelActions } from '../../ui/panel.js'
+import type { Translate } from '../../index.js'
 import {
   addLspServer,
   fetchLspStatus,
@@ -28,19 +28,19 @@ import {
   type LspStatusEntry,
   type LspStatusPayload,
   type LspStatusState
-} from './api.js'
-import { SearchFilterToolbar } from './SearchFilterToolbar.js'
-import { FailureReport } from './ui/FailureReport.js'
-import { failureGuidanceKey } from './ui/failure-guidance.js'
-import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
-import { DetailRow, DetailRows } from './ui/DetailRows.js'
-import { useWorkspaceView } from './ui/workspace-view.js'
-import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './features/lsp-status/lsp-status-view-model.js'
-import css from './mcp-status.module.css'
-import rc from './ui/resource-card.module.css'
-import panelCss from './ui/panel.module.css'
-import { clientErrorMessage } from './ui/error-message.js'
-import { withBusyOperation } from './ui/busy-operation.js'
+} from '../../api.js'
+import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
+import { FailureReport } from '../../ui/FailureReport.js'
+import { failureGuidanceKey } from '../../ui/failure-guidance.js'
+import { ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
+import { DetailRow, DetailRows } from '../../ui/DetailRows.js'
+import { useWorkspaceView } from '../../ui/workspace-view.js'
+import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './lsp-status-view-model.js'
+import css from '../mcp/mcp-status.module.css'
+import rc from '../../ui/resource-card.module.css'
+import panelCss from '../../ui/panel.module.css'
+import { clientErrorMessage } from '../../ui/error-message.js'
+import { withBusyOperation } from '../../ui/busy-operation.js'
 
 interface LspStatusPanelProps {
   t: Translate

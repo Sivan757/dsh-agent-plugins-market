@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mcpDetailActions } from '../src/client/features/mcp-status/detail-actions.js'
+import { mcpDetailActions } from '../src/client/features/mcp/detail-actions.js'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
 
 const entry: McpStatusEntry = { id: 'plugin:source/suite/key', name: 'server', kind: 'plugin', transport: 'stdio', state: 'failed', tools: [] }

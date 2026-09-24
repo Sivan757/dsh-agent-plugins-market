@@ -1,8 +1,8 @@
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import type { Translate } from '../../index.js'
-import { fetchModelCatalog } from '../../api.js'
-import type { ModelCatalogPayload } from '../../../contracts/market.js'
-import formCss from '../../ui/form.module.css'
+import type { Translate } from '../index.js'
+import { fetchModelCatalog } from '../api.js'
+import type { ModelCatalogPayload } from '../../contracts/market.js'
+import formCss from './form.module.css'
 import { readRoleFields, updateFrontmatter, updateRoleReasoning } from './frontmatter.js'
 
 /** Structured controls edit the same frontmatter as the raw Markdown editor. */

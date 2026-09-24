@@ -21,8 +21,8 @@
  */
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { MARKET_SETTINGS_DEFAULTS, type DownloadRegionSetting, type MarketSettingKey, type MarketSettings } from '../contracts/settings.js'
-import type { McpBackendInfo } from './api.js'
+import { MARKET_SETTINGS_DEFAULTS, type DownloadRegionSetting, type MarketSettingKey, type MarketSettings } from '../../../contracts/settings.js'
+import type { McpBackendInfo } from '../../api.js'
 
 /** The boolean switches this card renders, in display order. */
 export const MARKET_SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled'] as const
