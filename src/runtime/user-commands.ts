@@ -14,7 +14,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { commandCallName } from '../model/command-names.js'
 import type { HostTranslate } from './host-locale.js'
-import { USER_ENTRY_PATH } from './user-store.js'
+import { USER_ENTRY_PATH } from '../application/user-store.js'
 import type { UserPanelStore } from './user-panels.js'
 import { pluginMarketSource } from './plugin-message-source.js'
 

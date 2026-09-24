@@ -6,8 +6,14 @@ import { defaultMarkdownResources, resourceText } from '../catalog/component-fil
 import { pluginRootOf } from '../catalog/plugin-variables.js'
 import { isWithin, suiteDataDir } from '../catalog/paths.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
-import { parseFrontmatterRecord } from '../runtime/user-store.js'
-import type { UserPanelStore } from '../runtime/user-panels.js'
+import { parseFrontmatterRecord } from './user-store.js'
+/** The user-panel store surface the panel resources drive (structural). */
+interface UserPanelEntries {
+  list(strict?: boolean): Promise<UserPanelEntryWire[]>
+  create(name: string, text: string): Promise<UserPanelEntryWire>
+  update(name: string, text: string): Promise<void>
+  remove(name: string): Promise<void>
+}
 import type { Catalog } from './catalog.js'
 
 /** The routes consume this structural surface, also implemented by user-only stores in tests. */
@@ -34,7 +40,7 @@ export function isPluginResourceId(id: string): boolean {
   return id.startsWith('[')
 }
 
-export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelStore>): Record<UserPanelKind, PanelResourceStore> {
+export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelEntries>): Record<UserPanelKind, PanelResourceStore> {
   return {
     skills: new PanelResources(catalog, users.skills, 'skills'),
     commands: new PanelResources(catalog, users.commands, 'commands'),
@@ -45,7 +51,7 @@ export function createPanelResources(catalog: Catalog, users: Record<UserPanelKi
 class PanelResources implements PanelResourceStore {
   constructor(
     private catalog: Catalog,
-    private users: UserPanelStore,
+    private users: UserPanelEntries,
     private kind: UserPanelKind
   ) {}
 

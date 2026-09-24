@@ -17,17 +17,17 @@ import { type Context, type Volatile } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cosmokit'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import z from '@deepseek-ai/schemastery'
-import { MarketSettingsFields } from './runtime/mcp-backend.js'
+import { MarketSettingsFields } from './application/mcp-backend.js'
 import type { DownloadRegionSetting } from './contracts/settings.js'
 import { Catalog } from './application/catalog.js'
 import type { CatalogPortsOverride } from './application/ports.js'
-import { settlesWithin } from './runtime/deadline.js'
+import { settlesWithin } from './application/deadline.js'
 import { RuntimeReconciler } from './runtime/reconciler.js'
 import { ReconcileScheduler } from './runtime/reconcile-scheduler.js'
 import { MarketSettingsNamespace } from './runtime/settings-namespace.js'
 import { deleteMcpAuthGrant } from './runtime/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/tool-registry-observer.js'
-import { migratePluginStorage } from './runtime/storage-migration.js'
+import { migratePluginStorage } from './application/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agent-role-router.js'
 import { projectAgentRoles } from './application/project-agent-roles.js'
 import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/project-runtime.js'
@@ -36,8 +36,8 @@ import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/p
 import { mountSuiteRoutes } from './routes.js'
 import { SuiteSkillProvider } from './runtime/skills-provider.js'
 import { shellSeamOf, type ShellSeam } from './runtime/dynamic-context.js'
-import { loadLspServers } from './runtime/lsp-direct-config.js'
-import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
+import { loadLspServers } from './application/lsp-direct-config.js'
+import { loadDisabledLspServers } from './application/lsp-server-state.js'
 import {
   bindHostLocale,
   LOCALE_SETTINGS_ENTRY,
@@ -280,7 +280,8 @@ export async function apply(
     lspStatusSource: runtime.lsp,
     mcpBackend: () => settings.backend(),
     setMcpBackend: backend => settings.setBackend(backend),
-    downloadRegion: () => settings.downloadRegion()
+    downloadRegion: () => settings.downloadRegion(),
+    localePreference: () => readLocalePreference() ?? 'zh'
   }
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })

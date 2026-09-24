@@ -11,7 +11,7 @@
  * only notifies. This module adds the one thing that primitive does not answer
  * and these callers need: whether the work settled at all.
  *
- * @module runtime/deadline
+ * @module application/deadline
  */
 import { deadline } from '@deepseek-ai/dsh-timeout'
 

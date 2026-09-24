@@ -13,7 +13,7 @@
  * id `direct` (mirroring mcp-status's `plugin`/`direct` split).
  */
 import type { LspStatusCode, LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
-import type { LspMountDiagnostic } from './lsp-mounts.js'
+import type { LspMountDiagnostic } from '../contracts/lsp.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { LspServerSpec, Suite } from '../model/types.js'
 

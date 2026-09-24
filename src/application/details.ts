@@ -3,12 +3,12 @@ import { readFile, stat } from 'node:fs/promises'
 import { parse as parseYaml } from 'yaml'
 import { discoverLspEntries } from '../catalog/surfaces.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
-import { credentialRefsInServer } from '../runtime/mcp-config.js'
-import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
-import { applyOverride } from '../runtime/mcp-overrides.js'
+import { credentialRefsInServer } from './mcp-config.js'
+import { redactMcpConfig, redactMcpOverrides } from './mcp-redaction.js'
+import { applyOverride } from './mcp-overrides.js'
 import type { LspSurfaceDetail, McpServerDetail, SkillContent, SuiteDetail } from '../contracts/market.js'
 import { effectiveSurfaces, type InstalledEntry, type ProjectHooks, type Suite, type SuiteMarkdownResource } from '../model/types.js'
-import type { McpMountDiagnostic as McpDiagnostic } from '../runtime/mcp-mounts.js'
+import type { McpMountDiagnostic as McpDiagnostic } from '../contracts/mcp.js'
 
 /** The checkout's last modification, or null when the path cannot be read. */
 async function rootModifiedAt(root: string): Promise<string | null> {

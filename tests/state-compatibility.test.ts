@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { loadState, saveState, EMPTY_STATE } from '../src/runtime/state-store.js'
+import { loadState, saveState, EMPTY_STATE } from '../src/application/state-store.js'
 import type { SuiteState } from '../src/model/types.js'
 
 /**

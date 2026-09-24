@@ -10,7 +10,7 @@ import { HooksMountRegistry } from './hooks-mounts.js'
 import type { Suite } from '../model/types.js'
 import { readFile } from 'node:fs/promises'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
-import { parseFrontmatterRecord } from './user-store.js'
+import { parseFrontmatterRecord } from '../application/user-store.js'
 
 interface ProjectAgent {
   ctx: Context

@@ -2,10 +2,13 @@
 import { readFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { parse as parseYaml } from 'yaml'
 import { mountSubagentCatalog, type SubagentCatalogEntry } from './subagent-catalog.js'
 import { namedAgentRoles } from './agent-role-names.js'
 import { expandPluginPaths } from '../catalog/plugin-variables.js'
+import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../application/agent-roles.js'
+
+export { parseAgentRole }
+export type { AgentRoleEntry, AgentRolePolicy }
 
 export const AGENT_ROLE_TOOL_NAME = 'subagent_role'
 
@@ -14,34 +17,6 @@ export const AGENT_ROLE_TOOL_NAME = 'subagent_role'
  * the same value; keeping it explicit preserves the shipped recursion budget.
  */
 const MAX_AGENT_ROLE_DEPTH = 3
-
-/** Panel identity is preserved so identically named cards from different suites remain addressable. */
-export interface AgentRoleEntry {
-  name: string
-  path: string
-  description: string
-  disabled: boolean
-  title?: string
-  rawText?: string
-  /** Suite checkout root the card's `${PLUGIN_ROOT}` variables resolve to; absent for project-native files. */
-  suiteRoot?: string
-  /** The suite's `${PLUGIN_DATA}` directory; absent for project-native files. */
-  suiteData?: string
-}
-
-/**
- * The executable part of one card. `tools` / `disallowedTools` stay in the file
- * and are preserved by the editors, but they are not applied.
- */
-export interface AgentRolePolicy {
-  content: string
-  model?: string
-  provider?: string
-  reasoningEffort?: string
-  title?: string
-  description?: string
-  disabled: boolean
-}
 
 /** Child LLM options this plugin sends; never carries inherited parent values. */
 export interface AgentRoleOptions {
@@ -99,46 +74,6 @@ export interface AgentRoleJob {
 /** The host `jobs` registry seam, reached through `ctx.get('jobs')`. */
 export interface AgentRoleJobs {
   start(spec: { kind: string; label: string; owner?: unknown; run(): AgentRoleJob }): string
-}
-
-function optionalText(value: unknown, key: string): string | undefined {
-  if (value === undefined) return undefined
-  if (typeof value !== 'string' || value.trim() === '') throw new Error(`agent metadata ${key} must be a non-empty string`)
-  return value.trim()
-}
-
-/** Strict YAML parsing prevents malformed routing metadata from silently inheriting wider privileges. */
-export function parseAgentRole(text: string): AgentRolePolicy {
-  const match = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text)
-  if (match === null) {
-    if (/^(?:\uFEFF)?---(?:\r?\n|$)/.test(text)) throw new Error('agent frontmatter is not closed')
-    return { content: text, disabled: false }
-  }
-  // A matched block always carries its body; the check keeps the type honest.
-  const frontmatter = match[1]
-  if (frontmatter === undefined) throw new Error('agent frontmatter is not closed')
-  const parsed: unknown = parseYaml(frontmatter)
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('agent frontmatter must be a YAML object')
-  const metadata = parsed as Record<string, unknown>
-  if (metadata.disabled !== undefined && typeof metadata.disabled !== 'boolean') throw new Error('agent metadata disabled must be a boolean')
-  const model = optionalText(metadata.model, 'model')
-  const provider = optionalText(metadata.provider, 'provider')
-  const effort = optionalText(metadata.reasoning_effort, 'reasoning_effort')
-  const camelEffort = optionalText(metadata.reasoningEffort, 'reasoningEffort')
-  if (effort !== undefined && camelEffort !== undefined && effort !== camelEffort) throw new Error('agent metadata reasoning_effort and reasoningEffort conflict')
-  const reasoningEffort = effort ?? camelEffort
-  const title = optionalText(metadata.name, 'name')
-  const description = optionalText(metadata.description, 'description')
-  if (model === 'inherit' && provider !== undefined) throw new Error('agent model inherit cannot specify a provider')
-  return {
-    content: text.slice(match[0].length),
-    disabled: metadata.disabled === true,
-    ...(model === undefined || model === 'inherit' ? {} : { model }),
-    ...(provider === undefined ? {} : { provider }),
-    ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
-    ...(title === undefined ? {} : { title }),
-    ...(description === undefined ? {} : { description })
-  }
 }
 
 /** Effective route the parent Agent's next request would use. */
@@ -409,11 +344,10 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
   const tool = defineTool({
     name: AGENT_ROLE_TOOL_NAME,
     description:
-      "Delegate a task to a role child defined by an installed plugin: the named role's own instructions and its configured model apply, and the child starts without this conversation. This tool runs in " +
-      'the background by default, immediately returns a durable subagent id, and keeps the child available for later turns; when that run settles, the runtime sends the parent a notice carrying its outcome ' +
-      'and final reply. Set `run_in_background: false` only when your next action depends on receiving the result. A child usually runs for minutes, so while it works on the background path, continue with ' +
-      'independent work instead of waiting. `prompt` must stand alone, since the child cannot see this conversation and a question it asks while it runs goes unanswered. When the notice arrives, verify its ' +
-      "assertions against the files and relay the result to the user; the child's output is not visible to them. The current catalog lists the available roles and states the usage guidance; when no listed " +
+      "Delegate a task to a named role child from the session's role catalog: the role's own instructions and its configured model apply, and the child starts without this conversation. Use it proactively for self-contained work — codebase exploration whose raw reads would fill this context, a scoped implementation, a review, or an analysis you can brief in one prompt — and start independent children together in one message. The child runs in " +
+      'the background by default and returns a durable subagent id at once, keeping the child available for later turns; when the run settles, the runtime sends the parent a notice carrying its outcome and ' +
+      'final reply. A child usually runs for minutes, so continue with independent work instead of waiting. `prompt` must stand alone, since the child cannot see this conversation and a question it asks while it runs goes unanswered. When the notice arrives, verify its ' +
+      "assertions against the files and relay the result to the user; the child's output is not visible to them. The current catalog lists the available roles and the full usage guidance; when no listed " +
       "role matches, use the host's own `subagent` tools instead.",
     parameters: {
       agent: { type: 'string', required: true, description: 'Exact callable role name from the current subagent catalog.' },

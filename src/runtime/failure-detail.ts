@@ -9,7 +9,7 @@
  *
  * @module runtime/failure-detail
  */
-import { redactErrorMessage } from './mcp-redaction.js'
+import { redactErrorMessage } from '../application/mcp-redaction.js'
 
 /** How many cause messages one failure keeps; a mount failure's chain is short. */
 const MAX_CAUSES = 4

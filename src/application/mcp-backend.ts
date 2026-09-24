@@ -11,7 +11,7 @@
  * servers when the switch flips. `readMcpBackend` remains only as the
  * one-time migration from the earlier data-root `settings.json` choice.
  *
- * @module runtime/mcp-backend
+ * @module application/mcp-backend
  */
 
 import { readFile } from 'node:fs/promises'
@@ -21,8 +21,9 @@ import z from '@deepseek-ai/schemastery'
 import { readJsonFile } from '../application/json-file.js'
 import { MARKET_SETTINGS_DEFAULTS } from '../contracts/settings.js'
 
-/** The MCP mount backend the market uses for suite servers. */
-export type McpBackend = 'builtin' | 'host'
+import type { McpBackend } from '../contracts/mcp.js'
+
+export type { McpBackend }
 
 /**
  * Schema of the market settings namespace: the switches this plugin's config

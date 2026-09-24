@@ -6,12 +6,15 @@
 
 ```
 src/
-  application/  use cases: Catalog facade, ports, source/snapshot/install stores, MCP + LSP services, queries
+  application/  use cases: Catalog facade, ports, source/snapshot/install stores, MCP + LSP services and
+                their config/status/override modules, queries — imports no runtime module (gated)
   catalog/      pure source scanning: manifests, dialects, scan pipeline, fs probes, lsp-spec validation
   client/       Web market page (React + CSS modules), bilingual locales.ts
-  contracts/    API request/response types shared by routes and client (imports nothing)
+  contracts/    API request/response types shared by routes and client (imports nothing); mcp.ts and
+                lsp.ts hold the backend selector and mount-diagnostic wire shapes
   model/        domain records only (suite, source, surfaces) — no Node APIs
-  runtime/      harness-facing effects: reconciler + scheduling, surface mounts and their shared lifecycle, MCP client bridge, status builders, persisted stores
+  runtime/      harness-facing effects: reconciler + scheduling, surface mounts and their shared lifecycle,
+                MCP client bridge, host seams (locale, settings namespace, tool observation)
   index.ts      plugin entry (composition root); routes.ts  API surface
 schemas/        versioned mcp.schema.json and friends (strict validation contracts)
 tests/          vitest suites mirroring src/; fixtures under tests/fixtures

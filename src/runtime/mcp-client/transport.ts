@@ -15,7 +15,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { scrubbedParentEnv } from './host-seams.js'
 import { LoopbackOAuthClientProvider } from './oauth.js'
-import type { Config, SseConfig, StreamableHttpConfig } from './config.js'
+import type { Config, SseConfig, StreamableHttpConfig } from '../../application/mcp-bridge-config.js'
 
 /**
  * The subprocess seam's scrubbed parent env (credential-shaped and stale

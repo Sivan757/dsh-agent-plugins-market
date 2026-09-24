@@ -20,11 +20,11 @@
  * server instead of becoming empty strings.
  */
 import { createHash } from 'node:crypto'
-import type { Config, SseConfig } from './mcp-client/config.js'
-import { DEFAULT_STARTUP_TIMEOUT_MS, DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-client/config.js'
+import type { Config, SseConfig } from './mcp-bridge-config.js'
+import { DEFAULT_STARTUP_TIMEOUT_MS, DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-bridge-config.js'
 import { resolveCwd } from '../catalog/validate.js'
 import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
-import { applyOverride, type McpServerOverride, type McpSuiteOverrides } from './mcp-overrides.js'
+import { applyOverride, type McpServerOverride, type McpSuiteOverrides } from '../application/mcp-overrides.js'
 import type { McpStatusCode } from '../contracts/mcp-status.js'
 import type { HarnessMcpPolicy, McpServer, McpServerPolicy, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'

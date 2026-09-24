@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createUserPanelStores, UserPanelSkillProvider } from '../src/runtime/user-panels.js'
-import { parseFrontmatterRecord, serializeFrontmatter } from '../src/runtime/user-store.js'
+import { parseFrontmatterRecord, serializeFrontmatter } from '../src/application/user-store.js'
 
 describe('user panel stores', () => {
   it('creates, lists, updates, disables, and deletes entries', async () => {

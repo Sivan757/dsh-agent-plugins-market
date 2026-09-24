@@ -1,14 +1,13 @@
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
 import type { McpStatusEntry, McpStatusCode, McpStatusPayload, McpStatusState, McpStatusTool } from '../contracts/mcp-status.js'
-import { inspectToolRegistry, type McpToolSnapshot } from './tool-registry-observer.js'
+import type { McpToolSnapshot } from './ports.js'
 import { redactMcpConfig, redactUrl } from './mcp-redaction.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { McpServer, Suite } from '../model/types.js'
 
 export type { McpStatusEntry, McpStatusPayload, McpStatusKind, McpStatusState } from '../contracts/mcp-status.js'
-export { inspectToolRegistry }
-export type { McpToolSnapshot } from './tool-registry-observer.js'
+export type { McpToolSnapshot }
 
 export interface McpDiagnostic {
   suiteId: string

@@ -12,7 +12,7 @@ import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
 import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../src/runtime/mcp-client/tools.js'
 import { createTransport } from '../src/runtime/mcp-client/transport.js'
 import { apply } from '../src/runtime/mcp-client/bridge.js'
-import type { Config, StreamableHttpConfig } from '../src/runtime/mcp-client/config.js'
+import type { Config, StreamableHttpConfig } from '../src/application/mcp-bridge-config.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const testToolSignal = new AbortController().signal

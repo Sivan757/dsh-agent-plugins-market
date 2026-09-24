@@ -107,29 +107,36 @@ const CATALOG_PROMPT =
 
 const CATALOG_USAGE = [
   'Usage notes:',
-  '- Call subagent_role with the exact catalog name as agent. A child has its own context: it starts without this conversation, so it suits self-contained work that one briefing can state in full.',
+  "- Call subagent_role with the exact catalog name as agent. A child has its own context: it starts without this conversation, so it suits self-contained work that one briefing can state in full. If no listed role matches, do not substitute a similarly named one — delegate through one of the host's general delegation channels instead, and do not load these roles through skill or slash commands.",
   '- By default the call returns a durable subagent id immediately and runs in the background without blocking you. A child usually runs for minutes: spend that time advancing independent work that does not depend on it, rather than idling — and do not poll it or re-check its progress. While it runs, send_message adds an instruction or more material and list_agents reports its status.',
-  '- run_in_background true runs the same child as a tracked background job and returns a job id instead: collect it with job_output and stop it with job_kill. Use it when the result should be collected later through the job tools; leave the parameter out when you want the child reachable with send_message and list_agents.',
-  "- run_in_background false runs one foreground child and returns its report as this call's result instead of a settlement notice. Use it only when your next action depends on the result.",
+  "- run_in_background true runs the same child as a tracked background job and returns a job id instead: collect it with job_output and stop it with job_kill. run_in_background false runs one foreground child and returns its report as this call's result — use it when your next action depends on the result and no independent work remains.",
   '- A question a child asks while it runs goes unanswered: nothing will reply on your behalf. So state the prompt in full the first time, and a child should decide for itself, keep going, and list in its final reply which choices it made alone and what information it still lacked.',
-  "- A background child's output is not visible to the user. When it finishes, summarize the result to the user yourself.",
-  "- The child's settlement notice arrives as a user message, not as a tool result. Until it arrives, do not assume or predict its findings, and do not deliver anything that depends on them; act on them once it lands, by verifying or delegating further as needed.",
+  "- The settlement notice arrives as a user message, not as a tool result. Until it arrives, do not assume or predict its findings, and do not deliver anything that depends on them. A background child's output is not visible to the user: when it finishes, summarize the result to the user yourself.",
   "- The child's final reply is its own report: check its assertions against the files themselves, and treat its statements about its own configuration the same way — a child cannot see how its role instructions were installed.",
-  "- The route parameters override the route the role card declares; omit them to use the card's route, or the parent route when the card declares none.",
-  '- Do not duplicate work a child is already doing.',
-  '- When several children run at once, give each its own git worktree and name the files it owns in prompt.'
+  '- Do not duplicate work a child is already doing. When several children run at once, give each its own git worktree and name the files it owns in prompt.'
 ].join('\n')
 
-const CATALOG_WHEN_NOT_TO_USE =
-  "When NOT to use a role child: no listed role matches; your next action needs the result; or another child is already doing this work. When no role matches, do not substitute a similarly named one — delegate through one of the host's general delegation channels instead. Do not load these roles through skill or slash commands."
+/**
+ * The positive half of the delegation decision, published with every catalog
+ * ahead of the role list so the model reads the triggers before the names.
+ * Delegation had only negative framing before this block: every other paragraph
+ * states what must not happen, and none states when delegating is the default.
+ */
+const CATALOG_WHEN_TO_DELEGATE = [
+  'Delegate proactively: hand self-contained work to a role child by default instead of doing it inline. Delegate when any of these holds:',
+  '- The task would burn many tool calls or file reads whose raw output would flood this conversation — codebase exploration, tracing behavior across files, digesting long logs or reports. The child reads everything and returns only the distilled result.',
+  '- The task is a complete unit one briefing can state: a scoped implementation, a review, an analysis, a document.',
+  '- Two or more such tasks are independent: start all the children in one message and let them run in parallel.',
+  'Decide by the briefing test: if you can state the task in full and it needs no further input from the user, delegate it and keep working.'
+].join('\n')
 
 /**
- * Model-facing catalog text: the role list followed by the same guidance on
- * first publication and on every update, so a replacement never arrives without
- * the rules that govern it. The guidance covers how to brief a child, how to
- * work with one while it runs, and when a role child is the wrong answer; the
- * per-channel arbitration between the host's delegation tools stays in the tool
- * descriptions the harness owns.
+ * Model-facing catalog text: the delegation triggers, then the role list, then
+ * the same guidance on first publication and on every update, so a replacement
+ * never arrives without the rules that govern it. The guidance covers when a
+ * role child is the default, how to brief one, and how to work with one while
+ * it runs; the per-channel arbitration between the host's delegation tools
+ * stays in the tool descriptions the harness owns.
  *
  * Role lines carry a name and a description only. The configured route stays in
  * the durable entries for execution and change detection; publishing it would
@@ -140,12 +147,12 @@ export function renderCatalogText(entries: readonly SubagentCatalogEntry[], upda
   return [
     '<system-reminder>',
     update ? CATALOG_UPDATED : CATALOG_INTRO,
+    CATALOG_WHEN_TO_DELEGATE,
     '<available_subagents>',
     ...lines,
     '</available_subagents>',
     CATALOG_PROMPT,
     CATALOG_USAGE,
-    CATALOG_WHEN_NOT_TO_USE,
     '</system-reminder>'
   ].join('\n')
 }

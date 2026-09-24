@@ -28,23 +28,17 @@
  * user resolves it through per-suite surface toggles.
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { DIRECT_LSP_SUITE_ID } from './lsp-status.js'
+import { DIRECT_LSP_SUITE_ID } from '../application/lsp-status.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
-import { describeLegacySeam, findLegacyLspSeams, type LegacyLspSeam } from './profile-seam.js'
+import { describeLegacySeam, findLegacyLspSeams, type LegacyLspSeam } from '../application/profile-seam.js'
 import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
 import { expandPluginPaths, pluginRootOf, type PluginPathContext } from '../catalog/plugin-variables.js'
 import { causeMessages } from './failure-detail.js'
-import type { LspStatusCode } from '../contracts/lsp-status.js'
 import { effectiveSurfaces, type Suite } from '../model/types.js'
 
-export interface LspMountDiagnostic {
-  suiteId: string
-  serverKey: string
-  reason: string
-  code?: LspStatusCode
-  /** The messages under the failure's `cause` chain, outermost first. */
-  causes?: string[]
-}
+import type { LspMountDiagnostic } from '../contracts/lsp.js'
+
+export type { LspMountDiagnostic }
 
 interface LiveMount {
   fingerprint: string

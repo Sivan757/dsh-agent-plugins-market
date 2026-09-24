@@ -49,7 +49,7 @@ import {
   type EntryDocument,
   type EntryShape,
   type UserEntryFile
-} from './user-store.js'
+} from '../application/user-store.js'
 /** The skill-source label user-panel entries carry into the skill registry. */
 export const USER_PANEL_SKILL_SOURCE = 'user-panel' satisfies SkillSource
 

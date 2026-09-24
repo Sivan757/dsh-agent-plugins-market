@@ -16,7 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { resolveMarketSettings, type DownloadRegionSetting, type MarketSettings } from '../contracts/settings.js'
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from './feedback-tool.js'
 import type { HostLocaleKey, HostTranslate } from './host-locale.js'
-import type { McpBackend } from './mcp-backend.js'
+import type { McpBackend } from '../contracts/mcp.js'
 
 /** The five volatile references the entry's config carries for this namespace. */
 export interface MarketSettingRefs {

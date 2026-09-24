@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
-import { toMcpMounts } from '../src/runtime/mcp-config.js'
+import { toMcpMounts } from '../src/application/mcp-config.js'
 import {
   applyOverride,
   loadSuiteOverrides,
@@ -14,7 +14,7 @@ import {
   sanitizeOverrides,
   saveSuiteOverrides,
   withoutPolicyFields
-} from '../src/runtime/mcp-overrides.js'
+} from '../src/application/mcp-overrides.js'
 import { expectTransport } from './helpers/bridge-config.js'
 import { effectiveSurfaces, type McpServerStreamableHttp, type Suite } from '../src/model/types.js'
 

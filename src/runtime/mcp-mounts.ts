@@ -12,25 +12,19 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import * as mcpBridge from './mcp-client/bridge.js'
-import type { McpBackend } from './mcp-backend.js'
-import type { McpSuiteOverrides } from './mcp-overrides.js'
-import { toMcpMounts, type McpMountFailureCode, type McpMountRequest } from './mcp-config.js'
+import type { McpBackend } from '../contracts/mcp.js'
+import type { McpSuiteOverrides } from '../application/mcp-overrides.js'
+import { toMcpMounts, type McpMountRequest } from '../application/mcp-config.js'
 import { mcpCredentialResolver } from './mcp-credentials.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
-import { redactErrorMessage } from './mcp-redaction.js'
+import { redactErrorMessage } from '../application/mcp-redaction.js'
 import { causeMessages } from './failure-detail.js'
 import type { Suite } from '../model/types.js'
 
-export interface McpMountDiagnostic {
-  suiteId: string
-  serverKey: string
-  reason: string
-  code?: McpMountFailureCode
-  /** The messages under the failure's `cause` chain, outermost first. */
-  causes?: string[]
-  credentialRefs?: string[]
-}
+import type { McpMountDiagnostic } from '../contracts/mcp.js'
+
+export type { McpMountDiagnostic }
 
 interface LiveMount {
   suiteId: string

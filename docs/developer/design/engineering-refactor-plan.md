@@ -72,13 +72,19 @@ src/
   application/
     catalog.ts          facade: state, mutation queue, revisions, snapshot assembly, queries
     catalog-context.ts  the shared invariants every collaborator reaches through
-    ports.ts            CatalogPorts — the declared host seams
+    ports.ts            CatalogPorts — the declared host seams (structural types declared here)
     snapshot-cache.ts   scan cache and the user/project snapshot caches
     source-store.ts     source CRUD, acquisition, adoption, progress
     install-store.ts    install, uninstall, enable and surface mutations
     mcp-service.ts      MCP use cases
     lsp-service.ts      LSP use cases
     queries.ts, details.ts, panel-resources.ts, project-agent-roles.ts
+    json-file.ts        the shared ENOENT-tolerant JSON read / atomic 0o600 write loop
+    state-store.ts, storage-migration.ts, legacy-root-migration.ts
+    mcp-config.ts (portable-format mapper + policy resolution), mcp-bridge-config.ts,
+    mcp-overrides.ts, mcp-redaction.ts, mcp-direct-config.ts, mcp-status.ts, mcp-backend.ts
+    lsp-direct-config.ts, lsp-server-state.ts, lsp-status.ts, server-config.ts
+    user-store.ts, user-hooks.ts, profile-seam.ts, deadline.ts, regions.ts, agent-roles.ts
 
   runtime/        harness-facing effects: surface mounts + mount-lifecycle.ts, reconciler,
                   reconcile-scheduler, settings-namespace, MCP client bridge and its projection,
@@ -111,8 +117,8 @@ src/
 model       -> nothing outside itself, and no Node APIs
 contracts   -> nothing at all
 catalog     -> model
-application -> model, catalog, contracts, and the runtime effects it drives
-runtime     -> model, application
+application -> model, contracts, catalog, application (enforced; no runtime import)
+runtime     -> model, contracts, application
 index/routes-> application, runtime, contracts
 client      -> contracts and client-only modules
 ```

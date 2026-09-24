@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
-import { toMcpMounts } from '../src/runtime/mcp-config.js'
+import { toMcpMounts } from '../src/application/mcp-config.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 import { required } from './helpers/fixture.js'
 

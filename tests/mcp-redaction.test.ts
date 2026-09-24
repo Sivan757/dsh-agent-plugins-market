@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { redactErrorMessage, redactMcpConfig, redactUrl, isSensitiveKey } from '../src/runtime/mcp-redaction.js'
-import { credentialRefsInServer } from '../src/runtime/mcp-config.js'
+import { redactErrorMessage, redactMcpConfig, redactUrl, isSensitiveKey } from '../src/application/mcp-redaction.js'
+import { credentialRefsInServer } from '../src/application/mcp-config.js'
 
 describe('MCP config redaction', () => {
   it('keeps the OAuth opt-in block while redacting secret values inside it and beside it', () => {

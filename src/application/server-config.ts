@@ -3,7 +3,7 @@ import { readJsonFile, writeJsonDocument } from '../application/json-file.js'
 import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
-import { redactMcpConfig } from './mcp-redaction.js'
+import { redactMcpConfig } from '../application/mcp-redaction.js'
 import type { LspServerSpec, Suite } from '../model/types.js'
 
 /** One rejected value, with the field it belongs to when the schema knows it. */

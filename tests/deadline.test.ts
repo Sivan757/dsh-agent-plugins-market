@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { settlesWithin } from '../src/runtime/deadline.js'
+import { settlesWithin } from '../src/application/deadline.js'
 
 describe('settlesWithin', () => {
   it('reports a timeout while the work keeps running, then the settlement', async () => {

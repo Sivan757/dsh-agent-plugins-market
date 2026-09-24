@@ -18,7 +18,7 @@ import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider
 import type { Catalog } from '../application/catalog.js'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 import type { Suite, SuiteSkill } from '../model/types.js'
-import { parseFrontmatterRecord } from './user-store.js'
+import { parseFrontmatterRecord } from '../application/user-store.js'
 import { expandPluginPaths, pluginRootOf } from '../catalog/plugin-variables.js'
 import { suiteDataDir } from '../catalog/paths.js'
 import { injectDynamicContext, type ShellSeam } from './dynamic-context.js'

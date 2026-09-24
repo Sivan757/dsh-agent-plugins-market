@@ -12,7 +12,7 @@
 import { join, resolve } from 'node:path'
 import { resolveProjectRoot, STATE_FILE_NAME } from '../catalog/paths.js'
 import { discoverSourceListWithNotes } from '../catalog/source-catalog.js'
-import { loadState } from '../runtime/state-store.js'
+import { loadState } from './state-store.js'
 import type { DiscoveredSuite, SourceRef, Suite, SuiteDimension, SuiteState } from '../model/types.js'
 
 export const SCAN_CACHE_TTL_MS = 30_000

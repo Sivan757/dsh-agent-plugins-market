@@ -11,7 +11,7 @@
  * to that directory. Skills also accept the cross-tool directory spelling
  * (`<name>/SKILL.md`) that other Agent tools and the harness's own reader of
  * `~/.agents/skills` author, and read it from the top level only.
- * @module runtime/user-store
+ * @module application/user-store
  */
 
 import { readdir, readFile, rmdir, rm, stat } from 'node:fs/promises'

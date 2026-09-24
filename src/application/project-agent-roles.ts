@@ -2,7 +2,7 @@
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { pluginRootOf } from '../catalog/plugin-variables.js'
 import { suiteDataDir } from '../catalog/paths.js'
-import { parseAgentRole, type AgentRoleEntry } from '../runtime/agent-role-router.js'
+import { parseAgentRole, type AgentRoleEntry } from './agent-roles.js'
 import type { Catalog } from './catalog.js'
 
 export async function projectAgentRoles(catalog: Catalog, parent: unknown): Promise<AgentRoleEntry[]> {

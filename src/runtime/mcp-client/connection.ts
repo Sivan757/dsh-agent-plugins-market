@@ -24,25 +24,18 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { MAX_TIMER_DELAY_MS } from './host-seams.js'
-import { redactErrorMessage } from '../mcp-redaction.js'
+import { redactErrorMessage } from '../../application/mcp-redaction.js'
 import { PLUGIN_NAME, PLUGIN_VERSION } from './plugin-identity.js'
 import { createTransport } from './transport.js'
 import { syncTools } from './tools.js'
 import type { ToolBridgeOptions, ToolDisposers, ToolHost } from './tools.js'
-import type { Config } from './config.js'
-import { DEFAULT_STARTUP_TIMEOUT_MS } from './config.js'
+import type { Config } from '../../application/mcp-bridge-config.js'
+import { DEFAULT_STARTUP_TIMEOUT_MS } from '../../application/mcp-bridge-config.js'
 
 /** Automatic reconnect policy for one MCP server connection. */
-export interface ReconnectConfig {
-  /** Reconnect automatically after a lost connection (default true). */
-  enabled?: boolean
-  /** First reconnect delay in milliseconds; doubles per consecutive failed attempt (default 500). */
-  initialDelayMs?: number
-  /** Backoff ceiling in milliseconds; also the uptime after which the attempt budget resets (default 30000). */
-  maxDelayMs?: number
-  /** Consecutive failed attempts per outage before giving up for good (default 10). */
-  maxAttempts?: number
-}
+import type { ReconnectConfig } from '../../application/mcp-bridge-config.js'
+
+export type { ReconnectConfig }
 
 /** Defaults shared by the config and {@link resolveReconnectPolicy}. */
 export const RECONNECT_DEFAULTS: Required<ReconnectConfig> = Object.freeze({

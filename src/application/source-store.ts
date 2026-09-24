@@ -15,8 +15,7 @@ import { repoName } from '../catalog/manifests.js'
 import { deriveSourceIdCandidates, expandHome, sanitizeId, sourceCheckoutDir, sourcesDir } from '../catalog/paths.js'
 import { isDirectory, pathExists } from '../catalog/fs-probes.js'
 import { canonicalGitUrl } from '../catalog/scan-resolvers.js'
-import { readLocalePreference } from '../runtime/host-locale.js'
-import { githubCloneUrl, resolveRegion } from '../runtime/regions.js'
+import { githubCloneUrl, resolveRegion } from './regions.js'
 import type { SourceOverview, SourceProgress, UnmanagedSource } from '../contracts/market.js'
 import { resolveSourceKind, type SourceRef } from '../model/types.js'
 import type { CatalogContext } from './catalog-context.js'
@@ -276,7 +275,7 @@ export class SourceStore {
         // source.url) are re-pointed — a foreign remote is left untouched.
         if (source.kind === 'git' || (source.kind === undefined && source.local !== true)) {
           try {
-            const region = resolveRegion(await this.ports.downloadRegion(), readLocalePreference())
+            const region = resolveRegion(await this.ports.downloadRegion(), this.ports.localePreference())
             const routed = githubCloneUrl(region, source.url)
             const origin = await gitRemoteUrl(checkout)
             if (origin !== routed && (origin === source.url || origin === githubCloneUrl('china', source.url))) {
@@ -392,7 +391,7 @@ export class SourceStore {
     try {
       // The region routes github.com clones through the China mirror prefix;
       // the proxied URL becomes `origin`, so refreshes follow the same route.
-      const region = resolveRegion(await this.ports.downloadRegion(), readLocalePreference())
+      const region = resolveRegion(await this.ports.downloadRegion(), this.ports.localePreference())
       await gitClone(githubCloneUrl(region, source.url), source.branch, checkout, this.context.git)
       return undefined
     } catch (error) {

@@ -9,8 +9,18 @@
  * @module runtime/mcp-client/config
  */
 
-import type { ReconnectConfig } from './connection.js'
-import type { McpServerPolicy } from '../../model/types.js'
+/** Automatic-reconnect tuning the transport configs carry. */
+export interface ReconnectConfig {
+  /** Reconnect automatically after a lost connection (default true). */
+  enabled?: boolean
+  /** First reconnect delay in milliseconds; doubles per consecutive failed attempt (default 500). */
+  initialDelayMs?: number
+  /** Backoff ceiling in milliseconds; also the uptime after which the attempt budget resets (default 30000). */
+  maxDelayMs?: number
+  /** Consecutive failed attempts per outage before giving up for good (default 10). */
+  maxAttempts?: number
+}
+import type { McpServerPolicy } from '../model/types.js'
 
 /** Default timeout for individual MCP tool calls (ms). */
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000

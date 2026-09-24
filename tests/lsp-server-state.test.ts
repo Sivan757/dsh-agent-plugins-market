@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { loadDisabledLspServers, lspServerStatePath, saveDisabledLspServers } from '../src/runtime/lsp-server-state.js'
+import { loadDisabledLspServers, lspServerStatePath, saveDisabledLspServers } from '../src/application/lsp-server-state.js'
 
 const roots: string[] = []
 async function tempRoot(): Promise<string> {

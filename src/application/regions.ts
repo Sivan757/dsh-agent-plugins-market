@@ -11,7 +11,7 @@
  * can flip at any time; sources already cloned keep their proxied origin and
  * follow it on refresh.
  *
- * @module runtime/regions
+ * @module application/regions
  */
 import type { DownloadRegionSetting } from '../contracts/settings.js'
 

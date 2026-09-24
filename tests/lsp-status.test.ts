@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildLspStatus, type LspMountStatusSource } from '../src/runtime/lsp-status.js'
+import { buildLspStatus, type LspMountStatusSource } from '../src/application/lsp-status.js'
 import type { LspMountDiagnostic } from '../src/runtime/lsp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 

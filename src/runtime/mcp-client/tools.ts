@@ -25,7 +25,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonSchemaNode } from './json-schema-subset.js'
 import { assertSupportedJsonSchema } from './json-schema-subset.js'
 import { containsImage, extractText, prepareImageProjection, type PreparedProjection } from './projection.js'
-import { redactErrorMessage } from '../mcp-redaction.js'
+import { redactErrorMessage } from '../../application/mcp-redaction.js'
 import type { JsonValue, McpResult, ToolDefinition, ToolExecution, ToolExecutionResult, ToolHost } from './host-contract.js'
 
 export type { JsonValue, McpResult, ToolDefinition, ToolExecution, ToolExecutionResult, ToolHost } from './host-contract.js'

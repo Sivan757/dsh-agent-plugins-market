@@ -22,8 +22,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { resolveReconnectPolicy, startConnection } from './connection.js'
-import { validateConfig } from './config.js'
-import type { Config } from './config.js'
+import { validateConfig } from '../../application/mcp-bridge-config.js'
+import type { Config } from '../../application/mcp-bridge-config.js'
 import type { ToolHost } from './tools.js'
 
 /** Cordis plugin name used by loader diagnostics. */

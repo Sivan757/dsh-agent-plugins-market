@@ -12,20 +12,12 @@ import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { ServerConfigPayload, ServerPolicyPayload } from '../contracts/market.js'
 import type { DiscoveredSuite, Suite } from '../model/types.js'
-import { readLocalePreference } from '../runtime/host-locale.js'
-import { probeHostMcpClient, type McpBackend } from '../runtime/mcp-backend.js'
-import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from '../runtime/mcp-config.js'
-import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
-import {
-  addUserMcpServer,
-  importUserMcpServers,
-  loadUserMcpSuite,
-  USER_MCP_SOURCE,
-  USER_MCP_SUITE,
-  type McpImportEntry,
-  type McpImportResult
-} from '../runtime/mcp-direct-config.js'
-import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
+import type { McpBackend } from '../contracts/mcp.js'
+import { probeHostMcpClient } from './mcp-backend.js'
+import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp-config.js'
+import { loadLspServers, saveLspServers } from './lsp-direct-config.js'
+import { addUserMcpServer, importUserMcpServers, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE, type McpImportEntry, type McpImportResult } from './mcp-direct-config.js'
+import type { McpMountDiagnostic } from '../contracts/mcp.js'
 import {
   applyOverride,
   loadSuiteOverrides,
@@ -36,11 +28,11 @@ import {
   type McpPolicyPatch,
   type McpServerOverride,
   type McpSuiteOverrides
-} from '../runtime/mcp-overrides.js'
-import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
-import { buildMcpStatus } from '../runtime/mcp-status.js'
-import { resolveRegion } from '../runtime/regions.js'
-import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from '../runtime/server-config.js'
+} from './mcp-overrides.js'
+import { redactMcpConfig, redactMcpOverrides } from './mcp-redaction.js'
+import { buildMcpStatus } from './mcp-status.js'
+import { resolveRegion } from './regions.js'
+import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
 import type { CatalogPorts, McpBackendInfo } from './ports.js'
 import type { SourceStore } from './source-store.js'
@@ -303,7 +295,7 @@ export class McpService {
    */
   async backendInfo(): Promise<McpBackendInfo> {
     const [backend, hostClient, regionSetting] = await Promise.all([this.ports.mcpBackend(), probeHostMcpClient(), this.ports.downloadRegion()])
-    return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, readLocalePreference()) } }
+    return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, this.ports.localePreference()) } }
   }
 
   /**

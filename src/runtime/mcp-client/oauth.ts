@@ -34,9 +34,9 @@ import { isDeepStrictEqual } from 'node:util'
 import { type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { OAuthClientInformation, OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { credentialKey, scrubbedParentEnv, type CredentialKey, type CredentialRecordStore } from './host-seams.js'
-import { redactErrorMessage, redactUrl } from '../mcp-redaction.js'
+import { redactErrorMessage, redactUrl } from '../../application/mcp-redaction.js'
 import { PLUGIN_NAME, PLUGIN_VERSION } from './plugin-identity.js'
-import type { OAuthStorageConfig } from './config.js'
+import type { OAuthStorageConfig } from '../../application/mcp-bridge-config.js'
 
 /** OAuth client identity presented during dynamic registration. */
 const CLIENT_NAME = `DeepSeek Harness (${PLUGIN_NAME})`

@@ -45,7 +45,7 @@ export class RuntimeReconciler {
   }
 
   /** Install the per-suite MCP overrides provider used at mount time. */
-  setMcpOverridesProvider(provider: () => Promise<Map<string, import('./mcp-overrides.js').McpSuiteOverrides>>): void {
+  setMcpOverridesProvider(provider: () => Promise<Map<string, import('../application/mcp-overrides.js').McpSuiteOverrides>>): void {
     this.mcp.setOverridesProvider(provider)
   }
 
@@ -55,7 +55,7 @@ export class RuntimeReconciler {
   }
 
   /** Install the backend provider deciding which MCP client mounts each server. */
-  setMcpBackendProvider(provider: () => Promise<import('./mcp-backend.js').McpBackend>): void {
+  setMcpBackendProvider(provider: () => Promise<import('../application/mcp-backend.js').McpBackend>): void {
     this.mcp.setBackendProvider(provider)
   }
 

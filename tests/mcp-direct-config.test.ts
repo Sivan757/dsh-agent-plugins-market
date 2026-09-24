@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { addUserMcpServer, importUserMcpServers, loadUserMcpSuite } from '../src/runtime/mcp-direct-config.js'
+import { addUserMcpServer, importUserMcpServers, loadUserMcpSuite } from '../src/application/mcp-direct-config.js'
 import { CommandMountRegistry } from '../src/runtime/commands-mounts.js'
-import { toMcpMounts } from '../src/runtime/mcp-config.js'
+import { toMcpMounts } from '../src/application/mcp-config.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {

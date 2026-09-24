@@ -9,7 +9,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { MARKET_SETTINGS_NAMESPACE } from '../src/contracts/settings.js'
-import { marketSettingsPath, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/runtime/mcp-backend.js'
+import { marketSettingsPath, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/application/mcp-backend.js'
 import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 

@@ -12,9 +12,23 @@
 import type { LspServerSpec, SourceKind } from '../model/types.js'
 export type { McpBackendInfo } from '../contracts/market.js'
 import type { DownloadRegionSetting } from '../contracts/settings.js'
-import type { McpBackend } from '../runtime/mcp-backend.js'
-import type { LspMountStatusSource } from '../runtime/lsp-status.js'
-import type { McpToolSnapshot } from '../runtime/mcp-status.js'
+import type { McpBackend } from '../contracts/mcp.js'
+import type { LspMountDiagnostic } from '../contracts/lsp.js'
+
+/** One MCP tool observed from the host tool registry (structural). */
+export interface McpToolSnapshot {
+  name: string
+  description?: string
+  /** The input schema the server advertised, when the host exposes it. */
+  parameters?: unknown
+}
+
+/** The LSP mount-registry surface the aggregator consumes (structural, for tests). */
+export interface LspMountStatusSource {
+  diagnosticsSnapshot(): Map<string, LspMountDiagnostic>
+  hasLiveMounts(): boolean
+  disabledServers?(): Set<string>
+}
 
 /** A new source: its location, optional branch, and acquisition kind. */
 export interface SourceInput {
@@ -62,6 +76,8 @@ export interface CatalogPorts {
   setMcpBackend(backend: McpBackend): Promise<void>
   /** The persisted download-region setting. */
   downloadRegion(): Promise<DownloadRegionSetting>
+  /** The host locale preference ('zh' default when unset). */
+  localePreference(): string
 }
 
 /** The seams a composition root may wire; the rest fall back to the defaults. */
@@ -79,6 +95,7 @@ export const defaultCatalogPorts: CatalogPorts = {
   mcpServerOwner: () => undefined,
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
   mcpBackend: async () => 'builtin',
+  localePreference: () => 'zh',
   setMcpBackend: async () => {
     throw new Error('the settings service is not mounted')
   },

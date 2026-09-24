@@ -1,6 +1,6 @@
 /** Resolve MCP `${NAME}` placeholders through the optional DSH credentials seam. */
 import type { Context } from '@deepseek-ai/cordis'
-import type { McpCredentialResolver } from './mcp-config.js'
+import type { McpCredentialResolver } from '../application/mcp-config.js'
 
 interface CredentialService {
   resolve(ref: string): Promise<{ value: string; source?: string } | undefined>
