@@ -202,6 +202,32 @@ describe('McpMountRegistry', () => {
     await registry.disposeAll()
   })
 
+  it('carries the messages under a wrapper sentence onto the diagnostic', async () => {
+    const ctx = {
+      plugin: () => ({
+        // The shape a real failed startup has: one fixed sentence, with the
+        // spawn or handshake error that caused it underneath.
+        await: async () => {
+          throw new Error('mcp-client(broken__service): initial connection or tool synchronization failed', { cause: new Error('spawn npx ENOENT') })
+        },
+        dispose: async () => {}
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const diagnostics = await registry.reconcile([suite('broken', 'service')])
+
+    expect(diagnostics).toContainEqual({
+      suiteId: 'demo/broken',
+      serverKey: 'service',
+      code: 'mount-failed',
+      reason: 'mount failed: mcp-client(broken__service): initial connection or tool synchronization failed',
+      causes: ['spawn npx ENOENT']
+    })
+    await registry.disposeAll()
+  })
+
   it('retains a mount after failed disposal so a later reconcile can retry cleanup', async () => {
     let disposeAttempts = 0
     const ctx = {

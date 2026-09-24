@@ -25,6 +25,7 @@ import { DEFAULT_STARTUP_TIMEOUT_MS, DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-
 import { resolveCwd } from '../catalog/validate.js'
 import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
 import { applyOverride, type McpServerOverride, type McpSuiteOverrides } from './mcp-overrides.js'
+import type { McpStatusCode } from '../contracts/mcp-status.js'
 import type { HarnessMcpPolicy, McpServer, McpServerPolicy, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../model/types.js'
 import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../model/layouts.js'
 
@@ -79,21 +80,17 @@ export interface ResolvedMcpPolicy {
   startupTimeout: McpTimeoutResolution
 }
 
-export type McpMountFailureCode =
-  | 'unsupported-transport'
-  | 'missing-credential'
-  | 'credential-error'
-  | 'unmount-failed'
-  | 'mount-failed'
-  /** The derived serverName's namespace is already mounted by another MCP client — informational, not a failure. */
-  | 'foreign-mount'
-  /** Another source's identical suite/server pair mounted first — this copy is redundant, informational. */
-  | 'duplicate-mount'
+export type McpMountFailureCode = Extract<
+  McpStatusCode,
+  'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed' | 'foreign-mount' | 'duplicate-mount'
+>
 
 export interface McpMountFailure {
   serverKey: string
   reason: string
   code?: McpMountFailureCode
+  /** The messages under the failure's `cause` chain, outermost first. */
+  causes?: string[]
   credentialRefs?: string[]
 }
 

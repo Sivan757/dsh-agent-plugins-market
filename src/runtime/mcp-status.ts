@@ -1,6 +1,6 @@
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
-import type { McpStatusEntry, McpStatusPayload, McpStatusState, McpStatusTool } from '../contracts/mcp-status.js'
+import type { McpStatusEntry, McpStatusCode, McpStatusPayload, McpStatusState, McpStatusTool } from '../contracts/mcp-status.js'
 import { inspectToolRegistry, type McpToolSnapshot } from './tool-registry-observer.js'
 import { redactMcpConfig, redactUrl } from './mcp-redaction.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
@@ -14,7 +14,8 @@ export interface McpDiagnostic {
   suiteId: string
   serverKey: string
   reason: string
-  code?: 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed' | 'foreign-mount' | 'duplicate-mount'
+  code?: McpStatusCode
+  causes?: string[]
   credentialRefs?: string[]
 }
 
@@ -74,9 +75,16 @@ export function buildMcpStatus(
                 : tools.length > 0
                   ? 'connected'
                   : 'degraded'
-      const reason = orphaned
-        ? 'MCP tools remain after this plugin surface was disabled'
-        : (diagnostic?.reason ?? (override === undefined || (state !== 'disabled' && tools.length > 0) ? undefined : disabled ? 'disabled by override' : 'modified by override'))
+      // A diagnostic's reason keeps the code the mount pipeline gave it. The
+      // notes this builder adds describe the declaration's own state — an
+      // override switched it off, an override rewrote it, or its surface is
+      // gone while its tools remain — so each carries the matching state code
+      // for the panel to localize.
+      const orphanNote = orphaned ? 'MCP tools remain after this plugin surface was disabled' : undefined
+      const overrideNote = override === undefined || (state !== 'disabled' && tools.length > 0) ? undefined : disabled ? 'disabled by override' : 'modified by override'
+      const reason = orphanNote ?? diagnostic?.reason ?? overrideNote
+      const code: McpStatusCode | undefined =
+        orphanNote !== undefined ? 'orphaned-tools' : (diagnostic?.code ?? (overrideNote === undefined ? undefined : disabled ? 'disabled-override' : 'modified-override'))
       entries.push({
         id: `plugin:${suiteKey}/${serverKey}`,
         name: serverName,
@@ -95,8 +103,9 @@ export function buildMcpStatus(
         ...(policy.enabledTools === undefined ? {} : { suiteEnabledTools: policy.enabledTools }),
         ...(policy.suiteDisabledTools === undefined ? {} : { suiteDisabledTools: policy.suiteDisabledTools }),
         ...(override?.disabledTools === undefined ? {} : { userDisabledTools: override.disabledTools }),
-        ...(diagnostic?.code === undefined ? {} : { code: diagnostic.code }),
+        ...(code === undefined ? {} : { code }),
         ...(reason === undefined ? {} : { reason }),
+        ...(diagnostic?.causes === undefined ? {} : { causes: diagnostic.causes }),
         ...(credentialRefs.length === 0 ? {} : { credentialRefs })
       })
     }
@@ -121,6 +130,7 @@ export function buildMcpStatus(
         config: redactMcpConfig(stale.server) as Record<string, unknown>,
         tools: observedTools(tools),
         reason: 'MCP tools remain after this plugin was disabled or uninstalled',
+        code: 'orphaned-tools',
         ...(staleRefs.length === 0 ? {} : { credentialRefs: staleRefs })
       })
       continue

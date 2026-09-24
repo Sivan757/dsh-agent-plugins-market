@@ -302,8 +302,8 @@ export class McpService {
    * everything the plugin-config card renders.
    */
   async backendInfo(): Promise<McpBackendInfo> {
-    const [backend, hostClient, regionSetting, locale] = await Promise.all([this.ports.mcpBackend(), probeHostMcpClient(), this.ports.downloadRegion(), readLocalePreference()])
-    return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, locale) } }
+    const [backend, hostClient, regionSetting] = await Promise.all([this.ports.mcpBackend(), probeHostMcpClient(), this.ports.downloadRegion()])
+    return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, readLocalePreference()) } }
   }
 
   /**

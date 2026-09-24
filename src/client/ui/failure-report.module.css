@@ -1,0 +1,91 @@
+/* The shared failure report: a state rail, the classified sentence, the action
+   that state offers, and the recorded diagnostic behind a disclosure. */
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--dsw-alias-state-error-primary, #dc2626);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
+}
+
+/* A state the panel only notes is not a failure: the rail and the fill step
+   back. The fill is the same soft neutral the detail dialogs' status band uses
+   (`panel.module.css .hero`), which is the platform's non-hover use of it. */
+.info {
+  border-left-color: var(--dsw-alias-label-tertiary, #8b93a1);
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+}
+
+/* The sentence the classifier picked; the tone lives in the rail, so the text
+   keeps the reading colour of every other line in the dialog. */
+.lead {
+  margin: 0;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary, #4e5969);
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-secondary, #4e5969);
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.chevron {
+  display: inline-flex;
+  align-items: center;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 2px 2px;
+}
+
+/* The recorded diagnostic, verbatim: the words another layer chose, for a bug
+   report or a search, kept out of the sentence the user reads first. */
+.line {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}

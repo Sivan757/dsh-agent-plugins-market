@@ -19,6 +19,7 @@ import { mcpCredentialResolver } from './mcp-credentials.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from './mount-lifecycle.js'
 import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
 import { redactErrorMessage } from './mcp-redaction.js'
+import { causeMessages } from './failure-detail.js'
 import type { Suite } from '../model/types.js'
 
 export interface McpMountDiagnostic {
@@ -26,6 +27,8 @@ export interface McpMountDiagnostic {
   serverKey: string
   reason: string
   code?: McpMountFailureCode
+  /** The messages under the failure's `cause` chain, outermost first. */
+  causes?: string[]
   credentialRefs?: string[]
 }
 
@@ -194,7 +197,13 @@ export class McpMountRegistry {
       // reported so a transient error does not shadow the final state.
       const failure = await this.mountWith(entry.request)
       if (failure !== undefined) {
-        diagnostics.push({ suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id), serverKey: entry.serverKey, reason: failure.reason, code: failure.code })
+        diagnostics.push({
+          suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id),
+          serverKey: entry.serverKey,
+          reason: failure.reason,
+          code: failure.code,
+          ...(failure.causes === undefined || failure.causes.length === 0 ? {} : { causes: failure.causes })
+        })
         // Foreign and duplicate skips are deterministic, not transient:
         // retrying them just burns the attempt budget and log lines. The
         // next full reconcile re-checks them anyway, so the self-heal path
@@ -218,7 +227,7 @@ export class McpMountRegistry {
   }
 
   /** Mount one precomputed request (source config merged with overrides). */
-  private async mountWith(request: McpMountRequest): Promise<{ reason: string; code: McpMountFailureCode } | undefined> {
+  private async mountWith(request: McpMountRequest): Promise<Omit<McpMountDiagnostic, 'suiteId' | 'serverKey'> | undefined> {
     // §9.1: the client-managed PLUGIN_DATA directory must exist and be
     // writable before any plugin subprocess starts. Created recursively and
     // idempotently on every mount so an uninstalled-then-reinstalled suite
@@ -299,7 +308,7 @@ export class McpMountRegistry {
           // Ignore teardown errors: the startup failure is the real signal.
         }
       }
-      return { reason: `mount failed: ${redactErrorMessage(error instanceof Error ? error.message : String(error))}`, code: 'mount-failed' }
+      return { reason: `mount failed: ${redactErrorMessage(error instanceof Error ? error.message : String(error))}`, code: 'mount-failed', causes: causeMessages(error) }
     }
     this.live.set(mountKey(request.suiteId, request.serverKey), {
       suiteId: request.suiteId,

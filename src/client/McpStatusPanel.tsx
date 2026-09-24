@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, IconEditOutlineMedium, IconRefreshOutlineMedium, IconSearchOutlineMedium, Input, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './ui/DetailModal.js'
+import { FailureReport } from './ui/FailureReport.js'
+import { failureGuidanceKey } from './ui/failure-guidance.js'
 import { ServerConfigEditor } from './ui/ServerConfigEditor.js'
 import { ServerConfigDetail } from './ui/ServerConfigDetail.js'
 import { fieldErrorsOf, MCP_TEMPLATES, parsePastedServer, parsePastedServers, parseServerConfig, type McpTemplate, type ServerConfig } from './ui/server-form.js'
@@ -15,7 +17,6 @@ import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
 import { deriveMcpStatusViewModel, mcpToolRows, MCP_FILTERS, type McpStatusFilter } from './features/mcp-status/mcp-status-view-model.js'
-import { MCP_GUIDANCE_LABEL, mcpGuidanceKey } from './features/mcp-status/diagnostic-guidance.js'
 import css from './mcp-status.module.css'
 import rc from './ui/resource-card.module.css'
 import panelCss from './ui/panel.module.css'
@@ -213,6 +214,11 @@ function mcpDotState(state: McpStatusEntry['state']): 'done' | 'warning' | 'erro
   return 'warning'
 }
 
+/** The failure report's tone: only the states the card marks as errors shout. */
+function mcpReportTone(state: McpStatusEntry['state']): 'error' | 'info' {
+  return state === 'failed' || state === 'orphaned' ? 'error' : 'info'
+}
+
 /**
  * One inventory card: the server name with its state tag on the identity row
  * and the enable switch on its trailing edge; the endpoint on the body row;
@@ -335,7 +341,7 @@ export function McpDetailModal({
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
   const [enabledBusy, setEnabledBusy] = useState(false)
   const actions = mcpDetailActions(entry)
-  const guidance = mcpGuidanceKey(entry.code, entry.reason)
+  const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
   const tools = mcpToolRows(entry)
   const needle = toolSearch.trim().toLowerCase()
   const matchingTools = needle === '' ? tools : tools.filter(tool => tool.name.toLowerCase().includes(needle))
@@ -377,7 +383,9 @@ export function McpDetailModal({
     try {
       const current = authorize ? await onReauthorize(entry.id, entry.name) : await onRetry(entry.id)
       const connected = current.state === 'connected'
-      setFeedback({ error: !connected, text: connected ? t('mcpRetrySuccess') : t('mcpStillUnavailable') + (current.reason ? ': ' + current.reason : '') })
+      // The reason itself is reported by the block below, from the row the
+      // operation just refreshed, so this echo only says what the operation did.
+      setFeedback({ error: !connected, text: connected ? t('mcpRetrySuccess') : t('mcpStillUnavailable') })
     } catch (reason) {
       setFeedback({ error: true, text: t('actionFail') + ': ' + clientErrorMessage(t, reason) })
     } finally {
@@ -431,7 +439,7 @@ export function McpDetailModal({
       confirmAuth
         ? h(
             'section',
-            { className: css.reasonBox, role: 'alert' },
+            { className: css.confirmPanel, role: 'alert' },
             h('p', null, t('mcpReauthExplain')),
             h(Button, { variant: 'ghost', onClick: () => setConfirmAuth(false) }, t('cancel')),
             h(
@@ -447,7 +455,6 @@ export function McpDetailModal({
             )
           )
         : null,
-      entry.state === 'needs-credentials' ? h('p', { className: css.reasonText }, t('mcpConfigureCredentialsFirst')) : null,
       h(
         'div',
         { className: panelCss.hero },
@@ -482,31 +489,25 @@ export function McpDetailModal({
           kvCell(t('mcpServerKeyLabel'), entry.serverKey ?? entry.name, true)
         )
       ),
-      // A foreign mount is informational: the localized hint (per cause —
-      // another plugin, or another source's identical suite) replaces the raw
-      // English reason, which drops to a dim secondary line for its details.
-      entry.state === 'foreign'
+      // Every state with something to report renders through the one failure
+      // report: the sentence the classifier picked leads, the recorded
+      // diagnostic stays behind its disclosure, and the state's one recovery
+      // action rides inside. A state that is not a failure keeps the
+      // informational tone instead of the error fill.
+      entry.reason !== undefined || actions.retry || entry.state === 'foreign'
         ? h(
             'div',
-            { className: css.reasonBox },
-            h('span', { className: css.reasonLabel }, t('mcpReasonLabel')),
-            h('p', { className: css.reasonText }, entry.code === 'duplicate-mount' ? t('mcpDuplicateHint') : t('mcpForeignHint')),
-            entry.reason === undefined ? null : h('p', { className: css.reasonRaw }, entry.reason)
-          )
-        : entry.reason === undefined && !actions.retry
-          ? null
-          : h(
-              'div',
-              { className: css.reasonBox },
-              entry.reason === undefined ? null : h('span', { className: css.reasonLabel }, t('mcpReasonLabel')),
-              entry.reason === undefined ? null : h('p', { className: css.reasonText }, entry.reason),
-              guidance === undefined ? null : h('p', { className: css.reasonHint }, t(MCP_GUIDANCE_LABEL[guidance])),
+            { className: panelCss.block },
+            h('h4', { className: panelCss.blockHead }, t('mcpReasonLabel')),
+            h(FailureReport, {
+              t,
+              tone: mcpReportTone(entry.state),
+              ...(guidance === undefined ? {} : { guidance }),
+              detail: [entry.reason, ...(entry.causes ?? [])].filter((line): line is string => line !== undefined),
               // The state names one way out; the dialog footer keeps the rest.
-              actions.retry
-                ? h(
-                    'div',
-                    { className: css.reasonActions },
-                    h(
+              ...(actions.retry
+                ? {
+                    action: h(
                       Button,
                       {
                         variant: 'outline',
@@ -520,10 +521,12 @@ export function McpDetailModal({
                       h(IconRefreshOutlineMedium),
                       t('mcpRetryConnection')
                     )
-                  )
-                : null
-            ),
-      entry.kind === 'direct' && !entry.managed ? h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, t('mcpDirectBoundary'))) : null,
+                  }
+                : {})
+            })
+          )
+        : null,
+      entry.kind === 'direct' && !entry.managed ? h(FailureReport, { t, tone: 'info', headline: t('mcpDirectBoundary') }) : null,
       h(
         'div',
         { className: panelCss.block },

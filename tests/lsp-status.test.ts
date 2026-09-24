@@ -48,8 +48,28 @@ describe('buildLspStatus', () => {
     if (entry === undefined) throw new Error('expected the stored diagnostic to produce one status row')
     expect(entry.state).toBe('host-missing')
     expect(entry.reason).toBe('not installed')
+    expect(entry.code).toBe('host-missing')
     expect(payload.hostMissing).toBe(true)
     expect(payload.totals.blocked).toBe(1)
+  })
+
+  it('carries the messages under a failure onto its status row', () => {
+    const payload = buildLspStatus(
+      [lspSuite('ts')],
+      registry([
+        {
+          suiteId: 'src/ts',
+          serverKey: 'ts/typescript',
+          reason: 'mount failed: initialize failed',
+          code: 'mount-failed',
+          causes: ['Error: spawn typescript-language-server ENOENT']
+        }
+      ])
+    )
+    const [entry] = payload.entries
+    if (entry === undefined) throw new Error('expected the stored diagnostic to produce one status row')
+    expect(entry.reason).toBe('mount failed: initialize failed')
+    expect(entry.causes).toEqual(['Error: spawn typescript-language-server ENOENT'])
   })
 
   it('falls back to starting when no mounts and no diagnostics exist (mount pass in flight)', () => {

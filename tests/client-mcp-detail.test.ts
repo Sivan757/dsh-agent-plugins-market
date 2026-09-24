@@ -3,8 +3,9 @@ import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
+import type { Translate } from '../src/client/index.js'
+import { zh } from '../src/client/locales.js'
 import { stubTranslate as t } from './helpers/translate.js'
-import { mcpGuidanceKey } from '../src/client/features/mcp-status/diagnostic-guidance.js'
 
 const apiMock = vi.hoisted(() => ({ setMcpServerTool: vi.fn(async () => {}), setMcpServerEnabled: vi.fn(async () => {}) }))
 vi.mock('../src/client/api.js', async importOriginal => ({
@@ -25,13 +26,13 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 const base: McpStatusEntry = { id: 'service', name: 'service', kind: 'plugin', state: 'failed', transport: 'streamable-http', tools: [], canReauthorize: true }
-async function mount(entry = base, backend: 'builtin' | 'host' = 'builtin') {
+async function mount(entry = base, backend: 'builtin' | 'host' = 'builtin', translate: Translate = t) {
   const host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
   const retry = vi.fn(async () => ({ ...entry, state: 'connected' as const }))
   const authorize = vi.fn(async () => ({ ...entry, state: 'failed' as const, reason: 'still offline' }))
-  await act(async () => root.render(h(McpDetailModal, { entry, t, backend, onClose: vi.fn(), onRetry: retry, onReauthorize: authorize, onRefresh: retry })))
+  await act(async () => root.render(h(McpDetailModal, { entry, t: translate, backend, onClose: vi.fn(), onRetry: retry, onReauthorize: authorize, onRefresh: retry })))
   return { retry, authorize }
 }
 const button = (text: string) => [...document.querySelectorAll('button')].find(node => node.textContent === text)!
@@ -43,7 +44,10 @@ it('has no enable switch, confirms destructive authorization and reports actual 
   expect(authorize).not.toHaveBeenCalled()
   await act(async () => button('mcpConfirmReauth').click())
   expect(authorize).toHaveBeenCalledWith('service', 'service')
-  expect(document.body.textContent).toContain('still offline')
+  // The echo says what the operation did; the reason itself belongs to the
+  // report below, so the sentence the operation returns never repeats it.
+  expect(document.body.textContent).toContain('mcpStillUnavailable')
+  expect(document.body.textContent).not.toContain('still offline')
   expect(document.body.textContent).not.toContain('mcpRetrySuccess')
 })
 it('reports without an editing entry of its own', async () => {
@@ -81,17 +85,50 @@ it('reveals a tool’s parameters from its own row', async () => {
   expect(document.body.textContent).toContain('File to read')
   expect(document.body.textContent).toContain('mcpToolParamRequired')
 })
-it('classifies a failure into the next thing to check', () => {
-  expect(mcpGuidanceKey('mount-failed', 'connect ECONNREFUSED 127.0.0.1:8000')).toBe('refused')
-  expect(mcpGuidanceKey(undefined, 'request timed out after 60000ms')).toBe('timeout')
-  expect(mcpGuidanceKey('missing-credential', 'API_TOKEN is not set')).toBe('credentials')
-  expect(mcpGuidanceKey('mount-failed', 'native MCP tool filters and startup timeouts require the built-in backend')).toBe('backend')
-  expect(mcpGuidanceKey('mount-failed', 'getaddrinfo ENOTFOUND mcp.example.test')).toBe('dns')
-  expect(mcpGuidanceKey(undefined, 'everything is fine')).toBeUndefined()
+it('leads with the next thing to check and keeps the recorded diagnostic behind its disclosure', async () => {
+  await mount({
+    ...base,
+    state: 'failed',
+    code: 'mount-failed',
+    reason: 'mount failed: mcp-client(service): initial connection or tool synchronization failed',
+    causes: ['spawn npx ENOENT']
+  })
+  // The wrapper sentence names no cause, so the sentence for the cause the
+  // chain reveals leads the report.
+  expect(document.body.textContent).toContain('failureGuideCommandMissing')
+  expect(document.body.textContent).not.toContain('spawn npx ENOENT')
+  expect(document.body.textContent).not.toContain('initial connection or tool synchronization failed')
+  await act(async () => button('failureDetailToggle').click())
+  expect(document.body.textContent).toContain('spawn npx ENOENT')
+  expect(document.body.textContent).toContain('initial connection or tool synchronization failed')
 })
-it('names the next thing to check beside the reason', async () => {
-  await mount({ ...base, state: 'failed', reason: 'connect ECONNREFUSED 127.0.0.1:8000' })
-  expect(document.body.textContent).toContain('mcpGuideRefused')
+
+it('keeps a reason without a recognizable shape as the line the report shows', async () => {
+  await mount({ ...base, state: 'disabled', reason: 'modified by override' })
+  expect(document.body.textContent).toContain('modified by override')
+  // Nothing is classified, so there is no sentence to invent and no second
+  // copy of the line to disclose.
+  expect(button('failureDetailToggle')).toBeUndefined()
+})
+
+it('reads in the interface language, with the recorded diagnostic only in the disclosure', async () => {
+  // The real dictionary, not the key-echoing stub: this is the text a reader sees.
+  const zhTranslate: Translate = key => zh[key]
+  await mount(
+    {
+      ...base,
+      code: 'mount-failed',
+      reason: 'mount failed: mcp-client(service): initial connection or tool synchronization failed',
+      causes: ['spawn npx ENOENT']
+    },
+    'builtin',
+    zhTranslate
+  )
+  expect(document.body.textContent).toContain(zh.failureGuideCommandMissing)
+  expect(document.body.textContent).not.toContain('initial connection or tool synchronization failed')
+  await act(async () => button(zh.failureDetailToggle).click())
+  expect(document.body.textContent).toContain('initial connection or tool synchronization failed')
+  expect(document.body.textContent).toContain('spawn npx ENOENT')
 })
 it('shows close but no connection actions for external servers', async () => {
   await mount({ ...base, kind: 'direct', canReauthorize: false })

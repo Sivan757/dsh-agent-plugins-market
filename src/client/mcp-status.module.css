@@ -15,11 +15,6 @@
 @media (max-width: 760px) {
   .grid { grid-template-columns: minmax(0, 1fr); }
 }
-.reasonLabel {
-  flex: none;
-  font-weight: 600;
-  opacity: 0.85;
-}
 
 .empty, .detailEmpty {
   padding: 24px;
@@ -42,7 +37,10 @@
 .modalFooterGrow { flex: 1 1 auto; }
 .detail { display: flex; flex-direction: column; gap: 16px; }
 
-.reasonBox {
+/* The destructive-authorization confirmation. It keeps the error fill because
+   it asks before dropping a grant; a failure report uses FailureReport's own
+   rail and fill. */
+.confirmPanel {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -51,16 +49,6 @@
   background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
   border-radius: 8px;
 }
-.reasonText {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 18px;
-}
-/* The one action the current state offers, carried inside the reason band. */
-.reasonActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-/* The next thing to check, under the reason that produced it. */
-.reasonHint { margin: 2px 0 0; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
 
 /* The block heading with its optional trailing control (the tool search). */
 .blockHeadRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -157,15 +145,6 @@
 }
 @keyframes lspStartingPulse {
   50% { opacity: 0.35; }
-}
-
-.reasonRaw {
-  margin: 6px 0 0;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 11px;
-  line-height: 1.5;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  word-break: break-all;
 }
 
 /* Legacy profile LSP layer: a one-action upgrade repair above the inventory.

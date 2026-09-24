@@ -30,6 +30,8 @@ import {
   type LspStatusState
 } from './api.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
+import { FailureReport } from './ui/FailureReport.js'
+import { failureGuidanceKey } from './ui/failure-guidance.js'
 import { ResourceCard, ResourceCollection } from './ui/ResourceCard.js'
 import { DetailRow, DetailRows } from './ui/DetailRows.js'
 import { useWorkspaceView } from './ui/workspace-view.js'
@@ -409,7 +411,8 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
   )
 }
 
-function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Translate; onClose: () => void }): ReactNode {
+export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Translate; onClose: () => void }): ReactNode {
+  const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
   return h(DetailModal, {
     open: true,
     onClose,
@@ -456,7 +459,12 @@ function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Trans
             'div',
             { className: panelCss.block },
             h('h4', { className: panelCss.blockHead }, t('lspReasonLabel')),
-            h('div', { className: css.reasonBox }, h('p', { className: css.reasonText }, entry.reason))
+            h(FailureReport, {
+              t,
+              tone: entry.state === 'disabled' ? 'info' : 'error',
+              ...(guidance === undefined ? {} : { guidance }),
+              detail: [entry.reason, ...(entry.causes ?? [])]
+            })
           ),
       h(
         'div',

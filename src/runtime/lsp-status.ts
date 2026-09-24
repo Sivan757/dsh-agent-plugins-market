@@ -12,7 +12,7 @@
  * Direct user-configured rows follow the same model under the sentinel suite
  * id `direct` (mirroring mcp-status's `plugin`/`direct` split).
  */
-import type { LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
+import type { LspStatusCode, LspStatusEntry, LspStatusPayload, LspStatusState } from '../contracts/lsp-status.js'
 import type { LspMountDiagnostic } from './lsp-mounts.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { LspServerSpec, Suite } from '../model/types.js'
@@ -33,18 +33,33 @@ export interface LspDirectServersSource {
   errors: string[]
 }
 
+/** The fields one diagnostic contributes to its status row. */
+function diagnosticReport(diagnostic: LspMountDiagnostic | undefined): { reason?: string; code?: LspStatusCode; causes?: string[] } {
+  if (diagnostic === undefined) return {}
+  return {
+    reason: diagnostic.reason,
+    ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
+    ...(diagnostic.causes === undefined ? {} : { causes: diagnostic.causes })
+  }
+}
+
 /**
  * Derive one row's state from its suite's diagnostic and the live-mount flag.
  * Shared by suite rows and direct rows so both kinds report identically.
  */
-function deriveState(disabled: boolean, diagnostic: LspMountDiagnostic | undefined, anyLive: boolean): { state: LspStatusState; reason?: string; retryable?: boolean } {
+function deriveState(
+  disabled: boolean,
+  diagnostic: LspMountDiagnostic | undefined,
+  anyLive: boolean
+): { state: LspStatusState; reason?: string; code?: LspStatusCode; causes?: string[]; retryable?: boolean } {
   if (disabled) return { state: 'disabled' }
-  if (diagnostic?.code === 'host-missing') return { state: 'host-missing', reason: diagnostic.reason }
-  if (diagnostic?.code === 'seam-conflict') return { state: 'conflict', reason: diagnostic.reason }
+  const reported = diagnosticReport(diagnostic)
+  if (diagnostic?.code === 'host-missing') return { state: 'host-missing', ...reported }
+  if (diagnostic?.code === 'seam-conflict') return { state: 'conflict', ...reported }
   if (diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed') {
-    return { state: 'failed', reason: diagnostic.reason, retryable: true }
+    return { state: 'failed', ...reported, retryable: true }
   }
-  if (diagnostic !== undefined) return { state: 'failed', reason: diagnostic.reason }
+  if (diagnostic !== undefined) return { state: 'failed', ...reported }
   if (anyLive) return { state: 'mounted' }
   // A declaration with neither a diagnostic nor a live mount is mid-flight:
   // the reconciler runs after the host finishes discovery, so the first
@@ -69,7 +84,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
     const disabled = suite.activeSurfaces.lsp === false
     const diagnostic = diagnostics.get(suiteKey)
-    const { state, reason, retryable } = deriveState(disabled, diagnostic, anyLive)
+    const { state, reason, code, causes, retryable } = deriveState(disabled, diagnostic, anyLive)
     if (state === 'mounted') mountedSuiteIds.add(suiteKey)
     for (const spec of Object.values(suite.lsp.servers)) {
       entries.push({
@@ -84,6 +99,8 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
         extensions: spec.extensionToLanguage,
         state: disabled || disabledServers.has(`${suiteKey}/${spec.key}`) ? 'disabled' : state,
         ...(reason === undefined ? {} : { reason }),
+        ...(code === undefined ? {} : { code }),
+        ...(causes === undefined ? {} : { causes }),
         ...(retryable === undefined ? {} : { retryable })
       })
     }
@@ -91,7 +108,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
   // Direct user-configured rows: no install state or surface toggle of their
   // own — configured means on; the mount diagnostic decides the state.
   const directDiagnostic = diagnostics.get(DIRECT_LSP_SUITE_ID)
-  const { state: directState, reason: directReason, retryable: directRetryable } = deriveState(false, directDiagnostic, anyLive)
+  const { state: directState, reason: directReason, code: directCode, causes: directCauses, retryable: directRetryable } = deriveState(false, directDiagnostic, anyLive)
   if (directState === 'mounted') mountedSuiteIds.add(DIRECT_LSP_SUITE_ID)
   for (const spec of Object.values(direct.servers)) {
     entries.push({
@@ -106,6 +123,8 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
       extensions: spec.extensionToLanguage,
       state: disabledServers.has(`${DIRECT_LSP_SUITE_ID}/${spec.key}`) ? 'disabled' : directState,
       ...(directReason === undefined ? {} : { reason: directReason }),
+      ...(directCode === undefined ? {} : { code: directCode }),
+      ...(directCauses === undefined ? {} : { causes: directCauses }),
       ...(directRetryable === undefined ? {} : { retryable: directRetryable })
     })
   }

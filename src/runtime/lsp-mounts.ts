@@ -33,13 +33,17 @@ import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMou
 import { describeLegacySeam, findLegacyLspSeams, type LegacyLspSeam } from './profile-seam.js'
 import { qualifiedSuiteId, suiteDataDir } from '../catalog/paths.js'
 import { expandPluginPaths, pluginRootOf, type PluginPathContext } from '../catalog/plugin-variables.js'
+import { causeMessages } from './failure-detail.js'
+import type { LspStatusCode } from '../contracts/lsp-status.js'
 import { effectiveSurfaces, type Suite } from '../model/types.js'
 
 export interface LspMountDiagnostic {
   suiteId: string
   serverKey: string
   reason: string
-  code?: 'mount-failed' | 'unmount-failed' | 'seam-conflict' | 'host-missing'
+  code?: LspStatusCode
+  /** The messages under the failure's `cause` chain, outermost first. */
+  causes?: string[]
 }
 
 interface LiveMount {
@@ -97,6 +101,7 @@ interface HostModule {
 interface CapabilityFailure {
   reason: string
   code: 'host-missing' | 'mount-failed' | 'seam-conflict'
+  causes?: string[]
 }
 
 /** Import specifiers kept as string literals so the host packages stay dynamically loaded. */
@@ -246,7 +251,13 @@ export class LspMountRegistry {
       const failure =
         capabilityFailure === undefined
           ? await this.mountWith(key, entry.suite, entry.config)
-          : { suiteId: key, serverKey: Object.keys(entry.config).join(','), reason: capabilityFailure.reason, code: capabilityFailure.code }
+          : {
+              suiteId: key,
+              serverKey: Object.keys(entry.config).join(','),
+              reason: capabilityFailure.reason,
+              code: capabilityFailure.code,
+              ...(capabilityFailure.causes === undefined ? {} : { causes: capabilityFailure.causes })
+            }
       if (failure !== undefined) {
         diagnostics.push(failure)
         this.lastDiagnostics.set(key, failure)
@@ -309,9 +320,9 @@ export class LspMountRegistry {
       // `service "lsp" has been registered` / `tool "lsp" is already registered`: another layer
       // owns the seam. Report the layer to drop rather than falling back to its version.
       if (/already registered|has been registered/.test(message)) {
-        return { reason: await this.seamConflictReason(specifier, message), code: 'seam-conflict' }
+        return { reason: await this.seamConflictReason(specifier, message), code: 'seam-conflict', causes: causeMessages(error) }
       }
-      return { reason: `mount failed: ${message}`, code: 'mount-failed' }
+      return { reason: `mount failed: ${message}`, code: 'mount-failed', causes: causeMessages(error) }
     }
     this.capability.push(handle)
     return undefined
@@ -405,7 +416,8 @@ export class LspMountRegistry {
         suiteId: key,
         serverKey: hostKeys,
         reason: `mount failed: ${message}`,
-        code: conflict ? 'seam-conflict' : 'mount-failed'
+        code: conflict ? 'seam-conflict' : 'mount-failed',
+        causes: causeMessages(error)
       }
     }
     this.live.set(key, { fingerprint: JSON.stringify(servers), suiteId: key, serverKeys: Object.keys(servers), disposer: () => handle.dispose() })

@@ -134,6 +134,8 @@ describe('MCP status aggregation', () => {
     expect(orphaned.kind).toBe('plugin')
     expect(orphaned.state).toBe('orphaned')
     expect(orphaned.reason).toContain('disabled or uninstalled')
+    // The panel localizes each of these notes by its code.
+    expect(orphaned.code).toBe('orphaned-tools')
     expect(payload.totals.orphaned).toBe(1)
   })
 
@@ -145,6 +147,7 @@ describe('MCP status aggregation', () => {
     const app = payload.entries.find(entry => entry.serverKey === 'app')!
     expect(app.state).toBe('disabled')
     expect(app.reason).toBe('disabled by override')
+    expect(app.code).toBe('disabled-override')
     // The server beside it is untouched: one override must not hide the other.
     const docs = payload.entries.find(entry => entry.serverKey === 'docs')!
     expect(docs.state).toBe('degraded')
