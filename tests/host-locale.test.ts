@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { bindHostLocale, readHostLocalePreference, readLocalePreference, setHostLocaleSource, type LocaleSettingsSource } from '../src/runtime/host-locale.js'
+import { bindHostLocale, readHostLocalePreference, readLocalePreference, setHostLocaleSource, type LocaleSettingsSource } from '../src/runtime/host/host-locale.js'
 
 const unwire: Array<() => void> = []
 

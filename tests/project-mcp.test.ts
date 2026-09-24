@@ -5,9 +5,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { discoverProjectMcp } from '../src/catalog/project-config.js'
-import { mountProjectMcp } from '../src/runtime/project-runtime.js'
+import { mountProjectMcp } from '../src/runtime/surfaces/project-runtime.js'
 import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
-import { toMcpMounts } from '../src/application/mcp-config.js'
+import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []

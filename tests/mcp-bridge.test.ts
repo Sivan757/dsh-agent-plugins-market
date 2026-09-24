@@ -9,10 +9,10 @@
  * structurally because the bridge must not depend on host test packages.
  */
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
-import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../src/runtime/mcp-client/tools.js'
-import { createTransport } from '../src/runtime/mcp-client/transport.js'
-import { apply } from '../src/runtime/mcp-client/bridge.js'
-import type { Config, StreamableHttpConfig } from '../src/application/mcp-bridge-config.js'
+import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../src/runtime/mcp/bridge/tools.js'
+import { createTransport } from '../src/runtime/mcp/bridge/transport.js'
+import { apply } from '../src/runtime/mcp/bridge/bridge.js'
+import type { Config, StreamableHttpConfig } from '../src/application/mcp/mcp-bridge-config.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const testToolSignal = new AbortController().signal

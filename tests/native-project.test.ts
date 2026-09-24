@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { discoverSourceListWithNotes } from '../src/catalog/source-catalog.js'
 import { Catalog } from '../src/application/catalog.js'
-import { SuiteSkillProvider, SUITE_PROJECT_SOURCE } from '../src/runtime/skills-provider.js'
+import { SuiteSkillProvider, SUITE_PROJECT_SOURCE } from '../src/runtime/surfaces/skills-provider.js'
 import { required } from './helpers/fixture.js'
 
 /** Body for a `greet` skill with one description. */

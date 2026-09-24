@@ -1,5 +1,5 @@
 import { expect } from 'vitest'
-import type { Config } from '../../src/application/mcp-bridge-config.js'
+import type { Config } from '../../src/application/mcp/mcp-bridge-config.js'
 
 /**
  * Assert a mount's transport and narrow its config to that variant.

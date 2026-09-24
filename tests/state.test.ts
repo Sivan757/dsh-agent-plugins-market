@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, readdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadState, saveState } from '../src/application/state-store.js'
+import { loadState, saveState } from '../src/application/state/state-store.js'
 
 describe('state: persisted suite state', () => {
   it('round-trips sources and install entries through the state file', async () => {

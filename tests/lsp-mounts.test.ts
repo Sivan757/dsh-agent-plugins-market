@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { LspMountRegistry, toLspServerConfig, type LspStdioServerConfig } from '../src/runtime/lsp-mounts.js'
-import type { LegacyLspSeam } from '../src/application/profile-seam.js'
+import { LspMountRegistry, toLspServerConfig, type LspStdioServerConfig } from '../src/runtime/lsp/lsp-mounts.js'
+import type { LegacyLspSeam } from '../src/application/lsp/profile-seam.js'
 import type { Suite } from '../src/model/types.js'
 import { required } from './helpers/fixture.js'
 

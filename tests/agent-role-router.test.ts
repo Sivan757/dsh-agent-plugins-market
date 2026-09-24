@@ -10,7 +10,7 @@ import {
   resolveAgentOptions,
   type AgentRoleHost,
   type AgentRoleJobs
-} from '../src/runtime/agent-role-router.js'
+} from '../src/runtime/agents/agent-role-router.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const roots: string[] = []

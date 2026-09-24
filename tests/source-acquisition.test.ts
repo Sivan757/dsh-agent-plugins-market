@@ -11,7 +11,7 @@ import { Catalog } from '../src/application/catalog.js'
 import { codeloadTarballUrl } from '../src/application/catalog.js'
 import { archiveFormatOf, archiveInstall, downloadArchive } from '../src/catalog/archive.js'
 import { deriveSourceIdCandidates } from '../src/catalog/paths.js'
-import { loadState, saveState } from '../src/application/state-store.js'
+import { loadState, saveState } from '../src/application/state/state-store.js'
 import { resolveSourceKind } from '../src/model/types.js'
 
 const run = promisify(execFile)

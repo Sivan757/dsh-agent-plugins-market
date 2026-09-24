@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../src/index.js'
 import { presetSourceRef } from '../src/model/preset-source.js'
-import { RuntimeReconciler } from '../src/runtime/reconciler.js'
+import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
 
 interface RegisteredTool {
   name: string

@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { loadUserHooksSuite, USER_HOOKS_SOURCE, USER_HOOKS_SUITE } from '../src/application/user-hooks.js'
-import { HooksMountRegistry } from '../src/runtime/hooks-mounts.js'
+import { loadUserHooksSuite, USER_HOOKS_SOURCE, USER_HOOKS_SUITE } from '../src/application/panels/user-hooks.js'
+import { HooksMountRegistry } from '../src/runtime/surfaces/hooks-mounts.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []

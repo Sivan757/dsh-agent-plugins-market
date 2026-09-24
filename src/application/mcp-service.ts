@@ -9,14 +9,14 @@
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { isDirectory } from '../catalog/fs-probes.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
-import type { McpStatusPayload } from '../contracts/mcp-status.js'
+import type { McpStatusPayload } from './mcp/mcp-status.js'
 import type { ServerConfigPayload, ServerPolicyPayload } from '../contracts/market.js'
 import type { DiscoveredSuite, Suite } from '../model/types.js'
 import type { McpBackend } from '../contracts/mcp.js'
-import { probeHostMcpClient } from './mcp-backend.js'
-import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp-config.js'
-import { loadLspServers, saveLspServers } from './lsp-direct-config.js'
-import { addUserMcpServer, importUserMcpServers, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE, type McpImportEntry, type McpImportResult } from './mcp-direct-config.js'
+import { probeHostMcpClient } from './mcp/mcp-backend.js'
+import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp/mcp-config.js'
+import { loadLspServers, saveLspServers } from './lsp/lsp-direct-config.js'
+import { addUserMcpServer, importUserMcpServers, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE, type McpImportEntry, type McpImportResult } from './mcp/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../contracts/mcp.js'
 import {
   applyOverride,
@@ -28,9 +28,9 @@ import {
   type McpPolicyPatch,
   type McpServerOverride,
   type McpSuiteOverrides
-} from './mcp-overrides.js'
-import { redactMcpConfig, redactMcpOverrides } from './mcp-redaction.js'
-import { buildMcpStatus } from './mcp-status.js'
+} from './mcp/mcp-overrides.js'
+import { redactMcpConfig, redactMcpOverrides } from './mcp/mcp-redaction.js'
+import { buildMcpStatus } from './mcp/mcp-status.js'
 import { resolveRegion } from './regions.js'
 import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'

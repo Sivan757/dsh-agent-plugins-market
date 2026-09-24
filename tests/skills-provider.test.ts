@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Catalog } from '../src/application/catalog.js'
-import { SuiteSkillProvider, SUITE_PROJECT_SOURCE, SUITE_USER_SOURCE } from '../src/runtime/skills-provider.js'
+import { SuiteSkillProvider, SUITE_PROJECT_SOURCE, SUITE_USER_SOURCE } from '../src/runtime/surfaces/skills-provider.js'
 import { isModelInvocable } from '@deepseek-ai/dsh-skill'
 
 const here = dirname(fileURLToPath(import.meta.url))

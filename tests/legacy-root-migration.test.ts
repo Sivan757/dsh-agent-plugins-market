@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { migrateLegacyDataRoot } from '../src/application/legacy-root-migration.js'
+import { migrateLegacyDataRoot } from '../src/application/state/legacy-root-migration.js'
 
 describe('legacy data-root migration', () => {
   it('moves data and overrides under the user root and removes the empty legacy root', async () => {

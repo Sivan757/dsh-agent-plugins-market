@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { MARKET_ROUTES } from '../src/contracts/market.js'
 import { Catalog } from '../src/application/catalog.js'
 import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
-import { loadDisabledLspServers } from '../src/application/lsp-server-state.js'
+import { loadDisabledLspServers } from '../src/application/lsp/lsp-server-state.js'
 
 const roots: string[] = []
 afterEach(async () => {

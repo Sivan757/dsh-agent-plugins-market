@@ -86,9 +86,11 @@ src/
     lsp-direct-config.ts, lsp-server-state.ts, lsp-status.ts, server-config.ts
     user-store.ts, user-hooks.ts, profile-seam.ts, deadline.ts, regions.ts, agent-roles.ts
 
-  runtime/        harness-facing effects: surface mounts + mount-lifecycle.ts, reconciler,
-                  reconcile-scheduler, settings-namespace, MCP client bridge and its projection,
-                  skill/command/agent-role providers, persisted user-data stores, state-store.ts
+  runtime/        harness-facing effects in domain folders: core/ (reconciler, scheduler, mount
+                  lifecycle, timer seat, source auto-update), mcp/ (mounts, credentials, auth record,
+                  bridge/ — the self-built MCP client), lsp/ (mounts), surfaces/ (skills, commands,
+                  hooks, dynamic context, project runtime), panels/, agents/, host/ (locale, settings
+                  namespace, model catalog, tool observation, message source, feedback, failure detail)
 
   client/         Web market page: features/ (market, mcp-status, lsp-status, personas,
                   suite-detail), shared ui/, bilingual locales.ts

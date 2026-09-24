@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { describeLegacySeam, findLegacyLspSeams, migrateLegacyLspSeam } from '../src/application/profile-seam.js'
+import { describeLegacySeam, findLegacyLspSeams, migrateLegacyLspSeam } from '../src/application/lsp/profile-seam.js'
 import { required } from './helpers/fixture.js'
 
 /** A profile patch file shaped like the one the pre-self-provisioning docs told users to write. */

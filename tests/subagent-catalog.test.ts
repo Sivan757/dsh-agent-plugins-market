@@ -14,11 +14,11 @@ import {
   type CatalogStepDecision,
   type SubagentCatalogEntry,
   type SubagentCatalogSource
-} from '../src/runtime/subagent-catalog.js'
-import { agentRoleCatalog } from '../src/runtime/agent-role-router.js'
+} from '../src/runtime/agents/subagent-catalog.js'
+import { agentRoleCatalog } from '../src/runtime/agents/agent-role-router.js'
 import { Catalog } from '../src/application/catalog.js'
 import { projectAgentRoles } from '../src/application/project-agent-roles.js'
-import { createUserPanelStores } from '../src/runtime/user-panels.js'
+import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
 import { createPanelResources } from '../src/application/panel-resources.js'
 
 // Resolve the actual session/prompt runtime already installed with dsh-tools. Those host packages

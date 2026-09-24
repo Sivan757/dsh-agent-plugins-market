@@ -6,7 +6,7 @@ import { defaultMarkdownResources, resourceText } from '../catalog/component-fil
 import { pluginRootOf } from '../catalog/plugin-variables.js'
 import { isWithin, suiteDataDir } from '../catalog/paths.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
-import { parseFrontmatterRecord } from './user-store.js'
+import { parseFrontmatterRecord } from './panels/user-store.js'
 /** The user-panel store surface the panel resources drive (structural). */
 interface UserPanelEntries {
   list(strict?: boolean): Promise<UserPanelEntryWire[]>

@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
-import { applyOverride, loadSuiteOverrides, saveSuiteOverrides, suiteOverridePath } from '../src/application/mcp-overrides.js'
+import { applyOverride, loadSuiteOverrides, saveSuiteOverrides, suiteOverridePath } from '../src/application/mcp/mcp-overrides.js'
 import { restoreRedactedConfig } from '../src/application/server-config.js'
-import { loadLspServers } from '../src/application/lsp-direct-config.js'
+import { loadLspServers } from '../src/application/lsp/lsp-direct-config.js'
 import type { CatalogPortsOverride } from '../src/application/ports.js'
 
 const roots: string[] = []

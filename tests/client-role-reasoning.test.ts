@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoleMetadataFields } from '../src/client/features/personas/RoleMetadataFields.js'
 import { readRoleFields } from '../src/client/features/personas/frontmatter.js'
-import { parseAgentRole } from '../src/runtime/agent-role-router.js'
+import { parseAgentRole } from '../src/runtime/agents/agent-role-router.js'
 import { selectOption } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
 

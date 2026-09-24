@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { createPanelResources } from '../src/application/panel-resources.js'
-import { createUserPanelStores } from '../src/runtime/user-panels.js'
+import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
 
 describe('installed and user panel resources', () => {
   it('projects installed resources, preserves structured metadata and applies edits/deletion to the registered file', async () => {

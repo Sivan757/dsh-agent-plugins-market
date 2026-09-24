@@ -1,11 +1,11 @@
 /** Narrow application interfaces consumed by the HTTP transport adapter. */
-import type { McpStatusPayload } from '../contracts/mcp-status.js'
+import type { McpStatusPayload } from './mcp/mcp-status.js'
 import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from '../contracts/market.js'
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
-import type { McpServerOverride, McpSuiteOverrides } from './mcp-overrides.js'
+import type { McpServerOverride, McpSuiteOverrides } from './mcp/mcp-overrides.js'
 import type { McpBackend } from '../contracts/mcp.js'
-import type { McpImportResult } from './mcp-direct-config.js'
+import type { McpImportResult } from './mcp/mcp-direct-config.js'
 import type { ServerConfigPayload } from '../contracts/market.js'
 import type { LspServerTable, McpBackendInfo, SourceInput, SourcePatch } from './ports.js'
 

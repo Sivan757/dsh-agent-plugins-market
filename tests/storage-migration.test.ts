@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from '../src/catalog/paths.js'
-import { migratePluginStorage } from '../src/application/storage-migration.js'
+import { migratePluginStorage } from '../src/application/state/storage-migration.js'
 
 let root: string
 beforeEach(async () => {

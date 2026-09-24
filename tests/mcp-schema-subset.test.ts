@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assertSupportedJsonSchema, type JsonSchemaNode } from '../src/runtime/mcp-client/json-schema-subset.js'
+import { assertSupportedJsonSchema, type JsonSchemaNode } from '../src/runtime/mcp/bridge/json-schema-subset.js'
 
 /** Assert passthrough: returns the node typed, throwing the validator's own error. */
 function accept(schema: unknown): JsonSchemaNode {

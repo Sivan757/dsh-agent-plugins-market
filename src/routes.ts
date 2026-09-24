@@ -10,12 +10,12 @@ import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from './contracts/market.js'
 import { expandHome } from './catalog/paths.js'
-import { sanitizeOverridePatch } from './application/mcp-overrides.js'
+import { sanitizeOverridePatch } from './application/mcp/mcp-overrides.js'
 import type { MarketService } from './application/queries.js'
 import type { SourcePatch } from './application/ports.js'
 import type { SourceKind, SuiteSurfaceKey } from './model/types.js'
 import type { PanelResourceStore } from './application/panel-resources.js'
-import { readModelCatalog } from './runtime/model-catalog.js'
+import { readModelCatalog } from './runtime/host/model-catalog.js'
 
 const MAX_BODY_BYTES = 64 * 1024
 

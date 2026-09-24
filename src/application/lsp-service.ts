@@ -8,10 +8,10 @@
  * per-server enable switch stays plugin state under the data root.
  */
 import type { LspLegacySeam, LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
-import { loadLspServers, saveLspServers } from './lsp-direct-config.js'
-import { loadDisabledLspServers, saveDisabledLspServers } from './lsp-server-state.js'
-import { buildLspStatus } from './lsp-status.js'
-import { describeLegacySeam, findLegacyLspSeams, migrateLegacyLspSeam } from './profile-seam.js'
+import { loadLspServers, saveLspServers } from './lsp/lsp-direct-config.js'
+import { loadDisabledLspServers, saveDisabledLspServers } from './lsp/lsp-server-state.js'
+import { buildLspStatus } from './lsp/lsp-status.js'
+import { describeLegacySeam, findLegacyLspSeams, migrateLegacyLspSeam } from './lsp/profile-seam.js'
 import { applyLspOverrides, lspConfig, validateServerLsp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
 import type { CatalogPorts, LspServerTable } from './ports.js'

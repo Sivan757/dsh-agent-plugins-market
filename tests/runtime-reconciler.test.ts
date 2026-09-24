@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { RuntimeReconciler } from '../src/runtime/reconciler.js'
-import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
-import { CommandMountRegistry } from '../src/runtime/commands-mounts.js'
-import { HooksMountRegistry } from '../src/runtime/hooks-mounts.js'
-import { LspMountRegistry } from '../src/runtime/lsp-mounts.js'
+import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
+import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
+import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
+import { HooksMountRegistry } from '../src/runtime/surfaces/hooks-mounts.js'
+import { LspMountRegistry } from '../src/runtime/lsp/lsp-mounts.js'
 
 afterEach(() => vi.restoreAllMocks())
 
