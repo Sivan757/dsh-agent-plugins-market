@@ -161,16 +161,19 @@ async function resolveDistTags(names) {
     if (offline) throw new Error(`no cached dist-tags for ${missing.join(', ')}; run once online or pass --host-version`)
   }
 
-  const resolved = await Promise.all(
-    names.map(async name => {
-      const url = `https://registry.npmjs.org/-/package/${encodeURIComponent(name)}/dist-tags`
-      const response = await fetch(url, { headers: { accept: 'application/json' } })
-      if (!response.ok) throw new Error(`${name}: registry responded ${response.status} for dist-tag ${channel}`)
-      const tags = await response.json()
-      if (typeof tags?.[channel] !== 'string') throw new Error(`${name}: registry has no ${channel} dist-tag`)
-      return [name, tags]
-    })
-  )
+  // The registry answers each request fine, but a burst of ~20 concurrent
+  // connections from one process trips this network's per-host throttling and
+  // fails a third of them with an opaque "fetch failed". Walking the names
+  // serially keeps the whole run to a few seconds and every request succeeds.
+  const resolved = new Map()
+  for (const name of names) {
+    const url = `https://registry.npmjs.org/-/package/${encodeURIComponent(name)}/dist-tags`
+    const response = await fetch(url, { headers: { accept: 'application/json' } })
+    if (!response.ok) throw new Error(`${name}: registry responded ${response.status} for dist-tag ${channel}`)
+    const tags = await response.json()
+    if (typeof tags?.[channel] !== 'string') throw new Error(`${name}: registry has no ${channel} dist-tag`)
+    resolved.set(name, tags)
+  }
 
   const merged = { fetchedAt: Date.now(), tags: { ...Object.fromEntries(cached), ...Object.fromEntries(resolved) } }
   await mkdir(dirname(CACHE_PATH), { recursive: true })
