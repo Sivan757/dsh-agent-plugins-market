@@ -9,6 +9,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.8.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.0...dsh-agent-plugins-market-v0.8.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **client:** answer both plugins.item views on the new Plugins page entry ([ac3f9f5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ac3f9f5e4cece7a011260736e683b8bb52dc501e))
+* **client:** render the settings directly on the entry surface ([a87396e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a87396ecd550d731b58ffdcdcde8a137624607f9))
+* **client:** seat the form actions on the left like the official plugins pages ([0570307](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0570307c45694220529c2eb07065cb318172a5f6))
+* **settings:** project the market namespace through the entry Config schema ([8ea63fc](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8ea63fcf62a45d6f1620df71b4e54ce29937c8e9))
+
 ## [0.8.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.7.2...dsh-agent-plugins-market-v0.8.0) (2026-09-24)
 
 

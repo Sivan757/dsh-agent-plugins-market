@@ -1,7 +1,7 @@
 {
   "name": "dsh-agent-plugins-market",
   "description": "One-stop skills, subagent, MCP and LSP manager inside DeepSeek Harness (DSH), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
