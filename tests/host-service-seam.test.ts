@@ -20,12 +20,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context, Service, type Plugin } from '@deepseek-ai/cordis'
+import { Context, Service, type Fiber, type Plugin } from '@deepseek-ai/cordis'
 import type { SkillCandidate, SkillProvider, SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import { scanSource } from '../src/catalog/suite-scanner.js'
 import { CommandMountRegistry } from '../src/runtime/commands-mounts.js'
 import { shellSeamOf, type ShellOutcome, type ShellSeam } from '../src/runtime/dynamic-context.js'
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from '../src/runtime/feedback-tool.js'
+import { readLocalePreference } from '../src/runtime/host-locale.js'
 import { SUITE_USER_SOURCE } from '../src/runtime/skills-provider.js'
 import { apply, inject, name } from '../src/index.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
@@ -53,10 +54,14 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
 })
 
-/** Mount a fiber and remember it for teardown. */
-function mount(ctx: Context, plugin: Plugin): void {
+/**
+ * Mount a fiber and remember it for teardown. A case that unloads its own fiber
+ * mid-test disposes the returned one; the teardown pass then finds it disposed.
+ */
+function mount(ctx: Context, plugin: Plugin): Fiber {
   const fiber = ctx.plugin(plugin)
   cleanups.push(() => fiber.dispose())
+  return fiber
 }
 
 /**
@@ -71,8 +76,8 @@ interface EntryPlugin {
 }
 
 /** Mount the entry the way the loader does. */
-function mountEntry(ctx: Context, plugin: EntryPlugin): void {
-  mount(ctx, plugin)
+function mountEntry(ctx: Context, plugin: EntryPlugin): Fiber {
+  return mount(ctx, plugin)
 }
 
 /** The host shell service, provided by whichever fiber the test mounts it on. */
@@ -147,8 +152,37 @@ function fakeCommands() {
   return { Plugin: FakeCommands, definitions }
 }
 
-/** A suite skill candidate, shaped the way the provider's own listing shapes one. */
-function candidate(file: string, directory: string, body: string): SkillCandidate {
+/**
+ * The host settings service, projecting the `locale` entry's live config the way
+ * `@deepseek-ai/dsh-settings` does. The preference is mutable so a case can
+ * change it the way a settings write does, and reads are counted so a case can
+ * see the entry re-read when the form changes.
+ */
+function fakeSettings(preference: string) {
+  const state = { preference, reads: 0 }
+  class FakeSettings extends Service {
+    constructor(ctx: Context) {
+      super(ctx, 'settings')
+    }
+
+    describe(): Array<{ ns: string; value: unknown }> {
+      state.reads += 1
+      return [{ ns: 'locale', value: { preference: state.preference } }]
+    }
+  }
+  return { Plugin: FakeSettings, state }
+}
+
+/**
+ * Announce one settings form change the way `SettingsForms` does. The event
+ * belongs to `@deepseek-ai/dsh-settings`, which this plugin does not depend on,
+ * so its payload rides the same cast the production listener registers with.
+ */
+function emitSettingsUpdated(ctx: Context, ns: string): void {
+  ;(ctx as unknown as { emit(name: string, ...args: unknown[]): void }).emit('settings/document-updated', ns, 1)
+}
+
+/** A suite skill candidate, shaped the way the provider's own listing shapes one. */ function candidate(file: string, directory: string, body: string): SkillCandidate {
   return {
     name: 'status',
     description: 'Status',
@@ -287,5 +321,82 @@ describe('host services on a real fiber tree', () => {
     expect(failure).toBeUndefined()
     expect(tools.names).toEqual([FEEDBACK_TOOL_NAME])
     disposer?.()
+  })
+
+  it('keeps the host locale readable across the entry unloading and applying again', async () => {
+    const home = await root()
+    vi.stubEnv('DSH_HOME', home)
+    vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
+
+    const ctx = new Context()
+    const skills = fakeSkills()
+    mount(ctx, skills.Plugin)
+    mount(ctx, fakeCommands().Plugin)
+    mount(ctx, fakeSettings('en').Plugin)
+    await settled()
+
+    const entry: EntryPlugin = { name, inject: [...inject], apply }
+    const first = mountEntry(ctx, entry)
+    // The suite provider registers first; the user-panel provider follows it.
+    await vi.waitFor(() => expect(skills.providers).toHaveLength(2))
+    await vi.waitFor(() => expect(readLocalePreference()).toBe('en'))
+
+    // The loader reloads the entry in place: this fiber unloads, then the entry
+    // applies again. An entry that resolved the service as a property read on an
+    // injection callback's context reads through a fiber that is gone and
+    // rejects with `cannot get required service "settings" in inactive
+    // context` — an unhandled rejection, which the host reports as a fatal load
+    // failure and exits on.
+    await first.dispose()
+
+    const rejections: unknown[] = []
+    const onRejection = (reason: unknown): void => {
+      rejections.push(reason)
+    }
+    process.on('unhandledRejection', onRejection)
+    try {
+      const reloaded = mountEntry(ctx, entry)
+      await vi.waitFor(() => expect(skills.providers).toHaveLength(4))
+      await settled()
+      expect(rejections).toEqual([])
+      expect(readLocalePreference()).toBe('en')
+
+      // The wiring belongs to the entry that installed it: unloading clears it,
+      // and a read then answers `undefined` instead of reaching a fiber that is
+      // gone.
+      await reloaded.dispose()
+      expect(readLocalePreference()).toBeUndefined()
+    } finally {
+      process.off('unhandledRejection', onRejection)
+    }
+  })
+
+  it('re-reads the locale when the settings service reports the entry changed', async () => {
+    const home = await root()
+    vi.stubEnv('DSH_HOME', home)
+    vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
+
+    const ctx = new Context()
+    const skills = fakeSkills()
+    const settings = fakeSettings('en')
+    mount(ctx, skills.Plugin)
+    mount(ctx, fakeCommands().Plugin)
+    mount(ctx, settings.Plugin)
+    await settled()
+    mountEntry(ctx, { name, inject: [...inject], apply })
+    await vi.waitFor(() => expect(skills.providers).toHaveLength(2))
+    await vi.waitFor(() => expect(readLocalePreference()).toBe('en'))
+
+    // A write to another entry's form is not this plugin's news.
+    const reads = settings.state.reads
+    emitSettingsUpdated(ctx, 'llm-deepseek')
+    expect(settings.state.reads).toBe(reads)
+
+    // The locale entry's own change re-reads, so a language switch reaches the
+    // copy the market renders without a plugin reload.
+    settings.state.preference = 'zh'
+    emitSettingsUpdated(ctx, 'locale')
+    expect(settings.state.reads).toBe(reads + 1)
+    expect(readLocalePreference()).toBe('zh')
   })
 })

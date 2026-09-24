@@ -276,7 +276,7 @@ export class SourceStore {
         // source.url) are re-pointed — a foreign remote is left untouched.
         if (source.kind === 'git' || (source.kind === undefined && source.local !== true)) {
           try {
-            const region = resolveRegion(await this.ports.downloadRegion(), await readLocalePreference())
+            const region = resolveRegion(await this.ports.downloadRegion(), readLocalePreference())
             const routed = githubCloneUrl(region, source.url)
             const origin = await gitRemoteUrl(checkout)
             if (origin !== routed && (origin === source.url || origin === githubCloneUrl('china', source.url))) {
@@ -392,7 +392,7 @@ export class SourceStore {
     try {
       // The region routes github.com clones through the China mirror prefix;
       // the proxied URL becomes `origin`, so refreshes follow the same route.
-      const region = resolveRegion(await this.ports.downloadRegion(), await readLocalePreference())
+      const region = resolveRegion(await this.ports.downloadRegion(), readLocalePreference())
       await gitClone(githubCloneUrl(region, source.url), source.branch, checkout, this.context.git)
       return undefined
     } catch (error) {

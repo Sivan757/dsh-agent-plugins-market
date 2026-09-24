@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { bindHostLocale, readHostLocalePreference, readLocalePreference, setHostLocaleSource } from '../src/runtime/host-locale.js'
+import { bindHostLocale, readHostLocalePreference, readLocalePreference, setHostLocaleSource, type LocaleSettingsSource } from '../src/runtime/host-locale.js'
+
+const unwire: Array<() => void> = []
+
+afterEach(() => {
+  for (const release of unwire.splice(0)) release()
+})
+
+/** The settings service projection: one descriptor per active profile entry. */
+const projection = (entries: Array<{ ns: string; value?: unknown }>): LocaleSettingsSource => ({
+  describe: () => entries.map(entry => ({ ns: entry.ns, value: entry.value }))
+})
 
 describe('host locale', () => {
-  afterEach(() => {
-    setHostLocaleSource(() => undefined)
-  })
-
   it('defaults to zh copy', () => {
     const t = bindHostLocale(undefined)
     expect(t('commandAcknowledged', { command: 'review' })).toBe('/review 已转交模型执行')
@@ -28,22 +35,34 @@ describe('host locale', () => {
     }
   })
 
-  it('reads locale.preference from a settings file when present', async () => {
-    // The real file may or may not exist in the test environment; both
-    // outcomes are valid — the function must not throw.
-    const preference = await readLocalePreference()
-    expect(preference === undefined || typeof preference === 'string').toBe(true)
+  it('reads the preference off the locale entry the settings service projects', () => {
+    // The pinned host exposes `SettingsForms.describe()`; the `settings.get(ns)`
+    // seam it once had was removed in harness 601d6761e4. Every absence is
+    // `undefined`, which the dictionary reads as zh.
+    expect(readHostLocalePreference(projection([{ ns: 'locale', value: { preference: 'en-GB' } }]))).toBe('en-GB')
+    expect(readHostLocalePreference(projection([{ ns: 'llm-deepseek', value: { preference: 'en' } }]))).toBeUndefined()
+    expect(readHostLocalePreference(projection([{ ns: 'locale', value: { preference: 42 } }]))).toBeUndefined()
+    expect(readHostLocalePreference(projection([{ ns: 'locale' }]))).toBeUndefined()
+    expect(readHostLocalePreference(projection([]))).toBeUndefined()
+    expect(readHostLocalePreference(undefined)).toBeUndefined()
   })
 
-  it('prefers the host settings service over the file once one is wired', async () => {
-    setHostLocaleSource(() => 'en-GB')
-    await expect(readLocalePreference()).resolves.toBe('en-GB')
+  it('answers undefined until an entry wires a source, and again after it unwires', () => {
+    expect(readLocalePreference()).toBeUndefined()
+    const release = setHostLocaleSource(() => 'en-GB')
+    unwire.push(release)
+    expect(readLocalePreference()).toBe('en-GB')
+    release()
+    expect(readLocalePreference()).toBeUndefined()
   })
 
-  it('reads the preference field off the locale namespace section', () => {
-    const settingsCtx = { settings: { get: (ns: string) => (ns === 'locale' ? { preference: 'en' } : undefined) } }
-    expect(readHostLocalePreference(settingsCtx)).toBe('en')
-    expect(readHostLocalePreference({})).toBeUndefined()
-    expect(readHostLocalePreference({ settings: { get: () => ({ preference: 42 }) } })).toBeUndefined()
+  it('keeps a newer wiring when an older disposer runs late', () => {
+    // A reload can dispose the previous entry after the next one has wired its
+    // own reader; the late disposer must not clear the newer wiring.
+    const stale = setHostLocaleSource(() => 'en')
+    const current = setHostLocaleSource(() => 'zh')
+    unwire.push(current)
+    stale()
+    expect(readLocalePreference()).toBe('zh')
   })
 })
