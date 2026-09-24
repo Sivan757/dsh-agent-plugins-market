@@ -100,11 +100,11 @@ export function apply(ctx: SuiteClientContext): void {
     subscribeLocale: ctx.locale.subscribe === undefined ? undefined : (listener) => ctx.locale.subscribe!(listener),
   }), 'dsh-agent-plugins-market: legacy page mode')
 
-  // The host Plugins page card. Registration rides the settings service's
-  // whileServed watch: the card's form reads the market's settings namespace —
-  // the namespace the node half registers, which is also what makes the page
-  // serve our card at all. The order seats the market after the official
-  // settings pages (shell 10, agent-loop 20, subagent 30, web-search 40).
+  // The host Plugins page entry. Registration rides the settings service's
+  // whileServed watch: the page's form reads the market's settings namespace —
+  // the namespace the node half registers, which is also what makes the panel
+  // serve our entry at all. The order seats the market after the official
+  // plugins (shell 10, agent-loop 20, subagent 30, web-search 40).
   ctx.inject?.(['configForms'], (scoped: { configForms?: ConfigFormsService; slots?: SlotsService }) => {
     const service = scoped.configForms
     const slots = scoped.slots

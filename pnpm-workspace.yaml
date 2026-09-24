@@ -46,5 +46,7 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-util-values@0.1.2-rc.1 || 0.1.5-rc.2 || 0.1.7-rc.1'
   - '@deepseek-ai/dsh-util-workspace-path@0.1.7-rc.1'
   - '@deepseek-ai/schemastery@3.18.4'
+  - '@deepseek-ai/dsh-client-ui-plugin-manager@0.1.7-rc.1'
+  - '@deepseek-ai/dsh-client-ui-slots@0.1.7-rc.1'
 packages:
   - docs-site
