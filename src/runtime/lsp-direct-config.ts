@@ -8,9 +8,8 @@
  * `lsp-spec` rules as suite declarations; a broken file degrades to no direct
  * servers plus a diagnostic, never a thrown discovery.
  */
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { readJsonFile, writeJsonDocument } from '../application/json-file.js'
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import type { LspServerSpec } from '../model/types.js'
 
@@ -23,10 +22,13 @@ export function lspServersPath(agentsRoot: string): string {
 export async function loadLspServers(agentsRoot: string): Promise<{ servers: Record<string, LspServerSpec>; errors: string[] }> {
   let raw: unknown
   try {
-    raw = JSON.parse(await readFile(lspServersPath(agentsRoot), 'utf8'))
+    raw = await readJsonFile(lspServersPath(agentsRoot))
   } catch (error) {
-    return { servers: {}, errors: (error as NodeJS.ErrnoException).code === 'ENOENT' ? [] : [`lsp.json: ${error instanceof Error ? error.message : String(error)}`] }
+    return { servers: {}, errors: [`lsp.json: ${error instanceof Error ? error.message : String(error)}`] }
   }
+  // An absent file is an empty table, not a broken one; only a present file
+  // with a wrong shape carries a diagnostic.
+  if (raw === undefined) return { servers: {}, errors: [] }
   const errors: string[] = []
   const table = (raw as Record<string, unknown> | null)?.['lspServers']
   if (table === undefined || table === null || Array.isArray(table) || typeof table !== 'object') return { servers: {}, errors: ['lsp.json: lspServers must be an object'] }
@@ -42,8 +44,7 @@ export async function saveLspServers(agentsRoot: string, raw: unknown): Promise<
   if (errors.length > 0) {
     throw new Error(`invalid lspServers: ${errors[0]}`)
   }
-  const path = lspServersPath(agentsRoot)
   const persisted = Object.fromEntries(Object.entries(servers).map(([name, { key: _key, ...config }]) => [name, config]))
-  await writeFileAtomic(path, `${JSON.stringify({ lspServers: persisted }, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
+  await writeJsonDocument(lspServersPath(agentsRoot), { lspServers: persisted })
   return { servers }
 }

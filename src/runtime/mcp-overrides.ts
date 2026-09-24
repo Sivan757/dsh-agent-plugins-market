@@ -11,9 +11,8 @@
  * resolved by the Host credentials service (or launch-environment fallback)
  * so keys never persist in plain text.
  */
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { readJsonFile, writeJsonDocument } from '../application/json-file.js'
 import { isSensitiveKey } from './mcp-redaction.js'
 import type { McpServerSse, McpServerStreamableHttp, McpServerStdio } from '../model/types.js'
 
@@ -69,7 +68,7 @@ export function suiteOverridePath(dataRoot: string, suiteId: string): string {
 /** Load one suite's persisted overrides; unreadable files yield none. */
 export async function loadSuiteOverrides(dataRoot: string, suiteId: string): Promise<McpSuiteOverrides> {
   try {
-    const raw: unknown = JSON.parse(await readFile(suiteOverridePath(dataRoot, suiteId), 'utf8'))
+    const raw = await readJsonFile(suiteOverridePath(dataRoot, suiteId))
     if (typeof raw !== 'object' || raw === null) return {}
     const parsed = sanitizeOverrides(raw)
     return parsed
@@ -80,8 +79,7 @@ export async function loadSuiteOverrides(dataRoot: string, suiteId: string): Pro
 
 /** Persist one suite's overrides through the harness atomic write. */
 export async function saveSuiteOverrides(dataRoot: string, suiteId: string, overrides: McpSuiteOverrides): Promise<void> {
-  const path = suiteOverridePath(dataRoot, suiteId)
-  await writeFileAtomic(path, `${JSON.stringify(overrides, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
+  await writeJsonDocument(suiteOverridePath(dataRoot, suiteId), overrides)
 }
 
 /** Keep only recognized fields with correct shapes; drop everything else. */

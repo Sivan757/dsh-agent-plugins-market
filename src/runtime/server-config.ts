@@ -1,6 +1,5 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { readJsonFile, writeJsonDocument } from '../application/json-file.js'
 import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalog/validate.js'
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
@@ -93,23 +92,15 @@ export function lspConfig(spec: LspServerSpec): Record<string, unknown> {
 }
 
 export async function loadLspOverrides(root: string): Promise<Record<string, LspServerSpec>> {
-  try {
-    const raw = JSON.parse(await readFile(join(root, 'lsp-overrides.json'), 'utf8')) as Record<string, unknown>
-    return Object.fromEntries(Object.entries(raw).map(([id, config]) => [id, validateServerLsp(id.slice(id.lastIndexOf('/') + 1), config)]))
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}
-    throw error
-  }
+  const raw = await readJsonFile(join(root, 'lsp-overrides.json'))
+  if (typeof raw !== 'object' || raw === null) return {}
+  return Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([id, config]) => [id, validateServerLsp(id.slice(id.lastIndexOf('/') + 1), config)]))
 }
 
 export async function saveLspOverride(root: string, id: string, config: LspServerSpec): Promise<void> {
   const overrides = await loadLspOverrides(root)
   overrides[id] = config
-  const path = join(root, 'lsp-overrides.json')
-  await writeFileAtomic(path, JSON.stringify(Object.fromEntries(Object.entries(overrides).map(([key, value]) => [key, lspConfig(value)])), null, 2), {
-    mode: 0o600,
-    dirMode: 0o700
-  })
+  await writeJsonDocument(join(root, 'lsp-overrides.json'), Object.fromEntries(Object.entries(overrides).map(([key, value]) => [key, lspConfig(value)])))
 }
 
 export async function applyLspOverrides(root: string, suites: Suite[]): Promise<Suite[]> {

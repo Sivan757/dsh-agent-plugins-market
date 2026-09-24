@@ -1,6 +1,5 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { readJsonFile, writeJsonDocument } from '../application/json-file.js'
 import { MCP_SCHEMA_ID, validateMcpJson } from '../catalog/validate.js'
 import { effectiveSurfaces, type McpSuiteConfig, type Suite } from '../model/types.js'
 
@@ -19,9 +18,10 @@ export async function loadUserMcpSuite(agentsRoot: string): Promise<Suite & { mc
   let mcp: McpSuiteConfig = { schema: MCP_SCHEMA_ID, servers: {} }
   const errors: string[] = []
   try {
-    mcp = await validateUserMcp(agentsRoot, JSON.parse(await readFile(path, 'utf8')))
+    const raw = await readJsonFile(path)
+    if (raw !== undefined) mcp = await validateUserMcp(agentsRoot, raw)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') errors.push(`mcp.json: ${error instanceof Error ? error.message : String(error)}`)
+    errors.push(`mcp.json: ${error instanceof Error ? error.message : String(error)}`)
   }
   return {
     sourceId: USER_MCP_SOURCE,
@@ -75,8 +75,7 @@ export async function addUserMcpServer(agentsRoot: string, name: string, server:
   if (Object.hasOwn(suite.mcp.servers, name)) throw new Error(`MCP server "${name}" already exists`)
   const document = { $schema: MCP_SCHEMA_ID, mcpServers: { ...suite.mcp.servers, [name]: server } }
   await validateUserMcp(agentsRoot, document)
-  const path = userMcpPath(agentsRoot)
-  await writeFileAtomic(path, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
+  await writeJsonDocument(userMcpPath(agentsRoot), document)
 }
 
 /** The user's hand-written MCP declaration file: `<agentsRoot>/mcp.json`. */
@@ -131,7 +130,7 @@ export async function importUserMcpServers(agentsRoot: string, entries: readonly
     imported.push(entry.name)
   }
   if (imported.length > 0) {
-    await writeFileAtomic(userMcpPath(agentsRoot), `${JSON.stringify({ $schema: MCP_SCHEMA_ID, mcpServers: servers }, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
+    await writeJsonDocument(userMcpPath(agentsRoot), { $schema: MCP_SCHEMA_ID, mcpServers: servers })
   }
   return { imported, skipped }
 }

@@ -18,6 +18,7 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
+import { readJsonFile } from '../application/json-file.js'
 import { MARKET_SETTINGS_DEFAULTS } from '../contracts/settings.js'
 
 /** The MCP mount backend the market uses for suite servers. */
@@ -47,8 +48,8 @@ export function marketSettingsPath(dataRoot: string): string {
 /** Read the legacy persisted backend; absent or invalid values read as the default. */
 export async function readMcpBackend(dataRoot: string): Promise<McpBackend> {
   try {
-    const parsed = JSON.parse(await readFile(marketSettingsPath(dataRoot), 'utf8')) as { mcpBackend?: string }
-    return parsed.mcpBackend === 'host' ? 'host' : 'builtin'
+    const parsed = (await readJsonFile(marketSettingsPath(dataRoot))) as { mcpBackend?: string } | undefined
+    return parsed?.mcpBackend === 'host' ? 'host' : 'builtin'
   } catch {
     return 'builtin'
   }

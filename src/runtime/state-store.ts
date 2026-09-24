@@ -7,8 +7,7 @@
  * like the market profile state this pattern follows. The record shapes live
  * in `src/model/types.ts`; only the reading and writing live here.
  */
-import { readFile } from 'node:fs/promises'
-import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { readJsonFile, writeJsonDocument } from '../application/json-file.js'
 import { SUITE_SURFACE_KEYS, type InstalledEntry, type SourceRef, type SuiteState, type SurfaceOverrides } from '../model/types.js'
 
 export const EMPTY_STATE: SuiteState = { version: 1, sources: [], installed: {} }
@@ -16,8 +15,7 @@ export const EMPTY_STATE: SuiteState = { version: 1, sources: [], installed: {} 
 /** Parse persisted state; unreadable or wrong-version files yield a contained empty state. */
 export async function loadState(statePath: string): Promise<SuiteState> {
   try {
-    const text = await readFile(statePath, 'utf8')
-    const parsed: unknown = JSON.parse(text)
+    const parsed = await readJsonFile(statePath)
     if (typeof parsed !== 'object' || parsed === null) return EMPTY_STATE
     const record = parsed as Record<string, unknown>
     if (record['version'] !== 1) return EMPTY_STATE
@@ -85,7 +83,7 @@ function parseSurfaceOverrides(raw: unknown): { surfaces?: SurfaceOverrides } {
   return hasAny ? { surfaces: overrides } : {}
 }
 
-/** Persist state atomically through the harness's atomic-write helper. */
+/** Persist state atomically through the shared JSON document writer. */
 export async function saveState(statePath: string, state: SuiteState): Promise<void> {
-  await writeFileAtomic(statePath, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
+  await writeJsonDocument(statePath, state)
 }

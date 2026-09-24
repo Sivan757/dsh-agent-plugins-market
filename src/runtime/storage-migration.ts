@@ -2,7 +2,7 @@
 import { constants } from 'node:fs'
 import { copyFile, lstat, mkdir, readdir, readFile, rmdir, unlink } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import { readJsonFile, writeJsonDocument } from '../application/json-file.js'
 import { expandHome, isWithin, resolveAgentsRoot, resolveDataRoot, resolveDshHome, resolveUserRoot } from '../catalog/paths.js'
 
 export interface StorageMigrationResult {
@@ -146,7 +146,7 @@ export async function migratePluginStorage(config: { userRoot?: string; dataRoot
 async function relocateManagedSourceUrls(userRoot: string, legacyUserRoot: string): Promise<void> {
   const path = join(userRoot, 'state.json')
   if ((await info(path)) === undefined) return
-  const state: unknown = JSON.parse(await readFile(path, 'utf8'))
+  const state: unknown = await readJsonFile(path)
   if (typeof state !== 'object' || state === null || !('sources' in state) || !Array.isArray(state.sources)) return
   let changed = false
   for (const source of state.sources as unknown[]) {
@@ -157,7 +157,7 @@ async function relocateManagedSourceUrls(userRoot: string, legacyUserRoot: strin
     changed = true
   }
   if (changed) {
-    await writeFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 })
+    await writeJsonDocument(path, state)
   }
 }
 
