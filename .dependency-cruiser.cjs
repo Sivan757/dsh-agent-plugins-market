@@ -53,15 +53,15 @@ module.exports = {
     },
     {
       // Feature folders are peers, not layers: code in one feature may not import a
-      // sibling feature's modules. A \1 backreference would not work here — inside
-      // to.path it refers to the to-regex's own (empty) groups and would flag
-      // self-folder imports too. dependency-cruiser's equivalent is the $1 group
-      // placeholder, substituted from the from.path capture. The trailing lookahead
-      // keeps cross-feature .css imports legal; the panels share one design vocabulary.
+      // sibling feature's modules. dependency-cruiser substitutes $1 group placeholders
+      // in to.path from the from.path capture, so the first lookahead exempts the
+      // feature's own folder; a \1 backreference would instead refer to the to-regex's
+      // own (empty) groups. The second lookahead keeps cross-feature .css imports legal;
+      // the modules share one design vocabulary and tsdown resolves those imports.
       name: 'client-feature-cannot-import-sibling-feature',
       severity: 'error',
       from: { path: '^src/client/features/([^/]+)' },
-      to: { path: '^src/client/features/(?!$1(?:/|\\.))(?![^']*\\.css)' }
+      to: { path: '^src/client/features/(?!$1(?:/|\\.))(?!.*\\.css$)' }
     },
     {
       // Shared controls stay generic: ui/ may not reach into a feature or the

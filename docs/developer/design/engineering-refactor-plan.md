@@ -93,9 +93,9 @@ src/
                   namespace, model catalog, tool observation, message source, feedback, failure detail)
 
   client/         Web market page: root holds entry, api.ts transport, locales; features/ (mcp, lsp,
-                  market, suite-detail, settings-card — McpStatusPanel decomposed into StatusPanel plus
-                  per-dialog components), workspace/ (PluginWorkspace, legacy page-mode adapter),
-                  shared ui/ (SearchFilterToolbar moved here)
+                  market, settings-card — McpStatusPanel decomposed into StatusPanel plus per-dialog
+                  components), workspace/ (PluginWorkspace, legacy page-mode), shared ui/
+                  (SearchFilterToolbar moved here)
   index.ts        plugin entry — the composition root
   routes.ts       HTTP surface
 ```
