@@ -41,6 +41,16 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/application' },
       to: { path: '^src/(client|index|routes)(/|\\.)' }
+    },
+    {
+      // The design plan draws application -> model/catalog/contracts with runtime
+      // effects driven through ports. The stores and projections still living in
+      // src/runtime keep this at warn until the module-cohesion plan's Stage C2
+      // relocates them; it flips to error there.
+      name: 'application-cannot-import-runtime',
+      severity: 'warn',
+      from: { path: '^src/application' },
+      to: { path: '^src/runtime(/|\\.)' }
     }
   ],
   options: {
