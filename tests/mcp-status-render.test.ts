@@ -158,16 +158,13 @@ describe('MCP status actions', () => {
     })
     expect(document.body.textContent).toContain('mcpServiceDetail')
 
-    // The row states the reference and its state; the write field appears when
-    // the row's own control asks for it.
-    expect(document.body.textContent).toContain('mcpCredentialTitle')
-    expect(document.body.querySelector('input[type="password"]')).toBeNull()
-    const configureButton = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpCredentialConfigure'))
-    expect(configureButton).toBeDefined()
+    // The describe answer lands one microtask later than the dialog opens.
     await act(async () => {
-      configureButton!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
+    // The dialog states the reference; the secret control renders in place of
+    // the old reveal-then-edit flow.
+    expect(document.body.textContent).toContain('API_TOKEN')
     expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })

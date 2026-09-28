@@ -15,7 +15,7 @@ import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
 import { PluginWorkspace } from './workspace/PluginWorkspace.js'
 import { McpPluginCard } from './features/settings-card/McpPluginCard.js'
-import { MarketPluginCardController } from './features/settings-card/plugin-card-controller.js'
+import { bindMarketCardForm, type MarketCardFace } from './features/settings-card/market-card-form.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './workspace/page-mode.js'
 
@@ -109,22 +109,23 @@ export function apply(ctx: SuiteClientContext): void {
     const service = scoped.configForms
     const slots = scoped.slots
     if (service === undefined || slots === undefined) return
-    // One controller per served lifetime: when the namespace stops being
+    // One form binding per served lifetime: when the namespace stops being
     // served the registration unwinds, and a re-served namespace gets a live
-    // controller rather than the disposed one from before.
-    let card: MarketPluginCardController | undefined
+    // binding rather than the disposed one from before.
+    let card: MarketCardFace | undefined
     service.whileServed([NS], () => {
-      card = new MarketPluginCardController(service.get<MarketSettings>(NS), fetchMcpBackend)
+      const bound = bindMarketCardForm(service.get<MarketSettings>(NS), fetchMcpBackend)
+      card = bound.face
       const dispose = slots.register({
         name: 'plugins.item',
         id: NS,
         order: 50,
         label: () => t('nav'),
         locale: NS,
-        inject: () => card!.inject(),
+        inject: () => card!,
       }, McpPluginCard)
       return () => {
-        card?.dispose()
+        bound.dispose()
         card = undefined
         if (typeof dispose === 'function') dispose()
       }

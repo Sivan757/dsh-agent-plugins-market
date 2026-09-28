@@ -7,7 +7,7 @@ import { failureGuidanceKey } from '../../ui/failure-guidance.js'
 import type { Translate } from '../../index.js'
 import type { McpStatusEntry } from '../../api.js'
 import type { CredentialApi } from '../../credentials.js'
-import { McpCredentialEditor } from './McpCredentialEditor.js'
+import { McpCredentialFields } from './McpCredentialFields.js'
 import { mcpDetailActions } from './detail-actions.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { credentialUsage, TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
@@ -288,7 +288,7 @@ export function McpDetailModal({
       ),
       entry.credentialRefs?.length === 0 || entry.credentialRefs === undefined
         ? null
-        : h(McpCredentialEditor, { t, api: credentials, refs: entry.credentialRefs, usage: credentialUsage(t, entry.config) })
+        : h(McpCredentialFields, { t, api: credentials, refs: entry.credentialRefs, usage: credentialUsage(t, entry.config) })
     )
   })
 }

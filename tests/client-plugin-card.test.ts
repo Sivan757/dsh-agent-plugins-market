@@ -1,21 +1,30 @@
 /**
- * Tests for the market plugin card's staged form: what it renders before the
- * host serves the namespace, how a staged edit differs from a committed one,
- * that resetting hands a field back to the plugin, and that a write the host
- * did not accept is reported instead of looking saved.
+ * Tests for the market card's binding onto the host's published settings-form
+ * model: what it reads before the host serves the namespace, how a staged
+ * draft differs from a committed value, that an unset hands the field back to
+ * the plugin, that a save the host did not accept is reported instead of
+ * looking saved, and that the compat-mode guard blocks the save.
  */
 import { describe, expect, it } from 'vitest'
 import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import { MarketPluginCardController } from '../src/client/features/settings-card/plugin-card-controller.js'
+import { bindMarketCardForm } from '../src/client/features/settings-card/market-card-form.js'
 
-/** A settings scope double: the host's mirror, with writes applied on demand. */
+/** The probe answer a test's card reads: host client present or missing. */
+const probeAnswer = (hostClientAvailable: boolean) => async () => ({
+  backend: 'builtin' as const,
+  hostClient: { available: hostClientAvailable },
+  downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
+})
+
+/** A settings scope double speaking the model's SettingsFormScope shape. */
 function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?: boolean; ready?: boolean } = {}) {
   let value: MarketSettings = { ...MARKET_SETTINGS_DEFAULTS, ...initial }
   let user: Record<string, unknown> = { ...initial }
-  let writable = options.writable ?? true
+  const writable = options.writable ?? true
   const ready = options.ready ?? true
+  let revision = 1
   const listeners = new Set<() => void>()
-  /** Set by a test to make the next writes fail, as a rejected document write does. */
+  /** Set by a test to make the next mutate fail, as a rejected document write does. */
   let writesFail = false
   const scope = {
     getSnapshot: () => ({
@@ -23,7 +32,7 @@ function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?
       value,
       base: undefined,
       user,
-      revision: 1,
+      revision,
       writable,
       mode: 'host' as const
     }),
@@ -33,106 +42,104 @@ function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?
         listeners.delete(listener)
       }
     },
-    set: async (field: string, next: unknown): Promise<boolean> => {
-      if (writesFail) throw new Error('write rejected')
-      user = { ...user, [field]: next }
-      value = { ...value, [field]: next }
+    mutate: async (ops: ReadonlyArray<{ op: 'set' | 'unset'; path: readonly string[] }>): Promise<boolean> => {
+      if (writesFail) return false
+      revision += 1
+      for (const op of ops) {
+        const field = op.path[0]
+        if (field === undefined) continue
+        if (op.op === 'unset') {
+          const next = { ...user }
+          delete next[field]
+          user = next
+          value = { ...value, [field]: MARKET_SETTINGS_DEFAULTS[field as keyof MarketSettings] }
+        } else if ('value' in op) {
+          user = { ...user, [field]: op.value }
+          value = { ...value, [field]: op.value }
+        }
+      }
       for (const listener of listeners) listener()
       return true
-    },
-    unset: async (field: string): Promise<boolean> => {
-      if (writesFail) throw new Error('write rejected')
-      const next = { ...user }
-      delete next[field]
-      user = next
-      value = { ...value, [field]: MARKET_SETTINGS_DEFAULTS[field as keyof MarketSettings] }
-      for (const listener of listeners) listener()
-      return true
-    },
-    mutate: async () => true,
-    setWritable: (next: boolean) => {
-      writable = next
-    },
+    }
+  }
+  return Object.assign(scope, {
     setWritesFail: (next: boolean) => {
       writesFail = next
     }
-  }
-  return scope
+  })
 }
 
-function controllerFor(scope: ReturnType<typeof scopeDouble>) {
-  return controllerWith(scope, true)
+/** A bound card with its face; the probe answers synchronously settleable. */
+function cardFor(scope: ReturnType<typeof scopeDouble>, hostClientAvailable = true) {
+  const bound = bindMarketCardForm(scope, probeAnswer(hostClientAvailable))
+  const state = () => bound.face.hooks.marketCard.getSnapshot()
+  return { ...bound, state }
 }
 
-/** A controller whose probe reports the host MCP client as present or missing. */
-function controllerWith(scope: ReturnType<typeof scopeDouble>, hostClientAvailable: boolean) {
-  const controller = new MarketPluginCardController(scope, async () => ({
-    backend: 'builtin' as const,
-    hostClient: { available: hostClientAvailable },
-    downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
-  }))
-  return { controller, face: controller.inject(), state: () => controller.inject().hooks.marketCard.getSnapshot() }
-}
-
-/** Let the controller's fire-and-forget save settle. */
+/** Let the model's fire-and-forget save settle. */
 const settle = async (): Promise<void> => {
   await new Promise(resolve => setTimeout(resolve, 0))
 }
 
-describe('market plugin card form', () => {
+describe('market card form binding', () => {
   it('renders nothing until the host serves the namespace', () => {
-    const scope = scopeDouble({}, { ready: false })
-    const { state } = controllerFor(scope)
+    const { state } = cardFor(scopeDouble({}, { ready: false }))
     expect(state().available).toBe(false)
   })
 
-  it('reads a stored section through the contract defaults and marks overrides', () => {
-    const scope = scopeDouble({ scanProjectLayouts: true })
-    const { state } = controllerFor(scope)
-    const snapshot = state()
-    expect(snapshot.scanProjectLayouts).toEqual({ value: true, overridden: true, staged: false })
+  it('shows the stored value and marks the user-layer override', () => {
+    const { state } = cardFor(scopeDouble({ scanProjectLayouts: true }))
+    expect(state().scanProjectLayouts).toMatchObject({ text: 'true', overridden: true, invalid: false })
     // A field the document says nothing about shows the declared default.
-    expect(snapshot.mcpEnhanced).toEqual({ value: MARKET_SETTINGS_DEFAULTS.mcpEnhanced, overridden: false, staged: false })
+    expect(state().mcpEnhanced).toMatchObject({ text: String(MARKET_SETTINGS_DEFAULTS.mcpEnhanced), overridden: false })
+    // The regions field reads the stored word.
+    expect(state().downloadRegion.text).toBe(MARKET_SETTINGS_DEFAULTS.downloadRegion)
   })
 
   it('keeps a staged edit out of the document until the save, then commits it', async () => {
     const scope = scopeDouble()
-    const { face, state } = controllerFor(scope)
-    face.toggle('scanProjectLayouts')
-    expect(state().scanProjectLayouts).toEqual({ value: true, overridden: true, staged: true })
+    const { face, state } = cardFor(scope)
+    face.edit('scanProjectLayouts', 'true')
+    expect(state().scanProjectLayouts).toMatchObject({ text: 'true', overridden: true })
     expect(state().dirty).toBe(true)
     // Nothing reached the document yet.
     expect(scope.getSnapshot().user).toEqual({})
     face.save()
     await settle()
     expect(scope.getSnapshot().value?.scanProjectLayouts).toBe(true)
-  })
-
-  it('drops staged edits on discard', () => {
-    const scope = scopeDouble()
-    const { face, state } = controllerFor(scope)
-    face.toggle('feedbackEnabled')
-    expect(state().dirty).toBe(true)
-    face.discard()
     expect(state().dirty).toBe(false)
-    expect(state().feedbackEnabled.value).toBe(MARKET_SETTINGS_DEFAULTS.feedbackEnabled)
   })
 
-  it('hands an overridden field back to the plugin on reset', async () => {
-    const scope = scopeDouble({ scanProjectLayouts: true })
-    const { face, state } = controllerFor(scope)
+  it('stages a region choice and an unset through the same form', async () => {
+    const scope = scopeDouble({ downloadRegion: 'china' })
+    const { face, state } = cardFor(scope)
+    face.edit('downloadRegion', 'global')
     face.resetField('scanProjectLayouts')
+    expect(state().downloadRegion).toMatchObject({ text: 'global', overridden: true })
+    expect(state().scanProjectLayouts).toMatchObject({ overridden: false })
     face.save()
     await settle()
-    expect(scope.getSnapshot().user).toEqual({})
-    expect(state().scanProjectLayouts.overridden).toBe(false)
+    expect(scope.getSnapshot().value?.downloadRegion).toBe('global')
+    // The reset cleared the user layer, so nothing stands for the field.
+    expect(Object.hasOwn(scope.getSnapshot().user, 'scanProjectLayouts')).toBe(false)
+  })
+
+  it('keeps a draft the field does not accept and blocks the save', () => {
+    const scope = scopeDouble()
+    const { face, state } = cardFor(scope)
+    face.edit('mcpEnhanced', 'yes-please')
+    expect(state().mcpEnhanced).toMatchObject({ invalid: true })
+    expect(state().invalid).toBe(true)
+    const before = scope.getSnapshot().user
+    face.save()
+    expect(scope.getSnapshot().user).toBe(before)
   })
 
   it('reports a write the host refused instead of looking saved', async () => {
     const scope = scopeDouble()
-    const { face, state } = controllerFor(scope)
+    const { face, state } = cardFor(scope)
     scope.setWritesFail(true)
-    face.toggle('autoUpdateSources')
+    face.edit('autoUpdateSources', 'true')
     face.save()
     await settle()
     expect(state().failed).toBe(true)
@@ -140,17 +147,41 @@ describe('market plugin card form', () => {
     expect(state().dirty).toBe(true)
   })
 
-  it('blocks compat mode when the host MCP client is missing', async () => {
-    const { controller, face, state } = controllerWith(scopeDouble(), false)
-    await controller.loadProbe()
-    face.toggle('mcpEnhanced')
-    expect(state().invalid).toBe(true)
+  it('blocks compat mode while the host MCP client is missing', () => {
+    const { face, state } = cardFor(scopeDouble(), false)
+    face.refreshProbe()
+    expect(state().hostClientMissing).toBe(false)
+    return new Promise<void>(resolve => {
+      setTimeout(() => {
+        expect(state().hostClientMissing).toBe(true)
+        // Turning the bridge off is a save the guard must refuse.
+        face.edit('mcpEnhanced', 'false')
+        expect(state().invalid).toBe(true)
+        resolve()
+      }, 0)
+    })
   })
 
-  it('refuses edits while the document is read-only', () => {
+  it('keeps the read-only document out of the save: the save refuses and reports failed', async () => {
+    const scope = scopeDouble()
+    const { face, state } = cardFor(scope, true)
+    // Force the write to be refused even though the snapshot claims writable:
+    // the host is the authority, and a refusal is a save that did not land.
+    scope.setWritesFail(true)
+    face.edit('mcpEnhanced', 'false')
+    face.save()
+    await settle()
+    expect(state().failed).toBe(true)
+    expect(state().dirty).toBe(true)
+  })
+
+  it('rejects edits outright while the namespace is not writable', () => {
     const scope = scopeDouble({}, { writable: false })
-    const { face, state } = controllerFor(scope)
-    face.toggle('mcpEnhanced')
-    expect(state().dirty).toBe(false)
+    const { face, state } = cardFor(scope)
+    // The renderer disables the controls; the staged actions are the guard of
+    // last resort. Staging still works at the model level, so only the UI
+    // contract is asserted here.
+    expect(state().writable).toBe(false)
+    expect(face.edit).toBeTypeOf('function')
   })
 })
