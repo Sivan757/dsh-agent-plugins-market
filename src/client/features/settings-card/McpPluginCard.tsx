@@ -21,7 +21,13 @@ import { SegmentedControl, SettingsForm, Switch, Tag } from '@deepseek-ai/dsh-cl
 // never a value import (client bundle purity gate).
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { MARKET_SWITCH_FIELDS, type MarketCardState, type MarketFormActions, type MarketSwitchField } from './market-card-form.js'
+import {
+  MARKET_SWITCH_FIELDS,
+  regionChoice,
+  type MarketCardState,
+  type MarketFormActions,
+  type MarketSwitchField
+} from './market-card-form.js'
 import css from '../market/market.module.css'
 
 /** Copy of the boolean switches, in display order. */
@@ -43,7 +49,7 @@ type MarketCopyKey =
   | 'marketCardDesc' | 'mcpCardTitle' | 'mcpCardDesc' | 'projectLayoutsLabel' | 'projectLayoutsDesc'
   | 'autoUpdateLabel' | 'autoUpdateDesc' | 'feedbackToggleLabel' | 'feedbackToggleDesc'
   | 'mcpCardReadonly' | 'mcpBackendHostMissing' | 'regionLabel' | 'regionHint'
-  | 'regionAuto' | 'regionGlobal' | 'regionChina'
+  | 'regionAuto' | 'regionGlobal' | 'regionChina' | 'regionResolved'
   | 'settingSaveFailed' | 'settingSave' | 'settingSaving' | 'settingDiscard'
   | 'settingOverridden' | 'settingReset' | 'settingUnavailable'
 
@@ -126,7 +132,11 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
   const { t, useMarketCard, edit, resetField, save, discard, refreshProbe } = props
   const state = useMarketCard(current => current)
 
-  useEffect(() => { refreshProbe() }, [refreshProbe])
+  // Only the page reads the probe (the region hint and the compat guard); the
+  // summary stays a one-liner, and the official card shows many of them.
+  useEffect(() => {
+    if (props.view === 'page') refreshProbe()
+  }, [refreshProbe, props.view])
 
   // The official card asks for the one-liner; an entry whose namespace is not
   // served leaves no trace, not even the one-liner.
@@ -190,7 +200,9 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
             id: 'plugin-config-market-region',
             label: t('regionLabel'),
             disabled,
-            value: region.text === 'auto' || region.text === 'global' || region.text === 'china' ? region.text : 'auto',
+            // An empty draft is the staged clear that follows the interface
+            // language — the auto segment's own gesture.
+            value: regionChoice(region.text),
             options: REGION_OPTIONS.map(option => ({ value: option.value, label: t(option.label) })),
             onChange: value => {
               // Following the interface language is the plugin's own behavior,
@@ -205,7 +217,11 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
         // that currently resolves to rather than leaving it implicit.
         region.overridden
           ? null
-          : h('p', { className: css.pluginCardDesc }, '→ ', t(effectiveRegion === 'china' ? 'regionChina' : 'regionGlobal')),
+          : h(
+              'p',
+              { className: css.pluginCardDesc },
+              t('regionResolved', { region: t(effectiveRegion === 'china' ? 'regionChina' : 'regionGlobal') })
+            ),
         state.dirty
           ? h(
               'div',

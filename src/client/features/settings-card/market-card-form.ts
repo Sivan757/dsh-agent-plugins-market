@@ -36,6 +36,18 @@ export type MarketSwitchField = (typeof MARKET_SWITCH_FIELDS)[number]
 const REGION_WORDS: readonly DownloadRegionSetting[] = ['auto', 'global', 'china']
 
 /**
+ * The segment a region draft answers. An empty draft is the staged clear that
+ * hands the field back to the interface language, which is the `auto` choice;
+ * a draft the field does not accept also reads as `auto` on screen, while
+ * `invalid` reports it and blocks the save.
+ * @param draft - the field's staged text.
+ * @returns the segment value the control highlights.
+ */
+export function regionChoice(draft: string): DownloadRegionSetting {
+  return (REGION_WORDS as readonly string[]).includes(draft) ? (draft as DownloadRegionSetting) : 'auto'
+}
+
+/**
  * A boolean field: the draft text is the value's wire spelling.
  * @param field - field name inside the namespace section.
  * @returns the field's conversion spec.
@@ -149,7 +161,12 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
   // at all, so the state a save must refuse — the model's own invalid plus this
   // guard — is what the projection reports, and it is what disables the save.
   const hostClientMissing = (): boolean => probe !== undefined && !probe.hostClient.available
-  const compatBlocked = (): boolean => model.field('mcpEnhanced').text !== 'true' && hostClientMissing()
+  // A read still in flight leaves the deployment's host client unknown, and that
+  // window is exactly when a save could pin compat mode onto a client-less
+  // deployment — so it blocks too. A read that came back with nothing leaves the
+  // guard permissive: it cannot learn anything more.
+  const compatBlocked = (): boolean =>
+    model.field('mcpEnhanced').text !== 'true' && (probeStatus === 'loading' || hostClientMissing())
   const project = (): MarketCardState => {
     const shell = model.shell()
     return {

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import { bindMarketCardForm } from '../src/client/features/settings-card/market-card-form.js'
+import { bindMarketCardForm, regionChoice } from '../src/client/features/settings-card/market-card-form.js'
 
 /** The probe answer a test's card reads: host client present or missing. */
 const probeAnswer = (hostClientAvailable: boolean) => async () => ({
@@ -68,6 +68,9 @@ function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?
     }
   })
 }
+
+/** The payload a probe read answers with. */
+type ProbeAnswer = Awaited<ReturnType<ReturnType<typeof probeAnswer>>>
 
 /** A bound card with its face; the probe answers synchronously settleable. */
 function cardFor(scope: ReturnType<typeof scopeDouble>, hostClientAvailable = true) {
@@ -160,6 +163,46 @@ describe('market card form binding', () => {
         resolve()
       }, 0)
     })
+  })
+
+  it('refuses compat mode while the probe read is still in flight', async () => {
+    let release: (answer: ProbeAnswer) => void = () => {}
+    const bound = bindMarketCardForm(
+      scopeDouble(),
+      () =>
+        new Promise<ProbeAnswer>(resolve => {
+          release = resolve
+        })
+    )
+    const state = () => bound.face.hooks.marketCard.getSnapshot()
+    bound.face.refreshProbe()
+    bound.face.edit('mcpEnhanced', 'false')
+    // The deployment's host client is still unknown, so the save that would pin
+    // compat mode stays blocked for the duration of the read.
+    expect(state().invalid).toBe(true)
+    release(await probeAnswer(true)())
+    await settle()
+    expect(state().invalid).toBe(false)
+  })
+
+  it('leaves the compat guard permissive when the probe read fails', async () => {
+    const bound = bindMarketCardForm(scopeDouble(), async () => {
+      throw new Error('offline')
+    })
+    const state = () => bound.face.hooks.marketCard.getSnapshot()
+    bound.face.refreshProbe()
+    bound.face.edit('mcpEnhanced', 'false')
+    expect(state().invalid).toBe(true)
+    await settle()
+    // The read taught the card nothing, so it stops standing in the save's way.
+    expect(state().invalid).toBe(false)
+  })
+
+  it('highlights the auto segment for a region draft that clears the setting', () => {
+    const { face, state } = cardFor(scopeDouble({ downloadRegion: 'china' }))
+    face.resetField('downloadRegion')
+    expect(state().downloadRegion).toMatchObject({ text: '', overridden: false, invalid: false })
+    expect(regionChoice(state().downloadRegion.text)).toBe('auto')
   })
 
   it('keeps the read-only document out of the save: the save refuses and reports failed', async () => {

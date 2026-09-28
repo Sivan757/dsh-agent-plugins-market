@@ -105,6 +105,30 @@ describe('market plugins.item entry views', () => {
     expect(renderToStaticMarkup(h(McpPluginCard, face))).toContain('settingUnavailable')
   })
 
+  it('shows the auto segment for the region draft a staged clear leaves', () => {
+    const bound = bindMarketCardForm(scopeDouble({ downloadRegion: 'china' }), async () => ({
+      backend: 'builtin' as const,
+      hostClient: { available: true },
+      downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
+    }))
+    bound.face.resetField('downloadRegion')
+    const html = renderToStaticMarkup(
+      h(McpPluginCard, {
+        view: 'page',
+        t: key => key,
+        useMarketCard: select => select(bound.face.hooks.marketCard.getSnapshot()),
+        edit: bound.face.edit,
+        resetField: bound.face.resetField,
+        save: bound.face.save,
+        discard: bound.face.discard,
+        refreshProbe: bound.face.refreshProbe
+      })
+    )
+    // The clear hands the field back to the language, so the auto segment is the
+    // one the control reports as selected.
+    expect(html).toMatch(/aria-selected="true"[^>]*aria-controls="plugin-config-market-region-auto-panel"/)
+  })
+
   it('shows an override badge for a field the user layer carries', () => {
     const html = renderToStaticMarkup(h(McpPluginCard, faceFor('page', { scanProjectLayouts: true })))
     expect(html).toContain('settingOverridden')

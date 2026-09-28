@@ -10,7 +10,7 @@ rc.2 拿掉了这个前提：`@deepseek-ai/dsh-client-ui-primitives` 已从公�
 
 ## 决策
 
-控制器已退役到宿主模型。`src/client/features/settings-card/market-card-form.ts` 把市场的 `ConfigForm` scope 绑定到 `SettingsFormModel`，每个字段一条自定义 `SettingsFieldSpec`——卡片编辑四个布尔与 `downloadRegion` 枚举，没有一个是文本——所以每条 spec 的草稿文本就是值的线格式（`true`/`false`、区域词），不可解析的草稿挡住保存。page 视图渲染在宿主 `SettingsForm` 框架内：只读提示、保存控件、失败回显都是框架的；市场只保留自己的行。布尔走宿主 `Switch` 原子、区域走宿主 `SegmentedControl` 原子，都接到模型的 `edit`/`resetField`；带复位的「已自定义」徽标原样保留。宿主客户端探针仍是浏览器本地知识，随投影走；兼容模式守卫（关掉 `mcpEnhanced` 而宿主客户端缺失）折进投影的 `invalid`，与之前一样挡住保存。`McpCredentialEditor.tsx` 由 `McpCredentialFields.tsx` 取代，控件即 `SettingsSecretField`，写一次保证即 `SettingsSecretSpec.write`——字面量只过线一次，绝不回到状态。保存进行中的暂存编辑会被拒绝，因此保存成功清空暂存表时不会抹掉更新的编辑。
+控制器已退役到宿主模型。`src/client/features/settings-card/market-card-form.ts` 把市场的 `ConfigForm` scope 绑定到 `SettingsFormModel`，每个字段一条自定义 `SettingsFieldSpec`——卡片编辑四个布尔与 `downloadRegion` 枚举，没有一个是文本——所以每条 spec 的草稿文本就是值的线格式（`true`/`false`、区域词），不可解析的草稿挡住保存。page 视图渲染在宿主 `SettingsForm` 框架内：只读提示、保存控件、失败回显都是框架的；市场只保留自己的行。布尔走宿主 `Switch` 原子、区域走宿主 `SegmentedControl` 原子，都接到模型的 `edit`/`resetField`；带复位的「已自定义」徽标原样保留。宿主客户端探针仍是浏览器本地知识，随投影走；兼容模式守卫（关掉 `mcpEnhanced`，而宿主客户端缺失、或给出答案的探针读取仍在途中——读取失败则放行）折进投影的 `invalid`，在部署端客户端尚未确知存在的每个窗口都挡住保存。`McpCredentialEditor.tsx` 由 `McpCredentialFields.tsx` 取代，控件即 `SettingsSecretField`，写一次保证即 `SettingsSecretSpec.write`——字面量只过线一次，绝不回到状态。保存进行中的暂存编辑会被拒绝，因此保存成功清空暂存表时不会抹掉更新的编辑。
 
 ## 后果
 
