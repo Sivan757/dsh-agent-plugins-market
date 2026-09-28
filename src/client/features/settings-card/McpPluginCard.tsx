@@ -21,11 +21,11 @@ import { SegmentedControl, SettingsForm, Switch, Tag } from '@deepseek-ai/dsh-cl
 // never a value import (client bundle purity gate).
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { MarketCardState, MarketFormActions, MarketSwitchField } from './market-card-form.js'
+import { MARKET_SWITCH_FIELDS, type MarketCardState, type MarketFormActions, type MarketSwitchField } from './market-card-form.js'
 import css from '../market/market.module.css'
 
 /** Copy of the boolean switches, in display order. */
-const SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled'] as const
+const SWITCH_FIELDS = MARKET_SWITCH_FIELDS
 
 /** Copy keys of each switch. */
 const SWITCH_COPY: Record<MarketSwitchField, { label: MarketCopyKey; description: MarketCopyKey }> = {

@@ -38,14 +38,6 @@
   flex: none;
 }
 
-.segment svg {
-  display: block;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 /* The toolbar stays on one row: the search field absorbs the squeeze, exactly
    as the settings column's width changes. Only a genuinely narrow container —
    below where the filter segments would overflow — stacks it. */

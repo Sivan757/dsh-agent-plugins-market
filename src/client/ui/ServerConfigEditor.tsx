@@ -285,7 +285,10 @@ export function ServerConfigEditor(props: {
       ],
       // A form issue blocks the JSON view: switching away from it would hide
       // the very document that carries the problem.
-      disabled: props.disabled || hasIssue,
+      // Unlike the hand-rolled pair, an issue locks both segments: leaving the form
+  // would hide the very document the error describes. Reaching json stays
+  // blocked for the same reason; the issue can only exist while in form view.
+  disabled: props.disabled || hasIssue,
       // The editor body is the panel both tabs control.
       label: props.t('detailJsonConfig'),
       onChange: setMode,

@@ -67,7 +67,9 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
     // The host control derives each tab's id from this base id; the caller
     // owns the panels the tabs name, so the panel half stays a suffix stub.
     h(SegmentedControl, {
-      id: 'panel-filter',
+      // The literal id assumes one live toolbar per document — true for every
+  // current consumer; a second mounted copy would share the generated tab ids.
+  id: 'panel-filter',
       value: props.filters.find(filter => filter.active)?.id ?? props.filters[0]?.id ?? '',
       // The host option label is a plain string, so the count rides the same
       // text the previous pills put in their accessible name.

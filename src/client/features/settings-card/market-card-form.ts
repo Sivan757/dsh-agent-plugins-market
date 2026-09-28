@@ -120,8 +120,9 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
     settingsRegionField('downloadRegion')
   ])
   // The staged actions refuse edits while a save is on the wire, so nothing
-  // stages into the map the save's own settlement clears on success. The
-  // model's own save already refuses a second concurrent entry.
+  // stages into the map the save's own settlement clears on success. The save
+  // action needs no such wrapper: the model's own save refuses a second
+  // concurrent entry.
   const actions = model.actions()
   const stagedActions = {
     edit: (field: string, text: string) => {
@@ -177,8 +178,10 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
     } catch {
       // The version line and the region hint degrade silently; the controls still work.
     } finally {
-      if (generation === probeGeneration) probeStatus = 'idle'
-      store.set(project())
+      if (generation === probeGeneration) {
+        probeStatus = 'idle'
+        store.set(project())
+      }
     }
   }
 

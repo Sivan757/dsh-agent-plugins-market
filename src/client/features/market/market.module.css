@@ -695,10 +695,6 @@
     width: 100%;
     overflow-wrap: anywhere;
   }
-  .regionSeg {
-    flex-wrap: wrap;
-    max-width: 100%;
-  }
 }
 
 /* The market card's switches use the platform Switch primitive; only the
@@ -761,8 +757,7 @@
   flex: 1;
 }
 
-.pluginCardDiscard,
-.pluginCardSave {
+.pluginCardDiscard {
   appearance: none;
   font: inherit;
   font-size: 13px;
@@ -782,18 +777,7 @@
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.04));
 }
 
-.pluginCardSave {
-  border: 1px solid transparent;
-  background: var(--dsw-alias-button-primary-fill);
-  color: var(--dsw-alias-label-primary-foreground);
-}
-
-.pluginCardSave:hover:not(:disabled) {
-  background: var(--dsw-alias-button-primary-hover);
-}
-
-.pluginCardDiscard:disabled,
-.pluginCardSave:disabled {
+.pluginCardDiscard:disabled {
   cursor: default;
   opacity: 0.5;
 }
@@ -809,63 +793,6 @@
   transform: rotate(180deg);
 }
 
-/* Region segmented control, mirroring dshmarket's setSeg chrome. */
-.regionSeg {
-  flex: none;
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 8px;
-}
-
-.regionSegBtn {
-  appearance: none;
-  border: none;
-  background: none;
-  font: inherit;
-  color: var(--dsw-alias-label-secondary, #6b7280);
-  cursor: pointer;
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.regionSegOn {
-  appearance: none;
-  border: none;
-  font: inherit;
-  cursor: pointer;
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 12px;
-  line-height: 18px;
-  background: var(--dsw-alias-bg-layer-2, #eef0f4);
-  color: var(--dsw-alias-label-primary, #1f2328);
-  font-weight: 600;
-}
-
-/* The route the setting currently resolves to while it follows the interface
-   language: marked, but not the chosen control. */
-.regionSegEffective {
-  appearance: none;
-  border: none;
-  background: none;
-  font: inherit;
-  cursor: pointer;
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-primary, #1f2328);
-}
-
-.regionSegBtn:disabled,
-.regionSegOn:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
 
 /* A disclosure row's one-line summary: a long frontmatter description wraps the
    whole row into a paragraph without this clamp. */
