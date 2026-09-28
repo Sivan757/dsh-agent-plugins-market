@@ -151,10 +151,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       ...ordered.map(source => {
         const notes = source.scanNotes ?? []
         const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
-        const kindBadge = source.local === true ? t('sourceLocal') : source.kind === 'archive' ? t('sourceArchive') : undefined
         return {
           id: source.id,
-          label: `${source.id}${kindBadge === undefined ? '' : ` · ${kindBadge}`} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
+          label: `${source.id} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
           ...(noteHint === undefined ? {} : { title: noteHint }),
           editable: true,
           deletable: true
