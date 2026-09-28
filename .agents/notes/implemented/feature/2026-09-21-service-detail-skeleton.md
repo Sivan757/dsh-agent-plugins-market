@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Revised by [a failure report that leads with the cause](2026-09-24-failure-report-with-cause-chain.md): the state line now leads with a sentence for the classified failure shape and keeps the recorded diagnostic behind a disclosure.
+
 ## Problem
 
 The MCP service dialog opened on its configuration form: one column of inputs filled the scroll area, the tool list sat at the bottom, and the failure reason was a block between them. Configuration is the least frequent task, so the two things a user opens the dialog for — whether the server works and what it offers — were the last thing on screen.

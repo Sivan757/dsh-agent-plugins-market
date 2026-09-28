@@ -192,28 +192,6 @@ export async function addMcpServer(name: string, config: Record<string, unknown>
   })
 }
 
-/** What one pasted import wrote, and what it left out with a reason each. */
-export interface McpImportOutcome {
-  imported: string[]
-  skipped: Array<{ name: string; reason: string }>
-}
-
-/** Import several pasted services in one write; each entry reports its own outcome. */
-export async function importMcpServers(servers: Array<{ name: string; config: Record<string, unknown> }>, overwrite: boolean): Promise<McpImportOutcome> {
-  return withBusyOperation(async () => {
-    const payload = await postAction('mcp-servers/import', { servers, overwrite })
-    const imported = Array.isArray(payload['imported']) ? payload['imported'].filter((value): value is string => typeof value === 'string') : []
-    const skipped = Array.isArray(payload['skipped'])
-      ? payload['skipped'].flatMap(entry => {
-          if (typeof entry !== 'object' || entry === null) return []
-          const { name, reason } = entry as { name?: unknown; reason?: unknown }
-          return typeof name === 'string' && typeof reason === 'string' ? [{ name, reason }] : []
-        })
-      : []
-    return { imported, skipped }
-  })
-}
-
 /** Drop one server's OAuth grant so its next mount re-runs browser authorization. */
 export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   return withBusyOperation(async () => {

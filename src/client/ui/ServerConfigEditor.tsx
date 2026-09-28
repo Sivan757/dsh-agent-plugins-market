@@ -7,7 +7,7 @@
  * document editor lay their fields out identically.
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, IconPlusOutlineMedium, IconTrashOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineMedium, IconTrashOutlineMedium, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
 import type { Translate } from '../index.js'
 import { changeTransport, composeServerDocument, parseServerConfig, parseServerDocument, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
@@ -276,23 +276,24 @@ export function ServerConfigEditor(props: {
   return h(
     'div',
     { className: `${formCss.form} ${formCss.editorBody}` },
-    h(
-      'div',
-      { className: formCss.seg },
-      (['form', 'json'] as const).map(value =>
-        h(
-          'button',
-          {
-            type: 'button',
-            key: value,
-            'aria-pressed': mode === value,
-            disabled: props.disabled || (value === 'json' && hasIssue),
-            onClick: () => setMode(value)
-          },
-          props.t(value === 'form' ? 'detailForm' : 'detailJson')
-        )
-      )
-    ),
+    h(SegmentedControl<'form' | 'json'>, {
+      id: 'server-config-mode',
+      value: mode,
+      options: [
+        { value: 'form', label: props.t('detailForm') },
+        { value: 'json', label: props.t('detailJson') }
+      ],
+      // A form issue blocks the JSON view: switching away from it would hide
+      // the very document that carries the problem.
+      // Unlike the hand-rolled pair, an issue locks both segments: leaving the form
+  // would hide the very document the error describes. Reaching json stays
+  // blocked for the same reason; the issue can only exist while in form view.
+  disabled: props.disabled || hasIssue,
+      // The editor body is the panel both tabs control.
+      label: props.t('detailJsonConfig'),
+      onChange: setMode,
+      className: formCss.seg
+    }),
     // Identity fields stay visible in both modes: the name identifies the
     // document and the transport decides which keys the JSON may carry.
     identityRow,

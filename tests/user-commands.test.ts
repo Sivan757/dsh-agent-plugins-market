@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
-import { bindHostLocale } from '../src/runtime/host-locale.js'
-import { createUserPanelStores } from '../src/runtime/user-panels.js'
-import { UserCommandMountRegistry } from '../src/runtime/user-commands.js'
+import { bindHostLocale } from '../src/runtime/host/host-locale.js'
+import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
+import { UserCommandMountRegistry } from '../src/runtime/panels/user-commands.js'
 import { required } from './helpers/fixture.js'
 
 const roots: string[] = []

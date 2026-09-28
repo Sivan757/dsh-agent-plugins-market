@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { AUTO_UPDATE_INTERVAL_MS, SourceAutoUpdater } from '../src/runtime/source-auto-update.js'
+import { AUTO_UPDATE_INTERVAL_MS, SourceAutoUpdater } from '../src/runtime/core/source-auto-update.js'
 
 /** A context that resolves no service, so the timer seat takes its plain-handle fallback. */
 function context(logs: string[]): Context {

@@ -14,6 +14,26 @@ export type McpStatusKind = 'plugin' | 'direct'
 /** Operational state rendered for an MCP row. `foreign` = mounted by another MCP client (informational). */
 export type McpStatusState = 'connected' | 'degraded' | 'failed' | 'needs-credentials' | 'orphaned' | 'disabled' | 'foreign'
 
+/**
+ * Why a row carries a reason. The mount failures explain a failed connection;
+ * the remaining entries are the states that have something to say without
+ * being broken, and each one has its own wording in the panel.
+ */
+export type McpStatusCode =
+  | 'unsupported-transport'
+  | 'missing-credential'
+  | 'credential-error'
+  | 'unmount-failed'
+  | 'mount-failed'
+  | 'foreign-mount'
+  | 'duplicate-mount'
+  /** Tools are still registered although the surface that declared them is gone. */
+  | 'orphaned-tools'
+  /** Switched off through this plugin's own override record. */
+  | 'disabled-override'
+  /** A stored override changed the configuration the suite declares. */
+  | 'modified-override'
+
 /** One MCP service row for the status surface. */
 export interface McpStatusEntry {
   id: string
@@ -31,9 +51,16 @@ export interface McpStatusEntry {
   endpoint?: string
   config?: Record<string, unknown>
   tools: McpStatusTool[]
+  /** The one-line diagnostic this row reports, in the words of the layer that failed. */
   reason?: string
-  /** Mount-path classification when a diagnostic produced this row. */
-  code?: 'unsupported-transport' | 'missing-credential' | 'credential-error' | 'unmount-failed' | 'mount-failed' | 'foreign-mount' | 'duplicate-mount'
+  /** Why this row carries a reason; also the key the panel localizes it by. */
+  code?: McpStatusCode
+  /**
+   * The messages under the failure's `cause` chain, outermost first. A wrapper
+   * sentence such as `initial connection … failed` names no cause by itself, so
+   * the detail that points at the real problem travels beside it.
+   */
+  causes?: string[]
   /** Environment-variable credential references required by this server. */
   credentialRefs?: string[]
   /** Whether this server advertised zero tools at observation time. Zero-tool

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
-import { containsImage, extractText, prepareImageProjection } from '../src/runtime/mcp-client/projection.js'
-import type { JsonValue } from '../src/runtime/mcp-client/host-contract.js'
-import type { ToolExecution, ToolHost } from '../src/runtime/mcp-client/host-contract.js'
+import { containsImage, extractText, prepareImageProjection } from '../src/runtime/mcp/bridge/projection.js'
+import type { JsonValue } from '../src/runtime/mcp/bridge/host-contract.js'
+import type { ToolExecution, ToolHost } from '../src/runtime/mcp/bridge/host-contract.js'
 
 const PNG_BASE64 = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64')
 const TOOL = 'weather__lookup'

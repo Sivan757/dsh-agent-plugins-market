@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { discoverSourceList } from '../src/catalog/source-catalog.js'
+import { discoverSourceListWithNotes } from '../src/catalog/source-catalog.js'
 import { Catalog } from '../src/application/catalog.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -20,7 +20,7 @@ describe('configured source discovery', () => {
 
   it('does not count unmanaged checkout directories in the overview catalog', async () => {
     const root = await createUserRoot()
-    const suites = await discoverSourceList([{ id: 'configured', url: 'https://example.test/configured.git' }], 'user', root)
+    const { suites } = await discoverSourceListWithNotes([{ id: 'configured', url: 'https://example.test/configured.git' }], 'user', root, true)
 
     expect(suites.map(suite => suite.sourceId)).toEqual(['configured'])
   })

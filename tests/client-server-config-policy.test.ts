@@ -14,7 +14,7 @@ vi.mock('../src/client/api.js', async importOriginal => ({
   saveServerConfig: vi.fn(async () => {})
 }))
 
-import { McpConfigModal } from '../src/client/McpStatusPanel.js'
+import { McpConfigModal } from '../src/client/features/mcp/McpConfigModal.js'
 import * as api from '../src/client/api.js'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
 

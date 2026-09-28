@@ -39,7 +39,6 @@ function service(): MarketService {
     setMcpServerEnabled: async () => {},
     setMcpServerToolEnabled: async () => {},
     addMcpServer: async () => {},
-    importMcpServers: async () => ({ imported: [], skipped: [] }),
     saveServerConfig: async () => {},
     addLspServer: async () => {},
     setLspServers: async () => ({}),

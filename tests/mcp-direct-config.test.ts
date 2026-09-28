@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { addUserMcpServer, importUserMcpServers, loadUserMcpSuite } from '../src/runtime/mcp-direct-config.js'
-import { CommandMountRegistry } from '../src/runtime/commands-mounts.js'
-import { toMcpMounts } from '../src/runtime/mcp-config.js'
+import { addUserMcpServer, loadUserMcpSuite } from '../src/application/mcp/mcp-direct-config.js'
+import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
+import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -53,32 +53,6 @@ describe('user MCP persistence', () => {
     const suite = await loadUserMcpSuite(path)
     expect(suite.errors.join(' | ')).toBe('')
     expect(suite.mcp.servers['one']).toMatchObject({ command: 'node', alwaysAllow: ['x'], timeout: 30 })
-  })
-
-  it('imports many pasted services in one write and reports each outcome', async () => {
-    const path = await root()
-    await addUserMcpServer(path, 'one', { type: 'stdio', command: 'node' })
-    const result = await importUserMcpServers(
-      path,
-      [
-        { name: 'two', server: { type: 'stdio', command: 'uvx', args: ['mcp-server-fetch'] } },
-        { name: 'one', server: { type: 'stdio', command: 'node' } },
-        { name: 'bad name', server: { type: 'stdio', command: 'node' } },
-        { name: 'broken', server: { type: 'streamable-http' } }
-      ],
-      false
-    )
-    expect(result.imported).toEqual(['two'])
-    expect(result.skipped.map(entry => entry.name)).toEqual(['one', 'bad name', 'broken'])
-    expect(Object.keys((await loadUserMcpSuite(path)).mcp.servers)).toEqual(['one', 'two'])
-  })
-
-  it('replaces an existing name only when the import says so', async () => {
-    const path = await root()
-    await addUserMcpServer(path, 'one', { type: 'stdio', command: 'node' })
-    const result = await importUserMcpServers(path, [{ name: 'one', server: { type: 'stdio', command: 'uvx' } }], true)
-    expect(result.imported).toEqual(['one'])
-    expect((await loadUserMcpSuite(path)).mcp.servers['one']).toMatchObject({ command: 'uvx' })
   })
 
   it('fails closed on corrupt storage and refuses to overwrite it', async () => {

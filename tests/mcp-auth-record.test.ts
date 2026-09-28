@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
-import { deleteMcpAuthGrant, MCP_AUTH_RECORD_SCOPE, mcpAuthRecordId, mcpAuthRecordKey } from '../src/runtime/mcp-auth-record.js'
+import { deleteMcpAuthGrant, MCP_AUTH_RECORD_SCOPE, mcpAuthRecordId, mcpAuthRecordKey } from '../src/runtime/mcp/mcp-auth-record.js'
 
 describe('MCP OAuth grant record addressing', () => {
   it('folds a server name into the credential-key id grammar', () => {

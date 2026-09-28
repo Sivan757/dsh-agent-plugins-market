@@ -6,7 +6,7 @@ vi.mock('../src/client/PluginWorkspace.js', () => ({
   PluginWorkspace: () => null
 }))
 
-import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from '../src/client/page-mode.js'
+import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from '../src/client/workspace/page-mode.js'
 
 describe('legacy market page mode', () => {
   const disposers: Array<() => void> = []

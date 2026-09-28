@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { Catalog } from '../src/application/catalog.js'
-import { mountProjectCommands } from '../src/runtime/project-runtime.js'
-import { bindHostLocale } from '../src/runtime/host-locale.js'
+import { mountProjectCommands } from '../src/runtime/surfaces/project-runtime.js'
+import { bindHostLocale } from '../src/runtime/host/host-locale.js'
 import { required } from './helpers/fixture.js'
 
 const roots: string[] = []

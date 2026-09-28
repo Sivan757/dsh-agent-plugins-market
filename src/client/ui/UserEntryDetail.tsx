@@ -5,10 +5,10 @@
  * @module client/ui/UserEntryDetail
  */
 import { createElement as h, useState, type ReactNode } from 'react'
-import { Button, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
-import { DetailRow, DetailRows } from './DetailRows.js'
+import { DetailRow, DetailRows, kvCell } from './DetailRows.js'
 import { lastChangeLabel } from './last-change.js'
 import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
@@ -23,6 +23,8 @@ const NOUN_KEY: Record<UserPanelKind, 'workspaceTabSkills' | 'workspaceTabComman
 
 /** Metadata keys the identity row already carries. */
 const HIDDEN_META = new Set(['description', 'disabled', 'name'])
+/** Routing keys an agent persona renders as its own rows, not in the catch-all. */
+const ROUTING_META = new Set(['model', 'provider', 'reasoning_effort', 'reasoningEffort'])
 
 export interface UserEntryDetailProps {
   t: Translate
@@ -40,7 +42,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   // A command registers under its flattened call name, so the dialog title shows that.
   const title = kind === 'commands' ? `/${commandCallName(entry.name)}` : entry.name
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
-  const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key))
+  const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key) && !(kind === 'agents' && ROUTING_META.has(key)))
   return h(
     DetailModal,
     {
@@ -48,8 +50,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
       onClose: props.onClose,
       title,
       description: `${t(NOUN_KEY[kind])} · ${provenance}`,
-      closeLabel: t('cancel'),
-      footer: h(Button, { variant: 'ghost', onClick: props.onClose }, t('detailDone'))
+      closeLabel: t('cancel')
     },
     h(
       'div',
@@ -75,11 +76,12 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
       h(
         'dl',
         { className: css.kvGrid },
-        kv(t('sourceLabel'), entry.suiteName ?? t('panelSourceUser')),
-        kv(t('detailTypeLabel'), entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')),
-        kv(t('diskPathLabel'), entry.path, true),
-        updated === null ? null : kv(t('updatedLabel'), updated),
-        metaPairs.length === 0 ? null : kv(metaPairs.map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · '), t('detailMetadata'))
+        kvCell(t('sourceLabel'), entry.suiteName ?? t('panelSourceUser')),
+        kvCell(t('detailTypeLabel'), entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')),
+        kvCell(t('diskPathLabel'), entry.path, true),
+        updated === null ? null : kvCell(t('updatedLabel'), updated),
+        kind === 'agents' ? routingRows(t, entry.metadata) : null,
+        metaPairs.length === 0 ? null : kvCell(t('detailMetadata'), metaPairs.map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · '))
       )
     ),
     entry.description === '' ? null : h('div', { className: css.block }, h('h4', { className: css.blockHead }, t('detailDescriptionLabel')), h('p', { className: css.detailProse }, entry.description)),
@@ -96,6 +98,16 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   )
 }
 
-function kv(label: string, value: string, mono = false): ReactNode {
-  return h('div', null, h('dt', { className: css.kvKey }, label), h('dd', { className: mono ? `${css.kvValue} ${css.kvValueMono}` : css.kvValue, title: value }, value))
+/** Routing frontmatter rows for agent personas: model, provider, reasoning effort. */
+function routingRows(t: Translate, metadata: Record<string, unknown>): ReactNode {
+  const model = typeof metadata['model'] === 'string' ? metadata['model'] : undefined
+  const provider = typeof metadata['provider'] === 'string' ? metadata['provider'] : undefined
+  const snake = typeof metadata['reasoning_effort'] === 'string' ? metadata['reasoning_effort'] : undefined
+  const camel = typeof metadata['reasoningEffort'] === 'string' ? metadata['reasoningEffort'] : undefined
+  const reasoning = snake ?? camel
+  return [
+    model === undefined ? null : kvCell(t('detailModelLabel'), model, true, 'model'),
+    provider === undefined ? null : kvCell(t('detailProviderLabel'), provider, true, 'provider'),
+    reasoning === undefined ? null : kvCell(t('detailReasoningLabel'), reasoning, true, 'reasoning')
+  ]
 }

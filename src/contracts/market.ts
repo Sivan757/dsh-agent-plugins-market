@@ -8,7 +8,6 @@ export const MARKET_ROUTES = {
   overview: `${MARKET_API_PREFIX}overview`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
   addMcpServer: `${MARKET_API_PREFIX}mcp-servers/add`,
-  importMcpServers: `${MARKET_API_PREFIX}mcp-servers/import`,
   lspStatus: `${MARKET_API_PREFIX}lsp-status`,
   lspServers: `${MARKET_API_PREFIX}lsp-servers`,
   addLspServer: `${MARKET_API_PREFIX}lsp-servers/add`,
@@ -262,8 +261,6 @@ export interface MarkdownPreview {
   content: string
 }
 
-/** Claude Code command preview alias retained for feature-specific readability. */
-export type CommandPreview = MarkdownPreview
 /** Claude Code agent preview alias retained for feature-specific readability. */
 export type AgentPreview = MarkdownPreview
 
@@ -359,7 +356,7 @@ export interface UserPanelEntryWire {
   name: string
   description: string
   disabled: boolean
-  /** User and managed plugin entries are editable; external source files remain read-only. */
+  /** User entries are editable; suite-owned plugin entries answer only to the enable switch. */
   origin: 'user' | 'plugin'
   id?: string
   rawText: string

@@ -295,13 +295,15 @@
 /* A group of related fields (a role's runtime configuration, an OAuth block). */
 .fieldset {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  /* The three routing selects read as one related set: full width, one per
+     row, aligned with the fields above the group. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
   min-width: 0;
   margin: 0;
   /* The legend's own line box holds the top edge of the frame, so the padding
      above the first row can stay small. */
-  padding: 2px 12px 12px;
+  padding: 4px 12px 12px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
 }

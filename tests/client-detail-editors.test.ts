@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
-import { composeServerDocument, parsePastedServer, parsePastedServers, rowsFromPastedText } from '../src/client/ui/server-form.js'
+import { composeServerDocument, rowsFromPastedText } from '../src/client/ui/server-form.js'
 import { MarkdownDocument } from '../src/client/ui/MarkdownDocument.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
@@ -114,26 +114,6 @@ describe('shared resource detail editors', () => {
 })
 
 describe('pasted server definitions', () => {
-  it('reads the first mcpServers entry and normalizes its transport', () => {
-    const pasted = parsePastedServer(JSON.stringify({ mcpServers: { docs: { type: 'http', url: 'https://example.test/mcp' } } }))
-    expect(pasted.name).toBe('docs')
-    expect(pasted.config).toEqual({ type: 'streamable-http', url: 'https://example.test/mcp' })
-  })
-
-  it('infers the transport from a bare definition and maps httpUrl onto url', () => {
-    expect(parsePastedServer(JSON.stringify({ command: 'npx', args: ['-y', 'pkg'] })).config).toEqual({ type: 'stdio', command: 'npx', args: ['-y', 'pkg'] })
-    expect(parsePastedServer(JSON.stringify({ type: 'local', command: 'uvx' })).config).toEqual({ type: 'stdio', command: 'uvx' })
-    expect(parsePastedServer(JSON.stringify({ httpUrl: 'https://example.test/mcp' })).config).toEqual({ type: 'streamable-http', url: 'https://example.test/mcp' })
-  })
-
-  it('reads every entry of a pasted map, keeping each name', () => {
-    const pasted = parsePastedServers(JSON.stringify({ mcpServers: { alpha: { command: 'npx' }, beta: { type: 'http', url: 'https://example.test/mcp' } } }))
-    expect(pasted).toEqual([
-      { name: 'alpha', config: { type: 'stdio', command: 'npx' } },
-      { name: 'beta', config: { type: 'streamable-http', url: 'https://example.test/mcp' } }
-    ])
-  })
-
   it('reads a pasted block into key/value rows, quotes and all', () => {
     expect(rowsFromPastedText('A=1\nB = 2', true)).toEqual([
       ['A', '1'],
@@ -159,10 +139,5 @@ describe('pasted server definitions', () => {
     Object.defineProperty(event, 'clipboardData', { value: { getData: () => '"Authorization": "Bearer x"\nX-Api-Key: abc' } })
     await act(async () => target!.dispatchEvent(event))
     expect(value().headers).toEqual({ Authorization: 'Bearer x', 'X-Api-Key': 'abc' })
-  })
-
-  it('rejects a pasted document that carries no server', () => {
-    expect(() => parsePastedServer('[]')).toThrow('Configuration must be a JSON object')
-    expect(() => parsePastedServer(JSON.stringify({ mcpServers: {} }))).toThrow('mcpServers is empty')
   })
 })

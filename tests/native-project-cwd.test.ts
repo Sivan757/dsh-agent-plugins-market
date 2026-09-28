@@ -50,7 +50,7 @@ describe('cwd resolution edges', () => {
 describe('live-like native discovery through a real project tree', () => {
   it('finds .claude skills from a deeply nested session cwd via the provider', async () => {
     const { Catalog } = await import('../src/application/catalog.js')
-    const { SuiteSkillProvider } = await import('../src/runtime/skills-provider.js')
+    const { SuiteSkillProvider } = await import('../src/runtime/surfaces/skills-provider.js')
     const repo = await mkdtemp(join(tmpdir(), 'dsh-live-'))
     await mkdir(join(repo, '.git'), { recursive: true })
     await mkdir(join(repo, '.claude', 'skills', 'deploy'), { recursive: true })

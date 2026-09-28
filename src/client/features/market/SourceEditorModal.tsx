@@ -4,7 +4,7 @@ import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SourceOverview } from '../../api.js'
 import type { SourceProgressState } from './market-resource.js'
 import type { Translate } from '../../index.js'
-import css from '../../market.module.css'
+import css from './market.module.css'
 import formCss from '../../ui/form.module.css'
 
 export type EditorState = { mode: 'edit'; source: SourceOverview } | { mode: 'add' } | undefined

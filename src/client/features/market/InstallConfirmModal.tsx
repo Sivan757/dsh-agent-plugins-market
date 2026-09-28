@@ -3,7 +3,7 @@ import { createElement as h, type ReactNode } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../index.js'
-import css from '../../market.module.css'
+import css from './market.module.css'
 
 export interface InstallConfirmState {
   suite: SuiteCardData

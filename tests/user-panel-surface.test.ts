@@ -91,7 +91,25 @@ describe('unified Markdown resource panel', () => {
     expect(raw).toContain('Review code')
   })
 
-  it('shows plugin and user entries, filters source, and updates duplicate names by stable id', async () => {
+  it('opens a routing-only editor from a plugin persona card, with no document surface', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin])
+    api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    await mountPanel()
+    // The pencil on a plugin persona card opens the structured routing form.
+    await click('panelEditTitle')
+    const dialog = () => host.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialog()).toContain('personaRuntimeConfig')
+    // The suite owns the document: no raw Markdown surface, only the routing
+    // controls — the textarea content the raw editor would carry is absent.
+    expect(host.querySelector('textarea')).toBeNull()
+    // Saving posts the raw document to the same update route; the server's
+    // allowlist is what actually confines the diff.
+    await click('panelSave')
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', plugin.id, plugin.rawText)
+  })
+
+  it('offers edit and delete only on user-authored entries', async () => {
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
     api.updateUserPanelEntry.mockResolvedValue(undefined)
@@ -101,15 +119,21 @@ describe('unified Markdown resource panel', () => {
     expect(host.querySelectorAll('input').length).toBeGreaterThan(0)
     await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="switchToList"]')!.click())
     await click('panelSourcePlugin')
+    // An agent persona card carries the pencil: it opens the routing editor.
+    expect(host.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+    await click('panelSourceUser')
     // The pencil opens the filtered entry's own document; its path is a detail
     // read-out, not an editor field, so the editor never repeats it.
     await click('panelEditTitle')
-    expect(host.textContent).toContain('Review code')
-    expect(host.textContent).not.toContain('/user/reviewer.md')
+    const dialog = host.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialog).toContain('Review code')
+    expect(dialog).not.toContain('/user/reviewer.md')
     expect(host.querySelector('[role="dialog"]')?.textContent).toContain('personaRuntimeConfig')
     expect([...host.querySelectorAll('select')].map(select => select.value)).toEqual(['provider', 'model', ''])
     await click('panelSave')
-    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', plugin.id, plugin.rawText)
+    // The panel entry and the suite entry share the name 'reviewer'; the save
+    // rides the stable id, so it cannot land on the plugin's file.
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', user.id, user.rawText)
     await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
     expect(host.textContent).toContain('reviewer')
     expect(host.querySelector('[role="dialog"]')).toBeNull()
@@ -139,6 +163,56 @@ describe('unified Markdown resource panel', () => {
     expect(card).not.toBeNull()
     await act(async () => card!.click())
     expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('/git-commit')
+  })
+
+  it('offers edit and delete only on user-authored entries', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin, user])
+    await mountPanel()
+    const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
+    // Suite-owned files uninstall with their suite and their content stays
+    // suite-authored, so there is no delete affordance at all — not even a
+    // disabled one. The persona's pencil edits routing only; the next test
+    // covers the document surface it leaves out.
+    expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    expect(pluginCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+    expect(userCard?.querySelector('button[aria-label="panelDelete"]')).not.toBeNull()
+    expect(userCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+  })
+
+  it('gives plugin skill and command cards no edit affordance', async () => {
+    const pluginSkill = { ...plugin, name: 'review-skill', path: '/plugins/skills/review.md' }
+    const pluginCommand = { ...plugin, name: 'review-cmd', path: '/plugins/commands/review.md' }
+    for (const [kind, entry] of [
+      ['skills', pluginSkill],
+      ['commands', pluginCommand]
+    ] as const) {
+      api.fetchUserPanel.mockResolvedValue([entry])
+      host = document.createElement('div')
+      document.body.append(host)
+      root = createRoot(host)
+      await act(async () => root.render(h(UserPanelSurface, { t, kind })))
+      expect(host.querySelector('button[aria-label="panelEditTitle"]'), kind).toBeNull()
+      expect(host.querySelector('button[aria-label="panelDelete"]'), kind).toBeNull()
+    }
+  })
+
+  it('shows persona routing frontmatter as its own rows in the detail', async () => {
+    api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: { model: 'inherit', provider: 'vendor', reasoning_effort: 'high', tools: ['Read'] } }])
+    await mountPanel()
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    await act(async () => card!.click())
+    const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
+    expect(dialog).toContain('detailModelLabel')
+    expect(dialog).toContain('inherit')
+    expect(dialog).toContain('detailProviderLabel')
+    expect(dialog).toContain('detailReasoningLabel')
+    expect(dialog).toContain('high')
+    // The catch-all row keeps the remaining keys without repeating the ones
+    // that now have rows of their own.
+    expect(dialog).toContain('detailMetadata')
+    expect(dialog).toContain('tools: ["Read"]')
+    expect(dialog).not.toContain('model: inherit')
+    expect(dialog).not.toContain('reasoning_effort')
   })
 
   it('switches a skill through the harness invocation pair, never the panel key', async () => {

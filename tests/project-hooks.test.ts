@@ -5,7 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
 import { discoverProjectHooks } from '../src/catalog/project-hooks.js'
 import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
-import { HooksMountRegistry } from '../src/runtime/hooks-mounts.js'
+import { HooksMountRegistry } from '../src/runtime/surfaces/hooks-mounts.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []

@@ -1,13 +1,20 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
-import { realpath, stat, unlink } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
+import { isDeepStrictEqual as deepEqual } from 'node:util'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { pluginRootOf } from '../catalog/plugin-variables.js'
 import { isWithin, suiteDataDir } from '../catalog/paths.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
-import { parseFrontmatterRecord } from '../runtime/user-store.js'
-import type { UserPanelStore } from '../runtime/user-panels.js'
+import { parseFrontmatterRecord } from './panels/user-store.js'
+/** The user-panel store surface the panel resources drive (structural). */
+interface UserPanelEntries {
+  list(strict?: boolean): Promise<UserPanelEntryWire[]>
+  create(name: string, text: string): Promise<UserPanelEntryWire>
+  update(name: string, text: string): Promise<void>
+  remove(name: string): Promise<void>
+}
 import type { Catalog } from './catalog.js'
 
 /** The routes consume this structural surface, also implemented by user-only stores in tests. */
@@ -34,7 +41,18 @@ export function isPluginResourceId(id: string): boolean {
   return id.startsWith('[')
 }
 
-export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelStore>): Record<UserPanelKind, PanelResourceStore> {
+/**
+ * Frontmatter keys beyond the enable switch that a panel control may diff on a
+ * plugin document, per kind: the harness invocation pair on skills, and the
+ * model-routing keys the persona form edits on agents.
+ */
+const FLIPPABLE_KEYS: Record<UserPanelKind, readonly string[]> = {
+  skills: ['disable-model-invocation', 'user-invocable'],
+  commands: [],
+  agents: ['model', 'provider', 'reasoning_effort', 'reasoningEffort']
+}
+
+export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelEntries>): Record<UserPanelKind, PanelResourceStore> {
   return {
     skills: new PanelResources(catalog, users.skills, 'skills'),
     commands: new PanelResources(catalog, users.commands, 'commands'),
@@ -45,7 +63,7 @@ export function createPanelResources(catalog: Catalog, users: Record<UserPanelKi
 class PanelResources implements PanelResourceStore {
   constructor(
     private catalog: Catalog,
-    private users: UserPanelStore,
+    private users: UserPanelEntries,
     private kind: UserPanelKind
   ) {}
 
@@ -112,11 +130,12 @@ class PanelResources implements PanelResourceStore {
    * A plugin resource is writable only when it sits inside the user dimension
    * root; suite checkouts elsewhere on disk stay read-only. The user-panel
    * store lives in the shared Agent layout root instead, so containment is
-   * measured against the catalog's root, not the panel directory.
+   * measured against the catalog's root, not the panel directory. Callers pass
+   * the entry they already fetched: a full inventory scan per call would read
+   * every suite document twice per write.
    */
-  private async pluginPath(id: string): Promise<string> {
-    const entry = await this.get(id)
-    if (entry?.origin !== 'plugin') throw new Error('Unknown installed plugin resource')
+  private async pluginPath(entry: UserPanelEntryWire): Promise<string> {
+    if (entry.origin !== 'plugin') throw new Error('Unknown installed plugin resource')
     if (entry.path.endsWith('.json')) throw new Error('Inline manifest resources are read-only; edit their source manifest')
     const root = await realpath(this.catalog.userRoot)
     const path = await realpath(entry.path)
@@ -126,12 +145,35 @@ class PanelResources implements PanelResourceStore {
 
   async update(id: string, text: string): Promise<void> {
     if (!isPluginResourceId(id)) return this.users.update(id, text)
-    parseFrontmatterRecord(text)
-    await writeFileAtomic(await this.pluginPath(id), text, { mode: 0o644 })
+    const previous = await this.get(id)
+    if (previous === undefined) throw new Error('Unknown installed plugin resource')
+    this.assertStateFlipOnly(previous.rawText, text)
+    await writeFileAtomic(await this.pluginPath(previous), text, { mode: 0o644 })
+  }
+
+  /**
+   * A suite owns its files' content: the panel may only flip state frontmatter.
+   * The document body must stay byte-identical, and the frontmatter diff is
+   * confined to `disabled` everywhere, plus {@link FLIPPABLE_KEYS}'s per-kind
+   * control keys — the harness invocation pair on skills, model routing on
+   * agents.
+   */
+  private assertStateFlipOnly(previousText: string, text: string): void {
+    if (stripFrontmatter(previousText) !== stripFrontmatter(text)) throw new Error('plugin resources are read-only; the suite owns their content')
+    const before = parseFrontmatterRecord(previousText)
+    const after = parseFrontmatterRecord(text)
+    const flippable = new Set(['disabled', ...FLIPPABLE_KEYS[this.kind]])
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (flippable.has(key)) continue
+      if (!deepEqual(before[key], after[key])) {
+        throw new Error('plugin resources are read-only; only the enable state can be changed')
+      }
+    }
   }
 
   async remove(id: string): Promise<void> {
-    if (!isPluginResourceId(id)) return this.users.remove(id)
-    await unlink(await this.pluginPath(id))
+    // Plugin files belong to their suite checkout; install/uninstall manages them.
+    if (isPluginResourceId(id)) throw new Error('plugin resources are managed by their suite; uninstall the suite instead')
+    return this.users.remove(id)
   }
 }

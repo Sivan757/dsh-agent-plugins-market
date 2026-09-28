@@ -27,5 +27,24 @@ export default tseslint.config(
       // shape it was written to have.
       '@typescript-eslint/require-await': 'off'
     }
+  },
+  {
+    // dependency-cruiser cannot see Node builtin edges, so the boundaries that
+    // depend on them are enforced here: the domain records and the browser-safe
+    // contracts stay data only, and the client bundle never reaches a Node API.
+    files: ['src/model/**/*.ts', 'src/contracts/**/*.ts', 'src/client/**/*.ts', 'src/client/**/*.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['node:**'],
+              message: 'Node APIs belong in src/runtime/ or src/application/; this layer stays portable.'
+            }
+          ]
+        }
+      ]
+    }
   }
 )

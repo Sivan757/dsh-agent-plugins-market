@@ -3,28 +3,26 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import { MarketPluginCardController, type MarketPluginCardState } from '../src/client/plugin-card-controller.js'
-import { McpPluginCard } from '../src/client/McpPluginCard.js'
+import { bindMarketCardForm, type MarketCardFace, type MarketCardState } from '../src/client/features/settings-card/market-card-form.js'
+import { McpPluginCard } from '../src/client/features/settings-card/McpPluginCard.js'
 
 /** The renderer-side props of the entry, written out so the test binds only what the host binds. */
 interface EntryProps {
   view: 'summary' | 'page'
   t: (key: string) => string
-  useMarketCard: <S>(select: (state: MarketPluginCardState) => S) => S
-  toggle: (field: 'mcpEnhanced' | 'scanProjectLayouts' | 'autoUpdateSources' | 'feedbackEnabled') => void
-  setRegion: (next: 'global' | 'china') => void
-  resetField: (field: keyof MarketSettings) => void
-  save: () => void
-  discard: () => void
-  refreshProbe: () => void
+  useMarketCard: <S>(select: (state: MarketCardState) => S) => S
+  edit: MarketCardFace['edit']
+  resetField: MarketCardFace['resetField']
+  save: MarketCardFace['save']
+  discard: MarketCardFace['discard']
+  refreshProbe: MarketCardFace['refreshProbe']
 }
 
-/** A settings form double: the host's mirror, ready and writable with the defaults applied. */
-function scopeDouble() {
-  const value: MarketSettings = { ...MARKET_SETTINGS_DEFAULTS }
-  const user: Record<string, unknown> = {}
+/** A settings scope double speaking the model's SettingsFormScope shape. */
+function scopeDouble(initial: Partial<MarketSettings> = {}) {
+  const value: MarketSettings = { ...MARKET_SETTINGS_DEFAULTS, ...initial }
+  const user: Record<string, unknown> = { ...initial }
   const listeners = new Set<() => void>()
   return {
     getSnapshot: () => ({
@@ -42,53 +40,98 @@ function scopeDouble() {
         listeners.delete(listener)
       }
     },
-    set: async (): Promise<boolean> => true,
-    unset: async (): Promise<boolean> => true,
     mutate: async (): Promise<boolean> => true
   }
 }
 
-function controllerFor(): MarketPluginCardController {
-  return new MarketPluginCardController(scopeDouble(), async () => ({
+function faceFor(view: 'summary' | 'page', initial: Partial<MarketSettings> = {}): EntryProps {
+  const bound = bindMarketCardForm(scopeDouble(initial), async () => ({
     backend: 'builtin' as const,
     hostClient: { available: true },
     downloadRegion: { setting: 'auto', effective: 'global' }
   }))
-}
-
-function faceFor(view: 'summary' | 'page', store: SnapshotStore<MarketPluginCardState>, controller: MarketPluginCardController): EntryProps {
-  const face = controller.inject()
   return {
     view,
     t: key => key,
-    useMarketCard: select => select(store.getSnapshot()),
-    toggle: face.toggle,
-    setRegion: face.setRegion,
-    resetField: face.resetField,
-    save: face.save,
-    discard: face.discard,
-    refreshProbe: face.refreshProbe
+    useMarketCard: select => select(bound.face.hooks.marketCard.getSnapshot()),
+    edit: bound.face.edit,
+    resetField: bound.face.resetField,
+    save: bound.face.save,
+    discard: bound.face.discard,
+    refreshProbe: bound.face.refreshProbe
   }
 }
 
 describe('market plugins.item entry views', () => {
   it('renders the summary one-liner on the official card', () => {
-    const store = createSnapshotStore({ ...controllerFor().inject().hooks.marketCard.getSnapshot(), available: true })
-    const html = renderToStaticMarkup(h(McpPluginCard, faceFor('summary', store, controllerFor())))
+    const html = renderToStaticMarkup(h(McpPluginCard, faceFor('summary')))
     expect(html).toBe('marketCardDesc')
   })
 
   it('renders the staged form controls on the entry page', () => {
-    const store = createSnapshotStore({ ...controllerFor().inject().hooks.marketCard.getSnapshot(), available: true })
-    const html = renderToStaticMarkup(h(McpPluginCard, faceFor('page', store, controllerFor())))
+    const html = renderToStaticMarkup(h(McpPluginCard, faceFor('page')))
     for (const key of ['mcpCardTitle', 'projectLayoutsLabel', 'autoUpdateLabel', 'feedbackToggleLabel', 'regionLabel', 'settingSave']) {
       expect(html).toContain(key)
     }
   })
 
   it('renders nothing while the namespace is not served', () => {
-    const store = createSnapshotStore({ ...controllerFor().inject().hooks.marketCard.getSnapshot(), available: false })
-    const html = renderToStaticMarkup(h(McpPluginCard, faceFor('page', store, controllerFor())))
-    expect(html).toBe('')
+    const bound = bindMarketCardForm(
+      {
+        getSnapshot: () => ({
+          status: 'loading' as const,
+          value: undefined,
+          base: undefined,
+          user: undefined,
+          revision: undefined,
+          writable: false,
+          mode: 'host' as const
+        }),
+        subscribe: () => () => {},
+        mutate: async () => true
+      },
+      async () => ({ backend: 'builtin' as const, hostClient: { available: true }, downloadRegion: { setting: 'auto', effective: 'global' } })
+    )
+    const face: EntryProps = {
+      view: 'page',
+      t: key => key,
+      useMarketCard: select => select(bound.face.hooks.marketCard.getSnapshot()),
+      edit: bound.face.edit,
+      resetField: bound.face.resetField,
+      save: bound.face.save,
+      discard: bound.face.discard,
+      refreshProbe: bound.face.refreshProbe
+    }
+    expect(renderToStaticMarkup(h(McpPluginCard, face))).toContain('settingUnavailable')
+  })
+
+  it('shows the auto segment for the region draft a staged clear leaves', () => {
+    const bound = bindMarketCardForm(scopeDouble({ downloadRegion: 'china' }), async () => ({
+      backend: 'builtin' as const,
+      hostClient: { available: true },
+      downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
+    }))
+    bound.face.resetField('downloadRegion')
+    const html = renderToStaticMarkup(
+      h(McpPluginCard, {
+        view: 'page',
+        t: key => key,
+        useMarketCard: select => select(bound.face.hooks.marketCard.getSnapshot()),
+        edit: bound.face.edit,
+        resetField: bound.face.resetField,
+        save: bound.face.save,
+        discard: bound.face.discard,
+        refreshProbe: bound.face.refreshProbe
+      })
+    )
+    // The clear hands the field back to the language, so the auto segment is the
+    // one the control reports as selected.
+    expect(html).toMatch(/aria-selected="true"[^>]*aria-controls="plugin-config-market-region-auto-panel"/)
+  })
+
+  it('shows an override badge for a field the user layer carries', () => {
+    const html = renderToStaticMarkup(h(McpPluginCard, faceFor('page', { scanProjectLayouts: true })))
+    expect(html).toContain('settingOverridden')
+    expect(html).toContain('settingReset')
   })
 })

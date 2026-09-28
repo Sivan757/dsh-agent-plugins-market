@@ -53,7 +53,9 @@ Web GUI(浏览器) ──window.__ModuleLoader__──▶ 插件 client 面(单�
 
 - 函数式插件：named exports `name` / `inject` / `apply(ctx, config)`，无 default export。
 - `inject` 只声明硬依赖；可选服务一律 `ctx.get('xxx') !== undefined` 判空后使用。
-- 未在 `inject` 声明的服务，禁止以 `ctx.serviceName` 属性访问。Cordis 的属性解析只沿读取方 fiber 的**祖先**查找，宿主从兄弟 fiber 提供的服务（`shell`、`tools`）会抛 `cannot get property "<name>" without inject`；`ctx.get` 读全局服务表，与拓扑无关。该拓扑由 `tests/host-service-seam.test.ts` 钉住：服务来自兄弟 fiber，读取方只声明自己的 `inject`。
+- 未在 `inject` 声明的服务，禁止以 `ctx.serviceName` 属性访问。Cordis 的属性解析只沿读取方 fiber 的**祖先**查找，宿主从兄弟 fiber 提供的服务（`shell`、`tools`）会抛出 `cannot get property "<name>" without inject`；`ctx.get` 读全局服务表，与拓扑无关。该拓扑由 `tests/host-service-seam.test.ts` 固定：服务来自兄弟 fiber，读取方只声明自己的 `inject`。
+- 属性读取只在读取方 fiber 存活期间成立。禁止把某个 context（含 `ctx.inject` 回调拿到的 context）或经属性读出的服务实例存进模块级状态供后续使用：profile 重新加载会卸载那个 fiber，其后的属性读取抛出 `cannot get required service "<name>" in inactive context`，未处理的失败被宿主按 `fatal load failure` 结束进程。需要跨越 fiber 存活期保留的读取经 `ctx.get` 从服务表解析（服务表只按提供者是否活动作答），并把这份接线注册成 effect、由返回的清理函数按身份判断只清除自己那一份。清理由 `tests/host-service-seam.test.ts` 的重载用例与 `tests/host-locale.test.ts` 固定。
+- 调用宿主服务的方法面必须与已发布包的实际形状一致。已经移除的接缝（例如旧设置服务的 `settings.get(ns)`）既不会类型报错也不会运行时报错，只会永远返回 `undefined`，让能力静默退化。写这类读取前先核对已发布包的 `lib/types`，并在解析函数旁边记下它所依据的接缝与移除它的那次提交。
 
 ### 2.3 Client bundle
 

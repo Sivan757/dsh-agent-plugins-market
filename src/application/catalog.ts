@@ -12,14 +12,14 @@
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
 import type { OverviewPayload, ServerConfigPayload, SkillContent, SourceOverview, SourceProgress, SuiteDetail } from '../contracts/market.js'
-import type { McpStatusPayload } from '../contracts/mcp-status.js'
+import type { McpStatusPayload } from './mcp/mcp-status.js'
 import type { SourceRef, Suite, SuiteSurfaceKey } from '../model/types.js'
-import type { McpBackend } from '../runtime/mcp-backend.js'
-import { loadUserMcpSuite, type McpImportResult } from '../runtime/mcp-direct-config.js'
-import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
-import { loadSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../runtime/mcp-overrides.js'
-import { loadUserHooksSuite } from '../runtime/user-hooks.js'
-import { applyLspOverrides } from '../runtime/server-config.js'
+import type { McpBackend } from '../contracts/mcp.js'
+import { loadUserMcpSuite } from './mcp/mcp-direct-config.js'
+import type { McpMountDiagnostic } from '../contracts/mcp.js'
+import { loadSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from './mcp/mcp-overrides.js'
+import { loadUserHooksSuite } from './panels/user-hooks.js'
+import { applyLspOverrides } from './server-config.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
 import { CatalogContext, type CatalogGitOptions, type CatalogOptions } from './catalog-context.js'
 import { InstallStore } from './install-store.js'
@@ -278,11 +278,6 @@ export class Catalog implements MarketService {
   /** Persist a user-owned MCP service and reconcile its bridge mount. */
   async addMcpServer(name: string, server: unknown): Promise<void> {
     await this.mcp.addServer(name, server)
-  }
-
-  /** Import several pasted services in one write; each entry reports its own outcome. */
-  async importMcpServers(servers: unknown, overwrite: boolean): Promise<McpImportResult> {
-    return this.mcp.importServers(servers, overwrite)
   }
 
   /** Read effective service configuration without exposing credential literals. */

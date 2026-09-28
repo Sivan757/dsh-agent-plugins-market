@@ -6,6 +6,9 @@ export type LspStatusKind = 'plugin' | 'direct'
 /** Operational state rendered for an LSP server row. */
 export type LspStatusState = 'mounted' | 'starting' | 'host-missing' | 'failed' | 'conflict' | 'disabled'
 
+/** Why a row reports a reason; also the key the panel localizes it by. */
+export type LspStatusCode = 'mount-failed' | 'unmount-failed' | 'seam-conflict' | 'host-missing'
+
 /**
  * One declared language-server row for the status surface.
  *
@@ -37,6 +40,10 @@ export interface LspStatusEntry {
   state: LspStatusState
   /** Latest diagnostic reason, when the state is not `mounted`/`disabled`. */
   reason?: string
+  /** Why this row carries a reason; also the key the panel localizes it by. */
+  code?: LspStatusCode
+  /** The messages under the failure's `cause` chain, outermost first. */
+  causes?: string[]
   /** Whether a failed mount will be retried automatically. */
   retryable?: boolean
 }

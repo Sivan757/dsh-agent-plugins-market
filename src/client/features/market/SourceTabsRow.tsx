@@ -14,7 +14,7 @@
 import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type ReactNode } from 'react'
 import { SourceTab } from './SourceTab.js'
 import type { Translate } from '../../index.js'
-import css from '../../market.module.css'
+import css from './market.module.css'
 
 /** Rows kept visible while folded. */
 const COLLAPSED_ROWS = 2

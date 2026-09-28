@@ -83,5 +83,5 @@ market 对 streamable-http 自建客户端（含 OAuth），stdio 继续用宿�
 ## 七、整改完成记录（2026-09-01）
 
 - **harness 侧**：两个提交已 `reset --hard b150a551b8` 回退，patch 系列留档于本目录 `patches/`（已验证可在基线上干净重放）；装机 lib 已恢复并经 npm 上游 rc.2 逐字节校验一致。
-- **market 侧（最终取"全自建"形态，方案 C 的超集）**：`src/runtime/mcp-client/` 自建完整 MCP 客户端桥——stdio、Streamable HTTP（OAuth 2.1 默认静默激活）与 legacy SSE 三传输，运行时零依赖宿主 `dsh-mcp-client`。工具经 `ctx.tools.register` 以 `mcp__<serverName>__<rawName>` 命名契约直桥宿主 ToolRuntime；凭证复用 `mcp-auth/*` grant 记录。仅新增 `@modelcontextprotocol/sdk` 与 `zod` 两个依赖；`scrubbedParentEnv`、credential key 语法、schema 子集校验等宿主小缝就地 port（见 `host-seams.ts`、`json-schema-subset.ts` 内的上游参照注释）。
+- **market 侧（最终取"全自建"形态，方案 C 的超集）**：`src/runtime/mcp-client/` 自建完整 MCP 客户端桥——stdio、Streamable HTTP（OAuth 2.1 默认静默激活）与 legacy SSE 三传输，运行时零依赖宿主 `dsh-mcp-client`。工具经 `ctx.tools.register` 以 `mcp__<serverName>__<rawName>` 命名契约直桥宿主 ToolRuntime；凭证复用 `mcp-auth/*` grant 记录。仅新增 `@modelcontextprotocol/sdk` 与 `zod` 两个依赖；`scrubbedParentEnv`、credential key 语法、schema 子集校验等宿主小缝：`scrubbedParentEnv` 与 credential key 语法就地 port（见 `host-seams.ts` 内的上游参照注释），schema 子集校验自 rc.2 起改读 `@deepseek-ai/dsh-tools` 包根导出的 `assertSupportedJsonSchema`（本地 port 已删，见 [reuse manifest](../../reference/reuse-manifest.md)）。
 - **验证**：typecheck + lint + build + 255 全量测试通过（含移植的 oauth 16 例、桥接 25 例）；真实 stdio MCP 服务器 E2E 冒烟在开发仓与 web profile 安装副本上均通过。

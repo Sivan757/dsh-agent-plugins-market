@@ -10,12 +10,12 @@ import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from './contracts/market.js'
 import { expandHome } from './catalog/paths.js'
-import { sanitizeOverridePatch } from './runtime/mcp-overrides.js'
+import { sanitizeOverridePatch } from './application/mcp/mcp-overrides.js'
 import type { MarketService } from './application/queries.js'
 import type { SourcePatch } from './application/ports.js'
 import type { SourceKind, SuiteSurfaceKey } from './model/types.js'
 import type { PanelResourceStore } from './application/panel-resources.js'
-import { readModelCatalog } from './runtime/model-catalog.js'
+import { readModelCatalog } from './runtime/host/model-catalog.js'
 
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -112,14 +112,6 @@ export function mountSuiteRoutes(
     if (typeof body.name !== 'string') throw new Error('MCP server name is required')
     await manager.addMcpServer(body.name, body.config)
     return {}
-  })
-
-  // Paste import: many services in one write. Each entry reports its own
-  // outcome, so one rejected definition never fails the whole paste.
-  post(MARKET_ROUTES.importMcpServers, async body => {
-    const overwrite = body['overwrite'] === true
-    const result = await manager.importMcpServers(body['servers'], overwrite)
-    return { imported: result.imported, skipped: result.skipped }
   })
 
   get(MARKET_ROUTES.lspStatus, async (_request, response) => {

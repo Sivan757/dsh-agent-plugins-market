@@ -17,32 +17,40 @@ import { type Context, type Volatile } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cosmokit'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import z from '@deepseek-ai/schemastery'
-import { MarketSettingsFields } from './runtime/mcp-backend.js'
+import { MarketSettingsFields } from './application/mcp/mcp-backend.js'
 import type { DownloadRegionSetting } from './contracts/settings.js'
 import { Catalog } from './application/catalog.js'
 import type { CatalogPortsOverride } from './application/ports.js'
-import { settlesWithin } from './runtime/deadline.js'
-import { RuntimeReconciler } from './runtime/reconciler.js'
-import { ReconcileScheduler } from './runtime/reconcile-scheduler.js'
-import { MarketSettingsNamespace } from './runtime/settings-namespace.js'
-import { deleteMcpAuthGrant } from './runtime/mcp-auth-record.js'
-import { inspectToolRegistry, toolsServiceOf } from './runtime/tool-registry-observer.js'
-import { migratePluginStorage } from './runtime/storage-migration.js'
-import { mountAgentRoleTool } from './runtime/agent-role-router.js'
+import { settlesWithin } from './application/deadline.js'
+import { RuntimeReconciler } from './runtime/core/reconciler.js'
+import { ReconcileScheduler } from './runtime/core/reconcile-scheduler.js'
+import { MarketSettingsNamespace } from './runtime/host/settings-namespace.js'
+import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
+import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
+import { migratePluginStorage } from './application/state/storage-migration.js'
+import { mountAgentRoleTool } from './runtime/agents/agent-role-router.js'
 import { projectAgentRoles } from './application/project-agent-roles.js'
-import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/project-runtime.js'
+import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/surfaces/project-runtime.js'
 import { createPanelResources } from './application/panel-resources.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
-import { SuiteSkillProvider } from './runtime/skills-provider.js'
-import { shellSeamOf, type ShellSeam } from './runtime/dynamic-context.js'
-import { loadLspServers } from './runtime/lsp-direct-config.js'
-import { loadDisabledLspServers } from './runtime/lsp-server-state.js'
-import { bindHostLocale, loadHostLocale, readHostLocalePreference, setHostLocaleSource, type HostTranslate } from './runtime/host-locale.js'
-import { createUserPanelStores } from './runtime/user-panels.js'
-import { SourceAutoUpdater } from './runtime/source-auto-update.js'
-import { UserPanelSkillProvider } from './runtime/user-panels.js'
-import { UserCommandMountRegistry } from './runtime/user-commands.js'
+import { SuiteSkillProvider } from './runtime/surfaces/skills-provider.js'
+import { shellSeamOf, type ShellSeam } from './runtime/surfaces/dynamic-context.js'
+import { loadLspServers } from './application/lsp/lsp-direct-config.js'
+import { loadDisabledLspServers } from './application/lsp/lsp-server-state.js'
+import {
+  bindHostLocale,
+  LOCALE_SETTINGS_ENTRY,
+  readHostLocalePreference,
+  readLocalePreference,
+  setHostLocaleSource,
+  type HostTranslate,
+  type LocaleSettingsSource
+} from './runtime/host/host-locale.js'
+import { createUserPanelStores } from './runtime/panels/user-panels.js'
+import { SourceAutoUpdater } from './runtime/core/source-auto-update.js'
+import { UserPanelSkillProvider } from './runtime/panels/user-panels.js'
+import { UserCommandMountRegistry } from './runtime/panels/user-commands.js'
 import type { SourceRef } from './model/types.js'
 import { presetSourceRef } from './model/preset-source.js'
 
@@ -143,24 +151,35 @@ export async function apply(
 
   let providerControl: SkillProviderControl | undefined
   let userPanelControl: SkillProviderControl | undefined
-  // Host runtime copy resolves from the harness `locale.preference` setting;
-  // the async settings read lands before the first session starts in practice.
+  // Host runtime copy resolves from the harness `locale.preference` setting.
   const hostLocale: { t: HostTranslate } = { t: bindHostLocale(undefined) }
   const refreshHostLocale = (): void => {
-    void loadHostLocale().then(locale => {
-      hostLocale.t = locale.t
-      providerControl?.invalidate()
-      userPanelControl?.invalidate()
-    })
+    hostLocale.t = bindHostLocale(readLocalePreference())
+    providerControl?.invalidate()
+    userPanelControl?.invalidate()
   }
-  void refreshHostLocale()
-  // The locale preference the GUI writes is owned by the host settings service:
-  // read it there rather than re-parsing the document, and re-bind once the
-  // service lands (the locale namespace may register after this plugin).
-  ctx.inject(['settings'], settingsCtx => {
-    setHostLocaleSource(() => readHostLocalePreference(settingsCtx))
+  // The preference is the `locale` entry's live configuration, projected by the
+  // host settings service. Resolve that service through the store from this
+  // entry's own context, and register the wiring as an effect so it lives
+  // exactly as long as this fiber: a context captured from an injection
+  // callback throws `cannot get required service "settings" in inactive
+  // context` once a profile reload disposes that fiber, and the unhandled
+  // rejection ends the host. Re-read once the service lands, because it may
+  // mount after this plugin.
+  ctx.effect(() => setHostLocaleSource(() => readHostLocalePreference(ctx.get('settings') as LocaleSettingsSource | undefined)), 'dsh-agent-plugins-market: host locale source')
+  refreshHostLocale()
+  ctx.inject(['settings'], () => {
     refreshHostLocale()
   })
+  // A language switch writes the `locale` entry's form; re-read so the copy the
+  // market renders follows it without a reload.
+  ctx.effect(
+    () =>
+      ctx.on('settings/document-updated' as Parameters<Context['on']>[0], (ns: string) => {
+        if (ns === LOCALE_SETTINGS_ENTRY) refreshHostLocale()
+      }),
+    'dsh-agent-plugins-market: host locale refresh'
+  )
 
   const runtime = new RuntimeReconciler(ctx, dataRoot, key => hostLocale.t(key))
 
@@ -261,7 +280,8 @@ export async function apply(
     lspStatusSource: runtime.lsp,
     mcpBackend: () => settings.backend(),
     setMcpBackend: backend => settings.setBackend(backend),
-    downloadRegion: () => settings.downloadRegion()
+    downloadRegion: () => settings.downloadRegion(),
+    localePreference: () => readLocalePreference() ?? 'zh'
   }
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })

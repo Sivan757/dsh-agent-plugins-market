@@ -10,16 +10,16 @@ import { IconEditOutlineMedium, IconTrashOutlineMedium, Switch, Tag } from '@dee
 import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanel, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
 import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
-import { SearchFilterToolbar } from '../SearchFilterToolbar.js'
+import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ResourceCard.js'
 import { useWorkspaceView } from './workspace-view.js'
 import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
 import formCss from './form.module.css'
 import rc from './resource-card.module.css'
-import { RoleMetadataFields } from '../features/personas/RoleMetadataFields.js'
+import { RoleMetadataFields } from './RoleMetadataFields.js'
 import { UserEntryDetailModal } from './UserEntryDetail.js'
-import { readArgumentHint, readRoleFields, setSkillInvocationEnabled, updateFrontmatter } from '../features/personas/frontmatter.js'
+import { readArgumentHint, readRoleFields, setSkillInvocationEnabled, updateFrontmatter } from './frontmatter.js'
 import { clientErrorMessage } from './error-message.js'
 
 /** Draft templates per panel kind (bilingual; the user edits from here). */
@@ -44,6 +44,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   const [busy, setBusy] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<PanelFilter>('all')
+  // The filter tablist names the body below; the host derives its panel id from
+  // the same base the toolbar receives, and the kind keeps panels apart.
+  const filterId = `${kind}-panel-filter`
   const [view, setView] = useWorkspaceView()
   const [editor, setEditor] = useState<PanelEditorState | undefined>(undefined)
   // The document editor shows one view at a time; the switch lives above it.
@@ -124,10 +127,23 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   }
 
   const openEdit = (entry: UserPanelEntry): void => {
+    // Plugin documents are the suite's, except an agent persona's model
+    // routing: the server accepts exactly that frontmatter diff, so this
+    // surface opens the structured controls without the Markdown editor.
+    // Plugin skills/commands have no routing controls and stay guarded.
+    const routingEditable = entry.origin === 'plugin' && kind === 'agents'
+    if (entry.origin !== 'user' && !routingEditable) return
     setError(undefined)
     // The server's raw document preserves YAML metadata and Markdown exactly.
     setShowPreview(false)
-    setEditor({ mode: 'edit', id: entry.id ?? entry.name, name: entry.name, path: entry.path, text: entry.rawText })
+    setEditor({
+      mode: 'edit',
+      id: entry.id ?? entry.name,
+      name: entry.name,
+      path: entry.path,
+      text: entry.rawText,
+      ...(routingEditable ? { routingOnly: true } : {})
+    })
   }
 
   const toggleDisabled = (entry: UserPanelEntry): void => {
@@ -191,6 +207,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
         })),
         { id: 'disabled', label: t('panelFilterDisabled'), count: disabledCount, active: filter === 'disabled', onSelect: () => setFilter('disabled') }
       ],
+      filterId,
+      // The panel header's title names the filter segment for assistive tech.
+      filterLabel: panelTitle,
       view,
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
@@ -198,7 +217,12 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     }),
     h(
       'div',
-      { className: css.body },
+      {
+        className: css.body,
+        role: 'tabpanel',
+        id: `${filterId}-${filter}-panel`,
+        'aria-labelledby': `${filterId}-${filter}`
+      },
       loading && entries.length === 0
         ? h('div', { className: css.empty }, t('loading'))
         : visible.length === 0
@@ -214,9 +238,11 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
                   kind,
                   busy,
                   onOpen: () => openDetail(entry),
-                  onEdit: () => openEdit(entry),
+                  // The pencil on a plugin persona edits routing only; the document stays
+      // the suite's, so plugin skills/commands carry no edit affordance.
+      onEdit: entry.origin === 'user' || (entry.origin === 'plugin' && kind === 'agents') ? () => openEdit(entry) : undefined,
                   onToggle: () => toggleDisabled(entry),
-                  onDelete: () => openDelete(entry)
+                  onDelete: entry.origin === 'user' ? () => openDelete(entry) : undefined
                 })
               )
             )
@@ -239,7 +265,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       nameLabel: t('panelNamePh'),
       namePlaceholder: t(kind === 'skills' ? 'editorNamePhSkill' : kind === 'commands' ? 'editorNamePhCommand' : 'editorNamePhPersona'),
       textLabel: t(kind === 'skills' ? 'panelSkillTextLabel' : kind === 'commands' ? 'panelCommandTextLabel' : 'panelPersonaTextLabel'),
-      footerHint: t(editor?.mode === 'create' ? 'editorFooterCreate' : 'editorFooterEdit'),
+      footerHint: t(editor?.mode === 'create' ? 'editorFooterCreate' : editor?.routingOnly === true ? 'editorFooterRouting' : 'editorFooterEdit'),
       busy,
       saveError: error,
       saveLabel: editor?.mode === 'create' ? t('editorCreate') : t('panelSave'),
@@ -289,9 +315,9 @@ function UserEntryRow(props: {
   kind: UserPanelKind
   busy: boolean
   onOpen: () => void
-  onEdit: () => void
+  onEdit?: () => void
   onToggle: () => void
-  onDelete: () => void
+  onDelete?: () => void
 }): ReactNode {
   const { entry, t } = props
   // A command registers under its flattened call name, so the card shows that.
@@ -326,23 +352,27 @@ function UserEntryRow(props: {
     h(
       'div',
       { className: rc.rowActions },
-      h(
-        'button',
-        { type: 'button', className: `${rc.iconBtn} ${rc.revealOnHover}`, 'aria-label': t('panelEditTitle'), disabled: props.busy, title: t('panelEditTitle'), onClick: stop(props.onEdit) },
-        h(IconEditOutlineMedium)
-      ),
-      h(
-        'button',
-        {
-          type: 'button',
-          className: `${rc.iconBtn} ${rc.iconBtnDanger} ${rc.revealOnHover}`,
-          'aria-label': t('panelDelete'),
-          disabled: props.busy,
-          title: t('panelDelete'),
-          onClick: stop(props.onDelete)
-        },
-        h(IconTrashOutlineMedium)
-      ),
+      props.onEdit === undefined
+        ? null
+        : h(
+            'button',
+            { type: 'button', className: `${rc.iconBtn} ${rc.revealOnHover}`, 'aria-label': t('panelEditTitle'), disabled: props.busy, title: t('panelEditTitle'), onClick: stop(props.onEdit) },
+            h(IconEditOutlineMedium)
+          ),
+        props.onDelete === undefined
+          ? null
+          : h(
+              'button',
+              {
+                type: 'button',
+                className: `${rc.iconBtn} ${rc.iconBtnDanger} ${rc.revealOnHover}`,
+                'aria-label': t('panelDelete'),
+                disabled: props.busy,
+                title: t('panelDelete'),
+                onClick: stop(props.onDelete)
+              },
+              h(IconTrashOutlineMedium)
+            ),
       h(
         'span',
         { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },

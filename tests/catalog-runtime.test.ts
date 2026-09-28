@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import * as discovery from '../src/catalog/source-catalog.js'
-import { SuiteSkillProvider } from '../src/runtime/skills-provider.js'
+import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
 
 const roots: string[] = []
 

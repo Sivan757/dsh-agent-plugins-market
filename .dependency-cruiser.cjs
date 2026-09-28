@@ -41,6 +41,35 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/application' },
       to: { path: '^src/(client|index|routes)(/|\\.)' }
+    },
+    {
+      // The design plan draws application -> model/catalog/contracts with runtime
+      // effects driven through ports. Every cross-edge this rule used to warn
+      // about was resolved by the Stage C2 relocation; violations are errors now.
+      name: 'application-cannot-import-runtime',
+      severity: 'error',
+      from: { path: '^src/application' },
+      to: { path: '^src/runtime(/|\\.)' }
+    },
+    {
+      // Feature folders are peers, not layers: code in one feature may not import a
+      // sibling feature's modules. dependency-cruiser substitutes $1 group placeholders
+      // in to.path from the from.path capture, so the first lookahead exempts the
+      // feature's own folder; a \1 backreference would instead refer to the to-regex's
+      // own (empty) groups. The second lookahead keeps cross-feature .css imports legal;
+      // the modules share one design vocabulary and tsdown resolves those imports.
+      name: 'client-feature-cannot-import-sibling-feature',
+      severity: 'error',
+      from: { path: '^src/client/features/([^/]+)' },
+      to: { path: '^src/client/features/(?!$1(?:/|\\.))(?!.*\\.css$)' }
+    },
+    {
+      // Shared controls stay generic: ui/ may not reach into a feature or the
+      // workspace shell; the dependency direction is features -> ui only.
+      name: 'client-ui-cannot-import-features',
+      severity: 'error',
+      from: { path: '^src/client/ui' },
+      to: { path: '^src/client/(features|workspace)' }
     }
   ],
   options: {

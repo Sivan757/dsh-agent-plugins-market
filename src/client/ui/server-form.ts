@@ -1,4 +1,4 @@
-import type { ServerPolicyPayload, ServerPolicyRequest } from '../../contracts/market.js'
+import type { ServerPolicyPayload } from '../../contracts/market.js'
 
 export type ServerKind = 'mcp' | 'lsp'
 export type ServerConfig = Record<string, unknown>
@@ -27,11 +27,6 @@ export function timeoutMsFromText(raw: string): number | null | undefined {
   if (!/^\d+$/.test(text)) return undefined
   const value = Number(text)
   return Number.isSafeInteger(value) && value > 0 && value <= TIMEOUT_MAX_MS ? value : undefined
-}
-
-/** The stored values as editable text. */
-export function policyDraftOf(toolCall: number | null, startup: number | null): ServerPolicyDraft {
-  return { toolCallTimeoutMs: toolCall === null ? '' : String(toolCall), startupTimeoutMs: startup === null ? '' : String(startup) }
 }
 
 /** The same drafts, read off a document's policy half. */
@@ -90,25 +85,6 @@ export function policyRequestOfDocuments(initial: Record<string, unknown>, curre
   return request
 }
 
-/**
- * The policy request for one save: only the timeouts whose text moved from the
- * loaded baseline. A value the user edited on one backend therefore never rides
- * along to another, where the same value can be refused.
- */
-export function policyRequestOf(draft: ServerPolicyDraft | undefined, initial: ServerPolicyDraft | undefined): ServerPolicyRequest | undefined {
-  if (draft === undefined || initial === undefined) return undefined
-  const request: ServerPolicyRequest = {}
-  if (draft.toolCallTimeoutMs !== initial.toolCallTimeoutMs) {
-    const value = timeoutMsFromText(draft.toolCallTimeoutMs)
-    if (value !== undefined) request.toolCallTimeoutMs = value
-  }
-  if (draft.startupTimeoutMs !== initial.startupTimeoutMs) {
-    const value = timeoutMsFromText(draft.startupTimeoutMs)
-    if (value !== undefined) request.startupTimeoutMs = value
-  }
-  return Object.keys(request).length === 0 ? undefined : request
-}
-
 export function parseServerConfig(text: string): ServerConfig {
   const value: unknown = JSON.parse(text)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('Configuration must be a JSON object')
@@ -143,85 +119,6 @@ export function serverFormCompatible(config: ServerConfig, kind: ServerKind): bo
   if (auth?.enabled !== undefined && typeof auth.enabled !== 'boolean') return false
   if (auth?.scope !== undefined && typeof auth.scope !== 'string') return false
   return true
-}
-
-/** One starting point offered by the new-service dialog. */
-export interface McpTemplate {
-  id: string
-  /** Locale key holding the template's display name. */
-  labelKey: 'mcpTemplateFilesystem' | 'mcpTemplateMemory' | 'mcpTemplateFetch' | 'mcpTemplateContext7' | 'mcpTemplateGithub'
-  /** The server definition the template fills in. */
-  config: ServerConfig
-}
-
-/**
- * Common MCP services, in the three shapes a new service takes: a local
- * process with no credential, a local process behind one, and a remote
- * endpoint behind one. The GitHub entry points at the vendor's remote server
- * because the old npm package is no longer maintained.
- */
-export const MCP_TEMPLATES: McpTemplate[] = [
-  { id: 'filesystem', labelKey: 'mcpTemplateFilesystem', config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem'] } },
-  { id: 'memory', labelKey: 'mcpTemplateMemory', config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'] } },
-  { id: 'fetch', labelKey: 'mcpTemplateFetch', config: { type: 'stdio', command: 'uvx', args: ['mcp-server-fetch'] } },
-  {
-    id: 'context7',
-    labelKey: 'mcpTemplateContext7',
-    config: { type: 'streamable-http', url: 'https://mcp.context7.com/mcp', headers: { Authorization: 'Bearer ${CONTEXT7_API_KEY}' } }
-  },
-  {
-    id: 'github',
-    labelKey: 'mcpTemplateGithub',
-    config: { type: 'streamable-http', url: 'https://api.githubcopilot.com/mcp/', headers: { Authorization: 'Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}' } }
-  }
-]
-
-/**
- * Read one pasted configuration: a whole `mcpServers` map (its first entry
- * supplies the name), or a bare server definition. Claude-shaped files spell
- * the remote transport `http` and a stdio server `local`; a definition that
- * carries no transport is read from its command or url. The result is a form
- * document, not a validated server — the save path still validates it.
- */
-/** Normalize one pasted definition: Claude-shaped aliases and an inferred transport. */
-export function normalizePastedServer(body: unknown): ServerConfig {
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new Error('Configuration must be a JSON object')
-  const config = { ...(body as Record<string, unknown>) }
-  if (config['type'] === 'local') config['type'] = 'stdio'
-  if (config['type'] === 'http') config['type'] = 'streamable-http'
-  if (config['type'] === undefined) {
-    if (typeof config['command'] === 'string') config['type'] = 'stdio'
-    else if (typeof config['url'] === 'string' || typeof config['httpUrl'] === 'string') config['type'] = 'streamable-http'
-  }
-  if (config['type'] !== 'stdio' && config['url'] === undefined && typeof config['httpUrl'] === 'string') {
-    config['url'] = config['httpUrl']
-    delete config['httpUrl']
-  }
-  return config
-}
-
-/**
- * Read every server out of one pasted document: an `mcpServers` map (each key
- * becomes the service name) or a bare definition (which carries no name).
- */
-export function parsePastedServers(text: string): Array<{ name?: string; config: ServerConfig }> {
-  const parsed: unknown = JSON.parse(text)
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Configuration must be a JSON object')
-  const record = parsed as Record<string, unknown>
-  const servers = record['mcpServers']
-  if (typeof servers === 'object' && servers !== null && !Array.isArray(servers)) {
-    const entries = Object.entries(servers as Record<string, unknown>)
-    if (entries.length === 0) throw new Error('mcpServers is empty')
-    return entries.map(([name, body]) => ({ name, config: normalizePastedServer(body) }))
-  }
-  return [{ config: normalizePastedServer(record) }]
-}
-
-/** The first server of a pasted document, for filling the form rather than importing. */
-export function parsePastedServer(text: string): { name?: string; config: ServerConfig } {
-  const [first] = parsePastedServers(text)
-  if (first === undefined) throw new Error('mcpServers is empty')
-  return first
 }
 
 /**

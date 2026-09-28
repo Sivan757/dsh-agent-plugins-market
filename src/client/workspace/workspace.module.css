@@ -1,0 +1,41 @@
+/**
+ * Plugin workspace layout: the top tab row plus the active tab's scroll
+ * region. The workspace owns the height in both host surfaces (settings
+ * section and legacy page mode), so each tab's content scrolls inside its
+ * own panel and switching tabs never moves the page.
+ */
+
+.workspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+/* Page mode is a fixed shell; settings mode stretches to the host column.
+   The `height: 100%` chain (workspace → tab panel → section) is what keeps
+   every panel's scrollbar inside its own content area. */
+.pageMode {
+  box-sizing: border-box;
+  padding: 4px 0;
+}
+
+/* The host SegmentedTabs provides its own track, indicator, and keyboard
+   walk; this class only carries the row into the layout flow. */
+.tabRow {
+  flex: none;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabPanel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}

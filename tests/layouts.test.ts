@@ -9,8 +9,8 @@ import { detectManifest, readMarketplaces } from '../src/catalog/manifests.js'
 import { scanSource, resolveMarketplaceEntry } from '../src/catalog/suite-scanner.js'
 import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
 import { PLUGIN_LAYOUTS, PROJECT_LAYOUTS } from '../src/model/layouts.js'
-import { SuiteSkillProvider } from '../src/runtime/skills-provider.js'
-import { CommandMountRegistry } from '../src/runtime/commands-mounts.js'
+import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
+import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {

@@ -9,7 +9,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
-import { coalesce, defer, repeat, type CoalescedTrigger } from '../src/runtime/timer-seat.js'
+import { coalesce, defer, repeat, type CoalescedTrigger } from '../src/runtime/core/timer-seat.js'
 
 /** Let a mounted plugin fiber activate: Cordis loads one on a later tick. */
 const settled = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))

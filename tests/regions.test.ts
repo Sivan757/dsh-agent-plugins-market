@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { narrowDownloadRegion } from '../src/contracts/settings.js'
-import { githubCloneUrl, resolveRegion } from '../src/runtime/regions.js'
+import { githubCloneUrl, resolveRegion } from '../src/application/regions.js'
 
 describe('narrowDownloadRegion', () => {
   it('accepts the three known values and defaults everything else to auto', () => {

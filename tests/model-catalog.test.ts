@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { readModelCatalog } from '../src/runtime/model-catalog.js'
+import { readModelCatalog } from '../src/runtime/host/model-catalog.js'
 
 describe('DSH model directory', () => {
   it('resolves only the requested model and whitelists its reasoning metadata', async () => {

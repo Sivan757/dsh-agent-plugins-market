@@ -18,7 +18,7 @@ Status: implemented
 
 浏览器状态。网格/列表偏好使用平台的快照 store 加 `persist`，这正是宿主自己的浏览器本地持久化方式。
 
-宿主 seam。`src/runtime/mcp-client/host-seams.ts` 从 `@deepseek-ai/dsh-timeout`、`dsh-subprocess`、`dsh-credentials`、`dsh-attachment` 重新导出 `MAX_TIMER_DELAY_MS`、`scrubbedParentEnv`、`credentialKey` 与图片准入错误词汇。工具观察改读 `ctx.tools.schemas()`。宿主语言偏好改读设置服务上的 `locale.preference`，只在未挂载 locale 插件的组合里保留解析 `settings.yaml` 的兜底。
+宿主 seam。`src/runtime/mcp-client/host-seams.ts` 从 `@deepseek-ai/dsh-timeout`、`dsh-subprocess`、`dsh-credentials`、`dsh-attachment` 重新导出 `MAX_TIMER_DELAY_MS`、`scrubbedParentEnv`、`credentialKey` 与图片准入错误词汇。工具观察改读 `ctx.tools.schemas()`。宿主语言偏好改读设置服务对 `locale` 条目的投影（`describe()` → `ns === 'locale'` → `value.preference`），也就是 harness 自己的桌面外壳读取它的接口；此前的 `settings.get(ns)` 取值方法与随后的 `settings.yaml` 解析都已删除，记录见[宿主语言来源 Note](../bug-fix/2026-09-24-host-locale-source-read-and-lifetime.md)。
 
 ## Alternatives considered
 
@@ -50,4 +50,4 @@ node 半边有一处行为变化：`discoverSourceListWithNotes` 现在要求传
 
 ## Testing
 
-`tests/client-plugin-card.test.ts` 覆盖卡片表单的契约：命名空间未送达前不渲染、已存段落按契约默认值解析、暂存编辑在保存前不写入文档、放弃、重置把字段交还、被拒绝的写入报告为未保存、宿主 MCP 客户端缺失时阻止兼容模式、只读文档拒绝编辑。`tests/timer-seat.test.ts` 覆盖两条调度路径——存在宿主座位时优先使用它，兜底路径则负责重复、延迟、合并与释放停止——并覆盖挂了 timer 插件却没有 inject 的 fiber：那里混入的访问器会抛错，读服务则照常可用。`tests/deadline.test.ts` 固定 settle/超时竞速、非正等待，以及「拒绝算作已 settle」。`tests/mcp-backend.test.ts` 固定 schema 默认值，`tests/regions.test.ts` 固定区域收窄，`tests/mcp-status.test.ts` 固定工具观察及其失败形态，`tests/host-locale.test.ts` 固定宿主设置读取与文件兜底，`tests/client-workspace-view.test.ts` 固定持久化偏好与非法值兜底。
+`tests/client-plugin-card.test.ts` 覆盖卡片表单的契约：命名空间未送达前不渲染、已存段落按契约默认值解析、暂存编辑在保存前不写入文档、放弃、重置把字段交还、被拒绝的写入报告为未保存、宿主 MCP 客户端缺失时阻止兼容模式、只读文档拒绝编辑。`tests/timer-seat.test.ts` 覆盖两条调度路径——存在宿主座位时优先使用它，兜底路径则负责重复、延迟、合并与释放停止——并覆盖挂了 timer 插件却没有 inject 的 fiber：那里混入的访问器会抛错，读服务则照常可用。`tests/deadline.test.ts` 固定 settle/超时竞速、非正等待，以及「拒绝算作已 settle」。`tests/mcp-backend.test.ts` 固定 schema 默认值，`tests/regions.test.ts` 固定区域收窄，`tests/mcp-status.test.ts` 固定工具观察及其失败形态，`tests/host-locale.test.ts` 固定 `locale` 条目的投影、未接线时的答案与接线的身份判断，`tests/client-workspace-view.test.ts` 固定持久化偏好与非法值兜底。

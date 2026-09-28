@@ -10,8 +10,8 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createServer, type Server } from 'node:http'
-import { LoopbackOAuthClientProvider, type BrowserOpener } from '../src/runtime/mcp-client/oauth.js'
-import { credentialKey } from '../src/runtime/mcp-client/host-seams.js'
+import { LoopbackOAuthClientProvider, type BrowserOpener } from '../src/runtime/mcp/bridge/oauth.js'
+import { credentialKey } from '../src/runtime/mcp/bridge/host-seams.js'
 
 /**
  * No-op opener: tests must NEVER open a real browser — every provider in this

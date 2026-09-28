@@ -14,11 +14,11 @@ import {
   type CatalogStepDecision,
   type SubagentCatalogEntry,
   type SubagentCatalogSource
-} from '../src/runtime/subagent-catalog.js'
-import { agentRoleCatalog } from '../src/runtime/agent-role-router.js'
+} from '../src/runtime/agents/subagent-catalog.js'
+import { agentRoleCatalog } from '../src/runtime/agents/agent-role-router.js'
 import { Catalog } from '../src/application/catalog.js'
 import { projectAgentRoles } from '../src/application/project-agent-roles.js'
-import { createUserPanelStores } from '../src/runtime/user-panels.js'
+import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
 import { createPanelResources } from '../src/application/panel-resources.js'
 
 // Resolve the actual session/prompt runtime already installed with dsh-tools. Those host packages
@@ -348,6 +348,13 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(content).toMatch(/give each its own git worktree/)
     // Role names are directory keys, not shortcuts for another delegation path.
     expect(content).toMatch(/do not substitute a similarly named one/)
+    // Delegation has a positive default, published ahead of the role list.
+    expect(content).toMatch(/Delegate proactively/)
+    expect(content).toMatch(/start all the children in one message/)
+    expect(content).toMatch(/Decide by the briefing test/)
+    // The negative-only framing is gone; run mode and verification survive in
+    // the usage notes instead of a standalone prohibition paragraph.
+    expect(content).not.toContain('When NOT to use a role child')
     // The removed channel section is gone, and the general path is not re-listed here.
     expect(content).not.toContain('Choosing a delegation channel')
     expect(content).not.toContain('Delegation and management tools in this session')

@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { scanSource } from '../src/catalog/suite-scanner.js'
-import { CommandMountRegistry } from '../src/runtime/commands-mounts.js'
-import { SuiteSkillProvider } from '../src/runtime/skills-provider.js'
-import { benignExit, injectDynamicContext, type ShellOutcome, type ShellSeam } from '../src/runtime/dynamic-context.js'
+import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
+import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
+import { benignExit, injectDynamicContext, type ShellOutcome, type ShellSeam } from '../src/runtime/surfaces/dynamic-context.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []

@@ -1,7 +1,7 @@
 import { createElement as h, type ReactNode } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Translate } from '../index.js'
-import { frontmatter } from '../features/personas/frontmatter.js'
+import { frontmatter } from './frontmatter.js'
 import css from './detail.module.css'
 
 /**

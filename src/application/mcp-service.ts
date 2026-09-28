@@ -9,23 +9,15 @@
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { isDirectory } from '../catalog/fs-probes.js'
 import { discoverSuitesInSource } from '../catalog/suite-scanner.js'
-import type { McpStatusPayload } from '../contracts/mcp-status.js'
+import type { McpStatusPayload } from './mcp/mcp-status.js'
 import type { ServerConfigPayload, ServerPolicyPayload } from '../contracts/market.js'
 import type { DiscoveredSuite, Suite } from '../model/types.js'
-import { readLocalePreference } from '../runtime/host-locale.js'
-import { probeHostMcpClient, type McpBackend } from '../runtime/mcp-backend.js'
-import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from '../runtime/mcp-config.js'
-import { loadLspServers, saveLspServers } from '../runtime/lsp-direct-config.js'
-import {
-  addUserMcpServer,
-  importUserMcpServers,
-  loadUserMcpSuite,
-  USER_MCP_SOURCE,
-  USER_MCP_SUITE,
-  type McpImportEntry,
-  type McpImportResult
-} from '../runtime/mcp-direct-config.js'
-import type { McpMountDiagnostic } from '../runtime/mcp-mounts.js'
+import type { McpBackend } from '../contracts/mcp.js'
+import { probeHostMcpClient } from './mcp/mcp-backend.js'
+import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp/mcp-config.js'
+import { loadLspServers, saveLspServers } from './lsp/lsp-direct-config.js'
+import { addUserMcpServer, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from './mcp/mcp-direct-config.js'
+import type { McpMountDiagnostic } from '../contracts/mcp.js'
 import {
   applyOverride,
   loadSuiteOverrides,
@@ -36,11 +28,11 @@ import {
   type McpPolicyPatch,
   type McpServerOverride,
   type McpSuiteOverrides
-} from '../runtime/mcp-overrides.js'
-import { redactMcpConfig, redactMcpOverrides } from '../runtime/mcp-redaction.js'
-import { buildMcpStatus } from '../runtime/mcp-status.js'
-import { resolveRegion } from '../runtime/regions.js'
-import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from '../runtime/server-config.js'
+} from './mcp/mcp-overrides.js'
+import { redactMcpConfig, redactMcpOverrides } from './mcp/mcp-redaction.js'
+import { buildMcpStatus } from './mcp/mcp-status.js'
+import { resolveRegion } from './regions.js'
+import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
 import type { CatalogPorts, McpBackendInfo } from './ports.js'
 import type { SourceStore } from './source-store.js'
@@ -102,26 +94,6 @@ export class McpService {
     return this.context.enqueue(async () => {
       await addUserMcpServer(this.context.agentsRoot, name, server)
       await this.context.notifyChanged(true)
-    })
-  }
-
-  /**
-   * Import several pasted services in one write. Each entry is checked on its
-   * own and reports back with its own outcome, so a paste of many services
-   * never fails as a block.
-   */
-  async importServers(servers: unknown, overwrite: boolean): Promise<McpImportResult> {
-    if (!Array.isArray(servers)) throw new Error('servers must be an array')
-    const entries: McpImportEntry[] = servers.map(entry => {
-      if (typeof entry !== 'object' || entry === null) throw new Error('each server must be an object')
-      const { name, config } = entry as { name?: unknown; config?: unknown }
-      if (typeof name !== 'string' || name === '') throw new Error('each server needs a name')
-      return { name, server: config }
-    })
-    return this.context.enqueue(async () => {
-      const result = await importUserMcpServers(this.context.agentsRoot, entries, overwrite)
-      if (result.imported.length > 0) await this.context.notifyChanged(true)
-      return result
     })
   }
 
@@ -302,8 +274,8 @@ export class McpService {
    * everything the plugin-config card renders.
    */
   async backendInfo(): Promise<McpBackendInfo> {
-    const [backend, hostClient, regionSetting, locale] = await Promise.all([this.ports.mcpBackend(), probeHostMcpClient(), this.ports.downloadRegion(), readLocalePreference()])
-    return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, locale) } }
+    const [backend, hostClient, regionSetting] = await Promise.all([this.ports.mcpBackend(), probeHostMcpClient(), this.ports.downloadRegion()])
+    return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, this.ports.localePreference()) } }
   }
 
   /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
-import { McpMountRegistry } from '../src/runtime/mcp-mounts.js'
+import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { required } from './helpers/fixture.js'
@@ -199,6 +199,32 @@ describe('McpMountRegistry', () => {
     })
     // The half-mounted handle is disposed so no child process survives.
     expect(disposed).toEqual(['disposed'])
+    await registry.disposeAll()
+  })
+
+  it('carries the messages under a wrapper sentence onto the diagnostic', async () => {
+    const ctx = {
+      plugin: () => ({
+        // The shape a real failed startup has: one fixed sentence, with the
+        // spawn or handshake error that caused it underneath.
+        await: async () => {
+          throw new Error('mcp-client(broken__service): initial connection or tool synchronization failed', { cause: new Error('spawn npx ENOENT') })
+        },
+        dispose: async () => {}
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const diagnostics = await registry.reconcile([suite('broken', 'service')])
+
+    expect(diagnostics).toContainEqual({
+      suiteId: 'demo/broken',
+      serverKey: 'service',
+      code: 'mount-failed',
+      reason: 'mount failed: mcp-client(broken__service): initial connection or tool synchronization failed',
+      causes: ['spawn npx ENOENT']
+    })
     await registry.disposeAll()
   })
 
@@ -409,7 +435,7 @@ describe('CommandMountRegistry (CC commands compat)', () => {
         }
       }
     }
-    const registry = new (await import('../src/runtime/commands-mounts.js')).CommandMountRegistry(ctx as never)
+    const registry = new (await import('../src/runtime/surfaces/commands-mounts.js')).CommandMountRegistry(ctx as never)
     const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
     const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const diagnostics = await registry.reconcile(suites)
@@ -448,7 +474,7 @@ describe('agent definitions stay separate from skills', () => {
     await manager.mergeSources([{ id: 'cc', url: CC_COMMANDS_ROOT, local: true }])
     await manager.install('cc', 'cc-commands')
     await manager.setEnabled('cc', 'cc-commands', true)
-    const provider = new (await import('../src/runtime/skills-provider.js')).SuiteSkillProvider(manager)
+    const provider = new (await import('../src/runtime/surfaces/skills-provider.js')).SuiteSkillProvider(manager)
     const candidates = await provider.list({})
     const names = candidates.map(candidate => candidate.name)
     expect(names).not.toContain('agent-codex-rescue')
@@ -466,7 +492,7 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
       },
       logger: { warn: () => {} }
     }
-    const registry = new (await import('../src/runtime/hooks-mounts.js')).HooksMountRegistry(ctx as never)
+    const registry = new (await import('../src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
     const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
     const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const diagnostics = await registry.reconcile(suites)
@@ -494,7 +520,7 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
       },
       logger: { warn: () => {} }
     }
-    const registry = new (await import('../src/runtime/hooks-mounts.js')).HooksMountRegistry(ctx as never)
+    const registry = new (await import('../src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
     const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
     const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const ccSuite = required(suites[0], 'the cc-commands fixture to yield one suite')

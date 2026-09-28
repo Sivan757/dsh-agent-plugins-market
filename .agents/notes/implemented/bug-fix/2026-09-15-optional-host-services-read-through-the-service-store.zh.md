@@ -42,11 +42,11 @@ Cordis 解析 `ctx.<name>` 时沿**读取方 fiber 的祖先**向上查找，返
 
 套件技能与命令恢复加载（含动态上下文），反馈工具恢复注册。每处读取都是一次调用，祖先遍历的陷阱记在解析处而不是各个调用点。`src/runtime/feedback-tool.ts` 去掉了自己的 `ToolsHost` 外壳，直接从 `toolsServiceOf` 取那段注册表切片。
 
-`src/**` 其余的服务读取，要么发生在该 fiber 已注入的地方（`ctx.inject` 下的 `tools`、`llm`、`subagents`、`agents`，各自 inject 下的 `webServer` 与 `loader`，entry 与项目 scope 上的 `commands`，套件指令 scope 上的 `systemPrompt`），要么走 `ctx.get`（凭据存储的 `credentials`、模型目录里的 `llm`、经由 seat 的 `timer`）。浏览器半边还有一处字面上的越界：`src/client/index.ts` 在一个只注入 `settingsScope` 的子 scope 上读取 `slots`；它从父级 client-root fiber 的 store 解析得到，所以当前可用，下次改动该文件时应把它归入那个子 scope 自己的 `inject`。
+`src/**` 其余的服务读取，要么发生在该 fiber 已注入的地方（`ctx.inject` 下的 `tools`、`llm`、`subagents`、`agents`，各自 inject 下的 `webServer` 与 `loader`，entry 与项目 scope 上的 `commands`，套件指令 scope 上的 `systemPrompt`），要么走 `ctx.get`（凭据存储的 `credentials`、模型目录里的 `llm`、经由 seat 的 `timer`、经 `src/runtime/host-locale.ts` 语言来源的 `settings`）。浏览器半边还有一处字面上的越界：`src/client/index.ts` 在一个只注入 `settingsScope` 的子 scope 上读取 `slots`；它从父级 client-root fiber 的 store 解析得到，所以当前可用，下次改动该文件时应把它归入那个子 scope 自己的 `inject`。
 
 只记录、不改动：entry 的 `inject = ['skills','commands']` 让 `commands` 成为硬门，而三处代码把它当作可选（`CommandMountRegistry` 的「此 profile 没有 `ctx.commands`」诊断、`UserCommandMountRegistry`、以及 entry 自己的诊断）。这些兜底恰恰在 `commands` 缺席时不可达。移动这道门属于激活语义的决定，不在本次修复范围内。
 
-取代关系：[设置 Agent Note](../../implemented/architecture/2026-09-13-settings-and-card-ride-the-host.md) 中关于定时器的段落记录了同一类陷阱（访问器读取）。那份 Note 仍然是设置、卡片与定时器决策的权威；两份互不取代。
+取代关系：[设置 Agent Note](../../implemented/architecture/2026-09-13-settings-and-card-ride-the-host.md) 中关于定时器的段落记录了同一类陷阱（访问器读取）。那份 Note 仍然是设置、卡片与定时器决策的权威；两份互不取代。[宿主语言来源 Note](2026-09-24-host-locale-source-read-and-lifetime.md) 记录了这条规则在存活期上的一半，针对从模块状态经 `ctx.get` 解析的读取，不取代本条。
 
 ## Testing
 

@@ -73,6 +73,29 @@ const failedPayload = vi.hoisted(() => ({
   directObservationOnly: true
 }))
 
+/** A switched-off row: the band edge and the card both read neutral here. */
+const disabledPayload = vi.hoisted(() => ({
+  entries: [
+    {
+      id: 'plugin:demo/service',
+      name: 'demo__service',
+      kind: 'plugin' as const,
+      state: 'disabled' as const,
+      code: 'disabled-override' as const,
+      source: 'Demo Suite',
+      suiteId: 'demo',
+      serverKey: 'service',
+      transport: 'stdio',
+      endpoint: 'node server.js',
+      reason: 'switched off through this plugin',
+      tools: []
+    }
+  ],
+  observedAt: '',
+  totals: { all: 1, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 1, foreign: 0 },
+  directObservationOnly: true
+}))
+
 vi.mock('../src/client/api.js', () => ({
   fetchMcpStatus: vi.fn().mockResolvedValue(statusPayload),
   fetchServerConfig: vi.fn().mockResolvedValue({ kind: 'mcp', id: 'direct-observation', editable: false, config: {} }),
@@ -83,7 +106,7 @@ vi.mock('../src/client/api.js', () => ({
   retryMcpMounts: vi.fn()
 }))
 
-import { McpStatusPanel } from '../src/client/McpStatusPanel.js'
+import { McpStatusPanel } from '../src/client/features/mcp/StatusPanel.js'
 import type { CredentialApi } from '../src/client/credentials.js'
 import type { Translate } from '../src/client/index.js'
 
@@ -124,35 +147,34 @@ describe('MCP status actions', () => {
     // until the dialog opens.
     expect(el.querySelector('input[type="password"]')).toBeNull()
     expect(describeCredentials).not.toHaveBeenCalled()
-    // Opening the detail dialog is the one interaction a card offers.
-    const card = [...el.querySelectorAll('[role="button"]')].find(node => node.textContent?.includes('demo__service'))
-    expect(card).toBeDefined()
+    // Opening the detail dialog is the one interaction a card offers. The card
+    // shows the readable server key; the full mount name rides its tooltip.
+    const card = el.querySelector('[data-resource-surface="mcp"]')
+    expect(card?.textContent).toContain('service')
+    expect(card?.querySelector('[title="demo__service"]')).not.toBeNull()
     await act(async () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(document.body.textContent).toContain('mcpServiceDetail')
 
-    // The row states the reference and its state; the write field appears when
-    // the row's own control asks for it.
-    expect(document.body.textContent).toContain('mcpCredentialTitle')
-    expect(document.body.querySelector('input[type="password"]')).toBeNull()
-    const configureButton = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpCredentialConfigure'))
-    expect(configureButton).toBeDefined()
+    // The describe answer lands one microtask later than the dialog opens.
     await act(async () => {
-      configureButton!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
+    // The dialog states the reference; the secret control renders in place of
+    // the old reveal-then-edit flow.
+    expect(document.body.textContent).toContain('API_TOKEN')
     expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 
-  it('offers retry in the dialog footer and echoes the outcome in place', async () => {
+  it('offers retry in the status band and echoes the outcome in place', async () => {
     const api = await import('../src/client/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
     const el = await mountPanel()
 
-    const card = [...el.querySelectorAll('[role="button"]')].find(node => node.textContent?.includes('demo__service'))
+    const card = el.querySelector('[data-resource-surface="mcp"]')
     await act(async () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -183,7 +205,7 @@ describe('MCP status actions', () => {
     expect([...document.body.querySelectorAll('button')].some(button => button.textContent?.includes('mcpRetryConnection'))).toBe(false)
   })
 
-  it('offers a template list that fills the new-service form', async () => {
+  it('opens the new-service dialog as one short form', async () => {
     await mountPanel()
     const add = document.querySelector<HTMLButtonElement>('[aria-label="panelAdd"]')
     expect(add).not.toBeNull()
@@ -191,26 +213,48 @@ describe('MCP status actions', () => {
       add!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // Two shortcuts sit above the form; the template list is one interaction in.
-    expect(document.body.textContent).toContain('mcpStarterTemplates')
-    expect(document.body.textContent).toContain('mcpStarterPaste')
-    const templates = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpStarterTemplates'))
-    expect(templates).toBeDefined()
-    await act(async () => {
-      templates!.click()
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-    expect(document.body.textContent).toContain('mcpTemplateFilesystem')
+    // No template or paste shortcuts: the form is the only entry, and the JSON
+    // view inside the editor carries everything the form has no field for.
+    expect(document.body.textContent).toContain('mcpAddTitle')
+    expect(document.body.textContent).not.toContain('mcpStarterTemplates')
+    expect(document.body.textContent).not.toContain('mcpStarterPaste')
+    expect(document.body.textContent).toContain('mcpServerName')
   })
 
   it('opens the editor from the card', async () => {
     await mountPanel()
-    const edit = document.querySelector<HTMLButtonElement>('[aria-label="panelEdit demo__service"]')
+    const edit = document.querySelector<HTMLButtonElement>('[aria-label="panelEdit service"]')
     expect(edit).not.toBeNull()
     await act(async () => {
       edit!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(document.body.textContent).toContain('mcpEditTitle')
+  })
+
+  it('reads the same state colour on the card edge and in the detail band', async () => {
+    const api = await import('../src/client/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const failed = await mountPanel()
+    const failedCard = failed.querySelector('[data-resource-surface="mcp"]')
+    expect(failedCard?.getAttribute('data-resource-state')).toBe('error')
+    await act(async () => {
+      failedCard!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.querySelector('[data-status-band]')?.getAttribute('data-band-tone')).toBe('error')
+    await act(async () => root?.unmount())
+    document.body.replaceChildren()
+    vi.clearAllMocks()
+
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(disabledPayload)
+    const disabled = await mountPanel()
+    const disabledCard = disabled.querySelector('[data-resource-surface="mcp"]')
+    expect(disabledCard?.getAttribute('data-resource-state')).toBe('disabled')
+    await act(async () => {
+      disabledCard!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.querySelector('[data-status-band]')?.getAttribute('data-band-tone')).toBe('neutral')
   })
 })
