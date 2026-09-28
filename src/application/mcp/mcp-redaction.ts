@@ -17,8 +17,28 @@ const SENSITIVE_KEY =
  */
 const STRUCTURE_KEY = /^auth$/i
 
-/** A `${NAME}` credential reference. Deliberately not global: it is only ever probed with `test`. */
-const PLACEHOLDER = /\$\{[^}]+\}/
+/**
+ * Whether a value carries a `${NAME}` credential reference.
+ *
+ * Scanned rather than matched: a regular expression retries the braced run
+ * from every `${` it finds, so a hostile value (`"${{".repeat(n)`) costs
+ * quadratic time on data that arrives from an endpoint or a log line. The
+ * scan moves one cursor forward through the string — the first `${` either
+ * reaches a closing brace (a reference, whatever follows it) or has none at
+ * all, which ends the search.
+ */
+function hasPlaceholder(value: string): boolean {
+  let search = 0
+  for (;;) {
+    const start = value.indexOf('${', search)
+    if (start === -1) return false
+    const close = value.indexOf('}', start + 2)
+    if (close === -1) return false
+    if (close > start + 2) return true
+    // `${}` names no credential; keep looking after it.
+    search = close + 1
+  }
+}
 
 export function redactMcpConfig(value: unknown): unknown {
   return redactValue(value)
@@ -44,7 +64,7 @@ export function redactUrl(raw: string): string {
     .filter(part => part !== '')
     .map(part => {
       const [name = '', value = ''] = splitOnce(part, '=')
-      if (PLACEHOLDER.test(value)) return `${name}=${value}`
+      if (hasPlaceholder(value)) return `${name}=${value}`
       return isSensitiveKey(name) ? `${name}=[redacted]` : `${name}=${value}`
     })
     .join('&')
@@ -90,7 +110,7 @@ function redactValue(value: unknown, key = ''): unknown {
     return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [childKey, redactValue(childValue, childKey)]))
   }
   if (isSensitiveKey(key)) {
-    if (typeof value === 'string' && PLACEHOLDER.test(value)) return value
+    if (typeof value === 'string' && hasPlaceholder(value)) return value
     return '[redacted]'
   }
   if (key === 'url' && typeof value === 'string') return redactUrl(value)
