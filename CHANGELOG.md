@@ -9,6 +9,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.8.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.1...dsh-agent-plugins-market-v0.8.2) (2026-09-28)
+
+
+### Features
+
+* **client:** one status band carries the service detail's state ([6288ead](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6288ead703a1ff3ef6b35f2dd850632d16e29a46))
+* **panels:** plugin personas expose a routing-only editor ([a396b92](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a396b92d40a589e926dfd2d18468701c2385f6e9))
+* **panels:** plugin-origin entries are read-only in content, toggle-only in state ([080a136](https://github.com/Sivan757/dsh-agent-plugins-market/commit/080a136608b516ee635a34bbde2c3a3d1e6ab426))
+* **runtime:** resolve bare commands through the login shell's PATH ([e4a96c8](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e4a96c8490e05b3d69832e3c806fd01c48f4053a))
+* **status:** report failure causes behind the reason sentence ([9c0f937](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9c0f937d711192176c8d339a56ed3b66a512bd89))
+
+
+### Bug Fixes
+
+* **architecture:** one dollar-one-parametrized sibling-feature rule with correct css exemption ([3f6f703](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3f6f70323b3ea20512182861fcaf6f17dc30f29f))
+* **client:** calm the persona routing group; reveal source-capsule controls on hover ([e7f5980](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e7f598085a5a8c7c985b04c3e2af768e1feb657f))
+* **client:** four detail-dialog corrections from maintainer review ([13cc657](https://github.com/Sivan757/dsh-agent-plugins-market/commit/13cc657413893197be80ca68a84b798f2edbac78))
+* **client:** persona detail isolation from the UI-fixes verification pass ([6c451c7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6c451c75859c373a9509046dd8d74364cc6aa21c))
+* **client:** resolve every filter tablist to the panel it names ([f2e2674](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f2e26741fcdc12720f32f4e2731455d132aa0428))
+* **locale:** read the preference through the locale entry's live projection ([e53a674](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e53a67418db8525be94039a1a2e48b37c11dfbd3))
+* **market:** drop the warning glyph from source capsules ([5b89783](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5b89783374ba777da62e20a0da5246ab33ae722a))
+* **market:** reveal source-capsule edit control on hover for every source ([256c88f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/256c88f4635eafa58ba7de9c445cf74a9b0d79d6))
+* **market:** source capsules show only the source name and suite count ([db7bd52](https://github.com/Sivan757/dsh-agent-plugins-market/commit/db7bd5268b464091c3cb044808118ad9021729e7))
+* **market:** source-capsule controls overlay the label instead of squeezing it ([1d35e2b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1d35e2bbe18dc69927fe4e2f9625508c2e49ce33))
+* **settings-card:** guard the compat window and name the region clear ([bd45f59](https://github.com/Sivan757/dsh-agent-plugins-market/commit/bd45f59ffe273f27bd69acf69a588e4c928028ea))
+
+
+### Performance Improvements
+
+* **application:** one panel scan per plugin-resource save ([6b3a1f1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6b3a1f1fe99333b06d66252caf06f00b3bf49b39))
+
+
+### Miscellaneous Chores
+
+* **release:** pin this release to 0.8.2 ([31335bd](https://github.com/Sivan757/dsh-agent-plugins-market/commit/31335bd020a39c38cae0c9a197f34893070afecb))
+
 ## [0.8.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.0...dsh-agent-plugins-market-v0.8.1) (2026-09-24)
 
 
