@@ -9,9 +9,17 @@
  * repeated here on purpose — it is the wire between the probe and the parse.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { delimiter } from 'node:path'
 import { SubprocessExecutableNotFoundError } from '@deepseek-ai/dsh-subprocess'
 
 const MARKER = '__DSH_MARKET_LOGIN_PATH__'
+
+/**
+ * The product splits and joins `PATH` with the host's own separator, so every
+ * case that spells a multi-entry `PATH` builds it with `delimiter`. Written as
+ * `:` it would be one entry on Windows and assert a different contract there.
+ */
+const joined = (...entries: string[]): string => entries.join(delimiter)
 
 const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }))
 
@@ -56,7 +64,7 @@ afterEach(() => {
 
 describe('loginShellPathEntries', () => {
   it('parses the marker line, drops relative and duplicate entries, keeps order', async () => {
-    shellResult(`Welcome back\n${MARKER}\n/opt/homebrew/bin:/usr/bin:/opt/homebrew/bin:relative/bin:/usr/bin\n`)
+    shellResult(`Welcome back\n${MARKER}\n${joined('/opt/homebrew/bin', '/usr/bin', '/opt/homebrew/bin', 'relative/bin', '/usr/bin')}\n`)
     const { loginShellPathEntries } = await load()
     await withPlatform('darwin', async () => {
       expect(await loginShellPathEntries()).toEqual(['/opt/homebrew/bin', '/usr/bin'])
@@ -104,7 +112,7 @@ describe('loginShellPathEntries', () => {
   })
 
   it('returns undefined when every entry is relative', async () => {
-    shellResult(`${MARKER}\nrelative/bin:also/relative\n`)
+    shellResult(`${MARKER}\n${joined('relative/bin', 'also/relative')}\n`)
     const { loginShellPathEntries } = await load()
     await withPlatform('darwin', async () => {
       expect(await loginShellPathEntries()).toBeUndefined()
@@ -133,18 +141,18 @@ describe('loginShellPathEntries', () => {
 
 describe('augmentChildPath', () => {
   it('appends only the missing directories, preserving the base order', async () => {
-    shellResult(`${MARKER}\n/opt/homebrew/bin:/usr/bin\n`)
+    shellResult(`${MARKER}\n${joined('/opt/homebrew/bin', '/usr/bin')}\n`)
     const { augmentChildPath } = await load()
     await withPlatform('darwin', async () => {
-      expect(await augmentChildPath('/usr/bin:/bin')).toEqual({ path: '/usr/bin:/bin:/opt/homebrew/bin', added: ['/opt/homebrew/bin'] })
+      expect(await augmentChildPath(joined('/usr/bin', '/bin'))).toEqual({ path: joined('/usr/bin', '/bin', '/opt/homebrew/bin'), added: ['/opt/homebrew/bin'] })
     })
   })
 
   it('returns undefined when the login shell adds nothing new', async () => {
-    shellResult(`${MARKER}\n/usr/bin:/bin\n`)
+    shellResult(`${MARKER}\n${joined('/usr/bin', '/bin')}\n`)
     const { augmentChildPath } = await load()
     await withPlatform('darwin', async () => {
-      expect(await augmentChildPath('/usr/bin:/bin')).toBeUndefined()
+      expect(await augmentChildPath(joined('/usr/bin', '/bin'))).toBeUndefined()
     })
   })
 
@@ -152,7 +160,7 @@ describe('augmentChildPath', () => {
     shellResult(undefined, new Error('boom'))
     const { augmentChildPath } = await load()
     await withPlatform('darwin', async () => {
-      expect(await augmentChildPath('/usr/bin:/bin')).toBeUndefined()
+      expect(await augmentChildPath(joined('/usr/bin', '/bin'))).toBeUndefined()
     })
   })
 })
@@ -169,12 +177,12 @@ describe('resolveDeclaredCommand', () => {
   it('extends PATH from the login shell only after the base lookup fails, and reports the added directories', async () => {
     shellResult(`${MARKER}\n/dsh-market-test/bin\n`)
     const resolveExecutable = vi.fn(async (_command: string, env: Record<string, string>) => {
-      if (!(env.PATH ?? '').split(':').includes('/dsh-market-test/bin')) throw notFound()
+      if (!(env.PATH ?? '').split(delimiter).includes('/dsh-market-test/bin')) throw notFound()
       return '/dsh-market-test/bin/npx'
     })
     const { resolveDeclaredCommand } = await load()
     const resolution = await withPlatform('darwin', async () => resolveDeclaredCommand(resolverCtx(resolveExecutable), 'npx', {}))
-    expect(resolution?.path?.endsWith(':/dsh-market-test/bin')).toBe(true)
+    expect(resolution?.path?.endsWith(`${delimiter}/dsh-market-test/bin`)).toBe(true)
     expect(resolution?.diagnostic).toBe('PATH extended from the login shell: /dsh-market-test/bin')
     expect(resolveExecutable).toHaveBeenCalledTimes(2)
   })
