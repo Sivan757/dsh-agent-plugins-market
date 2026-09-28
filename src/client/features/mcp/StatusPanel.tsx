@@ -6,9 +6,10 @@ import type { Translate } from '../../index.js'
 import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
+import { interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './mcp-status-view-model.js'
+import { mcpCardState, mcpDisplayName } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { McpDetailModal } from './McpDetailModal.js'
@@ -172,7 +173,6 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   )
 }
 
-/** The state tag's tone; a healthy server reads as success. */
 /**
  * One inventory card: the server name with its state tag on the identity row
  * and the enable switch on its trailing edge; the endpoint on the body row;
@@ -182,33 +182,26 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
  * scannable.
  */
 function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntry; t: Translate; onClick: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
-  const interactive = {
-    role: 'button' as const,
-    tabIndex: 0,
-    onClick,
-    onKeyDown: (event: { key: string; preventDefault: () => void }) => {
-      // Enter and Space activate a role="button" the same way a native one does.
-      if (event.key !== 'Enter' && event.key !== ' ') return
-      event.preventDefault()
-      onClick()
-    }
-  }
+  const interactive = interactiveCardProps(onClick)
   const toolCount = entry.tools.length === 1 ? t('mcpTool') : t('mcpTools')
   // A foreign mount belongs to another MCP client, so this plugin cannot
   // switch it; everything else it declared is its own to enable or disable.
   const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
   const disabled = entry.state === 'disabled'
+  // The identity a reader recognizes; the runtime's full mount name stays in
+  // the tooltip on that same row.
+  const displayName = mcpDisplayName(entry)
   return h(
     ResourceCard,
     {
-      state: entry.state === 'connected' ? 'active' : entry.state === 'disabled' ? 'disabled' : entry.state === 'failed' || entry.state === 'orphaned' ? 'error' : 'warning',
+      state: mcpCardState(entry.state),
       surface: 'mcp',
       ...interactive
     },
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: `${rc.name} ${rc.nameMono}` }, entry.name),
+      h('span', { className: `${rc.name} ${rc.nameMono}`, title: entry.name }, displayName),
       // The state rail on the card's left edge carries the state; a written
       // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect')))
@@ -225,7 +218,7 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
               type: 'button',
               className: rc.iconBtn,
               title: t('panelEdit'),
-              'aria-label': `${t('panelEdit')} ${entry.name}`,
+              'aria-label': `${t('panelEdit')} ${displayName}`,
               onClick: (event: { stopPropagation(): void }) => {
                 event.stopPropagation()
                 onEdit()
@@ -280,14 +273,3 @@ function mcpFilterHint(t: Translate, kind: Filter): string {
   if (kind === 'disabled') return t('mcpFilterDisabledHint')
   return t('mcpFilterAllHint')
 }
-
-/**
- * Where each credential reference is used, as `<field label> <key>` entries read
- * from the server configuration: a token named in a request header and an
- * environment variable are the two seams the mount-time expander fills.
- */
-/**
- * The parameters one tool advertises: name, type, whether it is required, and
- * the server's own description. A nested schema keeps its type name; the full
- * definition stays with the tool list the model already receives.
- */

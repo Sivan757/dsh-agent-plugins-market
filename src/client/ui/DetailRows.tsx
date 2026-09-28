@@ -12,6 +12,7 @@
 import { createElement as h, type ReactNode } from 'react'
 import { IconChevronDownOutlineMedium, IconChevronRightOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './detail-rows.module.css'
+import panelCss from './panel.module.css'
 
 /** One group of rows; the bordered frame the prototype draws them in. */
 export function DetailRows({ children }: { children?: ReactNode }): ReactNode {
@@ -56,4 +57,9 @@ export function DetailRow(props: {
     ),
     open ? h('div', { className: css.body }, props.children) : null
   )
+}
+
+/** One label/value pair in a detail dialog's overview grid; `key` props a row built in a loop. */
+export function kvCell(label: string, value: string, mono = false, key?: string): ReactNode {
+  return h('div', key === undefined ? null : { key }, h('dt', { className: panelCss.kvKey }, label), h('dd', { className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue, title: value }, value))
 }

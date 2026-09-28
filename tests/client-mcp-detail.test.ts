@@ -36,6 +36,10 @@ async function mount(entry = base, backend: 'builtin' | 'host' = 'builtin', tran
   return { retry, authorize }
 }
 const button = (text: string) => [...document.querySelectorAll('button')].find(node => node.textContent === text)!
+/** The host disclosure row is a `role="button"` div when the whole row expands. */
+const disclosure = (text: string): HTMLElement | undefined => [...document.querySelectorAll<HTMLElement>('[data-disclosure-row]')].find(node => node.textContent === text)
+const band = (): HTMLElement => document.querySelector<HTMLElement>('[data-status-band]')!
+
 it('has no enable switch, confirms destructive authorization and reports actual failure', async () => {
   const { authorize } = await mount()
   expect(document.querySelector('[role="switch"]')).toBeNull()
@@ -44,9 +48,10 @@ it('has no enable switch, confirms destructive authorization and reports actual 
   expect(authorize).not.toHaveBeenCalled()
   await act(async () => button('mcpConfirmReauth').click())
   expect(authorize).toHaveBeenCalledWith('service', 'service')
-  // The echo says what the operation did; the reason itself belongs to the
-  // report below, so the sentence the operation returns never repeats it.
-  expect(document.body.textContent).toContain('mcpStillUnavailable')
+  // The echo rides inside the status band and says what the operation did; the
+  // reason itself belongs to the band's reason line, so the sentence the
+  // operation returns never repeats it.
+  expect(band().textContent).toContain('mcpStillUnavailable')
   expect(document.body.textContent).not.toContain('still offline')
   expect(document.body.textContent).not.toContain('mcpRetrySuccess')
 })
@@ -62,6 +67,18 @@ it('keeps the enable switch out of the detail dialog and the service configurati
   const headings = [...document.querySelectorAll('h4')].map(node => node.textContent ?? '')
   expect(headings.some(value => value.startsWith('mcpTools'))).toBe(true)
   expect(headings.includes('serviceConfigLabel')).toBe(false)
+})
+it('titles a plugin row with its readable server key and shows the mount name in the overview', async () => {
+  await mount({ ...base, suiteId: 'demo', serverKey: 'chrome-devtools', name: 'chrome-devtools__chrome-devtools' })
+  // The heading is the declaration key a reader recognizes; the runtime's full
+  // mount identity moves to its own overview row.
+  expect(document.querySelector('[role="dialog"]')!.getAttribute('aria-label')).toBe('chrome-devtools')
+  expect([...document.querySelectorAll('dt')].some(node => node.textContent === 'mcpMountNameLabel')).toBe(true)
+  expect(document.body.textContent).toContain('chrome-devtools__chrome-devtools')
+})
+it('titles a direct row with its own name', async () => {
+  await mount({ ...base, kind: 'direct', name: 'my-server', canReauthorize: false })
+  expect(document.querySelector('[role="dialog"]')!.getAttribute('aria-label')).toBe('my-server')
 })
 it('reveals a tool’s parameters from its own row', async () => {
   await mount({
@@ -85,7 +102,7 @@ it('reveals a tool’s parameters from its own row', async () => {
   expect(document.body.textContent).toContain('File to read')
   expect(document.body.textContent).toContain('mcpToolParamRequired')
 })
-it('leads with the next thing to check and keeps the recorded diagnostic behind its disclosure', async () => {
+it('leads the band with the next thing to check and keeps the recorded diagnostic behind its disclosure', async () => {
   await mount({
     ...base,
     state: 'failed',
@@ -94,21 +111,31 @@ it('leads with the next thing to check and keeps the recorded diagnostic behind 
     causes: ['spawn npx ENOENT']
   })
   // The wrapper sentence names no cause, so the sentence for the cause the
-  // chain reveals leads the report.
-  expect(document.body.textContent).toContain('failureGuideCommandMissing')
-  expect(document.body.textContent).not.toContain('spawn npx ENOENT')
+  // chain reveals leads the band.
+  expect(band().textContent).toContain('failureGuideCommandMissing')
+  expect(band().textContent).not.toContain('spawn npx ENOENT')
   expect(document.body.textContent).not.toContain('initial connection or tool synchronization failed')
-  await act(async () => button('failureDetailToggle').click())
+  await act(async () => disclosure('failureDetailToggle')!.click())
   expect(document.body.textContent).toContain('spawn npx ENOENT')
   expect(document.body.textContent).toContain('initial connection or tool synchronization failed')
 })
 
-it('keeps a reason without a recognizable shape as the line the report shows', async () => {
+it('marks the band edge with the same state the card uses', async () => {
+  await mount({ ...base, state: 'failed' })
+  expect(band().getAttribute('data-band-tone')).toBe('error')
+  await act(async () => root.unmount())
+  await mount({ ...base, state: 'disabled' })
+  expect(band().getAttribute('data-band-tone')).toBe('neutral')
+  await act(async () => root.unmount())
+  await mount({ ...base, state: 'connected' })
+  expect(band().getAttribute('data-band-tone')).toBe('success')
+})
+it('keeps a reason without a recognizable shape as the line the band shows', async () => {
   await mount({ ...base, state: 'disabled', reason: 'modified by override' })
-  expect(document.body.textContent).toContain('modified by override')
+  expect(band().textContent).toContain('modified by override')
   // Nothing is classified, so there is no sentence to invent and no second
   // copy of the line to disclose.
-  expect(button('failureDetailToggle')).toBeUndefined()
+  expect(disclosure('failureDetailToggle')).toBeUndefined()
 })
 
 it('reads in the interface language, with the recorded diagnostic only in the disclosure', async () => {
@@ -124,9 +151,9 @@ it('reads in the interface language, with the recorded diagnostic only in the di
     'builtin',
     zhTranslate
   )
-  expect(document.body.textContent).toContain(zh.failureGuideCommandMissing)
+  expect(band().textContent).toContain(zh.failureGuideCommandMissing)
   expect(document.body.textContent).not.toContain('initial connection or tool synchronization failed')
-  await act(async () => button(zh.failureDetailToggle).click())
+  await act(async () => disclosure(zh.failureDetailToggle)!.click())
   expect(document.body.textContent).toContain('initial connection or tool synchronization failed')
   expect(document.body.textContent).toContain('spawn npx ENOENT')
 })
@@ -214,4 +241,10 @@ it('leaves a foreign mount read-only', async () => {
   await mount({ ...toolEntry, state: 'foreign' })
   expect(document.body.querySelector('input[type="checkbox"]')).toBeNull()
   expect(document.body.textContent).toContain('alpha')
+})
+
+it('reads an empty tool list on a failed mount as unreachable, not as a server with no tools', async () => {
+  await mount({ ...base, state: 'failed', code: 'mount-failed', reason: 'connection refused' })
+  expect(document.body.textContent).toContain('mcpToolsUnreachable')
+  expect(document.body.textContent).not.toContain('mcpNoTools')
 })

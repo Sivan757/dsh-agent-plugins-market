@@ -37,18 +37,12 @@
 .modalFooterGrow { flex: 1 1 auto; }
 .detail { display: flex; flex-direction: column; gap: 16px; }
 
-/* The destructive-authorization confirmation. It keeps the error fill because
-   it asks before dropping a grant; a failure report uses FailureReport's own
-   rail and fill. */
-.confirmPanel {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  background: var(--dsw-alias-interactive-bg-hover-danger, rgba(236, 19, 19, 0.05));
-  border-radius: 8px;
-}
+/* The destructive-authorization confirmation: explanation plus the two
+   buttons, directly under the status band it belongs to. It carries no fill of
+   its own — the band is the dialog's one state container. */
+.reauthConfirm { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.reauthExplain { margin: 0; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 12px; line-height: 18px; }
+.reauthActions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* The block heading with its optional trailing control (the tool search). */
 .blockHeadRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -136,13 +130,6 @@
   .toolDescription { display: none; }
 }
 
-/* In-place outcome echo beside the detail dialog's retry control. */
-.retryEchoSuccess {
-  color: var(--dsw-alias-state-success-primary, #16a34a);
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
-}
 @keyframes lspStartingPulse {
   50% { opacity: 0.35; }
 }

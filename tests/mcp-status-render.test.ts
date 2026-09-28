@@ -73,6 +73,29 @@ const failedPayload = vi.hoisted(() => ({
   directObservationOnly: true
 }))
 
+/** A switched-off row: the band edge and the card both read neutral here. */
+const disabledPayload = vi.hoisted(() => ({
+  entries: [
+    {
+      id: 'plugin:demo/service',
+      name: 'demo__service',
+      kind: 'plugin' as const,
+      state: 'disabled' as const,
+      code: 'disabled-override' as const,
+      source: 'Demo Suite',
+      suiteId: 'demo',
+      serverKey: 'service',
+      transport: 'stdio',
+      endpoint: 'node server.js',
+      reason: 'switched off through this plugin',
+      tools: []
+    }
+  ],
+  observedAt: '',
+  totals: { all: 1, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 1, foreign: 0 },
+  directObservationOnly: true
+}))
+
 vi.mock('../src/client/api.js', () => ({
   fetchMcpStatus: vi.fn().mockResolvedValue(statusPayload),
   fetchServerConfig: vi.fn().mockResolvedValue({ kind: 'mcp', id: 'direct-observation', editable: false, config: {} }),
@@ -124,9 +147,11 @@ describe('MCP status actions', () => {
     // until the dialog opens.
     expect(el.querySelector('input[type="password"]')).toBeNull()
     expect(describeCredentials).not.toHaveBeenCalled()
-    // Opening the detail dialog is the one interaction a card offers.
-    const card = [...el.querySelectorAll('[role="button"]')].find(node => node.textContent?.includes('demo__service'))
-    expect(card).toBeDefined()
+    // Opening the detail dialog is the one interaction a card offers. The card
+    // shows the readable server key; the full mount name rides its tooltip.
+    const card = el.querySelector('[data-resource-surface="mcp"]')
+    expect(card?.textContent).toContain('service')
+    expect(card?.querySelector('[title="demo__service"]')).not.toBeNull()
     await act(async () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -147,12 +172,12 @@ describe('MCP status actions', () => {
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 
-  it('offers retry in the dialog footer and echoes the outcome in place', async () => {
+  it('offers retry in the status band and echoes the outcome in place', async () => {
     const api = await import('../src/client/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
     const el = await mountPanel()
 
-    const card = [...el.querySelectorAll('[role="button"]')].find(node => node.textContent?.includes('demo__service'))
+    const card = el.querySelector('[data-resource-surface="mcp"]')
     await act(async () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -205,12 +230,38 @@ describe('MCP status actions', () => {
 
   it('opens the editor from the card', async () => {
     await mountPanel()
-    const edit = document.querySelector<HTMLButtonElement>('[aria-label="panelEdit demo__service"]')
+    const edit = document.querySelector<HTMLButtonElement>('[aria-label="panelEdit service"]')
     expect(edit).not.toBeNull()
     await act(async () => {
       edit!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(document.body.textContent).toContain('mcpEditTitle')
+  })
+
+  it('reads the same state colour on the card edge and in the detail band', async () => {
+    const api = await import('../src/client/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const failed = await mountPanel()
+    const failedCard = failed.querySelector('[data-resource-surface="mcp"]')
+    expect(failedCard?.getAttribute('data-resource-state')).toBe('error')
+    await act(async () => {
+      failedCard!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.querySelector('[data-status-band]')?.getAttribute('data-band-tone')).toBe('error')
+    await act(async () => root?.unmount())
+    document.body.replaceChildren()
+    vi.clearAllMocks()
+
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(disabledPayload)
+    const disabled = await mountPanel()
+    const disabledCard = disabled.querySelector('[data-resource-surface="mcp"]')
+    expect(disabledCard?.getAttribute('data-resource-state')).toBe('disabled')
+    await act(async () => {
+      disabledCard!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.querySelector('[data-status-band]')?.getAttribute('data-band-tone')).toBe('neutral')
   })
 })

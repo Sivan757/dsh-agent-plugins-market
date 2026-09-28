@@ -1,0 +1,97 @@
+/* The one state container a service detail opens with: the 3px leading edge
+   carries the state (the same colours the inventory card uses), and the fill
+   stays the platform's soft neutral so a healthy service reads calm. */
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--dsw-alias-label-tertiary);
+  border-radius: 10px;
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.band[data-band-tone='success'] {
+  border-left-color: var(--dsw-alias-state-success-primary);
+}
+
+.band[data-band-tone='warn'] {
+  border-left-color: var(--dsw-alias-state-warn-primary);
+}
+
+.band[data-band-tone='error'] {
+  border-left-color: var(--dsw-alias-state-error-primary);
+}
+
+/* The first line: state dot, state tags, and the recovery action pushed to the
+   trailing edge. */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* What the last operation did: a line under the label row, in the success or
+   the ordinary reading colour — never a second panel. */
+.echo {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.echoSuccess {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+/* The sentence the classifier picked, or the recorded text when nothing
+   classifies it: body colour, never the error colour. */
+.reason {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* The recorded diagnostic, verbatim, indented to the disclosure title. */
+.diagnostic {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 2px 22px;
+}
+
+.diagnosticLine {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* The endpoint or command the service runs. */
+.mono {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font: 12px/18px ui-monospace, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}

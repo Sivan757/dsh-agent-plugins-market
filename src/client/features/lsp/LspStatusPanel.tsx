@@ -9,9 +9,9 @@
  * Cards stay lean (state dot + name + command + one state pill); the source
  * suite and the full extension map live in the detail dialog.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, IconEditOutlineMedium, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconEditOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigEditor } from '../../ui/ServerConfigEditor.js'
 import { ServerConfigDetail } from '../../ui/ServerConfigDetail.js'
@@ -30,10 +30,10 @@ import {
   type LspStatusState
 } from '../../api.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { FailureReport } from '../../ui/FailureReport.js'
+import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { failureGuidanceKey } from '../../ui/failure-guidance.js'
-import { ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
-import { DetailRow, DetailRows } from '../../ui/DetailRows.js'
+import { interactiveCardProps, ResourceCard, ResourceCollection, type ResourceState } from '../../ui/ResourceCard.js'
+import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './lsp-status-view-model.js'
 import css from '../mcp/mcp-status.module.css'
@@ -334,6 +334,18 @@ function lspDotState(state: LspStatusState): 'done' | 'warning' | 'ongoing' | 'e
   return 'warning'
 }
 
+/**
+ * The inventory card's state for one row. The detail band derives its edge from
+ * this same value, so a server cannot read one colour on its card and another
+ * in its detail dialog.
+ */
+function lspCardState(state: LspStatusState): ResourceState {
+  if (state === 'mounted') return 'active'
+  if (state === 'disabled') return 'disabled'
+  if (state === 'failed' || state === 'conflict') return 'error'
+  return 'warning'
+}
+
 function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | 'neutral' {
   if (state === 'mounted') return 'success'
   if (state === 'failed' || state === 'conflict') return 'danger'
@@ -347,21 +359,12 @@ function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | '
  * the declaring suite and the extension count on the source row.
  */
 function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry; t: Translate; onOpen: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
-  const interactive = {
-    role: 'button' as const,
-    tabIndex: 0,
-    onClick: onOpen,
-    onKeyDown: (event: { key: string; preventDefault: () => void }) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return
-      event.preventDefault()
-      onOpen()
-    }
-  }
+  const interactive = interactiveCardProps(onOpen)
   const extensions = Object.keys(entry.extensions).length
   const disabled = entry.state === 'disabled'
   return h(
     ResourceCard,
-    { state: entry.state === 'mounted' ? 'active' : disabled ? 'disabled' : entry.state === 'failed' || entry.state === 'conflict' ? 'error' : 'warning', surface: 'lsp', ...interactive },
+    { state: lspCardState(entry.state), surface: 'lsp', ...interactive },
     h(
       'div',
       { className: rc.rowId },
@@ -424,23 +427,22 @@ export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t
     children: h(
       'div',
       null,
-      h(
-        'div',
-        { className: panelCss.hero },
-        h(StateDot, { state: lspDotState(entry.state) }),
-        h(
-          'div',
-          { className: panelCss.heroText },
-          h(
-            'div',
-            { className: panelCss.heroLine },
-            h(Tag, { tone: lspTagTone(entry.state) }, stateLabel(t, entry.state)),
-            h(Tag, null, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')),
-            entry.kind === 'plugin' ? h(Tag, { tone: 'quiet' }, entry.suiteName) : null
-          ),
-          h('p', { className: panelCss.heroMono }, [entry.command, ...entry.args].join(' '))
-        )
-      ),
+      h(StatusBand, {
+        t,
+        dot: lspDotState(entry.state),
+        tone: bandTone(lspCardState(entry.state)),
+        labels: h(
+          Fragment,
+          null,
+          h(Tag, { tone: lspTagTone(entry.state) }, stateLabel(t, entry.state)),
+          h(Tag, null, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')),
+          entry.kind === 'plugin' ? h(Tag, { tone: 'quiet' }, entry.suiteName) : null
+        ),
+        ...(guidance === undefined ? {} : { guidance }),
+        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+        mono: [entry.command, ...entry.args].join(' ')
+      }),
       h(
         'div',
         { className: panelCss.block },
@@ -448,24 +450,11 @@ export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t
         h(
           'dl',
           { className: panelCss.kvGrid },
-          kv(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
-          kv(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
-          kv(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true)
+          kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
+          kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
+          kvCell(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true)
         )
       ),
-      entry.reason === undefined
-        ? null
-        : h(
-            'div',
-            { className: panelCss.block },
-            h('h4', { className: panelCss.blockHead }, t('lspReasonLabel')),
-            h(FailureReport, {
-              t,
-              tone: entry.state === 'disabled' ? 'info' : 'error',
-              ...(guidance === undefined ? {} : { guidance }),
-              detail: [entry.reason, ...(entry.causes ?? [])]
-            })
-          ),
       h(
         'div',
         { className: panelCss.block },
@@ -496,11 +485,6 @@ function LspConfigModal({ entry, t, onClose, onSaved }: { entry: LspStatusEntry;
     footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))),
     children: h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t, onSaved })
   })
-}
-
-/** One label/value pair in a detail dialog's overview grid. */
-function kv(label: string, value: string, mono = false): ReactNode {
-  return h('div', null, h('dt', { className: panelCss.kvKey }, label), h('dd', { className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue, title: value }, value))
 }
 
 function stateLabel(t: Translate, state: LspStatusState): string {

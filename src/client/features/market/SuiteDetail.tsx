@@ -16,7 +16,7 @@ import { createElement as h, useEffect, useRef, useState, type ReactNode } from 
 import { Button, JsonTree, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { MarkdownDocument } from '../../ui/MarkdownDocument.js'
-import { DetailRow, DetailRows } from '../../ui/DetailRows.js'
+import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import { lastChangeLabel } from '../../ui/last-change.js'
 import { jsonTreeLabels } from '../../ui/json-tree-labels.js'
 import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, type SuiteDetail } from '../../api.js'
@@ -163,10 +163,10 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                   h(
                     'dl',
                     { className: panelCss.kvGrid },
-                    kv(t('sourceLabel'), detail.sourceId, true),
-                    kv(t('layoutLabel'), layoutLabel),
-                    detail.author === null ? null : kv(t('authorLabel'), detail.author),
-                    updated === null ? null : kv(t('updatedLabel'), updated)
+                    kvCell(t('sourceLabel'), detail.sourceId, true),
+                    kvCell(t('layoutLabel'), layoutLabel),
+                    detail.author === null ? null : kvCell(t('authorLabel'), detail.author),
+                    updated === null ? null : kvCell(t('updatedLabel'), updated)
                   )
                 ),
                 detail.description === null
@@ -271,10 +271,6 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
               )
     })
   })
-}
-
-function kv(label: string, value: string, mono = false): ReactNode {
-  return h('div', null, h('dt', { className: panelCss.kvKey }, label), h('dd', { className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue, title: value }, value))
 }
 
 /** One surface group. A surface the suite does not carry is left out entirely. */
