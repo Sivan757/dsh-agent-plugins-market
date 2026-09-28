@@ -156,7 +156,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
           id: source.id,
           label: `${source.id}${kindBadge === undefined ? '' : ` · ${kindBadge}`} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
           ...(noteHint === undefined ? {} : { title: noteHint }),
-          editable: selectedSource?.id === source.id,
+          editable: true,
           deletable: true
         }
       })
