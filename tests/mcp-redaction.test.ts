@@ -29,6 +29,29 @@ describe('MCP config redaction', () => {
     expect(redacted.env).toEqual({ API_TOKEN: '${A}', OTHER_SECRET: '${B}', THIRD_KEY: '${C}' })
   })
 
+  it('reads a reference as a braced name, not as any text between dollars and braces', () => {
+    const judge = (value: string): unknown => redactMcpConfig({ env: { API_TOKEN: value } })
+    const env = (value: string): unknown => (judge(value) as Record<string, Record<string, unknown>>).env
+    // A name is required, so an empty or brace-terminated run is not a reference.
+    expect(env('${}')).toEqual({ API_TOKEN: '[redacted]' })
+    expect(env('${}}')).toEqual({ API_TOKEN: '[redacted]' })
+    expect(env('${')).toEqual({ API_TOKEN: '[redacted]' })
+    expect(env('$ {A}')).toEqual({ API_TOKEN: '[redacted]' })
+    // The first braced name wins, and an empty pair before it does not hide it.
+    expect(env('${A}')).toEqual({ API_TOKEN: '${A}' })
+    expect(env('${A}${B}')).toEqual({ API_TOKEN: '${A}${B}' })
+    expect(env('${}${A}')).toEqual({ API_TOKEN: '${}${A}' })
+    expect(env('prefix-${A}-suffix')).toEqual({ API_TOKEN: 'prefix-${A}-suffix' })
+  })
+
+  it('scans a hostile value in one pass instead of retrying a pattern at every brace', () => {
+    // `"${{"` repeated with no closing brace is the shape that made the former
+    // regular expression quadratic; this completes in milliseconds.
+    const hostile = '${{'.repeat(50_000)
+    const redacted = redactMcpConfig({ env: { API_TOKEN: hostile } }) as Record<string, Record<string, unknown>>
+    expect(redacted.env).toEqual({ API_TOKEN: '[redacted]' })
+  })
+
   it('redacts secret-bearing query values in an endpoint url', () => {
     expect(redactUrl('https://example.com/mcp?key=abc123&other=1')).toBe('https://example.com/mcp?key=[redacted]&other=1')
     // A placeholder in a URL is a reference, not a secret.
