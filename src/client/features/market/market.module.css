@@ -229,6 +229,7 @@
 
 .srcTab,
 .srcTabOn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -304,24 +305,45 @@
 
 /* Trailing edit/delete controls reveal on hover (or keyboard focus) like the
    card action cluster; the selected pill keeps them on its own foreground. */
-.srcTab .srcTabEdit,
-.srcTab .srcTabDel {
+/* Trailing edit/delete controls ride as one plate hugging the buttons, over
+   the label's trailing edge — the same treatment ResourceCard gives its
+   action cluster (opaque plate + spread shadow feathering the edge), so a
+   long name stays readable except right under the controls. Revealed on
+   hover or keyboard focus; the plate is click-transparent except for its
+   buttons, so clicking the visible label keeps selecting the source. */
+.srcTabControls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 8px;
+  border-radius: inherit;
+  background: inherit;
+  box-shadow: 0 0 6px 6px var(--dsw-alias-bg-layer-1);
   opacity: 0;
   transition: opacity 120ms ease;
+  pointer-events: none;
 }
 
-.srcTab:hover .srcTabEdit,
-.srcTab:hover .srcTabDel,
-.srcTab:focus-within .srcTabEdit,
-.srcTab:focus-within .srcTabDel,
-.srcTabOn .srcTabEdit,
-.srcTabOn .srcTabDel {
+.srcTabControls > button {
+  pointer-events: auto;
+}
+
+.srcTab:hover .srcTabControls,
+.srcTab:focus-within .srcTabControls {
   opacity: 1;
 }
 
+.srcTabOn .srcTabControls {
+  background: var(--dsw-alias-brand-primary, #0f1115);
+  box-shadow: 0 0 6px 6px var(--dsw-alias-brand-primary, #0f1115);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .srcTab .srcTabEdit,
-  .srcTab .srcTabDel {
+  .srcTabControls {
     transition: none;
   }
 }

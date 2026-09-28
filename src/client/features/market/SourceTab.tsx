@@ -21,35 +21,41 @@ export function SourceTab(props: SourceTabProps): ReactNode {
     'div',
     { className: active ? css.srcTabOn : css.srcTab, title },
     h('button', { type: 'button', className: css.srcTabMain, onClick: onSelect }, label),
-    onEdit === undefined
+    onEdit === undefined && onDelete === undefined
       ? null
       : h(
-          'button',
-          {
-            type: 'button',
-            className: css.srcTabEdit,
-            title: t('editSource'),
-            onClick: (event: { stopPropagation(): void }) => {
-              event.stopPropagation()
-              onEdit()
-            }
-          },
-          '✎'
-        ),
-    onDelete === undefined
-      ? null
-      : h(
-          'button',
-          {
-            type: 'button',
-            className: css.srcTabDel,
-            title: t('remove'),
-            onClick: (event: { stopPropagation(): void }) => {
-              event.stopPropagation()
-              onDelete()
-            }
-          },
-          '×'
+          'span',
+          { className: css.srcTabControls },
+          onEdit === undefined
+            ? null
+            : h(
+                'button',
+                {
+                  type: 'button',
+                  className: css.srcTabEdit,
+                  title: t('editSource'),
+                  onClick: (event: { stopPropagation(): void }) => {
+                    event.stopPropagation()
+                    onEdit()
+                  }
+                },
+                '✎'
+              ),
+          onDelete === undefined
+            ? null
+            : h(
+                'button',
+                {
+                  type: 'button',
+                  className: css.srcTabDel,
+                  title: t('remove'),
+                  onClick: (event: { stopPropagation(): void }) => {
+                    event.stopPropagation()
+                    onDelete()
+                  }
+                },
+                '×'
+              )
         )
   )
 }
