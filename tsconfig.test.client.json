@@ -33,6 +33,7 @@
     "tests/client-server-config-policy.test.ts",
     "tests/client-shared-labels.test.ts",
     "tests/client-view-models.test.ts",
+    "tests/client-workspace-tabs.test.ts",
     "tests/client-workspace-view.test.ts",
     "tests/filter-toolbar.test.ts",
     "tests/lsp-seam-render.test.ts",

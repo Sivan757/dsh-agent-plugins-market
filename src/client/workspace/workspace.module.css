@@ -24,52 +24,13 @@
   padding: 4px 0;
 }
 
+/* The host SegmentedTabs provides its own track, indicator, and keyboard
+   walk; this class only carries the row into the layout flow. */
 .tabRow {
-  display: flex;
   flex: none;
-  flex-direction: row;
-  gap: 4px;
-  align-items: center;
+  min-width: 0;
   overflow-x: auto;
-  border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   scrollbar-width: none;
-}
-
-.tab,
-.tabOn {
-  position: relative;
-  flex: none;
-  padding: 7px 14px;
-  border: none;
-  border-radius: 8px 8px 0 0;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary, #6b7280);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  line-height: 20px;
-  white-space: nowrap;
-}
-
-.tab:hover {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
-  color: var(--dsw-alias-label-primary, #1f2328);
-}
-
-.tabOn {
-  color: var(--dsw-alias-label-primary, #1f2328);
-  font-weight: 600;
-}
-
-.tabOn::after {
-  position: absolute;
-  right: 10px;
-  bottom: 0;
-  left: 10px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--dsw-alias-brand-primary);
-  content: '';
 }
 
 .tabPanel {

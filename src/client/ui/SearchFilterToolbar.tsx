@@ -1,13 +1,14 @@
 /**
  * Shared search, filter, and view controls for catalog-style settings panels.
  *
- * The filters are one segmented control and the view switch is a single icon
- * button, so the current mode is always readable without hovering: the active
- * filter carries the platform's pressed fill, and the view button shows the
- * mode in force with that same fill.
+ * The filters ride the host's SegmentedControl (one controlled tablist with
+ * roving focus) and the view switch stays a single always-pressed Pill, so the
+ * current mode is always readable without hovering: the selected filter
+ * carries the host's raised indicator, and the view button shows the mode in
+ * force with its pressed fill.
  */
 import { createElement as h, type ReactNode } from 'react'
-import { IconSearchOutlineMedium, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconSearchOutlineMedium, Input, Pill, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './SearchFilterToolbar.module.css'
 
 export type SearchFilterToolbarView = 'grid' | 'list'
@@ -28,6 +29,8 @@ export interface SearchFilterToolbarProps {
   searchPlaceholder: string
   onSearchChange: (search: string) => void
   filters: readonly SearchFilterToolbarFilter[]
+  /** Accessible name of the filter tablist; callers repeat an existing panel label. */
+  filterLabel: string
   view: SearchFilterToolbarView
   /** Accessible name of the view button while the grid shows: it switches to the list. */
   toListLabel: string
@@ -61,25 +64,22 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
         onChange: event => props.onSearchChange((event.target).value)
       })
     ),
-    h(
-      'div',
-      { className: css.segment, role: 'group' },
-      ...props.filters.map(filter =>
-        h(
-          Pill,
-          {
-            key: filter.id,
-            active: filter.active,
-            title: filter.hint ?? `${filter.label} ${filter.count}`,
-            'aria-label': filter.hint ?? `${filter.label} ${filter.count}`,
-            'aria-pressed': filter.active,
-            onClick: filter.onSelect
-          },
-          filter.label,
-          h('span', { className: css.count }, filter.count)
-        )
-      )
-    ),
+    // The host control derives each tab's id from this base id; the caller
+    // owns the panels the tabs name, so the panel half stays a suffix stub.
+    h(SegmentedControl, {
+      id: 'panel-filter',
+      value: props.filters.find(filter => filter.active)?.id ?? props.filters[0]?.id ?? '',
+      // The host option label is a plain string, so the count rides the same
+      // text the previous pills put in their accessible name.
+      options: props.filters.map(filter => ({
+        value: filter.id,
+        label: `${filter.label} ${filter.count}`,
+        ...(filter.hint === undefined ? {} : { title: filter.hint })
+      })),
+      onChange: id => props.filters.find(filter => filter.id === id)?.onSelect(),
+      label: props.filterLabel,
+      className: css.segment
+    }),
     // One button, permanently pressed: the glyph and the fill report the mode in
     // force and its accessible name says where a click leads, so the control
     // states the present mode instead of only naming the mode it would switch to.

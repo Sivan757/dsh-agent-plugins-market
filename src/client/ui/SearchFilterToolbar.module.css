@@ -1,9 +1,9 @@
 /* Shared search + filter + view-switch row.
  *
- * The filter control and the view switch are two independent segments of the
- * same chrome, so the current filter and the current view are both readable
- * without hovering. The search box flexes; the segments keep their natural
- * width and are pushed to the trailing edge.
+ * The filter control is the host's SegmentedControl and the view switch is one
+ * Pill: two independent segments of the same chrome, so the current filter and
+ * the current view are both readable without hovering. The search box flexes;
+ * the segments keep their natural width and are pushed to the trailing edge.
  */
 .toolbar {
   display: flex;
@@ -32,23 +32,10 @@
   line-height: 20px;
 }
 
-/* 24px pills inside 3px of padding line the switch up with the 32px search
-   field, and the pill's own pressed fill is what marks the current mode. */
+/* The filter's 28px segments and the view Pill's 24px both sit inside the
+   host control's 4px padding, lining both up with the 32px search field. */
 .segment {
-  display: flex;
   flex: none;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
-}
-
-/* The count keeps its own quiet colour on the pressed pill too, so the label
-   carries the selection and the number stays a count. */
-.count {
-  color: var(--dsw-alias-label-tertiary);
-  font-variant-numeric: tabular-nums;
 }
 
 .segment svg {

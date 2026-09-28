@@ -10,6 +10,7 @@
  * @module client/PluginWorkspace
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
+import { SegmentedTabs } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Translate } from '../index.js'
 import type { CredentialApi } from '../credentials.js'
 import { MarketSection } from '../features/market/MarketSection.js'
@@ -72,25 +73,26 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
   return h(
     'div',
     { className: mode === 'page' ? `${css.workspace} ${css.pageMode}` : css.workspace, 'data-agent-plugins-workspace': true },
-    h(
-      'nav',
-      { className: css.tabRow, role: 'tablist' },
-      TAB_ORDER.map(tab =>
-        h(
-          'button',
-          {
-            key: tab,
-            type: 'button',
-            role: 'tab',
-            'aria-selected': active === tab,
-            className: active === tab ? css.tabOn : css.tab,
-            onClick: () => select(tab)
-          },
-          labelKeys[tab]
-        )
-      )
-    ),
-    h('div', { className: css.tabPanel, role: 'tabpanel' }, renderTab(active, t, credentials, mode))
+    // The host's controlled tab row (roving tabindex, sliding indicator).
+    // Panels stay caller-owned: the workspace hands every tab one shared
+    // panel id and renders the active section inside it below.
+    h(SegmentedTabs<WorkspaceTab>, {
+      className: css.tabRow,
+      label: labelKeys.market,
+      value: active,
+      onChange: select,
+      // Display order restated so the required first tab is a literal: the
+      // host's items demand a non-empty tuple, and the tab set is fixed anyway.
+      items: [
+        { value: 'market', label: labelKeys.market, id: 'agent-plugins-tab-market', panelId: 'agent-plugins-panel' },
+        { value: 'skills', label: labelKeys.skills, id: 'agent-plugins-tab-skills', panelId: 'agent-plugins-panel' },
+        { value: 'commands', label: labelKeys.commands, id: 'agent-plugins-tab-commands', panelId: 'agent-plugins-panel' },
+        { value: 'personas', label: labelKeys.personas, id: 'agent-plugins-tab-personas', panelId: 'agent-plugins-panel' },
+        { value: 'mcp', label: labelKeys.mcp, id: 'agent-plugins-tab-mcp', panelId: 'agent-plugins-panel' },
+        { value: 'lsp', label: labelKeys.lsp, id: 'agent-plugins-tab-lsp', panelId: 'agent-plugins-panel' }
+      ]
+    }),
+    h('div', { className: css.tabPanel, role: 'tabpanel', id: 'agent-plugins-panel', 'aria-labelledby': `agent-plugins-tab-${active}` }, renderTab(active, t, credentials, mode))
   )
 }
 

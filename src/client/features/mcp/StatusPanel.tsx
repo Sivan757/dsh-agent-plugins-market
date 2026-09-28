@@ -118,6 +118,8 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
         onSelect: () => setFilter(kind),
         hint: mcpFilterHint(t, kind)
       })),
+      // The panel's own title names the filter segment for assistive tech.
+      filterLabel: t('mcpStatusTitle'),
       view,
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),

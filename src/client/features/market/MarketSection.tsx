@@ -242,6 +242,8 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                 onSelect: () => setTab('uninstalled')
               }
             ],
+            // The market panel's title is the filter segment's accessible name.
+            filterLabel: t('nav'),
             view,
             toListLabel: t('switchToList'),
             toGridLabel: t('switchToGrid'),

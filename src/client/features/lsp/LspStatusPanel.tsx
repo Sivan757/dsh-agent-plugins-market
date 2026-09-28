@@ -168,6 +168,8 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         onSelect: () => setFilter(key),
         hint: lspFilterHint(t, key)
       })),
+      // The panel's own title names the filter segment for assistive tech.
+      filterLabel: t('lspStatusTitle'),
       view,
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),

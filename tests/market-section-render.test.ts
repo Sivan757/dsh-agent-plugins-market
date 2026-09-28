@@ -187,10 +187,12 @@ describe('MarketSection rendering', () => {
       ]
     })
     await mountSection()
+    // Scoped to the source strip: the toolbar's own status filter segment now
+    // sits in the host's tablist, and its "All" label would match the same text.
     const chips = (): string[] =>
       [...host!.querySelectorAll('button')]
+        .filter(button => button.closest('[role="tablist"]') === null)
         .map(button => button.textContent ?? '')
-        // The toolbar's own status filters read `tabAll<n>` without the space.
         .filter(text => text.startsWith('tabAll ') || text.startsWith('alpha') || text.startsWith('zeta'))
     expect(chips()).toEqual(['tabAll 1', 'alpha 0', 'zeta 0'])
 

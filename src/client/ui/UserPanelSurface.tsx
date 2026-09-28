@@ -204,6 +204,8 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
         })),
         { id: 'disabled', label: t('panelFilterDisabled'), count: disabledCount, active: filter === 'disabled', onSelect: () => setFilter('disabled') }
       ],
+      // The panel header's title names the filter segment for assistive tech.
+      filterLabel: panelTitle,
       view,
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
