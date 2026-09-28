@@ -1,6 +1,7 @@
 /** Reading the model-facing MCP tools the host registry currently exposes. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { optionalService } from '../core/context.js'
 
 /** One MCP tool observed from the DSH tool registry. */
 export interface McpToolSnapshot {
@@ -48,5 +49,5 @@ export function inspectToolRegistry(tools: unknown): McpToolSnapshot[] {
 
 /** Read the tools service off the plugin context, when the host mounts one. */
 export function toolsServiceOf(ctx: Context): unknown {
-  return (ctx as unknown as { get?: (name: string) => unknown }).get?.('tools')
+  return optionalService(ctx, 'tools')
 }

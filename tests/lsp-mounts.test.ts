@@ -1,8 +1,21 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LspMountRegistry, toLspServerConfig, type LspStdioServerConfig } from '../src/runtime/lsp/lsp-mounts.js'
 import type { LegacyLspSeam } from '../src/application/lsp/profile-seam.js'
 import type { Suite } from '../src/model/types.js'
 import { required } from './helpers/fixture.js'
+
+// The registry delegates command resolution to `runtime/host/shell-path`; the
+// tests below pin the registry's own contract (when it consults the resolver,
+// where the extension lands, and how the fact reaches diagnostics), so the
+// resolver is faked to answer deterministically.
+const { resolveDeclaredCommandMock } = vi.hoisted(() => ({ resolveDeclaredCommandMock: vi.fn() }))
+
+vi.mock('../src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: resolveDeclaredCommandMock }))
+
+beforeEach(() => {
+  resolveDeclaredCommandMock.mockReset()
+  resolveDeclaredCommandMock.mockResolvedValue(undefined)
+})
 
 /** A suite carrying one inline typescript server. */
 function lspSuite(id: string, lsp = true, active = true): Suite {
@@ -69,7 +82,7 @@ function mountCtx(
   // through this one ctx, so a bare boolean cannot say which one was released.
   const disposedConfigs: MountedConfig[] = []
   const ctx = {
-    logger: { warn: () => {} },
+    logger: { warn: () => {}, info: vi.fn() },
     plugin(plugin: unknown, config: MountedConfig) {
       // cordis mounts call the plugin function; the stub mirrors that.
       if (applyThrows) (plugin as (ctx: unknown, config: MountedConfig) => void)({}, config)
@@ -375,6 +388,76 @@ describe('LspMountRegistry', () => {
     expect(missingSeam.reason).toContain('@deepseek-ai/dsh-lsp')
     // Nothing was mounted, including the provider that would have registered into a missing seam.
     expect(mounts).toEqual([])
+    await registry.disposeAll()
+  })
+})
+
+describe('LspMountRegistry: bare-command resolution', () => {
+  it('consults the resolver for every declared server and mounts an untouched config when there is nothing to do', async () => {
+    const mounted: MountedConfig[] = []
+    const { build } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    await registry.reconcile([lspSuite('ts')])
+    expect(resolveDeclaredCommandMock).toHaveBeenCalledTimes(1)
+    expect(resolveDeclaredCommandMock).toHaveBeenCalledWith(expect.anything(), 'typescript-language-server', {})
+    const mount = required(mounted[0], 'the ts suite to mount one provider')
+    expect(mount.servers['src/ts/typescript']).toMatchObject({ command: 'typescript-language-server', args: ['--stdio'] })
+    expect(mount.servers['src/ts/typescript']?.env).toBeUndefined()
+    await registry.disposeAll()
+  })
+
+  it('injects the extended PATH into the server env, preserving the declared env', async () => {
+    resolveDeclaredCommandMock.mockResolvedValue({ path: '/opt/homebrew/bin:/usr/bin:/bin', diagnostic: 'PATH extended from the login shell: /opt/homebrew/bin' })
+    const mounted: MountedConfig[] = []
+    const { build } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    const suite = lspSuite('ts')
+    const server = required(required(suite.lsp, 'the ts fixture to declare lsp servers').servers['typescript'], 'the typescript server')
+    server.env = { RUST_LOG: 'warn' }
+    await registry.reconcile([suite])
+    const mount = required(mounted[0], 'the ts suite to mount one provider')
+    expect(mount.servers['src/ts/typescript']?.env).toEqual({ RUST_LOG: 'warn', PATH: '/opt/homebrew/bin:/usr/bin:/bin' })
+    await registry.disposeAll()
+  })
+
+  it('never injects when the server declares its own PATH', async () => {
+    const mounted: MountedConfig[] = []
+    const { build } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    const suite = lspSuite('ts')
+    const server = required(required(suite.lsp, 'the ts fixture to declare lsp servers').servers['typescript'], 'the typescript server')
+    server.env = { PATH: '/custom/bin' }
+    await registry.reconcile([suite])
+    // The resolver owns the "explicit PATH wins" rule; it receives the
+    // declaration and answers `undefined`, so the env is mounted verbatim.
+    expect(resolveDeclaredCommandMock).toHaveBeenCalledWith(expect.anything(), 'typescript-language-server', { PATH: '/custom/bin' })
+    const mount = required(mounted[0], 'the ts suite to mount one provider')
+    expect(mount.servers['src/ts/typescript']?.env).toEqual({ PATH: '/custom/bin' })
+    await registry.disposeAll()
+  })
+
+  it('carries the resolution fact onto the mount failure causes', async () => {
+    resolveDeclaredCommandMock.mockResolvedValue({
+      diagnostic: 'could not resolve "typescript-language-server" even after extending PATH from the login shell (searched: /usr/bin:/bin)'
+    })
+    const { build } = mountCtx('await-rejects')
+    const registry = build(hostLoader('fail-startup'))
+    const diagnostics = await registry.reconcile([lspSuite('ts')])
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]).toMatchObject({ code: 'mount-failed' })
+    expect(diagnostics[0]?.causes).toEqual(['typescript: could not resolve "typescript-language-server" even after extending PATH from the login shell (searched: /usr/bin:/bin)'])
+    await registry.disposeAll()
+  })
+
+  it('resolves direct user-configured servers the same way', async () => {
+    const mounted: MountedConfig[] = []
+    const { build } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    registry.setDirectProvider(async () => ({ gopls: { key: 'gopls', command: 'gopls', args: [], extensionToLanguage: { '.go': 'go' } } }))
+    await registry.reconcile([])
+    expect(resolveDeclaredCommandMock).toHaveBeenCalledWith(expect.anything(), 'gopls', {})
+    const mount = required(mounted[0], 'the direct server to mount one provider')
+    expect(mount.servers['direct/gopls']).toMatchObject({ command: 'gopls' })
     await registry.disposeAll()
   })
 })

@@ -34,6 +34,7 @@ import { describeLegacySeam, findLegacyLspSeams, type LegacyLspSeam } from '../.
 import { qualifiedSuiteId, suiteDataDir } from '../../catalog/paths.js'
 import { expandPluginPaths, pluginRootOf, type PluginPathContext } from '../../catalog/plugin-variables.js'
 import { causeMessages } from '../host/failure-detail.js'
+import { resolveDeclaredCommand } from '../host/shell-path.js'
 import { effectiveSurfaces, type Suite } from '../../model/types.js'
 
 import type { LspMountDiagnostic } from '../../contracts/lsp.js'
@@ -179,7 +180,7 @@ export class LspMountRegistry {
   private async reconcileNow(enabledSuites: Suite[]): Promise<LspMountDiagnostic[]> {
     this.lastEnabled = [...enabledSuites]
     const active = enabledSuites.filter(suite => suite.activeSurfaces.lsp !== false)
-    const wanted = new Map<string, { suite: Suite; config: Record<string, LspStdioServerConfig> }>()
+    const wanted = new Map<string, { suite: Suite; config: Record<string, LspStdioServerConfig>; facts: string[]; pathExtensions: string[] }>()
     const diagnostics: LspMountDiagnostic[] = []
     const disabled = await this.disabledProvider()
     this.disabledSnapshot = new Set(disabled)
@@ -191,13 +192,19 @@ export class LspMountRegistry {
       // otherwise shadow each other's mount and diagnostics.
       const key = qualifiedSuiteId(suite.sourceId, suite.id)
       const config: Record<string, LspStdioServerConfig> = {}
+      const facts: string[] = []
+      const pathExtensions: string[] = []
       const root = pluginRootOf(suite)
       const context: PluginPathContext = {
         ...(root === undefined ? {} : { root }),
         ...(root === undefined || this.pluginDataRoot === undefined ? {} : { data: suiteDataDir(this.pluginDataRoot, suite.sourceId, suite.id) })
       }
-      for (const spec of servers) if (!disabled.has(`${key}/${spec.key}`)) config[`${key}/${spec.key}`] = expandLspServerConfig(toLspServerConfig(spec), context)
-      if (Object.keys(config).length > 0) wanted.set(key, { suite, config })
+      for (const spec of servers) {
+        if (disabled.has(`${key}/${spec.key}`)) continue
+        const serverConfig = expandLspServerConfig(toLspServerConfig(spec), context)
+        config[`${key}/${spec.key}`] = await this.resolveServerCommand(serverConfig, spec.key, facts, pathExtensions)
+      }
+      if (Object.keys(config).length > 0) wanted.set(key, { suite, config, facts, pathExtensions })
     }
     // Direct user-configured servers ride the same mount path under the
     // sentinel suite id, so their lifecycle (retries, diagnostics, disposal)
@@ -206,7 +213,12 @@ export class LspMountRegistry {
     const directKeys = Object.keys(direct)
     if (directKeys.length > 0) {
       const config: Record<string, LspStdioServerConfig> = {}
-      for (const [key, spec] of Object.entries(direct)) if (!disabled.has(`${DIRECT_LSP_SUITE_ID}/${key}`)) config[`${DIRECT_LSP_SUITE_ID}/${key}`] = toLspServerConfig(spec)
+      const facts: string[] = []
+      const pathExtensions: string[] = []
+      for (const [key, spec] of Object.entries(direct)) {
+        if (disabled.has(`${DIRECT_LSP_SUITE_ID}/${key}`)) continue
+        config[`${DIRECT_LSP_SUITE_ID}/${key}`] = await this.resolveServerCommand(toLspServerConfig(spec), key, facts, pathExtensions)
+      }
       if (Object.keys(config).length > 0)
         wanted.set(DIRECT_LSP_SUITE_ID, {
           suite: {
@@ -223,7 +235,9 @@ export class LspMountRegistry {
             activeSurfaces: effectiveSurfaces(undefined),
             errors: []
           },
-          config
+          config,
+          facts,
+          pathExtensions
         })
     }
     // The last remaining server releases the capability seam; the first one mounts it.
@@ -242,15 +256,16 @@ export class LspMountRegistry {
         this.lastDiagnostics.delete(key)
         continue
       }
+      const causes = [...(capabilityFailure?.causes ?? []), ...entry.facts]
       const failure =
         capabilityFailure === undefined
-          ? await this.mountWith(key, entry.suite, entry.config)
+          ? await this.mountWith(key, entry.suite, entry.config, entry.facts, entry.pathExtensions)
           : {
               suiteId: key,
               serverKey: Object.keys(entry.config).join(','),
               reason: capabilityFailure.reason,
               code: capabilityFailure.code,
-              ...(capabilityFailure.causes === undefined ? {} : { causes: capabilityFailure.causes })
+              ...(causes.length === 0 ? {} : { causes })
             }
       if (failure !== undefined) {
         diagnostics.push(failure)
@@ -261,6 +276,28 @@ export class LspMountRegistry {
       }
     }
     return diagnostics
+  }
+
+  /**
+   * Resolve one server's declared command, extending its `PATH` from the
+   * login shell only when the current environment cannot find the command.
+   *
+   * An explicit `env.PATH` is a declaration and is left verbatim; the command
+   * itself is never rewritten. A resolution fact (the extension, or the
+   * searched `PATH` when it still failed) is appended to the suite's facts so
+   * it reaches the mount diagnostic; a fact is also a PATH extension exactly
+   * when `resolution.path` is set, and rides `pathExtensions` for the trace log.
+   */
+  private async resolveServerCommand(config: LspStdioServerConfig, serverKey: string, facts: string[], pathExtensions: string[]): Promise<LspStdioServerConfig> {
+    const resolution = await resolveDeclaredCommand(this.ctx, config.command, config.env ?? {})
+    if (resolution === undefined) return config
+    if (resolution.diagnostic !== undefined) {
+      const fact = `${serverKey}: ${resolution.diagnostic}`
+      facts.push(fact)
+      if (resolution.path !== undefined) pathExtensions.push(fact)
+    }
+    if (resolution.path === undefined) return config
+    return { ...config, env: { ...(config.env ?? {}), PATH: resolution.path } }
   }
 
   /**
@@ -379,7 +416,13 @@ export class LspMountRegistry {
   }
 
   /** Mount one suite's full server table as a single `dsh-lsp-stdio` instance. */
-  private async mountWith(key: string, suite: Suite, servers: Record<string, LspStdioServerConfig>): Promise<LspMountDiagnostic | undefined> {
+  private async mountWith(
+    key: string,
+    suite: Suite,
+    servers: Record<string, LspStdioServerConfig>,
+    facts: string[] = [],
+    pathExtensions: string[] = []
+  ): Promise<LspMountDiagnostic | undefined> {
     const hostKeys = Object.keys(servers).join(',')
     const module = await this.loadHost()
     if (module === undefined) {
@@ -411,9 +454,12 @@ export class LspMountRegistry {
         serverKey: hostKeys,
         reason: `mount failed: ${message}`,
         code: conflict ? 'seam-conflict' : 'mount-failed',
-        causes: causeMessages(error)
+        causes: [...causeMessages(error), ...facts]
       }
     }
+    // The mount is live: only a genuine PATH extension is worth a trace, and
+    // resolveServerCommand already marked those facts structurally.
+    for (const fact of pathExtensions) this.ctx.logger?.info?.(`[dsh-agent-plugins-market] ${key}: ${fact}`)
     this.live.set(key, { fingerprint: JSON.stringify(servers), suiteId: key, serverKeys: Object.keys(servers), disposer: () => handle.dispose() })
     return undefined
   }

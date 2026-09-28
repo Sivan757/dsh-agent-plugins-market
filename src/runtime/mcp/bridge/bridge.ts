@@ -24,6 +24,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { resolveReconnectPolicy, startConnection } from './connection.js'
 import { validateConfig } from '../../../application/mcp/mcp-bridge-config.js'
 import type { Config } from '../../../application/mcp/mcp-bridge-config.js'
+import { resolveDeclaredCommand } from '../../host/shell-path.js'
+import { optionalService } from '../../core/context.js'
 import type { ToolHost } from './tools.js'
 
 /** Cordis plugin name used by loader diagnostics. */
@@ -40,19 +42,6 @@ export const inject = ['tools']
  * defense for direct programmatic loads.
  */
 const activeServerNames = new WeakMap<Context, Set<string>>()
-
-/** Tolerantly read an optional service from the cordis context. */
-function optionalService(ctx: Context, serviceName: 'credentials' | 'attachments' | 'llm'): unknown {
-  try {
-    const reader = ctx as unknown as { get?: (name: string) => unknown }
-    const service = reader.get?.(serviceName)
-    // A missing service either reads as undefined or throws (cordis strict
-    // mode); both mean "not mounted".
-    return service === null ? undefined : service
-  } catch {
-    return undefined
-  }
-}
 
 /** Adapt the cordis context onto the structural host the bridge modules use. */
 function toToolHost(ctx: Context): ToolHost {
@@ -84,6 +73,31 @@ function toToolHost(ctx: Context): ToolHost {
 }
 
 /**
+ * Resolve one stdio command before the SDK spawns it, extending the child
+ * `PATH` from the login shell only when the current environment cannot find
+ * the command.
+ *
+ * An explicit `env.PATH` is the author's or user's declaration and is never
+ * touched: the bridge respects it verbatim and does not even probe. Without
+ * one, the child inherits the scrubbed parent `PATH`; when that cannot resolve
+ * the command (the desktop case, where `npx` is absent) the login shell's
+ * directories are appended, and the extension travels beside the config as
+ * `config.env.PATH`.
+ *
+ * Resolution never rejects: a command that stays unresolved keeps today's
+ * behavior (a spawn that fails with its own `ENOENT`), and the searched `PATH`
+ * is returned as a diagnostic so the failure can say what was tried.
+ */
+async function resolveStdioCommand(ctx: Context, config: Config): Promise<{ config: Config; diagnostic?: string }> {
+  if (config.transport !== 'stdio') return { config }
+  const resolution = await resolveDeclaredCommand(ctx, config.command, config.env)
+  if (resolution === undefined) return { config }
+  const { path, diagnostic } = resolution
+  const resolved = path === undefined ? config : { ...config, env: { ...config.env, PATH: path } }
+  return { config: resolved, ...(diagnostic === undefined ? {} : { diagnostic }) }
+}
+
+/**
  * Connect one MCP server and publish its initial tool generation before
  * activation. Remains explicitly `async`: Cordis treats a prototype-bearing
  * ordinary function as a constructor, whose returned Promise is not startup
@@ -96,7 +110,9 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // Fail loud at load: programmatic construction bypasses any schema layer,
   // so every invariant is re-judged here before any effect registers.
   validateConfig(config)
-  const reconnect = resolveReconnectPolicy(config.reconnect, `mcp-client(${config.serverName}): reconnect`)
+  const resolution = await resolveStdioCommand(ctx, config)
+  const resolvedConfig = resolution.config
+  const reconnect = resolveReconnectPolicy(resolvedConfig.reconnect, `mcp-client(${resolvedConfig.serverName}): reconnect`)
 
   // Reserve the namespace next: a duplicate `serverName` fails THIS instance
   // at load with an actionable error and leaves the earlier instance intact.
@@ -106,11 +122,11 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       names = new Set()
       activeServerNames.set(ctx.root, names)
     }
-    if (names.has(config.serverName)) {
-      throw new Error(`market-mcp-client: serverName "${config.serverName}" is already in use by another bridge instance — pick a unique serverName`)
+    if (names.has(resolvedConfig.serverName)) {
+      throw new Error(`market-mcp-client: serverName "${resolvedConfig.serverName}" is already in use by another bridge instance — pick a unique serverName`)
     }
-    names.add(config.serverName)
-    return () => void names.delete(config.serverName)
+    names.add(resolvedConfig.serverName)
+    return () => void names.delete(resolvedConfig.serverName)
   }, 'market-mcp-client.serverName')
 
   // The supervisor owns the client/transport generations, the reconnect
@@ -121,7 +137,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // no-persistence configuration.
   const host = toToolHost(ctx)
   const credentials = optionalService(ctx, 'credentials')
-  const connection = startConnection(host, config, reconnect, credentials)
+  const connection = startConnection(host, resolvedConfig, reconnect, credentials)
 
   ctx.effect(() => {
     return () => connection.dispose()
@@ -133,7 +149,20 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // fiber (Cordis rolls it back); otherwise the error is logged and the
   // supervisor enters its reconnect loop.
   const outcome = await connection.ready
-  if (outcome.error !== undefined && config.failOnStartupError) {
-    throw new Error(`mcp-client(${config.serverName}): initial connection or tool synchronization failed`, { cause: outcome.error })
+  if (outcome.error !== undefined && resolvedConfig.failOnStartupError) {
+    // The resolution fact explains why the spawn failed (or what was searched),
+    // so it rides the cause chain into the mount diagnostic ahead of the raw
+    // spawn error. On the happy path there is nothing to add and the chain is
+    // exactly today's.
+    const cause = resolution.diagnostic === undefined ? outcome.error : new Error(resolution.diagnostic, { cause: outcome.error })
+    throw new Error(`mcp-client(${resolvedConfig.serverName}): initial connection or tool synchronization failed`, { cause })
+  }
+  // A command that resolved only after the login shell extended PATH leaves a
+  // trace, so "why does this work now" is answerable from the log. With
+  // failOnStartupError=false a failed resolution reaches here too; the env.PATH
+  // guard excludes it, because PATH is only set on a successful extension —
+  // the transport check is the narrowing that makes env exist at all.
+  if (resolvedConfig.transport === 'stdio' && resolvedConfig.env.PATH !== undefined && resolution.diagnostic !== undefined) {
+    ctx.logger?.info?.(`market-mcp-client(${resolvedConfig.serverName}): ${resolution.diagnostic}`)
   }
 }

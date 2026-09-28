@@ -242,12 +242,14 @@ describe('tool execution', () => {
 
 // ---- transport construction ----
 
-const { constructedOptions, constructedUrls, clientConnectFailures } = vi.hoisted(() => {
+const { constructedOptions, constructedUrls, clientConnectFailures, constructedStdioConfigs } = vi.hoisted(() => {
   const constructedOptions: Array<Record<string, unknown>> = []
   const constructedUrls: Array<string> = []
   /** Queued one-shot errors the mocked Client's next connect() rejects with. */
   const clientConnectFailures: Error[] = []
-  return { constructedOptions, constructedUrls, clientConnectFailures }
+  /** Server params the mocked stdio transport was constructed with. */
+  const constructedStdioConfigs: Array<{ command?: unknown; env?: Record<string, string> }> = []
+  return { constructedOptions, constructedUrls, clientConnectFailures, constructedStdioConfigs }
 })
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
@@ -274,6 +276,9 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
     start = vi.fn(async () => {})
     send = vi.fn()
     close = vi.fn(async () => {})
+    constructor(serverParams: { command?: unknown; env?: Record<string, string> }) {
+      constructedStdioConfigs.push(serverParams)
+    }
   }
 }))
 
@@ -305,6 +310,13 @@ vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   }
 }))
 
+// The bridge delegates command resolution to `runtime/host/shell-path`; its own
+// contract is what the tests below pin, so the resolver is faked to answer
+// deterministically instead of spawning a login shell.
+const { resolveDeclaredCommandMock } = vi.hoisted(() => ({ resolveDeclaredCommandMock: vi.fn() }))
+
+vi.mock('../src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: resolveDeclaredCommandMock }))
+
 // Streamable HTTP specifically, not the `Config` union: spreading a union-typed
 // value makes every override an excess property on the other constituents.
 function httpConfig(auth?: { enabled: boolean; scope?: string }): StreamableHttpConfig {
@@ -322,6 +334,9 @@ function httpConfig(auth?: { enabled: boolean; scope?: string }): StreamableHttp
 beforeEach(() => {
   constructedOptions.length = 0
   constructedUrls.length = 0
+  constructedStdioConfigs.length = 0
+  resolveDeclaredCommandMock.mockReset()
+  resolveDeclaredCommandMock.mockResolvedValue(undefined)
 })
 
 describe('transport construction with auth', () => {
@@ -403,6 +418,72 @@ describe('transport construction with auth', () => {
     }
     const { oauthProvider } = createTransport(config, undefined)
     expect(oauthProvider).toBeUndefined()
+  })
+})
+
+// ---- bridge apply: bare-command resolution ----
+
+/** A stdio config for one bare command, with an optional declared env. */
+function stdioConfig(overrides: Partial<{ command: string; env: Record<string, string>; failOnStartupError: boolean }> = {}): Config {
+  return {
+    transport: 'stdio',
+    serverName: 'srv',
+    command: overrides.command ?? 'npx',
+    args: [],
+    env: overrides.env ?? {},
+    cwd: '',
+    toolCallTimeoutMs: 60_000,
+    failOnStartupError: overrides.failOnStartupError ?? true
+  }
+}
+
+describe('bridge apply: bare-command resolution', () => {
+  it('passes a healthy environment through untouched, with no login-shell probe', async () => {
+    const ctx = fakeContext()
+    await apply(ctx, stdioConfig())
+    expect(resolveDeclaredCommandMock).toHaveBeenCalledTimes(1)
+    // The resolver answers `undefined` for "nothing to do" (the base
+    // environment resolved the command), so the transport carries the
+    // scrubbed parent PATH unchanged and no extension is invented.
+    expect(constructedStdioConfigs[0]?.env?.PATH).toBe(process.env.PATH)
+    expect(ctx.logger.info).not.toHaveBeenCalled()
+    for (const dispose of ctx.effects) dispose()
+  })
+
+  it('adds the extended PATH to the mounted config when the base lookup failed', async () => {
+    resolveDeclaredCommandMock.mockResolvedValue({ path: '/opt/homebrew/bin:/usr/bin:/bin', diagnostic: 'PATH extended from the login shell: /opt/homebrew/bin' })
+    const ctx = fakeContext()
+    await apply(ctx, stdioConfig())
+    expect(constructedStdioConfigs[0]?.command).toBe('npx')
+    expect(constructedStdioConfigs[0]?.env?.PATH).toBe('/opt/homebrew/bin:/usr/bin:/bin')
+    expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('PATH extended from the login shell'))
+    for (const dispose of ctx.effects) dispose()
+  })
+
+  it('leaves an explicitly declared env.PATH untouched and never probes', async () => {
+    const ctx = fakeContext()
+    await apply(ctx, stdioConfig({ env: { PATH: '/custom/bin:/usr/bin' } }))
+    // The resolver owns the "explicit PATH wins" rule; it receives the declared
+    // env and answers `undefined`, so the bridge passes it through verbatim.
+    expect(resolveDeclaredCommandMock).toHaveBeenCalledWith(expect.anything(), 'npx', { PATH: '/custom/bin:/usr/bin' })
+    expect(constructedStdioConfigs[0]?.env?.PATH).toBe('/custom/bin:/usr/bin')
+    for (const dispose of ctx.effects) dispose()
+  })
+
+  it('carries the resolution fact into the startup failure cause chain', async () => {
+    resolveDeclaredCommandMock.mockResolvedValue({ diagnostic: 'could not resolve "npx" even after extending PATH from the login shell (searched: /usr/bin:/bin)' })
+    clientConnectFailures.push(new Error('spawn npx ENOENT'))
+    const ctx = fakeContext()
+    await expect(apply(ctx, stdioConfig())).rejects.toMatchObject({
+      cause: { message: 'could not resolve "npx" even after extending PATH from the login shell (searched: /usr/bin:/bin)', cause: { message: 'spawn npx ENOENT' } }
+    })
+  })
+
+  it('does not touch a non-stdio config', async () => {
+    const ctx = fakeContext()
+    await apply(ctx, httpConfig())
+    expect(resolveDeclaredCommandMock).not.toHaveBeenCalled()
+    for (const dispose of ctx.effects) dispose()
   })
 })
 
