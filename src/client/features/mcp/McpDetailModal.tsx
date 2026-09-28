@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, IconRefreshOutlineMedium, IconSearchOutlineMedium, Input, StateDot, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, IconSearchOutlineMedium, Input, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { FailureReport } from '../../ui/FailureReport.js'
 import { failureGuidanceKey } from '../../ui/failure-guidance.js'
@@ -13,7 +13,7 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { credentialUsage, TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
 import { kvCell, mcpDotState, mcpReportTone, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
-import { setMcpServerEnabled, setMcpServerTool } from '../../api.js'
+import { setMcpServerTool } from '../../api.js'
 import css from './mcp-status.module.css'
 import panelCss from '../../ui/panel.module.css'
 
@@ -44,7 +44,6 @@ export function McpDetailModal({
   const [toolsExpanded, setToolsExpanded] = useState(false)
   const [toolSearch, setToolSearch] = useState('')
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
-  const [enabledBusy, setEnabledBusy] = useState(false)
   const actions = mcpDetailActions(entry)
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
   const tools = mcpToolRows(entry)
@@ -68,18 +67,6 @@ export function McpDetailModal({
       .then(() => onRefresh(entry.id))
       .catch(reason => setFeedback({ error: true, text: clientErrorMessage(t, reason) }))
       .finally(() => setToolBusy(false))
-  }
-  /** Switch the whole server on or off through the same override the card's switch writes. */
-  const toggleEnabled = (): void => {
-    const suiteId = entry.suiteId
-    const serverKey = entry.serverKey
-    if (suiteId === undefined || serverKey === undefined) return
-    setEnabledBusy(true)
-    setFeedback(undefined)
-    void setMcpServerEnabled(suiteId, serverKey, entry.state === 'disabled')
-      .then(() => onRefresh(entry.id))
-      .catch(reason => setFeedback({ error: true, text: clientErrorMessage(t, reason) }))
-      .finally(() => setEnabledBusy(false))
   }
   const run = async (authorize: boolean): Promise<void> => {
     setConfirmAuth(false)
@@ -106,11 +93,13 @@ export function McpDetailModal({
     description: t('mcpServiceDetail'),
     closeLabel: t('mcpClose'),
     contentClassName: css.detailBody,
-    footer: h(
-      'div',
-      { className: css.modalFooter },
-      actions.reauthorize
-        ? h(
+    // The card switch is the one enable/disable control; this footer keeps
+    // only the reauthorize operation, so it disappears entirely without one.
+    footer: actions.reauthorize
+      ? h(
+          'div',
+          { className: css.modalFooter },
+          h(
             Button,
             {
               variant: 'ghost',
@@ -124,19 +113,8 @@ export function McpDetailModal({
             },
             t('mcpReauthorize')
           )
-        : null,
-      h(Button, { variant: 'ghost', disabled: pending, onClick: onClose }, t('mcpClose')),
-      // The one switch reads last, at the action cluster's trailing edge.
-      entry.suiteId === undefined || entry.serverKey === undefined
-        ? null
-        : h(Switch, {
-            checked: entry.state !== 'disabled',
-            disabled: pending || enabledBusy,
-            label: t('mcpEnabledLabel'),
-            title: t('mcpEnabledLabel'),
-            onChange: () => toggleEnabled()
-          })
-    ),
+        )
+      : null,
     children: h(
       'div',
       null,

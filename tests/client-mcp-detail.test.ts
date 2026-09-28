@@ -56,9 +56,9 @@ it('reports without an editing entry of its own', async () => {
   expect([...document.body.querySelectorAll('button')].some(node => node.textContent === 'panelEdit')).toBe(false)
   expect(document.body.querySelector('input')).toBeNull()
 })
-it('shows one enable switch and leaves the service configuration out of the report', async () => {
+it('keeps the enable switch out of the detail dialog and the service configuration out of the report', async () => {
   await mount({ ...base, suiteId: 'demo', serverKey: 'web' })
-  expect(document.querySelectorAll('[role="switch"]').length).toBe(1)
+  expect(document.querySelectorAll('[role="switch"]').length).toBe(0)
   const headings = [...document.querySelectorAll('h4')].map(node => node.textContent ?? '')
   expect(headings.some(value => value.startsWith('mcpTools'))).toBe(true)
   expect(headings.includes('serviceConfigLabel')).toBe(false)
@@ -130,9 +130,9 @@ it('reads in the interface language, with the recorded diagnostic only in the di
   expect(document.body.textContent).toContain('initial connection or tool synchronization failed')
   expect(document.body.textContent).toContain('spawn npx ENOENT')
 })
-it('shows close but no connection actions for external servers', async () => {
+it('shows no footer actions for external servers', async () => {
   await mount({ ...base, kind: 'direct', canReauthorize: false })
-  expect(button('mcpClose')).toBeDefined()
+  expect(button('mcpClose')).toBeUndefined()
   expect(button('mcpRetryConnection')).toBeUndefined()
   expect(button('mcpReauthorize')).toBeUndefined()
 })

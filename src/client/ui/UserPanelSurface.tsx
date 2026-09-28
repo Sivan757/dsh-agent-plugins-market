@@ -216,7 +216,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
                   onOpen: () => openDetail(entry),
                   onEdit: () => openEdit(entry),
                   onToggle: () => toggleDisabled(entry),
-                  onDelete: () => openDelete(entry)
+                  onDelete: entry.origin === 'user' ? () => openDelete(entry) : undefined
                 })
               )
             )
@@ -291,7 +291,7 @@ function UserEntryRow(props: {
   onOpen: () => void
   onEdit: () => void
   onToggle: () => void
-  onDelete: () => void
+  onDelete?: () => void
 }): ReactNode {
   const { entry, t } = props
   // A command registers under its flattened call name, so the card shows that.
@@ -331,18 +331,20 @@ function UserEntryRow(props: {
         { type: 'button', className: `${rc.iconBtn} ${rc.revealOnHover}`, 'aria-label': t('panelEditTitle'), disabled: props.busy, title: t('panelEditTitle'), onClick: stop(props.onEdit) },
         h(IconEditOutlineMedium)
       ),
-      h(
-        'button',
-        {
-          type: 'button',
-          className: `${rc.iconBtn} ${rc.iconBtnDanger} ${rc.revealOnHover}`,
-          'aria-label': t('panelDelete'),
-          disabled: props.busy,
-          title: t('panelDelete'),
-          onClick: stop(props.onDelete)
-        },
-        h(IconTrashOutlineMedium)
-      ),
+        props.onDelete === undefined
+          ? null
+          : h(
+              'button',
+              {
+                type: 'button',
+                className: `${rc.iconBtn} ${rc.iconBtnDanger} ${rc.revealOnHover}`,
+                'aria-label': t('panelDelete'),
+                disabled: props.busy,
+                title: t('panelDelete'),
+                onClick: stop(props.onDelete)
+              },
+              h(IconTrashOutlineMedium)
+            ),
       h(
         'span',
         { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },

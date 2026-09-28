@@ -48,9 +48,11 @@ describe('installed and user panel resources', () => {
       expect(await readFile(plugin.path, 'utf8')).toBe(changed)
       await catalog.setSurface('active', 'v1-suite', 'agents', false)
       expect((await panels.agents.get(plugin.id!))?.disabled).toBe(true)
-      await panels.agents.remove(plugin.id!)
+      // Deleting a plugin-owned entry is a suite-management concern, not a
+      // panel action: the removal is refused and the registered file stays.
+      await expect(panels.agents.remove(plugin.id!)).rejects.toThrow('managed by their suite')
       await catalog.notifyPanelsChanged()
-      expect(await panels.agents.list()).toHaveLength(1)
+      expect(await panels.agents.list()).toHaveLength(2)
       await expect(panels.agents.update('["../../etc"]', 'x')).rejects.toThrow('Unknown installed')
       expect((await panels.skills.list()).some(row => row.origin === 'plugin')).toBe(true)
     } finally {

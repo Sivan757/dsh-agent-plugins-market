@@ -1,5 +1,5 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
-import { realpath, stat, unlink } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
@@ -137,7 +137,8 @@ class PanelResources implements PanelResourceStore {
   }
 
   async remove(id: string): Promise<void> {
-    if (!isPluginResourceId(id)) return this.users.remove(id)
-    await unlink(await this.pluginPath(id))
+    // Plugin files belong to their suite checkout; install/uninstall manages them.
+    if (isPluginResourceId(id)) throw new Error('plugin resources are managed by their suite; uninstall the suite instead')
+    return this.users.remove(id)
   }
 }

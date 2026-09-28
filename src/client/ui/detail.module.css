@@ -31,9 +31,6 @@
   gap: 8px;
   width: 100%;
 }
-.footer > :first-child {
-  flex: 1;
-}
 .footerSlot:empty {
   display: none;
 }

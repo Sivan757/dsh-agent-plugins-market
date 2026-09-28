@@ -304,19 +304,14 @@ function row(current: string | undefined, id: string, name: string, description:
 }
 
 function footer(t: Translate, detail: SuiteDetail | undefined, actions: { onClose: () => void; onInstall?: (() => void) | undefined; onUninstall?: (() => void) | undefined }): ReactNode {
+  // One action per state; closing rides the modal chrome (closeLabel / ESC).
   if (detail !== undefined && !detail.installed && actions.onInstall !== undefined) {
-    return [
-      h(Button, { key: 'close', variant: 'ghost', onClick: actions.onClose }, t('mcpClose')),
-      h(Button, { key: 'install', variant: 'primary', onClick: actions.onInstall }, t('install'))
-    ]
+    return h(Button, { key: 'install', variant: 'primary', onClick: actions.onInstall }, t('install'))
   }
   if (detail !== undefined && detail.installed && actions.onUninstall !== undefined) {
-    return [
-      h(Button, { key: 'uninstall', variant: 'ghost', onClick: actions.onUninstall }, t('uninstall')),
-      h(Button, { key: 'done', variant: 'primary', onClick: actions.onClose }, t('detailDone'))
-    ]
+    return h(Button, { key: 'uninstall', variant: 'ghost', onClick: actions.onUninstall }, t('uninstall'))
   }
-  return h(Button, { variant: 'ghost', onClick: actions.onClose }, t('mcpClose'))
+  return null
 }
 
 function mcpSummary(server: McpServerDetail): string {

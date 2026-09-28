@@ -91,7 +91,6 @@ export function McpAddModal({ t, onClose, onSaved, onChanged }: { t: Translate; 
       { className: css.modalFooter },
       h('span', { className: css.modalFooterHint }, t('editorFooterCreate')),
       h('div', { className: css.modalFooterGrow }),
-      h(Button, { variant: 'outline', disabled: busy, onClick: onClose }, t('cancel')),
       h(Button, { variant: 'primary', disabled: busy || name.trim() === '' || !valid, onClick: save }, t('editorCreate'))
     ),
     children: h(
