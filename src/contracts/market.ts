@@ -262,8 +262,6 @@ export interface MarkdownPreview {
   content: string
 }
 
-/** Claude Code command preview alias retained for feature-specific readability. */
-export type CommandPreview = MarkdownPreview
 /** Claude Code agent preview alias retained for feature-specific readability. */
 export type AgentPreview = MarkdownPreview
 

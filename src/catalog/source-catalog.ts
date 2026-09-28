@@ -15,11 +15,6 @@ import type { DiscoveredSuite, SourceRef, SuiteDimension } from '../model/types.
 import { scanSource as scanSourceWithNotes } from './suite-scanner.js'
 import { discoverNativeProjectSuites } from './native-project.js'
 
-/** Discover suites from the selected configured or project checkouts. */
-export async function discoverSourceList(sources: SourceRef[], dimension: SuiteDimension, dimensionRoot: string): Promise<DiscoveredSuite[]> {
-  return (await discoverSourceListWithNotes(sources, dimension, dimensionRoot, true)).suites
-}
-
 /**
  * Discover suites plus per-source scan diagnostics for one dimension.
  * @param scanProjectLayouts - whether the project's own native Agent directories

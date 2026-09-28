@@ -5,11 +5,8 @@
  * selected but unusable (package missing, legacy SSE transport).
  */
 import { describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { MARKET_SETTINGS_NAMESPACE } from '../src/contracts/settings.js'
-import { marketSettingsPath, MarketSettingsSchema, probeHostMcpClient, readMcpBackend } from '../src/application/mcp/mcp-backend.js'
+import { MarketSettingsSchema, probeHostMcpClient } from '../src/application/mcp/mcp-backend.js'
 import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
@@ -59,22 +56,6 @@ function fakeContext(): { ctx: Record<string, unknown>; mounted: Array<{ module:
 }
 
 describe('MCP backend persistence', () => {
-  it('reads the legacy settings.json choice and defaults to builtin', async () => {
-    const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-backend-'))
-    try {
-      // No settings file: the default.
-      expect(await readMcpBackend(dataRoot)).toBe('builtin')
-      // The one-time migration source: a legacy host choice reads back.
-      await writeFile(marketSettingsPath(dataRoot), JSON.stringify({ mcpBackend: 'host' }), 'utf8')
-      expect(await readMcpBackend(dataRoot)).toBe('host')
-      // An invalid persisted value reads as the default, never throws.
-      await writeFile(marketSettingsPath(dataRoot), JSON.stringify({ mcpBackend: 'bogus' }), 'utf8')
-      expect(await readMcpBackend(dataRoot)).toBe('builtin')
-    } finally {
-      await rm(dataRoot, { recursive: true, force: true })
-    }
-  })
-
   it('exposes the settings namespace and schema the plugin-config tab pairs by', async () => {
     expect(MARKET_SETTINGS_NAMESPACE).toBe('dsh-agent-plugins-market')
     // The schemastery schema resolves a missing section to both defaults.

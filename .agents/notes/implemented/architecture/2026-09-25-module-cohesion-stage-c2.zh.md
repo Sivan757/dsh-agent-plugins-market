@@ -28,7 +28,7 @@ Status: implemented
 ## Consequences
 
 - `src/application/` 不再 import 任何 runtime 模块；`src/runtime/` 以合法方向引用 application（映射器、backend 选择、store 类型、role 解析）。
-- `legacy-root-migration.ts` 被迁移而非删除：`storage-migration.ts` 早已吸收 pre-0.5.4 `agent-plugins-data` 的并入逻辑，但该模块在 `src/` 内仍无引用者——删除是独立决策，需要 release note 一行，不该是重构的副作用。
+- `legacy-root-migration.ts` 在后续清理中删除：其并入逻辑早已被 `storage-migration.ts` 吸收，且模块在 src 内无引用者。升级路径无任何变化。
 - `inspectToolRegistry` 不再经 `mcp-status` 转出口；消费方（`index.ts`、status 测试）直接 import `runtime/tool-registry-observer`。
 
 ## Verification

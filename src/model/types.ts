@@ -147,21 +147,6 @@ export interface SuiteSurfaceCounts {
 }
 
 /**
- * Client-specific manifest data under the `com.deepseek.harness` extension
- * namespace (Agent Plugins §8.1), carried by `plugin.json` `extensions`.
- */
-export interface HarnessExtension {
-  /** Namespace contract version this suite was written against. */
-  schemaVersion: string
-  /**
-   * Client policy for portable `mcp.json` servers, keyed by the server's own
-   * name in `mcp.json`; entries without a matching server are reported and
-   * ignored.
-   */
-  mcpServers?: Record<string, HarnessMcpPolicy>
-}
-
-/**
  * dsh-owned per-server policy for a portable MCP server: OAuth 2.1
  * authorization for servers that answer `401` with a challenge, tool
  * allow/deny lists, and timeout policies. These fields are outside the

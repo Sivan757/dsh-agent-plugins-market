@@ -1,4 +1,4 @@
-import type { ServerPolicyPayload, ServerPolicyRequest } from '../../contracts/market.js'
+import type { ServerPolicyPayload } from '../../contracts/market.js'
 
 export type ServerKind = 'mcp' | 'lsp'
 export type ServerConfig = Record<string, unknown>
@@ -27,11 +27,6 @@ export function timeoutMsFromText(raw: string): number | null | undefined {
   if (!/^\d+$/.test(text)) return undefined
   const value = Number(text)
   return Number.isSafeInteger(value) && value > 0 && value <= TIMEOUT_MAX_MS ? value : undefined
-}
-
-/** The stored values as editable text. */
-export function policyDraftOf(toolCall: number | null, startup: number | null): ServerPolicyDraft {
-  return { toolCallTimeoutMs: toolCall === null ? '' : String(toolCall), startupTimeoutMs: startup === null ? '' : String(startup) }
 }
 
 /** The same drafts, read off a document's policy half. */
@@ -88,25 +83,6 @@ export function policyRequestOfDocuments(initial: Record<string, unknown>, curre
     if (!(field in current)) request[field] = null
   }
   return request
-}
-
-/**
- * The policy request for one save: only the timeouts whose text moved from the
- * loaded baseline. A value the user edited on one backend therefore never rides
- * along to another, where the same value can be refused.
- */
-export function policyRequestOf(draft: ServerPolicyDraft | undefined, initial: ServerPolicyDraft | undefined): ServerPolicyRequest | undefined {
-  if (draft === undefined || initial === undefined) return undefined
-  const request: ServerPolicyRequest = {}
-  if (draft.toolCallTimeoutMs !== initial.toolCallTimeoutMs) {
-    const value = timeoutMsFromText(draft.toolCallTimeoutMs)
-    if (value !== undefined) request.toolCallTimeoutMs = value
-  }
-  if (draft.startupTimeoutMs !== initial.startupTimeoutMs) {
-    const value = timeoutMsFromText(draft.startupTimeoutMs)
-    if (value !== undefined) request.startupTimeoutMs = value
-  }
-  return Object.keys(request).length === 0 ? undefined : request
 }
 
 export function parseServerConfig(text: string): ServerConfig {

@@ -1,6 +1,5 @@
 /** zh/en dictionaries for the Agent Plugins Market section. */
 
-export type Dictionary = Record<string, string>
 
 /** Chinese is the source-of-truth key set; English is checked against it below. */
 export const zh = {

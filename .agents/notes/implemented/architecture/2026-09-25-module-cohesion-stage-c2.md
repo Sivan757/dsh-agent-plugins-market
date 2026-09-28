@@ -28,7 +28,7 @@ Move every pure module to `application/` and make the arrow a gate:
 ## Consequences
 
 - `src/application/` no longer imports any runtime module; `src/runtime/` imports application (legal direction) for the mapper, backend selection, store types and role parsing.
-- `legacy-root-migration.ts` moved rather than deleted: `storage-migration.ts` absorbed the pre-0.5.4 `agent-plugins-data` fold-in long ago, but the module still has no `src/` importer — deletion is a separate decision requiring a release-note line, not a side effect of a refactor.
+- `legacy-root-migration.ts` was deleted in a follow-up cleanup after the relocation: `storage-migration.ts` had absorbed the pre-0.5.4 `agent-plugins-data` fold-in long ago, and the module had no `src/` importer. No upgrade path changes.
 - `inspectToolRegistry` is no longer re-exported through `mcp-status`; its consumers (`index.ts`, the status test) import `runtime/tool-registry-observer` directly.
 
 ## Verification

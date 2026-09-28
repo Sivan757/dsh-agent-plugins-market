@@ -16,11 +16,6 @@
 import { readFile } from 'node:fs/promises'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 
-/** How a parsed JSON value becomes the store's typed document. */
-export interface JsonDocumentParse<T> {
-  (raw: unknown): T
-}
-
 /**
  * Read one JSON document. Resolves `undefined` when the file is absent or its
  * text is empty; a `parse` that wants an absent file to read as a default
@@ -35,14 +30,6 @@ export async function readJsonFile(path: string): Promise<unknown> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
     throw error
   }
-}
-
-/**
- * Read one JSON document through a parse hook. Absent or empty files hand
- * `undefined` to the hook; any non-ENOENT read failure rejects.
- */
-export async function readJsonDocument<T>(path: string, parse: JsonDocumentParse<T>): Promise<T> {
-  return parse(await readJsonFile(path))
 }
 
 /**

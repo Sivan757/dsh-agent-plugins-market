@@ -80,7 +80,7 @@ src/
     lsp-service.ts      LSP use cases
     queries.ts, details.ts, panel-resources.ts, project-agent-roles.ts
     json-file.ts        the shared ENOENT-tolerant JSON read / atomic 0o600 write loop
-    state-store.ts, storage-migration.ts, legacy-root-migration.ts
+    state-store.ts, storage-migration.ts
     mcp-config.ts (portable-format mapper + policy resolution), mcp-bridge-config.ts,
     mcp-overrides.ts, mcp-redaction.ts, mcp-direct-config.ts, mcp-status.ts, mcp-backend.ts
     lsp-direct-config.ts, lsp-server-state.ts, lsp-status.ts, server-config.ts

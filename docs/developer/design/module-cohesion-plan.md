@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposal — not yet accepted. This page responds to three maintainer complaints about the source tree: MCP code is not stored beside MCP code, some shared interfaces are not extracted, and module files are scattered. Every claim below was verified against the `dev` checkout on 2026-09-25. Accepting this plan means recording it as an ADR (see [Stage C0](#stage-c0--record-the-decision-and-repair-the-gates)) with a supersession check against [ADR 0001](../decisions/0001-catalog-centered-modular-refactor.md) and the [shared primitives note](../../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md).
+Accepted and executed. ADR 2026-09-25 records the decision; stages C0-C4 landed on dev as individually gate-green commits. This page responds to three maintainer complaints about the source tree: MCP code is not stored beside MCP code, some shared interfaces are not extracted, and module files are scattered. Every claim below was verified against the `dev` checkout on 2026-09-25. Accepting this plan means recording it as an ADR (see [Stage C0](#stage-c0--record-the-decision-and-repair-the-gates)) with a supersession check against [ADR 0001](../decisions/0001-catalog-centered-modular-refactor.md) and the [shared primitives note](../../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md).
 
 ## What the complaints look like as measured facts
 

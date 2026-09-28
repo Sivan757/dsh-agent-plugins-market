@@ -8,17 +8,14 @@
  * namespace (see `contracts/settings.ts`) registered by the plugin's node half:
  * the registration is what makes the host 插件配置 tab serve our card, the
  * client card binds it for state, and the node half watches it to remount
- * servers when the switch flips. `readMcpBackend` remains only as the
- * one-time migration from the earlier data-root `settings.json` choice.
+ * servers when the switch flips.
  *
  * @module application/mcp-backend
  */
 
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
-import { readJsonFile } from '../json-file.js'
 import { MARKET_SETTINGS_DEFAULTS } from '../../contracts/settings.js'
 
 import type { McpBackend } from '../../contracts/mcp.js'
@@ -40,21 +37,6 @@ export const MarketSettingsFields = {
 } as const
 
 export const MarketSettingsSchema = z.object(MarketSettingsFields)
-
-/** Path of the legacy persisted settings file under the plugin data root. */
-export function marketSettingsPath(dataRoot: string): string {
-  return join(dataRoot, 'settings.json')
-}
-
-/** Read the legacy persisted backend; absent or invalid values read as the default. */
-export async function readMcpBackend(dataRoot: string): Promise<McpBackend> {
-  try {
-    const parsed = (await readJsonFile(marketSettingsPath(dataRoot))) as { mcpBackend?: string } | undefined
-    return parsed?.mcpBackend === 'host' ? 'host' : 'builtin'
-  } catch {
-    return 'builtin'
-  }
-}
 
 /** What the host client probe reports: resolvability plus its version. */
 export interface HostMcpClientProbe {
