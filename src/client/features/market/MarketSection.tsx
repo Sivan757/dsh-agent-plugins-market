@@ -153,7 +153,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
         return {
           id: source.id,
-          label: `${source.id} ${source.suiteIds.length}${source.cloned === false || notes.length > 0 ? ' ⚠' : ''}`,
+          label: `${source.id} ${source.suiteIds.length}`,
           ...(noteHint === undefined ? {} : { title: noteHint }),
           editable: true,
           deletable: true
