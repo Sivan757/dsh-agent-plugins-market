@@ -1,5 +1,6 @@
 /** Installed suite and user resources share one inventory; paths never come from HTTP callers. */
 import { realpath, stat } from 'node:fs/promises'
+import { isDeepStrictEqual as deepEqual } from 'node:util'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
@@ -132,8 +133,29 @@ class PanelResources implements PanelResourceStore {
 
   async update(id: string, text: string): Promise<void> {
     if (!isPluginResourceId(id)) return this.users.update(id, text)
-    parseFrontmatterRecord(text)
+    const previous = await this.get(id)
+    if (previous === undefined) throw new Error('Unknown installed plugin resource')
+    this.assertStateFlipOnly(previous.rawText, text)
     await writeFileAtomic(await this.pluginPath(id), text, { mode: 0o644 })
+  }
+
+  /**
+   * A suite owns its files' content: the panel may only flip the enable state.
+   * The document body must stay byte-identical, and the frontmatter diff is
+   * confined to the keys the switch writes — `disabled` everywhere, plus the
+   * harness invocation pair on skills.
+   */
+  private assertStateFlipOnly(previousText: string, text: string): void {
+    if (stripFrontmatter(previousText) !== stripFrontmatter(text)) throw new Error('plugin resources are read-only; the suite owns their content')
+    const before = parseFrontmatterRecord(previousText)
+    const after = parseFrontmatterRecord(text)
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (key === 'disabled') continue
+      if (this.kind === 'skills' && (key === 'disable-model-invocation' || key === 'user-invocable')) continue
+      if (!deepEqual(before[key], after[key])) {
+        throw new Error('plugin resources are read-only; only the enable state can be changed')
+      }
+    }
   }
 
   async remove(id: string): Promise<void> {

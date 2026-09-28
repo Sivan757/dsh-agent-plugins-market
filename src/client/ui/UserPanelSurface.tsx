@@ -124,6 +124,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   }
 
   const openEdit = (entry: UserPanelEntry): void => {
+    // Plugin entries are read-only; the card carries no pencil, so this only
+    // guards stale callers against a document the suite owns.
+    if (entry.origin !== 'user') return
     setError(undefined)
     // The server's raw document preserves YAML metadata and Markdown exactly.
     setShowPreview(false)
@@ -214,7 +217,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
                   kind,
                   busy,
                   onOpen: () => openDetail(entry),
-                  onEdit: () => openEdit(entry),
+                  onEdit: entry.origin === 'user' ? () => openEdit(entry) : undefined,
                   onToggle: () => toggleDisabled(entry),
                   onDelete: entry.origin === 'user' ? () => openDelete(entry) : undefined
                 })
@@ -289,7 +292,7 @@ function UserEntryRow(props: {
   kind: UserPanelKind
   busy: boolean
   onOpen: () => void
-  onEdit: () => void
+  onEdit?: () => void
   onToggle: () => void
   onDelete?: () => void
 }): ReactNode {
@@ -326,11 +329,13 @@ function UserEntryRow(props: {
     h(
       'div',
       { className: rc.rowActions },
-      h(
-        'button',
-        { type: 'button', className: `${rc.iconBtn} ${rc.revealOnHover}`, 'aria-label': t('panelEditTitle'), disabled: props.busy, title: t('panelEditTitle'), onClick: stop(props.onEdit) },
-        h(IconEditOutlineMedium)
-      ),
+      props.onEdit === undefined
+        ? null
+        : h(
+            'button',
+            { type: 'button', className: `${rc.iconBtn} ${rc.revealOnHover}`, 'aria-label': t('panelEditTitle'), disabled: props.busy, title: t('panelEditTitle'), onClick: stop(props.onEdit) },
+            h(IconEditOutlineMedium)
+          ),
         props.onDelete === undefined
           ? null
           : h(

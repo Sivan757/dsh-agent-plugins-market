@@ -7,7 +7,7 @@ import { createPanelResources } from '../src/application/panel-resources.js'
 import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
 
 describe('installed and user panel resources', () => {
-  it('projects installed resources, preserves structured metadata and applies edits/deletion to the registered file', async () => {
+  it('projects installed resources, keeps their content read-only, and applies the enable switch to the registered file', async () => {
     const root = await mkdtemp(join(tmpdir(), 'market-panels-'))
     try {
       for (const id of ['active', 'unused']) {
@@ -39,13 +39,29 @@ describe('installed and user panel resources', () => {
       expect(rows.map(row => row.origin).sort()).toEqual(['plugin', 'user'])
       const plugin = rows.find(row => row.origin === 'plugin')!
       expect(plugin.metadata).toMatchObject({ tools: ['read', 'search'], metadata: { team: 'core' } })
-      const changed = plugin.rawText.replace('vendor/model', 'vendor/new-model')
-      await panels.agents.update(plugin.id!, changed)
+      // A suite owns its files' content: a frontmatter value edit through the
+      // panel path is refused and the registered file stays as authored.
+      const edited = plugin.rawText.replace('vendor/model', 'vendor/new-model')
+      await expect(panels.agents.update(plugin.id!, edited)).rejects.toThrow('only the enable state can be changed')
+      expect(await readFile(plugin.path, 'utf8')).toBe(plugin.rawText)
+      expect((await panels.agents.get(plugin.id!))?.metadata.model).toBe('vendor/model')
+      // The document body is the suite's regardless of the frontmatter.
+      const rewritten = plugin.rawText.replace('Review carefully.', 'Rewrite instead')
+      await expect(panels.agents.update(plugin.id!, rewritten)).rejects.toThrow('the suite owns their content')
+      // The one legal edit is the enable state: flipping only the key lands...
+      const switched = plugin.rawText.replace('---\n', '---\ndisabled: true\n')
+      await panels.agents.update(plugin.id!, switched)
       await catalog.notifyPanelsChanged()
-      expect(await readFile(plugin.path, 'utf8')).toBe(changed)
-      expect((await panels.agents.get(plugin.id!))?.metadata.model).toBe('vendor/new-model')
-      await expect(panels.agents.update(plugin.id!, '---\nmodel: [\n---\ntext')).rejects.toThrow()
-      expect(await readFile(plugin.path, 'utf8')).toBe(changed)
+      expect(await readFile(plugin.path, 'utf8')).toBe(switched)
+      expect((await panels.agents.get(plugin.id!))?.disabled).toBe(true)
+      // ...and flipping it back by the same rule is legal too.
+      await panels.agents.update(plugin.id!, plugin.rawText)
+      await catalog.notifyPanelsChanged()
+      expect(await readFile(plugin.path, 'utf8')).toBe(plugin.rawText)
+      expect((await panels.agents.get(plugin.id!))?.disabled).toBe(false)
+      // A malformed document never reaches the file, whatever the gate says.
+      await expect(panels.agents.update(plugin.id!, '---\nmodel: [\n---\nReview carefully.')).rejects.toThrow()
+      expect(await readFile(plugin.path, 'utf8')).toBe(plugin.rawText)
       await catalog.setSurface('active', 'v1-suite', 'agents', false)
       expect((await panels.agents.get(plugin.id!))?.disabled).toBe(true)
       // Deleting a plugin-owned entry is a suite-management concern, not a

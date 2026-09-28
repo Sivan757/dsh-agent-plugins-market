@@ -219,7 +219,7 @@ Only when you tick **also delete the managed market directory** in the confirmat
 - [Contributing](CONTRIBUTING.md): development setup, checks and PR workflow.
 - [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).
 - [Domain glossary](CONTEXT.md) · [Architecture](docs/developer/decisions/0001-catalog-centered-modular-refactor.md).
-- [Agent roles and storage](docs/user/agent-roles.md): installed-resource editing, model routing and migration.
+- [Agent roles and storage](docs/user/agent-roles.md): installed-resource switching, model routing and migration.
 
 ## Community
 

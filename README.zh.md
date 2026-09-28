@@ -219,7 +219,7 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 - [贡献指南](CONTRIBUTING.md)：开发环境、检查命令和 PR 流程。
 - [安全政策](SECURITY.md) · [版本记录](CHANGELOG.md) · [MIT 许可](LICENSE)。
 - [领域词汇](CONTEXT.md) · [架构设计](docs/developer/decisions/0001-catalog-centered-modular-refactor.md)。
-- [代理角色与存储](docs/user/agent-roles.zh.md)：已安装资源编辑、角色模型路由与目录迁移。
+- [代理角色与存储](docs/user/agent-roles.zh.md)：已安装资源切换、角色模型路由与目录迁移。
 
 ## 交流群
 

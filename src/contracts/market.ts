@@ -357,7 +357,7 @@ export interface UserPanelEntryWire {
   name: string
   description: string
   disabled: boolean
-  /** User and managed plugin entries are editable; external source files remain read-only. */
+  /** User entries are editable; suite-owned plugin entries answer only to the enable switch. */
   origin: 'user' | 'plugin'
   id?: string
   rawText: string

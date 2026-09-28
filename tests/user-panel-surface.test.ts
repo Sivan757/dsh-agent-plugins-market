@@ -101,15 +101,21 @@ describe('unified Markdown resource panel', () => {
     expect(host.querySelectorAll('input').length).toBeGreaterThan(0)
     await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="switchToList"]')!.click())
     await click('panelSourcePlugin')
+    // A plugin card carries no pencil: the suite owns the document body.
+    expect(host.querySelector('button[aria-label="panelEditTitle"]')).toBeNull()
+    await click('panelSourceUser')
     // The pencil opens the filtered entry's own document; its path is a detail
     // read-out, not an editor field, so the editor never repeats it.
     await click('panelEditTitle')
-    expect(host.textContent).toContain('Review code')
-    expect(host.textContent).not.toContain('/user/reviewer.md')
+    const dialog = host.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialog).toContain('Review code')
+    expect(dialog).not.toContain('/user/reviewer.md')
     expect(host.querySelector('[role="dialog"]')?.textContent).toContain('personaRuntimeConfig')
     expect([...host.querySelectorAll('select')].map(select => select.value)).toEqual(['provider', 'model', ''])
     await click('panelSave')
-    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', plugin.id, plugin.rawText)
+    // The panel entry and the suite entry share the name 'reviewer'; the save
+    // rides the stable id, so it cannot land on the plugin's file.
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', user.id, user.rawText)
     await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
     expect(host.textContent).toContain('reviewer')
     expect(host.querySelector('[role="dialog"]')).toBeNull()
@@ -141,14 +147,17 @@ describe('unified Markdown resource panel', () => {
     expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('/git-commit')
   })
 
-  it('offers delete only on user-authored entries', async () => {
+  it('offers edit and delete only on user-authored entries', async () => {
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     await mountPanel()
     const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
-    // Suite-owned files uninstall with their suite, so their cards carry no
-    // delete affordance at all — not even a disabled one.
+    // Suite-owned files uninstall with their suite and their content stays
+    // suite-authored, so their cards carry neither affordance at all — not
+    // even a disabled one. The enable switch is the only control they offer.
     expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    expect(pluginCard?.querySelector('button[aria-label="panelEditTitle"]')).toBeNull()
     expect(userCard?.querySelector('button[aria-label="panelDelete"]')).not.toBeNull()
+    expect(userCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
   })
 
   it('shows persona routing frontmatter as its own rows in the detail', async () => {
