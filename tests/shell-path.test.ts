@@ -58,51 +58,67 @@ describe('loginShellPathEntries', () => {
   it('parses the marker line, drops relative and duplicate entries, keeps order', async () => {
     shellResult(`Welcome back\n${MARKER}\n/opt/homebrew/bin:/usr/bin:/opt/homebrew/bin:relative/bin:/usr/bin\n`)
     const { loginShellPathEntries } = await load()
-    expect(await loginShellPathEntries()).toEqual(['/opt/homebrew/bin', '/usr/bin'])
+    await withPlatform('darwin', async () => {
+      expect(await loginShellPathEntries()).toEqual(['/opt/homebrew/bin', '/usr/bin'])
+    })
   })
 
   it('ignores banner text before the marker', async () => {
     shellResult(`some login banner\nanother line\n${MARKER}\n/custom/bin\n`)
     const { loginShellPathEntries } = await load()
-    expect(await loginShellPathEntries()).toEqual(['/custom/bin'])
+    await withPlatform('darwin', async () => {
+      expect(await loginShellPathEntries()).toEqual(['/custom/bin'])
+    })
   })
 
   it('returns undefined when the shell cannot be spawned', async () => {
     shellResult(undefined, new Error('spawn /bin/zsh ENOENT'))
     const { loginShellPathEntries } = await load()
-    expect(await loginShellPathEntries()).toBeUndefined()
+    await withPlatform('darwin', async () => {
+      expect(await loginShellPathEntries()).toBeUndefined()
+    })
   })
 
   it('returns undefined when the probe times out', async () => {
     shellResult(undefined, Object.assign(new Error('probe killed'), { killed: true, signal: 'SIGTERM' }))
     const { loginShellPathEntries } = await load()
-    expect(await loginShellPathEntries()).toBeUndefined()
+    await withPlatform('darwin', async () => {
+      expect(await loginShellPathEntries()).toBeUndefined()
+    })
   })
 
   it('returns undefined when the marker is absent', async () => {
     shellResult('no marker in this output\n')
     const { loginShellPathEntries } = await load()
-    expect(await loginShellPathEntries()).toBeUndefined()
+    await withPlatform('darwin', async () => {
+      expect(await loginShellPathEntries()).toBeUndefined()
+    })
   })
 
   it('returns undefined when the marker carries no value', async () => {
     shellResult(`${MARKER}\n\n`)
     const { loginShellPathEntries } = await load()
-    expect(await loginShellPathEntries()).toBeUndefined()
+    await withPlatform('darwin', async () => {
+      expect(await loginShellPathEntries()).toBeUndefined()
+    })
   })
 
   it('returns undefined when every entry is relative', async () => {
     shellResult(`${MARKER}\nrelative/bin:also/relative\n`)
     const { loginShellPathEntries } = await load()
-    expect(await loginShellPathEntries()).toBeUndefined()
+    await withPlatform('darwin', async () => {
+      expect(await loginShellPathEntries()).toBeUndefined()
+    })
   })
 
   it('probes the login shell at most once per process', async () => {
     shellResult(`${MARKER}\n/opt/homebrew/bin\n`)
     const { loginShellPathEntries } = await load()
-    await loginShellPathEntries()
-    await loginShellPathEntries()
-    expect(execFileMock).toHaveBeenCalledTimes(1)
+    await withPlatform('darwin', async () => {
+      await loginShellPathEntries()
+      await loginShellPathEntries()
+      expect(execFileMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('is a no-op on non-darwin platforms', async () => {
@@ -119,19 +135,25 @@ describe('augmentChildPath', () => {
   it('appends only the missing directories, preserving the base order', async () => {
     shellResult(`${MARKER}\n/opt/homebrew/bin:/usr/bin\n`)
     const { augmentChildPath } = await load()
-    expect(await augmentChildPath('/usr/bin:/bin')).toEqual({ path: '/usr/bin:/bin:/opt/homebrew/bin', added: ['/opt/homebrew/bin'] })
+    await withPlatform('darwin', async () => {
+      expect(await augmentChildPath('/usr/bin:/bin')).toEqual({ path: '/usr/bin:/bin:/opt/homebrew/bin', added: ['/opt/homebrew/bin'] })
+    })
   })
 
   it('returns undefined when the login shell adds nothing new', async () => {
     shellResult(`${MARKER}\n/usr/bin:/bin\n`)
     const { augmentChildPath } = await load()
-    expect(await augmentChildPath('/usr/bin:/bin')).toBeUndefined()
+    await withPlatform('darwin', async () => {
+      expect(await augmentChildPath('/usr/bin:/bin')).toBeUndefined()
+    })
   })
 
   it('returns undefined when the probe failed', async () => {
     shellResult(undefined, new Error('boom'))
     const { augmentChildPath } = await load()
-    expect(await augmentChildPath('/usr/bin:/bin')).toBeUndefined()
+    await withPlatform('darwin', async () => {
+      expect(await augmentChildPath('/usr/bin:/bin')).toBeUndefined()
+    })
   })
 })
 
@@ -151,7 +173,7 @@ describe('resolveDeclaredCommand', () => {
       return '/dsh-market-test/bin/npx'
     })
     const { resolveDeclaredCommand } = await load()
-    const resolution = await resolveDeclaredCommand(resolverCtx(resolveExecutable), 'npx', {})
+    const resolution = await withPlatform('darwin', async () => resolveDeclaredCommand(resolverCtx(resolveExecutable), 'npx', {}))
     expect(resolution?.path?.endsWith(':/dsh-market-test/bin')).toBe(true)
     expect(resolution?.diagnostic).toBe('PATH extended from the login shell: /dsh-market-test/bin')
     expect(resolveExecutable).toHaveBeenCalledTimes(2)
@@ -163,7 +185,7 @@ describe('resolveDeclaredCommand', () => {
       throw notFound()
     })
     const { resolveDeclaredCommand } = await load()
-    const resolution = await resolveDeclaredCommand(resolverCtx(resolveExecutable), 'npx', {})
+    const resolution = await withPlatform('darwin', async () => resolveDeclaredCommand(resolverCtx(resolveExecutable), 'npx', {}))
     expect(resolution?.path).toBeUndefined()
     expect(resolution?.diagnostic).toContain('searched:')
     expect(resolution?.diagnostic).toContain('/dsh-market-test/bin')
@@ -175,7 +197,7 @@ describe('resolveDeclaredCommand', () => {
       throw notFound()
     })
     const { resolveDeclaredCommand } = await load()
-    const resolution = await resolveDeclaredCommand(resolverCtx(resolveExecutable), 'npx', {})
+    const resolution = await withPlatform('darwin', async () => resolveDeclaredCommand(resolverCtx(resolveExecutable), 'npx', {}))
     expect(resolution?.path).toBeUndefined()
     expect(resolution?.diagnostic).toContain('login shell could not supply')
   })
