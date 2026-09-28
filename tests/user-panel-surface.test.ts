@@ -141,6 +141,35 @@ describe('unified Markdown resource panel', () => {
     expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('/git-commit')
   })
 
+  it('offers delete only on user-authored entries', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin, user])
+    await mountPanel()
+    const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
+    // Suite-owned files uninstall with their suite, so their cards carry no
+    // delete affordance at all — not even a disabled one.
+    expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    expect(userCard?.querySelector('button[aria-label="panelDelete"]')).not.toBeNull()
+  })
+
+  it('shows persona routing frontmatter as its own rows in the detail', async () => {
+    api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: { model: 'inherit', provider: 'vendor', reasoning_effort: 'high', tools: ['Read'] } }])
+    await mountPanel()
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    await act(async () => card!.click())
+    const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
+    expect(dialog).toContain('detailModelLabel')
+    expect(dialog).toContain('inherit')
+    expect(dialog).toContain('detailProviderLabel')
+    expect(dialog).toContain('detailReasoningLabel')
+    expect(dialog).toContain('high')
+    // The catch-all row keeps the remaining keys without repeating the ones
+    // that now have rows of their own.
+    expect(dialog).toContain('detailMetadata')
+    expect(dialog).toContain('tools: ["Read"]')
+    expect(dialog).not.toContain('model: inherit')
+    expect(dialog).not.toContain('reasoning_effort')
+  })
+
   it('switches a skill through the harness invocation pair, never the panel key', async () => {
     const on = {
       ...user,

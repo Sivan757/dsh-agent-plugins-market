@@ -5,8 +5,8 @@
  * @module client/ui/UserEntryDetail
  */
 import { createElement as h, useState, type ReactNode } from 'react'
-import { DetailModal } from './DetailModal.js'
 import { StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
 import { lastChangeLabel } from './last-change.js'
@@ -23,6 +23,8 @@ const NOUN_KEY: Record<UserPanelKind, 'workspaceTabSkills' | 'workspaceTabComman
 
 /** Metadata keys the identity row already carries. */
 const HIDDEN_META = new Set(['description', 'disabled', 'name'])
+/** Routing keys an agent persona renders as its own rows, not in the catch-all. */
+const ROUTING_META = new Set(['model', 'provider', 'reasoning_effort', 'reasoningEffort'])
 
 export interface UserEntryDetailProps {
   t: Translate
@@ -40,7 +42,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   // A command registers under its flattened call name, so the dialog title shows that.
   const title = kind === 'commands' ? `/${commandCallName(entry.name)}` : entry.name
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
-  const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key))
+  const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key) && !(kind === 'agents' && ROUTING_META.has(key)))
   return h(
     DetailModal,
     {
@@ -96,8 +98,8 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   )
 }
 
-function kv(label: string, value: string, mono = false): ReactNode {
-  return h('div', null, h('dt', { className: css.kvKey }, label), h('dd', { className: mono ? `${css.kvValue} ${css.kvValueMono}` : css.kvValue, title: value }, value))
+function kv(label: string, value: string, mono = false, key?: string): ReactNode {
+  return h('div', key === undefined ? null : { key }, h('dt', { className: css.kvKey }, label), h('dd', { className: mono ? `${css.kvValue} ${css.kvValueMono}` : css.kvValue, title: value }, value))
 }
 
 /** Routing frontmatter rows for agent personas: model, provider, reasoning effort. */
@@ -108,8 +110,8 @@ function routingRows(t: Translate, metadata: Record<string, unknown>): ReactNode
   const camel = typeof metadata['reasoningEffort'] === 'string' ? metadata['reasoningEffort'] : undefined
   const reasoning = snake ?? camel
   return [
-    model === undefined ? null : kv(t('detailModelLabel'), model, true),
-    provider === undefined ? null : kv(t('detailProviderLabel'), provider, true),
-    reasoning === undefined ? null : kv(t('detailReasoningLabel'), reasoning, true),
+    model === undefined ? null : kv(t('detailModelLabel'), model, true, 'model'),
+    provider === undefined ? null : kv(t('detailProviderLabel'), provider, true, 'provider'),
+    reasoning === undefined ? null : kv(t('detailReasoningLabel'), reasoning, true, 'reasoning')
   ]
 }

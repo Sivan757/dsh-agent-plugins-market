@@ -16,6 +16,7 @@ Status: implemented
 - 删除 plugin 来源的面板条目现在在 PanelResources.remove 抛错（"由所属套件管理，请卸载套件"），UserPanelSurface 只对用户自建条目提供 onDelete。plugin 条目的编辑与启停按既有设计保留：编辑经过 realpath 包含检查，启停写入用户 override。
 - 首子元素拉伸规则删除，它所支撑的填充按钮一并移除：SuiteDetail 只保留主操作（安装）或卸载；UserEntryDetail 与 MCP 详情去掉幽灵关闭按钮（弹窗 chrome 的 closeLabel 与 ESC 仍可关闭）；MCP 底栏保留条件性重新授权与其结果回显，移除重复的开关（卡片开关写同一份 override）。
 - agent persona 详情把 model/provider/思考强度渲染为独立的带标签行（snake_case 优先、camelCase 兜底、'inherit' 原样显示），新增双语 locale key；其余元数据保留一行兜底展示，label 与 value 归位。
+- 验证轮新增两个测试（删除入口仅出现在用户自建卡片；persona 路由 frontmatter 独立渲染且兜底行保留其余键），并修复其暴露的真实缺陷：routingRows 数组元素缺 React key，kv helper 增加可选 key，路由键从兜底行排除以免重复渲染。
 
 ## Consequences
 

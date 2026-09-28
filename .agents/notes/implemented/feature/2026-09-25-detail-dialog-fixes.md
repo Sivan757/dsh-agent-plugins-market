@@ -16,6 +16,7 @@ Four maintainer-reported defects, all verified against the dev tree:
 - Deleting a plugin-origin panel entry now throws in PanelResources.remove ("managed by their suite; uninstall instead") and UserPanelSurface offers onDelete only for user-authored entries. Edit and toggle stay available for plugin entries by design: edits pass the realpath containment check, toggles write the user override.
 - The first-child stretch rule is deleted, and the filler buttons it justified go with it: SuiteDetail keeps the primary install or the uninstall; UserEntryDetail and the MCP detail drop the ghost close (modal chrome closeLabel + ESC remain); the MCP footer keeps conditional reauthorize plus its result echo and loses the duplicated switch (the card toggle writes the same override).
 - Agent-persona details render model/provider/reasoning as their own labeled rows (snake_case preferred, camelCase fallback, 'inherit' as declared), with new bilingual locale keys; remaining metadata keeps one catch-all row with label and value in their proper columns.
+- A verification pass added two tests (delete affordance only on user-authored cards; persona routing frontmatter rendered with the catch-all keeping the rest) and fixed a real defect they exposed: the routingRows array emitted unkeyed elements, so the kv helper takes an optional key, and the routing keys are excluded from the catch-all row instead of rendering twice.
 
 ## Consequences
 
