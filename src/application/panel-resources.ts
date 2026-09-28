@@ -130,11 +130,12 @@ class PanelResources implements PanelResourceStore {
    * A plugin resource is writable only when it sits inside the user dimension
    * root; suite checkouts elsewhere on disk stay read-only. The user-panel
    * store lives in the shared Agent layout root instead, so containment is
-   * measured against the catalog's root, not the panel directory.
+   * measured against the catalog's root, not the panel directory. Callers pass
+   * the entry they already fetched: a full inventory scan per call would read
+   * every suite document twice per write.
    */
-  private async pluginPath(id: string): Promise<string> {
-    const entry = await this.get(id)
-    if (entry?.origin !== 'plugin') throw new Error('Unknown installed plugin resource')
+  private async pluginPath(entry: UserPanelEntryWire): Promise<string> {
+    if (entry.origin !== 'plugin') throw new Error('Unknown installed plugin resource')
     if (entry.path.endsWith('.json')) throw new Error('Inline manifest resources are read-only; edit their source manifest')
     const root = await realpath(this.catalog.userRoot)
     const path = await realpath(entry.path)
@@ -147,7 +148,7 @@ class PanelResources implements PanelResourceStore {
     const previous = await this.get(id)
     if (previous === undefined) throw new Error('Unknown installed plugin resource')
     this.assertStateFlipOnly(previous.rawText, text)
-    await writeFileAtomic(await this.pluginPath(id), text, { mode: 0o644 })
+    await writeFileAtomic(await this.pluginPath(previous), text, { mode: 0o644 })
   }
 
   /**
