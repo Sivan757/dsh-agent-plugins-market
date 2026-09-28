@@ -65,6 +65,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const [loading, setLoading] = useState(() => loadOverview().revalidating)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<Tab>('all')
+  // The filter tablist names the collection below; the host derives its panel id
+  // from the same base the toolbar receives.
+  const marketFilterId = 'market-status-filter'
   const [category, setCategory] = useState<Category>('all')
   const [view, setView] = useWorkspaceView()
   const [busy, setBusy] = useState<string | undefined>(undefined)
@@ -242,6 +245,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                 onSelect: () => setTab('uninstalled')
               }
             ],
+            filterId: marketFilterId,
             // The market panel's title is the filter segment's accessible name.
             filterLabel: t('nav'),
             view,
@@ -255,7 +259,12 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       busy !== undefined ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
       h(
         ResourceCollection,
-        { view },
+        {
+          view,
+          role: 'tabpanel',
+          id: `${marketFilterId}-${tab}-panel`,
+          'aria-labelledby': `${marketFilterId}-${tab}`
+        },
         loading
           ? h('div', { className: css.empty }, t('loading'))
           : filtered.length === 0

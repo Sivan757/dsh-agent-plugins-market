@@ -29,6 +29,13 @@ export interface SearchFilterToolbarProps {
   searchPlaceholder: string
   onSearchChange: (search: string) => void
   filters: readonly SearchFilterToolbarFilter[]
+  /**
+   * Base id of the filter tablist. The host control derives each tab as
+   * `<filterId>-<value>` and names `<filterId>-<value>-panel` as the panel it
+   * controls, so the caller rendering that panel reuses this base and every
+   * mounted toolbar owns a distinct one.
+   */
+  filterId: string
   /** Accessible name of the filter tablist; callers repeat an existing panel label. */
   filterLabel: string
   view: SearchFilterToolbarView
@@ -64,12 +71,10 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
         onChange: event => props.onSearchChange((event.target).value)
       })
     ),
-    // The host control derives each tab's id from this base id; the caller
-    // owns the panels the tabs name, so the panel half stays a suffix stub.
+    // The host control derives each tab's id from this base id; the caller owns
+    // the panels the tabs name and reuses the same base for their ids.
     h(SegmentedControl, {
-      // The literal id assumes one live toolbar per document — true for every
-  // current consumer; a second mounted copy would share the generated tab ids.
-  id: 'panel-filter',
+      id: props.filterId,
       value: props.filters.find(filter => filter.active)?.id ?? props.filters[0]?.id ?? '',
       // The host option label is a plain string, so the count rides the same
       // text the previous pills put in their accessible name.

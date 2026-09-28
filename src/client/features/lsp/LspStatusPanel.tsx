@@ -137,6 +137,14 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   }, [anyStarting])
 
   const { filtered, filterCounts } = deriveLspStatusViewModel(payload, filter, search)
+  // The filter tablist names this region, and the host derives its panel id
+  // (`<filterId>-<value>-panel`) from the same base the toolbar receives.
+  const filterId = 'lsp-status-filter'
+  const panelProps = {
+    role: 'tabpanel' as const,
+    id: `${filterId}-${filter}-panel`,
+    'aria-labelledby': `${filterId}-${filter}`
+  }
 
   return h(
     'div',
@@ -169,6 +177,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         hint: lspFilterHint(t, key)
       })),
       // The panel's own title names the filter segment for assistive tech.
+      filterId,
       filterLabel: t('lspStatusTitle'),
       view,
       toListLabel: t('switchToList'),
@@ -176,14 +185,14 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       onViewChange: nextView => setView(nextView)
     }),
     error !== undefined
-      ? h('div', { className: css.error }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
+      ? h('div', { className: css.error, ...panelProps }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
       : loading && payload.entries.length === 0
-        ? h('div', { className: css.empty }, t('loading'))
+        ? h('div', { className: css.empty, ...panelProps }, t('loading'))
         : filtered.length === 0
-          ? h('div', { className: css.empty }, t('lspEmpty'))
+          ? h('div', { className: css.empty, ...panelProps }, t('lspEmpty'))
           : h(
               ResourceCollection,
-              { view },
+              { view, ...panelProps },
               filtered.map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry), onToggle: () => toggle(entry), onEdit: () => setEditing(entry) }))
             ),
     selected === undefined ? null : h(LspDetailModal, { entry: selected, t, onClose: () => { setSelected(undefined); refresh() } }),

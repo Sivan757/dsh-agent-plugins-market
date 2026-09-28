@@ -44,6 +44,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   const [busy, setBusy] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<PanelFilter>('all')
+  // The filter tablist names the body below; the host derives its panel id from
+  // the same base the toolbar receives, and the kind keeps panels apart.
+  const filterId = `${kind}-panel-filter`
   const [view, setView] = useWorkspaceView()
   const [editor, setEditor] = useState<PanelEditorState | undefined>(undefined)
   // The document editor shows one view at a time; the switch lives above it.
@@ -204,6 +207,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
         })),
         { id: 'disabled', label: t('panelFilterDisabled'), count: disabledCount, active: filter === 'disabled', onSelect: () => setFilter('disabled') }
       ],
+      filterId,
       // The panel header's title names the filter segment for assistive tech.
       filterLabel: panelTitle,
       view,
@@ -213,7 +217,12 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     }),
     h(
       'div',
-      { className: css.body },
+      {
+        className: css.body,
+        role: 'tabpanel',
+        id: `${filterId}-${filter}-panel`,
+        'aria-labelledby': `${filterId}-${filter}`
+      },
       loading && entries.length === 0
         ? h('div', { className: css.empty }, t('loading'))
         : visible.length === 0

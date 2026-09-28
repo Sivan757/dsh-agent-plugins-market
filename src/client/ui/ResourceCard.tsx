@@ -18,8 +18,13 @@ export function ResourceCard({
 }
 
 /** A shared, shrinkable scroll area: grid and list never stretch individual cards vertically. */
-export function ResourceCollection({ view, className, children }: { view: 'grid' | 'list'; className?: string; children?: ReactNode }): ReactNode {
-  return h('div', { className: `${className ?? ''} ${css.collection}`, 'data-resource-view': view }, children)
+export function ResourceCollection({
+  view,
+  className,
+  children,
+  ...rest
+}: { view: 'grid' | 'list'; className?: string; children?: ReactNode } & Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'children'>): ReactNode {
+  return h('div', { className: `${className ?? ''} ${css.collection}`, 'data-resource-view': view, ...rest }, children)
 }
 
 /** Spread onto a card so it opens like a button: keyboard users included. */

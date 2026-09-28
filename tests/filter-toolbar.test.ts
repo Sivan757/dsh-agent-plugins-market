@@ -42,12 +42,16 @@ describe('SearchFilterToolbar', () => {
               }
             }
           ],
+          filterId: 'test-filter',
           filterLabel: 'Filter services',
           view,
           toGridLabel: 'Switch to grid',
           toListLabel: 'Switch to list',
           onViewChange: setView
         }),
+        // The caller owns the panel the tablist names, deriving its id from the
+        // same base it handed the toolbar.
+        h('div', { role: 'tabpanel', id: `test-filter-${filter ?? 'all'}-panel` }, 'panel'),
         h('output', { 'data-view': view }, view)
       )
     }
@@ -61,6 +65,11 @@ describe('SearchFilterToolbar', () => {
     // The filter segment is the host's controlled tablist, named by the panel.
     const tablist = host.querySelector('[role="tablist"]')
     expect(tablist?.getAttribute('aria-label')).toBe('Filter services')
+    // The selected tab names the caller's panel, and that panel exists: the
+    // aria-controls reference resolves instead of dangling.
+    const selectedTab = host.querySelector('[role="tab"][aria-selected="true"]')
+    expect(selectedTab?.getAttribute('aria-controls')).toBe('test-filter-all-panel')
+    expect(host.querySelector('#test-filter-all-panel')).not.toBeNull()
     // Two filter segments plus the single view button, all keyboard-reachable.
     expect(host.querySelectorAll('[role="tab"]').length).toBe(2)
     expect(host.querySelectorAll('button[aria-label]').length).toBe(1)

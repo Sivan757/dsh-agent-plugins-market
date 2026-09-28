@@ -95,6 +95,14 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   }, [])
 
   const { activeEntries, filtered, filterCounts } = deriveMcpStatusViewModel(payload, filter, search)
+  // The filter tablist names this region, and the host derives its panel id
+  // (`<filterId>-<value>-panel`) from the same base the toolbar receives.
+  const filterId = 'mcp-status-filter'
+  const panelProps = {
+    role: 'tabpanel' as const,
+    id: `${filterId}-${filter}-panel`,
+    'aria-labelledby': `${filterId}-${filter}`
+  }
 
   return h(
     'div',
@@ -119,6 +127,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
         hint: mcpFilterHint(t, kind)
       })),
       // The panel's own title names the filter segment for assistive tech.
+      filterId,
       filterLabel: t('mcpStatusTitle'),
       view,
       toListLabel: t('switchToList'),
@@ -126,14 +135,14 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       onViewChange: nextView => setView(nextView)
     }),
     error !== undefined
-      ? h('div', { className: css.error }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
+      ? h('div', { className: css.error, ...panelProps }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
       : loading && activeEntries.length === 0
-        ? h('div', { className: css.empty }, t('loading'))
+        ? h('div', { className: css.empty, ...panelProps }, t('loading'))
         : filtered.length === 0
-          ? h('div', { className: css.empty }, t('mcpEmpty'))
+          ? h('div', { className: css.empty, ...panelProps }, t('mcpEmpty'))
           : h(
               ResourceCollection,
-              { view },
+              { view, ...panelProps },
               filtered.map(entry => h(McpCard, { key: entry.id, entry, t, onClick: () => setSelected(entry), onToggle: () => toggle(entry), onEdit: () => setEditing(entry) }))
             ),
     adding
