@@ -77,6 +77,13 @@ describe('SearchFilterToolbar', () => {
     // so its name offers the list, and it is pressed.
     expect(host.querySelector('button[aria-label="Switch to list"]')).not.toBeNull()
     expect(host.querySelector('button[aria-label="Switch to list"]')?.getAttribute('aria-pressed')).toBe('true')
+    // The drawn glyph has to paint: an unfilled shape with no stroke of its own
+    // renders as an empty pill, which is what this control had shipped as.
+    const gridGlyph = host.querySelector<SVGSVGElement>('button[aria-label="Switch to list"] svg')!
+    expect(gridGlyph.getAttribute('fill')).toBe('none')
+    expect(gridGlyph.getAttribute('stroke')).toBe('currentColor')
+    expect(Number(gridGlyph.getAttribute('stroke-width'))).toBeGreaterThan(0)
+    expect(gridGlyph.querySelectorAll('rect').length).toBe(4)
     // The selected segment is the only tab stop and its label carries the count.
     const selected = host.querySelector('[role="tab"][aria-selected="true"]')
     expect(selected?.getAttribute('tabindex')).toBe('0')
@@ -88,5 +95,10 @@ describe('SearchFilterToolbar', () => {
     // Now the list glyph shows, so the same single control offers the grid.
     expect(host.querySelector('button[aria-label="Switch to grid"]')).not.toBeNull()
     expect(host.querySelector('button[aria-label="Switch to list"]')).toBeNull()
+    // The mode's other glyph rides the same paint, so the control never flips
+    // between a visible and an empty button.
+    const listGlyph = host.querySelector<SVGSVGElement>('button[aria-label="Switch to grid"] svg')!
+    expect(listGlyph.getAttribute('stroke')).toBe('currentColor')
+    expect(listGlyph.querySelectorAll('path').length).toBeGreaterThan(0)
   })
 })

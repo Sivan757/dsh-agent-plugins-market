@@ -1,6 +1,5 @@
 /** Shared builders for the MCP detail dialogs: tool parameter rows and credential usage. */
 import { createElement as h, type ReactNode } from 'react'
-import { parsePastedServers, type ServerConfig } from '../../ui/server-form.js'
 import type { Translate } from '../../index.js'
 import css from './mcp-status.module.css'
 
@@ -30,15 +29,6 @@ export function toolParameterRows(parameters: unknown, t: Translate): ReactNode 
       )
     })
   )
-}
-
-/** Parse a pasted document, or nothing while it is still half-typed. */
-export function parsePastedServersOrUndefined(text: string): Array<{ name?: string; config: ServerConfig }> | undefined {
-  try {
-    return parsePastedServers(text)
-  } catch {
-    return undefined
-  }
 }
 
 export function credentialUsage(t: Translate, config: Record<string, unknown> | undefined): Record<string, string[]> {

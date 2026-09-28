@@ -114,14 +114,6 @@ export function mountSuiteRoutes(
     return {}
   })
 
-  // Paste import: many services in one write. Each entry reports its own
-  // outcome, so one rejected definition never fails the whole paste.
-  post(MARKET_ROUTES.importMcpServers, async body => {
-    const overwrite = body['overwrite'] === true
-    const result = await manager.importMcpServers(body['servers'], overwrite)
-    return { imported: result.imported, skipped: result.skipped }
-  })
-
   get(MARKET_ROUTES.lspStatus, async (_request, response) => {
     sendJson(response, 200, await manager.lspStatus())
   })

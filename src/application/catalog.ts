@@ -15,7 +15,7 @@ import type { OverviewPayload, ServerConfigPayload, SkillContent, SourceOverview
 import type { McpStatusPayload } from './mcp/mcp-status.js'
 import type { SourceRef, Suite, SuiteSurfaceKey } from '../model/types.js'
 import type { McpBackend } from '../contracts/mcp.js'
-import { loadUserMcpSuite, type McpImportResult } from './mcp/mcp-direct-config.js'
+import { loadUserMcpSuite } from './mcp/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../contracts/mcp.js'
 import { loadSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from './mcp/mcp-overrides.js'
 import { loadUserHooksSuite } from './panels/user-hooks.js'
@@ -278,11 +278,6 @@ export class Catalog implements MarketService {
   /** Persist a user-owned MCP service and reconcile its bridge mount. */
   async addMcpServer(name: string, server: unknown): Promise<void> {
     await this.mcp.addServer(name, server)
-  }
-
-  /** Import several pasted services in one write; each entry reports its own outcome. */
-  async importMcpServers(servers: unknown, overwrite: boolean): Promise<McpImportResult> {
-    return this.mcp.importServers(servers, overwrite)
   }
 
   /** Read effective service configuration without exposing credential literals. */

@@ -10,7 +10,7 @@ Configuring an MCP service was one-way: a save either succeeded or produced a si
 
 - **The status wire carries each tool's input schema.** `inspectToolRegistry` reads `parameters` off the host's `schemas()` listing, `buildMcpStatus` keeps it only while it stays under 20,000 characters, and the panel opens a parameter table from the tool's name.
 - **A rejected save names its fields.** `McpConfigError` carries `{ field, message }` entries derived from the schema's `instancePath`; the route returns them beside the message; the editor places each one under its input. Reasons the schema cannot attribute — URL scheme rules, placeholder rules — stay at form level instead of being guessed onto a field.
-- **A paste is judged per entry.** `importUserMcpServers` checks each entry on its own (name shape, conflict, schema), writes the file once after every check, and returns what it imported and what it skipped with a reason each.
+- ~~**A paste is judged per entry.**~~ Retired: the paste-import pipeline (route, `importUserMcpServers`, per-entry report) was removed with the paste box; see [the new-service dialog is one short form](../simplification/2026-09-28-mcp-new-service-simple-form.md).
 - **A failure carries its next step.** `mcpGuidanceKey` classifies the wording the layers actually produce — credentials, authorization, transport, backend, DNS, TLS, refused, timeout, missing command, early exit, handshake — into one line of advice; an unrecognized reason produces no advice instead of a generic one.
 - **Multi-line fields accept a pasted block.** `rowsFromPastedText` reads `KEY=VALUE` and `Key: Value`, strips one pair of quotes, and appends one row per line.
 
@@ -26,7 +26,7 @@ Configuring an MCP service was one-way: a save either succeeded or produced a si
 
 ## Testing
 
-`tests/client-mcp-detail.test.ts` covers the parameter disclosure and the guidance classifier; `tests/mcp-status.test.ts` pins schema transport and the size bound; `tests/server-config.test.ts` asserts that a rejected save names its field; `tests/mcp-direct-config.test.ts` covers the per-entry import outcomes and overwrite; `tests/client-detail-editors.test.ts` covers the pasted block.
+`tests/client-mcp-detail.test.ts` covers the parameter disclosure and the guidance classifier; `tests/mcp-status.test.ts` pins schema transport and the size bound; `tests/server-config.test.ts` asserts that a rejected save names its field.
 
 ## Related
 

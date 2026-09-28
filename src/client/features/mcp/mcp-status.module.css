@@ -49,27 +49,7 @@
 /* A line of context under a block heading, dimmer than the rows it introduces. */
 .blockSub { margin: 0 0 6px; color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 11px; line-height: 16px; }
 
-/* The new-service dialog's two shortcuts into a filled-in form. */
-.starter { display: flex; flex-wrap: wrap; gap: 8px; }
-.starterList { display: flex; flex-wrap: wrap; gap: 8px; }
-.starterPaste { display: flex; flex-direction: column; gap: 8px; }
-.pasteArea {
-  width: 100%;
-  min-height: 120px;
-  box-sizing: border-box;
-  padding: 7px 9px;
-  color: var(--dsw-alias-label-primary, #1f2328);
-  background: var(--dsw-alias-bg-layer-1, #fff);
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 8px;
-  font: 12px/19px ui-monospace, Menlo, Consolas, monospace;
-  resize: vertical;
-}
-/* The paste box's own count, overwrite switch and per-entry result lines. */
-.pasteNote { margin: 0; color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 11px; line-height: 16px; }
-.pasteCheck { display: inline-flex; align-items: center; gap: 8px; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 11px; line-height: 16px; }
-.pasteOutcome { display: flex; flex-direction: column; gap: 2px; }
-.pasteOutcome p { margin: 0; color: var(--dsw-alias-label-secondary, #4e5969); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+/* The tool list's search field, above a long capability list. */
 .toolSearch { display: block; flex: 0 1 220px; min-width: 0; }
 
 .toolList { display: flex; flex-direction: column; }

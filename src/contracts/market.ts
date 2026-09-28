@@ -8,7 +8,6 @@ export const MARKET_ROUTES = {
   overview: `${MARKET_API_PREFIX}overview`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
   addMcpServer: `${MARKET_API_PREFIX}mcp-servers/add`,
-  importMcpServers: `${MARKET_API_PREFIX}mcp-servers/import`,
   lspStatus: `${MARKET_API_PREFIX}lsp-status`,
   lspServers: `${MARKET_API_PREFIX}lsp-servers`,
   addLspServer: `${MARKET_API_PREFIX}lsp-servers/add`,

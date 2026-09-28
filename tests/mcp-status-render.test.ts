@@ -205,7 +205,7 @@ describe('MCP status actions', () => {
     expect([...document.body.querySelectorAll('button')].some(button => button.textContent?.includes('mcpRetryConnection'))).toBe(false)
   })
 
-  it('offers a template list that fills the new-service form', async () => {
+  it('opens the new-service dialog as one short form', async () => {
     await mountPanel()
     const add = document.querySelector<HTMLButtonElement>('[aria-label="panelAdd"]')
     expect(add).not.toBeNull()
@@ -213,16 +213,12 @@ describe('MCP status actions', () => {
       add!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // Two shortcuts sit above the form; the template list is one interaction in.
-    expect(document.body.textContent).toContain('mcpStarterTemplates')
-    expect(document.body.textContent).toContain('mcpStarterPaste')
-    const templates = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpStarterTemplates'))
-    expect(templates).toBeDefined()
-    await act(async () => {
-      templates!.click()
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-    expect(document.body.textContent).toContain('mcpTemplateFilesystem')
+    // No template or paste shortcuts: the form is the only entry, and the JSON
+    // view inside the editor carries everything the form has no field for.
+    expect(document.body.textContent).toContain('mcpAddTitle')
+    expect(document.body.textContent).not.toContain('mcpStarterTemplates')
+    expect(document.body.textContent).not.toContain('mcpStarterPaste')
+    expect(document.body.textContent).toContain('mcpServerName')
   })
 
   it('opens the editor from the card', async () => {

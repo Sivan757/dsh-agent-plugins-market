@@ -149,7 +149,6 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       ? h(McpAddModal, {
           t,
           onClose: () => setAdding(false),
-          onChanged: refresh,
           onSaved: () => {
             setAdding(false)
             refresh()

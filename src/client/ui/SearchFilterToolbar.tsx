@@ -108,17 +108,32 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
   )
 }
 
-/** The two view glyphs; the host icon set has no grid glyph, so both stay drawn here. */
+/**
+ * The two view glyphs; the host icon set has no grid glyph, so both stay drawn
+ * here in the platform's outline paint. An unfilled shape with no stroke of its
+ * own renders nothing, so the shared stroke is what makes either glyph read —
+ * at the pill's own colour, and at the host's medium outline weight.
+ */
 function ViewIcon({ mode }: { mode: SearchFilterToolbarView }): ReactNode {
-  const common = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true } as const
+  const common = {
+    width: 16,
+    height: 16,
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeLinecap: 'round',
+    strokeWidth: 1.3,
+    'aria-hidden': true
+  } as const
   return mode === 'list'
     ? h('svg', common, h('path', { d: 'M3 4h10M3 8h10M3 12h10' }))
     : h(
         'svg',
         common,
-        h('rect', { x: 2.5, y: 2.5, width: 4, height: 4, rx: 0.8 }),
-        h('rect', { x: 9.5, y: 2.5, width: 4, height: 4, rx: 0.8 }),
-        h('rect', { x: 2.5, y: 9.5, width: 4, height: 4, rx: 0.8 }),
-        h('rect', { x: 9.5, y: 9.5, width: 4, height: 4, rx: 0.8 })
+        // Four 4px squares on the same 3-13 bounds the list glyph spans.
+        h('rect', { x: 3, y: 3, width: 4, height: 4, rx: 1 }),
+        h('rect', { x: 9, y: 3, width: 4, height: 4, rx: 1 }),
+        h('rect', { x: 3, y: 9, width: 4, height: 4, rx: 1 }),
+        h('rect', { x: 9, y: 9, width: 4, height: 4, rx: 1 })
       )
 }
