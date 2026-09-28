@@ -9,7 +9,7 @@
  */
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { JsonSchemaNode } from './json-schema-subset.js'
+import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
 
 /** Lossless JSON value vocabulary the bridge exchanges with the registry. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
