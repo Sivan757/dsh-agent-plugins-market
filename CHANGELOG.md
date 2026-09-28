@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.8.3](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.2...dsh-agent-plugins-market-v0.8.3) (2026-09-28)
+
+
+### Bug Fixes
+
+* **mcp:** read a credential reference without a backtracking pattern ([23c3273](https://github.com/Sivan757/dsh-agent-plugins-market/commit/23c327359285ab4a9ee35bdbb926ef8631dd1bae))
+* **security:** clear the three open code-scanning alerts ([9bb9545](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9bb9545fb09509be901cb4f264ac6c4d65903a00))
+
 ## [0.8.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.1...dsh-agent-plugins-market-v0.8.2) (2026-09-28)
 
 
