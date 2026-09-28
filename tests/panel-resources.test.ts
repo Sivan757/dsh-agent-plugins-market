@@ -40,8 +40,9 @@ describe('installed and user panel resources', () => {
       const plugin = rows.find(row => row.origin === 'plugin')!
       expect(plugin.metadata).toMatchObject({ tools: ['read', 'search'], metadata: { team: 'core' } })
       // A suite owns its files' content: a frontmatter value edit through the
-      // panel path is refused and the registered file stays as authored.
-      const edited = plugin.rawText.replace('vendor/model', 'vendor/new-model')
+      // panel path is refused and the registered file stays as authored. The
+      // routing flip that is legal on agents has its own test below.
+      const edited = plugin.rawText.replace('description: Review code', 'description: Reviewed elsewhere')
       await expect(panels.agents.update(plugin.id!, edited)).rejects.toThrow('only the enable state can be changed')
       expect(await readFile(plugin.path, 'utf8')).toBe(plugin.rawText)
       expect((await panels.agents.get(plugin.id!))?.metadata.model).toBe('vendor/model')
@@ -71,6 +72,49 @@ describe('installed and user panel resources', () => {
       expect(await panels.agents.list()).toHaveLength(2)
       await expect(panels.agents.update('["../../etc"]', 'x')).rejects.toThrow('Unknown installed')
       expect((await panels.skills.list()).some(row => row.origin === 'plugin')).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('plugin persona allows the routing flip but rejects content', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'market-panels-'))
+    try {
+      await mkdir(join(root, '.sources', 'active'), { recursive: true })
+      await cp('tests/fixtures/v1-suite', join(root, '.sources', 'active'), { recursive: true })
+      // Extension-surface agents live under the client namespace directory
+      // (Agent Plugins §8.2); the portable dialect does not read a root `agents/`.
+      await mkdir(join(root, '.sources', 'active', 'com.deepseek.harness', 'agents'), { recursive: true })
+      await writeFile(
+        join(root, '.sources', 'active', 'com.deepseek.harness', 'agents', 'reviewer.md'),
+        '---\ndescription: Review code\nmodel: vendor/model\ntools: [read, search]\n---\nReview carefully.'
+      )
+      await writeFile(
+        join(root, 'state.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [{ id: 'active', url: join(root, '.sources', 'active'), local: true }],
+          installed: { 'active/v1-suite': { enabled: true, installedAt: new Date(0).toISOString() } }
+        })
+      )
+      const catalog = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
+      await catalog.load()
+      const panels = createPanelResources(catalog, createUserPanelStores(root))
+      const plugin = (await panels.agents.list()).find(row => row.origin === 'plugin')!
+      // A persona's model routing is panel-editable even on a suite file: the
+      // structured controls add the effort key and the write lands.
+      const routed = plugin.rawText.replace('---\n', '---\nreasoning_effort: high\n')
+      await panels.agents.update(plugin.id!, routed)
+      expect(await readFile(plugin.path, 'utf8')).toBe(routed)
+      await catalog.notifyPanelsChanged()
+      expect((await panels.agents.get(plugin.id!))?.metadata.reasoning_effort).toBe('high')
+      // The body is still the suite's.
+      const rewritten = routed.replace('Review carefully.', 'Rewrite instead')
+      await expect(panels.agents.update(plugin.id!, rewritten)).rejects.toThrow('the suite owns their content')
+      // Routing controls never reach other frontmatter: `tools` is not a panel key.
+      const tooled = routed.replace('tools: [read, search]', 'tools: [read]')
+      await expect(panels.agents.update(plugin.id!, tooled)).rejects.toThrow('only the enable state can be changed')
+      expect(await readFile(plugin.path, 'utf8')).toBe(routed)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

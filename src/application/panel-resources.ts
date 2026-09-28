@@ -41,6 +41,17 @@ export function isPluginResourceId(id: string): boolean {
   return id.startsWith('[')
 }
 
+/**
+ * Frontmatter keys beyond the enable switch that a panel control may diff on a
+ * plugin document, per kind: the harness invocation pair on skills, and the
+ * model-routing keys the persona form edits on agents.
+ */
+const FLIPPABLE_KEYS: Record<UserPanelKind, readonly string[]> = {
+  skills: ['disable-model-invocation', 'user-invocable'],
+  commands: [],
+  agents: ['model', 'provider', 'reasoning_effort', 'reasoningEffort']
+}
+
 export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelEntries>): Record<UserPanelKind, PanelResourceStore> {
   return {
     skills: new PanelResources(catalog, users.skills, 'skills'),
@@ -140,18 +151,19 @@ class PanelResources implements PanelResourceStore {
   }
 
   /**
-   * A suite owns its files' content: the panel may only flip the enable state.
+   * A suite owns its files' content: the panel may only flip state frontmatter.
    * The document body must stay byte-identical, and the frontmatter diff is
-   * confined to the keys the switch writes — `disabled` everywhere, plus the
-   * harness invocation pair on skills.
+   * confined to `disabled` everywhere, plus {@link FLIPPABLE_KEYS}'s per-kind
+   * control keys — the harness invocation pair on skills, model routing on
+   * agents.
    */
   private assertStateFlipOnly(previousText: string, text: string): void {
     if (stripFrontmatter(previousText) !== stripFrontmatter(text)) throw new Error('plugin resources are read-only; the suite owns their content')
     const before = parseFrontmatterRecord(previousText)
     const after = parseFrontmatterRecord(text)
+    const flippable = new Set(['disabled', ...FLIPPABLE_KEYS[this.kind]])
     for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-      if (key === 'disabled') continue
-      if (this.kind === 'skills' && (key === 'disable-model-invocation' || key === 'user-invocable')) continue
+      if (flippable.has(key)) continue
       if (!deepEqual(before[key], after[key])) {
         throw new Error('plugin resources are read-only; only the enable state can be changed')
       }

@@ -20,6 +20,7 @@ Four maintainer-reported defects, all verified against the dev tree:
 
 ## Consequences
 
+- Follow-up: agent personas are the exception to read-only content — their routing frontmatter (model, provider, reasoning effort) is machine-local configuration the user owns. The panel opens a routing-only editor for plugin personas (no body editor), PanelResources.update allowlists exactly those keys for kind agents, and the server rejects any other content change.
 - dependency-cruiser / tsc / eslint gates unchanged; suite count unchanged (assertions updated where they tested removed buttons).
 - The client-feature isolation rules added in the layout stage are unaffected.
 

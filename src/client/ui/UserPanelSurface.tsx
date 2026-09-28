@@ -124,13 +124,23 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   }
 
   const openEdit = (entry: UserPanelEntry): void => {
-    // Plugin entries are read-only; the card carries no pencil, so this only
-    // guards stale callers against a document the suite owns.
-    if (entry.origin !== 'user') return
+    // Plugin documents are the suite's, except an agent persona's model
+    // routing: the server accepts exactly that frontmatter diff, so this
+    // surface opens the structured controls without the Markdown editor.
+    // Plugin skills/commands have no routing controls and stay guarded.
+    const routingEditable = entry.origin === 'plugin' && kind === 'agents'
+    if (entry.origin !== 'user' && !routingEditable) return
     setError(undefined)
     // The server's raw document preserves YAML metadata and Markdown exactly.
     setShowPreview(false)
-    setEditor({ mode: 'edit', id: entry.id ?? entry.name, name: entry.name, path: entry.path, text: entry.rawText })
+    setEditor({
+      mode: 'edit',
+      id: entry.id ?? entry.name,
+      name: entry.name,
+      path: entry.path,
+      text: entry.rawText,
+      ...(routingEditable ? { routingOnly: true } : {})
+    })
   }
 
   const toggleDisabled = (entry: UserPanelEntry): void => {
@@ -217,7 +227,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
                   kind,
                   busy,
                   onOpen: () => openDetail(entry),
-                  onEdit: entry.origin === 'user' ? () => openEdit(entry) : undefined,
+                  // The pencil on a plugin persona edits routing only; the document stays
+      // the suite's, so plugin skills/commands carry no edit affordance.
+      onEdit: entry.origin === 'user' || (entry.origin === 'plugin' && kind === 'agents') ? () => openEdit(entry) : undefined,
                   onToggle: () => toggleDisabled(entry),
                   onDelete: entry.origin === 'user' ? () => openDelete(entry) : undefined
                 })
@@ -242,7 +254,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       nameLabel: t('panelNamePh'),
       namePlaceholder: t(kind === 'skills' ? 'editorNamePhSkill' : kind === 'commands' ? 'editorNamePhCommand' : 'editorNamePhPersona'),
       textLabel: t(kind === 'skills' ? 'panelSkillTextLabel' : kind === 'commands' ? 'panelCommandTextLabel' : 'panelPersonaTextLabel'),
-      footerHint: t(editor?.mode === 'create' ? 'editorFooterCreate' : 'editorFooterEdit'),
+      footerHint: t(editor?.mode === 'create' ? 'editorFooterCreate' : editor?.routingOnly === true ? 'editorFooterRouting' : 'editorFooterEdit'),
       busy,
       saveError: error,
       saveLabel: editor?.mode === 'create' ? t('editorCreate') : t('panelSave'),

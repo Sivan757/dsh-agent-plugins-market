@@ -91,7 +91,25 @@ describe('unified Markdown resource panel', () => {
     expect(raw).toContain('Review code')
   })
 
-  it('shows plugin and user entries, filters source, and updates duplicate names by stable id', async () => {
+  it('opens a routing-only editor from a plugin persona card, with no document surface', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin])
+    api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    await mountPanel()
+    // The pencil on a plugin persona card opens the structured routing form.
+    await click('panelEditTitle')
+    const dialog = () => host.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialog()).toContain('personaRuntimeConfig')
+    // The suite owns the document: no raw Markdown surface, only the routing
+    // controls — the textarea content the raw editor would carry is absent.
+    expect(host.querySelector('textarea')).toBeNull()
+    // Saving posts the raw document to the same update route; the server's
+    // allowlist is what actually confines the diff.
+    await click('panelSave')
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', plugin.id, plugin.rawText)
+  })
+
+  it('offers edit and delete only on user-authored entries', async () => {
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
     api.updateUserPanelEntry.mockResolvedValue(undefined)
@@ -101,8 +119,8 @@ describe('unified Markdown resource panel', () => {
     expect(host.querySelectorAll('input').length).toBeGreaterThan(0)
     await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="switchToList"]')!.click())
     await click('panelSourcePlugin')
-    // A plugin card carries no pencil: the suite owns the document body.
-    expect(host.querySelector('button[aria-label="panelEditTitle"]')).toBeNull()
+    // An agent persona card carries the pencil: it opens the routing editor.
+    expect(host.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
     await click('panelSourceUser')
     // The pencil opens the filtered entry's own document; its path is a detail
     // read-out, not an editor field, so the editor never repeats it.
@@ -152,12 +170,30 @@ describe('unified Markdown resource panel', () => {
     await mountPanel()
     const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
     // Suite-owned files uninstall with their suite and their content stays
-    // suite-authored, so their cards carry neither affordance at all — not
-    // even a disabled one. The enable switch is the only control they offer.
+    // suite-authored, so there is no delete affordance at all — not even a
+    // disabled one. The persona's pencil edits routing only; the next test
+    // covers the document surface it leaves out.
     expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
-    expect(pluginCard?.querySelector('button[aria-label="panelEditTitle"]')).toBeNull()
+    expect(pluginCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
     expect(userCard?.querySelector('button[aria-label="panelDelete"]')).not.toBeNull()
     expect(userCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+  })
+
+  it('gives plugin skill and command cards no edit affordance', async () => {
+    const pluginSkill = { ...plugin, name: 'review-skill', path: '/plugins/skills/review.md' }
+    const pluginCommand = { ...plugin, name: 'review-cmd', path: '/plugins/commands/review.md' }
+    for (const [kind, entry] of [
+      ['skills', pluginSkill],
+      ['commands', pluginCommand]
+    ] as const) {
+      api.fetchUserPanel.mockResolvedValue([entry])
+      host = document.createElement('div')
+      document.body.append(host)
+      root = createRoot(host)
+      await act(async () => root.render(h(UserPanelSurface, { t, kind })))
+      expect(host.querySelector('button[aria-label="panelEditTitle"]'), kind).toBeNull()
+      expect(host.querySelector('button[aria-label="panelDelete"]'), kind).toBeNull()
+    }
   })
 
   it('shows persona routing frontmatter as its own rows in the detail', async () => {
