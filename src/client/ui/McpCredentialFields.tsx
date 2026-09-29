@@ -66,36 +66,26 @@ export type McpSecretEntry =
       onClear?: () => void
     }
 
-/** One row's expansion state, keyed by the secret it shows. */
-function rowKey(secret: McpSecretEntry, index: number): string {
-  return secret.kind === 'reference' ? `ref:${secret.ref}` : `literal:${secret.label}:${index}`
-}
-
 /** One literal secret's row: write-only replacement of the value in the document. */
 function LiteralSecretRow(props: {
   t: Translate
   secret: Extract<McpSecretEntry, { kind: 'literal' }>
-  open: boolean
-  onToggle: () => void
 }): ReactNode {
   const { t, secret } = props
   const [draft, setDraft] = useState('')
   const writable = secret.onReplace !== undefined
+  // The group is the one fold, and the host field already is the whole entry: its
+  // label names the seat, its badge states the value, its hint says what to do.
   return h(
-    DetailRow,
-    {
-      name: secret.label,
-      summary: t('mcpCredentialHidden'),
-      open: props.open,
-      onToggle: props.onToggle
-    },
+    'div',
+    { className: rowCss.body },
     writable
       ? h(
           'div',
           null,
           h(SettingsSecretField, {
-            id: `mcp-credential-${props.secret.label.replace(/[^A-Za-z0-9_-]+/g, '-')}`,
-            label: t('mcpCredentialReplace'),
+            id: `mcp-credential-${secret.label.replace(/[^A-Za-z0-9_-]+/g, '-')}`,
+            label: secret.label,
             hint: t('mcpCredentialHiddenHint'),
             text: draft,
             disabled: false,
@@ -106,33 +96,8 @@ function LiteralSecretRow(props: {
           h(
             'div',
             { className: panelCss.heroLine },
-            h(
-              Button,
-              {
-                variant: 'primary',
-                size: 'sm',
-                disabled: draft.trim() === '',
-                onClick: () => {
-                  const value = draft.trim()
-                  if (value === '') return
-                  setDraft('')
-                  secret.onReplace?.(value)
-                }
-              },
-              t('mcpCredentialReplace')
-            ),
-            h(
-              Button,
-              {
-                variant: 'ghost',
-                size: 'sm',
-                onClick: () => {
-                  setDraft('')
-                  secret.onClear?.()
-                }
-              },
-              t('mcpCredentialUnset')
-            )
+            h(Button, { variant: 'primary', size: 'sm', disabled: draft.trim() === '', onClick: () => { const value = draft.trim(); if (value === '') return; setDraft(''); secret.onReplace?.(value) } }, t('mcpCredentialReplace')),
+            h(Button, { variant: 'ghost', size: 'sm', onClick: () => { setDraft(''); secret.onClear?.() } }, t('mcpCredentialUnset'))
           )
         )
       : h('p', { role: 'note' }, t('mcpCredentialEditInEditor'))
@@ -144,8 +109,6 @@ function ReferenceSecretRow(props: {
   t: Translate
   api: CredentialApi
   secret: Extract<McpSecretEntry, { kind: 'reference' }>
-  open: boolean
-  onToggle: () => void
   facts: CredentialFacts
   onFact: (ref: string, fact: { configured?: boolean; writable?: boolean }) => void
 }): ReactNode {
@@ -215,16 +178,7 @@ function ReferenceSecretRow(props: {
             configured === true ? h(Button, { variant: 'ghost', size: 'sm', disabled: busy, onClick: () => { void unset() } }, t('mcpCredentialUnset')) : null
           )
         )
-  return h(
-    DetailRow,
-    {
-      name: secret.ref,
-      summary: (secret.usage ?? []).length === 0 ? state : `${state} · ${(secret.usage ?? []).join(' · ')}`,
-      open: props.open,
-      onToggle: props.onToggle
-    },
-    body
-  )
+  return h('div', { className: rowCss.body }, body)
 }
 
 /**
@@ -237,9 +191,9 @@ function ReferenceSecretRow(props: {
 export function McpCredentialFields(props: { t: Translate; api?: CredentialApi; secrets: McpSecretEntry[] }): ReactNode {
   const { t, api, secrets } = props
   const [facts, setFacts] = useState<CredentialFacts>(UNKNOWN_FACTS)
-  // The group folds away; its rows are the detail of one fact the band states.
+  // The group is the one fold: a secret's control and its identity line are the
+  // same detail, so folding them apart would hide one fact twice.
   const [groupOpen, setGroupOpen] = useState(false)
-  const [open, setOpen] = useState<string>()
   const references = secrets.flatMap(secret => (secret.kind === 'reference' ? [secret.ref] : []))
   const refKey = references.join('|')
 
@@ -295,13 +249,13 @@ export function McpCredentialFields(props: { t: Translate; api?: CredentialApi; 
       : h(
           DetailRows,
           group,
-          secrets.map((secret, index) => {
-            const key = rowKey(secret, index)
-            const toggle = (): void => setOpen(current => (current === key ? undefined : key))
-            if (secret.kind === 'literal') return h(LiteralSecretRow, { key, t, secret, open: open === key, onToggle: toggle })
-            if (api === undefined) return h(DetailRow, { key, name: secret.ref, summary: (secret.usage ?? []).join(' · '), expandable: false })
-            return h(ReferenceSecretRow, { key, t, api, secret, open: open === key, onToggle: toggle, facts, onFact })
-          })
+          secrets.map((secret, index) =>
+            secret.kind === 'literal'
+              ? h(LiteralSecretRow, { key: index, t, secret })
+              : api === undefined
+                ? h(DetailRow, { key: index, name: secret.ref, summary: (secret.usage ?? []).join(' · '), expandable: false })
+                : h(ReferenceSecretRow, { key: index, t, api, secret, facts, onFact })
+          )
         )
   )
 }

@@ -138,10 +138,9 @@ describe('shared resource detail editors', () => {
     expect(band).toBeDefined()
     expect(host.textContent).toContain('mcpCredentialConfiguredCount')
     await act(async () => band!.click())
-    // Then the row names the seat it belongs to.
-    const row = [...host.querySelectorAll('button')].find(node => node.textContent?.includes('detailEnv API_TOKEN'))
-    expect(row).toBeDefined()
-    await act(async () => row!.click())
+    // Opening the group brings the seat's line and its control together: one
+    // fold per secret, not two.
+    expect(host.textContent).toContain('detailEnv API_TOKEN')
     const field = host.querySelector<HTMLInputElement>('#mcp-credential-detailEnv-API_TOKEN')!
     expect(field).not.toBeNull()
     await act(async () => typeInto(field, 's3cret'))
