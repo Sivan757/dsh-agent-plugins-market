@@ -27,6 +27,7 @@ import { REDACTED_VALUE } from '../../contracts/mcp.js'
 import { describeCredential, setCredential, unsetCredential, type CredentialApi } from '../credentials.js'
 import type { Translate } from '../index.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
+import rowCss from './detail-rows.module.css'
 import panelCss from './panel.module.css'
 
 /** What the credentials wire last reported for the references this block shows. */
@@ -272,15 +273,16 @@ export function McpCredentialFields(props: { t: Translate; api?: CredentialApi; 
     }))
   }
   const referenceRows = secrets.flatMap(secret => (secret.kind === 'reference' ? [secret] : []))
+  // The name rides the frame, so the disclosure that follows this group cannot
+  // read as part of it.
   return h(
     'div',
     { className: panelCss.block },
-    h('h4', { className: panelCss.blockHead }, t('mcpCredentialTitle')),
     referenceRows.length > 0 && !facts.available
-      ? h('p', { role: 'status' }, t('mcpCredentialUnavailable'))
+      ? h(DetailRows, { label: t('mcpCredentialTitle') }, h('div', { className: rowCss.notice, role: 'status' }, t('mcpCredentialUnavailable')))
       : h(
           DetailRows,
-          null,
+          { label: t('mcpCredentialTitle') },
           secrets.map((secret, index) => {
             const key = rowKey(secret, index)
             const toggle = (): void => setOpen(current => (current === key ? undefined : key))

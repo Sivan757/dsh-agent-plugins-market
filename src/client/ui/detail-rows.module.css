@@ -13,6 +13,27 @@
   overflow: hidden;
 }
 
+/* The frame's own name: a tinted band inside the border, so it labels the rows
+   under it and nothing else. */
+.head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* A frame whose content is one sentence rather than rows. */
+.notice {
+  padding: 9px 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
 .group {
   display: flex;
   flex-direction: column;

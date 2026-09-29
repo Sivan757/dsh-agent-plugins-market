@@ -14,9 +14,20 @@ import { IconChevronDownOutlineMedium, IconChevronRightOutlineMedium } from '@de
 import css from './detail-rows.module.css'
 import panelCss from './panel.module.css'
 
-/** One group of rows; the bordered frame the prototype draws them in. */
-export function DetailRows({ children }: { children?: ReactNode }): ReactNode {
-  return h('div', { className: css.rows }, children)
+/**
+ * One group of rows; the bordered frame the prototype draws them in.
+ *
+ * A group that needs a name carries it inside that frame: a label floating
+ * above the border would read as the heading of whatever bordered group comes
+ * next, which is not what a label is for.
+ */
+export function DetailRows({ label, children }: { label?: string | undefined; children?: ReactNode }): ReactNode {
+  return h(
+    'div',
+    { className: css.rows },
+    label === undefined || label === '' ? null : h('div', { className: css.head }, label),
+    children
+  )
 }
 
 /** One row: a name, a one-line summary, a trailing chevron, and its content. */

@@ -12,7 +12,7 @@ One header secret had two surfaces and they disagreed. The detail dialog showed 
 
 ## Decision
 
-**The block is shared UI, and it carries both kinds of secret.** `McpCredentialFields` lives in `src/client/ui/` with three helpers: `credentialUsage` (which seat spends which reference), `literalSeats` (the seats whose value the wire redacted), and `credentialRefOf` (whether a value _is_ one reference). It takes entries — a reference the credential store answers, or a literal the document holds — and renders one collapsed `DetailRow` per secret, so a service with several secrets costs one line each and opening a row reveals the control that writes it. The detail dialog and the service editor mount the same block; the LSP launch path resolves plugin paths rather than credentials, so its editor gets none, and the JSON view shows the whole document instead.
+**The block is shared UI, and it carries both kinds of secret.** `McpCredentialFields` lives in `src/client/ui/` with three helpers: `credentialUsage` (which seat spends which reference), `literalSeats` (the seats whose value the wire redacted), and `credentialRefOf` (whether a value _is_ one reference). It takes entries — a reference the credential store answers, or a literal the document holds — and renders one collapsed `DetailRow` per secret, so a service with several secrets costs one line each and opening a row reveals the control that writes it. The detail dialog and the service editor mount the same block; the LSP launch path resolves plugin paths rather than credentials, so its editor gets none, and the JSON view shows the whole document instead. The group's name rides that frame as its own header band, because a label floating above the border reads as the heading of the next bordered group — the advanced disclosure that follows it.
 
 **A value that is one reference renders as the credential it names.** `${NAME}` and `${NAME:-}` in a header or environment value become a chip — the shield glyph and the name, with the raw text as its tooltip — and activating the chip hands that row back to the text field, so nothing about the document becomes unreachable.
 
@@ -35,6 +35,8 @@ One header secret had two surfaces and they disagreed. The detail dialog showed 
 **One full field per secret, as the host settings form composes them.** That shape belongs to a settings page; repeated per secret inside a dialog that already carries a form, it pushes the rest of the dialog off screen. The disclosure keeps the host field one line down.
 
 **Let the report dialog write literals too.** It would have to own the service document, which is the split this plugin keeps everywhere else: the detail reports, the editor edits.
+
+**Keep the name above the frame.** That is the detail dialog's other blocks' shape, and it costs no new row. Rejected: the blocks are stacked frames, so a name on the outside is read as the heading of whichever frame comes next — the reported confusion, with the advanced disclosure looking like part of the credentials.
 
 **Offer to store a literal value as a credential while we are here.** Turning a literal token into `${NAME}` means naming the reference, writing the secret, rewriting the document and keeping the seat's meaning; that is a feature of its own, still deferred.
 
