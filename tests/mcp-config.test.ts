@@ -229,18 +229,32 @@ describe('mcp-config: suite declaration meets the user override', () => {
 
 describe('mcp-config: serverName derivation', () => {
   it('joins sanitized ids with __', () => {
-    expect(deriveServerName('my-suite', 'db')).toBe('my-suite__db')
-    expect(deriveServerName('My Suite!', 'DB 1')).toBe('My_Suite__DB_1')
+    expect(deriveServerName({ sourceId: 'demo', id: 'my-suite' }, 'db')).toBe('my-suite__db')
+    expect(deriveServerName({ sourceId: 'demo', id: 'My Suite!' }, 'DB 1')).toBe('My_Suite__DB_1')
     // Two sources' same suite/server pair derive ONE name: the second
     // mount is skipped as a duplicate instead of shadow-registering.
-    expect(deriveServerName('context7', 'context7')).toBe('context7__context7')
+    expect(deriveServerName({ sourceId: 'demo', id: 'context7' }, 'context7')).toBe('context7__context7')
+    expect(deriveServerName({ sourceId: 'other', id: 'context7' }, 'context7')).toBe('context7__context7')
+  })
+
+  it('mounts the user’s own declarations under their bare server key', () => {
+    // The user's own mcp.json is not a package: its servers own the top-level
+    // namespace, so the model reads the name every other MCP client gives them.
+    expect(deriveServerName({ sourceId: '@user-mcp', id: 'user-mcp' }, 'kuboard')).toBe('kuboard')
+    expect(deriveServerName({ sourceId: '@user-mcp', id: 'user-mcp' }, 'My Server!')).toBe('My_Server')
+    // A marketplace suite that happens to be called user-mcp is still a
+    // package: it keeps its namespace.
+    expect(deriveServerName({ sourceId: 'demo', id: 'user-mcp' }, 'kuboard')).toBe('user-mcp__kuboard')
   })
 
   it('truncates over-budget names with a deterministic hash suffix', () => {
-    const long = deriveServerName('a'.repeat(40), 'b'.repeat(40))
+    const long = deriveServerName({ sourceId: 'demo', id: 'a'.repeat(40) }, 'b'.repeat(40))
     expect(long.length).toBe(32)
     expect(long.endsWith('-')).toBe(false)
-    expect(deriveServerName('a'.repeat(40), 'b'.repeat(40))).toBe(long)
+    expect(deriveServerName({ sourceId: 'demo', id: 'a'.repeat(40) }, 'b'.repeat(40))).toBe(long)
+    // The write path accepts user server keys up to 64 characters, so a long
+    // one is clamped the same way instead of reaching the bridge unmountably.
+    expect(deriveServerName({ sourceId: '@user-mcp', id: 'user-mcp' }, 's'.repeat(64))).toHaveLength(32)
   })
 })
 

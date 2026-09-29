@@ -51,6 +51,26 @@ describe('MCP status aggregation', () => {
     expect(direct.tools[0]?.name).toBe('read_file')
   })
 
+  it('prints the user’s own declarations under their bare server name', () => {
+    // The user's own mcp.json owns the top-level namespace, so its row reads
+    // the same name its tools carry — no suite prefix in between.
+    const payload = buildMcpStatus(
+      [
+        suite({
+          sourceId: '@user-mcp',
+          id: 'user-mcp',
+          manifest: { layout: 'agent-plugin-v1', path: '/tmp/mcp.json', id: 'user-mcp', name: 'user-mcp' }
+        })
+      ],
+      [],
+      [{ name: 'mcp__app__read_file', description: 'Read a file' }]
+    )
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.name).toBe('app')
+    expect(app.state).toBe('connected')
+    expect(app.tools.map(tool => tool.name)).toEqual(['read_file'])
+  })
+
   it('flags the remote servers that authorize without declaring it', () => {
     // The redacted configuration shows only what the suite declared, so a
     // remote server whose suite omits `auth` still reads as auth-free while the

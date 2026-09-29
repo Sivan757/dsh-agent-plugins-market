@@ -32,9 +32,10 @@ export function buildMcpStatus(
   for (const suite of suites) {
     if (suite.mcp === undefined) continue
     for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
-      // Server names and every status key are source-qualified: two sources
-      // may ship the same suite id, and the inventory must not conflate them.
-      const serverName = deriveServerName(suite.id, serverKey)
+      // Every status key is source-qualified: two sources may ship the same
+      // suite id, and the inventory must not conflate them. The derived
+      // serverName itself is shared by design — see `deriveServerName`.
+      const serverName = deriveServerName(suite, serverKey)
       knownServerNames.add(serverName)
       knownDefinitions.set(serverName, { suite, serverKey, server })
     }
@@ -48,7 +49,7 @@ export function buildMcpStatus(
     if (suite.mcp === undefined || suite.installedAt === undefined || !suite.enabled) continue
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
     for (const { serverKey, server: effective, override, enabled, credentialRefs: refs, policy } of effectiveMcpServers(suite, overrides.get(suiteKey))) {
-      const serverName = deriveServerName(suite.id, serverKey)
+      const serverName = deriveServerName(suite, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
       const diagnostic = diagnosticsByKey.get(`${suiteKey}\u0000${serverKey}`)

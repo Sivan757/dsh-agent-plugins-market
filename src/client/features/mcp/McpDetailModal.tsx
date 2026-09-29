@@ -196,8 +196,9 @@ export function McpDetailModal({
           kvCell(t('detailTransport'), entry.transport, true),
           kvCell(t('mcpServerKeyLabel'), entry.serverKey ?? entry.name, true),
           // The mount identity the runtime registers, which is not always the
-          // name the declaration uses.
-          kvCell(t('mcpMountNameLabel'), entry.name, true)
+          // name the declaration uses. A user's own declaration mounts under
+          // its key, and then the row would only repeat the one above.
+          entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
         )
       ),
       entry.kind === 'direct' && !entry.managed ? h('p', { className: panelCss.detailProse }, t('mcpDirectBoundary')) : null,

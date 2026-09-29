@@ -27,6 +27,9 @@ describe('user MCP persistence', () => {
     expect(suite.enabled).toBe(true)
     const requests = await toMcpMounts(suite, path)
     expect(requests.mounts).toHaveLength(2)
+    // The user's own declarations own the top-level MCP namespace: their
+    // mounts carry the declared key, not a suite-namespaced one.
+    expect(requests.mounts.map(mount => mount.config.serverName)).toEqual(['one', 'two'])
   })
   it('rejects duplicate and malformed entries without changing the file', async () => {
     const path = await root()

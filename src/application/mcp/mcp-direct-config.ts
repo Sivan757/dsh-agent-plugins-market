@@ -7,6 +7,18 @@ export const USER_MCP_SOURCE = '@user-mcp'
 export const USER_MCP_SUITE = 'user-mcp'
 
 /**
+ * Whether one suite is the user's own declaration file rather than a package.
+ *
+ * These servers are local data the user authored, so they are also the one
+ * suite whose servers own the top-level MCP namespace: they mount under their
+ * own server key instead of a suite-namespaced one (see `deriveServerName` in
+ * `mcp-config.ts`).
+ */
+export function isUserMcpSuite(suite: Pick<Suite, 'sourceId' | 'id'>): boolean {
+  return suite.sourceId === USER_MCP_SOURCE && suite.id === USER_MCP_SUITE
+}
+
+/**
  * Load the user's own MCP declaration file.
  *
  * The suite always carries an `mcp` document — an absent or malformed
