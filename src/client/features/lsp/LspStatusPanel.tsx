@@ -295,8 +295,10 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
     open: true,
     onClose: busy ? () => {} : onClose,
     title: t('lspAddTitle'),
-    // A short form: the dialog takes the form width, not the detail width.
+    // A short form: the dialog takes the form width, not the detail width,
+    // and the editor's height so switching views cannot resize the window.
     size: 'md',
+    height: 'tall',
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,
     footer: h(
@@ -492,6 +494,7 @@ function LspConfigModal({ entry, t, onClose, onSaved }: { entry: LspStatusEntry;
     closeLabel: t('cancel'),
     onClose,
     size: 'md',
+    height: 'tall',
     contentClassName: css.detailBody,
     footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))),
     children: h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t, onSaved })

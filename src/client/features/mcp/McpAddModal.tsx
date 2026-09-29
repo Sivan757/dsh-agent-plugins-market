@@ -37,8 +37,10 @@ export function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: ()
   return h(DetailModal, {
     open: true,
     title: t('mcpAddTitle'),
-    // A short form: the dialog takes the form width, not the detail width.
+    // A short form: the dialog takes the form width, not the detail width,
+    // and the editor's height so switching views cannot resize the window.
     size: 'md',
+    height: 'tall',
     onClose: busy ? () => {} : onClose,
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,

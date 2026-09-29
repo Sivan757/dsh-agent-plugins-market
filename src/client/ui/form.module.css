@@ -52,6 +52,19 @@
   min-height: 220px;
 }
 
+/* The JSON view is one control: where the dialog hands its body a height, the
+   field takes the room the form's fields would need, and the textarea takes
+   the field. A content-sized dialog leaves both at their own floor. */
+.jsonField {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.jsonField .jsonArea {
+  flex: 1 1 auto;
+  min-height: 220px;
+}
+
 /* A field whose input shares its line with one trailing action. */
 .fieldRow {
   display: flex;
@@ -113,9 +126,12 @@
   gap: 10px;
 }
 
-/* One editing column: a wide dialog does not stretch its fields across the page. */
+/* One editing column: a wide dialog does not stretch its fields across the
+   page, and it fills the height its dialog gives the body. */
 .editorBody {
   max-width: 620px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Two one-line fields on one row (a name and its transport, a name and a

@@ -13,8 +13,10 @@ export function McpConfigModal({ entry, t, onClose, onSaved }: { entry: McpStatu
     description: entry.name,
     closeLabel: t('cancel'),
     onClose,
-    // The same width the add dialog uses: one form, one shape.
+    // The same width the add dialog uses: one form, one shape — including the
+    // height its view switch needs to stay put.
     size: 'md',
+    height: 'tall',
     contentClassName: css.detailBody,
     children: h(ServerConfigDetail, { kind: 'mcp', id: entry.id, t, onSaved })
   })

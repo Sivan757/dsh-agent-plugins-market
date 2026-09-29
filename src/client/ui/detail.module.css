@@ -31,6 +31,33 @@
 .compactTop [class*='content'] > [class*='body'] {
   margin-top: 0;
 }
+/* An editor dialog: one document in two views, so its height is the overlay's
+   rather than whichever view is showing — switching views must not resize the
+   window — and the scrolling happens inside it. */
+.tallDialog {
+  height: 80%;
+}
+/* The host's content and body boxes carry a class of theirs; ours ride along on
+   the content, so the market reaches both by attribute. The content's height
+   caps (this stylesheet's and the editor's own) would cut the dialog short. */
+.tallDialog [class*='content'] {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+.tallDialog [class*='content'] > [class*='body'] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* Whatever the caller wraps the editor in fills that body, so the editor's own
+   controls can take the height the shorter view leaves over. */
+.tallDialog [class*='content'] > [class*='body'] > * {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
 .footer {
   display: flex;
   align-items: center;

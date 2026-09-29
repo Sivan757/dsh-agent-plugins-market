@@ -1,4 +1,4 @@
-# Agent Note: The service editor's dialog chrome after the control migration
+# Agent Note: The service editor's dialog chrome
 
 Status: implemented
 
@@ -10,11 +10,15 @@ Status: implemented
 
 **标题与第一个控件之间空了 32px。** 宿主 Modal 给内容盒 20px 上边距，因为它的设计假定标题下有一句说明；再叠加头部自己的 12px 内边距。市场经 `DetailModal` 打开的每个弹窗都没有说明，两者相加就在标题下留出一个控件行高的空洞。
 
+**窗口跟着内容变高变矮，切换视图时整屏都在动。** 表单的字段与 JSON 视图的文本域是两种高度，按内容定高的弹窗就跟着当前视图走：每次切换窗口都会撑大或缩回。编辑器内容迟到、或文档变长时同样如此。
+
 ## Decision
 
 **宿主绘制的控件只接布局类。** `SegmentedControl` 保留自己的轨道、标签页与指示块几何；编辑器改传 `formCss.segSelf`，它只有一条声明 `align-self: flex-start`，让控件在纵向表单列里保持内容宽度，而不是被拉满整列。`.seg` 轨道留给它本来是为之而写的两个控件——MCP 传输方式选择与工作区编辑器的视图切换——两者都是手写的 `aria-pressed` 分组，不是 tablist。
 
 **没有说明的弹窗清掉宿主正文上边距。** `description` 缺席时 `DetailModal` 挂上 `compactTop`，`detail.module.css` 用工作区编辑器在 `panel.module.css` 里同样的 `[class*='content'] > [class*='body']` 选择器把宿主正文的 `margin-top` 归零。标题到第一个控件于是只剩头部自己的 12px。确实带说明的弹窗保留宿主间距。
+
+**编辑类弹窗取浮层的一块高度，而不是取内容的高度。** `DetailModal` 新增 `height: 'auto' | 'tall'`，四个服务编辑器（MCP 与 LSP 的新建、编辑）传 `tall`：弹窗占浮层内容盒的 `height: 80%`，宿主正文盒成为它内部的滚动区。内容列、调用方包住编辑器的任意一层、以及编辑器本体都吃掉底部按钮之外剩下的高度，于是 JSON 视图的字段与文本域会伸进表单视图本该占用的空间，而不是把它空在那里。详情类弹窗保留宿主按内容定高的行为。
 
 ## Alternatives considered
 
@@ -26,15 +30,24 @@ Status: implemented
 
 **改共享外壳的弹窗 gap，而不是正文上边距。** 宿主的 `.dialog` gap 在正文与底部之间，不在标题之下，产生不了这次报的那个空洞；收紧它只会悄悄改掉每个市场弹窗的底部间距。
 
+**给正文一个最小高度，而不是给弹窗一个高度。** 下限只挡住弹窗变矮，内容一变长它照样撑开，窗口依旧会动。
+
+**两个视图都挂载、隐藏其中一个。** 两份活着的视图确实能撑住一个固定高度，不必给弹窗定高。否决：编辑面翻倍，而且一个只承诺一个面板的 tablist 不该装两份文档。
+
+**让每个弹窗各自决定高度。** 按调用点给数字，会像当年五档弹窗宽度那样漂移；服务编辑器是同一个形态，高度也是这个形态的一部分。
+
 ## Consequences
 
 - 模式切换变成一条紧凑的、平台绘制的轨道：两段等宽，指示块压在选中标签上，标签页 28px。
 - 没有说明的市场弹窗打开时，标题到第一个控件是 12px；带说明的弹窗保留宿主 20px 的正文上边距。
 - 市场弹窗就此在这一条规则上偏离宿主外壳，且依赖一个结构性选择器——宿主重构会让它静默失效，这份暴露工作区编辑器本来也有。
+- 两个服务编辑器固定占窗口的一块：表单 / JSON 切换不移动任何东西，长文档在正文内部滚动，而不是把窗口撑大。
+- 表单视图会把它 JSON 视图本该占用的空间空在那里。这是「窗口不随内容变化」的代价，也正是 JSON 视图去填满它的原因。
 
 ## Testing
 
 - 在一个复现页里量几何：加载宿主的 `Modal.module.css` 与 `SegmentedControl.module.css`（0.2.0-rc.1）以及本仓库的 `detail.module.css` 与 `form.module.css`。修复前 592px 的轨道里，290px 的指示块压着 44px 的标签；修复后 145px 的轨道里，67px 的指示块正好压在 67px 的标签上，标题到控件的间距实测 14px（此前 34px）。
+- 同一个复现页里量高度，浮层 1000px：高大的弹窗在两个视图里都是 758px，JSON 字段长到 338px，而详情类弹窗保持按内容定高的 387px。
 - `tests/client-detail-editors.test.ts` 与 `tests/client-server-config-policy.test.ts` —— 切换控件两个方向仍然驱动同一份文档。
 - 两处修复都无法被 jsdom 测试看见：本仓库的客户端测试把 CSS modules 打桩成 `{}`，被测的类名根本到不了 DOM。
 

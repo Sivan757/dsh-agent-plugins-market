@@ -308,7 +308,7 @@ export function ServerConfigEditor(props: {
     mode === 'json'
       ? h(
           'label',
-          { className: formCss.field },
+          { className: `${formCss.field} ${formCss.jsonField}` },
           h('span', null, props.t('detailJsonConfig')),
           h('textarea', {
             className: formCss.jsonArea,
