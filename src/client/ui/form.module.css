@@ -97,6 +97,46 @@
   font-weight: 400;
 }
 
+/* A credential reference in a value cell: the document's `${NAME}` syntax is a
+   detail, so the row reads as the credential it names. Clicking hands the row
+   back to its text field. */
+.credChip {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  width: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px dashed var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.credChip:hover {
+  border-color: var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.credChip svg {
+  display: block;
+  flex: none;
+}
+
+.credChipName {
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* An empty list offers the very row that would create its first line. */
 .emptyRows {
   width: 100%;

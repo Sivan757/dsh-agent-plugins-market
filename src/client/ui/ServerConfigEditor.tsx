@@ -7,9 +7,11 @@
  * document editor lay their fields out identically.
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, IconPlusOutlineMedium, IconTrashOutlineMedium, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineMedium, IconShieldOutlineMedium, IconTrashOutlineMedium, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
+import type { CredentialApi } from '../credentials.js'
 import type { Translate } from '../index.js'
+import { McpCredentialFields, credentialRefOf, credentialUsage } from './McpCredentialFields.js'
 import { changeTransport, composeServerDocument, parseServerConfig, parseServerDocument, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
 import formCss from './form.module.css'
@@ -40,6 +42,12 @@ export function ServerConfigEditor(props: {
   serverKey?: string
   /** Reasons the API rejected a save, keyed by the editor field they belong to. */
   fieldErrors?: Record<string, string>
+  /**
+   * The host credential wire. MCP references are configured through it, so the
+   * form offers the secret where the reference is written instead of leaving
+   * the `${NAME}` syntax as the only thing on screen.
+   */
+  credentials?: CredentialApi
 }): ReactNode {
   const [mode, setMode] = useState<'form' | 'json'>('form')
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -135,7 +143,7 @@ export function ServerConfigEditor(props: {
       fieldError(key)
     )
   }
-  const mapField = (key: string, label: string, addLabel: string, narrowKey = false): ReactNode =>
+  const mapField = (key: string, label: string, addLabel: string, narrowKey = false, references = false): ReactNode =>
     h(StringRows, {
       key,
       label,
@@ -143,12 +151,17 @@ export function ServerConfigEditor(props: {
       t: props.t,
       map: true,
       narrowKey,
+      references,
       value: config?.[key] as Record<string, string> | undefined,
       onChange: value => field(key, value),
       onIssue: bad => issue(key, bad),
       ...(props.fieldErrors?.[key] === undefined ? {} : { error: props.fieldErrors[key] })
     })
   const type = typeof config?.type === 'string' ? config.type : 'stdio'
+  // The references this definition spends, and the seats that spend them. Only
+  // MCP resolves the credential seam, so only an MCP document has this block.
+  const credentialUse = props.kind === 'mcp' && config !== undefined ? credentialUsage(props.t, config) : {}
+  const credentialRefs = Object.keys(credentialUse)
   const transportField =
     props.kind === 'mcp'
       ? h(
@@ -317,9 +330,11 @@ export function ServerConfigEditor(props: {
                     onChange: value => field('args', value),
                     onIssue: bad => issue('args', bad)
                   }),
-                  mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
+                  // Only MCP resolves the credential seam, so only an MCP
+                  // environment reads its references as credentials.
+                  mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true, props.kind === 'mcp')
                 ]
-              : [textField('url', props.t('detailUrl'), true, true), mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true)],
+              : [textField('url', props.t('detailUrl'), true, true), mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true, true)],
             props.kind === 'lsp'
               ? [
                   mapField('extensionToLanguage', props.t('detailExtensions'), props.t('detailAddExtensions'), true),
@@ -329,6 +344,16 @@ export function ServerConfigEditor(props: {
                 ]
               : null
           ),
+    // The references the document spends, configured where the form shows
+    // them. The JSON view carries the document itself, so it needs no block.
+    credentialRefs.length === 0 || mode === 'json'
+      ? null
+      : h(McpCredentialFields, {
+          t: props.t,
+          ...(props.credentials === undefined ? {} : { api: props.credentials }),
+          refs: credentialRefs,
+          usage: credentialUse
+        }),
     advancedSection
   )
 }
@@ -404,6 +429,8 @@ function StringRows(props: {
   map: boolean
   /** Key column at 26% rather than 34% (an extension mapping is a narrow key). */
   narrowKey?: boolean
+  /** A value that is one credential reference renders as the credential it names. */
+  references?: boolean
   value?: Record<string, string> | string[]
   onChange: (value: Record<string, string> | string[]) => void
   onIssue: (bad: boolean) => void
@@ -412,6 +439,8 @@ function StringRows(props: {
 }): ReactNode {
   const [rows, setRows] = useState<Array<[string, string]>>(() => (props.map ? Object.entries(props.value ?? {}) : ((props.value as string[]) ?? []).map(value => ['', value])))
   const [invalid, setInvalid] = useState(false)
+  /** Rows the user sent back to the text field from their credential chip. */
+  const [textRows, setTextRows] = useState<ReadonlySet<number>>(() => new Set())
   const change = (next: Array<[string, string]>): void => {
     setRows(next)
     const bad = props.map && (next.some(([key]) => key.trim() === '') || new Set(next.map(([key]) => key)).size !== next.length)
@@ -420,6 +449,44 @@ function StringRows(props: {
     if (!bad) props.onChange(props.map ? Object.fromEntries(next) : next.map(([, value]) => value))
   }
   const keySlot = props.narrowKey === true ? formCss.rowKeyNarrow : formCss.rowKey
+  /**
+   * One row's value cell. A value that is nothing but a credential reference
+   * reads as the credential it names: the reference syntax is a document
+   * detail, the secret is configured in the block below, and the raw text stays
+   * reachable from the chip for anyone who wants to see or change it.
+   */
+  const valueCell = (index: number, value: string): ReactNode => {
+    const reference = props.references === true && !textRows.has(index) ? credentialRefOf(value) : undefined
+    if (reference === undefined) {
+      return h('input', {
+        value,
+        'aria-label': `${props.label} ${props.t('detailValue')} ${index + 1}`,
+        onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [row[0], event.target.value] : row))),
+        // A block copied out of a README becomes one row per line.
+        onPaste: (event: ClipboardEvent) => {
+          const pasted = event.clipboardData?.getData('text/plain') ?? ''
+          if (!pasted.includes('\n')) return
+          const parsed = rowsFromPastedText(pasted, props.map)
+          if (parsed.length === 0) return
+          event.preventDefault()
+          change([...rows.filter(([key, value]) => key !== '' || value !== ''), ...parsed])
+        }
+      })
+    }
+    return h(
+      'button',
+      {
+        type: 'button',
+        className: formCss.credChip,
+        // The document text stays one hover away; the chip is the reading.
+        title: value,
+        'aria-label': `${props.t('mcpCredentialRef')} ${reference}`,
+        onClick: () => setTextRows(current => new Set(current).add(index))
+      },
+      h(IconShieldOutlineMedium),
+      h('span', { className: formCss.credChipName }, reference)
+    )
+  }
   return h(
     'div',
     { className: `${formCss.field} ${formCss.full}` },
@@ -467,20 +534,7 @@ function StringRows(props: {
               onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [event.target.value, row[1]] : row)))
             })
           : null,
-        h('input', {
-          value,
-          'aria-label': `${props.label} ${props.t('detailValue')} ${index + 1}`,
-          onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [row[0], event.target.value] : row))),
-          // A block copied out of a README becomes one row per line.
-          onPaste: (event: ClipboardEvent) => {
-            const pasted = event.clipboardData?.getData('text/plain') ?? ''
-            if (!pasted.includes('\n')) return
-            const parsed = rowsFromPastedText(pasted, props.map)
-            if (parsed.length === 0) return
-            event.preventDefault()
-            change([...rows.filter(([key, value]) => key !== '' || value !== ''), ...parsed])
-          }
-        }),
+        valueCell(index, value),
         h(
           'button',
           {

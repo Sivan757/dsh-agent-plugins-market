@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
 import { composeServerDocument, rowsFromPastedText } from '../src/client/ui/server-form.js'
+import type { CredentialApi } from '../src/client/credentials.js'
 import { MarkdownDocument } from '../src/client/ui/MarkdownDocument.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
@@ -18,7 +19,16 @@ afterEach(async () => {
   host?.remove()
 })
 
-function Harness({ initial, serverKey = 'service' }: { initial: string; serverKey?: string }) {
+/** A credentials wire that reports every reference configured and writable. */
+const credentialStub: CredentialApi = {
+  describe: async ({ refs }) => ({
+    result: { ok: true, value: { credentials: Object.fromEntries(refs.map(ref => [ref, { configured: true, source: 'file', writable: true }])) } }
+  }),
+  set: async () => ({ result: { ok: true } }),
+  unset: async () => ({ result: { ok: true } })
+}
+
+function Harness({ initial, serverKey = 'service', credentials }: { initial: string; serverKey?: string; credentials?: CredentialApi }) {
   // The editor edits the document the specification seats a service in: the
   // definition under `mcpServers` plus this client's policy namespace. These
   // cases supply the definition and read the definition back. No key is a
@@ -28,17 +38,29 @@ function Harness({ initial, serverKey = 'service' }: { initial: string; serverKe
   return h(
     'div',
     null,
-    h(ServerConfigEditor, { kind: 'mcp', ...(serverKey === '' ? {} : { serverKey }), text, onChange: setText, t, onValidityChange: setValid }),
+    h(ServerConfigEditor, {
+      kind: 'mcp',
+      ...(serverKey === '' ? {} : { serverKey }),
+      text,
+      onChange: setText,
+      t,
+      onValidityChange: setValid,
+      ...(credentials === undefined ? {} : { credentials })
+    }),
     h('output', { 'data-value': true }, text),
     h('output', { 'data-valid': true }, String(valid))
   )
 }
 
-async function mount(initial: Record<string, unknown>, serverKey = 'service') {
+async function mount(initial: Record<string, unknown>, serverKey = 'service', credentials?: CredentialApi) {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  await act(async () => root!.render(h(Harness, { initial: JSON.stringify(initial), serverKey })))
+  await act(async () => root!.render(h(Harness, { initial: JSON.stringify(initial), serverKey, ...(credentials === undefined ? {} : { credentials }) })))
+  // A credential block reads its facts on mount; let that read settle.
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
 }
 async function click(label: string) {
   const button = [...host.querySelectorAll('button')].find(node => node.getAttribute('aria-label') === label || node.textContent === label)
@@ -84,6 +106,28 @@ describe('shared resource detail editors', () => {
     expect(advanced()).toBeUndefined()
     await click('detailForm')
     expect(advanced()).toBeDefined()
+  })
+
+  it('reads a credential reference as the credential it names', async () => {
+    await mount({ type: 'streamable-http', url: 'https://example.test/mcp', headers: { Authorization: '${SERVICE_TOKEN:-}' } })
+    // The value cell shows the credential; the document's `${…}` syntax is a
+    // detail the JSON view carries.
+    const chip = host.querySelector<HTMLButtonElement>('button[aria-label*="SERVICE_TOKEN"]')!
+    expect(chip).not.toBeNull()
+    expect(chip.title).toBe('${SERVICE_TOKEN:-}')
+    expect(host.querySelector('[aria-label="detailHeaders detailValue 1"]')).toBeNull()
+    // Activating the chip hands that row back to the text field, raw text and all.
+    await act(async () => chip.click())
+    expect((host.querySelector('[aria-label="detailHeaders detailValue 1"]') as HTMLInputElement).value).toBe('${SERVICE_TOKEN:-}')
+  })
+
+  it('configures the references the document spends, in the form view only', async () => {
+    await mount({ type: 'streamable-http', url: 'https://example.test/mcp', headers: { Authorization: '${SERVICE_TOKEN}' } }, 'service', credentialStub)
+    expect(host.textContent).toContain('mcpCredentialTitle')
+    expect(host.textContent).toContain('mcpCredentialConfigured')
+    // The JSON view shows the whole document, so the block stands aside there.
+    await click('detailJson')
+    expect(host.textContent).not.toContain('mcpCredentialTitle')
   })
 
   it('renders Markdown as markup with the frontmatter as authored, without HTML injection', () => {

@@ -2,6 +2,7 @@ import { createElement as h, useEffect, useRef, useState, type ReactNode } from 
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ServerConfigPayload, ServerPolicyPayload } from '../../contracts/market.js'
 import { addLspServer, addMcpServer, fetchServerConfig, saveServerConfig } from '../api.js'
+import type { CredentialApi } from '../credentials.js'
 import type { Translate } from '../index.js'
 import { ServerConfigEditor } from './ServerConfigEditor.js'
 import { composeServerDocument, fieldErrorsOf, parseServerConfig, parseServerDocument, policyDocumentOfDraft, policyDraftOfDocument, policyRequestOfDocuments, serverPolicyDocument, type ServerKind, type ServerPolicyDraft } from './server-form.js'
@@ -40,6 +41,7 @@ export function ServerConfigDetail({
   id,
   create = false,
   t,
+  credentials,
   onSaved,
   onDirtyChange
 }: {
@@ -49,6 +51,8 @@ export function ServerConfigDetail({
   /** Create mode: the name becomes a field and the save adds a new service. */
   create?: boolean
   t: Translate
+  /** The host credential wire; the form configures MCP references through it. */
+  credentials?: CredentialApi
   onSaved?: () => void
   onDirtyChange?: (dirty: boolean) => void
 }): ReactNode {
@@ -180,6 +184,7 @@ export function ServerConfigDetail({
             serverKey,
             disabled: busy || !editable,
             onValidityChange: setValid,
+            ...(credentials === undefined ? {} : { credentials }),
             ...(create
               ? {
                   nameField: {

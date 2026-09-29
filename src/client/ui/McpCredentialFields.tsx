@@ -1,6 +1,6 @@
 /**
  * One MCP server's credential references as write-only `SettingsSecretField`
- * controls.
+ * controls, plus the usage map that says where each reference is spent.
  *
  * Read facts (configured / source / writable) come from the value-free
  * credentials wire; a typed value crosses the wire exactly once, on the save
@@ -12,13 +12,16 @@
  * settings form, so the commit gesture is the field's own save control rather
  * than the form-model's save — the one deliberate local piece.
  *
+ * The detail dialog and the service editor both mount this block: a secret is
+ * configured the same way wherever the reference that needs it is on screen.
+ *
  * @module client/McpCredentialFields
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import { Button, SettingsSecretField } from '@deepseek-ai/dsh-client-ui-primitives'
-import { describeCredential, setCredential, unsetCredential, type CredentialApi } from '../../credentials.js'
-import type { Translate } from '../../index.js'
-import panelCss from '../../ui/panel.module.css'
+import { describeCredential, setCredential, unsetCredential, type CredentialApi } from '../credentials.js'
+import type { Translate } from '../index.js'
+import panelCss from './panel.module.css'
 
 /** What the credentials wire last reported for the references this card shows. */
 interface CredentialFacts {
@@ -180,4 +183,41 @@ export function McpCredentialFields(props: {
       })
     )
   )
+}
+
+/**
+ * Every credential reference a server definition spends, and where:
+ * `{ TOKEN: ['请求头 Authorization', …] }`. Headers and environment are the
+ * seats the mount resolves, so those are the two the map names.
+ */
+export function credentialUsage(t: Translate, config: Record<string, unknown> | undefined): Record<string, string[]> {
+  const usage: Record<string, string[]> = {}
+  if (config === undefined) return usage
+  for (const [field, label] of [
+    ['headers', t('detailHeaders')],
+    ['env', t('detailEnv')]
+  ] as const) {
+    const values = config[field]
+    if (typeof values !== 'object' || values === null) continue
+    for (const [key, value] of Object.entries(values as Record<string, unknown>)) {
+      if (typeof value !== 'string') continue
+      for (const match of value.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g)) {
+        const name = match[1]
+        if (name === undefined) continue
+        const entries = usage[name] ?? []
+        entries.push(`${label} ${key}`)
+        usage[name] = entries
+      }
+    }
+  }
+  return usage
+}
+
+/**
+ * The reference a value *is*, when the value is nothing but one: `${TOKEN}`
+ * or `${TOKEN:-}` read as the credential, while a value with anything else in
+ * it — a URL query, a non-empty fallback — stays text.
+ */
+export function credentialRefOf(value: string): string | undefined {
+  return /^\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-)?\}$/.exec(value)?.[1]
 }

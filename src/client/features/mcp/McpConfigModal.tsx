@@ -2,11 +2,24 @@ import type { ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigDetail } from '../../ui/ServerConfigDetail.js'
+import type { CredentialApi } from '../../credentials.js'
 import type { Translate } from '../../index.js'
 import type { McpStatusEntry } from '../../api.js'
 import css from './mcp-status.module.css'
 
-export function McpConfigModal({ entry, t, onClose, onSaved }: { entry: McpStatusEntry; t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
+export function McpConfigModal({
+  entry,
+  t,
+  credentials,
+  onClose,
+  onSaved
+}: {
+  entry: McpStatusEntry
+  t: Translate
+  credentials?: CredentialApi
+  onClose: () => void
+  onSaved: () => void
+}): ReactNode {
   return h(DetailModal, {
     open: true,
     title: t('mcpEditTitle'),
@@ -18,7 +31,7 @@ export function McpConfigModal({ entry, t, onClose, onSaved }: { entry: McpStatu
     size: 'md',
     height: 'tall',
     contentClassName: css.detailBody,
-    children: h(ServerConfigDetail, { kind: 'mcp', id: entry.id, t, onSaved })
+    children: h(ServerConfigDetail, { kind: 'mcp', id: entry.id, t, ...(credentials === undefined ? {} : { credentials }), onSaved })
   })
 }
 

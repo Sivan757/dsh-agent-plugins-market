@@ -1,4 +1,4 @@
-/** Shared builders for the MCP detail dialogs: tool parameter rows and credential usage. */
+/** Shared builders for the MCP detail dialogs: the tool parameter rows. */
 import { createElement as h, type ReactNode } from 'react'
 import type { Translate } from '../../index.js'
 import css from './mcp-status.module.css'
@@ -29,27 +29,4 @@ export function toolParameterRows(parameters: unknown, t: Translate): ReactNode 
       )
     })
   )
-}
-
-export function credentialUsage(t: Translate, config: Record<string, unknown> | undefined): Record<string, string[]> {
-  const usage: Record<string, string[]> = {}
-  if (config === undefined) return usage
-  for (const [field, label] of [
-    ['headers', t('detailHeaders')],
-    ['env', t('detailEnv')]
-  ] as const) {
-    const values = config[field]
-    if (typeof values !== 'object' || values === null) continue
-    for (const [key, value] of Object.entries(values as Record<string, unknown>)) {
-      if (typeof value !== 'string') continue
-      for (const match of value.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g)) {
-        const name = match[1]
-        if (name === undefined) continue
-        const entries = usage[name] ?? []
-        entries.push(`${label} ${key}`)
-        usage[name] = entries
-      }
-    }
-  }
-  return usage
 }

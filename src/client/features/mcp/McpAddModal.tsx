@@ -1,6 +1,7 @@
 import { createElement as h, type ReactNode } from 'react'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigDetail } from '../../ui/ServerConfigDetail.js'
+import type { CredentialApi } from '../../credentials.js'
 import type { Translate } from '../../index.js'
 import css from './mcp-status.module.css'
 
@@ -12,7 +13,7 @@ import css from './mcp-status.module.css'
  * what creating does — and the form owns its fields, its validation and the
  * create action it contributes to the same footer.
  */
-export function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
+export function McpAddModal({ t, credentials, onClose, onSaved }: { t: Translate; credentials?: CredentialApi; onClose: () => void; onSaved: () => void }): ReactNode {
   return h(DetailModal, {
     open: true,
     title: t('mcpAddTitle'),
@@ -27,6 +28,6 @@ export function McpAddModal({ t, onClose, onSaved }: { t: Translate; onClose: ()
       h('span', { className: css.modalFooterHint }, t('editorFooterCreate')),
       h('div', { className: css.modalFooterGrow })
     ),
-    children: h(ServerConfigDetail, { kind: 'mcp', create: true, t, onSaved })
+    children: h(ServerConfigDetail, { kind: 'mcp', create: true, t, ...(credentials === undefined ? {} : { credentials }), onSaved })
   })
 }
