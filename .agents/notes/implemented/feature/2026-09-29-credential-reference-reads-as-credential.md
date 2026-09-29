@@ -46,7 +46,7 @@ One header secret had two surfaces and they disagreed. The detail dialog showed 
 - The editor's chips are buttons: a keyboard user reaches the raw text of a reference, and the replacement field of a literal, by activating one.
 - A reference in a seat the form does not chip — a URL query, `cwd`, an argument — still reads as text, and an argument the wire redacted still reads as text inside the argument itself.
 - The LSP editor never shows the block: its mount resolves plugin paths, not credentials.
-- A disclosure header is a soft grey when open, on the platform's own hover fill; the coloured band it used to take read as a status rather than as "this row is open".
+- A disclosure paints exactly one surface: the header of the row it opened, on the platform's own soft grey. The coloured band it used to take read as a status rather than as "this row is open", and a hover fill plus a filled body gave the same surface to three different states.
 
 ## Testing
 

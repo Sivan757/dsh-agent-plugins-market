@@ -51,12 +51,11 @@ button.row {
   cursor: pointer;
 }
 
-.row:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
+/* No hover fill: the row is a band in a frame, and the chevron already says it
+   opens. Only the open state takes a surface. */
 
-/* An open row reads as the surface its body already uses: the same soft grey
-   as a hover, never a coloured band. */
+/* The one surface a disclosure paints: the header of the row it opened. The
+   body stays on the frame's own background. */
 .row[aria-expanded='true'] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
@@ -97,5 +96,4 @@ button.row {
 .body {
   padding: 12px 14px;
   border-top: 1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-interactive-bg-hover);
 }
