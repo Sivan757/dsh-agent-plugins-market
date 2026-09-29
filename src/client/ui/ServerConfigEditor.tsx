@@ -36,12 +36,6 @@ export function ServerConfigEditor(props: {
   onPolicyDraftChange?: (draft: ServerPolicyDraft) => void
   /** The MCP mount backend; `host` cannot enforce a startup timeout. */
   backend?: 'builtin' | 'host'
-  /**
-   * The new-service dialog: the optional connection inputs join the disclosure,
-   * so the first screen asks for the name, the transport and the single field
-   * that transport requires.
-   */
-  createMode?: boolean
   /** The declaration key this service carries; MCP documents are keyed by it. */
   serverKey?: string
   /** Reasons the API rejected a save, keyed by the editor field they belong to. */
@@ -85,7 +79,11 @@ export function ServerConfigEditor(props: {
   // half-typed timeout stops the save from the same validity signal the
   // document fields use.
   const timeouts = props.policy !== undefined && props.policyDraft !== undefined && props.onPolicyDraftChange !== undefined
+  // The timeout drafts belong to the form view; while the JSON view is showing
+  // them hidden, a draft it cannot parse must not block a save the user cannot
+  // see a reason for. Switching back to the form re-applies the check.
   const policyValid =
+    mode === 'json' ||
     !timeouts ||
     (timeoutMsFromText(props.policyDraft!.toolCallTimeoutMs) !== undefined && timeoutMsFromText(props.policyDraft!.startupTimeoutMs) !== undefined)
   const valid = compatible && !hasIssue && requiredValid && policyValid
@@ -198,27 +196,6 @@ export function ServerConfigEditor(props: {
    * offer the client timeouts when the calling dialog supplies the policy.
    */
   const advancedFields: ReactNode[] = []
-  // Creating a service keeps the optional connection inputs in the disclosure:
-  // arguments and environment for a process, headers for a remote endpoint.
-  if (props.createMode === true && config !== undefined) {
-    if (props.kind === 'lsp' || type === 'stdio') {
-      advancedFields.push(
-        h(StringRows, {
-          key: 'args',
-          label: props.t('detailArgs'),
-          addLabel: props.t('detailAddArgs'),
-          t: props.t,
-          map: false,
-          value: config.args as string[] | undefined,
-          onChange: value => field('args', value),
-          onIssue: bad => issue('args', bad)
-        }),
-        mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
-      )
-    } else {
-      advancedFields.push(mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true))
-    }
-  }
   if (config !== undefined) {
     advancedFields.push(
       type === 'stdio'
@@ -256,8 +233,10 @@ export function ServerConfigEditor(props: {
       })
     )
   }
+  // The advanced section is a view over the document's own optional seats, so
+  // the JSON view — which shows the whole document — does not repeat it.
   const advancedSection =
-    props.kind !== 'mcp' || advancedFields.length === 0
+    props.kind !== 'mcp' || advancedFields.length === 0 || mode === 'json'
       ? null
       : h(
           DetailRows,
@@ -328,26 +307,19 @@ export function ServerConfigEditor(props: {
             props.kind === 'lsp' || type === 'stdio'
               ? [
                   textField('command', props.t('detailCommand'), true, true),
-                  ...(props.createMode === true
-                    ? []
-                    : [
-                        h(StringRows, {
-                          key: 'args',
-                          label: props.t('detailArgs'),
-                          addLabel: props.t('detailAddArgs'),
-                          t: props.t,
-                          map: false,
-                          value: config.args as string[] | undefined,
-                          onChange: value => field('args', value),
-                          onIssue: bad => issue('args', bad)
-                        }),
-                        mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
-                      ])
+                  h(StringRows, {
+                    key: 'args',
+                    label: props.t('detailArgs'),
+                    addLabel: props.t('detailAddArgs'),
+                    t: props.t,
+                    map: false,
+                    value: config.args as string[] | undefined,
+                    onChange: value => field('args', value),
+                    onIssue: bad => issue('args', bad)
+                  }),
+                  mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
                 ]
-              : [
-                  textField('url', props.t('detailUrl'), true, true),
-                  ...(props.createMode === true ? [] : [mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true)])
-                ],
+              : [textField('url', props.t('detailUrl'), true, true), mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true)],
             props.kind === 'lsp'
               ? [
                   mapField('extensionToLanguage', props.t('detailExtensions'), props.t('detailAddExtensions'), true),

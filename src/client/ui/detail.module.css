@@ -51,11 +51,12 @@
   overflow-y: auto;
 }
 /* Whatever the caller wraps the editor in fills that body, so the editor's own
-   controls can take the height the shorter view leaves over. */
+   controls can take the height the shorter view leaves over. It grows but never
+   shrinks: a wrapper compressed below its content would clip the form and leave
+   the body with nothing to scroll. */
 .tallDialog [class*='content'] > [class*='body'] > * {
   display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 0 auto;
   flex-direction: column;
 }
 .footer {

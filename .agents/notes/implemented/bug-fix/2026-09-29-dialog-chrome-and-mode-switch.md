@@ -18,7 +18,7 @@ Two defects showed up in the new-service dialog.
 
 **A description-less dialog clears the host body margin.** `DetailModal` adds `compactTop` whenever `description` is absent, and `detail.module.css` zeroes the host body's `margin-top` through the same `[class*='content'] > [class*='body']` selector the workspace editors use in `panel.module.css`. The title then keeps the header's own 12px above the first control. A dialog that does pass a description keeps the host spacing.
 
-**An editor dialog takes a share of the overlay, not of its content.** `DetailModal` gains `height: 'auto' | 'tall'`, and the four service editors (MCP and LSP, add and edit) pass `tall`: the dialog is `height: 80%` of the overlay's content box, and the host's body box becomes its scroll region. The content column, whatever wrapper holds the editor, and the editor body itself all take the height the footer leaves, so the JSON view's field and textarea grow into the room the form view's fields would need instead of leaving it empty. Detail dialogs keep the host's content-sized behavior.
+**An editor dialog takes a share of the overlay, not of its content.** `DetailModal` gains `height: 'auto' | 'tall'`, and the four service editors (MCP and LSP, add and edit) pass `tall`: the dialog is `height: 80%` of the overlay's content box, and the host's body box becomes its scroll region. The content column, whatever wrapper holds the editor, and the editor body itself all take the height the footer leaves, so the JSON view's field and textarea grow into the room the form view's fields would need instead of leaving it empty. Those boxes grow but never shrink below their own content: a form taller than the dialog scrolls the body, where a compressed column would clip it out of the scroll range. Detail dialogs keep the host's content-sized behavior.
 
 ## Alternatives considered
 
@@ -43,11 +43,13 @@ Two defects showed up in the new-service dialog.
 - The market's dialogs now deviate from the host chrome on that one rule through a structural selector a host restructure would break silently — the exposure the workspace editors already carry.
 - Both service editors stand at a fixed share of the window: the 表单/JSON switch moves nothing, and a long document scrolls inside the body instead of growing the window.
 - A form view leaves the room its JSON view would use empty. That is the price of a window that does not resize, and the reason the JSON view fills it.
+- A form taller than the dialog — the advanced disclosure opened, a long argument list — scrolls inside the body; every field stays reachable, and the footer stays put.
 
 ## Testing
 
 - Geometry measured in a reproduction page loading the host's `Modal.module.css` and `SegmentedControl.module.css` (0.2.0-rc.1) plus this repository's `detail.module.css` and `form.module.css`: before, a 592px track carried a 290px indicator over a 44px tab; after, a 145px track carries a 67px indicator exactly over a 67px tab, and the title-to-control gap measures 14px against 34px.
 - Height measured in the same reproduction page, overlay at 1000px: the tall dialog is 758px in both views, with the JSON field grown to 338px, while a detail dialog stays content-sized at 387px.
+- Overflow measured in that page's short case: with the overlay at 520px the body scrolls 501px of content through a 198px window and the editor box keeps its full 477px height, where the earlier chain compressed it to 174px and cut the form out of the scroll range.
 - `tests/client-detail-editors.test.ts` and `tests/client-server-config-policy.test.ts` — the switch still drives the same document in both directions.
 - Neither fix is visible to a jsdom test: client tests here stub CSS modules to `{}`, so the classes under test never reach the DOM.
 

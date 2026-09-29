@@ -13,13 +13,10 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, IconEditOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
-import { ServerConfigEditor } from '../../ui/ServerConfigEditor.js'
 import { ServerConfigDetail } from '../../ui/ServerConfigDetail.js'
-import { parseServerConfig } from '../../ui/server-form.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
 import type { Translate } from '../../index.js'
 import {
-  addLspServer,
   fetchLspStatus,
   migrateLspSeam,
   setLspServerEnabled,
@@ -200,7 +197,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     // edit action rather than from inside the detail report.
     editing === undefined ? null : h(LspConfigModal, { entry: editing, t, onClose: () => setEditing(undefined), onSaved: refresh }),
     editorOpen
-      ? h(LspConfigEditor, {
+      ? h(LspAddModal, {
           t,
           onClose: () => setEditorOpen(false),
           onSaved: () => {
@@ -266,34 +263,13 @@ function SeamResult({ result, t }: { result: LspLegacySeamMigration; t: Translat
 }
 
 /**
- * Direct LSP configuration editor: one JSON document shaped like Claude
- * Code's `lspServers` table. The host validates with the same fail-closed
- * rules as suite declarations and mounts direct servers on the next
- * reconcile pass.
+ * The new-server dialog: the editor the edit dialog opens, in its create mode,
+ * so a language server is one form whether it exists yet or not.
  */
-function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
-  const [text, setText] = useState('{"command":"","extensionToLanguage":{}}')
-  const [name, setName] = useState('')
-  const [valid, setValid] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | undefined>(undefined)
-
-  const save = async (): Promise<void> => {
-    setBusy(true)
-    setError(undefined)
-    try {
-      await addLspServer(name.trim(), parseServerConfig(text))
-      onSaved()
-    } catch (reason) {
-      setError(clientErrorMessage(t, reason))
-    } finally {
-      setBusy(false)
-    }
-  }
-
+function LspAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
   return h(DetailModal, {
     open: true,
-    onClose: busy ? () => {} : onClose,
+    onClose,
     title: t('lspAddTitle'),
     // A short form: the dialog takes the form width, not the detail width,
     // and the editor's height so switching views cannot resize the window.
@@ -306,35 +282,9 @@ function LspConfigEditor({ t, onClose, onSaved }: { t: Translate; onClose: () =>
       { className: css.modalFooter },
       h('span', { className: css.modalFooterHint }, t('editorFooterCreate')),
       h('div', { className: css.modalFooterGrow }),
-      h(Button, { variant: 'outline', disabled: busy, onClick: onClose }, t('cancel')),
-      h(Button, { variant: 'primary', disabled: busy || !valid || name.trim() === '', onClick: () => { void save() } }, t('editorCreate'))
+      h(Button, { variant: 'outline', onClick: onClose }, t('cancel'))
     ),
-    children: h(
-      'div',
-      { className: css.detail },
-      error === undefined ? null : h('div', { className: css.error }, error),
-      h(ServerConfigEditor, {
-        kind: 'lsp',
-        text,
-        onChange: setText,
-        t,
-        disabled: busy,
-        createMode: true,
-        onValidityChange: setValid,
-        nameField: {
-          label: t('lspServerName'),
-          // A native control from the editors' own form sheet: the platform
-          // `Input` draws its own edge, which nested a second box inside the field.
-          control: h('input', {
-            value: name,
-            placeholder: t('lspServerNamePh'),
-            disabled: busy,
-            'aria-label': t('lspServerName'),
-            onChange: (event: { target: { value: string } }) => setName(event.target.value)
-          })
-        }
-      })
-    )
+    children: h(ServerConfigDetail, { kind: 'lsp', create: true, t, onSaved })
   })
 }
 

@@ -172,19 +172,28 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * client's policy under the `com.deepseek.harness` namespace — the two seats
  * the Agent Plugins specification gives a portable `mcp.json` and its client
  * extension. A document that omits either half reads as an empty one.
+ *
+ * An empty `key` is a service that does not exist yet: it has no declaration
+ * key, so the document is the definition itself and the name is its own field.
  */
 export function parseServerDocument(text: string, key: string): ServerDocument {
   const parsed: unknown = JSON.parse(text)
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Configuration must be a JSON object')
   const record = parsed as Record<string, unknown>
+  if (key === '') return { config: record, policy: {} }
   const config = asRecord(asRecord(record['mcpServers'])?.[key]) ?? {}
   const namespace = asRecord(record[HARNESS_NAMESPACE])
   const policy = asRecord(asRecord(namespace?.['mcpServers'])?.[key]) ?? {}
   return { config, policy }
 }
 
-/** Write the document back in the shape the specification seats it in. */
+/**
+ * Write the document back in the shape the specification seats it in. Without a
+ * declaration key the definition is the whole document: wrapping it under an
+ * empty `mcpServers` key would store a nested document as the service.
+ */
 export function composeServerDocument(key: string, config: Record<string, unknown>, policy: Record<string, unknown>): string {
+  if (key === '') return JSON.stringify(config, null, 2)
   const document: Record<string, unknown> = { mcpServers: { [key]: config } }
   if (Object.keys(policy).length > 0) document[HARNESS_NAMESPACE] = { mcpServers: { [key]: policy } }
   return JSON.stringify(document, null, 2)

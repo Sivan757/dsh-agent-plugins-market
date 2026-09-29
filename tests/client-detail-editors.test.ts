@@ -18,26 +18,27 @@ afterEach(async () => {
   host?.remove()
 })
 
-function Harness({ initial }: { initial: string }) {
+function Harness({ initial, serverKey = 'service' }: { initial: string; serverKey?: string }) {
   // The editor edits the document the specification seats a service in: the
   // definition under `mcpServers` plus this client's policy namespace. These
-  // cases supply the definition and read the definition back.
-  const [text, setText] = useState(composeServerDocument('service', JSON.parse(initial) as Record<string, unknown>, {}))
+  // cases supply the definition and read the definition back. No key is a
+  // service being created: its document is the definition itself.
+  const [text, setText] = useState(serverKey === '' ? initial : composeServerDocument(serverKey, JSON.parse(initial) as Record<string, unknown>, {}))
   const [valid, setValid] = useState(false)
   return h(
     'div',
     null,
-    h(ServerConfigEditor, { kind: 'mcp', serverKey: 'service', text, onChange: setText, t, onValidityChange: setValid }),
+    h(ServerConfigEditor, { kind: 'mcp', ...(serverKey === '' ? {} : { serverKey }), text, onChange: setText, t, onValidityChange: setValid }),
     h('output', { 'data-value': true }, text),
     h('output', { 'data-valid': true }, String(valid))
   )
 }
 
-async function mount(initial: Record<string, unknown>) {
+async function mount(initial: Record<string, unknown>, serverKey = 'service') {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  await act(async () => root!.render(h(Harness, { initial: JSON.stringify(initial) })))
+  await act(async () => root!.render(h(Harness, { initial: JSON.stringify(initial), serverKey })))
 }
 async function click(label: string) {
   const button = [...host.querySelectorAll('button')].find(node => node.getAttribute('aria-label') === label || node.textContent === label)
@@ -49,7 +50,10 @@ async function change(label: string, value: string) {
   expect(input).not.toBeNull()
   await act(async () => typeInto(input, value))
 }
-const value = () => (JSON.parse(host.querySelector('[data-value]')!.textContent) as { mcpServers: Record<string, Record<string, unknown>> }).mcpServers['service'] ?? {}
+const rawValue = () => JSON.parse(host.querySelector('[data-value]')!.textContent) as Record<string, unknown>
+const value = () => ((rawValue() as { mcpServers: Record<string, Record<string, unknown>> }).mcpServers ?? {})['service'] ?? {}
+/** The advanced disclosure's own row, by its accessible name. */
+const advanced = () => [...host.querySelectorAll('button')].find(node => node.textContent?.includes('mcpAdvanced'))
 
 describe('shared resource detail editors', () => {
   it('offers the advanced disclosure without policy timeouts when no policy props are supplied', async () => {
@@ -62,6 +66,26 @@ describe('shared resource detail editors', () => {
     // The connection input is there; the dialog-owned timeouts are not.
     expect(host.querySelector('[aria-label="mcpToolCallTimeout"]')).toBeNull()
   })
+  it('edits a service being created as the definition itself, never under an empty key', async () => {
+    // A service that does not exist yet has no declaration key, so its document
+    // is the definition: folding it into `mcpServers` under an empty key would
+    // hand the create route a wrapper and store a nested document as the service.
+    await mount({ type: 'stdio', command: '' }, '')
+    await change('detailCommand', 'python')
+    expect(rawValue()).toEqual({ type: 'stdio', command: 'python' })
+  })
+
+  it('keeps the advanced disclosure in the form view only', async () => {
+    // The disclosure is a view over the document's own optional seats, and the
+    // JSON view already shows every one of them.
+    await mount({ type: 'stdio', command: 'node' })
+    expect(advanced()).toBeDefined()
+    await click('detailJson')
+    expect(advanced()).toBeUndefined()
+    await click('detailForm')
+    expect(advanced()).toBeDefined()
+  })
+
   it('renders Markdown as markup with the frontmatter as authored, without HTML injection', () => {
     const markup = renderToStaticMarkup(
       h(MarkdownDocument, { t, text: '---\nname: reviewer\ntools: [Read, Grep]\nmetadata:\n  priority: 2\n---\n# Review\n\n**Carefully**\n\n<script>alert(1)</script>' })

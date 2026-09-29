@@ -56,12 +56,11 @@
    field takes the room the form's fields would need, and the textarea takes
    the field. A content-sized dialog leaves both at their own floor. */
 .jsonField {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 0 auto;
 }
 
 .jsonField .jsonArea {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-height: 220px;
 }
 
@@ -127,11 +126,12 @@
 }
 
 /* One editing column: a wide dialog does not stretch its fields across the
-   page, and it fills the height its dialog gives the body. */
+   page. It fills the height its dialog gives the body and never shrinks below
+   its own content, so an overflowing form scrolls the body instead of being
+   clipped inside a compressed column. */
 .editorBody {
   max-width: 620px;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 0 auto;
 }
 
 /* Two one-line fields on one row (a name and its transport, a name and a
