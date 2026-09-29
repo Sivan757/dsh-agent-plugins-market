@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMcpStatus } from '../src/application/mcp/mcp-status.js'
+import { buildMcpStatus, declaresAuthHeader } from '../src/application/mcp/mcp-status.js'
 import { inspectToolRegistry } from '../src/runtime/host/tool-registry-observer.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
@@ -27,6 +27,19 @@ function suite(overrides: Partial<Suite> = {}): Suite {
   }
 }
 
+describe('auth header detection', () => {
+  it('reads an Authorization header whatever its casing, and nothing else', () => {
+    // A server that supplies the header authenticates with it: the detail
+    // dialog must not offer the OAuth re-authorize action for that server.
+    expect(declaresAuthHeader({ headers: { Authorization: 'Bearer x' } })).toBe(true)
+    expect(declaresAuthHeader({ headers: { authorization: '[redacted]' } })).toBe(true)
+    expect(declaresAuthHeader({ headers: { 'X-Api-Key': 'x' } })).toBe(false)
+    expect(declaresAuthHeader({ headers: {} })).toBe(false)
+    expect(declaresAuthHeader({})).toBe(false)
+    expect(declaresAuthHeader(undefined)).toBe(false)
+  })
+})
+
 describe('MCP status aggregation', () => {
   it('reports plugin servers, redacts secrets, and observes direct servers', () => {
     const payload = buildMcpStatus(
@@ -49,6 +62,26 @@ describe('MCP status aggregation', () => {
     const direct = payload.entries.find(entry => entry.kind === 'direct')!
     expect(direct.name).toBe('filesystem')
     expect(direct.tools[0]?.name).toBe('read_file')
+  })
+
+  it('prints the user’s own declarations under their bare server name', () => {
+    // The user's own mcp.json owns the top-level namespace, so its row reads
+    // the same name its tools carry — no suite prefix in between.
+    const payload = buildMcpStatus(
+      [
+        suite({
+          sourceId: '@user-mcp',
+          id: 'user-mcp',
+          manifest: { layout: 'agent-plugin-v1', path: '/tmp/mcp.json', id: 'user-mcp', name: 'user-mcp' }
+        })
+      ],
+      [],
+      [{ name: 'mcp__app__read_file', description: 'Read a file' }]
+    )
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.name).toBe('app')
+    expect(app.state).toBe('connected')
+    expect(app.tools.map(tool => tool.name)).toEqual(['read_file'])
   })
 
   it('flags the remote servers that authorize without declaring it', () => {

@@ -35,3 +35,7 @@ The document editors laid the source and the rendered draft side by side, and th
 - `pnpm run check:refactor` green; `pnpm run test` 82 files / 638 tests green; `pnpm run build` succeeds.
 - Isolated-profile walkthrough: the create dialog reads switch, `名称`, full-width editor, footer; `aria-pressed` flips between the two buttons, the editor unmounts on preview and returns on edit, and typing in the editing view leaves no preview rendering behind.
 - Saving from the editing view still issued `POST /api/agent-plugins/user-panel/skills/update?name=review-code` (200) and the file on disk carried the typed line.
+
+## Related
+
+[The service editor's dialog chrome after the control migration](../bug-fix/2026-09-29-dialog-chrome-and-mode-switch.md) extends the description-less top-gap rule to the market's shared dialog chrome.

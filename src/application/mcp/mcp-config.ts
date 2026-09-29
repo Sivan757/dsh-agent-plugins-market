@@ -25,6 +25,7 @@ import { DEFAULT_STARTUP_TIMEOUT_MS, DEFAULT_TOOL_CALL_TIMEOUT_MS } from './mcp-
 import { resolveCwd } from '../../catalog/validate.js'
 import { qualifiedSuiteId, suiteDataDir } from '../../catalog/paths.js'
 import { applyOverride, type McpServerOverride, type McpSuiteOverrides } from './mcp-overrides.js'
+import { isUserMcpSuite } from './mcp-direct-config.js'
 import type { McpStatusCode } from '../../contracts/mcp-status.js'
 import type { HarnessMcpPolicy, McpServer, McpServerPolicy, McpServerSse, McpServerStdio, McpServerStreamableHttp, Suite } from '../../model/types.js'
 import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../../model/layouts.js'
@@ -317,7 +318,7 @@ async function toResolvedMount(
     if (missing.length > 0) return { failure: missingFailure(serverKey, missing) }
     const sseConfig: SseConfig = {
       transport: 'sse',
-      serverName: deriveServerName(suite.id, serverKey),
+      serverName: deriveServerName(suite, serverKey),
       url: url.value,
       headers: headers.values,
       ...(server.auth === undefined ? {} : { auth: mapAuth(server.auth) }),
@@ -327,7 +328,7 @@ async function toResolvedMount(
     return { request: { suiteId: qualifiedSuiteId(suite.sourceId, suite.id), serverKey, config: sseConfig } }
   }
   const expand = expander(suite, dataDir, resolver, portable)
-  const serverName = deriveServerName(suite.id, serverKey)
+  const serverName = deriveServerName(suite, serverKey)
   if (server.type === 'stdio') {
     const args = await expand.all(server.args ?? [])
     const env = await expand.map(server.env ?? {})
@@ -493,7 +494,9 @@ function sanitizeToken(raw: string): string {
 }
 
 /**
- * Derive a bridge serverName from the suite and server ids:
+ * Derive the bridge serverName of one suite server.
+ *
+ * A package's servers are namespaced under their suite:
  * `${suiteId}__${serverKey}` sanitized, clamped to 32 chars with a
  * deterministic 12-hex suffix when the join exceeds the budget.
  *
@@ -501,10 +504,15 @@ function sanitizeToken(raw: string): string {
  * suite/server pair are the same server for the model, so the second mount
  * is skipped with a `duplicate-mount` diagnostic instead of registering a
  * shadow copy under a mangled name.
+ *
+ * The user's own declaration file is the exception. Its servers are the
+ * user's, not a package's, so each mounts under its own server key alone —
+ * the model reads `mcp__<serverKey>__<tool>`, the same name that declaration
+ * carries in every other MCP client.
  */
-export function deriveServerName(suiteId: string, serverKey: string): string {
-  const candidate = `${sanitizeToken(suiteId)}__${sanitizeToken(serverKey)}`
+export function deriveServerName(suite: Pick<Suite, 'sourceId' | 'id'>, serverKey: string): string {
+  const candidate = isUserMcpSuite(suite) ? sanitizeToken(serverKey) : `${sanitizeToken(suite.id)}__${sanitizeToken(serverKey)}`
   if (candidate.length <= SERVER_NAME_MAX) return candidate
-  const hash = createHash('sha256').update(`${suiteId}\u0000${serverKey}`).digest('hex').slice(0, 12)
+  const hash = createHash('sha256').update(`${suite.id}\u0000${serverKey}`).digest('hex').slice(0, 12)
   return `${candidate.slice(0, SERVER_NAME_MAX - 13)}-${hash}`
 }

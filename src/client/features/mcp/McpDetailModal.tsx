@@ -6,11 +6,9 @@ import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { failureGuidanceKey } from '../../ui/failure-guidance.js'
 import type { Translate } from '../../index.js'
 import type { McpStatusEntry } from '../../api.js'
-import type { CredentialApi } from '../../credentials.js'
-import { McpCredentialFields } from './McpCredentialFields.js'
 import { mcpDetailActions } from './detail-actions.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
-import { credentialUsage, TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
+import { TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
 import { kvCell } from '../../ui/DetailRows.js'
 import { mcpCardState, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
@@ -21,7 +19,6 @@ import panelCss from '../../ui/panel.module.css'
 export function McpDetailModal({
   entry,
   t,
-  credentials,
   backend,
   onClose,
   onRetry,
@@ -30,7 +27,6 @@ export function McpDetailModal({
 }: {
   entry: McpStatusEntry
   t: Translate
-  credentials?: CredentialApi
   /** The mount backend; `host` cannot enforce tool filters. */
   backend: 'builtin' | 'host'
   onClose: () => void
@@ -196,8 +192,9 @@ export function McpDetailModal({
           kvCell(t('detailTransport'), entry.transport, true),
           kvCell(t('mcpServerKeyLabel'), entry.serverKey ?? entry.name, true),
           // The mount identity the runtime registers, which is not always the
-          // name the declaration uses.
-          kvCell(t('mcpMountNameLabel'), entry.name, true)
+          // name the declaration uses. A user's own declaration mounts under
+          // its key, and then the row would only repeat the one above.
+          entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
         )
       ),
       entry.kind === 'direct' && !entry.managed ? h('p', { className: panelCss.detailProse }, t('mcpDirectBoundary')) : null,
@@ -285,10 +282,7 @@ export function McpDetailModal({
                     )
                   : null
               )
-      ),
-      entry.credentialRefs?.length === 0 || entry.credentialRefs === undefined
-        ? null
-        : h(McpCredentialFields, { t, api: credentials, refs: entry.credentialRefs, usage: credentialUsage(t, entry.config) })
+      )
     )
   })
 }

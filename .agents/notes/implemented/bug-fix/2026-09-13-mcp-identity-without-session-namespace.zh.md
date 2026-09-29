@@ -44,3 +44,7 @@ Status: implemented
 - `tests/project-mcp.test.ts` —— 两个 agent 在同一个派生名下挂载各自的 project 配置；关闭 project 布局时两者都卸载。
 - `tests/mcp-status.test.ts` —— 未声明 `auth` 的远端服务带 `oauthDefault`，`stdio` 或已声明的服务不带。
 - `tests/client-mcp-detail.test.ts` —— 授权说明只在该行渲染。
+
+## Related
+
+[The user's own MCP declarations own the top-level namespace](../architecture/2026-09-29-user-owned-mcp-top-level-namespace.md) 定下哪些套件带命名空间；上面的「一个身份」规则不受影响。

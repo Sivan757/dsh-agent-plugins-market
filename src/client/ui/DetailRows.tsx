@@ -14,9 +14,51 @@ import { IconChevronDownOutlineMedium, IconChevronRightOutlineMedium } from '@de
 import css from './detail-rows.module.css'
 import panelCss from './panel.module.css'
 
-/** One group of rows; the bordered frame the prototype draws them in. */
-export function DetailRows({ children }: { children?: ReactNode }): ReactNode {
-  return h('div', { className: css.rows }, children)
+/**
+ * One group of rows; the bordered frame the prototype draws them in.
+ *
+ * A group that needs a name carries it inside that frame: a label floating
+ * above the border would read as the heading of whatever bordered group comes
+ * next, which is not what a label is for.
+ */
+export function DetailRows({
+  label,
+  summary,
+  open,
+  onToggle,
+  children
+}: {
+  label?: string | undefined
+  /** One line beside the name, e.g. how many rows the group holds. */
+  summary?: string | undefined
+  /** Whether the group's rows are shown; only read with `onToggle`. */
+  open?: boolean | undefined
+  /** Makes the name band the control that collapses and reveals the rows. */
+  onToggle?: (() => void) | undefined
+  children?: ReactNode
+}): ReactNode {
+  const shown = open !== false
+  const head = (interactive: boolean): ReactNode => {
+    const name = h('span', { className: css.name }, label)
+    const note = summary === undefined || summary === '' ? null : h('span', { className: css.summary }, summary)
+    if (!interactive) return h('div', { className: css.row }, name, note, h('span', { className: css.chevron }))
+    return h(
+      'button',
+      { type: 'button', className: css.row, 'aria-expanded': shown, onClick: onToggle },
+      name,
+      note,
+      h('span', { className: css.chevron, 'aria-hidden': true }, shown ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
+    )
+  }
+  return h(
+    'div',
+    { className: css.rows },
+    // The name is a row of the frame it labels: the same band a row shows, so a
+    // folded group and a folded disclosure are the same shape, and an opened
+    // one takes the same soft grey.
+    label === undefined || label === '' ? null : h('div', { className: css.group }, head(onToggle !== undefined)),
+    onToggle !== undefined && !shown ? null : children
+  )
 }
 
 /** One row: a name, a one-line summary, a trailing chevron, and its content. */

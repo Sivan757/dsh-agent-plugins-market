@@ -30,7 +30,7 @@ import {
   type McpSuiteOverrides
 } from './mcp/mcp-overrides.js'
 import { redactMcpConfig, redactMcpOverrides } from './mcp/mcp-redaction.js'
-import { buildMcpStatus } from './mcp/mcp-status.js'
+import { buildMcpStatus, declaresAuthHeader } from './mcp/mcp-status.js'
 import { resolveRegion } from './regions.js'
 import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
@@ -84,6 +84,7 @@ export class McpService {
         (entry.kind === 'plugin' || entry.managed === true) &&
         (entry.transport === 'sse' || entry.transport === 'streamable-http') &&
         auth?.enabled !== false &&
+        !declaresAuthHeader(entry.config) &&
         !['disabled', 'foreign', 'orphaned'].includes(entry.state)
     }
     return payload

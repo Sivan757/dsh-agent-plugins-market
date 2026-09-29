@@ -44,3 +44,7 @@ The suffix also made a project server unrecognizable in its own tool names, and 
 - `tests/project-mcp.test.ts` — two agents mount their own project configs under one shared derived name, and switching project layouts off unmounts both.
 - `tests/mcp-status.test.ts` — `oauthDefault` is set for a remote server without an `auth` declaration and absent for `stdio` or a declared one.
 - `tests/client-mcp-detail.test.ts` — the authorization note renders for that row only.
+
+## Related
+
+[The user's own MCP declarations own the top-level namespace](../architecture/2026-09-29-user-owned-mcp-top-level-namespace.md) settles which suites carry a namespace at all; the one-identity rule above is unchanged by it.

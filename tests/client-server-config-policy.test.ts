@@ -11,10 +11,12 @@ import { stubTranslate as t } from './helpers/translate.js'
 vi.mock('../src/client/api.js', async importOriginal => ({
   ...(await importOriginal<typeof import('../src/client/api.js')>()),
   fetchServerConfig: vi.fn(),
-  saveServerConfig: vi.fn(async () => {})
+  saveServerConfig: vi.fn(async () => {}),
+  addMcpServer: vi.fn(async () => {})
 }))
 
 import { McpConfigModal } from '../src/client/features/mcp/McpConfigModal.js'
+import { McpAddModal } from '../src/client/features/mcp/McpAddModal.js'
 import * as api from '../src/client/api.js'
 import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
 
@@ -181,6 +183,50 @@ describe('MCP advanced settings', () => {
   it('keeps the section out of an LSP editor', async () => {
     await render(h(EditorHarness, { kind: 'lsp' }))
     expect(button('mcpAdvanced')).toBeUndefined()
+  })
+})
+
+describe('the new-service dialog', () => {
+  /**
+   * The dialog the panel opens for a new service: the same component the edit
+   * dialog mounts, with the name as its one extra field and nothing to read.
+   */
+  async function renderCreate(): Promise<void> {
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(McpAddModal, { t, onClose: () => {}, onSaved: () => {} })))
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+  }
+
+  it('adds a service from the form the edit dialog opens', async () => {
+    await renderCreate()
+    // Creating reads no service, and shows the fields editing shows.
+    expect(api.fetchServerConfig).not.toHaveBeenCalled()
+    expect(find('detailCommand')).not.toBeNull()
+    expect(button('mcpAdvanced')).toBeDefined()
+    await act(async () => typeInto(input('mcpServerName'), 'kuboard'))
+    await act(async () => typeInto(input('detailCommand'), 'npx -y server'))
+    expect(button('editorCreate')?.disabled).toBe(false)
+    await act(async () => {
+      button('editorCreate')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    // The document a service is created from is the definition itself: no
+    // declaration key exists yet, so no wrapper may reach the add route.
+    expect(api.addMcpServer).toHaveBeenCalledWith('kuboard', { type: 'stdio', command: 'npx -y server' })
+  })
+
+  it('blocks the create action until the name and the document are usable', async () => {
+    await renderCreate()
+    expect(button('editorCreate')?.disabled).toBe(true)
+    await act(async () => typeInto(input('mcpServerName'), 'kuboard'))
+    // A stdio definition without a command is not a service yet.
+    expect(button('editorCreate')?.disabled).toBe(true)
+    await act(async () => typeInto(input('detailCommand'), 'node'))
+    expect(button('editorCreate')?.disabled).toBe(false)
   })
 })
 

@@ -7,9 +7,12 @@
  * document editor lay their fields out identically.
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, IconPlusOutlineMedium, IconTrashOutlineMedium, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineMedium, IconShieldOutlineMedium, IconTrashOutlineMedium, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
+import type { CredentialApi } from '../credentials.js'
 import type { Translate } from '../index.js'
+import { McpCredentialFields, credentialRefOf, credentialUsage, literalSeats, type McpSecretEntry } from './McpCredentialFields.js'
+import { REDACTED_VALUE } from '../../contracts/mcp.js'
 import { changeTransport, composeServerDocument, parseServerConfig, parseServerDocument, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
 import formCss from './form.module.css'
@@ -36,16 +39,16 @@ export function ServerConfigEditor(props: {
   onPolicyDraftChange?: (draft: ServerPolicyDraft) => void
   /** The MCP mount backend; `host` cannot enforce a startup timeout. */
   backend?: 'builtin' | 'host'
-  /**
-   * The new-service dialog: the optional connection inputs join the disclosure,
-   * so the first screen asks for the name, the transport and the single field
-   * that transport requires.
-   */
-  createMode?: boolean
   /** The declaration key this service carries; MCP documents are keyed by it. */
   serverKey?: string
   /** Reasons the API rejected a save, keyed by the editor field they belong to. */
   fieldErrors?: Record<string, string>
+  /**
+   * The host credential wire. MCP references are configured through it, so the
+   * form offers the secret where the reference is written instead of leaving
+   * the `${NAME}` syntax as the only thing on screen.
+   */
+  credentials?: CredentialApi
 }): ReactNode {
   const [mode, setMode] = useState<'form' | 'json'>('form')
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -85,7 +88,11 @@ export function ServerConfigEditor(props: {
   // half-typed timeout stops the save from the same validity signal the
   // document fields use.
   const timeouts = props.policy !== undefined && props.policyDraft !== undefined && props.onPolicyDraftChange !== undefined
+  // The timeout drafts belong to the form view; while the JSON view is showing
+  // them hidden, a draft it cannot parse must not block a save the user cannot
+  // see a reason for. Switching back to the form re-applies the check.
   const policyValid =
+    mode === 'json' ||
     !timeouts ||
     (timeoutMsFromText(props.policyDraft!.toolCallTimeoutMs) !== undefined && timeoutMsFromText(props.policyDraft!.startupTimeoutMs) !== undefined)
   const valid = compatible && !hasIssue && requiredValid && policyValid
@@ -137,7 +144,7 @@ export function ServerConfigEditor(props: {
       fieldError(key)
     )
   }
-  const mapField = (key: string, label: string, addLabel: string, narrowKey = false): ReactNode =>
+  const mapField = (key: string, label: string, addLabel: string, narrowKey = false, references = false): ReactNode =>
     h(StringRows, {
       key,
       label,
@@ -145,12 +152,29 @@ export function ServerConfigEditor(props: {
       t: props.t,
       map: true,
       narrowKey,
+      references,
       value: config?.[key] as Record<string, string> | undefined,
       onChange: value => field(key, value),
       onIssue: bad => issue(key, bad),
       ...(props.fieldErrors?.[key] === undefined ? {} : { error: props.fieldErrors[key] })
     })
   const type = typeof config?.type === 'string' ? config.type : 'stdio'
+  // The secrets this definition carries: the references it spends, and the
+  // literals the wire redacted. Only MCP resolves the credential seam, so only
+  // an MCP document has this block.
+  const credentialUse = props.kind === 'mcp' && config !== undefined ? credentialUsage(props.t, config) : {}
+  /** Write one map seat of this document, or drop it when the value is undefined. */
+  const writeSeat = (seat: 'headers' | 'env', key: string, value: string | undefined): void => {
+    const current = { ...((config?.[seat] as Record<string, string> | undefined) ?? {}) }
+    if (value === undefined) delete current[key]
+    else current[key] = value
+    field(seat, Object.keys(current).length === 0 ? undefined : current)
+  }
+  const secretEntries: McpSecretEntry[] = Object.entries(credentialUse).map(([ref, usage]) => ({ kind: 'reference', ref, usage }))
+  if (props.kind === 'mcp') {
+    for (const seat of literalSeats(props.t, config))
+      secretEntries.push({ kind: 'literal', label: seat.label, onReplace: value => writeSeat(seat.field, seat.key, value), onClear: () => writeSeat(seat.field, seat.key, undefined) })
+  }
   const transportField =
     props.kind === 'mcp'
       ? h(
@@ -198,27 +222,6 @@ export function ServerConfigEditor(props: {
    * offer the client timeouts when the calling dialog supplies the policy.
    */
   const advancedFields: ReactNode[] = []
-  // Creating a service keeps the optional connection inputs in the disclosure:
-  // arguments and environment for a process, headers for a remote endpoint.
-  if (props.createMode === true && config !== undefined) {
-    if (props.kind === 'lsp' || type === 'stdio') {
-      advancedFields.push(
-        h(StringRows, {
-          key: 'args',
-          label: props.t('detailArgs'),
-          addLabel: props.t('detailAddArgs'),
-          t: props.t,
-          map: false,
-          value: config.args as string[] | undefined,
-          onChange: value => field('args', value),
-          onIssue: bad => issue('args', bad)
-        }),
-        mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
-      )
-    } else {
-      advancedFields.push(mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true))
-    }
-  }
   if (config !== undefined) {
     advancedFields.push(
       type === 'stdio'
@@ -256,8 +259,10 @@ export function ServerConfigEditor(props: {
       })
     )
   }
+  // The advanced section is a view over the document's own optional seats, so
+  // the JSON view — which shows the whole document — does not repeat it.
   const advancedSection =
-    props.kind !== 'mcp' || advancedFields.length === 0
+    props.kind !== 'mcp' || advancedFields.length === 0 || mode === 'json'
       ? null
       : h(
           DetailRows,
@@ -283,16 +288,17 @@ export function ServerConfigEditor(props: {
         { value: 'form', label: props.t('detailForm') },
         { value: 'json', label: props.t('detailJson') }
       ],
-      // A form issue blocks the JSON view: switching away from it would hide
-      // the very document that carries the problem.
-      // Unlike the hand-rolled pair, an issue locks both segments: leaving the form
-  // would hide the very document the error describes. Reaching json stays
-  // blocked for the same reason; the issue can only exist while in form view.
-  disabled: props.disabled || hasIssue,
+      // An issue locks both segments: leaving the form would hide the very
+      // document the error describes, and the issue can only exist while in
+      // form view.
+      disabled: props.disabled || hasIssue,
       // The editor body is the panel both tabs control.
       label: props.t('detailJsonConfig'),
       onChange: setMode,
-      className: formCss.seg
+      // Layout only: the host control draws its own track and indicator, and
+      // the track class meant for the hand-rolled groups below would leave its
+      // segments content-sized inside a stretched track.
+      className: formCss.segSelf
     }),
     // Identity fields stay visible in both modes: the name identifies the
     // document and the transport decides which keys the JSON may carry.
@@ -307,7 +313,7 @@ export function ServerConfigEditor(props: {
     mode === 'json'
       ? h(
           'label',
-          { className: formCss.field },
+          { className: `${formCss.field} ${formCss.jsonField}` },
           h('span', null, props.t('detailJsonConfig')),
           h('textarea', {
             className: formCss.jsonArea,
@@ -327,26 +333,21 @@ export function ServerConfigEditor(props: {
             props.kind === 'lsp' || type === 'stdio'
               ? [
                   textField('command', props.t('detailCommand'), true, true),
-                  ...(props.createMode === true
-                    ? []
-                    : [
-                        h(StringRows, {
-                          key: 'args',
-                          label: props.t('detailArgs'),
-                          addLabel: props.t('detailAddArgs'),
-                          t: props.t,
-                          map: false,
-                          value: config.args as string[] | undefined,
-                          onChange: value => field('args', value),
-                          onIssue: bad => issue('args', bad)
-                        }),
-                        mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true)
-                      ])
+                  h(StringRows, {
+                    key: 'args',
+                    label: props.t('detailArgs'),
+                    addLabel: props.t('detailAddArgs'),
+                    t: props.t,
+                    map: false,
+                    value: config.args as string[] | undefined,
+                    onChange: value => field('args', value),
+                    onIssue: bad => issue('args', bad)
+                  }),
+                  // Only MCP resolves the credential seam, so only an MCP
+                  // environment reads its references as credentials.
+                  mapField('env', props.t('detailEnv'), props.t('detailAddEnv'), true, props.kind === 'mcp')
                 ]
-              : [
-                  textField('url', props.t('detailUrl'), true, true),
-                  ...(props.createMode === true ? [] : [mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true)])
-                ],
+              : [textField('url', props.t('detailUrl'), true, true), mapField('headers', props.t('detailHeaders'), props.t('detailAddHeaders'), true, true)],
             props.kind === 'lsp'
               ? [
                   mapField('extensionToLanguage', props.t('detailExtensions'), props.t('detailAddExtensions'), true),
@@ -356,6 +357,16 @@ export function ServerConfigEditor(props: {
                 ]
               : null
           ),
+    // The secrets the document carries, one collapsed row each: a reference is
+    // written through the credential store, a literal through the document this
+    // editor owns. The JSON view carries the document itself, so it needs none.
+    secretEntries.length === 0 || mode === 'json'
+      ? null
+      : h(McpCredentialFields, {
+          t: props.t,
+          ...(props.credentials === undefined ? {} : { api: props.credentials }),
+          secrets: secretEntries
+        }),
     advancedSection
   )
 }
@@ -431,6 +442,8 @@ function StringRows(props: {
   map: boolean
   /** Key column at 26% rather than 34% (an extension mapping is a narrow key). */
   narrowKey?: boolean
+  /** A value that is one credential reference renders as the credential it names. */
+  references?: boolean
   value?: Record<string, string> | string[]
   onChange: (value: Record<string, string> | string[]) => void
   onIssue: (bad: boolean) => void
@@ -439,6 +452,8 @@ function StringRows(props: {
 }): ReactNode {
   const [rows, setRows] = useState<Array<[string, string]>>(() => (props.map ? Object.entries(props.value ?? {}) : ((props.value as string[]) ?? []).map(value => ['', value])))
   const [invalid, setInvalid] = useState(false)
+  /** Rows the user sent back to the text field from their credential chip. */
+  const [textRows, setTextRows] = useState<ReadonlySet<number>>(() => new Set())
   const change = (next: Array<[string, string]>): void => {
     setRows(next)
     const bad = props.map && (next.some(([key]) => key.trim() === '') || new Set(next.map(([key]) => key)).size !== next.length)
@@ -447,6 +462,55 @@ function StringRows(props: {
     if (!bad) props.onChange(props.map ? Object.fromEntries(next) : next.map(([, value]) => value))
   }
   const keySlot = props.narrowKey === true ? formCss.rowKeyNarrow : formCss.rowKey
+  /**
+   * One row's value cell. A value that is nothing but a credential reference
+   * reads as the credential it names: the reference syntax is a document
+   * detail, the secret is configured in the block below, and the raw text stays
+   * reachable from the chip for anyone who wants to see or change it.
+   */
+  const valueCell = (index: number, value: string): ReactNode => {
+    // A value the wire redacted is a secret the document holds: it reads as one
+    // rather than as an editable `[redacted]` string, and the credential block
+    // is where it is replaced or dropped.
+    if (value === REDACTED_VALUE) {
+      return h(
+        'span',
+        { className: `${formCss.credChip} ${formCss.credStatic}`, title: props.t('mcpCredentialHidden') },
+        h(IconShieldOutlineMedium),
+        h('span', { className: formCss.credChipName }, props.t('mcpCredentialHidden'))
+      )
+    }
+    const reference = props.references === true && !textRows.has(index) ? credentialRefOf(value) : undefined
+    if (reference === undefined) {
+      return h('input', {
+        value,
+        'aria-label': `${props.label} ${props.t('detailValue')} ${index + 1}`,
+        onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [row[0], event.target.value] : row))),
+        // A block copied out of a README becomes one row per line.
+        onPaste: (event: ClipboardEvent) => {
+          const pasted = event.clipboardData?.getData('text/plain') ?? ''
+          if (!pasted.includes('\n')) return
+          const parsed = rowsFromPastedText(pasted, props.map)
+          if (parsed.length === 0) return
+          event.preventDefault()
+          change([...rows.filter(([key, value]) => key !== '' || value !== ''), ...parsed])
+        }
+      })
+    }
+    return h(
+      'button',
+      {
+        type: 'button',
+        className: formCss.credChip,
+        // The document text stays one hover away; the chip is the reading.
+        title: value,
+        'aria-label': `${props.t('mcpCredentialRef')} ${reference}`,
+        onClick: () => setTextRows(current => new Set(current).add(index))
+      },
+      h(IconShieldOutlineMedium),
+      h('span', { className: formCss.credChipName }, reference)
+    )
+  }
   return h(
     'div',
     { className: `${formCss.field} ${formCss.full}` },
@@ -494,20 +558,7 @@ function StringRows(props: {
               onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [event.target.value, row[1]] : row)))
             })
           : null,
-        h('input', {
-          value,
-          'aria-label': `${props.label} ${props.t('detailValue')} ${index + 1}`,
-          onChange: (event: { target: HTMLInputElement }) => change(rows.map((row, i) => (i === index ? [row[0], event.target.value] : row))),
-          // A block copied out of a README becomes one row per line.
-          onPaste: (event: ClipboardEvent) => {
-            const pasted = event.clipboardData?.getData('text/plain') ?? ''
-            if (!pasted.includes('\n')) return
-            const parsed = rowsFromPastedText(pasted, props.map)
-            if (parsed.length === 0) return
-            event.preventDefault()
-            change([...rows.filter(([key, value]) => key !== '' || value !== ''), ...parsed])
-          }
-        }),
+        valueCell(index, value),
         h(
           'button',
           {

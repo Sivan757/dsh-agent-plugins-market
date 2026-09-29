@@ -13,6 +13,14 @@
   overflow: hidden;
 }
 
+/* A frame whose content is one sentence rather than rows. */
+.notice {
+  padding: 9px 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
 .group {
   display: flex;
   flex-direction: column;
@@ -43,12 +51,13 @@ button.row {
   cursor: pointer;
 }
 
-.row:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
+/* No hover fill: the row is a band in a frame, and the chevron already says it
+   opens. Only the open state takes a surface. */
 
+/* The one surface a disclosure paints: the header of the row it opened. The
+   body stays on the frame's own background. */
 .row[aria-expanded='true'] {
-  background: var(--dsw-alias-state-business-tertiary);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .row:focus-visible {
@@ -87,5 +96,4 @@ button.row {
 .body {
   padding: 12px 14px;
   border-top: 1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-interactive-bg-hover);
 }

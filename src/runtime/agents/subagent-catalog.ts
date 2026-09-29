@@ -148,9 +148,11 @@ export function renderCatalogText(entries: readonly SubagentCatalogEntry[], upda
     '<system-reminder>',
     update ? CATALOG_UPDATED : CATALOG_INTRO,
     CATALOG_WHEN_TO_DELEGATE,
+    '',
     '<available_subagents>',
     ...lines,
     '</available_subagents>',
+    '',
     CATALOG_PROMPT,
     CATALOG_USAGE,
     '</system-reminder>'

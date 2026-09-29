@@ -303,6 +303,10 @@ describe('durable subagent catalog on the real host session and tool registries'
       false
     )
     expect(text).toContain('- `reviewer`: Review code')
+    // The envelope is the host skill catalog's: a blank line sets the tag on
+    // its own line, so the prose above and below never reads as part of it.
+    expect(text).toContain('\n\n<available_subagents>\n- `reviewer`: Review code\n</available_subagents>\n\n')
+    expect(renderCatalogText([], true)).toContain('\n\n<available_subagents>\n</available_subagents>\n\n')
     // The title and the configured route are durable metadata that never reach the model.
     expect(text).not.toContain('Reviewer:')
     expect(text).not.toContain('workbuddy')

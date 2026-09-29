@@ -52,6 +52,18 @@
   min-height: 220px;
 }
 
+/* The JSON view is one control: where the dialog hands its body a height, the
+   field takes the room the form's fields would need, and the textarea takes
+   the field. A content-sized dialog leaves both at their own floor. */
+.jsonField {
+  flex: 1 0 auto;
+}
+
+.jsonField .jsonArea {
+  flex: 1 0 auto;
+  min-height: 220px;
+}
+
 /* A field whose input shares its line with one trailing action. */
 .fieldRow {
   display: flex;
@@ -85,6 +97,52 @@
   font-weight: 400;
 }
 
+/* A credential reference in a value cell: the document's `${NAME}` syntax is a
+   detail, so the row reads as the credential it names. Clicking hands the row
+   back to its text field. */
+.credChip {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  width: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px dashed var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+/* A hidden literal is a statement, not a control: it keeps the chip's look
+   without offering an activation. */
+.credStatic {
+  cursor: default;
+}
+
+.credChip:hover {
+  border-color: var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.credChip svg {
+  display: block;
+  flex: none;
+}
+
+.credChipName {
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* An empty list offers the very row that would create its first line. */
 .emptyRows {
   width: 100%;
@@ -113,9 +171,13 @@
   gap: 10px;
 }
 
-/* One editing column: a wide dialog does not stretch its fields across the page. */
+/* One editing column: a wide dialog does not stretch its fields across the
+   page. It fills the height its dialog gives the body and never shrinks below
+   its own content, so an overflowing form scrolls the body instead of being
+   clipped inside a compressed column. */
 .editorBody {
   max-width: 620px;
+  flex: 1 0 auto;
 }
 
 /* Two one-line fields on one row (a name and its transport, a name and a
@@ -170,6 +232,13 @@
 .seg button:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 2px;
+}
+
+/* A host-drawn control sitting directly in the form column: the column would
+   stretch it to full width while its segments size to their own labels, which
+   leaves the sliding indicator off the selected segment. */
+.segSelf {
+  align-self: flex-start;
 }
 
 /* A fact the editor will not let you change, framed so it does not read as an

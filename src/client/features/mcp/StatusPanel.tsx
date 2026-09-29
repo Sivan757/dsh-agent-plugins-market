@@ -148,6 +148,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     adding
       ? h(McpAddModal, {
           t,
+          credentials,
           onClose: () => setAdding(false),
           onSaved: () => {
             setAdding(false)
@@ -160,7 +161,6 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       : h(McpDetailModal, {
           entry: selected,
           t,
-          credentials,
           backend: payload.backend ?? 'builtin',
           onClose: () => {
             setSelected(undefined)
@@ -177,6 +177,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       : h(McpConfigModal, {
           entry: editing,
           t,
+          credentials,
           onClose: () => setEditing(undefined),
           onSaved: refresh
         })

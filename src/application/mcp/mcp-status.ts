@@ -18,6 +18,19 @@ export interface McpDiagnostic {
   credentialRefs?: string[]
 }
 
+/**
+ * Whether one effective configuration supplies its own Authorization header.
+ *
+ * Such a server authenticates with that header: the browser authorization a
+ * re-authorize would restart is not the path it uses, so the action is not
+ * offered for it.
+ */
+export function declaresAuthHeader(config: Record<string, unknown> | undefined): boolean {
+  const headers = config?.['headers']
+  if (typeof headers !== 'object' || headers === null) return false
+  return Object.keys(headers).some(name => name.toLowerCase() === 'authorization')
+}
+
 /** Build status rows from discovered plugin MCP definitions and observed tool names. */
 export function buildMcpStatus(
   suites: Suite[],
@@ -32,9 +45,10 @@ export function buildMcpStatus(
   for (const suite of suites) {
     if (suite.mcp === undefined) continue
     for (const [serverKey, server] of Object.entries(suite.mcp.servers)) {
-      // Server names and every status key are source-qualified: two sources
-      // may ship the same suite id, and the inventory must not conflate them.
-      const serverName = deriveServerName(suite.id, serverKey)
+      // Every status key is source-qualified: two sources may ship the same
+      // suite id, and the inventory must not conflate them. The derived
+      // serverName itself is shared by design — see `deriveServerName`.
+      const serverName = deriveServerName(suite, serverKey)
       knownServerNames.add(serverName)
       knownDefinitions.set(serverName, { suite, serverKey, server })
     }
@@ -48,7 +62,7 @@ export function buildMcpStatus(
     if (suite.mcp === undefined || suite.installedAt === undefined || !suite.enabled) continue
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
     for (const { serverKey, server: effective, override, enabled, credentialRefs: refs, policy } of effectiveMcpServers(suite, overrides.get(suiteKey))) {
-      const serverName = deriveServerName(suite.id, serverKey)
+      const serverName = deriveServerName(suite, serverKey)
       const tools = observedByServer.get(serverName) ?? []
       claimedServers.add(serverName)
       const diagnostic = diagnosticsByKey.get(`${suiteKey}\u0000${serverKey}`)
