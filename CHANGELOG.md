@@ -9,6 +9,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.9.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.3...dsh-agent-plugins-market-v0.9.0) (2026-09-29)
+
+
+### Features
+
+* **client:** read a credential reference as the credential it names ([4dbd7de](https://github.com/Sivan757/dsh-agent-plugins-market/commit/4dbd7de98a3504782f89aa3b8f2b6928306eabee))
+
+
+### Bug Fixes
+
+* **client:** fold the credential group and keep it out of the report ([bff6309](https://github.com/Sivan757/dsh-agent-plugins-market/commit/bff6309d3e118ba8476db7225a50d2285a4d6b46))
+* **client:** give a folded group the shape of a folded row ([e1d8cee](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e1d8cee9286197841f45e81bad654f2c139beb91))
+* **client:** hold the service editors at a stable height ([5275063](https://github.com/Sivan757/dsh-agent-plugins-market/commit/52750631943c3ffe8cf170557bb944812676ae28))
+* **client:** paint only the open row, not its hover or its body ([08ef95e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/08ef95e74193567226030b9193bfdd4d2a3a1bff))
+* **client:** put the credential group's name inside its frame ([8fba5d0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8fba5d0d110346b2cdef24b069159eade63ec372))
+* **client:** return the mode switch to the host control's geometry ([18aeb72](https://github.com/Sivan757/dsh-agent-plugins-market/commit/18aeb728fe866d2ff4135850ddcf0a6145851014))
+* **client:** share one service form between create and edit ([45bcc87](https://github.com/Sivan757/dsh-agent-plugins-market/commit/45bcc87fd531eef9861bcef233d6a40275178694))
+* **client:** show a service's secrets as secrets ([f22c238](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f22c2384a22bdc7bc71ada243d5b7cdc87220e72))
+* **client:** unfold the secret inside the credential group ([de556b6](https://github.com/Sivan757/dsh-agent-plugins-market/commit/de556b68dd7f6ddbd217405c3d5273ed147bb41c))
+* **mcp:** mount the user's own MCP declarations under their bare key ([d7a8f07](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d7a8f074f4d9a9c7e709d41c2d5c81bff35a8cc4))
+
 ## [0.8.3](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.2...dsh-agent-plugins-market-v0.8.3) (2026-09-28)
 
 
