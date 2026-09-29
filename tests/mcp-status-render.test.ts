@@ -162,9 +162,13 @@ describe('MCP status actions', () => {
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The dialog states the reference; the secret control renders in place of
-    // the old reveal-then-edit flow.
+    // The dialog states the reference. Its write-only control belongs to the
+    // row that names it: the block stays one line per secret until opened.
     expect(document.body.textContent).toContain('API_TOKEN')
+    expect(document.body.querySelector('input[type="password"]')).toBeNull()
+    const secretRow = [...document.body.querySelectorAll('button')].find(node => node.textContent?.includes('API_TOKEN'))
+    expect(secretRow).toBeDefined()
+    await act(async () => secretRow!.click())
     expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })

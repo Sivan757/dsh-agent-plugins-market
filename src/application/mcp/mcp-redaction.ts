@@ -1,4 +1,5 @@
 /** Redact secret-shaped MCP configuration before it crosses a status/detail boundary. */
+import { REDACTED_VALUE } from '../../contracts/mcp.js'
 
 /**
  * Secret-shaped key matcher. This is a heuristic, not a security boundary: it
@@ -65,7 +66,7 @@ export function redactUrl(raw: string): string {
     .map(part => {
       const [name = '', value = ''] = splitOnce(part, '=')
       if (hasPlaceholder(value)) return `${name}=${value}`
-      return isSensitiveKey(name) ? `${name}=[redacted]` : `${name}=${value}`
+      return isSensitiveKey(name) ? `${name}=${REDACTED_VALUE}` : `${name}=${value}`
     })
     .join('&')
   return safeQuery === '' ? base : `${base}?${safeQuery}`
@@ -91,7 +92,7 @@ function redactArgs(values: unknown[]): unknown[] {
   return values.map(value => {
     if (redactNext) {
       redactNext = false
-      return '[redacted]'
+      return REDACTED_VALUE
     }
     if (typeof value !== 'string') return value
     const equals = value.indexOf('=')
@@ -101,7 +102,7 @@ function redactArgs(values: unknown[]): unknown[] {
       redactNext = true
       return value
     }
-    return `${value.slice(0, equals + 1)}[redacted]`
+    return `${value.slice(0, equals + 1)}${REDACTED_VALUE}`
   })
 }
 
@@ -111,7 +112,7 @@ function redactValue(value: unknown, key = ''): unknown {
   }
   if (isSensitiveKey(key)) {
     if (typeof value === 'string' && hasPlaceholder(value)) return value
-    return '[redacted]'
+    return REDACTED_VALUE
   }
   if (key === 'url' && typeof value === 'string') return redactUrl(value)
   if (key === 'args' && Array.isArray(value)) return redactArgs(value)

@@ -118,6 +118,12 @@
   text-align: left;
 }
 
+/* A hidden literal is a statement, not a control: it keeps the chip's look
+   without offering an activation. */
+.credStatic {
+  cursor: default;
+}
+
 .credChip:hover {
   border-color: var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);

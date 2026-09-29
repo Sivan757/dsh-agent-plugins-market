@@ -121,6 +121,29 @@ describe('shared resource detail editors', () => {
     expect((host.querySelector('[aria-label="detailHeaders detailValue 1"]') as HTMLInputElement).value).toBe('${SERVICE_TOKEN:-}')
   })
 
+  it('reads a redacted value as a secret instead of an editable string', async () => {
+    await mount({ type: 'streamable-http', url: 'https://example.test/mcp', headers: { Authorization: '[redacted]' } })
+    // The document holds the literal; the form may not present it as text, so
+    // the cell states the secret and the block owns its replacement.
+    expect(host.querySelector('[aria-label="detailHeaders detailValue 1"]')).toBeNull()
+    expect([...host.querySelectorAll('span')].some(node => node.textContent === 'mcpCredentialHidden')).toBe(true)
+  })
+
+  it('lists a literal secret and replaces it in the document', async () => {
+    await mount({ type: 'stdio', command: 'node', env: { API_TOKEN: '[redacted]', PLAIN: 'x' } }, 'service', credentialStub)
+    // The row names the seat it belongs to.
+    const row = [...host.querySelectorAll('button')].find(node => node.textContent?.includes('detailEnv API_TOKEN'))
+    expect(row).toBeDefined()
+    expect(host.textContent).toContain('mcpCredentialHidden')
+    await act(async () => row!.click())
+    const field = host.querySelector<HTMLInputElement>('#mcp-credential-detailEnv-API_TOKEN')!
+    expect(field).not.toBeNull()
+    await act(async () => typeInto(field, 's3cret'))
+    const replace = [...host.querySelectorAll('button')].find(node => node.textContent === 'mcpCredentialReplace')!
+    await act(async () => replace.click())
+    expect((value()['env'] as Record<string, string> | undefined)?.['API_TOKEN']).toBe('s3cret')
+  })
+
   it('configures the references the document spends, in the form view only', async () => {
     await mount({ type: 'streamable-http', url: 'https://example.test/mcp', headers: { Authorization: '${SERVICE_TOKEN}' } }, 'service', credentialStub)
     expect(host.textContent).toContain('mcpCredentialTitle')

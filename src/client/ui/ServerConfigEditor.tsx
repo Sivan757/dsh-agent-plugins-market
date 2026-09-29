@@ -11,7 +11,8 @@ import { Button, IconPlusOutlineMedium, IconShieldOutlineMedium, IconTrashOutlin
 import type { ServerPolicyPayload, ServerTimeoutPolicy } from '../../contracts/market.js'
 import type { CredentialApi } from '../credentials.js'
 import type { Translate } from '../index.js'
-import { McpCredentialFields, credentialRefOf, credentialUsage } from './McpCredentialFields.js'
+import { McpCredentialFields, credentialRefOf, credentialUsage, literalSeats, type McpSecretEntry } from './McpCredentialFields.js'
+import { REDACTED_VALUE } from '../../contracts/mcp.js'
 import { changeTransport, composeServerDocument, parseServerConfig, parseServerDocument, rowsFromPastedText, serverFormCompatible, timeoutMsFromText, type ServerKind, type ServerConfig, type ServerPolicyDraft } from './server-form.js'
 import { DetailRow, DetailRows } from './DetailRows.js'
 import formCss from './form.module.css'
@@ -158,10 +159,22 @@ export function ServerConfigEditor(props: {
       ...(props.fieldErrors?.[key] === undefined ? {} : { error: props.fieldErrors[key] })
     })
   const type = typeof config?.type === 'string' ? config.type : 'stdio'
-  // The references this definition spends, and the seats that spend them. Only
-  // MCP resolves the credential seam, so only an MCP document has this block.
+  // The secrets this definition carries: the references it spends, and the
+  // literals the wire redacted. Only MCP resolves the credential seam, so only
+  // an MCP document has this block.
   const credentialUse = props.kind === 'mcp' && config !== undefined ? credentialUsage(props.t, config) : {}
-  const credentialRefs = Object.keys(credentialUse)
+  /** Write one map seat of this document, or drop it when the value is undefined. */
+  const writeSeat = (seat: 'headers' | 'env', key: string, value: string | undefined): void => {
+    const current = { ...((config?.[seat] as Record<string, string> | undefined) ?? {}) }
+    if (value === undefined) delete current[key]
+    else current[key] = value
+    field(seat, Object.keys(current).length === 0 ? undefined : current)
+  }
+  const secretEntries: McpSecretEntry[] = Object.entries(credentialUse).map(([ref, usage]) => ({ kind: 'reference', ref, usage }))
+  if (props.kind === 'mcp') {
+    for (const seat of literalSeats(props.t, config))
+      secretEntries.push({ kind: 'literal', label: seat.label, onReplace: value => writeSeat(seat.field, seat.key, value), onClear: () => writeSeat(seat.field, seat.key, undefined) })
+  }
   const transportField =
     props.kind === 'mcp'
       ? h(
@@ -344,15 +357,15 @@ export function ServerConfigEditor(props: {
                 ]
               : null
           ),
-    // The references the document spends, configured where the form shows
-    // them. The JSON view carries the document itself, so it needs no block.
-    credentialRefs.length === 0 || mode === 'json'
+    // The secrets the document carries, one collapsed row each: a reference is
+    // written through the credential store, a literal through the document this
+    // editor owns. The JSON view carries the document itself, so it needs none.
+    secretEntries.length === 0 || mode === 'json'
       ? null
       : h(McpCredentialFields, {
           t: props.t,
           ...(props.credentials === undefined ? {} : { api: props.credentials }),
-          refs: credentialRefs,
-          usage: credentialUse
+          secrets: secretEntries
         }),
     advancedSection
   )
@@ -456,6 +469,17 @@ function StringRows(props: {
    * reachable from the chip for anyone who wants to see or change it.
    */
   const valueCell = (index: number, value: string): ReactNode => {
+    // A value the wire redacted is a secret the document holds: it reads as one
+    // rather than as an editable `[redacted]` string, and the credential block
+    // is where it is replaced or dropped.
+    if (value === REDACTED_VALUE) {
+      return h(
+        'span',
+        { className: `${formCss.credChip} ${formCss.credStatic}`, title: props.t('mcpCredentialHidden') },
+        h(IconShieldOutlineMedium),
+        h('span', { className: formCss.credChipName }, props.t('mcpCredentialHidden'))
+      )
+    }
     const reference = props.references === true && !textRows.has(index) ? credentialRefOf(value) : undefined
     if (reference === undefined) {
       return h('input', {

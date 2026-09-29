@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMcpStatus } from '../src/application/mcp/mcp-status.js'
+import { buildMcpStatus, declaresAuthHeader } from '../src/application/mcp/mcp-status.js'
 import { inspectToolRegistry } from '../src/runtime/host/tool-registry-observer.js'
 import { effectiveSurfaces, type Suite } from '../src/model/types.js'
 
@@ -26,6 +26,19 @@ function suite(overrides: Partial<Suite> = {}): Suite {
     ...overrides
   }
 }
+
+describe('auth header detection', () => {
+  it('reads an Authorization header whatever its casing, and nothing else', () => {
+    // A server that supplies the header authenticates with it: the detail
+    // dialog must not offer the OAuth re-authorize action for that server.
+    expect(declaresAuthHeader({ headers: { Authorization: 'Bearer x' } })).toBe(true)
+    expect(declaresAuthHeader({ headers: { authorization: '[redacted]' } })).toBe(true)
+    expect(declaresAuthHeader({ headers: { 'X-Api-Key': 'x' } })).toBe(false)
+    expect(declaresAuthHeader({ headers: {} })).toBe(false)
+    expect(declaresAuthHeader({})).toBe(false)
+    expect(declaresAuthHeader(undefined)).toBe(false)
+  })
+})
 
 describe('MCP status aggregation', () => {
   it('reports plugin servers, redacts secrets, and observes direct servers', () => {

@@ -10,6 +10,14 @@ import type { McpStatusCode } from './mcp-status.js'
 /** The MCP mount backend the market uses for suite servers. */
 export type McpBackend = 'builtin' | 'host'
 
+/**
+ * What a secret-shaped value reads as once it crosses a status or editor
+ * boundary. The client compares against it to tell a hidden literal from a
+ * value it may show, so the placeholder is one shared constant rather than a
+ * string literal on each side.
+ */
+export const REDACTED_VALUE = '[redacted]'
+
 /** One MCP mount failure as the registries record it for the status surface. */
 export interface McpMountDiagnostic {
   suiteId: string

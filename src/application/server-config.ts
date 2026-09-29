@@ -4,6 +4,7 @@ import { MCP_SCHEMA_ID, validateAgainstSchema, validateMcpJson } from '../catalo
 import { parseLspServers } from '../catalog/lsp-spec.js'
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { redactMcpConfig } from './mcp/mcp-redaction.js'
+import { REDACTED_VALUE } from '../contracts/mcp.js'
 import type { LspServerSpec, Suite } from '../model/types.js'
 
 /** One rejected value, with the field it belongs to when the schema knows it. */
@@ -33,7 +34,7 @@ export class McpConfigError extends Error {
 
 /** Restore only unchanged redacted leaves, rejecting invented masked values. */
 export function restoreRedactedConfig(input: unknown, original: unknown, redacted = redactMcpConfig(original)): unknown {
-  if (typeof input === 'string' && input.includes('[redacted]')) {
+  if (typeof input === 'string' && input.includes(REDACTED_VALUE)) {
     if (input !== redacted) throw new Error('masked values must remain unchanged or be replaced')
     return original
   }

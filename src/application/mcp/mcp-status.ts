@@ -18,6 +18,19 @@ export interface McpDiagnostic {
   credentialRefs?: string[]
 }
 
+/**
+ * Whether one effective configuration supplies its own Authorization header.
+ *
+ * Such a server authenticates with that header: the browser authorization a
+ * re-authorize would restart is not the path it uses, so the action is not
+ * offered for it.
+ */
+export function declaresAuthHeader(config: Record<string, unknown> | undefined): boolean {
+  const headers = config?.['headers']
+  if (typeof headers !== 'object' || headers === null) return false
+  return Object.keys(headers).some(name => name.toLowerCase() === 'authorization')
+}
+
 /** Build status rows from discovered plugin MCP definitions and observed tool names. */
 export function buildMcpStatus(
   suites: Suite[],
