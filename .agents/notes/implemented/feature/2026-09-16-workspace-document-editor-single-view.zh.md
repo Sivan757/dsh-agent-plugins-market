@@ -35,3 +35,7 @@ Status: implemented
 - `pnpm run check:refactor` 通过；`pnpm run test` 82 个文件 / 638 个测试通过；`pnpm run build` 成功。
 - 隔离 profile 走查：新建弹窗依次为切换控件、`名称`、通宽编辑器、底部；`aria-pressed` 在两个按钮之间翻转，切预览时编辑器卸载、切回时恢复，编辑视图里打字不会带来任何预览渲染。
 - 在编辑视图里保存仍然发出 `POST /api/agent-plugins/user-panel/skills/update?name=review-code`（200），磁盘上的文件带有输入的那行字。
+
+## Related
+
+[The service editor's dialog chrome after the control migration](../bug-fix/2026-09-29-dialog-chrome-and-mode-switch.md) 把「无说明弹窗去掉正文上边距」这条规则延伸到市场的共享弹窗外壳。

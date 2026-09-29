@@ -24,6 +24,13 @@
   max-height: calc(100dvh - 200px);
   overflow-wrap: anywhere;
 }
+/* The host Modal wraps the content in its own body box with a 20px top margin,
+   sized for a description sentence the market's dialogs do not carry: without
+   this the title sits 32px above its first control. Same rule, and same
+   reason, as the workspace editors in panel.module.css. */
+.compactTop [class*='content'] > [class*='body'] {
+  margin-top: 0;
+}
 .footer {
   display: flex;
   align-items: center;

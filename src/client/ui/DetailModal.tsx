@@ -24,12 +24,15 @@ function sizeClass(size: DetailSize): string {
 export function DetailModal(props: ComponentProps<typeof Modal> & { size?: DetailSize }): ReactNode {
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
   const { size = 'lg', ...modal } = props
+  // A dialog with no description keeps only the header's own 12px under the
+  // title: the host's body margin assumes a sentence sits between the two.
+  const compactTop = modal.description === undefined || modal.description === '' ? ` ${css.compactTop}` : ''
   return h(
     FooterTarget.Provider,
     { value: target },
     h(Modal, {
       ...modal,
-      className: `${modal.className ?? ''} ${css.dialog} ${sizeClass(size)}`,
+      className: `${modal.className ?? ''} ${css.dialog} ${sizeClass(size)}${compactTop}`,
       contentClassName: `${modal.contentClassName ?? ''} ${css.body}`,
       footer: h('div', { className: css.footer }, modal.footer, h('div', { ref: setTarget, className: css.footerSlot }))
     })

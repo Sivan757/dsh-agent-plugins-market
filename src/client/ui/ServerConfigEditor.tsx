@@ -283,16 +283,17 @@ export function ServerConfigEditor(props: {
         { value: 'form', label: props.t('detailForm') },
         { value: 'json', label: props.t('detailJson') }
       ],
-      // A form issue blocks the JSON view: switching away from it would hide
-      // the very document that carries the problem.
-      // Unlike the hand-rolled pair, an issue locks both segments: leaving the form
-  // would hide the very document the error describes. Reaching json stays
-  // blocked for the same reason; the issue can only exist while in form view.
-  disabled: props.disabled || hasIssue,
+      // An issue locks both segments: leaving the form would hide the very
+      // document the error describes, and the issue can only exist while in
+      // form view.
+      disabled: props.disabled || hasIssue,
       // The editor body is the panel both tabs control.
       label: props.t('detailJsonConfig'),
       onChange: setMode,
-      className: formCss.seg
+      // Layout only: the host control draws its own track and indicator, and
+      // the track class meant for the hand-rolled groups below would leave its
+      // segments content-sized inside a stretched track.
+      className: formCss.segSelf
     }),
     // Identity fields stay visible in both modes: the name identifies the
     // document and the transport decides which keys the JSON may carry.

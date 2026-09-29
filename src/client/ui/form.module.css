@@ -172,6 +172,13 @@
   outline-offset: 2px;
 }
 
+/* A host-drawn control sitting directly in the form column: the column would
+   stretch it to full width while its segments size to their own labels, which
+   leaves the sliding indicator off the selected segment. */
+.segSelf {
+  align-self: flex-start;
+}
+
 /* A fact the editor will not let you change, framed so it does not read as an
    input you forgot to fill in. */
 .readonly {
