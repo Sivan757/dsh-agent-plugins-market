@@ -38,25 +38,25 @@ export function DetailRows({
   children?: ReactNode
 }): ReactNode {
   const shown = open !== false
+  const head = (interactive: boolean): ReactNode => {
+    const name = h('span', { className: css.name }, label)
+    const note = summary === undefined || summary === '' ? null : h('span', { className: css.summary }, summary)
+    if (!interactive) return h('div', { className: css.row }, name, note, h('span', { className: css.chevron }))
+    return h(
+      'button',
+      { type: 'button', className: css.row, 'aria-expanded': shown, onClick: onToggle },
+      name,
+      note,
+      h('span', { className: css.chevron, 'aria-hidden': true }, shown ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
+    )
+  }
   return h(
     'div',
     { className: css.rows },
-    label === undefined || label === ''
-      ? null
-      : onToggle === undefined
-        ? h('div', { className: css.head }, h('span', { className: css.headName }, label), summary === undefined || summary === '' ? null : h('span', { className: css.headSummary }, summary))
-        : h(
-            'button',
-            {
-              type: 'button',
-              className: `${css.head} ${css.headToggle}`,
-              'aria-expanded': shown,
-              onClick: onToggle
-            },
-            h('span', { className: css.headName }, label),
-            summary === undefined || summary === '' ? null : h('span', { className: css.headSummary }, summary),
-            h('span', { className: css.chevron, 'aria-hidden': true }, shown ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
-          ),
+    // The name is a row of the frame it labels: the same band a row shows, so a
+    // folded group and a folded disclosure are the same shape, and an opened
+    // one takes the same soft grey.
+    label === undefined || label === '' ? null : h('div', { className: css.group }, head(onToggle !== undefined)),
     onToggle !== undefined && !shown ? null : children
   )
 }
