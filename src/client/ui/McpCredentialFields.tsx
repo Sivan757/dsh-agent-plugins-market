@@ -237,6 +237,8 @@ function ReferenceSecretRow(props: {
 export function McpCredentialFields(props: { t: Translate; api?: CredentialApi; secrets: McpSecretEntry[] }): ReactNode {
   const { t, api, secrets } = props
   const [facts, setFacts] = useState<CredentialFacts>(UNKNOWN_FACTS)
+  // The group folds away; its rows are the detail of one fact the band states.
+  const [groupOpen, setGroupOpen] = useState(false)
   const [open, setOpen] = useState<string>()
   const references = secrets.flatMap(secret => (secret.kind === 'reference' ? [secret.ref] : []))
   const refKey = references.join('|')
@@ -273,16 +275,26 @@ export function McpCredentialFields(props: { t: Translate; api?: CredentialApi; 
     }))
   }
   const referenceRows = secrets.flatMap(secret => (secret.kind === 'reference' ? [secret] : []))
+  const unavailable = referenceRows.length > 0 && !facts.available
+  // With the rows folded away the band has to carry the fact they would show:
+  // a missing credential is the one a reader has to act on.
+  const missing = references.filter(ref => facts.configured[ref] === false).length
+  const group = {
+    label: t('mcpCredentialTitle'),
+    open: groupOpen,
+    onToggle: () => setGroupOpen(current => !current),
+    ...(unavailable ? {} : { summary: missing > 0 ? t('mcpCredentialMissingCount', { count: missing }) : t('mcpCredentialConfiguredCount', { count: secrets.length }) })
+  }
   // The name rides the frame, so the disclosure that follows this group cannot
   // read as part of it.
   return h(
     'div',
     { className: panelCss.block },
-    referenceRows.length > 0 && !facts.available
-      ? h(DetailRows, { label: t('mcpCredentialTitle') }, h('div', { className: rowCss.notice, role: 'status' }, t('mcpCredentialUnavailable')))
+    unavailable
+      ? h(DetailRows, group, h('div', { className: rowCss.notice, role: 'status' }, t('mcpCredentialUnavailable')))
       : h(
           DetailRows,
-          { label: t('mcpCredentialTitle') },
+          group,
           secrets.map((secret, index) => {
             const key = rowKey(secret, index)
             const toggle = (): void => setOpen(current => (current === key ? undefined : key))

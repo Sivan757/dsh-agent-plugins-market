@@ -6,8 +6,6 @@ import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { failureGuidanceKey } from '../../ui/failure-guidance.js'
 import type { Translate } from '../../index.js'
 import type { McpStatusEntry } from '../../api.js'
-import type { CredentialApi } from '../../credentials.js'
-import { McpCredentialFields, credentialUsage, literalSeats, type McpSecretEntry } from '../../ui/McpCredentialFields.js'
 import { mcpDetailActions } from './detail-actions.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
@@ -21,7 +19,6 @@ import panelCss from '../../ui/panel.module.css'
 export function McpDetailModal({
   entry,
   t,
-  credentials,
   backend,
   onClose,
   onRetry,
@@ -30,7 +27,6 @@ export function McpDetailModal({
 }: {
   entry: McpStatusEntry
   t: Translate
-  credentials?: CredentialApi
   /** The mount backend; `host` cannot enforce tool filters. */
   backend: 'builtin' | 'host'
   onClose: () => void
@@ -52,15 +48,6 @@ export function McpDetailModal({
   const matchingTools = needle === '' ? tools : tools.filter(tool => tool.name.toLowerCase().includes(needle))
   const shownTools = toolsExpanded ? matchingTools : matchingTools.slice(0, TOOL_PAGE_SIZE)
   const hiddenToolCount = matchingTools.length - shownTools.length
-  // The secrets this service carries: the references the credential store
-  // answers, and the literals the document holds. A literal row here has no
-  // writer — the document belongs to the editor — so it states the seat and
-  // says where the value is replaced.
-  const secretUsage = credentialUsage(t, entry.config)
-  const secrets: McpSecretEntry[] = [
-    ...(entry.credentialRefs ?? []).map(ref => ({ kind: 'reference' as const, ref, usage: secretUsage[ref] ?? [] })),
-    ...literalSeats(t, entry.config).map(seat => ({ kind: 'literal' as const, label: seat.label }))
-  ]
   // A foreign mount belongs to another owner and a host-observed row has no
   // declaration here, so both stay read-only; a declared server is this
   // plugin's to edit, probe, and pick tools for.
@@ -295,11 +282,7 @@ export function McpDetailModal({
                     )
                   : null
               )
-      ),
-      // The report names every secret the service carries — the references the
-      // credential store answers and the literals the document holds — but the
-      // document belongs to the editor, so a literal row here has no writer.
-      secrets.length === 0 ? null : h(McpCredentialFields, { t, api: credentials, secrets })
+      )
     )
   })
 }

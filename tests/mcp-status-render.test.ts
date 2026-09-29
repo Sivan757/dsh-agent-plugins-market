@@ -133,7 +133,7 @@ async function mountPanel(credentials?: CredentialApi): Promise<HTMLDivElement> 
 }
 
 describe('MCP status actions', () => {
-  it('exposes a credential action inside the detail dialog instead of on the card', async () => {
+  it('keeps credentials out of the report and reads them for the editor', async () => {
     const describeCredentials = vi.fn().mockResolvedValue({ result: { ok: true, value: { credentials: { API_TOKEN: { configured: false, writable: true } } } } })
     const credentials: CredentialApi = {
       describe: describeCredentials,
@@ -142,34 +142,41 @@ describe('MCP status actions', () => {
     }
     const el = await mountPanel(credentials)
 
-    // The card is a lean identity line: the credential editor is not part of
-    // it, so the panel neither renders the editor nor asks for credentials
-    // until the dialog opens.
+    // The card is a lean identity line: it renders no credential control, and
+    // the panel asks the credentials service nothing yet.
     expect(el.querySelector('input[type="password"]')).toBeNull()
     expect(describeCredentials).not.toHaveBeenCalled()
-    // Opening the detail dialog is the one interaction a card offers. The card
-    // shows the readable server key; the full mount name rides its tooltip.
     const card = el.querySelector('[data-resource-surface="mcp"]')
     expect(card?.textContent).toContain('service')
     expect(card?.querySelector('[title="demo__service"]')).not.toBeNull()
+
+    // The report reports: its dialog carries no credential block at all.
     await act(async () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(document.body.textContent).toContain('mcpServiceDetail')
+    expect(document.body.textContent).not.toContain('mcpCredentialTitle')
+    expect(describeCredentials).not.toHaveBeenCalled()
 
-    // The describe answer lands one microtask later than the dialog opens.
+    // The editor is where a secret is read and written: it mounts the block for
+    // the references the document spends.
+    const api = await import('../src/client/api.js')
+    vi.mocked(api.fetchServerConfig).mockResolvedValue({
+      kind: 'mcp',
+      id: 'service',
+      key: 'service',
+      editable: true,
+      backend: 'builtin',
+      config: { type: 'streamable-http', url: 'https://example.test/mcp', headers: { Authorization: '${API_TOKEN}' } }
+    })
+    const edit = document.querySelector<HTMLButtonElement>('[aria-label="panelEdit service"]')
+    expect(edit).not.toBeNull()
     await act(async () => {
+      edit!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The dialog states the reference. Its write-only control belongs to the
-    // row that names it: the block stays one line per secret until opened.
-    expect(document.body.textContent).toContain('API_TOKEN')
-    expect(document.body.querySelector('input[type="password"]')).toBeNull()
-    const secretRow = [...document.body.querySelectorAll('button')].find(node => node.textContent?.includes('API_TOKEN'))
-    expect(secretRow).toBeDefined()
-    await act(async () => secretRow!.click())
-    expect(document.body.querySelector('input[type="password"]')).not.toBeNull()
+    expect(document.body.textContent).toContain('mcpCredentialTitle')
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 

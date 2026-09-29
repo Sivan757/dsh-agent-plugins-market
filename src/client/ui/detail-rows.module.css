@@ -16,14 +16,52 @@
 /* The frame's own name: a tinted band inside the border, so it labels the rows
    under it and nothing else. */
 .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
   padding: 8px 12px;
+  border: none;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-secondary);
+  font: inherit;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  text-align: left;
   text-transform: uppercase;
+}
+
+.headName {
+  flex: none;
+}
+
+/* What the group holds, beside its name. */
+.headSummary {
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+/* A band that opens and closes its own rows. */
+.headToggle {
+  cursor: pointer;
+}
+
+.headToggle:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.headToggle:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: -2px;
 }
 
 /* A frame whose content is one sentence rather than rows. */
@@ -68,8 +106,10 @@ button.row {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* An open row reads as the surface its body already uses: the same soft grey
+   as a hover, never a coloured band. */
 .row[aria-expanded='true'] {
-  background: var(--dsw-alias-state-business-tertiary);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .row:focus-visible {

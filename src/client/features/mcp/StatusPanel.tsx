@@ -161,7 +161,6 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       : h(McpDetailModal, {
           entry: selected,
           t,
-          credentials,
           backend: payload.backend ?? 'builtin',
           onClose: () => {
             setSelected(undefined)

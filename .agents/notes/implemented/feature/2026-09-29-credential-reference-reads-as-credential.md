@@ -12,7 +12,7 @@ One header secret had two surfaces and they disagreed. The detail dialog showed 
 
 ## Decision
 
-**The block is shared UI, and it carries both kinds of secret.** `McpCredentialFields` lives in `src/client/ui/` with three helpers: `credentialUsage` (which seat spends which reference), `literalSeats` (the seats whose value the wire redacted), and `credentialRefOf` (whether a value _is_ one reference). It takes entries — a reference the credential store answers, or a literal the document holds — and renders one collapsed `DetailRow` per secret, so a service with several secrets costs one line each and opening a row reveals the control that writes it. The detail dialog and the service editor mount the same block; the LSP launch path resolves plugin paths rather than credentials, so its editor gets none, and the JSON view shows the whole document instead. The group's name rides that frame as its own header band, because a label floating above the border reads as the heading of the next bordered group — the advanced disclosure that follows it.
+**The block is shared UI, and it carries both kinds of secret.** `McpCredentialFields` lives in `src/client/ui/` with three helpers: `credentialUsage` (which seat spends which reference), `literalSeats` (the seats whose value the wire redacted), and `credentialRefOf` (whether a value _is_ one reference). It takes entries — a reference the credential store answers, or a literal the document holds — and renders one collapsed `DetailRow` per secret, so a service with several secrets costs one line each and opening a row reveals the control that writes it. The block lives in the service editor alone: the detail dialog reports the service and leaves credentials to the editor, which is the split every other surface follows. The group is folded to a band stating how many secrets are configured, so a service with several costs one line until the reader asks for them; a row inside it opens onto its control. The LSP editor gets no block — its launch path resolves plugin paths rather than credentials — and the JSON view shows the whole document instead. The group's name rides that frame as its own header band, because a label floating above the border reads as the heading of the next bordered group — the advanced disclosure that follows it.
 
 **A value that is one reference renders as the credential it names.** `${NAME}` and `${NAME:-}` in a header or environment value become a chip — the shield glyph and the name, with the raw text as its tooltip — and activating the chip hands that row back to the text field, so nothing about the document becomes unreachable.
 
@@ -46,6 +46,7 @@ One header secret had two surfaces and they disagreed. The detail dialog showed 
 - The editor's chips are buttons: a keyboard user reaches the raw text of a reference, and the replacement field of a literal, by activating one.
 - A reference in a seat the form does not chip — a URL query, `cwd`, an argument — still reads as text, and an argument the wire redacted still reads as text inside the argument itself.
 - The LSP editor never shows the block: its mount resolves plugin paths, not credentials.
+- A disclosure header is a soft grey when open, on the platform's own hover fill; the coloured band it used to take read as a status rather than as "this row is open".
 
 ## Testing
 

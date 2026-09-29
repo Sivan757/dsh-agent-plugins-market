@@ -76,6 +76,8 @@ const rawValue = () => JSON.parse(host.querySelector('[data-value]')!.textConten
 const value = () => ((rawValue() as { mcpServers: Record<string, Record<string, unknown>> }).mcpServers ?? {})['service'] ?? {}
 /** The advanced disclosure's own row, by its accessible name. */
 const advanced = () => [...host.querySelectorAll('button')].find(node => node.textContent?.includes('mcpAdvanced'))
+/** The credential group's name band, which folds its rows away. */
+const secretBand = () => [...host.querySelectorAll('button')].find(node => node.textContent?.includes('mcpCredentialTitle'))
 
 describe('shared resource detail editors', () => {
   it('offers the advanced disclosure without policy timeouts when no policy props are supplied', async () => {
@@ -131,10 +133,14 @@ describe('shared resource detail editors', () => {
 
   it('lists a literal secret and replaces it in the document', async () => {
     await mount({ type: 'stdio', command: 'node', env: { API_TOKEN: '[redacted]', PLAIN: 'x' } }, 'service', credentialStub)
-    // The row names the seat it belongs to.
+    // The group states what it holds and stays folded until asked for.
+    const band = secretBand()
+    expect(band).toBeDefined()
+    expect(host.textContent).toContain('mcpCredentialConfiguredCount')
+    await act(async () => band!.click())
+    // Then the row names the seat it belongs to.
     const row = [...host.querySelectorAll('button')].find(node => node.textContent?.includes('detailEnv API_TOKEN'))
     expect(row).toBeDefined()
-    expect(host.textContent).toContain('mcpCredentialHidden')
     await act(async () => row!.click())
     const field = host.querySelector<HTMLInputElement>('#mcp-credential-detailEnv-API_TOKEN')!
     expect(field).not.toBeNull()
@@ -147,7 +153,8 @@ describe('shared resource detail editors', () => {
   it('configures the references the document spends, in the form view only', async () => {
     await mount({ type: 'streamable-http', url: 'https://example.test/mcp', headers: { Authorization: '${SERVICE_TOKEN}' } }, 'service', credentialStub)
     expect(host.textContent).toContain('mcpCredentialTitle')
-    expect(host.textContent).toContain('mcpCredentialConfigured')
+    // The folded group still states what it holds.
+    expect(host.textContent).toContain('mcpCredentialConfiguredCount')
     // The JSON view shows the whole document, so the block stands aside there.
     await click('detailJson')
     expect(host.textContent).not.toContain('mcpCredentialTitle')

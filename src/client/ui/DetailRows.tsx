@@ -21,12 +21,43 @@ import panelCss from './panel.module.css'
  * above the border would read as the heading of whatever bordered group comes
  * next, which is not what a label is for.
  */
-export function DetailRows({ label, children }: { label?: string | undefined; children?: ReactNode }): ReactNode {
+export function DetailRows({
+  label,
+  summary,
+  open,
+  onToggle,
+  children
+}: {
+  label?: string | undefined
+  /** One line beside the name, e.g. how many rows the group holds. */
+  summary?: string | undefined
+  /** Whether the group's rows are shown; only read with `onToggle`. */
+  open?: boolean | undefined
+  /** Makes the name band the control that collapses and reveals the rows. */
+  onToggle?: (() => void) | undefined
+  children?: ReactNode
+}): ReactNode {
+  const shown = open !== false
   return h(
     'div',
     { className: css.rows },
-    label === undefined || label === '' ? null : h('div', { className: css.head }, label),
-    children
+    label === undefined || label === ''
+      ? null
+      : onToggle === undefined
+        ? h('div', { className: css.head }, h('span', { className: css.headName }, label), summary === undefined || summary === '' ? null : h('span', { className: css.headSummary }, summary))
+        : h(
+            'button',
+            {
+              type: 'button',
+              className: `${css.head} ${css.headToggle}`,
+              'aria-expanded': shown,
+              onClick: onToggle
+            },
+            h('span', { className: css.headName }, label),
+            summary === undefined || summary === '' ? null : h('span', { className: css.headSummary }, summary),
+            h('span', { className: css.chevron, 'aria-hidden': true }, shown ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
+          ),
+    onToggle !== undefined && !shown ? null : children
   )
 }
 
