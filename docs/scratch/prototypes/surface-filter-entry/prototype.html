@@ -210,6 +210,17 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
 .toast svg{width:14px;height:14px;stroke:var(--dsw-alias-state-success-primary);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
 
+/* SegmentedControl 双段(宿主同构) */
+.segc{display:grid;grid-auto-flow:column;padding:2px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-module-platform)}
+.segc button{height:24px;padding:0 10px;border:none;background:transparent;border-radius:calc(var(--dsw-radius-sm) - 2px);font-size:12px;color:var(--dsw-alias-label-tertiary);cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.segc button svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7}
+.segc button[aria-pressed="true"]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-soft)}
+/* 列表视图:紧凑单行(MCP 状态面板行形态) */
+.listview .suite-card{flex-direction:row;align-items:center;gap:10px;padding:8px 12px 8px 10px}
+.listview .card-top{flex:1;min-width:0}
+.listview .card-desc,.listview .card-foot{display:none}
+.listview .nm{font-size:13.5px}
+.listview .sw-wrap .state{display:none}
 .hint{padding:12px 24px 18px;text-align:center;font-size:12px;color:var(--dsw-alias-label-tertiary);flex-shrink:0}
 </style>
 </head>
@@ -266,6 +277,10 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
       <span class="search">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         <input id="q" placeholder="搜索本项目已安装…" oninput="renderList()">
+      </span>
+      <span class="segc" role="group" aria-label="视图">
+        <button aria-pressed="false" title="列表视图" onclick="setView('list',this)"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <button aria-pressed="true" title="卡片视图" onclick="setView('card',this)"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
       </span>
     </div>
 
@@ -331,7 +346,12 @@ let PROFILES = [
 ];
 let activeProfile = null; // null = 自定义
 
-let cur = 'skills';
+let cur = 'skills', view = 'card';
+function setView(v, btn){
+  view = v;
+  document.querySelectorAll('.segc button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+  document.getElementById('list').classList.toggle('listview', v === 'list');
+}
 const $ = id => document.getElementById(id);
 function setTheme(t, btn){ document.documentElement.dataset.theme = t; document.querySelectorAll('.demobar button').forEach(b => b.classList.toggle('on', b === btn)) }
 
