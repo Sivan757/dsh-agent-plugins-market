@@ -14,6 +14,29 @@ import { McpMountRegistry, type McpMountDiagnostic } from '../mcp/mcp-mounts.js'
 import type { Suite } from '../../model/types.js'
 import { bindHostLocale, type HostTranslate } from '../host/host-locale.js'
 
+/**
+ * The per-surface mount gates one reconcile pass reads.
+ *
+ * A switched-off surface is gated here rather than by filtering the suite
+ * snapshot: the reconciler owns both the MCP and the LSP mount branch, so
+ * dropping suites from the shared list would unmount a sibling surface's
+ * mounts along with it. Gating each branch instead keeps the two orthogonal —
+ * an off MCP mount reconciles to zero servers while the same suites keep their
+ * language servers.
+ */
+export interface RuntimeSurfaceGates {
+  /** Whether the named surface may mount on this pass. */
+  allows(surface: RuntimeSurfaceKey): boolean
+}
+
+/**
+ * The toggle keys the reconciler's own mount branches answer to.
+ *
+ * Hooks have no per-workspace switch, so that branch stays ungated; skills and
+ * agents mount through their own providers and the market through its routes.
+ */
+export type RuntimeSurfaceKey = 'commands' | 'mcp' | 'lsp'
+
 /** Diagnostics returned by one runtime reconciliation pass. */
 export interface RuntimeDiagnostics {
   mcp: McpMountDiagnostic[]
@@ -29,6 +52,7 @@ export class RuntimeReconciler {
   private readonly hooks: HooksMountRegistry
   private readonly lspRegistry: LspMountRegistry
   private readonly queues = new Map<keyof Omit<RuntimeDiagnostics, 'errors'>, Promise<void>>()
+  private gates: RuntimeSurfaceGates | undefined
   private disposed = false
 
   constructor(ctx: Context, dataRoot: string, t: HostTranslate = bindHostLocale(undefined)) {
@@ -42,6 +66,16 @@ export class RuntimeReconciler {
   /** The LSP mount registry, consumed by the LSP status surface. */
   get lsp(): LspMountRegistry {
     return this.lspRegistry
+  }
+
+  /**
+   * Install the per-workspace surface gates, read on every pass.
+   *
+   * Set after construction because the toggle service is built later in
+   * composition; until then every surface mounts, which is the all-on default.
+   */
+  setSurfaceGates(gates: RuntimeSurfaceGates): void {
+    this.gates = gates
   }
 
   /** Install the per-suite MCP overrides provider used at mount time. */
@@ -96,13 +130,19 @@ export class RuntimeReconciler {
       this.queues.set(surface, run)
       return run
     }
+    // Each switchable surface answers its own gate by reconciling to "nothing
+    // wanted", which is the same unmount-to-empty pass a removed suite already
+    // produces. The suite list itself is never filtered: MCP, commands and LSP
+    // all mount from this one snapshot, so dropping a suite for one surface
+    // would tear down its mounts on the others.
+    const gated = (surface: 'commands' | 'mcp' | 'lsp'): Suite[] => (this.gates?.allows(surface) === false ? [] : suites)
     // Network-backed MCP startup must not delay local commands, hooks or LSP.
     // Each surface retains its own order when catalog mutations overlap.
     await Promise.all([
-      reconcileSurface('mcp', () => this.mcp.reconcile(suites)),
-      reconcileSurface('commands', () => this.commands.reconcile(suites)),
+      reconcileSurface('mcp', () => this.mcp.reconcile(gated('mcp'))),
+      reconcileSurface('commands', () => this.commands.reconcile(gated('commands'))),
       reconcileSurface('hooks', () => this.hooks.reconcile(suites)),
-      reconcileSurface('lsp', () => this.lspRegistry.reconcile(suites))
+      reconcileSurface('lsp', () => this.lspRegistry.reconcile(gated('lsp')))
     ])
     return diagnostics
   }

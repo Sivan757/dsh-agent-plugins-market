@@ -188,25 +188,30 @@ export class SuiteSkillProvider implements SkillProvider {
 }
 
 /**
- * A {@link SuiteSkillProvider} that answers nothing while the workspace's
- * skills switch is off. Extending the real class keeps every inherited
- * member (get, candidateFor, …) structurally intact for the host registry;
- * only the two data-carrying methods observe the switch, so the provider
- * seat itself survives a toggle without re-registering.
+ * A skill provider that answers nothing while the workspace's skills switch is
+ * off.
+ *
+ * The wrapper is generic over the provider it guards, so both contributors to
+ * the skills surface — installed suites and the user's own panel entries —
+ * answer the one switch. Only the two data-carrying methods observe it and the
+ * wrapped provider keeps its own name, so the provider seat survives a toggle
+ * without re-registering.
  */
-export class ToggledSkillProvider extends SuiteSkillProvider {
+export class ToggledSkillProvider implements SkillProvider {
   constructor(
-    inner: SuiteSkillProvider,
+    private readonly inner: SkillProvider,
     private readonly allows: () => boolean
-  ) {
-    super(inner['manager'], inner['options'])
+  ) {}
+
+  get name(): string {
+    return this.inner.name
   }
 
-  override list(options: Parameters<SuiteSkillProvider['list']>[0]): ReturnType<SuiteSkillProvider['list']> {
-    return this.allows() ? super.list(options) : Promise.resolve([])
+  list(options: Parameters<SkillProvider['list']>[0]): ReturnType<SkillProvider['list']> {
+    return this.allows() ? this.inner.list(options) : Promise.resolve([])
   }
 
-  override get(...args: Parameters<SuiteSkillProvider['get']>): ReturnType<SuiteSkillProvider['get']> {
-    return this.allows() ? super.get(...args) : Promise.resolve(undefined)
+  get(...args: Parameters<SkillProvider['get']>): ReturnType<SkillProvider['get']> {
+    return this.allows() ? this.inner.get(...args) : Promise.resolve(undefined)
   }
 }

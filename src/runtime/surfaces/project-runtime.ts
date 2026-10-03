@@ -23,17 +23,30 @@ interface AgentMount {
 }
 
 /** Mount under existing and newly created agents; the caller owns refresh and teardown. */
-export function mountProjectCommands(ctx: Context, catalog: Catalog, t: HostTranslate, dataRoot?: string): { refresh(): Promise<void>; dispose(): Promise<void> } {
-  return mountProjectSurface(ctx, catalog, 'commands', scope => new CommandMountRegistry(scope, t, dataRoot))
+export function mountProjectCommands(
+  ctx: Context,
+  catalog: Catalog,
+  t: HostTranslate,
+  dataRoot?: string,
+  allows?: () => boolean
+): { refresh(): Promise<void>; dispose(): Promise<void> } {
+  return mountProjectSurface(ctx, catalog, 'commands', scope => new CommandMountRegistry(scope, t, dataRoot), false, allows)
 }
 
 /** MCP uses a separate injected child so network startup cannot delay local commands. */
-export function mountProjectMcp(ctx: Context, catalog: Catalog, dataRoot: string): { refresh(): Promise<void>; dispose(): Promise<void> } {
-  return mountProjectSurface(ctx, catalog, 'tools', scope => {
-    const registry = new McpMountRegistry(scope, dataRoot)
-    registry.setBackendProvider(() => catalog.mcpBackend())
-    return registry
-  })
+export function mountProjectMcp(ctx: Context, catalog: Catalog, dataRoot: string, allows?: () => boolean): { refresh(): Promise<void>; dispose(): Promise<void> } {
+  return mountProjectSurface(
+    ctx,
+    catalog,
+    'tools',
+    scope => {
+      const registry = new McpMountRegistry(scope, dataRoot)
+      registry.setBackendProvider(() => catalog.mcpBackend())
+      return registry
+    },
+    false,
+    allows
+  )
 }
 
 /** Wait for both bridge dependencies before attempting a scoped hook mount. */
@@ -124,7 +137,14 @@ function mountProjectSurface(
   catalog: Catalog,
   service: string | string[],
   create: (scope: Context, agent: ProjectAgent) => ProjectRegistry,
-  withoutProject = false
+  withoutProject = false,
+  /**
+   * The workspace switch this surface answers, read on every refresh. A
+   * switched-off surface reconciles to an empty snapshot, which is the same
+   * "nothing wanted" pass a project with no such files already produces: the
+   * agent-scoped seat stays attached and only the data it serves collapses.
+   */
+  allows?: () => boolean
 ): { refresh(): Promise<void>; dispose(): Promise<void> } {
   const host = ctx as unknown as { agents: { list(): ProjectAgent[] } }
   const mounts = new Map<ProjectAgent, AgentMount>()
@@ -142,7 +162,8 @@ function mountProjectSurface(
       refresh = (): Promise<void> => {
         queue = queue.catch(warn).then(async () => {
           if (!active) return
-          const snapshot = cwd === undefined ? { enabledSuites: [] } : await catalog.readProjectCatalog(cwd)
+          const off = allows?.() === false
+          const snapshot = cwd === undefined || off ? { enabledSuites: [] } : await catalog.readProjectCatalog(cwd)
           if (!active) return
           const diagnostics = await registry.reconcile([...snapshot.enabledSuites])
           if (!active) await registry.disposeAll()

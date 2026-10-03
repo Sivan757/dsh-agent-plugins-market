@@ -199,14 +199,11 @@ export async function apply(
   let suitePrompts: ReturnType<typeof mountSuiteInstructions> | undefined
 
   const scheduler = new ReconcileScheduler(ctx, runtime, {
-    enabledSuites: async () => {
-      // The scheduler feeds the MCP/LSP mount reconciler only: a switched-off
-      // surface must unmount, so its suites drop out of this list and the pass
-      // reconciles to "nothing mounted for that surface".
-      const [suites, toggles] = await Promise.all([catalog.enabledUserSuites(), Promise.resolve(surfaceToggles.currentToggles())])
-      if (toggles.mcp && toggles.lsp) return suites
-      return suites.filter(suite => suite.surfaces.mcp <= 0 || toggles.mcp)
-    },
+    // Always the full enabled set. A switched-off surface is gated inside the
+    // reconciler's own mount branch, never by filtering here: MCP, commands and
+    // LSP all mount from this one snapshot, so dropping a suite for one switch
+    // would unmount that suite's mounts on the other two.
+    enabledSuites: async () => catalog.enabledUserSuites(),
     publishMcpDiagnostics: diagnostics => {
       catalog.mcpDiagnostics = diagnostics
     }
@@ -214,8 +211,9 @@ export async function apply(
 
   /** Reconcile the user command mounts and report each failure once. */
   const reconcileUserCommands = async (): Promise<void> => {
-    if (!surfaceToggles.allows('commands')) return
-    const diagnostics = await userCommands.reconcile().catch(() => [] as string[])
+    // The switch is answered inside reconcile, not by skipping the pass: an
+    // early return would leave the previous registrations mounted.
+    const diagnostics = await userCommands.reconcile(surfaceToggles.allows('commands')).catch(() => [] as string[])
     for (const reason of diagnostics) {
       ctx.logger?.warn(`[dsh-agent-plugins-market] user commands: ${reason}`)
     }
@@ -276,6 +274,11 @@ export async function apply(
     }
   })
   void surfaceToggles.reload()
+  // Each switchable surface answers its own gate at the mount branch, so the
+  // six switches stay orthogonal: turning MCP off reconciles the MCP mounts to
+  // zero servers while the same suites keep their language servers, and the
+  // reverse for LSP.
+  runtime.setSurfaceGates({ allows: surface => surfaceToggles.allows(surface) })
 
   // The credentials store powers the MCP re-authorize action (dropping a grant
   // record forces the next mount through a fresh browser authorization). Every
@@ -361,10 +364,12 @@ export async function apply(
   })
 
   // User panel skills ride a second provider so a panel
-  // edit invalidates only its own catalog contribution.
+  // edit invalidates only its own catalog contribution. It answers the same
+  // skills switch as the suite provider: the seat stays registered and only the
+  // entries it serves collapse to none.
   ctx.skills.registerProvider(control => {
     userPanelControl = control
-    return new UserPanelSkillProvider(panels.skills)
+    return new ToggledSkillProvider(new UserPanelSkillProvider(panels.skills), () => surfaceToggles.allows('skills'))
   })
 
   // Both entry points read the same live user/project role set. Team owns the
@@ -383,8 +388,14 @@ export async function apply(
 
   ctx.inject(['agents'], hostCtx => {
     hostCtx.effect(() => {
-      const mounted = mountProjectCommands(hostCtx, catalog, key => hostLocale.t(key), dataRoot)
-      const mcp = mountProjectMcp(hostCtx, catalog, dataRoot)
+      const mounted = mountProjectCommands(
+        hostCtx,
+        catalog,
+        key => hostLocale.t(key),
+        dataRoot,
+        () => surfaceToggles.allows('commands')
+      )
+      const mcp = mountProjectMcp(hostCtx, catalog, dataRoot, () => surfaceToggles.allows('mcp'))
       const hooks = mountProjectHooks(hostCtx, catalog)
       const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot)
       projectCommands = mounted

@@ -53,10 +53,17 @@ export class UserCommandMountRegistry {
     private readonly t: HostTranslate
   ) {}
 
-  /** Sync the live registrations with the panel's enabled entries. */
-  async reconcile(): Promise<string[]> {
+  /**
+   * Sync the live registrations with the panel's enabled entries.
+   *
+   * A switched-off commands surface reconciles against no entries at all,
+   * which unregisters whatever is live — skipping the pass would leave the
+   * previous registrations mounted after the switch went off.
+   * @param allow - whether the workspace's commands switch is on.
+   */
+  async reconcile(allow = true): Promise<string[]> {
     const diagnostics: string[] = []
-    const entries = await this.store.list()
+    const entries = allow ? await this.store.list() : []
     const wanted = new Map<string, UserCommandSpec>()
     // Registration is keyed by call name, so two entries that flatten to the
     // same one cannot silently shadow each other.
