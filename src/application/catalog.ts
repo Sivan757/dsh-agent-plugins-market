@@ -366,14 +366,14 @@ export class Catalog implements MarketService {
     return this.mcp.status()
   }
 
-  /** Persist a user-owned MCP service and reconcile its bridge mount. */
-  async addMcpServer(name: string, server: unknown): Promise<void> {
-    await this.mcp.addServer(name, server)
+  /** Validate and persist a user-owned MCP service with optional policy before reconciling its mount. */
+  async addMcpServer(name: string, server: unknown, policy?: unknown): Promise<void> {
+    await this.mcp.addServer(name, server, policy)
   }
 
-  /** Read effective service configuration without exposing credential literals. */
-  async serverConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
-    return this.mcp.serverConfig(kind, id)
+  /** Read a service without credential literals, or an unsaved template when `create` is true. */
+  async serverConfig(kind: 'mcp' | 'lsp', id: string, create = false): Promise<ServerConfigPayload> {
+    return this.mcp.serverConfig(kind, id, create)
   }
 
   /** Validate a complete replacement before writing; plugin checkouts remain untouched. */

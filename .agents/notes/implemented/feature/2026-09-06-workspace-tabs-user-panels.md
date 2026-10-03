@@ -36,6 +36,8 @@ The plugin-owned MCP bridge already owns suite server lifecycle, so its persiste
 
 The legacy page adapter mounts its workspace only when opened and does not compete with other extensions for the sibling immediately after New Session. Its MutationObserver ignores workspace-internal mutations. This prevents competing sidebar extensions from starving the browser with endless reorder notifications. Closing the workspace releases its component tree and unsaved drafts.
 
+Service creation policy and editor spacing are specified in [shared service creation and editing](2026-10-03-shared-service-editor.md).
+
 ## Alternatives considered
 
 - Rendering six `settings.section` entries was rejected: the sidebar grows to six plugin-owned rows for one plugin, and the requested outcome was one page with tabs.

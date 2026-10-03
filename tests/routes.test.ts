@@ -100,6 +100,45 @@ function postRequest(url: string, body: Record<string, unknown>, origin = 'http:
 const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
 
 describe('market HTTP routes', () => {
+  it('forwards creation defaults and a single MCP creation request with policy', async () => {
+    const routes: RouteTable = new Map()
+    const manager = service()
+    const defaults: unknown[][] = []
+    const additions: unknown[][] = []
+    manager.serverConfig = async (kind, id, create) => {
+      defaults.push([kind, id, create])
+      return { kind, id: '', key: '', editable: true, config: { type: 'stdio', command: '' } }
+    }
+    manager.addMcpServer = async (...args) => {
+      additions.push(args)
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, manager)
+    try {
+      const output = response()
+      await routes.get(MARKET_ROUTES.serverConfig)!({ method: 'GET', url: MARKET_ROUTES.serverConfig + '?kind=mcp&create=true' }, output)
+      expect(defaults).toEqual([['mcp', '', true]])
+      expect(output.value()).toMatchObject({ id: '', key: '', editable: true })
+      const config = { type: 'stdio', command: 'node' }
+      const policy = { toolCallTimeoutMs: 120_000, startupTimeoutMs: 30_000 }
+      let finish!: () => void
+      const finished = new Promise<void>(resolve => {
+        finish = resolve
+      })
+      const result = response()
+      const end = result.end
+      result.end = body => {
+        end(body)
+        finish()
+      }
+      await routes.get(MARKET_ROUTES.addMcpServer)!(postRequest(MARKET_ROUTES.addMcpServer, { name: 'demo', config, policy }), result)
+      await finished
+      expect(additions).toEqual([['demo', config, policy]])
+      expect(result.value()).toMatchObject({ ok: true })
+    } finally {
+      dispose()
+    }
+  })
+
   it('forwards exact model queries and returns reasoning options without provider configuration', async () => {
     const routes: RouteTable = new Map()
     const calls: string[][] = []

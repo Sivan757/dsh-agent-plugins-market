@@ -10,7 +10,8 @@ import type { LspServerTable, McpBackendInfo, SourceInput, SourcePatch } from '.
 
 /** Read-only market operations required by HTTP routes. */
 export interface MarketQueries {
-  serverConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload>
+  /** Creation templates carry empty identity fields and the current backend defaults. */
+  serverConfig(kind: 'mcp' | 'lsp', id: string, create?: boolean): Promise<ServerConfigPayload>
   readonly sources: SourceRef[]
   overview(): Promise<OverviewPayload>
   mcpStatus(): Promise<McpStatusPayload>
@@ -25,7 +26,7 @@ export interface MarketQueries {
 /** Mutating market operations required by HTTP routes. */
 export interface MarketMutations {
   saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown, policy?: unknown): Promise<void>
-  addMcpServer(name: string, server: unknown): Promise<void>
+  addMcpServer(name: string, server: unknown, policy?: unknown): Promise<void>
   addLspServer(name: string, config: unknown): Promise<void>
   addSource(input: SourceInput): Promise<SourceRef>
   updateSource(sourceId: string, patch: SourcePatch): Promise<void>

@@ -31,9 +31,9 @@
   font-size: 12px;
 }
 .detailBody { max-height: 72vh; overflow-y: auto; }
-.modalFooter { display: flex; justify-content: flex-end; width: 100%; align-items: center; gap: 8px; }
+.modalFooter { display: flex; flex: 1 1 auto; min-width: 0; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
 /* Sits opposite the dialog's buttons and says what saving does. */
-.modalFooterHint { color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+.modalFooterHint { min-width: 0; overflow-wrap: anywhere; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
 .modalFooterGrow { flex: 1 1 auto; }
 .detail { display: flex; flex-direction: column; gap: 16px; }
 

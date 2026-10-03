@@ -121,6 +121,12 @@ export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promis
   }, { blocking: false })
 }
 
+/** Load the backend and effective policy defaults before creating a service. */
+export async function fetchServerConfigDefaults(kind: 'mcp' | 'lsp'): Promise<ServerConfigPayload> {
+  const query = new URLSearchParams({ kind, create: 'true' })
+  return getJson<ServerConfigPayload>(`${MARKET_ROUTES.serverConfig}?${query}`, 'Server defaults failed')
+}
+
 export async function saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: Record<string, unknown>, policy?: ServerPolicyRequest): Promise<void> {
   return withBusyOperation(async () => {
     await postAction('server-config/save', { kind, id, config, ...(policy === undefined ? {} : { policy }) })
@@ -187,9 +193,9 @@ export async function retryMcpMounts(): Promise<void> {
 }
 
 /** Persist and mount a user-owned MCP server. */
-export async function addMcpServer(name: string, config: Record<string, unknown>): Promise<void> {
+export async function addMcpServer(name: string, config: Record<string, unknown>, policy?: ServerPolicyRequest): Promise<void> {
   return withBusyOperation(async () => {
-    await postAction('mcp-servers/add', { name, config })
+    await postAction('mcp-servers/add', { name, config, ...(policy === undefined ? {} : { policy }) })
   })
 }
 

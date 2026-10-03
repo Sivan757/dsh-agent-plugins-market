@@ -16,7 +16,7 @@ import type { McpBackend } from '../contracts/mcp.js'
 import { probeHostMcpClient } from './mcp/mcp-backend.js'
 import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp/mcp-config.js'
 import { loadLspServers, saveLspServers } from './lsp/lsp-direct-config.js'
-import { addUserMcpServer, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from './mcp/mcp-direct-config.js'
+import { prepareUserMcpServer, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from './mcp/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../contracts/mcp.js'
 import {
   applyOverride,
@@ -90,16 +90,60 @@ export class McpService {
     return payload
   }
 
-  /** Persist a user-owned MCP service and reconcile its bridge mount. */
-  async addServer(name: string, server: unknown): Promise<void> {
+  /**
+   * Validate configuration and policy before publishing a user-owned service.
+   * Policy is saved first: interruption can leave an unused override, never a
+   * declaration missing its requested policy. A failed declaration write restores
+   * the previous override; the two files are not a cross-file transaction.
+   */
+  async addServer(name: string, server: unknown, policy?: unknown): Promise<void> {
     return this.context.enqueue(async () => {
-      await addUserMcpServer(this.context.agentsRoot, name, server)
+      const patch = validatedPolicyPatch(policy, await this.backend())
+      const publish = await prepareUserMcpServer(this.context.agentsRoot, name, server)
+      const suiteKey = qualifiedSuiteId(USER_MCP_SOURCE, USER_MCP_SUITE)
+      const previous = await loadSuiteOverrides(this.context.dataRoot, suiteKey)
+      if (policy === undefined && !Object.hasOwn(previous, name)) await publish()
+      else {
+        const next: McpServerOverride = {}
+        applyAuth(next, patch.auth, undefined)
+        applyToolList(next, patch.disabledTools, undefined)
+        applyTimeout(next, 'toolCallTimeoutMs', patch.toolCallTimeoutMs, undefined)
+        applyTimeout(next, 'startupTimeoutMs', patch.startupTimeoutMs, undefined)
+        const overrides = { ...previous }
+        if (Object.keys(next).length === 0) delete overrides[name]
+        else overrides[name] = next
+        await saveSuiteOverrides(this.context.dataRoot, suiteKey, overrides)
+        try {
+          await publish()
+        } catch (error) {
+          try {
+            await saveSuiteOverrides(this.context.dataRoot, suiteKey, previous)
+          } catch (rollbackError) {
+            throw new AggregateError([error, rollbackError], 'MCP server creation failed and its previous policy could not be restored', { cause: rollbackError })
+          }
+          throw error
+        }
+      }
       await this.context.notifyChanged(true)
     })
   }
 
-  /** Read effective service configuration without exposing credential literals. */
-  async serverConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
+  /** Read a service without credential literals, or an unsaved creation template. */
+  async serverConfig(kind: 'mcp' | 'lsp', id: string, create = false): Promise<ServerConfigPayload> {
+    if (create) {
+      const payload: ServerConfigPayload = {
+        kind,
+        id: '',
+        key: '',
+        editable: true,
+        config: kind === 'mcp' ? { type: 'stdio', command: '' } : { command: '', extensionToLanguage: {} }
+      }
+      if (kind === 'mcp') {
+        payload.backend = await this.backend()
+        payload.policy = serverPolicyPayload(resolveMcpPolicy({}, undefined), undefined, undefined)
+      }
+      return payload
+    }
     const config = await this.resolveServerConfig(kind, id)
     const payload: ServerConfigPayload = { kind, id, key: config.key, editable: true, config: redactMcpConfig(config.value) as Record<string, unknown> }
     if (kind === 'mcp') {
@@ -120,10 +164,7 @@ export class McpService {
       const current = await this.resolveServerConfig(kind, id)
       const value = restoreRedactedConfig(config, current.value)
       if (kind === 'mcp') {
-        const backend = await this.backend()
-        const patch = parseMcpPolicyPatch(policy)
-        if (backend === 'host' && patch.startupTimeoutMs !== undefined && patch.startupTimeoutMs !== null) throw new Error(HOST_STARTUP_TIMEOUT_UNSUPPORTED)
-        if (backend === 'host' && patch.disabledTools !== undefined) throw new Error(HOST_TOOL_FILTER_UNSUPPORTED)
+        const patch = validatedPolicyPatch(policy, await this.backend())
         const server = await validateServerMcp(current.root, current.key, value, { userOwned: isUserOwnedMcp(current.suiteKey) })
         const overrides = await loadSuiteOverrides(this.context.dataRoot, current.suiteKey)
         const existing = overrides[current.key] ?? {}
@@ -364,6 +405,14 @@ export class McpService {
     }
     throw new Error('service configuration is not managed by this plugin')
   }
+}
+
+/** Creation and editing enforce the same policy grammar and backend limits. */
+function validatedPolicyPatch(policy: unknown, backend: McpBackend): McpPolicyPatch {
+  const patch = parseMcpPolicyPatch(policy)
+  if (backend === 'host' && patch.startupTimeoutMs !== undefined && patch.startupTimeoutMs !== null) throw new Error(HOST_STARTUP_TIMEOUT_UNSUPPORTED)
+  if (backend === 'host' && patch.disabledTools !== undefined) throw new Error(HOST_TOOL_FILTER_UNSUPPORTED)
+  return patch
 }
 
 /** Split one source-qualified suite id; the separator stays a server-side detail. */

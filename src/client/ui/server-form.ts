@@ -171,19 +171,22 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * Read one service document: the definition under `mcpServers`, and this
  * client's policy under the `com.deepseek.harness` namespace — the two seats
  * the Agent Plugins specification gives a portable `mcp.json` and its client
- * extension. A document that omits either half reads as an empty one.
- *
- * An empty `key` is a service that does not exist yet: it has no declaration
- * key, so the document is the definition itself and the name is its own field.
+ * extension. Keyed documents must contain exactly the service being edited;
+ * a missing or additional service key is rejected instead of discarded. The
+ * policy half is optional. An empty `key` reads a standalone definition.
  */
 export function parseServerDocument(text: string, key: string): ServerDocument {
   const parsed: unknown = JSON.parse(text)
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Configuration must be a JSON object')
   const record = parsed as Record<string, unknown>
   if (key === '') return { config: record, policy: {} }
-  const config = asRecord(asRecord(record['mcpServers'])?.[key]) ?? {}
+  const servers = asRecord(record['mcpServers'])
+  const config = asRecord(servers?.[key])
+  if (config === undefined || Object.keys(servers!).some(name => name !== key)) throw new Error(`mcpServers must contain only the service key "${key}"; restore that key before editing the name` )
   const namespace = asRecord(record[HARNESS_NAMESPACE])
-  const policy = asRecord(asRecord(namespace?.['mcpServers'])?.[key]) ?? {}
+  const policies = asRecord(namespace?.['mcpServers'])
+  if (policies !== undefined && Object.keys(policies).some(name => name !== key)) throw new Error(`MCP policy must use the service key "${key}"`)
+  const policy = asRecord(policies?.[key]) ?? {}
   return { config, policy }
 }
 

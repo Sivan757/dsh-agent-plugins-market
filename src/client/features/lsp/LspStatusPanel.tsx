@@ -13,7 +13,7 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, IconEditOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
-import { ServerConfigDetail } from '../../ui/ServerConfigDetail.js'
+import { ServerConfigModal } from '../../ui/ServerConfigModal.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
 import type { Translate } from '../../index.js'
 import {
@@ -262,30 +262,8 @@ function SeamResult({ result, t }: { result: LspLegacySeamMigration; t: Translat
   )
 }
 
-/**
- * The new-server dialog: the editor the edit dialog opens, in its create mode,
- * so a language server is one form whether it exists yet or not.
- */
 function LspAddModal({ t, onClose, onSaved }: { t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
-  return h(DetailModal, {
-    open: true,
-    onClose,
-    title: t('lspAddTitle'),
-    // A short form: the dialog takes the form width, not the detail width,
-    // and the editor's height so switching views cannot resize the window.
-    size: 'md',
-    height: 'tall',
-    closeLabel: t('cancel'),
-    contentClassName: css.detailBody,
-    footer: h(
-      'div',
-      { className: css.modalFooter },
-      h('span', { className: css.modalFooterHint }, t('editorFooterCreate')),
-      h('div', { className: css.modalFooterGrow }),
-      h(Button, { variant: 'outline', onClick: onClose }, t('cancel'))
-    ),
-    children: h(ServerConfigDetail, { kind: 'lsp', create: true, t, onSaved })
-  })
+  return h(ServerConfigModal, { kind: 'lsp', t, onClose, onSaved })
 }
 
 /** The card dot colour, and the tag tone a non-mounted state renders with. */
@@ -432,23 +410,8 @@ export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t
   })
 }
 
-/**
- * The editor dialog for one language server: a form of its own, opened from the
- * card's edit action and sharing the add flow's dialog.
- */
 function LspConfigModal({ entry, t, onClose, onSaved }: { entry: LspStatusEntry; t: Translate; onClose: () => void; onSaved: () => void }): ReactNode {
-  return h(DetailModal, {
-    open: true,
-    title: t('lspEditTitle'),
-    description: entry.serverKey,
-    closeLabel: t('cancel'),
-    onClose,
-    size: 'md',
-    height: 'tall',
-    contentClassName: css.detailBody,
-    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('cancel'))),
-    children: h(ServerConfigDetail, { kind: 'lsp', id: entry.id, t, onSaved })
-  })
+  return h(ServerConfigModal, { kind: 'lsp', id: entry.id, t, onClose, onSaved })
 }
 
 function stateLabel(t: Translate, state: LspStatusState): string {

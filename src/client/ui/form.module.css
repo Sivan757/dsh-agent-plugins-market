@@ -9,6 +9,20 @@
  * where the prototype's geometry is the reference a reviewer compares against.
  */
 
+.editorStack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.documentGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
 .field {
   display: flex;
   min-width: 0;
@@ -409,11 +423,15 @@
 .footer {
   display: flex;
   flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
 .footerHint {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
 }

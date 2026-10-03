@@ -24,6 +24,8 @@
     "tests/client-busy-overlay.test.ts",
     "tests/client-credentials.test.ts",
     "tests/client-detail-editors.test.ts",
+    "tests/client-editor-layout.test.ts",
+    "tests/client-service-editor-parity.test.ts",
     "tests/client-failure-guidance.test.ts",
     "tests/client-locales.test.ts",
     "tests/client-lsp-detail.test.ts",

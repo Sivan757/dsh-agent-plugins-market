@@ -100,7 +100,7 @@ export function mountSuiteRoutes(
       const query = queryOf(request)
       const kind = query.get('kind')
       if (kind !== 'mcp' && kind !== 'lsp') throw new Error('invalid service kind')
-      sendJson(response, 200, await manager.serverConfig(kind, query.get('id') ?? ''))
+      sendJson(response, 200, await manager.serverConfig(kind, query.get('id') ?? '', query.get('create') === 'true'))
     } catch (error) {
       sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }
@@ -114,7 +114,7 @@ export function mountSuiteRoutes(
 
   post(MARKET_ROUTES.addMcpServer, async body => {
     if (typeof body.name !== 'string') throw new Error('MCP server name is required')
-    await manager.addMcpServer(body.name, body.config)
+    await manager.addMcpServer(body.name, body.config, body.policy)
     return {}
   })
 

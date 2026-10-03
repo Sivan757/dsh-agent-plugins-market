@@ -1,12 +1,15 @@
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { applyOverride, loadSuiteOverrides, saveSuiteOverrides, suiteOverridePath } from '../src/application/mcp/mcp-overrides.js'
 import { restoreRedactedConfig } from '../src/application/server-config.js'
 import { loadLspServers } from '../src/application/lsp/lsp-direct-config.js'
 import type { CatalogPortsOverride } from '../src/application/ports.js'
+import { loadUserMcpSuite, userMcpPath } from '../src/application/mcp/mcp-direct-config.js'
+import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
+import * as jsonFile from '../src/application/json-file.js'
 
 const roots: string[] = []
 async function setup(ports: CatalogPortsOverride = {}) {
@@ -18,6 +21,7 @@ async function setup(ports: CatalogPortsOverride = {}) {
   return { root, agentsRoot, catalog }
 }
 afterEach(async () => {
+  vi.restoreAllMocks()
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
@@ -98,6 +102,130 @@ async function directServer(catalog: Catalog): Promise<string> {
   await catalog.addMcpServer('demo', { type: 'streamable-http', url: 'https://example.test/mcp' })
   return 'plugin:@user-mcp/user-mcp/demo'
 }
+
+describe('service creation policy', () => {
+  it('returns creation defaults from the same policy resolver used for existing services', async () => {
+    const { catalog } = await setup({ mcpBackend: async () => 'host' })
+    const draft = await catalog.serverConfig('mcp', '', true)
+    expect(draft).toMatchObject({ kind: 'mcp', id: '', key: '', editable: true, config: { type: 'stdio', command: '' }, backend: 'host' })
+    const id = await directServer(catalog)
+    expect(draft.policy).toEqual((await catalog.serverConfig('mcp', id)).policy)
+    expect(await catalog.serverConfig('lsp', '', true)).toEqual({ kind: 'lsp', id: '', key: '', editable: true, config: { command: '', extensionToLanguage: {} } })
+    await expect(catalog.serverConfig('mcp', '')).rejects.toThrow('not managed')
+  })
+
+  it('persists creation policy before publishing a mountable declaration', async () => {
+    const { root, agentsRoot, catalog } = await setup()
+    const config = { type: 'stdio', command: 'node' }
+    const policy = { toolCallTimeoutMs: 123_000, startupTimeoutMs: 25_000, disabledTools: ['remove'], auth: { enabled: false } }
+    const write = jsonFile.writeJsonDocument
+    vi.spyOn(jsonFile, 'writeJsonDocument').mockImplementation(async (path, document) => {
+      if (path === userMcpPath(agentsRoot)) {
+        expect((await loadUserMcpSuite(agentsRoot)).mcp.servers).toEqual({})
+        expect((await loadSuiteOverrides(root, '@user-mcp/user-mcp')).demo).toEqual(policy)
+      }
+      await write(path, document)
+    })
+    await catalog.addMcpServer('demo', config, policy)
+    const suite = await loadUserMcpSuite(agentsRoot)
+    expect(suite.mcp.servers.demo).toEqual(config)
+    const overrides = await loadSuiteOverrides(root, '@user-mcp/user-mcp')
+    const mounted = await toMcpMounts(suite, root, overrides)
+    expect(mounted.mounts[0]?.config).toMatchObject({ toolCallTimeoutMs: 123_000, startupTimeoutMs: 25_000, disabledTools: ['remove'] })
+    const reloaded = new Catalog({ userRoot: root, dataRoot: root, agentsRoot, onChanged: () => {} })
+    await reloaded.load()
+    expect((await reloaded.serverConfig('mcp', 'plugin:@user-mcp/user-mcp/demo')).policy?.startupTimeout.user).toBe(25_000)
+  })
+
+  it('rejects malformed policies and declarations without publishing a server', async () => {
+    const { root, agentsRoot, catalog } = await setup()
+    const config = { type: 'stdio', command: 'node' }
+    await expect(catalog.addMcpServer('bad', config, { startupTimeoutMs: 0 })).rejects.toThrow('startup timeout')
+    await expect(catalog.addMcpServer('bad', config, null)).rejects.toThrow('policy must be an object')
+    await expect(catalog.addMcpServer('bad', { type: 'stdio' }, { toolCallTimeoutMs: 123_000 })).rejects.toThrow('invalid MCP')
+    expect((await loadUserMcpSuite(agentsRoot)).mcp.servers).toEqual({})
+    expect(await loadSuiteOverrides(root, '@user-mcp/user-mcp')).toEqual({})
+  })
+
+  it('keeps a duplicate declaration and its existing policy unchanged', async () => {
+    const { root, agentsRoot, catalog } = await setup()
+    await catalog.addMcpServer('demo', { type: 'stdio', command: 'node' }, { toolCallTimeoutMs: 12_000 })
+    const before = await readFile(userMcpPath(agentsRoot), 'utf8')
+    await expect(catalog.addMcpServer('demo', { type: 'stdio', command: 'other' }, { toolCallTimeoutMs: 30_000 })).rejects.toThrow('already exists')
+    expect(await readFile(userMcpPath(agentsRoot), 'utf8')).toBe(before)
+    expect((await loadSuiteOverrides(root, '@user-mcp/user-mcp')).demo?.toolCallTimeoutMs).toBe(12_000)
+  })
+
+  it('clears orphan policy on creation without writing overrides unnecessarily', async () => {
+    const { root, catalog } = await setup()
+    const write = vi.spyOn(jsonFile, 'writeJsonDocument')
+    await catalog.addMcpServer('fresh', { type: 'stdio', command: 'node' })
+    expect(write.mock.calls.some(([path]) => path === suiteOverridePath(root, '@user-mcp/user-mcp'))).toBe(false)
+    await saveSuiteOverrides(root, '@user-mcp/user-mcp', { orphan: { enabled: false, toolCallTimeoutMs: 12_000, config: { type: 'stdio', command: 'stale' } } })
+    await catalog.addMcpServer('orphan', { type: 'stdio', command: 'node' })
+    const created = await catalog.serverConfig('mcp', 'plugin:@user-mcp/user-mcp/orphan')
+    expect(created.config.command).toBe('node')
+    expect(created.policy?.toolCallTimeout.user).toBeNull()
+    expect((await loadSuiteOverrides(root, '@user-mcp/user-mcp')).orphan).toBeUndefined()
+  })
+
+  it('enforces the host backend limits during creation', async () => {
+    const { agentsRoot, catalog } = await setup({ mcpBackend: async () => 'host' })
+    const config = { type: 'stdio', command: 'node' }
+    await expect(catalog.addMcpServer('demo', config, { startupTimeoutMs: 25_000 })).rejects.toThrow('cannot enforce a startup timeout')
+    await expect(catalog.addMcpServer('demo', config, { disabledTools: ['remove'] })).rejects.toThrow('cannot enforce tool filters')
+    expect((await loadUserMcpSuite(agentsRoot)).mcp.servers).toEqual({})
+    await catalog.addMcpServer('demo', config, { toolCallTimeoutMs: 123_000, startupTimeoutMs: null })
+    expect((await catalog.serverConfig('mcp', 'plugin:@user-mcp/user-mcp/demo')).policy?.toolCallTimeout.user).toBe(123_000)
+  })
+
+  it('rejects a queued duplicate without changing the first successful policy', async () => {
+    const { root, agentsRoot, catalog } = await setup()
+    const outcomes = await Promise.allSettled([
+      catalog.addMcpServer('demo', { type: 'stdio', command: 'first' }, { toolCallTimeoutMs: 12_000 }),
+      catalog.addMcpServer('demo', { type: 'stdio', command: 'second' }, { toolCallTimeoutMs: 30_000 })
+    ])
+    expect(outcomes.map(result => result.status)).toEqual(['fulfilled', 'rejected'])
+    expect((await loadUserMcpSuite(agentsRoot)).mcp.servers.demo).toMatchObject({ command: 'first' })
+    expect((await loadSuiteOverrides(root, '@user-mcp/user-mcp')).demo?.toolCallTimeoutMs).toBe(12_000)
+  })
+
+  it('preserves publication and rollback errors when restoring policy also fails', async () => {
+    const { root, agentsRoot, catalog } = await setup()
+    const publicationError = new Error('publication failed')
+    const rollbackError = new Error('rollback failed')
+    const write = jsonFile.writeJsonDocument
+    let published = false
+    vi.spyOn(jsonFile, 'writeJsonDocument').mockImplementation(async (path, document) => {
+      if (path === userMcpPath(agentsRoot)) {
+        published = true
+        throw publicationError
+      }
+      if (published && path === suiteOverridePath(root, '@user-mcp/user-mcp')) throw rollbackError
+      await write(path, document)
+    })
+    const failure = await catalog.addMcpServer('demo', { type: 'stdio', command: 'node' }, { toolCallTimeoutMs: 123_000 }).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).errors).toEqual([publicationError, rollbackError])
+    expect((failure as AggregateError).cause).toBe(rollbackError)
+    expect((await loadUserMcpSuite(agentsRoot)).mcp.servers).toEqual({})
+  })
+
+  it.each(['policy', 'declaration'] as const)('leaves no new server after a %s write failure', async failure => {
+    const { root, agentsRoot, catalog } = await setup()
+    const before = { demo: { enabled: false, toolCallTimeoutMs: 12_000 }, other: { startupTimeoutMs: 5_000 } }
+    await saveSuiteOverrides(root, '@user-mcp/user-mcp', before)
+    const write = jsonFile.writeJsonDocument
+    vi.spyOn(jsonFile, 'writeJsonDocument').mockImplementation(async (path, document) => {
+      const failPath = failure === 'policy' ? suiteOverridePath(root, '@user-mcp/user-mcp') : userMcpPath(agentsRoot)
+      if (path === failPath) throw new Error('injected write failure')
+      await write(path, document)
+    })
+    await expect(catalog.addMcpServer('demo', { type: 'stdio', command: 'node' }, { toolCallTimeoutMs: 123_000 })).rejects.toThrow('injected write failure')
+    expect((await loadUserMcpSuite(agentsRoot)).mcp.servers).toEqual({})
+    expect(await loadSuiteOverrides(root, '@user-mcp/user-mcp')).toEqual(before)
+  })
+})
 
 describe('MCP service policy', () => {
   it('stores the timeouts outside the portable document and reports their source', async () => {

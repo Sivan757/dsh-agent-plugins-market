@@ -10,6 +10,20 @@ import { stubTranslate as t } from './helpers/translate.js'
 
 vi.mock('../src/client/api.js', async importOriginal => ({
   ...(await importOriginal<typeof import('../src/client/api.js')>()),
+  fetchServerConfigDefaults: vi.fn(async () => ({
+    kind: 'mcp',
+    id: '',
+    key: '',
+    editable: true,
+    config: { type: 'stdio', command: '' },
+    backend: 'builtin',
+    policy: {
+      toolCallTimeout: { user: null, suite: null, effective: 60000, source: 'default' },
+      startupTimeout: { user: null, suite: null, effective: 10000, source: 'default' },
+      deniedTools: { user: null, suite: null, effective: [] },
+      auth: { user: null, suite: null, effective: true }
+    }
+  })),
   fetchServerConfig: vi.fn(),
   saveServerConfig: vi.fn(async () => {}),
   addMcpServer: vi.fn(async () => {})
@@ -189,7 +203,7 @@ describe('MCP advanced settings', () => {
 describe('the new-service dialog', () => {
   /**
    * The dialog the panel opens for a new service: the same component the edit
-   * dialog mounts, with the name as its one extra field and nothing to read.
+   * dialog mounts, with the name as its one extra field and backend defaults loaded.
    */
   async function renderCreate(): Promise<void> {
     host = document.createElement('div')
@@ -203,8 +217,8 @@ describe('the new-service dialog', () => {
 
   it('adds a service from the form the edit dialog opens', async () => {
     await renderCreate()
-    // Creating reads no service, and shows the fields editing shows.
     expect(api.fetchServerConfig).not.toHaveBeenCalled()
+    expect(api.fetchServerConfigDefaults).toHaveBeenCalledWith('mcp')
     expect(find('detailCommand')).not.toBeNull()
     expect(button('mcpAdvanced')).toBeDefined()
     await act(async () => typeInto(input('mcpServerName'), 'kuboard'))
@@ -214,8 +228,7 @@ describe('the new-service dialog', () => {
       button('editorCreate')!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The document a service is created from is the definition itself: no
-    // declaration key exists yet, so no wrapper may reach the add route.
+    // The add request carries the definition, not the editor document wrapper.
     expect(api.addMcpServer).toHaveBeenCalledWith('kuboard', { type: 'stdio', command: 'npx -y server' })
   })
 

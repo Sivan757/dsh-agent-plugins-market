@@ -8,7 +8,7 @@
  * prop-driven so a panel composes them instead of re-implementing the geometry.
  * @module client/ui/panel
  */
-import { createElement as h, Fragment, useEffect, useState, type ReactNode } from 'react'
+import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import { Button, Modal, IconLoadingOutlineMedium, IconPlusOutlineMedium, IconRefreshOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './panel.module.css'
 import cardCss from './resource-card.module.css'
@@ -163,38 +163,42 @@ export function EntryEditorModal(props: {
         h(Button, { variant: 'primary', disabled: props.busy === true, onClick: submit }, props.saveLabel ?? '✓')
       )
     },
-    // The identity row sits above the body: an entry's name is the one field
-    // the document cannot supply.
-    props.state.mode !== 'create'
-      ? null
-      : props.renderNamePairField === undefined
-        ? h('label', { className: formCss.field }, h('span', null, props.nameLabel), nameControl)
-        : h(
-            'div',
-            { className: formCss.formGrid },
-            h('label', { className: formCss.field }, h('span', null, props.nameLabel), nameControl),
-            props.renderNamePairField(current.text, text => setDraft({ ...current, text }))
-          ),
-    props.renderFields?.(current.text, text => setDraft({ ...current, text })),
-    // A routing-only editor exposes no document surface at all: the suite owns
-    // the body, and the row's label would be a lie without an editor under it.
-    props.state.routingOnly === true ? null : h(Fragment, null,
-      // The document's own row: its label with the view switch on the same
-      // line, then one view at a time. Switching to the preview renders the
-      // draft once; nothing re-renders while the author types in the editing view.
-      props.modeControl === undefined && props.textLabel === undefined
+    h(
+      'div',
+      { className: formCss.editorStack },
+      // The identity row sits above the body: an entry's name is the one field
+      // the document cannot supply.
+      props.state.mode !== 'create'
         ? null
-        : h('div', { className: formCss.rowHead }, props.textLabel === undefined ? null : h('span', null, props.textLabel), props.modeControl),
-      props.showPreview === true
-        ? h('div', { className: formCss.previewBox }, h(MarkdownDocument, { text: current.text, t: props.t }))
-        : h(CodeEditor, {
-            value: current.text,
-            onChange: (text: string) => setDraft({ ...current, text }),
-            language: 'markdown',
-            label: props.textLabel,
-            disabled: props.busy,
-            minHeight: 300
-          })
+        : props.renderNamePairField === undefined
+          ? h('label', { className: formCss.field }, h('span', null, props.nameLabel), nameControl)
+          : h(
+              'div',
+              { className: formCss.formGrid },
+              h('label', { className: formCss.field }, h('span', null, props.nameLabel), nameControl),
+              props.renderNamePairField(current.text, text => setDraft({ ...current, text }))
+            ),
+      props.renderFields?.(current.text, text => setDraft({ ...current, text })),
+      // A routing-only editor exposes no document surface at all: the suite owns
+      // the body, and the row's label would be a lie without an editor under it.
+      props.state.routingOnly === true ? null : h('div', { className: formCss.documentGroup },
+        // The document's own row: its label with the view switch on the same
+        // line, then one view at a time. Switching to the preview renders the
+        // draft once; nothing re-renders while the author types in the editing view.
+        props.modeControl === undefined && props.textLabel === undefined
+          ? null
+          : h('div', { className: formCss.rowHead }, props.textLabel === undefined ? null : h('span', null, props.textLabel), props.modeControl),
+        props.showPreview === true
+          ? h('div', { className: formCss.previewBox }, h(MarkdownDocument, { text: current.text, t: props.t }))
+          : h(CodeEditor, {
+              value: current.text,
+              onChange: (text: string) => setDraft({ ...current, text }),
+              language: 'markdown',
+              label: props.textLabel,
+              disabled: props.busy,
+              minHeight: 300
+            })
+      )
     )
   )
 }

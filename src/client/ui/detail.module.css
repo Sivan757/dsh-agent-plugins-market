@@ -66,6 +66,19 @@
   gap: 8px;
   width: 100%;
 }
+.footer > :not(.footerSlot) {
+  min-width: 0;
+}
+.footerSlot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+.footer button {
+  flex: none;
+  white-space: nowrap;
+}
 .footerSlot:empty {
   display: none;
 }

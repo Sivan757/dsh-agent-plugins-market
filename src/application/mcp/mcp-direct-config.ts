@@ -81,13 +81,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Add one service atomically; reject collisions and malformed config before writing. */
 export async function addUserMcpServer(agentsRoot: string, name: string, server: unknown): Promise<void> {
+  const publish = await prepareUserMcpServer(agentsRoot, name, server)
+  await publish()
+}
+
+/**
+ * Validate an addition without publishing it. Call the returned atomic write
+ * once, within the same serialized mutation, after any policy has been saved.
+ */
+export async function prepareUserMcpServer(agentsRoot: string, name: string, server: unknown): Promise<() => Promise<void>> {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name)) throw new Error('invalid MCP server name')
   const suite = await loadUserMcpSuite(agentsRoot)
   if (suite.errors.length > 0) throw new Error(suite.errors.join('; '))
   if (Object.hasOwn(suite.mcp.servers, name)) throw new Error(`MCP server "${name}" already exists`)
   const document = { $schema: MCP_SCHEMA_ID, mcpServers: { ...suite.mcp.servers, [name]: server } }
   await validateUserMcp(agentsRoot, document)
-  await writeJsonDocument(userMcpPath(agentsRoot), document)
+  return () => writeJsonDocument(userMcpPath(agentsRoot), document)
 }
 
 /** The user's hand-written MCP declaration file: `<agentsRoot>/mcp.json`. */
