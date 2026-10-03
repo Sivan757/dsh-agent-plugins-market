@@ -65,25 +65,23 @@ export interface AgentRoleRun {
   dispose(): Promise<void>
 }
 
-/** One tracked background role job as the host `jobs` registry sees it. */
-export interface AgentRoleJob {
-  cancel(reason?: string): void
-  done: Promise<{ status: string; detail?: string }>
-}
-
-/** The host `jobs` registry seam, reached through `ctx.get('jobs')`. */
-export interface AgentRoleJobs {
-  start(spec: { kind: string; label: string; owner?: unknown; run(): AgentRoleJob }): string
-}
-
-/** Effective route the parent Agent's next request would use. */
-interface ParentRoute {
+/**
+ * The calling Agent as this plugin reads it: the route it would use and the
+ * working directory its session carries. One shape covers both reads, so no
+ * call site casts the parent for itself. The parent stays opaque to the host
+ * call, which receives the Agent itself and derives identity from it.
+ */
+export interface AgentRoleParent {
   options?: AgentRoleOptions
-  session?: { requestHeader?(): { config?: AgentRoleOptions } | undefined }
+  session?: {
+    requestHeader?(): { config?: AgentRoleOptions } | undefined
+    header?: { cwd?: unknown }
+  }
 }
 
+/** The parent's effective route, which an unusable child declaration falls back to. */
 function parentRouteOf(parent: unknown): AgentRoleOptions {
-  const agent = parent as ParentRoute | undefined
+  const agent = parent as AgentRoleParent | undefined
   return agent?.session?.requestHeader?.()?.config ?? agent?.options ?? {}
 }
 
@@ -226,32 +224,40 @@ export async function readAgentRole(entry: AgentRoleEntry, projectDir?: string):
 }
 
 /** The calling session's directory, which is what a card's `${CLAUDE_PROJECT_DIR}` names. */
-function sessionCwd(agent: unknown): string | undefined {
-  const cwd = (agent as { session?: { header?: { cwd?: unknown } } } | undefined)?.session?.header?.cwd
+export function sessionCwd(parent: unknown): string | undefined {
+  const cwd = (parent as AgentRoleParent | undefined)?.session?.header?.cwd
   return typeof cwd === 'string' && cwd !== '' ? cwd : undefined
 }
 
+/** Resolve one current, enabled role for either host delegation surface. */
+export async function resolveRolePolicy(
+  listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>,
+  agentName: string,
+  parent: unknown
+): Promise<{ entry: AgentRoleEntry; policy: AgentRolePolicy }> {
+  const [entry, ...duplicates] = namedAgentRoles(await listRoles(parent)).filter(candidate => candidate.callName === agentName)
+  if (entry === undefined || duplicates.length > 0) throw new Error(`agent "${agentName}" is unavailable or ambiguous`)
+  if (entry.disabled) throw new Error(`agent "${agentName}" is disabled`)
+  const policy = await readAgentRole(entry, sessionCwd(parent))
+  if (policy.disabled) throw new Error(`agent "${agentName}" is disabled`)
+  return { entry, policy }
+}
+
 /**
- * How one role call reaches a child, mirroring the host's own delegation tool.
- *
- * `continuable` is the default: the host establishes a durable child and this
- * returns its id immediately, leaving resume state, steering and the settlement
- * notice to the continuation manager. `foreground` starts a one-shot run and
- * returns its report as this call's result, for a caller that needs the answer
- * before its next action. `background` starts the same one-shot run as a tracked
- * job, so the caller collects it later with `job_output` and can stop it with
- * `job_kill` instead of holding the turn open.
+ * How one role call reaches a child, carrying the host delegation tool's own
+ * two-value semantics: `continuable` is the default, and only an explicit
+ * `false` asks for a `foreground` run. A call that passes `true` keeps the
+ * default, so one rule covers this tool and the host's `subagent` alike.
  */
-export type AgentRoleRunMode = 'continuable' | 'background' | 'foreground'
+export type AgentRoleRunMode = 'continuable' | 'foreground'
 
 /** One role call's outcome, discriminated so the tool can render each channel. */
-export type AgentRoleResult = { kind: 'continuable'; subagentId: string } | { kind: 'background'; jobId: string } | { kind: 'foreground'; runId: string; output: AgentRoleJson[] }
+export type AgentRoleResult = { kind: 'continuable'; subagentId: string } | { kind: 'foreground'; runId: string; output: AgentRoleJson[] }
 
 /**
  * Run one role child through the requested channel.
  * @param host - the exact live seams this executor owns: tools, llm and subagents.
  * @param mode - which channel the call asked for.
- * @param jobs - the host jobs registry; only the `background` channel needs it.
  */
 export async function executeAgentRole(
   host: AgentRoleHost,
@@ -262,17 +268,12 @@ export async function executeAgentRole(
   requestedRoute: AgentRoleOptions,
   mode: AgentRoleRunMode,
   signal: AbortSignal,
-  diagnose: (message: string) => void = () => {},
-  jobs?: AgentRoleJobs
+  diagnose: (message: string) => void = () => {}
 ): Promise<AgentRoleResult> {
   if (parent === undefined) throw new Error(`${AGENT_ROLE_TOOL_NAME} requires a calling agent`)
   if (prompt.trim() === '') throw new Error(`${AGENT_ROLE_TOOL_NAME} requires a non-empty prompt`)
   signal.throwIfAborted()
-  const [entry, ...duplicates] = namedAgentRoles(await listRoles(parent)).filter(candidate => candidate.callName === agentName)
-  if (entry === undefined || duplicates.length > 0) throw new Error(`agent "${agentName}" is unavailable or ambiguous`)
-  if (entry.disabled) throw new Error(`agent "${agentName}" is disabled`)
-  const policy = await readAgentRole(entry, sessionCwd(parent))
-  if (policy.disabled) throw new Error(`agent "${agentName}" is disabled`)
+  const { policy } = await resolveRolePolicy(listRoles, agentName, parent)
   const agentOptions = await resolveAgentOptions(policy, requestedRoute, parent, host.llm, signal, agentName, diagnose)
   signal.throwIfAborted()
   const request: AgentRoleDelegation = {
@@ -285,36 +286,6 @@ export async function executeAgentRole(
   if (mode === 'continuable') {
     const started = await host.subagents.startContinuable({ provider: 'spawn', label: agentName, request, signal })
     return { kind: 'continuable', subagentId: started.childId }
-  }
-  if (mode === 'background') {
-    if (jobs === undefined) {
-      throw new Error(`background role jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs, or call ${AGENT_ROLE_TOOL_NAME} with run_in_background false`)
-    }
-    // The run's own controller outlives `jobs.start`, which returns at
-    // registration: cancellation and disposal both go through the job's hooks.
-    return {
-      kind: 'background',
-      jobId: jobs.start({
-        kind: 'subagent',
-        label: agentName,
-        owner: parent,
-        run: () => {
-          const controller = new AbortController()
-          return {
-            cancel: (reason?: string) => controller.abort(reason ?? 'background role job killed'),
-            done: (async (): Promise<{ status: string; detail?: string }> => {
-              const run = await host.subagents.start('spawn', { ...request, signal: controller.signal })
-              try {
-                const result = await run.result
-                return result.stopReason === 'completed' ? { status: 'completed' } : { status: 'failed', detail: result.diagnostic ?? result.stopReason }
-              } finally {
-                await run.dispose()
-              }
-            })()
-          }
-        }
-      })
-    }
   }
   const run = await host.subagents.start('spawn', { ...request, signal })
   try {
@@ -374,8 +345,7 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
       },
       run_in_background: {
         type: 'boolean',
-        description:
-          "Which channel runs the child. Omit for the default: a continuable child whose durable subagent id comes back at once, with steering and a settlement notice. Set true for a tracked background job that returns a job id collected with `job_output` and stopped with `job_kill`. Set false for one foreground child whose report comes back as this call's result."
+        description: 'Defaults to true. Set false only when your next action depends on the result.'
       }
     },
     output: {
@@ -393,14 +363,6 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
             type: 'object',
             additionalProperties: false,
             properties: {
-              kind: { type: 'string', required: true, const: 'background' },
-              jobId: { type: 'string', required: true }
-            }
-          },
-          {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
               kind: { type: 'string', required: true, const: 'foreground' },
               runId: { type: 'string', required: true },
               output: { type: 'array', required: true, items: { type: 'json' } }
@@ -411,21 +373,15 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
       render: (_args, value) => [
         {
           type: 'text',
-          text:
-            value.kind === 'continuable'
-              ? `started subagent ${value.subagentId}`
-              : value.kind === 'background'
-                ? `started background subagent job ${value.jobId}`
-                : `subagent ${value.runId} finished`
+          text: value.kind === 'continuable' ? `started subagent ${value.subagentId}` : `subagent ${value.runId} finished`
         }
       ]
     },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      // The parameter keeps the host tool's name and boolean shape while this
-      // tool owns three channels: omitting it keeps the durable child, `true`
-      // runs a tracked job, and `false` returns the report from one foreground run.
-      const mode: AgentRoleRunMode = args.run_in_background === undefined ? 'continuable' : args.run_in_background ? 'background' : 'foreground'
+      // The parameter keeps the host tool's name, shape and semantics: only an
+      // explicit `false` leaves the durable-child default for a foreground run.
+      const mode: AgentRoleRunMode = args.run_in_background === false ? 'foreground' : 'continuable'
       return executeAgentRole(
         host,
         listRoles,
@@ -439,8 +395,7 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
         },
         mode,
         exec.signal,
-        message => ctx.logger?.warn(message),
-        ctx.get('jobs') as AgentRoleJobs | undefined
+        message => ctx.logger?.warn(message)
       )
     }
   })

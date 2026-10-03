@@ -29,6 +29,8 @@ import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
 import { migratePluginStorage } from './application/state/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agents/agent-role-router.js'
+import { mountUnlessAgentTeams } from './runtime/agents/agent-teams-seat.js'
+import { mountTeammateRoleTool } from './runtime/agents/teammate-role-tool.js'
 import { projectAgentRoles } from './application/project-agent-roles.js'
 import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/surfaces/project-runtime.js'
 import { createPanelResources } from './application/panel-resources.js'
@@ -331,15 +333,18 @@ export async function apply(
     return new UserPanelSkillProvider(panels.skills)
   })
 
+  // Both entry points read the same live user/project role set. Team owns the
+  // enhanced entry's member identities and all subsequent collaboration.
+  const listRoles = async (parent?: unknown) => [
+    ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
+    ...(await projectAgentRoles(catalog, parent))
+  ]
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
-    hostCtx.effect(
-      () =>
-        mountAgentRoleTool(hostCtx, async parent => [
-          ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
-          ...(await projectAgentRoles(catalog, parent))
-        ]),
-      'dsh-agent-plugins-market: agent role routing'
-    )
+    hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
+  })
+
+  ctx.inject(['tools', 'llm', 'subagents', 'agents', 'agentTeams', 'sessions', 'sessionQuery', 'systemPrompt'], teamCtx => {
+    teamCtx.effect(() => mountTeammateRoleTool(teamCtx, listRoles), 'dsh-agent-plugins-market: role teammates')
   })
 
   ctx.inject(['agents'], hostCtx => {

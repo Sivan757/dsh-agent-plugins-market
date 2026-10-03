@@ -98,23 +98,35 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-agent": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-attachment": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-credentials": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-experimental-agent-team": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-hooks-claude-code": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-mcp-client": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-session": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-query": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-skill": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-subagent": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-subprocess": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-timeout": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-util-code-language": "^0.2.0-rc.2",
     "@deepseek-ai/dsh-util-workspace-path": "^0.2.0-rc.2"
   },
   "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-experimental-agent-team": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-hooks-claude-code": {
       "optional": true
     },
     "@deepseek-ai/dsh-mcp-client": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session-query": {
       "optional": true
     },
     "@deepseek-ai/dsh-tools": {
@@ -144,6 +156,9 @@
     "@codemirror/view": "^6.43.12",
     "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/cosmokit": "^1.8.5",
+    "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-agent-loop-testkit": "0.2.0-rc.2",
     "@deepseek-ai/dsh-attachment": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-store": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2",
@@ -151,11 +166,19 @@
     "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
     "@deepseek-ai/dsh-credentials": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-experimental-agent-team": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-experimental-tool-agent-team": "0.2.0-rc.2",
     "@deepseek-ai/dsh-hooks-claude-code": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-query": "0.2.0-rc.2",
     "@deepseek-ai/dsh-skill": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-subagent": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-subagent-spawn-in-process": "0.2.0-rc.2",
     "@deepseek-ai/dsh-subprocess": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2",
     "@deepseek-ai/dsh-timeout": "0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/dsh-util-code-language": "0.2.0-rc.2",

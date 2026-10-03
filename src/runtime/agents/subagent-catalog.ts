@@ -20,6 +20,8 @@ export interface SubagentCatalogSource {
   form: 'catalog'
   update?: true
   entries: readonly SubagentCatalogEntry[]
+  /** Omitted on historical standalone catalogs. */
+  tool?: 'spawn_teammate_role'
 }
 
 declare module '@deepseek-ai/dsh-llm' {
@@ -47,7 +49,12 @@ interface CatalogHost {
 }
 
 /** Register after the exact tool definition; teardown removes guidance before execution. */
-export function mountSubagentCatalog(ctx: Context, tool: { name: string }, snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogEntry[]>): () => void {
+export function mountSubagentCatalog(
+  ctx: Context,
+  tool: { name: string },
+  snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogEntry[]>,
+  mode: 'subagent_role' | 'spawn_teammate_role' = 'subagent_role'
+): () => void {
   const host = ctx as unknown as CatalogHost
   let disposed = false
   const dispose = host.on('agent/pre-step', async ({ agent, signal }, next) => {
@@ -66,16 +73,16 @@ export function mountSubagentCatalog(ctx: Context, tool: { name: string }, snaps
     if (disposed) return decision
     if (host.tools.get(tool.name, agent) !== tool) entries = []
     const digest = digestEntries(entries)
-    const history = catalogHistory(agent)
-    const existing = catalogMessage(decision.messages)
+    const history = catalogHistory(agent, mode)
+    const existing = catalogMessage(decision.messages, mode)
     if (history.visibleDigest === digest) {
       return existing === undefined ? decision : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
-    if (existing !== undefined && digestEntries(existing.entries) === digest) return decision
+    if (existing !== undefined && existing.modeMatches && digestEntries(existing.entries) === digest) return decision
     if (!history.published && entries.length === 0) {
       return existing === undefined ? decision : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
-    const message = renderCatalog(entries, history.published)
+    const message = renderCatalog(entries, history.published, mode)
     return {
       ...decision,
       messages: existing === undefined ? [...decision.messages, message] : decision.messages.map(item => (item.id === existing.message.id ? message : item))
@@ -108,10 +115,10 @@ const CATALOG_PROMPT =
 const CATALOG_USAGE = [
   'Usage notes:',
   "- Call subagent_role with the exact catalog name as agent. A child has its own context: it starts without this conversation, so it suits self-contained work that one briefing can state in full. If no listed role matches, do not substitute a similarly named one — delegate through one of the host's general delegation channels instead, and do not load these roles through skill or slash commands.",
-  '- By default the call returns a durable subagent id immediately and runs in the background without blocking you. A child usually runs for minutes: spend that time advancing independent work that does not depend on it, rather than idling — and do not poll it or re-check its progress. While it runs, send_message adds an instruction or more material and list_agents reports its status.',
-  "- run_in_background true runs the same child as a tracked background job and returns a job id instead: collect it with job_output and stop it with job_kill. run_in_background false runs one foreground child and returns its report as this call's result — use it when your next action depends on the result and no independent work remains.",
+  '- The call returns a durable subagent id immediately and does not block you. A child usually runs for minutes: spend that time advancing independent work that does not depend on it, and do not poll it or re-check its progress.',
+  '- Leave run_in_background unset; set it to false only when your next action depends on the result and no independent work remains.',
   '- A question a child asks while it runs goes unanswered: nothing will reply on your behalf. So state the prompt in full the first time, and a child should decide for itself, keep going, and list in its final reply which choices it made alone and what information it still lacked.',
-  "- The settlement notice arrives as a user message, not as a tool result. Until it arrives, do not assume or predict its findings, and do not deliver anything that depends on them. A background child's output is not visible to the user: when it finishes, summarize the result to the user yourself.",
+  "- The settlement notice arrives as a user message, not as a tool result. Until it arrives, do not assume or predict its findings, and do not deliver anything that depends on them. The child's output is not visible to the user: when it finishes, summarize the result to the user yourself.",
   "- The child's final reply is its own report: check its assertions against the files themselves, and treat its statements about its own configuration the same way — a child cannot see how its role instructions were installed.",
   '- Do not duplicate work a child is already doing. When several children run at once, give each its own git worktree and name the files it owns in prompt.'
 ].join('\n')
@@ -159,10 +166,23 @@ export function renderCatalogText(entries: readonly SubagentCatalogEntry[], upda
   ].join('\n')
 }
 
-function renderCatalog(entries: readonly SubagentCatalogEntry[], update: boolean): UserMessage {
+/** Compact discovery only; Team policy and native tools own collaboration. */
+export function renderTeamRoleCatalogText(entries: readonly SubagentCatalogEntry[]): string {
+  return [
+    '<system-reminder>',
+    'Role catalog for spawn_teammate_role. This complete list replaces every earlier role catalog and its delegation guidance in this session.',
+    'Choose a role only after the user explicitly requests Agent Teams or teammates; this catalog does not authorize creating members.',
+    ...entries.map(entry => '- ' + escapeText(JSON.stringify(entry.name)) + ': ' + escapeText(entry.description)),
+    'Use agent for the exact role name and name for a new unique Team member target. Supply a self-contained task prompt. Role instructions and model settings apply; the member starts without this conversation.',
+    'The returned target works with native Team messaging, roster, interruption and shared tasks. Reuse members for follow-up work. Without a matching role, use native spawn_teammate.',
+    '</system-reminder>'
+  ].join('\n')
+}
+
+function renderCatalog(entries: readonly SubagentCatalogEntry[], update: boolean, mode: 'subagent_role' | 'spawn_teammate_role'): UserMessage {
   return createUserMessage({
-    content: [{ type: 'text', text: renderCatalogText(entries, update) }],
-    source: { kind: 'subagent-catalog', form: 'catalog', ...(update ? { update: true } : {}), entries }
+    content: [{ type: 'text', text: mode === 'spawn_teammate_role' ? renderTeamRoleCatalogText(entries) : renderCatalogText(entries, update) }],
+    source: { kind: 'subagent-catalog', form: 'catalog', ...(update ? { update: true } : {}), ...(mode === 'spawn_teammate_role' ? { tool: mode } : {}), entries }
   })
 }
 
@@ -201,7 +221,7 @@ function readEntries(source: unknown): readonly SubagentCatalogEntry[] | undefin
   return entries
 }
 
-function catalogHistory(agent: CatalogAgent): { visibleDigest?: string; published: boolean } {
+function catalogHistory(agent: CatalogAgent, mode: 'subagent_role' | 'spawn_teammate_role'): { visibleDigest?: string; published: boolean } {
   const visible = new Set(agent.session.surface.nodes)
   let published = false
   for (let index = agent.session.seq - 1; index >= 0; index--) {
@@ -211,15 +231,21 @@ function catalogHistory(agent: CatalogAgent): { visibleDigest?: string; publishe
     const entries = readEntries((event.data as UserMessage).source)
     if (entries === undefined) continue
     published = true
-    if (visible.has(event.seq)) return { visibleDigest: digestEntries(entries), published }
+    if (visible.has(event.seq)) {
+      const source = (event.data as UserMessage).source as SubagentCatalogSource
+      return { ...((source.tool ?? 'subagent_role') === mode ? { visibleDigest: digestEntries(entries) } : {}), published }
+    }
   }
   return { published }
 }
 
-function catalogMessage(messages: readonly UserMessage[]): { message: UserMessage; entries: readonly SubagentCatalogEntry[] } | undefined {
+function catalogMessage(
+  messages: readonly UserMessage[],
+  mode: 'subagent_role' | 'spawn_teammate_role'
+): { message: UserMessage; entries: readonly SubagentCatalogEntry[]; modeMatches: boolean } | undefined {
   for (const message of messages) {
     const entries = readEntries(message.source)
-    if (entries !== undefined) return { message, entries }
+    if (entries !== undefined) return { message, entries, modeMatches: ((message.source as SubagentCatalogSource).tool ?? 'subagent_role') === mode }
   }
   return undefined
 }

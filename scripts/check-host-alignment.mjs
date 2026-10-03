@@ -33,7 +33,8 @@
  * - `pnpm-workspace.yaml` `minimumReleaseAgeExclude` admits the baseline for every aligned package.
  *
  * `@deepseek-ai/dsh-client-*` is exempt from the peer rules: those are host-supplied bundle
- * externals, pinned through devDependencies only and never installable capabilities.
+ * externals, pinned through devDependencies only and never installable capabilities. Host packages
+ * used only by tests also stay dev-only; production source imports still require a runtime declaration.
  *
  * Usage:
  *   node scripts/check-host-alignment.mjs [options]
@@ -235,13 +236,15 @@ function inspect(manifest, surface, baseline, exclusions) {
     // A client module is a host-supplied bundle external, never an installable capability:
     // it is pinned through devDependencies only, and only if the manifest already does so.
     const isDevOnlyClient = isClientPackage(name) && peer[name] === undefined && !selfProvisioned
+    // A package absent from production imports can support tests without imposing a consumer peer.
+    const isDevOnlyTest = entry === undefined && dev[name] !== undefined && peer[name] === undefined && !selfProvisioned
 
     if (selfProvisioned && deps[name] !== expectedPeer) {
       violations.push({ code: 'dependency-stale', message: `dependencies["${name}"] is ${deps[name]}, expected ${expectedPeer}` })
     }
     if (peer[name] !== undefined && peer[name] !== expectedPeer) {
       violations.push({ code: 'peer-stale', message: `peerDependencies["${name}"] is ${peer[name]}, expected ${expectedPeer}` })
-    } else if (!isDevOnlyClient && !selfProvisioned && peer[name] === undefined) {
+    } else if (!isDevOnlyClient && !isDevOnlyTest && !selfProvisioned && peer[name] === undefined) {
       violations.push({
         code: 'undeclared',
         message: `${name} is imported${where === undefined ? '' : ` by ${where}`} but declared in neither dependencies nor peerDependencies`
@@ -350,7 +353,7 @@ function repair(manifest, surface, baseline, exclusionText) {
     // author decision about who provisions it, and this script only keeps the pinned value aligned.
     const selfProvisioned = deps[name] !== undefined
     if (selfProvisioned) deps[name] = expected
-    else if (peer[name] !== undefined || !isClientPackage(name)) peer[name] = expected
+    else if (peer[name] !== undefined || (!isClientPackage(name) && (surface.has(name) || dev[name] === undefined))) peer[name] = expected
     if (!selfProvisioned) {
       dev[name] = baseline
       const entry = surface.get(name)

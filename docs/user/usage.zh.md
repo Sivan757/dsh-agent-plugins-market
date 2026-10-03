@@ -10,7 +10,7 @@ Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量�
 
 - Node.js 22 或更高版本、DSH Web profile 和宿主技能服务（`ctx.skills`）。Git 来源需要 Git。
 - 当前包声明的 DSH 宿主包版本范围为 `^0.2.0-rc.1`。这是依赖声明，不代表已验证所有功能或历史 Web 外壳的最低支持版本。
-- 斜杠命令需要宿主命令服务。`subagent_role` 角色委派需要 agents、tools、LLM、subagents 与会话持久化服务；默认启动一个可继续的后台子代理，应用已保存的角色指令与角色声明或调用覆盖的路由，并立即返回子代理 ID 而不等待结果；传 `run_in_background: false` 则改为在前台运行一次并把报告作为本次调用的结果返回，传 `run_in_background: true` 则作为受跟踪的后台任务运行，并额外需要宿主 jobs 注册表（`@deepseek-ai/dsh-jobs` 与 `@deepseek-ai/dsh-tool-jobs`）。
+- 斜杠命令需要宿主命令服务。角色委派需要 agents、tools、LLM、subagents 与持久化。无 Agent Teams 时，`subagent_role` 默认返回可继续子代理（省略或 true），false 等待前台报告。启用 Agent Teams 后，`spawn_teammate_role` 与精简角色目录替代该入口及说明；按角色指令和模型配置创建全新 Team 成员，通信与任务由原生 Team 工具管理。Team 模式还需要会话查询和系统提示词服务，以及用户明确的 Team 使用意图。
 - MCP 默认使用内置桥接。宿主客户端兼容模式还需要 `@deepseek-ai/dsh-mcp-client`，hooks 需要 `@deepseek-ai/dsh-hooks-claude-code`。
 - LSP 支持会随插件安装 `@deepseek-ai/dsh-lsp`、`dsh-lsp-stdio`、`dsh-tool-lsp`，并在启用的套件声明语言服务器时自动挂载，无需额外 profile 配置。只有语言服务器的可执行程序需要本机可用。
 - 宿主凭据服务是可选的。缺失时环境变量引用从启动环境解析，变更后需要重启。

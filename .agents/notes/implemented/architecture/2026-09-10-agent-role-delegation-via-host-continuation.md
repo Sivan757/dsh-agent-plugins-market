@@ -45,4 +45,4 @@ The catalog advertises a route only for an exact `provider` + `model` pair, so i
 
 ## Related decisions
 
-Partially supersedes [durable subagent catalog and role execution](2026-09-09-subagent-catalog.md): catalog publication, role identity and strict parsing remain in force; synchronous one-shot execution, tool filtering and internal route resolution do not. The harness decision this aligns with is recorded in `deepseek-harness` as model-selected subagent routes and user-authorized subagent model routes.
+Partially supersedes [durable subagent catalog and role execution](2026-09-09-subagent-catalog.md): catalog publication, role identity and strict parsing remain in force; synchronous one-shot execution, tool filtering and internal route resolution do not. Its job channel is superseded by [role delegation offers the host's two channels](../../implemented/bug-fix/2026-10-02-role-delegation-two-channels.md); continuable delegation, the exact-route rule and tool-filtering removal remain in force. The harness decision this aligns with is recorded in `deepseek-harness` as model-selected subagent routes and user-authorized subagent model routes.
