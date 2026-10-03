@@ -223,9 +223,19 @@ export class DescriptionLocalizer {
     }
   }
 
-  /** Batch successful translations into one write instead of one per suite. */
+  /**
+   * Batch successful translations into one write instead of one per suite.
+   *
+   * A translation that lands after {@link dispose} has no timer to ride and no
+   * later read to pick it up, so it is written immediately: otherwise the call
+   * is paid for and the result is dropped on unload.
+   */
   private scheduleFlush(): void {
-    if (this.flushTimer !== undefined || this.disposed) return
+    if (this.disposed) {
+      void this.flush()
+      return
+    }
+    if (this.flushTimer !== undefined) return
     this.flushTimer = setTimeout(() => {
       this.flushTimer = undefined
       void this.flush()

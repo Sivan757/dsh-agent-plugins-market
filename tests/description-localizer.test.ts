@@ -234,6 +234,31 @@ describe('DescriptionLocalizer', () => {
     expect(JSON.parse(written)).toMatchObject({ version: 1 })
   })
 
+  it('persists a translation that lands after dispose', async () => {
+    const root = await tempRoot()
+    let release: (() => void) | undefined
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    const translator: DescriptionTranslator = {
+      available: () => true,
+      translate: async () => {
+        await gate
+        return '管理套件来源'
+      }
+    }
+    const localizer = new DescriptionLocalizer({ dataRoot: root, translator })
+    await localizer.load()
+    localizer.localize('src', 'suite', 'Manage suite sources', 'zh')
+    // Unload while the call is in flight: the answer arrives with no timer to
+    // ride, and dropping it would charge the user for a translation they lose.
+    localizer.dispose()
+    release?.()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const entries = await loadDescriptionTranslations(root)
+    expect(Object.values(entries).map(entry => entry.text)).toEqual(['管理套件来源'])
+  })
+
   it('ignores work enqueued after dispose', async () => {
     const root = await tempRoot()
     const translator = stubTranslator(() => '管理套件来源')
