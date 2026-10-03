@@ -3,293 +3,283 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>项目资源过滤 · 入口三版原型</title>
+<title>项目资源过滤 · 原型 v2</title>
 <style>
-/* 模拟 dsw design-platform token(浅色);正式实现必须换真 token var(--dsw-alias-*) */
+/* ============ dsw design-platform 真实 token(亮色 + 暗色;来源 design-platform.css) ============ */
 :root{
-  --bg:#ffffff; --bg-subtle:#f7f8fa; --bg-hover:#f0f2f5;
-  --border:#e3e6ea; --border-strong:#cdd2d9;
-  --text:#1f2329; --text-2:#4e5561; --text-3:#8a919d;
-  --brand:#3370ff; --brand-bg:#eef3ff;
-  --success:#34c77b; --success-bg:#e9f9f1;
-  --danger:#f2555a;
-  --radius-s:6px; --radius-m:10px; --radius-l:14px;
-  --shadow-s:0 1px 3px rgba(20,25,32,.08); --shadow-m:0 6px 24px rgba(20,25,32,.12); --shadow-l:0 16px 48px rgba(20,25,32,.18);
-  font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;
+  /* static */
+  --dsw-static-deepseek-100: rgb(228,237,253);
+  --dsw-static-deepseek-500: rgb(65,118,230);
+  --dsw-static-green-500: rgb(52,199,123);
+  --dsw-static-neutral-bluish-00: rgb(255,255,255);
+  --dsw-static-neutral-bluish-50: rgb(249,250,251);
+  --dsw-static-neutral-bluish-60: rgb(245,246,247);
+  --dsw-static-neutral-bluish-100: rgb(235,238,242);
+  --dsw-static-neutral-bluish-300: rgb(207,211,214);
+  --dsw-static-neutral-bluish-400: rgb(173,178,184);
+  --dsw-static-neutral-bluish-600: rgb(129,133,140);
+  --dsw-static-neutral-bluish-700: rgb(97,102,107);
+  --dsw-static-neutral-bluish-1000: rgb(15,17,21);
+  --dsw-static-neutral-bluish-800: rgb(53,54,56);
+  --dsw-static-neutral-bluish-850: rgb(44,44,46);
+  /* radius */
+  --dsw-radius-sm: 6px;
+  --dsw-radius-md: 10px;
+  --dsw-radius-lg: 14px;
+  --dsw-radius-panel: 16px;
+  /* alias(亮) */
+  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+  --dsw-alias-bg-mask-1: rgba(15,17,21,.32);
+  --dsw-alias-border-l2: rgba(0,0,0,.1);
+  --dsw-alias-border-l3: rgba(0,0,0,.12);
+  --dsw-alias-interactive-bg-hover: rgba(38,49,72,.06);
+  --dsw-alias-interactive-bg-active: rgba(38,49,72,.1);
+  --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+  --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+  --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+  --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+  --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+  --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+  --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+  --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-00);
+  --dsw-specific-input-major: var(--dsw-static-neutral-bluish-00);
+  --dsw-elevation-soft: 0 1px 2px rgba(15,17,21,.04), 0 4px 16px rgba(15,17,21,.06);
+  --dsw-elevation-prominent: 0 8px 40px rgba(15,17,21,.16);
+  --dsw-mask-blur: blur(6px);
+}
+:root[data-theme="dark"]{
+  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+  --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-bg-mask-1: rgba(0,0,0,.5);
+  --dsw-alias-border-l2: rgba(255,255,255,.12);
+  --dsw-alias-border-l3: rgba(255,255,255,.16);
+  --dsw-alias-interactive-bg-hover: rgba(255,255,255,.08);
+  --dsw-alias-interactive-bg-active: rgba(255,255,255,.14);
+  --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+  --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+  --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-state-business-tertiary: rgb(52,65,91);
+  --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+  --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-400);
+  --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
+  --dsw-elevation-soft: 0 1px 2px rgba(0,0,0,.2), 0 4px 16px rgba(0,0,0,.24);
+  --dsw-elevation-prominent: 0 8px 40px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:linear-gradient(160deg,#eef1f5 0%,#e6eaf1 100%);min-height:100vh;padding:0 0 60px}
+html,body{height:100%}
+body{
+  font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;
+  font-size:14px;line-height:24px;color:var(--dsw-alias-label-primary);
+  background:var(--dsw-alias-bg-module-platform);
+  display:flex;flex-direction:column;
+}
 
-/* ====== 版本切换器 ====== */
-.version-switch{position:sticky;top:0;z-index:99;display:flex;gap:8px;align-items:center;padding:14px 28px;background:rgba(255,255,255,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
-.version-switch .ttl{font-size:13px;color:var(--text-3);margin-right:8px;font-weight:600}
-.vbtn{border:1px solid var(--border);background:#fff;border-radius:999px;padding:7px 16px;font-size:13px;color:var(--text-2);cursor:pointer;transition:.15s}
-.vbtn.on{background:var(--text);color:#fff;border-color:var(--text)}
-.vnote{margin-left:auto;font-size:12px;color:var(--text-3);max-width:420px}
-.stage{padding:36px 28px;display:none}
-.stage.on{display:block}
+/* ============ 顶部演示条(非产品 UI) ============ */
+.demobar{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);font-size:12.5px;color:var(--dsw-alias-label-tertiary)}
+.demobar .t{font-weight:600;color:var(--dsw-alias-label-secondary)}
+.demobar button{border:1px solid var(--dsw-alias-border-l2);background:transparent;border-radius:999px;padding:4px 12px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.demobar button.on{background:var(--dsw-alias-state-business-tertiary);border-color:transparent;color:var(--dsw-alias-state-business-primary)}
 
-/* ====== 共享:会话框舞台(演示入口落点) ====== */
-conversation, .conv{max-width:880px;margin:0 auto}
-.chat-view{background:#fff;border:1px solid var(--border);border-radius:var(--radius-l);box-shadow:var(--shadow-s);overflow:hidden}
-.chat-head{padding:14px 20px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-3)}
-.chat-body{padding:28px 20px;min-height:220px}
-.bubble{max-width:70%;background:var(--bg-subtle);border-radius:12px;padding:10px 14px;font-size:14px;color:var(--text-2);margin-bottom:14px}
-.composer{border-top:1px solid var(--border);padding:12px 14px 10px}
-.composer .input{border:1.5px solid var(--border-strong);border-radius:var(--radius-m);padding:12px 14px;font-size:14px;color:var(--text-3);margin-bottom:10px}
-.toolrow{display:flex;align-items:center;gap:6px}
-.toolrow .spacer{flex:1}
-.tbtn{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;border-radius:var(--radius-s);padding:6px 8px;font-size:13px;color:var(--text-3);cursor:pointer}
-.tbtn:hover{background:var(--bg-hover);color:var(--text)}
-.tbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.send{width:30px;height:30px;border-radius:8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.send svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* ============ 会话视图骨架 ============ */
+.chat{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.msgs{flex:1;overflow-y:auto;padding:28px 24px}
+.msg{max-width:66%;margin:0 auto 14px;padding:10px 14px;border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:14px;box-shadow:var(--dsw-elevation-soft)}
+.msg.me{margin-left:auto;background:var(--dsw-alias-state-business-tertiary);color:var(--dsw-alias-label-primary)}
 
-/* ====== 入口按钮(三版共用形,徽标不同色) ====== */
-.entry-btn{position:relative;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:5px 12px 5px 9px;font-size:13px;color:var(--text-2);cursor:pointer;box-shadow:var(--shadow-s);transition:.15s}
-.entry-btn:hover{border-color:var(--brand);color:var(--brand)}
-.entry-btn .badge{position:absolute;top:-6px;right:-6px;min-width:17px;height:17px;border-radius:999px;background:var(--brand);color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
-.entry-btn .badge.warn{background:#ff8f1f}
-.entry-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.entry-btn.dim{border-style:dashed;color:var(--text-3)}
+/* ============ InputBar 卡(宿主 InputBar.module.css .card 形态) ============ */
+.inputbar{padding:0 24px 12px;display:flex;justify-content:center}
+.card{
+  position:relative;display:flex;flex-direction:column;gap:12px;
+  width:100%;max-width:760px;padding-top:8px;
+  --dsw-elevation-stroke-color:var(--dsw-alias-border-l2);
+  border-radius:var(--dsw-radius-panel);
+  background:var(--dsw-specific-input-major);
+  box-shadow:var(--dsw-elevation-soft);
+  font-size:14px;line-height:24px;
+}
+.editable{
+  position:relative;min-height:52px;padding:8px 14px 4px;cursor:text;
+  color:var(--dsw-alias-label-tertiary);outline:none;
+}
+.editable:focus{color:var(--dsw-alias-label-primary)}
+.editable .ref{padding:0 4px;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-state-business-primary)}
+.editable .ref:hover{background:var(--dsw-alias-state-business-tertiary)}
+.accessory{display:flex;align-items:center;gap:8px;padding:10px 12px 10px}
 
-/* ====== 版本A:侧滑抽屉 ====== */
-.drawer-scrim{position:fixed;inset:0;background:rgba(15,19,24,.32);opacity:0;pointer-events:none;transition:.22s;z-index:90}
-.drawer{position:fixed;top:0;right:-392px;width:380px;height:100vh;background:#fff;box-shadow:var(--shadow-l);transition:right .24s cubic-bezier(.3,.8,.4,1);z-index:91;display:flex;flex-direction:column}
-body[data-drawer="open"] .drawer-scrim{opacity:1;pointer-events:auto}
-body[data-drawer="open"] .drawer{right:0}
-.drawer-h{padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px}
-.drawer-h .t1{font-size:15px;font-weight:700;color:var(--text)}
-.drawer-h .t2{font-size:12px;color:var(--text-3);margin-top:3px;display:flex;gap:6px;align-items:center}
-.chip{background:var(--bg-subtle);border:1px solid var(--border);border-radius:5px;padding:1px 7px;font-size:11px;color:var(--text-2)}
-.drawer-h .x{margin-left:auto;border:none;background:transparent;cursor:pointer;color:var(--text-3);font-size:16px;padding:2px 6px;border-radius:6px}
-.drawer-h .x:hover{background:var(--bg-hover)}
-.stabs{display:flex;gap:2px;padding:8px 12px;border-bottom:1px solid var(--border);overflow-x:auto}
-.stab{flex:1;min-width:52px;text-align:center;padding:7px 4px;border-radius:8px;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;position:relative}
-.stab .n{display:block;font-size:10.5px;color:var(--text-3);margin-top:2px}
-.stab:hover{background:var(--bg-hover)}
-.stab.on{background:var(--brand-bg);color:var(--brand);font-weight:600}
-.stab.on .n{color:var(--brand)}
-.face-master{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2);background:var(--bg-subtle)}
-.drawer-list{flex:1;overflow-y:auto;padding:6px 10px}
-.grp{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.4px;padding:12px 8px 4px;text-transform:uppercase}
-.item{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:9px;cursor:pointer}
-.item:hover{background:var(--bg-hover)}
-.item .ic{width:28px;height:28px;border-radius:8px;background:var(--bg-subtle);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px}
-.item .nm{font-size:13.5px;color:var(--text);font-weight:550}
-.item .ds{font-size:11.5px;color:var(--text-3);margin-top:1px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item .meta{flex:1;min-width:0}
-.item.off .nm{color:var(--text-3)}
-.item.off .ic{opacity:.45}
-.sw{position:relative;width:34px;height:20px;border-radius:999px;background:var(--border-strong);transition:.15s;flex-shrink:0}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s;box-shadow:var(--shadow-s)}
-.sw.on{background:var(--success)}
-.sw.on::after{left:16px}
-.drawer-f{border-top:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-3);background:#fff}
-.linkbtn{border:none;background:transparent;color:var(--brand);font-size:12px;cursor:pointer;padding:0}
-.linkbtn:hover{text-decoration:underline}
-.filteronly{margin-left:auto;border:1px solid var(--border);background:#fff;border-radius:999px;padding:3px 10px;font-size:11.5px;color:var(--text-2);cursor:pointer}
-.filteronly.on{background:var(--brand-bg);color:var(--brand);border-color:transparent}
+/* 工具行图标按钮(宿主 ghost 形态) */
+.tbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;background:transparent;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-label-secondary);cursor:pointer}
+.tbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.tbtn:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
+.tbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.spacer{flex:1}
+.modeltag{font-size:12px;color:var(--dsw-alias-label-tertiary)}
+.sendbtn{width:30px;height:30px;border:none;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-state-business-primary);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.sendbtn svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-/* ====== 版本B:气泡弹层 ====== */
-.pop-wrap{position:relative;display:inline-block}
-.popover{position:absolute;bottom:calc(100% + 10px);left:0;width:340px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-l);box-shadow:var(--shadow-m);display:none;z-index:50;overflow:hidden}
-.popover.open{display:block;animation:pop .16s cubic-bezier(.2,.9,.3,1.2)}
-@keyframes pop{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
-.pop-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
-.pop-h .search{flex:1;display:flex;align-items:center;gap:7px;background:var(--bg-subtle);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--text-3)}
-.pop-h .search svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
-.grid6{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px}
-.g6{border:1px solid var(--border);border-radius:10px;padding:9px 6px 7px;text-align:center;cursor:pointer;transition:.12s;position:relative}
-.g6:hover{border-color:var(--brand)}
-.g6.on{background:var(--brand-bg);border-color:var(--brand)}
-.g6 svg{width:17px;height:17px;stroke:var(--text-2);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.g6.on svg{stroke:var(--brand)}
-.g6 .l{font-size:11.5px;color:var(--text-2);margin-top:4px}
-.g6.on .l{color:var(--brand);font-weight:600}
-.g6 .c{position:absolute;top:6px;right:7px;font-size:10px;color:var(--text-3)}
-.g6.on .c{color:var(--brand)}
-.pop-list{max-height:264px;overflow-y:auto;border-top:1px solid var(--border);padding:8px 12px 10px}
-.crow{display:flex;align-items:center;gap:9px;padding:7px 4px;border-radius:8px;cursor:pointer}
-.crow:hover{background:var(--bg-hover)}
-.crow .cb{width:16px;height:16px;border:1.5px solid var(--border-strong);border-radius:4.5px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.crow.on .cb{background:var(--brand);border-color:var(--brand)}
-.crow.on .cb::after{content:"";width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translateY(-1px)}
-.crow .nm{font-size:13px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.crow.on .nm{color:var(--text)}
-.crow .src{font-size:10.5px;color:var(--text-3)}
-.pop-f{display:flex;gap:6px;padding:9px 12px;border-top:1px solid var(--border);font-size:11.5px}
-.pop-f .mini{flex:1;border:1px solid var(--border);background:#fff;border-radius:7px;padding:5px 0;text-align:center;color:var(--text-2);cursor:pointer}
-.pop-f .mini:hover{border-color:var(--brand);color:var(--brand)}
+/* ============ 主入口:四方格插件图标按钮 ============ */
+.plugin-entry{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border:none;background:transparent;border-radius:var(--dsw-radius-sm);
+  color:var(--dsw-alias-label-secondary);cursor:pointer;
+}
+.plugin-entry:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.plugin-entry.active{color:var(--dsw-alias-state-business-primary)}
+.plugin-entry svg{width:18px;height:18px}
+/* 四方格图标(两张脸的拼图格,插件语义) */
+.plugin-entry .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.6px;width:17px;height:17px}
+.plugin-entry .cell{border-radius:2.5px;background:currentColor;opacity:.9}
+.plugin-entry .cell.b{opacity:.38}
+.plugin-entry .cell.c{opacity:.38}
+.plugin-entry .cell.d{opacity:.9}
+/* 过滤徽标:有项目级过滤时显示 */
+.plugin-entry .dot{position:absolute;top:3px;right:3px;min-width:8px;height:8px;border-radius:999px;background:var(--dsw-alias-state-business-primary);border:2px solid var(--dsw-specific-input-major)}
 
-/* ====== 版本C:居中管理弹窗 ====== */
-.modal-scrim{position:fixed;inset:0;background:rgba(15,19,24,.4);display:none;align-items:center;justify-content:center;z-index:80}
-.modal-scrim.open{display:flex;animation:fadein .15s}
-@keyframes fadein{from{opacity:0}to{opacity:1}}
-.modal{width:720px;max-width:94vw;height:520px;background:#fff;border-radius:var(--radius-l);box-shadow:var(--shadow-l);display:flex;overflow:hidden;animation:mup .18s cubic-bezier(.2,.9,.3,1.1)}
-@keyframes mup{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
-.mnav{width:196px;background:var(--bg-subtle);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column}
-.mnav .mh{font-size:14px;font-weight:700;color:var(--text);padding:2px 10px 12px}
-.mnav .mh small{display:block;font-size:11px;font-weight:400;color:var(--text-3);margin-top:3px}
-.mrow{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text-2)}
-.mrow:hover{background:var(--bg-hover)}
-.mrow.on{background:#fff;color:var(--brand);font-weight:600;box-shadow:var(--shadow-s)}
-.mrow svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
-.mrow .cnt{margin-left:auto;font-size:10.5px;color:var(--text-3);background:#fff;border:1px solid var(--border);border-radius:999px;padding:0 6px;min-width:18px;text-align:center}
-.mrow.on .cnt{color:var(--brand);border-color:transparent;background:var(--brand-bg)}
-.mmain{flex:1;display:flex;flex-direction:column;min-width:0}
-.mmain-h{padding:14px 18px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
-.mmain-h .t{font-size:14px;font-weight:700;color:var(--text)}
-.mmain-h .sub{font-size:11.5px;color:var(--text-3)}
-.mmain-h .search{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--bg-subtle);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--text-3);width:180px}
-.mcard-list{flex:1;overflow-y:auto;padding:12px 16px}
-.mcard{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--border);border-left:3px solid var(--success);border-radius:var(--radius-m);padding:11px 14px;margin-bottom:8px}
-.mcard.hide{border-left-color:var(--border-strong);background:var(--bg-subtle)}
-.mcard .ic{width:34px;height:34px;border-radius:9px;background:var(--bg-subtle);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px}
-.mcard.hide .ic{opacity:.5}
-.mcard .nm{font-size:13.5px;font-weight:600;color:var(--text)}
-.mcard.hide .nm{color:var(--text-3)}
-.mcard .ds{font-size:11.5px;color:var(--text-3);margin-top:2px;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mcard .tag{display:inline-block;font-size:10px;border:1px solid var(--border);color:var(--text-3);border-radius:4px;padding:0 5px;margin-left:7px;vertical-align:1px}
-.mcard .meta{flex:1;min-width:0}
-.mcard .state{font-size:11px;color:var(--success);margin-right:6px;white-space:nowrap}
-.mcard.hide .state{color:var(--text-3)}
-.mfoot{border-top:1px solid var(--border);padding:11px 16px;display:flex;align-items:center;gap:10px}
-.seg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-.seg button{border:none;background:#fff;padding:5px 13px;font-size:12px;color:var(--text-2);cursor:pointer}
-.seg button.on{background:var(--brand-bg);color:var(--brand);font-weight:600}
-.mfoot .hint{font-size:11px;color:var(--text-3)}
-.mfoot .primary{margin-left:auto;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 18px;font-size:12.5px;cursor:pointer}
-.mfoot .ghost{border:1px solid var(--border);background:#fff;color:var(--text-2);border-radius:8px;padding:7px 13px;font-size:12.5px;cursor:pointer}
+/* ============ 弹出面板(锚在输入卡上,宿主 overlay 形态) ============ */
+.panel-anchor{position:absolute;inset:0 0 auto;height:0;pointer-events:none}
+.panel{
+  position:absolute;bottom:12px;left:0;width:480px;max-width:100%;
+  pointer-events:auto;display:none;flex-direction:column;
+  border-radius:var(--dsw-radius-panel);
+  background:var(--dsw-alias-bg-layer-2);
+  box-shadow:var(--dsw-elevation-prominent);
+  overflow:hidden;
+}
+.panel.open{display:flex;animation:panelIn .16s ease}
+@keyframes panelIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-.explain{max-width:880px;margin:18px auto 0;font-size:12px;color:var(--text-3);line-height:1.7;background:rgba(255,255,255,.6);border:1px dashed var(--border-strong);border-radius:var(--radius-m);padding:10px 14px}
-.explain b{color:var(--text-2)}
+/* 面板头:标题 + 主题 chip + 汇总 */
+.panel-h{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
+.panel-h .tt{font-size:15px;font-weight:600}
+.panel-h .chip{font-size:11px;color:var(--dsw-alias-label-tertiary);background:var(--dsw-alias-bg-module-platform);border-radius:var(--dsw-radius-sm);padding:1px 8px}
+.panel-h .sum{margin-left:auto;font-size:12px;color:var(--dsw-alias-label-tertiary)}
+.panel-h .sum b{color:var(--dsw-alias-state-business-primary);font-weight:600}
+.xbtn{width:26px;height:26px;border:none;background:transparent;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:14px}
+.xbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+
+/* ============ SegmentedTabs(宿主 SegmentedTabs.module.css 同构) ============ */
+.tabs{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:4px;margin:0 16px;border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-module-platform)}
+.indicator{position:absolute;inset:4px auto 4px 4px;box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-3);transition:transform .18s ease;pointer-events:none}
+.tab{position:relative;justify-content:center;height:34px;padding:0 8px;border:none;background:transparent;border-radius:var(--dsw-radius-md);font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:pointer;transition:color .18s ease;white-space:nowrap}
+.tab:hover,.tab[aria-selected="true"]{background:transparent;color:var(--dsw-alias-label-primary)}
+.tab[aria-selected="true"]{font-weight:600}
+.tab .n{font-size:10.5px;color:var(--dsw-alias-label-tertiary);margin-left:3px;font-weight:400}
+.tab[aria-selected="true"] .n{color:var(--dsw-alias-state-business-primary)}
+.tab:focus-visible{outline:none;text-decoration:underline;text-underline-offset:4px}
+
+/* ============ 面总开关行 ============ */
+.master{display:flex;align-items:center;gap:8px;padding:10px 18px;border-bottom:1px solid var(--dsw-alias-border-l2);font-size:12.5px;color:var(--dsw-alias-label-secondary)}
+.master .lbl{font-weight:550}
+.master .sub{color:var(--dsw-alias-label-tertiary);font-size:11.5px}
+.master .grow{flex:1}
+
+/* ============ 条目列表(MCP 状态卡形态:左侧 3px 边条) ============ */
+.list{max-height:328px;overflow-y:auto;padding:8px 12px 10px}
+.grp{font-size:11px;font-weight:600;letter-spacing:.4px;color:var(--dsw-alias-label-tertiary);padding:10px 8px 4px}
+.row{
+  display:flex;align-items:center;gap:10px;
+  border-left:3px solid var(--dsw-alias-state-success-primary);
+  border-radius:var(--dsw-radius-md);
+  background:var(--dsw-alias-bg-layer-2);
+  padding:8px 12px;margin-bottom:6px;cursor:pointer;
+  transition:background .12s;
+}
+.row:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.row.off{border-left-color:var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-module-platform)}
+.row .ic{width:26px;height:26px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-module-platform);border:1px solid var(--dsw-alias-border-l2);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.row.off .ic{opacity:.5}
+.row .meta{flex:1;min-width:0}
+.row .nm{font-size:13px;font-weight:550;color:var(--dsw-alias-label-primary)}
+.row.off .nm{color:var(--dsw-alias-label-tertiary);font-weight:400}
+.row .ds{font-size:11.5px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.row .src{font-size:10.5px;color:var(--dsw-alias-label-tertiary);margin-left:6px;font-weight:400}
+
+/* ============ Switch(宿主 Switch.module.css 同构) ============ */
+.switch{box-sizing:border-box;position:relative;flex:0 0 auto;width:36px;height:20px;padding:2px;border:0;border-radius:999px;background:var(--dsw-alias-border-l3);cursor:pointer}
+.switch[aria-checked="true"]{background:var(--dsw-alias-state-business-primary)}
+.switch:disabled{cursor:default;opacity:.5}
+.switch:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.thumb{display:block;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-switch-thumb);transition:transform .12s ease}
+.switch[aria-checked="true"] .thumb{background:#fff;transform:translateX(16px)}
+
+/* ============ 面板脚 ============ */
+.panel-f{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--dsw-alias-border-l2);font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
+.ghostbtn{border:1px solid var(--dsw-alias-border-l2);background:transparent;border-radius:var(--dsw-radius-sm);padding:4px 12px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.ghostbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.seg2{display:flex;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm);overflow:hidden;margin-left:auto}
+.seg2 button{border:none;background:transparent;padding:4px 12px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.seg2 button.on{background:var(--dsw-alias-state-business-tertiary);color:var(--dsw-alias-state-business-primary);font-weight:600}
+
+.hint{padding:14px 24px 20px;text-align:center;font-size:12px;color:var(--dsw-alias-label-tertiary)}
+.hint b{color:var(--dsw-alias-label-secondary)}
 </style>
 </head>
 <body>
 
-<div class="version-switch">
-  <span class="ttl">入口三版原型</span>
-  <button class="vbtn on" data-v="A">A · 侧滑抽屉</button>
-  <button class="vbtn" data-v="B">B · 气泡弹层</button>
-  <button class="vbtn" data-v="C">C · 管理弹窗</button>
-  <span class="vnote">同一舞台演示:会话框工具行左侧的单按钮入口(带徽标=本项目已过滤 N 项)。点入口看各版交互。</span>
+<div class="demobar">
+  <span class="t">原型 v2 · 单按钮入口(四方格插件图标)· 顶部横向 SegmentedTabs</span>
+  <button class="on" data-th="light" onclick="setTheme('light',this)">亮色</button>
+  <button data-th="dark" onclick="setTheme('dark',this)">暗色</button>
+  <span style="margin-left:auto">点输入框左侧四方格图标 →</span>
 </div>
 
-<!-- ============ 舞台 A ============ -->
-<div class="stage on" id="stage-A">
-  <div class="conv">
-    <div class="chat-view">
-      <div class="chat-head">会话 · dsh-agent-plugins-market</div>
-      <div class="chat-body"><div class="bubble">帮我把市场里的双语描述按当前语言显示…</div><div class="bubble" style="margin-left:auto;background:var(--brand-bg)">已完成,层1/层2 都已落地 ✅</div></div>
-      <div class="composer">
-        <div class="input">给这个项目只保留工作流相关的技能…</div>
-        <div class="toolrow">
-          <!-- 入口:按钮 + 过滤计数徽标 -->
-          <button class="entry-btn" onclick="document.body.dataset.drawer='open'">
-            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-            项目资源
-            <span class="badge" id="badgeA">3</span>
-          </button>
-          <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49 6 6 0 018.49 0"/></svg></button>
-          <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></button>
-          <span class="spacer"></span>
-          <span style="font-size:11.5px;color:var(--text-3)">GLM-5.3</span>
-          <span class="send"><svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6l6 6-6 6"/></svg></span>
-        </div>
-      </div>
-    </div>
-    <div class="explain"><b>版本 A · 侧滑抽屉(管理台风):</b>入口是常驻文字按钮,徽标实时显示本项目过滤数。抽屉从右滑入,SegmentedTabs 六面 + 每面整面开关(承接现有六面语义)+ 按来源分组的条目列表。适合条目多、需要浏览全貌的场景;缺点是遮罩挡内容,操作路径稍长。</div>
+<div class="chat">
+  <div class="msgs">
+    <div class="msg">帮我把市场里的双语描述按当前语言显示…</div>
+    <div class="msg me">已完成,层1/层2 都已落地 ✅</div>
+    <div class="msg">那把 surface 开关按项目过滤再细化一版</div>
   </div>
-  <div class="drawer-scrim" onclick="document.body.dataset.drawer=''"></div>
-  <aside class="drawer">
-    <div class="drawer-h">
-      <div><div class="t1">项目资源过滤</div><div class="t2"><span class="chip">dsh-agent-plugins-market</span><span class="chip">仅影响本项目</span></div></div>
-      <button class="x" onclick="document.body.dataset.drawer=''">✕</button>
-    </div>
-    <div class="stabs" id="stabs"></div>
-    <div class="face-master"><span>本面总开关(关闭 = 本项目不挂载任何技能)</span><span class="sw on" onclick="this.classList.toggle('on')"></span></div>
-    <div class="drawer-list" id="drawerList"></div>
-    <div class="drawer-f">已启用 <b id="cntA" style="color:var(--text-2)">12</b> · 已过滤 <b style="color:#ff8f1f">3</b><button class="linkbtn" style="margin-left:8px">恢复跟随全局</button><button class="filteronly" id="fonly" onclick="this.classList.toggle('on');renderDrawer()">只看已过滤</button></div>
-  </aside>
-</div>
 
-<!-- ============ 舞台 B ============ -->
-<div class="stage" id="stage-B">
-  <div class="conv">
-    <div class="chat-view">
-      <div class="chat-head">会话 · dsh-agent-plugins-market</div>
-      <div class="chat-body"><div class="bubble">继续把开关的正交性补上…</div></div>
-      <div class="composer">
-        <div class="input">只给这个项目开 database 和 chrome-devtools 两个 MCP…</div>
-        <div class="toolrow">
-          <div class="pop-wrap">
-            <button class="entry-btn" onclick="togglePop()">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6l2.1 2.1m0-12.8l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
-              过滤 <span class="badge warn">3</span>
-            </button>
-            <div class="popover" id="pop">
-              <div class="pop-h"><span class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>搜索已安装…</span></div>
-              <div class="grid6" id="grid6"></div>
-              <div class="pop-list" id="popList"></div>
-              <div class="pop-f"><button class="mini">全选</button><button class="mini">反选</button><button class="mini">仅常用</button><button class="mini" style="color:var(--text-3)">跟随全局</button></div>
-            </div>
+  <div class="inputbar">
+    <div class="card" id="card">
+      <div class="editable" contenteditable="true" data-ph="给这个项目只保留工作流相关的技能…">只给本项目启用 <span class="ref">@dsh-workflow</span> 和 <span class="ref">@chrome-devtools</span>…</div>
+
+      <div class="accessory">
+        <!-- ★ 主入口:四方格插件图标(带过滤徽标) -->
+        <button class="plugin-entry" id="entryBtn" aria-label="项目资源过滤" onclick="togglePanel()">
+          <span class="grid"><span class="cell a"></span><span class="cell b"></span><span class="cell c"></span><span class="cell d"></span></span>
+          <span class="dot" title="本项目已过滤 3 项"></span>
+        </button>
+        <button class="tbtn" aria-label="引用文件"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49 6 6 0 018.49 0"/></svg></button>
+        <button class="tbtn" aria-label="上传"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></button>
+        <span class="spacer"></span>
+        <span class="modeltag">GLM-5.3</span>
+        <button class="sendbtn" aria-label="发送"><svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6l6 6-6 6"/></svg></button>
+      </div>
+
+      <!-- 弹出面板:锚在卡内顶部上方(宿主 overlay anchor 形态) -->
+      <div class="panel-anchor">
+        <div class="panel" id="panel" role="dialog" aria-label="项目资源过滤">
+          <div class="panel-h">
+            <span class="tt">项目资源</span>
+            <span class="chip">dsh-agent-plugins-market</span>
+            <span class="sum">已过滤 <b id="fsum">3</b> 项</span>
+            <button class="xbtn" onclick="togglePanel()" aria-label="关闭">✕</button>
           </div>
-          <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49 6 6 0 018.49 0"/></svg></button>
-          <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></button>
-          <span class="spacer"></span><span style="font-size:11.5px;color:var(--text-3)">GLM-5.3</span>
-          <span class="send"><svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6l6 6-6 6"/></svg></span>
+          <div class="tabs" id="tabs" role="tablist"></div>
+          <div class="master">
+            <span class="lbl">技能面总开关</span>
+            <span class="sub">关闭后本项目不挂载任何技能</span>
+            <span class="grow"></span>
+            <button class="switch" id="masterSw" role="switch" aria-checked="true" onclick="flipMaster(this)"><span class="thumb"></span></button>
+          </div>
+          <div class="list" id="list"></div>
+          <div class="panel-f">
+            <button class="ghostbtn" onclick="followGlobal()">恢复跟随全局</button>
+            <span>仅影响本项目,不改全局安装</span>
+            <div class="seg2"><button>跟随全局</button><button class="on">本项目自定义</button></div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="explain"><b>版本 B · 气泡弹层(工具栏风):</b>入口弱化为小圆钮,六面做成 2×3 宫格图标(tab),列表是 checkbox 多选语义,带搜索和批量操作。快进快出、贴近输入流,适合"顺手关几个"的轻操作;缺点是空间小,长列表和层级展示受限,无整面开关(退化为全不勾)。</div>
   </div>
-</div>
 
-<!-- ============ 舞台 C ============ -->
-<div class="stage" id="stage-C">
-  <div class="conv">
-    <div class="chat-view">
-      <div class="chat-head">会话 · dsh-agent-plugins-market</div>
-      <div class="chat-body"><div class="bubble">把原型排期拆一下…</div></div>
-      <div class="composer">
-        <div class="input">按方案 C 继续细化…</div>
-        <div class="toolrow">
-          <button class="entry-btn" onclick="document.getElementById('modalScrim').classList.add('open')">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h.08a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h.08a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.08a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-            本项目配置 <span class="badge">3</span>
-          </button>
-          <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49 6 6 0 018.49 0"/></svg></button>
-          <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></button>
-          <span class="spacer"></span><span style="font-size:11.5px;color:var(--text-3)">GLM-5.3</span>
-          <span class="send"><svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6l6 6-6 6"/></svg></span>
-        </div>
-      </div>
-    </div>
-    <div class="explain"><b>版本 C · 居中管理弹窗(设置风):</b>左侧竖向六面导航(带计数),右侧 MCP 状态卡片形态的大列表(绿色边条=项目启用/灰=项目过滤,行内注明与全局状态的关系),底部「跟随全局 / 本项目自定义」分段。两层语义最清楚(全局安装 vs 项目可见),可搜索,适合条目很多的面;缺点是最重,像打开了一个设置页。</div>
-  </div>
-  <div class="modal-scrim" id="modalScrim" onclick="if(event.target===this)this.classList.remove('open')">
-    <div class="modal">
-      <div class="mnav">
-        <div class="mh">项目资源<small>dsh-agent-plugins-market</small></div>
-        <div id="mrows"></div>
-      </div>
-      <div class="mmain">
-        <div class="mmain-h"><span class="t" id="mTitle">技能</span><span class="sub" id="mSub">已安装 14 · 本项目启用 11</span><span class="search"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>搜索</span></div>
-        <div class="mcard-list" id="mList"></div>
-        <div class="mfoot">
-          <div class="seg"><button>跟随全局</button><button class="on">本项目自定义</button></div>
-          <span class="hint">自定义只影响本项目的挂载,不改全局安装</span>
-          <button class="ghost" onclick="document.getElementById('modalScrim').classList.remove('open')">取消</button>
-          <button class="primary" onclick="document.getElementById('modalScrim').classList.remove('open')">应用</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="hint">输入卡、图标按钮、SegmentedTabs、Switch、弹出层全部取自 <b>dsw design-platform token</b> 与宿主组件形态(InputBar/SegmentedTabs/Switch);亮/暗可切换。条目行采用 MCP 状态卡的左侧 3px 边条规范。</div>
 </div>
 
 <script>
-/* ============ mock 数据(贴合真实环境) ============ */
 const FACES = [
   { key:'market', label:'市场', cnt:30 },
   { key:'skills', label:'技能', cnt:14 },
@@ -301,110 +291,112 @@ const FACES = [
 const ICONS = { market:'🧩', skills:'⚡', commands:'⌘', agents:'🤖', mcp:'🔗', lsp:'🔎' };
 const DATA = {
   skills: [
-    { g:'dsh-workflow · 12 项', items:[
+    { g:'dsh-workflow', items:[
       { nm:'dsh-doc', ds:'文档生命周期与双语对齐', on:true },
       { nm:'dsh-code-review', ds:'PR 评审标准', on:true },
       { nm:'dsh-pre-push-checks', ds:'推送前最小门禁选择', on:false },
-      { nm:'dsh-trim-cot-leakage', ds:'推理泄漏修剪', on:true } ]},
-    { g:'agent-plugins · 1 项', items:[
+      { nm:'dsh-trim-cot-leakage', ds:'推理泄漏修剪', on:true }]},
+    { g:'agent-plugins', items:[
       { nm:'database', ds:'MySQL/PostgreSQL SQL 执行', on:false },
-      { nm:'config-center', ds:'凭证与环境配置中心', on:true } ]},
-    { g:'ponytail · 1 项', items:[ { nm:'ponytail', ds:'最懒可行解', on:true } ]}
+      { nm:'config-center', ds:'凭证与环境配置中心', on:true }]},
+    { g:'ponytail', items:[ { nm:'ponytail', ds:'最懒可行解', on:true }]}
   ],
   mcp: [
     { g:'agent-plugins 来源', items:[
       { nm:'chrome-devtools', ds:'浏览器调试与自动化', on:true },
       { nm:'database', ds:'MySQL / PostgreSQL', on:true },
-      { nm:'hcs-api', ds:'华为云接口目录', on:false } ]},
-    { g:'直连配置', items:[ { nm:'deepseek-openapi', ds:'OpenAPI 直连', on:true } ]}
+      { nm:'hcs-api', ds:'华为云接口目录', on:false }]},
+    { g:'直连配置', items:[ { nm:'deepseek-openapi', ds:'OpenAPI 直连', on:true }]}
   ],
   market: [ { g:'已安装套件', items:[
       { nm:'dsh-workflow', ds:'工作流套件 · 技能12', on:true },
       { nm:'agent-plugins', ds:'内网套件 · 技能1', on:true },
-      { nm:'mattpocock-skills', ds:'英文工程技能 · 37', on:false } ]}],
+      { nm:'mattpocock-skills', ds:'英文工程技能 · 37', on:false }]}],
   commands: [ { g:'用户面板', items:[
       { nm:'/market', ds:'打开插件市场', on:true },
       { nm:'/context', ds:'上下文仪表盘', on:true },
-      { nm:'/better-harness', ds:'外层 Harness 评审', on:false } ]}],
+      { nm:'/better-harness', ds:'外层 Harness 评审', on:false }]}],
   agents: [ { g:'角色', items:[
       { nm:'test-engineer', ds:'测试设计与覆盖分析', on:true },
       { nm:'security-auditor', ds:'安全审计', on:false },
-      { nm:'code-simplifier', ds:'简化重构', on:true } ]}],
+      { nm:'code-simplifier', ds:'简化重构', on:true }]}],
   lsp: [ { g:'套件声明', items:[
       { nm:'typescript', ds:'demo/alpha · v4', on:true },
-      { nm:'json', ds:'配置文件', on:false } ]}]
+      { nm:'json', ds:'配置文件', on:false }]}]
 };
 
-/* ============ 版本切换 ============ */
-document.querySelectorAll('.vbtn').forEach(b => b.onclick = () => {
-  document.querySelectorAll('.vbtn').forEach(x => x.classList.toggle('on', x === b));
-  document.querySelectorAll('.stage').forEach(s => s.classList.toggle('on', s.id === 'stage-' + b.dataset.v));
+let cur = 'skills', open = false;
+const $ = id => document.getElementById(id);
+
+function setTheme(t, btn){
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll('.demobar button').forEach(b => b.classList.toggle('on', b === btn));
+}
+function togglePanel(){
+  open = !open;
+  $('panel').classList.toggle('open', open);
+  $('entryBtn').classList.toggle('active', open);
+}
+function flipMaster(sw){
+  sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+}
+function followGlobal(){ /* 演示占位 */ }
+
+/* SegmentedTabs:与宿主同构(indicator 滑块) */
+function renderTabs(){
+  const tabs = $('tabs');
+  tabs.innerHTML = FACES.map((f,i) =>
+    `<button class="tab" role="tab" aria-selected="${f.key===cur}" data-i="${i}" onclick="switchTab('${f.key}')">${f.label}<span class="n">${f.cnt}</span></button>`).join('');
+  // indicator 尺寸/位移动画
+  let ind = tabs.querySelector('.indicator');
+  if (!ind){ ind = document.createElement('span'); ind.className = 'indicator'; tabs.appendChild(ind) }
+  const active = tabs.querySelector('[aria-selected="true"]');
+  const onIdx = FACES.findIndex(f => f.key === cur);
+  ind.style.width = active.offsetWidth + 'px';
+  ind.style.transform = `translateX(${active.offsetLeft - 4}px)`;
+}
+function switchTab(k){ cur = k; renderTabs(); renderList(); updateMaster() }
+
+function renderList(){
+  const only = (DATA[cur]||[]).flatMap(g => g.items);
+  $('list').innerHTML = (DATA[cur]||[]).map(g =>
+    `<div class="grp">${g.g}</div>` + g.items.map(i =>
+      `<div class="row ${i.on?'':'off'}" onclick="flipRow(this)">
+        <div class="ic">${ICONS[cur]}</div>
+        <div class="meta"><div class="nm">${i.nm}<span class="src">${g.g}</span></div><div class="ds">${i.ds}</div></div>
+        <button class="switch" role="switch" aria-checked="${i.on}" onclick="event.stopPropagation();flipRow(this)"><span class="thumb"></span></button>
+      </div>`).join('')).join('');
+  const off = only.filter(i => !i.on).length;
+  $('fsum').textContent = off;
+}
+function flipRow(el){
+  const sw = el.classList.contains('switch') ? el : el.querySelector('.switch');
+  sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+  const row = sw.closest('.row');
+  row.classList.toggle('off', sw.getAttribute('aria-checked') === 'false');
+  const off = [...document.querySelectorAll('#list .switch')].filter(s => s.getAttribute('aria-checked') === 'false').length;
+  $('fsum').textContent = off;
+}
+function updateMaster(){
+  const face = FACES.find(f => f.key === cur);
+  const ms = $('masterSw');
+  const label = document.querySelector('.master .lbl');
+  label.textContent = face.label + '面总开关';
+}
+
+renderTabs(); renderList(); updateMaster();
+window.addEventListener('resize', renderTabs);
+
+/* 点卡片外关闭面板(宿主 overlay 交互) */
+document.addEventListener('click', e => {
+  if (!open) return;
+  if (e.target.closest('.panel') || e.target.closest('.plugin-entry')) return;
+  open = false; $('panel').classList.remove('open'); $('entryBtn').classList.remove('active');
 });
 
-/* ============ A 抽屉 ============ */
-let curA = 'skills';
-function renderStabs(){
-  document.getElementById('stabs').innerHTML = FACES.map(f =>
-    `<div class="stab ${f.key===curA?'on':''}" onclick="curA='${f.key}';renderDrawer()">${f.label}<span class="n">${f.cnt}</span></div>`).join('');
-}
-function renderDrawer(){
-  renderStabs();
-  const only = document.getElementById('fonly').classList.contains('on');
-  const html = (DATA[curA] || []).map(g => {
-    const items = g.items.filter(i => !only || !i.on);
-    if (!items.length) return '';
-    return `<div class="grp">${g.g}</div>` + items.map((i,ix) => itemRow(i, ix)).join('');
-  }).join('');
-  document.getElementById('drawerList').innerHTML = html || '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12.5px">没有已过滤的条目</div>';
-}
-function itemRow(i, ix){
-  return `<div class="item ${i.on?'':'off'}" onclick="this.querySelector('.sw').classList.toggle('on')">
-    <div class="ic">${ICONS[faceKey()]}</div>
-    <div class="meta"><div class="nm">${i.nm}</div><div class="ds">${i.ds}</div></div>
-    <span class="sw ${i.on?'on':''}"></span></div>`;
-}
-function faceKey(){ return curA }
-
-/* ============ B 气泡 ============ */
-let curB = 'mcp';
-function togglePop(){ document.getElementById('pop').classList.toggle('open') }
-function renderGrid(){
-  document.getElementById('grid6').innerHTML = FACES.map(f =>
-    `<div class="g6 ${f.key===curB?'on':''}" onclick="curB='${f.key}';renderGrid();renderPopList()">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
-      <div class="l">${f.label}</div><span class="c">${f.cnt}</span></div>`).join('');
-}
-function renderPopList(){
-  const rows = (DATA[curB]||[]).flatMap(g => g.items.map(i => ({...i, src:g.g.split(' ·')[0]})));
-  document.getElementById('popList').innerHTML = rows.map(i =>
-    `<div class="crow ${i.on?'on':''}" onclick="this.classList.toggle('on')">
-      <span class="cb"></span><span class="nm">${i.nm}</span><span class="src">${i.src}</span></div>`).join('');
-}
-
-/* ============ C 弹窗 ============ */
-let curC = 'skills';
-function renderMrows(){
-  document.getElementById('mrows').innerHTML = FACES.map(f =>
-    `<div class="mrow ${f.key===curC?'on':''}" onclick="curC='${f.key}';renderMrows();renderMlist()">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><path d="M17.2 13.8v6.4m-3.2-3.2h6.4"/></svg>
-      ${f.label}<span class="cnt">${f.cnt}</span></div>`).join('');
-}
-function renderMlist(){
-  const face = FACES.find(f => f.key === curC);
-  document.getElementById('mTitle').textContent = face.label;
-  const total = (DATA[curC]||[]).flatMap(g=>g.items).length;
-  const on = (DATA[curC]||[]).flatMap(g=>g.items).filter(i=>i.on).length;
-  document.getElementById('mSub').textContent = `已安装 ${total} · 本项目启用 ${on}`;
-  document.getElementById('mList').innerHTML = (DATA[curC]||[]).flatMap(g => g.items.map(i => ({...i, g:g.g}))).map(i =>
-    `<div class="mcard ${i.on?'':'hide'}">
-      <div class="ic">${ICONS[curC]}</div>
-      <div class="meta"><div class="nm">${i.nm}<span class="tag">${i.g.split(' ·')[0]}</span></div><div class="ds">${i.ds}</div></div>
-      <span class="state">${i.on?'项目启用':'已过滤'}</span>
-      <span class="sw ${i.on?'on':''}" onclick="this.classList.toggle('on');this.closest('.mcard').classList.toggle('hide');this.closest('.mcard').querySelector('.state').textContent=this.classList.contains('on')?'项目启用':'已过滤'"></span>
-    </div>`).join('');
-}
-
-renderDrawer(); renderGrid(); renderPopList(); renderMrows(); renderMlist();
+/* 输入框 placeholder 模拟(宿主为空时显示提示) */
+const ed = document.querySelector('.editable');
+ed.addEventListener('input', () => { if (ed.textContent.trim()) ed.removeAttribute('data-ph') });
 </script>
 </body>
 </html>
