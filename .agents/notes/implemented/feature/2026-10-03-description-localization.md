@@ -55,7 +55,9 @@ Concurrency is capped at three calls globally — stronger than the per-source c
 
 `available()` re-resolves the route on every question rather than caching an answer. The LLM and default-model services provision _after_ `apply()` returns, so an availability check made at composition time would report "unavailable" for the life of the process.
 
-`purpose` is deliberately left unset. The published `GenerateOptions.purpose` accepts exactly two values, `'compaction'` and `'session-title'`; neither describes a translation, and both carry purpose-specific generation policy. Omitting it keeps the call on the ordinary route.
+`purpose` is deliberately left unset. The published `GenerateOptions.purpose` accepts exactly two values, `'compaction'` and `'session-title'`; neither describes a translation, and both carry purpose-specific generation policy — `'compaction'` sets a transport header, `'session-title'` forces reasoning off. Omitting it keeps the call on the ordinary route.
+
+The call asks for `reasoningEffort: 'off'`, because translating a sentence is mechanical and the DeepSeek adapter's default is `high` — leaving it unset would spend reasoning tokens on every one of hundreds of descriptions. It is requested through `resolveCallConfig`, which rejects an effort the exact model does not support, so a route that refuses `'off'` degrades to the adapter default instead of failing the call. A `reasoningEffort` the user selected for the deployment is forwarded rather than overridden.
 
 Only the `zh` locale translates. An English panel is already showing the authored text, so queueing calls for it would spend the user's quota to reproduce the input.
 

@@ -13,7 +13,12 @@ function finish(reason: FinishReason = { kind: 'stop' }): StreamChunk {
 }
 
 /** A stub host exposing only what the translator reads, resolved by name. */
-function hostWith(options: { selection?: { provider: string; model: string } | undefined; stream?: (options: unknown) => AsyncIterable<StreamChunk> }): {
+function hostWith(options: {
+  selection?: { provider: string; model: string; reasoningEffort?: string } | undefined
+  stream?: (options: unknown) => AsyncIterable<StreamChunk>
+  /** Answers resolveCallConfig; rejecting stands in for an unsupported effort. */
+  resolveCallConfig?: (config: { provider: string; model: string; reasoningEffort?: string }) => Promise<unknown>
+}): {
   get(name: string): unknown
 } {
   return {
@@ -21,7 +26,13 @@ function hostWith(options: { selection?: { provider: string; model: string } | u
       if (name === 'agentDefaultModel') {
         return options.selection === undefined ? undefined : { currentSelection: () => options.selection }
       }
-      if (name === 'llm') return options.stream === undefined ? undefined : { stream: options.stream }
+      if (name === 'llm') {
+        if (options.stream === undefined) return undefined
+        return {
+          stream: options.stream,
+          ...(options.resolveCallConfig === undefined ? {} : { resolveCallConfig: options.resolveCallConfig })
+        }
+      }
       return undefined
     }
   }
@@ -115,6 +126,60 @@ describe('createDescriptionTranslator translate', () => {
     })
     await createDescriptionTranslator(host).translate({ text: 't', locale: 'ja', signal: new AbortController().signal })
     expect(String(seen[0]?.system)).toContain('into ja')
+  })
+
+  it('asks for reasoning off, because the adapter default is high', async () => {
+    // Translating a sentence is mechanical; the DeepSeek adapter would otherwise
+    // spend reasoning tokens on every one of hundreds of descriptions.
+    const seen: Array<Record<string, unknown>> = []
+    const asked: Array<string | undefined> = []
+    const host = hostWith({
+      selection: { provider: 'local', model: 'deepseek-flash' },
+      resolveCallConfig: async config => {
+        asked.push(config.reasoningEffort)
+        return config
+      },
+      stream: options => {
+        seen.push(options as Record<string, unknown>)
+        return streamOf([textDelta('中文'), finish()])()
+      }
+    })
+    await createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })
+    expect(asked).toEqual(['off'])
+    expect(seen[0]?.reasoningEffort).toBe('off')
+  })
+
+  it('keeps the deployment effort when the user selected one', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const host = hostWith({
+      selection: { provider: 'local', model: 'm', reasoningEffort: 'low' },
+      resolveCallConfig: async () => {
+        throw new Error('must not be consulted when the user chose an effort')
+      },
+      stream: options => {
+        seen.push(options as Record<string, unknown>)
+        return streamOf([textDelta('中文'), finish()])()
+      }
+    })
+    await createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })
+    expect(seen[0]?.reasoningEffort).toBe('low')
+  })
+
+  it('falls back to the adapter default when the route refuses off', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const host = hostWith({
+      selection: { provider: 'local', model: 'reasoning-only' },
+      resolveCallConfig: async () => {
+        throw new Error('does not support reasoning effort "off"')
+      },
+      stream: options => {
+        seen.push(options as Record<string, unknown>)
+        return streamOf([textDelta('中文'), finish()])()
+      }
+    })
+    // A rejected effort must still produce a working call, not a failure.
+    await expect(createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })).resolves.toBe('中文')
+    expect(seen[0]?.reasoningEffort).toBeUndefined()
   })
 
   it('joins multiple text blocks and trims the result', async () => {

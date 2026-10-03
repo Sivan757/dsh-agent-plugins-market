@@ -32,6 +32,16 @@ interface DefaultModelService {
 /** The LLM service surface this translator calls. */
 interface LlmService {
   stream(options: GenerateOptions): AsyncIterable<StreamChunk>
+  /** Validates an explicit effort against the exact model, rejecting unsupported ones. */
+  resolveCallConfig?(config: { provider: string; model: string; reasoningEffort?: string }, signal?: AbortSignal): Promise<unknown>
+}
+
+/** The route this translator resolved for one call. */
+interface TranslationRoute {
+  provider: string
+  model: string
+  /** The effort the caller's own selection carries, when it names one. */
+  reasoningEffort?: string
 }
 
 /** Bound the call: a stalled model must not pin a translation slot forever. */
@@ -61,17 +71,47 @@ function userMessage(text: string): Message {
   return createUserMessage({ content: [{ type: 'text', text }], source: pluginMarketSource() })
 }
 
-/** Read the provider/model pair the deployment selected, or undefined. */
-function readRoute(host: TranslatorHost): { provider: string; model: string } | undefined {
+/** Read the route the deployment selected, or undefined. */
+function readRoute(host: TranslatorHost): TranslationRoute | undefined {
   try {
     const service = host.get?.('agentDefaultModel') as DefaultModelService | undefined
     const selection = service?.currentSelection()
     if (selection === undefined) return undefined
     if (typeof selection.provider !== 'string' || typeof selection.model !== 'string') return undefined
     if (selection.provider.length === 0 || selection.model.length === 0) return undefined
-    return { provider: selection.provider, model: selection.model }
+    const effort = typeof selection.reasoningEffort === 'string' && selection.reasoningEffort.length > 0 ? selection.reasoningEffort : undefined
+    return { provider: selection.provider, model: selection.model, ...(effort === undefined ? {} : { reasoningEffort: effort }) }
   } catch {
     // A half-provisioned service is indistinguishable from an absent one.
+    return undefined
+  }
+}
+
+/**
+ * Choose the reasoning effort for one translation call.
+ *
+ * Translating a sentence is mechanical, and the DeepSeek adapter's default is
+ * `high` — leaving the effort unset would spend reasoning tokens on every one
+ * of hundreds of descriptions. So the call asks for `off` first and keeps the
+ * user's own selection only if the route refuses it: an unsupported effort
+ * rejects at validation rather than reaching the provider, and a model that
+ * genuinely requires reasoning still gets a working call instead of a failure.
+ *
+ * The user's selection is forwarded rather than overridden when it is already
+ * explicit, because that is a choice they made for this deployment.
+ * @param llm - live LLM runtime owning effort validation, when it exposes it.
+ * @param route - the resolved provider/model route.
+ * @param signal - cancellation for the capability lookup.
+ * @returns the effort to send, or undefined to accept the adapter default.
+ */
+async function chooseEffort(llm: LlmService, route: TranslationRoute, signal: AbortSignal): Promise<string | undefined> {
+  if (route.reasoningEffort !== undefined) return route.reasoningEffort
+  if (llm.resolveCallConfig === undefined) return undefined
+  try {
+    await llm.resolveCallConfig({ provider: route.provider, model: route.model, reasoningEffort: 'off' }, signal)
+    return 'off'
+  } catch {
+    // The route does not accept 'off'; fall back to its own default.
     return undefined
   }
 }
@@ -142,6 +182,7 @@ export function createDescriptionTranslator(host: TranslatorHost): DescriptionTr
       const timeout = setTimeout(onAbort, TRANSLATE_TIMEOUT_MS)
       timeout.unref?.()
       try {
+        const effort = await chooseEffort(llm, route, controller.signal)
         const options: GenerateOptions = {
           provider: route.provider,
           model: route.model,
@@ -149,6 +190,7 @@ export function createDescriptionTranslator(host: TranslatorHost): DescriptionTr
           messages: [userMessage(request.text)],
           maxTokens: MAX_OUTPUT_TOKENS,
           temperature: 0,
+          ...(effort === undefined ? {} : { reasoningEffort: effort as GenerateOptions['reasoningEffort'] }),
           signal: controller.signal
         }
         return await collectText(llm.stream(options), controller.signal)

@@ -55,7 +55,9 @@ catalog 不归我们编辑。一个 source 是别人仓库的 checkout，每次�
 
 `available()` 每次询问都重新解析路由，而不是缓存答案。LLM 与默认模型服务都在 `apply()` 返回**之后**才 provision，所以在组装期做的可用性判断会在整个进程生命周期内一直报告「不可用」。
 
-`purpose` 刻意留空。已发布的 `GenerateOptions.purpose` 恰好接受两个值：`'compaction'` 与 `'session-title'`；两者都不描述翻译，且各自携带 purpose 专属的生成策略。留空让这次调用走普通路由。
+`purpose` 刻意留空。已发布的 `GenerateOptions.purpose` 恰好接受两个值：`'compaction'` 与 `'session-title'`；两者都不描述翻译，且各自携带 purpose 专属的生成策略 —— `'compaction'` 会设置传输头，`'session-title'` 会强制关闭思考。留空让这次调用走普通路由。
+
+调用会请求 `reasoningEffort: 'off'`：翻译一句话是机械工作，而 DeepSeek 适配器的默认值是 `high` —— 留空会让数百条描述里的每一条都消耗思考 token。该请求经 `resolveCallConfig` 发出，它会在具体模型不支持该强度时拒绝，因此拒绝 `'off'` 的路由会降级到适配器默认值，而不是让调用失败。用户为部署选定的 `reasoningEffort` 会被沿用而非覆盖。
 
 只有 `zh` 语言会翻译。英文面板显示的本来就是作者原文，为它排队调用等于花用户额度去复现输入。
 
