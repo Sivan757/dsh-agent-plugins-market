@@ -268,6 +268,35 @@ describe('unified Markdown resource panel', () => {
     expect(onText).not.toContain('disabled:')
   })
 
+  it.each(['skills', 'commands', 'agents'] as const)('keeps plugin %s switches available without exposing document edits or deletion', async kind => {
+    const on = { ...plugin, rawText: '---\nname: reviewer\ndescription: Review implementation\n---\nReview code' }
+    let entry = on
+    api.fetchUserPanel.mockImplementation(async () => [entry])
+    api.updateUserPanelEntry.mockImplementation(async (_kind: string, _id: string, text: string) => {
+      entry = { ...entry, rawText: text, disabled: !entry.disabled }
+    })
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind })))
+    const control = (): HTMLButtonElement => host.querySelector<HTMLButtonElement>('button[role="switch"]')!
+    expect(control().disabled).toBe(false)
+    await act(async () => control().click())
+    const text = api.updateUserPanelEntry.mock.calls[0]?.[2] as string
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith(kind, on.id, text)
+    expect(text).toContain(kind === 'skills' ? 'disable-model-invocation: true' : 'disabled: true')
+    if (kind === 'skills') expect(text).toContain('user-invocable: false')
+    expect(text).toContain('Review code')
+    expect(control().getAttribute('aria-checked')).toBe('false')
+    expect(host.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    if (kind !== 'agents') expect(host.querySelector('button[aria-label="panelEditTitle"]')).toBeNull()
+    await act(async () => control().click())
+    const restored = api.updateUserPanelEntry.mock.calls[1]?.[2] as string
+    expect(restored).toContain(kind === 'skills' ? 'disable-model-invocation: false' : 'disabled: false')
+    if (kind === 'skills') expect(restored).toContain('user-invocable: true')
+    expect(control().getAttribute('aria-checked')).toBe('true')
+  })
+
   it('refuses to switch a document whose frontmatter failed validation', async () => {
     api.fetchUserPanel.mockResolvedValue([{ ...user, id: 'user:broken', name: 'broken', disabled: true, metadata: { validationError: 'missing YAML frontmatter' } }])
     api.updateUserPanelEntry.mockResolvedValue(undefined)

@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
 import { createPanelResources } from '../src/application/panel-resources.js'
 import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
+import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
+import { readCommands } from '../src/runtime/surfaces/commands-mounts.js'
+import { agentRoleCatalog } from '../src/runtime/agents/agent-role-router.js'
 
 describe('installed and user panel resources', () => {
   it('projects installed resources, keeps their content read-only, and applies the enable switch to the registered file', async () => {
@@ -72,6 +75,68 @@ describe('installed and user panel resources', () => {
       expect(await panels.agents.list()).toHaveLength(2)
       await expect(panels.agents.update('["../../etc"]', 'x')).rejects.toThrow('Unknown installed')
       expect((await panels.skills.list()).some(row => row.origin === 'plugin')).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['skills', 'commands', 'agents'] as const)('persists a plugin %s toggle without bypassing its suite controls', async kind => {
+    const root = await mkdtemp(join(tmpdir(), 'market-panel-toggle-'))
+    try {
+      const source = join(root, '.sources', 'active')
+      await mkdir(source, { recursive: true })
+      await cp('tests/fixtures/v1-suite', source, { recursive: true })
+      await writeFile(
+        join(root, 'state.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [{ id: 'active', url: source, local: true }],
+          installed: { 'active/v1-suite': { enabled: true, installedAt: new Date(0).toISOString() } }
+        })
+      )
+      const options = { userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} }
+      const catalog = new Catalog(options)
+      await catalog.load()
+      const panel = createPanelResources(catalog, createUserPanelStores(root))[kind]
+      const entry = (await panel.list()).find(row => row.origin === 'plugin')!
+      expect(entry.disabled).toBe(false)
+      const runtimeEnabled = async (manager: Catalog): Promise<boolean> => {
+        if (kind === 'skills') {
+          const skill = (await new SuiteSkillProvider(manager).list({})).find(candidate => candidate.name === entry.name)
+          return skill !== undefined && (skill.invocation.modelInvocable || skill.invocation.userInvocable)
+        }
+        if (kind === 'commands') return (await readCommands(source, [{ name: entry.name, file: entry.path }])).length > 0
+        const roles = await createPanelResources(manager, createUserPanelStores(root)).agents.list()
+        return (await agentRoleCatalog(roles, new AbortController().signal)).length > 0
+      }
+      expect(await runtimeEnabled(catalog)).toBe(true)
+      const controls = kind === 'skills' ? 'disable-model-invocation: true\nuser-invocable: false\n' : 'disabled: true\n'
+      const off = entry.rawText.replace('---\n', '---\n' + controls)
+      await panel.update(entry.id!, off)
+      await catalog.notifyPanelsChanged()
+      expect((await panel.get(entry.id!))?.disabled).toBe(true)
+      expect(await runtimeEnabled(catalog)).toBe(false)
+      expect(await readFile(entry.path, 'utf8')).toBe(off)
+
+      const restarted = new Catalog(options)
+      await restarted.load()
+      const reloaded = createPanelResources(restarted, createUserPanelStores(root))[kind]
+      expect((await reloaded.get(entry.id!))?.disabled).toBe(true)
+      expect(await runtimeEnabled(restarted)).toBe(false)
+      await reloaded.update(entry.id!, entry.rawText)
+      await restarted.notifyPanelsChanged()
+      expect((await reloaded.get(entry.id!))?.disabled).toBe(false)
+      expect(await runtimeEnabled(restarted)).toBe(true)
+
+      await restarted.setSurface('active', 'v1-suite', kind, false)
+      expect(await reloaded.get(entry.id!)).toMatchObject({ disabled: true })
+      await restarted.setSurface('active', 'v1-suite', kind, true)
+      await restarted.setEnabled('active', 'v1-suite', false)
+      expect(await reloaded.get(entry.id!)).toMatchObject({ disabled: true })
+      await restarted.setEnabled('active', 'v1-suite', true)
+      expect(await reloaded.get(entry.id!)).toMatchObject({ disabled: false })
+      await expect(reloaded.update(entry.id!, entry.rawText + '\nChanged body')).rejects.toThrow('the suite owns their content')
+      await expect(reloaded.remove(entry.id!)).rejects.toThrow('managed by their suite')
     } finally {
       await rm(root, { recursive: true, force: true })
     }

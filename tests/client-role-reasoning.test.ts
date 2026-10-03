@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoleMetadataFields } from '../src/client/ui/RoleMetadataFields.js'
 import { readRoleFields } from '../src/client/ui/frontmatter.js'
+import formCss from '../src/client/ui/form.module.css'
 import { parseAgentRole } from '../src/runtime/agents/agent-role-router.js'
 import { selectOption } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
@@ -68,6 +69,19 @@ const metadata = {
 }
 
 describe('role reasoning effort selector', () => {
+  it('groups the three routing controls in the shared responsive fieldset', async () => {
+    await mount('---\nmodel: inherit\n---\nRole', async () => metadata)
+    const fieldset = host.querySelector('fieldset')!
+    expect(formCss.roleFieldset !== undefined && fieldset.classList.contains(formCss.roleFieldset)).toBe(true)
+    expect([...fieldset.querySelectorAll(':scope > label > select')].map(control => control.getAttribute('aria-label'))).toEqual([
+      'personaProvider',
+      'personaModel',
+      'personaReasoningEffort'
+    ])
+    expect(fieldset.querySelector(':scope > legend')?.textContent).toBe('personaRuntimeConfig')
+    expect(fieldset.querySelector(':scope > p')?.textContent).toContain('personaRouteCurrent')
+  })
+
   it('loads exact-model options, preserves saved aliases and saves the value consumed by subagent_role', async () => {
     await mount('---\nprovider: p\nmodel: a\nreasoningEffort: high\nmetadata: {tier: 2}\n---\nRole body', async () => metadata)
     expect([...select('personaReasoningEffort').options].map(option => option.value)).toEqual(['', 'low', 'high'])

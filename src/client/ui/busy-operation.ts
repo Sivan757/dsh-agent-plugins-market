@@ -2,6 +2,12 @@
 export interface BusyOperation {
   id: number
   target: HTMLElement | null
+  blocking: boolean
+}
+
+interface BusyOptions {
+  /** Mutations block repeat input immediately; reads only show delayed, nonblocking feedback. */
+  blocking?: boolean
 }
 const pending = new Map<number, BusyOperation>()
 const listeners = new Set<() => void>()
@@ -19,17 +25,17 @@ export function operationTarget(): HTMLElement | null {
   return dialogs.at(-1) ?? document.querySelector<HTMLElement>('[data-agent-plugins-workspace]')
 }
 
-export function beginBusyOperation(target = operationTarget()): () => void {
+export function beginBusyOperation(target = operationTarget(), { blocking = true }: BusyOptions = {}): () => void {
   const id = ++nextId
-  pending.set(id, { id, target })
+  pending.set(id, { id, target, blocking })
   publish()
   return () => {
     if (pending.delete(id)) publish()
   }
 }
 
-export async function withBusyOperation<T>(work: () => Promise<T>): Promise<T> {
-  const end = beginBusyOperation()
+export async function withBusyOperation<T>(work: () => Promise<T>, options?: BusyOptions): Promise<T> {
+  const end = beginBusyOperation(undefined, options)
   try {
     return await work()
   } finally {

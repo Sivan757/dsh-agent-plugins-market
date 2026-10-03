@@ -118,7 +118,7 @@ export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promis
     const body = (await response.json()) as ServerConfigPayload & { error?: string }
     if (!response.ok) throw new Error(body.error ?? `Server configuration failed: ${response.status}`)
     return body
-  })
+  }, { blocking: false })
 }
 
 export async function saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: Record<string, unknown>, policy?: ServerPolicyRequest): Promise<void> {
@@ -137,7 +137,7 @@ export async function fetchModelCatalog(provider?: string, signal?: AbortSignal,
 }
 
 export async function fetchOverview(): Promise<OverviewData> {
-  return withBusyOperation(() => getJson<OverviewData>(MARKET_ROUTES.overview, 'overview failed'))
+  return withBusyOperation(() => getJson<OverviewData>(MARKET_ROUTES.overview, 'overview failed'), { blocking: false })
 }
 
 export async function fetchSourceProgress(): Promise<SourceProgress> {
@@ -145,16 +145,16 @@ export async function fetchSourceProgress(): Promise<SourceProgress> {
 }
 
 export async function fetchSuiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail> {
-  return withBusyOperation(() => getJson<SuiteDetail>(suiteRoute(sourceId, suiteId), 'suite detail failed'))
+  return withBusyOperation(() => getJson<SuiteDetail>(suiteRoute(sourceId, suiteId), 'suite detail failed'), { blocking: false })
 }
 
 export async function fetchMcpStatus(): Promise<McpStatusPayload> {
-  return withBusyOperation(() => getJson<McpStatusPayload>(MARKET_ROUTES.mcpStatus, 'MCP status failed'))
+  return withBusyOperation(() => getJson<McpStatusPayload>(MARKET_ROUTES.mcpStatus, 'MCP status failed'), { blocking: false })
 }
 
 export async function fetchLspStatus(background = false): Promise<LspStatusPayload> {
   const load = (): Promise<LspStatusPayload> => getJson<LspStatusPayload>(MARKET_ROUTES.lspStatus, 'LSP status failed')
-  return background ? load() : withBusyOperation(load)
+  return background ? load() : withBusyOperation(load, { blocking: false })
 }
 
 /** Add one direct LSP server to the user's table. */
@@ -176,7 +176,7 @@ export async function migrateLspSeam(profile: string): Promise<import('../contra
 }
 
 export async function fetchSkillContent(sourceId: string, suiteId: string, skill: string): Promise<SkillContent> {
-  return withBusyOperation(() => getJson<SkillContent>(skillRoute(sourceId, suiteId, skill), 'skill content failed'))
+  return withBusyOperation(() => getJson<SkillContent>(skillRoute(sourceId, suiteId, skill), 'skill content failed'), { blocking: false })
 }
 
 /** Re-run the host MCP reconcile: retries failed mounts, clears residual tools. */
@@ -252,7 +252,7 @@ export async function fetchUserPanel(kind: UserPanelKind): Promise<UserPanelEntr
   return withBusyOperation(async () => {
     const body = await getJson<{ entries?: UserPanelEntry[] }>(userPanelRoute(kind), 'user panel failed')
     return body.entries ?? []
-  })
+  }, { blocking: false })
 }
 
 /** Create one panel entry. */

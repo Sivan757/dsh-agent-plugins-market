@@ -6,7 +6,7 @@ import type { UserPanelEntryWire, UserPanelKind } from '../contracts/market.js'
 import { defaultMarkdownResources, resourceText } from '../catalog/component-files.js'
 import { pluginRootOf } from '../catalog/plugin-variables.js'
 import { isWithin, suiteDataDir } from '../catalog/paths.js'
-import { stripFrontmatter } from '../catalog/skills-parse.js'
+import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
 /** The user-panel store surface the panel resources drive (structural). */
 interface UserPanelEntries {
@@ -89,12 +89,14 @@ class PanelResources implements PanelResourceStore {
         } catch (error) {
           metadata = { disabled: true, validationError: String(error) }
         }
+        const skill = this.kind === 'skills' ? parseSkillFrontmatter(rawText, undefined) : undefined
+        const invocationOff = typeof skill === 'object' && !skill.invocation.modelInvocable && !skill.invocation.userInvocable
         entries.push({
           id: pluginResourceId(suite.sourceId, suite.id, this.kind, name),
           name,
           origin: 'plugin',
           suiteName: suite.manifest.name,
-          disabled: !suite.enabled || suite.activeSurfaces[this.kind] === false || metadata.disabled === true,
+          disabled: !suite.enabled || suite.activeSurfaces[this.kind] === false || metadata.disabled === true || invocationOff,
           metadata,
           rawText,
           content: stripFrontmatter(rawText),

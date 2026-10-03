@@ -5,72 +5,34 @@ import type { Translate } from '../index.js'
 import css from './busy-overlay.module.css'
 
 export const BUSY_SHOW_DELAY_MS = 200
-export const BUSY_MIN_VISIBLE_MS = 400
-export const BUSY_SETTLE_MS = 100
-/**
- * When a leased operation outlives this, the overlay says so. Nothing local
- * should take this long, so the user learns the wait is still real instead of
- * reading an unchanging spinner as "it finished and the dialog stuck".
- */
 export const BUSY_LONG_RUNNING_MS = 20_000
 
 /** Mount once per client. A body-level host covers portaled dialogs without inheriting their inert state. */
 export function BusyOverlay({ t }: { t: Translate }): ReactNode {
   const tasks = useSyncExternalStore(subscribeBusy, busySnapshot, busySnapshot)
-  const target = [...tasks].reverse().find(task => task.target?.isConnected)?.target ?? (tasks.length ? operationTarget() : null)
-  const [heldTarget, setHeldTarget] = useState<HTMLElement | null>(null)
+  const latest = [...tasks].reverse()
+  const target = latest.find(task => task.blocking && task.target?.isConnected)?.target ?? latest.find(task => task.target?.isConnected)?.target ?? (tasks.length ? operationTarget() : null)
   const [visible, setVisible] = useState(false)
   const [slow, setSlow] = useState(false)
-  const startedAt = useRef<number | null>(null)
-  const shownAt = useRef<number | null>(null)
   const active = tasks.length > 0
-
-  // The watchdog measures from the lease's own start, so a mask held across a
-  // short gap still reports one continuous wait.
-  useEffect(() => {
-    if (!active || target === null) {
-      setSlow(false)
-      return
-    }
-    const started = startedAt.current ?? Date.now()
-    const timer = setTimeout(() => setSlow(true), Math.max(0, BUSY_LONG_RUNNING_MS - (Date.now() - started)))
-    return () => clearTimeout(timer)
-  }, [active, target])
+  const blocking = tasks.some(task => task.blocking)
 
   useLayoutEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    if (active && target) {
-      setHeldTarget(target)
-      startedAt.current ??= Date.now()
-      if (shownAt.current === null) {
-        timer = setTimeout(
-          () => {
-            shownAt.current = Date.now()
-            setVisible(true)
-          },
-          Math.max(0, BUSY_SHOW_DELAY_MS - (Date.now() - startedAt.current))
-        )
-      }
-    } else {
-      const clear = (): void => {
-        startedAt.current = null
-        shownAt.current = null
-        setVisible(false)
-        setHeldTarget(null)
-      }
-      if (shownAt.current === null) clear()
-      else timer = setTimeout(clear, Math.max(BUSY_SETTLE_MS, BUSY_MIN_VISIBLE_MS - (Date.now() - shownAt.current)))
-    }
+    if (!active) return
+    const show = setTimeout(() => setVisible(true), BUSY_SHOW_DELAY_MS)
+    const warn = setTimeout(() => setSlow(true), BUSY_LONG_RUNNING_MS)
     return () => {
-      if (timer !== undefined) clearTimeout(timer)
+      clearTimeout(show)
+      clearTimeout(warn)
+      setVisible(false)
+      setSlow(false)
     }
-  }, [active, target])
+  }, [active])
 
-  const displayedTarget = target ?? (heldTarget?.isConnected ? heldTarget : null)
-  return displayedTarget && (active || visible) ? h(ActiveOverlay, { target: displayedTarget, t, visible, slow }) : null
+  return active && target ? h(ActiveOverlay, { target, t, visible, slow, blocking }) : null
 }
 
-function ActiveOverlay({ target, t, visible, slow }: { target: HTMLElement; t: Translate; visible: boolean; slow: boolean }): ReactNode {
+function ActiveOverlay({ target, t, visible, slow, blocking }: { target: HTMLElement; t: Translate; visible: boolean; slow: boolean; blocking: boolean }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
   const [rect, setRect] = useState(() => target.getBoundingClientRect())
   const [message, setMessage] = useState(0)
@@ -83,11 +45,7 @@ function ActiveOverlay({ target, t, visible, slow }: { target: HTMLElement; t: T
   }, [hints.length, visible])
 
   useLayoutEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const inertBefore = target.hasAttribute('inert')
-    const busyBefore = target.getAttribute('aria-busy')
-    target.setAttribute('inert', '')
-    target.setAttribute('aria-busy', 'true')
+    if (!blocking) return
     const scope = target.closest('[role="presentation"]') ?? target
     const stop = (event: Event): void => {
       if (ref.current?.contains(event.target as Node)) return
@@ -97,6 +55,20 @@ function ActiveOverlay({ target, t, visible, slow }: { target: HTMLElement; t: T
         event.stopImmediatePropagation()
       }
     }
+    for (const event of ['pointerdown', 'click', 'keydown', 'submit']) window.addEventListener(event, stop, true)
+    return () => {
+      for (const event of ['pointerdown', 'click', 'keydown', 'submit']) window.removeEventListener(event, stop, true)
+    }
+  }, [target, blocking])
+
+  useLayoutEffect(() => {
+    if (!visible) return
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const inertBefore = target.hasAttribute('inert')
+    const busyBefore = target.getAttribute('aria-busy')
+    if (blocking) target.setAttribute('inert', '')
+    target.setAttribute('aria-busy', 'true')
+    const scope = target.closest('[role="presentation"]') ?? target
     const trapFocus = (event: FocusEvent): void => {
       if (scope.contains(event.target as Node)) ref.current?.focus({ preventScroll: true })
     }
@@ -115,50 +87,51 @@ function ActiveOverlay({ target, t, visible, slow }: { target: HTMLElement; t: T
     observer?.observe(target)
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
-    for (const event of ['pointerdown', 'click', 'keydown', 'submit']) window.addEventListener(event, stop, true)
-    window.addEventListener('focusin', trapFocus, true)
-    ref.current?.focus({ preventScroll: true })
+    if (blocking) {
+      window.addEventListener('focusin', trapFocus, true)
+      ref.current?.focus({ preventScroll: true })
+    }
     update()
     return () => {
       if (frame) cancelAnimationFrame(frame)
       observer?.disconnect()
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
-      for (const event of ['pointerdown', 'click', 'keydown', 'submit']) window.removeEventListener(event, stop, true)
       window.removeEventListener('focusin', trapFocus, true)
-      if (!inertBefore) target.removeAttribute('inert')
+      if (blocking && !inertBefore) target.removeAttribute('inert')
       if (busyBefore === null) target.removeAttribute('aria-busy')
       else target.setAttribute('aria-busy', busyBefore)
-      if (previousFocus?.isConnected && !previousFocus.closest('[inert]')) previousFocus.focus({ preventScroll: true })
+      if (blocking && previousFocus?.isConnected && !previousFocus.closest('[inert]')) previousFocus.focus({ preventScroll: true })
     }
-  }, [target])
+  }, [target, visible, blocking])
 
+  if (!visible) return null
   return h(
     'div',
     {
       ref,
       className: css.overlay,
-      tabIndex: -1,
+      tabIndex: blocking ? -1 : undefined,
       'data-operation-overlay': true,
-      'data-visible': visible,
+      'data-visible': true,
+      'data-blocking': blocking,
       role: 'status',
       'aria-live': 'polite',
       'aria-label': t('panelWorking'),
       style: { top: rect.top, left: rect.left, width: rect.width, height: rect.height, borderRadius: getComputedStyle(target).borderRadius },
       onKeyDown: (event: { preventDefault(): void; stopPropagation(): void }) => {
+        if (!blocking) return
         event.preventDefault()
         event.stopPropagation()
       }
     },
-    visible
-      ? h(
-          'div',
-          { className: css.content },
-          h('span', { className: css.spinner, 'aria-hidden': true }, h(IconLoadingOutlineMedium, { size: 28 })),
-          h('strong', { className: css.label }, t('panelWorking')),
-          h('div', { className: css.hintViewport }, h('p', { key: message, className: css.hint }, hints[message])),
-          slow ? h('p', { className: css.warning, role: 'alert' }, t('busyLongRunning')) : null
-        )
-      : null
+    h(
+      'div',
+      { className: css.content },
+      h('span', { className: css.spinner, 'aria-hidden': true }, h(IconLoadingOutlineMedium, { size: 28 })),
+      h('strong', { className: css.label }, t('panelWorking')),
+      h('div', { className: css.hintViewport }, h('p', { key: message, className: css.hint }, hints[message])),
+      slow ? h('p', { className: css.warning, role: 'alert' }, t('busyLongRunning')) : null
+    )
   )
 }

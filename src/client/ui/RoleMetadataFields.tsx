@@ -78,7 +78,7 @@ function RoleFields(props: { text: string; onChange: (text: string) => void; t: 
   }
   return h(
     'fieldset',
-    { className: formCss.fieldset, disabled: props.disabled },
+    { className: `${formCss.fieldset} ${formCss.roleFieldset}`, disabled: props.disabled },
     h('legend', null, props.t('personaRuntimeConfig')),
     h(
       'label',

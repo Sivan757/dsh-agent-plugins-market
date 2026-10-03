@@ -163,7 +163,7 @@ The MCP service detail lists every tool with a checkbox. A checked tool is allow
 
 ### Operation overlay
 
-Visual feedback waits 200 ms, then stays visible for at least 400 ms. A 100 ms settling window bridges consecutive requests. Interaction locks immediately, including during the invisible delay; short operations therefore finish without a flash.
+Visual feedback waits 200 ms and disappears when the last operation finishes, without a minimum visible duration. Reads stay interactive and use a nonblocking status card for longer waits. Mutations block repeated input immediately; only visible mutation feedback moves focus and sets inert state.
 
 Workspace requests and credential/settings writes share `withBusyOperation` (`src/client/ui/busy-operation.ts`). Wrap a complete workflow when it also refreshes data afterward; nested leases keep the mask until every operation settles. A single body-level `BusyOverlay` tracks the active dialog rectangle, marks it inert, blocks backdrop/keyboard interaction and restores focus afterward. Tips rotate every 3.2 seconds; reduced-motion preferences disable the scrolling transition. Source-progress, model-catalog background loading and automatic LSP polling remain silent. The mask never occupies a row in the resource list and does not fabricate percentage progress.
 

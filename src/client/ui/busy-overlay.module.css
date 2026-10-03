@@ -10,9 +10,16 @@
   outline: none;
   overflow: hidden;
 }
-.overlay[data-visible='false'] {
+.overlay[data-blocking='false'] {
+  pointer-events: none;
   background: transparent;
   backdrop-filter: none;
+  place-items: end;
+  padding: 12px;
+}
+.overlay[data-blocking='false'] .content {
+  width: min(280px, 100%);
+  padding: 12px;
 }
 .overlay[data-visible='true'] {
   animation: busy-enter 140ms ease-out;
