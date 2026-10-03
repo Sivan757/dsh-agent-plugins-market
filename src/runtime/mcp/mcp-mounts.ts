@@ -44,6 +44,8 @@ export class McpMountRegistry {
   private toolNamesProvider: () => string[] = () => []
   /** The active MCP mount backend ('builtin' bridge or host client compat mode). */
   private backendProvider: () => Promise<McpBackend> = async () => 'builtin'
+  /** Per-workspace entry filter; an absent provider mounts everything wanted. */
+  private entryFilter: (() => { allows(face: 'mcp', entryId: string): boolean }) | undefined
   /** Serialize mount and unmount passes so a disable cannot race an in-flight spawn. */
   private readonly passes = new SerialPassQueue()
   /** Delayed re-attempts for mounts that are not live yet. */
@@ -84,6 +86,16 @@ export class McpMountRegistry {
   /** Install the backend provider deciding which client mounts each server. */
   setBackendProvider(provider: () => Promise<McpBackend>): void {
     this.backendProvider = provider
+  }
+
+  /**
+   * Install the per-workspace entry filter read at wanted-row time. A filtered
+   * server simply never becomes wanted, which is the same unmount path a
+   * removed suite takes; the registry stays attached and reconciles normally
+   * when the filter changes.
+   */
+  setEntryFilter(filter: () => { allows(face: 'mcp', entryId: string): boolean }): void {
+    this.entryFilter = filter
   }
 
   /** Whether the last catalog snapshot uses one credential reference. */
@@ -150,6 +162,9 @@ export class McpMountRegistry {
         })
       }
       for (const mount of mounts) {
+        // The per-workspace resource filter answers before the row becomes
+        // wanted, so a filtered server unmounts through the ordinary pass.
+        if (this.entryFilter?.().allows('mcp', `mcp:${mount.config.serverName}`) === false) continue
         // One derived serverName per suite/server, whatever the dimension: the
         // host keeps an agent's registrations in that agent's own scope and lets
         // them shadow globals, so suffixing a per-session id would only fork the

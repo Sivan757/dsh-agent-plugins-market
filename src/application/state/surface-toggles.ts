@@ -38,8 +38,17 @@ export async function loadSurfaceToggles(dataRoot: string, workspace: string): P
   return resolveSurfaceToggles(record.toggles)
 }
 
-/** Persist one workspace's toggles atomically. */
+/**
+ * Persist one workspace's toggles atomically.
+ *
+ * The write preserves sections this module does not own: the per-entry filter
+ * map under the "entries" key, written by the resource window's v2 documents,
+ * survives a single-surface flip instead of being dropped back to v1.
+ */
 export async function saveSurfaceToggles(dataRoot: string, workspace: string, toggles: SurfaceToggles): Promise<void> {
-  const document: SurfaceTogglesDocument = { version: 1, workspace, toggles }
+  const existing = await readJsonFile(surfaceTogglesPath(dataRoot, workspace))
+  const extras = (typeof existing === 'object' && existing !== null ? existing : {}) as Record<string, unknown>
+  const document: SurfaceTogglesDocument & Record<string, unknown> = { version: 1, workspace, toggles }
+  if (extras.entries !== undefined) document.entries = extras.entries
   await writeJsonDocument(surfaceTogglesPath(dataRoot, workspace), document)
 }

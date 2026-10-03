@@ -38,6 +38,9 @@ import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteIns
 import { createPanelResources } from './application/panel-resources.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
+import { mountResourceRoutes } from './routes-resources.js'
+import { ResourceFilterService } from './runtime/host/resource-filter-service.js'
+import { EntryFilteredSkillProvider } from './runtime/surfaces/skills-provider.js'
 import { SuiteSkillProvider, ToggledSkillProvider } from './runtime/surfaces/skills-provider.js'
 import { shellSeamOf, type ShellSeam } from './runtime/surfaces/dynamic-context.js'
 import { loadLspServers } from './application/lsp/lsp-direct-config.js'
@@ -202,12 +205,25 @@ export async function apply(
     // Always the full enabled set. A switched-off surface is gated inside the
     // reconciler's own mount branch, never by filtering here: MCP, commands and
     // LSP all mount from this one snapshot, so dropping a suite for one switch
-    // would unmount that suite's mounts on the other two.
-    enabledSuites: async () => catalog.enabledUserSuites(),
+    // would unmount that suite's mounts on the other two. A market-face entry
+    // filter is the one deliberate exception: its row IS the suite, so denying
+    // it in this workspace means the suite mounts nothing here — the same
+    // semantics as the global enable switch, one workspace deep.
+    enabledSuites: async () => {
+      const suites = await catalog.enabledUserSuites()
+      return suites.filter(suite => resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id))
+    },
     publishMcpDiagnostics: diagnostics => {
       catalog.mcpDiagnostics = diagnostics
     }
   })
+  // Entry filters reach each contributor at its own wanted-row computation —
+  // the same per-branch shape the surface switches use, so an entry off in one
+  // face never touches the same suite's mounts in another.
+  runtime.setMcpEntryFilter(() => resourceFilters)
+  runtime.lsp.setEntryFilter(() => resourceFilters)
+  runtime.setCommandsEntryFilter(() => resourceFilters)
+  userCommands.setEntryFilter(() => resourceFilters)
 
   /** Reconcile the user command mounts and report each failure once. */
   const reconcileUserCommands = async (): Promise<void> => {
@@ -273,7 +289,15 @@ export async function apply(
       await onChanged()
     }
   })
-  void surfaceToggles.reload()
+  // Per-workspace entry filters (the project resource window) share the same
+  // document and the same refresh chain: flipping one entry reconciles exactly
+  // like flipping its surface switch, through the contributors' own gates.
+  const resourceFilters = new ResourceFilterService(dataRoot, process.cwd(), {
+    onFiltersChanged: async () => {
+      await onChanged()
+    }
+  })
+  void Promise.all([surfaceToggles.reload(), resourceFilters.reload()])
   // Each switchable surface answers its own gate at the mount branch, so the
   // six switches stay orthogonal: turning MCP off reconciles the MCP mounts to
   // zero servers while the same suites keep their language servers, and the
@@ -327,11 +351,13 @@ export async function apply(
   await catalog.mergeSources([...(config.sources ?? []), presetSourceRef()])
   const resources = createPanelResources(catalog, panels)
   runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides(await catalog.enabledUserSuites()))
-  runtime.lsp.setDirectProvider(async () =>
+  runtime.lsp.setDirectProvider(async () => {
     // An empty table is the lsp-off state: the seam stays mounted (the plugin
     // owns it unconditionally) but serves no servers.
-    surfaceToggles.allows('lsp') ? (await loadLspServers(agentsRoot)).servers : {}
-  )
+    if (!surfaceToggles.allows('lsp')) return {}
+    const { servers } = await loadLspServers(agentsRoot)
+    return Object.fromEntries(Object.entries(servers).filter(([key]) => resourceFilters.allowsEntry('lsp', 'lsp:direct/' + key)))
+  })
   runtime.lsp.setDisabledProvider(() => loadDisabledLspServers(dataRoot))
   runtime.setMcpBackendProvider(() => catalog.mcpBackend())
 
@@ -360,7 +386,17 @@ export async function apply(
   const shellSeam = (): ShellSeam | undefined => shellSeamOf(ctx)
   ctx.skills.registerProvider(control => {
     providerControl = control
-    return new ToggledSkillProvider(new SuiteSkillProvider(catalog, { dataRoot, shell: shellSeam }), () => surfaceToggles.allows('skills'))
+    return new ToggledSkillProvider(
+      new EntryFilteredSkillProvider(
+        new SuiteSkillProvider(catalog, {
+          dataRoot,
+          shell: shellSeam,
+          suiteAllowed: suite => resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id)
+        }),
+        entryId => resourceFilters.allowsEntry('skills', entryId)
+      ),
+      () => surfaceToggles.allows('skills')
+    )
   })
 
   // User panel skills ride a second provider so a panel
@@ -369,15 +405,24 @@ export async function apply(
   // entries it serves collapse to none.
   ctx.skills.registerProvider(control => {
     userPanelControl = control
-    return new ToggledSkillProvider(new UserPanelSkillProvider(panels.skills), () => surfaceToggles.allows('skills'))
+    return new ToggledSkillProvider(
+      new EntryFilteredSkillProvider(new UserPanelSkillProvider(panels.skills), entryId => resourceFilters.allowsEntry('skills', entryId)),
+      () => surfaceToggles.allows('skills')
+    )
   })
 
   // Both entry points read the same live user/project role set. Team owns the
   // enhanced entry's member identities and all subsequent collaboration.
-  const listRoles = async (parent?: unknown) =>
-    surfaceToggles.allows('agents')
-      ? [...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })), ...(await projectAgentRoles(catalog, parent))]
-      : []
+  const listRoles = async (parent?: unknown) => {
+    if (!surfaceToggles.allows('agents')) return []
+    const user = (await resources.agents.list(true))
+      .filter(entry => resourceFilters.allowsEntry('agents', 'agents:' + (entry.origin === 'plugin' ? entry.id ?? entry.name : entry.name)))
+      .map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name }))
+    const project = (await projectAgentRoles(catalog, parent)).filter(role =>
+      resourceFilters.allowsEntry('agents', 'agents:' + role.name)
+    )
+    return [...user, ...project]
+  }
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
     hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
   })
@@ -397,7 +442,9 @@ export async function apply(
       )
       const mcp = mountProjectMcp(hostCtx, catalog, dataRoot, () => surfaceToggles.allows('mcp'))
       const hooks = mountProjectHooks(hostCtx, catalog)
-      const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot)
+      const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot, suite =>
+        resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id)
+      )
       projectCommands = mounted
       projectMcp = mcp
       projectHooks = hooks
@@ -415,10 +462,42 @@ export async function apply(
   ctx.inject(['webServer', 'loader'], hostCtx => {
     // With the market switch off the routes never mount, so the panel is
     // unreachable for this workspace until the switch returns on and the
-    // refresh chain remounts them.
+    // refresh chain remounts them. The resource-window routes ride the same
+    // switch: the window is this plugin's own surface, and a workspace that
+    // switched the whole market off has no window to serve.
     hostCtx.effect(() => {
-      if (surfaceToggles.allows('market')) return mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles)
-      return () => {}
+      if (!surfaceToggles.allows('market')) return () => {}
+      const disposeSuite = mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles)
+      const disposeResources = mountResourceRoutes(hostCtx, {
+        catalog,
+        panels: resources,
+        filters: resourceFilters,
+        workspace: process.cwd(),
+        setEntry: (face, entryId, enabled) => resourceFilters.setEntry(face, entryId, enabled),
+        applyFavorite: async id => {
+          const favorite = (await resourceFilters.favorites()).find(entry => entry.id === id)
+          if (favorite === undefined) throw new Error('favorite not found')
+          const offEntries: Partial<Record<keyof typeof favorite.surfaces, string[]>> = {}
+          for (const entry of favorite.offEntries) {
+            const separator = entry.indexOf(':')
+            const face = entry.slice(0, separator)
+            if (!(face in favorite.surfaces)) continue
+            ;(offEntries[face as keyof typeof favorite.surfaces] ??= []).push(entry)
+          }
+          await surfaceToggles.applyAll(favorite.surfaces)
+          await resourceFilters.applyFilters(favorite.surfaces, offEntries)
+        },
+        saveFavorite: async name => {
+          const filters = resourceFilters.currentFilters()
+          const offEntries = Object.entries(filters.offEntries).flatMap(([, ids]) => ids ?? [])
+          return (await resourceFilters.saveFavorite({ name, surfaces: filters.toggles, offEntries })).id
+        },
+        deleteFavorite: id => resourceFilters.deleteFavorite(id)
+      })
+      return () => {
+        disposeSuite()
+        disposeResources()
+      }
     }, 'dsh-agent-plugins-market: http routes')
   })
 

@@ -55,7 +55,13 @@ export function mountProjectHooks(ctx: Context, catalog: Catalog): { refresh(): 
 }
 
 /** Kimi's startup skill and system-prompt declarations use the existing scoped prompt service. */
-export function mountSuiteInstructions(ctx: Context, catalog: Catalog, dataRoot?: string): { refresh(): Promise<void>; dispose(): Promise<void> } {
+export function mountSuiteInstructions(
+  ctx: Context,
+  catalog: Catalog,
+  dataRoot?: string,
+  /** Whether one user-dimension suite may contribute instructions; absent allows all. */
+  suiteAllowed?: (suite: Suite) => boolean
+): { refresh(): Promise<void>; dispose(): Promise<void> } {
   return mountProjectSurface(
     ctx,
     catalog,
@@ -67,7 +73,8 @@ export function mountSuiteInstructions(ctx: Context, catalog: Catalog, dataRoot?
       return {
         async reconcile(projectSuites) {
           const projectDir = agent.session.header.cwd
-          const result = await suiteInstructions([...(await catalog.enabledUserSuites()), ...projectSuites], {
+          const userSuites = (await catalog.enabledUserSuites()).filter(suite => suiteAllowed?.(suite) !== false)
+          const result = await suiteInstructions([...userSuites, ...projectSuites], {
             ...(dataRoot === undefined ? {} : { dataRoot }),
             ...(projectDir === undefined ? {} : { projectDir })
           })

@@ -151,6 +151,8 @@ export class LspMountRegistry {
   private pluginDataRoot?: string
   /** Direct (user-configured) server provider; defaults to none. */
   private directProvider: () => Promise<Record<string, import('../../model/types.js').LspServerSpec>> = async () => ({})
+  /** Per-workspace entry filter; an absent provider mounts everything wanted. */
+  private entryFilter: (() => { allows(face: 'lsp', entryId: string): boolean }) | undefined
   private disabledProvider: () => Promise<Set<string>> = async () => new Set()
   private disabledSnapshot = new Set<string>()
 
@@ -201,6 +203,9 @@ export class LspMountRegistry {
       }
       for (const spec of servers) {
         if (disabled.has(`${key}/${spec.key}`)) continue
+        // The per-workspace resource filter answers by the status-row id, so
+        // the window and the mount agree on what one entry names.
+        if (this.entryFilter?.().allows('lsp', `lsp:${key}/${spec.key}`) === false) continue
         const serverConfig = expandLspServerConfig(toLspServerConfig(spec), context)
         config[`${key}/${spec.key}`] = await this.resolveServerCommand(serverConfig, spec.key, facts, pathExtensions)
       }
@@ -217,6 +222,7 @@ export class LspMountRegistry {
       const pathExtensions: string[] = []
       for (const [key, spec] of Object.entries(direct)) {
         if (disabled.has(`${DIRECT_LSP_SUITE_ID}/${key}`)) continue
+        if (this.entryFilter?.().allows('lsp', `lsp:direct/${key}`) === false) continue
         config[`${DIRECT_LSP_SUITE_ID}/${key}`] = await this.resolveServerCommand(toLspServerConfig(spec), key, facts, pathExtensions)
       }
       if (Object.keys(config).length > 0)
@@ -397,6 +403,15 @@ export class LspMountRegistry {
   /** Install the direct (user-configured) server provider used at reconcile time. */
   setDirectProvider(provider: () => Promise<Record<string, import('../../model/types.js').LspServerSpec>>): void {
     this.directProvider = provider
+  }
+
+  /**
+   * Install the per-workspace entry filter read at wanted-row time. A filtered
+   * server is never added to its suite's wanted config, so it unmounts through
+   * the ordinary fingerprint pass; the registry itself stays attached.
+   */
+  setEntryFilter(filter: () => { allows(face: 'lsp', entryId: string): boolean }): void {
+    this.entryFilter = filter
   }
   setDisabledProvider(provider: () => Promise<Set<string>>): void {
     this.disabledProvider = provider

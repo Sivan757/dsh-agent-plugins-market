@@ -68,6 +68,16 @@ export class RuntimeReconciler {
     return this.lspRegistry
   }
 
+  /** Install the per-workspace entry filter on the MCP mount registry. */
+  setMcpEntryFilter(filter: () => { allows(face: 'mcp', entryId: string): boolean }): void {
+    this.mcp.setEntryFilter(filter)
+  }
+
+  /** Install the per-workspace entry filter on the command mount registry. */
+  setCommandsEntryFilter(filter: () => { allows(face: 'commands', entryId: string): boolean }): void {
+    this.commands.setEntryFilter(filter)
+  }
+
   /**
    * Install the per-workspace surface gates, read on every pass.
    *

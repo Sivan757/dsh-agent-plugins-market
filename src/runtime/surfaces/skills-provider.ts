@@ -45,6 +45,8 @@ export interface SuiteSkillProviderOptions {
   dataRoot?: string
   /** Resolves the live shell seam; absent keeps dynamic-context placeholders literal. */
   shell?: () => ShellSeam | undefined
+  /** Whether one user-dimension suite may contribute skills here; absent allows all. */
+  suiteAllowed?: (suite: Suite) => boolean
 }
 
 interface LocatedSkill {
@@ -155,6 +157,7 @@ export class SuiteSkillProvider implements SkillProvider {
     const located: LocatedSkill[] = []
     const userSuites = await this.manager.enabledUserSuites()
     for (const suite of userSuites) {
+      if (this.options.suiteAllowed?.(suite) === false) continue
       for (const skill of suite.activeSurfaces.skills === false ? [] : suite.skills) {
         try {
           if (parseFrontmatterRecord(await readFile(skill.file, 'utf8')).disabled === true) continue
@@ -213,5 +216,38 @@ export class ToggledSkillProvider implements SkillProvider {
 
   get(...args: Parameters<SkillProvider['get']>): ReturnType<SkillProvider['get']> {
     return this.allows() ? this.inner.get(...args) : Promise.resolve(undefined)
+  }
+}
+
+/**
+ * A skill provider that drops the entries this workspace filtered off, while
+ * the surface switch itself keeps flowing through {@link ToggledSkillProvider}.
+ *
+ * The filter answers by the resource-window entry id (`skills:${name}`), which
+ * is the candidate name the harness would surface, so window and provider
+ * agree on what one row names. `get` stays unfiltered: a candidate the list
+ * never offered is never asked for, and keeping one code path for an explicit
+ * name lookup preserves direct reads the window cannot influence.
+ */
+export class EntryFilteredSkillProvider implements SkillProvider {
+  constructor(
+    private readonly inner: SkillProvider,
+    private readonly allowsEntry: (entryId: string) => boolean
+  ) {}
+
+  get name(): string {
+    return this.inner.name
+  }
+
+  async list(options: Parameters<SkillProvider['list']>[0]): ReturnType<SkillProvider['list']> {
+    const result = await this.inner.list(options)
+    // The observation shape keeps its completeness flag: filtering only trims
+    // which candidates are on offer, never whether discovery was authoritative.
+    if (!('candidates' in result)) return result.filter(candidate => this.allowsEntry(`skills:${candidate.name}`))
+    return { ...result, candidates: result.candidates.filter(candidate => this.allowsEntry(`skills:${candidate.name}`)) }
+  }
+
+  get(...args: Parameters<SkillProvider['get']>): ReturnType<SkillProvider['get']> {
+    return this.inner.get(...args)
   }
 }

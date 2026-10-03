@@ -12,7 +12,7 @@
  *
  * @module runtime/host/surface-toggle-service
  */
-import { ALL_SURFACES_ON, SURFACE_TOGGLE_KEYS, type SurfaceToggleKey, type SurfaceToggles } from '../../contracts/surface-toggles.js'
+import { ALL_SURFACES_ON, SURFACE_TOGGLE_KEYS, resolveSurfaceToggles, type SurfaceToggleKey, type SurfaceToggles } from '../../contracts/surface-toggles.js'
 import { loadSurfaceToggles, saveSurfaceToggles } from '../../application/state/surface-toggles.js'
 
 /** What a toggle change asks the runtime to do: the standard refresh chain. */
@@ -56,5 +56,15 @@ export class SurfaceToggleService {
     if (this.workspace !== '') await saveSurfaceToggles(this.dataRoot, this.workspace, this.current)
     await this.hooks.onTogglesChanged()
     return this.current
+  }
+
+  /**
+   * Replace the whole switch set in one write. Used when a favorite snapshot
+   * lands: the six switches and the entry filters must become one coherent
+   * document, and the caller owns running the refresh chain once afterwards.
+   */
+  async applyAll(toggles: SurfaceToggles): Promise<void> {
+    this.current = resolveSurfaceToggles(toggles)
+    if (this.workspace !== '') await saveSurfaceToggles(this.dataRoot, this.workspace, this.current)
   }
 }

@@ -46,12 +46,22 @@ interface UserCommandSpec {
 export class UserCommandMountRegistry {
   private readonly fingerprints = new Map<string, string>()
   private readonly live = new Map<string, () => void>()
+  /** Per-workspace entry filter; an absent provider registers everything wanted. */
+  private entryFilter: (() => { allows(face: 'commands', entryId: string): boolean }) | undefined
 
   constructor(
     private readonly ctx: Context,
     private readonly store: UserPanelStore,
     private readonly t: HostTranslate
   ) {}
+
+  /**
+   * Install the per-workspace entry filter read at wanted-row time, keyed by
+   * the panel path name the resource window lists (`commands:${entry.name}`).
+   */
+  setEntryFilter(filter: () => { allows(face: 'commands', entryId: string): boolean }): void {
+    this.entryFilter = filter
+  }
 
   /**
    * Sync the live registrations with the panel's enabled entries.
@@ -70,6 +80,7 @@ export class UserCommandMountRegistry {
     const owners = new Map<string, string>()
     for (const entry of entries) {
       if (entry.disabled) continue
+      if (this.entryFilter?.().allows('commands', `commands:${entry.name}`) === false) continue
       if (!USER_ENTRY_PATH.test(entry.name)) continue
       const callName = commandCallName(entry.name)
       const owner = owners.get(callName)

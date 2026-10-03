@@ -65,12 +65,23 @@ const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/
 export class CommandMountRegistry {
   private readonly fingerprints = new Map<string, string>()
   private readonly live = new Map<string, () => void>()
+  /** Per-workspace entry filter; an absent provider registers everything wanted. */
+  private entryFilter: (() => { allows(face: 'commands', entryId: string): boolean }) | undefined
 
   constructor(
     private readonly ctx: Context,
     private readonly t: HostTranslate = bindHostLocale(undefined),
     private readonly dataRoot?: string
   ) {}
+
+  /**
+   * Install the per-workspace entry filter read at wanted-row time. A filtered
+   * command never becomes wanted, which unregisters it through the ordinary
+   * reconcile pass — the same path a removed command file takes.
+   */
+  setEntryFilter(filter: () => { allows(face: 'commands', entryId: string): boolean }): void {
+    this.entryFilter = filter
+  }
 
   /** The live shell seam, when the profile has one; dynamic context stays literal without it. */
   private shell(): ShellSeam | undefined {
@@ -90,6 +101,9 @@ export class CommandMountRegistry {
         // source only, so two sources' same-named suites would collide.
         const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
         const key = `${suiteKey}/${spec.name}`
+        // The per-workspace resource filter answers by the call name the model
+        // types, so the window and the registry agree on what one row names.
+        if (this.entryFilter?.().allows('commands', `commands:${spec.name}`) === false) continue
         if (wanted.has(key)) {
           diagnostics.push({ suiteId: suiteKey, command: spec.name, reason: 'duplicate normalized command name' })
           continue
