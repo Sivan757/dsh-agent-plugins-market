@@ -99,6 +99,41 @@ export class Catalog implements MarketService {
   }
 
   /**
+   * Queue translations for every description the current catalog is missing.
+   *
+   * The panel translates lazily on read, which means a first open shows
+   * upstream text and fills in over the following seconds. This warm-up runs
+   * the same queue ahead of that first read, so a catalog that just scanned
+   * arrives already translated.
+   *
+   * It is inherently incremental and cheap to repeat: a description already in
+   * the cache enqueues nothing, so calling this on every startup costs one
+   * memory lookup per suite once the catalog has settled.
+   *
+   * The returned promise settles once the work is *queued*, not once it is
+   * translated — a caller that wants the translations themselves follows it
+   * with {@link settleDescriptions}. Callers with nothing to wait for use
+   * `void`.
+   *
+   * Nothing here runs for an `en` deployment: an English panel already shows
+   * the authored text, and translating it would spend quota to reproduce the
+   * input.
+   * @returns fulfillment after the missing descriptions are queued.
+   */
+  async warmDescriptions(): Promise<void> {
+    try {
+      const locale = this.ports.localePreference()
+      if (locale !== 'zh') return
+      const snapshot = await this.readUserCatalog()
+      for (const suite of snapshot.suites) {
+        this.localizeDescription(suite.sourceId, suite.id, suite.manifest.description, locale)
+      }
+    } catch {
+      // A warm-up that cannot read the catalog leaves the lazy path intact.
+    }
+  }
+
+  /**
    * Wait for queued description translations to finish.
    *
    * Nothing on the request path calls this — the panel renders upstream text
@@ -277,6 +312,9 @@ export class Catalog implements MarketService {
   /** Refresh one source checkout, or every source when sourceId is omitted. */
   async refreshSource(sourceId?: string): Promise<void> {
     await this.sourceStore.refresh(sourceId)
+    // A refresh is the moment new descriptions arrive; queue them before the
+    // user's next panel read rather than making that read discover them.
+    void this.warmDescriptions()
   }
 
   /** Progress snapshot for the progress route. */

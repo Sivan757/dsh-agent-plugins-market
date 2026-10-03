@@ -293,6 +293,13 @@ export async function apply(
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
+  // Translation needs the host model services, and those provision *after*
+  // apply() returns — warming here would find them absent and do nothing. Warm
+  // once they land instead, so a returning user's panel opens on translations
+  // it already paid for rather than starting from upstream text again.
+  ctx.inject(['llm', 'agentDefaultModel'], () => {
+    void catalog.warmDescriptions()
+  })
   // Configured seeds first, then the record this plugin presets: the market
   // lists the first-party collection on the first open, and the ordinary
   // refresh path clones it. Registration performs no network access.

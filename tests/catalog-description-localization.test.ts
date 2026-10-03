@@ -131,6 +131,50 @@ describe('Catalog description localization', () => {
     reopened.dispose()
   })
 
+  it('warms the whole catalog without a panel read', async () => {
+    const translator = stubTranslator(() => '中文描述')
+    const { catalog } = await catalogWith({ locale: 'zh', translator })
+    // No overview() call: the warm-up alone must queue and complete the work,
+    // so a returning user's panel opens on translations already paid for.
+    await catalog.warmDescriptions()
+    await catalog.settleDescriptions(5_000)
+    const overview = await catalog.overview()
+    expect(overview.suites[0]?.description).toBe('中文描述')
+    expect(overview.descriptionPending).toBeUndefined()
+    expect(translator.calls).toHaveLength(1)
+  })
+
+  it('re-warms incrementally, paying only for descriptions not yet cached', async () => {
+    const translator = stubTranslator(() => '中文描述')
+    const { catalog } = await catalogWith({ locale: 'zh', translator })
+    await catalog.warmDescriptions()
+    await catalog.settleDescriptions(5_000)
+    expect(translator.calls).toHaveLength(1)
+    // A second pass is a cache lookup per suite: nothing new to translate.
+    await catalog.warmDescriptions()
+    await catalog.settleDescriptions(1_000)
+    expect(translator.calls).toHaveLength(1)
+  })
+
+  it('warms nothing for the en locale', async () => {
+    const translator = stubTranslator(() => '中文描述')
+    const { catalog } = await catalogWith({ locale: 'en', translator })
+    await catalog.warmDescriptions()
+    await catalog.settleDescriptions(1_000)
+    expect(translator.calls).toEqual([])
+  })
+
+  it('keeps the panel usable when the warm-up itself fails', async () => {
+    const translator = stubTranslator(() => new Error('model unavailable'))
+    const { catalog } = await catalogWith({ locale: 'zh', translator })
+    await catalog.warmDescriptions()
+    await catalog.settleDescriptions(1_000)
+    // A failed warm-up is silent: the read still answers with upstream text.
+    const overview = await catalog.overview()
+    expect(overview.suites).toHaveLength(1)
+    expect(overview.suites[0]?.description).toBeTruthy()
+  })
+
   it('renders upstream text when no translator is wired at all', async () => {
     const { catalog } = await catalogWith({ locale: 'zh' })
     const overview = await catalog.overview()

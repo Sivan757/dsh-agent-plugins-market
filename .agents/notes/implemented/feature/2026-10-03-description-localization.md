@@ -22,6 +22,8 @@ Descriptions are localized in two layers, one per kind of author.
 
 This shape is deliberate. A 924-suite catalog cannot block its first paint on 924 model calls, and a panel that renders nothing until translation completes would be worse than the English it replaces.
 
+`Catalog.warmDescriptions()` runs the same queue ahead of that first read, so a returning user's panel opens on translations it already paid for. It is wired at two points: once the host `llm` and `agentDefaultModel` services provision (they mount after `apply()` returns, so warming any earlier would find them absent), and after every `refreshSource()`, which is the moment new descriptions arrive. The pass is incremental by construction — a cached description enqueues nothing — so repeating it costs one memory lookup per suite. It returns a promise that settles once the work is _queued_; `settleDescriptions()` waits for the translations themselves, and production callers use neither.
+
 ### A failure is invisible by construction
 
 Translation is an optimization, never a dependency. Every failure path — no LLM service, no default model, a provider error, a timeout, an empty answer, a corrupt cache file — degrades to the upstream text. Nothing in the localizer throws into `overview()`.
