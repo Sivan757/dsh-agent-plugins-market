@@ -7,10 +7,10 @@ import { SurfaceToggleService } from '../src/runtime/host/surface-toggle-service
 import { ALL_SURFACES_ON } from '../src/contracts/surface-toggles.js'
 
 type Handler = (req: unknown, res: unknown) => void
-interface RecordedRoutes extends Map<string, { handler: Handler }> {}
+type RecordedRoutes = Map<string, { handler: Handler }>
 
 function fakeHost(): { host: Record<string, unknown>; routes: RecordedRoutes } {
-  const routes = new Map<string, { handler: Handler }>() as RecordedRoutes
+  const routes: RecordedRoutes = new Map<string, { handler: Handler }>()
   const host = {
     webServer: {
       register(entry: { path: string; handler: Handler }): () => void {
@@ -19,7 +19,7 @@ function fakeHost(): { host: Record<string, unknown>; routes: RecordedRoutes } {
       }
     }
   }
-  return { host: host as unknown as Record<string, unknown>, routes }
+  return { host: host, routes }
 }
 
 async function makeService(workspace: string): Promise<SurfaceToggleService> {
@@ -31,16 +31,19 @@ describe('surface toggle routes', () => {
   it('registers both routes and serves the current toggles', async () => {
     const service = await makeService('/ws/alpha')
     const { host, routes } = fakeHost()
-    const dispose = mountSuiteRoutes(host as never, {} as never, undefined, service)
+    const dispose = mountSuiteRoutes(host, {} as never, undefined, service)
 
     expect(routes.get('/api/agent-plugins/surface-toggles')).toBeDefined()
     expect(routes.get('/api/agent-plugins/surface-toggles/set')).toBeDefined()
 
     let served: unknown
-    routes.get('/api/agent-plugins/surface-toggles')?.handler({}, {
-      writeHead: () => {},
-      end: (body: string) => (served = JSON.parse(body))
-    })
+    routes.get('/api/agent-plugins/surface-toggles')?.handler(
+      {},
+      {
+        writeHead: () => {},
+        end: (body: string) => (served = JSON.parse(body) as unknown)
+      }
+    )
     expect(served).toEqual(ALL_SURFACES_ON)
     dispose()
   })
