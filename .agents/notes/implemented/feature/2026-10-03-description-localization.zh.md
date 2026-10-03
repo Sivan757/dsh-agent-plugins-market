@@ -79,4 +79,4 @@ catalog 不归我们编辑。一个 source 是别人仓库的 checkout，每次�
 
 ## Testing
 
-`tests/bilingual-description.test.ts` 钉住层1 的切分。`tests/description-localizer.test.ts` 覆盖键稳定性、跨实例缓存复用、去重、并发上限、静默降级、可控时钟下的退避时序，以及缓存文件损坏。`tests/description-translator.test.ts` 用真实 `StreamChunk` 驱动翻译器，含终止性 error 与 aborted finish reason、以及调用方取消。 `tests/catalog-description-localization.test.ts` 走通经 `Catalog` 的完整路径：首读 pending、二读译文、`en` 语言不受影响、模型失败、详情弹窗与卡片共用缓存条目、以及跨 catalog 实例的缓存复用。
+`tests/bilingual-description.test.ts` 钉住层1 的切分。`tests/description-localizer.test.ts` 覆盖键稳定性、跨实例缓存复用、去重、并发上限、静默降级、可控时钟下的退避时序，以及缓存文件损坏。`tests/description-translator.test.ts` 用真实 `StreamChunk` 驱动翻译器，含终止性 error 与 aborted finish reason、以及调用方取消。`tests/description-translator-seam.test.ts` 挂载真实 Cordis 树，钉住这套接线所依赖的解析行为：插件入口只 inject 了 `skills` 与 `commands`，而 `ctx.get(name)` 仍能从兄弟 fiber 拿到 `llm` 与 `agentDefaultModel`。属性访问（`ctx.llm`）在未 inject 时会抛错；`get()` 不会 —— 这正是 `readModelCatalog` 自发布以来一直这样读 `llm` 的原因。`tests/catalog-description-localization.test.ts` 走通经 `Catalog` 的完整路径：首读 pending、二读译文、`en` 语言不受影响、模型失败、详情弹窗与卡片共用缓存条目、以及跨 catalog 实例的缓存复用。
