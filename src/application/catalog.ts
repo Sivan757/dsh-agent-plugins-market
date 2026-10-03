@@ -22,6 +22,7 @@ import { loadUserHooksSuite } from './panels/user-hooks.js'
 import { applyLspOverrides } from './server-config.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
 import { CatalogContext, type CatalogGitOptions, type CatalogOptions } from './catalog-context.js'
+import { DescriptionLocalizer, needsTranslation, type LocalizedDescription } from './description-localizer.js'
 import { InstallStore } from './install-store.js'
 import { LspService } from './lsp-service.js'
 import { McpService } from './mcp-service.js'
@@ -38,6 +39,7 @@ export class Catalog implements MarketService {
   private readonly installs: InstallStore
   private readonly mcp: McpService
   private readonly lsp: LspService
+  private readonly localizer: DescriptionLocalizer
 
   constructor(options: CatalogOptions) {
     this.context = new CatalogContext(options)
@@ -47,6 +49,7 @@ export class Catalog implements MarketService {
     this.installs = new InstallStore(this.context, this.sourceStore)
     this.mcp = new McpService(this.context, this.ports, this.sourceStore)
     this.lsp = new LspService(this.context, this.ports)
+    this.localizer = new DescriptionLocalizer({ dataRoot: this.context.dataRoot, translator: this.ports.descriptionTranslator })
   }
 
   /** Latest MCP mount diagnostics (suiteId -> reasons), fed by host reconcile. */
@@ -85,6 +88,27 @@ export class Catalog implements MarketService {
   /** Load persisted user state once at plugin activation. */
   async load(): Promise<void> {
     await this.context.load()
+    // Cached translations load alongside the catalog so the first overview
+    // answers from cache instead of re-asking the model.
+    await this.localizer.load()
+  }
+
+  /** Release the localizer's timers; in-flight translations still persist. */
+  dispose(): void {
+    this.localizer.dispose()
+  }
+
+  /**
+   * Wait for queued description translations to finish.
+   *
+   * Nothing on the request path calls this — the panel renders upstream text
+   * and re-reads. It exists so a warm-up pass or a test can observe the
+   * settled state instead of polling.
+   * @param deadlineMs - maximum wait; omitted waits for the queue alone.
+   * @returns whether the queue drained before the deadline.
+   */
+  async settleDescriptions(deadlineMs?: number): Promise<boolean> {
+    return this.localizer.settle(deadlineMs)
   }
 
   /** Append config-seeded sources missing from user state and persist them. */
@@ -140,18 +164,30 @@ export class Catalog implements MarketService {
     return applyLspOverrides(this.context.dataRoot, direct.length === 0 ? suites : [...suites, ...direct])
   }
 
-  /** The full market overview from one user snapshot. */
+  /**
+   * The full market overview from one user snapshot.
+   *
+   * Descriptions are localized on the way out: a suite whose description is
+   * already Chinese (or already bilingual) is served as authored, and every
+   * other one is translated in the background. The read itself never waits on
+   * a model call — a suite with no cached translation renders its original
+   * text and reports itself pending, and the panel re-reads until it lands.
+   */
   async overview(): Promise<OverviewPayload> {
     const snapshot = await this.readUserCatalog()
     const sourceRows: SourceOverview[] = await this.sourceStore.overviewRows(snapshot)
+    const locale = this.ports.localePreference()
+    let descriptionPending = 0
     const cards = snapshot.suites.map(suite => {
       const isInstalled = this.isInstalled(suite.sourceId, suite.id)
+      const localized = this.localizeDescription(suite.sourceId, suite.id, suite.manifest.description, locale)
+      if (localized.pending) descriptionPending += 1
       return {
         sourceId: suite.sourceId,
         suiteId: suite.id,
         name: suite.manifest.name,
         version: suite.manifest.version,
-        description: suite.manifest.description,
+        description: localized.text,
         keywords: suite.manifest.keywords ?? [],
         surfaces: suite.surfaces,
         enabled: suite.enabled,
@@ -173,8 +209,21 @@ export class Catalog implements MarketService {
         enabled: cards.filter(card => card.enabled).length
       },
       roots: { user: this.context.userRoot, data: this.context.dataRoot },
-      unmanaged: await this.sourceStore.unmanaged()
+      unmanaged: await this.sourceStore.unmanaged(),
+      ...(descriptionPending === 0 ? {} : { descriptionPending })
     }
+  }
+
+  /**
+   * Resolve one description for the active locale.
+   *
+   * Only the zh deployment translates: an English panel is already showing the
+   * authored text, so queueing model calls for it would spend the user's quota
+   * to reproduce the input.
+   */
+  private localizeDescription(sourceId: string, suiteId: string, description: string | undefined, locale: string): LocalizedDescription {
+    if (locale !== 'zh' || !needsTranslation(description)) return { text: description, pending: false }
+    return this.localizer.localize(sourceId, suiteId, description, locale)
   }
 
   /** One suite's full detail for the market detail modal. */
@@ -183,7 +232,11 @@ export class Catalog implements MarketService {
     const suite = snapshot.suites.find(entry => entry.sourceId === sourceId && entry.id === suiteId)
     if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
     const suiteKey = qualifiedSuiteId(sourceId, suiteId)
-    return buildSuiteDetail(suite, this.context.installed(sourceId, suiteId), this.mcp.diagnostics, await loadSuiteOverrides(this.context.dataRoot, suiteKey))
+    const detail = await buildSuiteDetail(suite, this.context.installed(sourceId, suiteId), this.mcp.diagnostics, await loadSuiteOverrides(this.context.dataRoot, suiteKey))
+    // The detail modal renders the same description as the card, so it takes
+    // the same translation (and queues the same cache miss).
+    const localized = this.localizeDescription(sourceId, suiteId, detail.description ?? undefined, this.ports.localePreference())
+    return { ...detail, description: localized.text ?? null }
   }
 
   /** One skill's full SKILL.md text for the market detail modal. */

@@ -14,6 +14,7 @@ export type { McpBackendInfo } from '../contracts/market.js'
 import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../contracts/mcp.js'
 import type { LspMountDiagnostic } from '../contracts/lsp.js'
+import type { DescriptionTranslator } from './description-localizer.js'
 
 /** One MCP tool observed from the host tool registry (structural). */
 export interface McpToolSnapshot {
@@ -78,6 +79,12 @@ export interface CatalogPorts {
   downloadRegion(): Promise<DownloadRegionSetting>
   /** The host locale preference ('zh' default when unset). */
   localePreference(): string
+  /**
+   * The host LLM seam used to translate upstream suite descriptions, or
+   * undefined when this deployment has no model route. Absent means the market
+   * renders upstream text as authored, which is the pre-existing behavior.
+   */
+  descriptionTranslator?: DescriptionTranslator | undefined
 }
 
 /** The seams a composition root may wire; the rest fall back to the defaults. */

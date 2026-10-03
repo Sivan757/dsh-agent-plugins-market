@@ -237,6 +237,12 @@ export interface OverviewPayload {
   roots: { user: string; data: string }
   /** Unmanaged `.sources/` checkouts (manual clones) available for adoption. */
   unmanaged?: UnmanagedSource[]
+  /**
+   * Descriptions still waiting for a translation, absent or 0 when none are.
+   * The panel re-reads while this is non-zero so a translated card replaces
+   * the original text without a manual refresh.
+   */
+  descriptionPending?: number
 }
 
 /** Host-side progress of the source mutation currently in flight. */

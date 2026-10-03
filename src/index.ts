@@ -27,6 +27,7 @@ import { ReconcileScheduler } from './runtime/core/reconcile-scheduler.js'
 import { MarketSettingsNamespace } from './runtime/host/settings-namespace.js'
 import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
+import { createDescriptionTranslator } from './runtime/host/description-translator.js'
 import { migratePluginStorage } from './application/state/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agents/agent-role-router.js'
 import { mountUnlessAgentTeams } from './runtime/agents/agent-teams-seat.js'
@@ -283,7 +284,11 @@ export async function apply(
     mcpBackend: () => settings.backend(),
     setMcpBackend: backend => settings.setBackend(backend),
     downloadRegion: () => settings.downloadRegion(),
-    localePreference: () => readLocalePreference() ?? 'zh'
+    localePreference: () => readLocalePreference() ?? 'zh',
+    // Built from the live context at apply time; the translator reads the LLM
+    // and default-model services per call, so a late-provisioning service is
+    // still picked up. Undefined here means the market renders upstream text.
+    descriptionTranslator: createDescriptionTranslator(ctx)
   }
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
@@ -378,6 +383,7 @@ export async function apply(
       autoUpdate.dispose()
       settings.dispose()
       userCommands.disposeAll()
+      catalog.dispose()
       void runtime.dispose()
     },
     'dsh-agent-plugins-market: lifecycle'

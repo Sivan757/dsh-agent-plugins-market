@@ -9,7 +9,7 @@
 import { createElement as h, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Button, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from '../../api.js'
-import { loadOverview, invalidateOverview, startSourceProgressPolling, type SourceProgressState } from '../../features/market/market-resource.js'
+import { loadOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from '../../features/market/market-resource.js'
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from '../../features/market/market-view-model.js'
 import { SourceTabsRow, type SourceTabItem } from '../../features/market/SourceTabsRow.js'
 import { SourceEditorModal, type EditorState } from '../../features/market/SourceEditorModal.js'
@@ -97,6 +97,18 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // Descriptions translate off the read path, so the first response can carry
+  // upstream text plus a count still in flight. Follow that count down and swap
+  // the translated cards in; the panel is fully usable throughout.
+  const pendingDescriptions = overview.descriptionPending ?? 0
+  useEffect(() => {
+    if (pendingDescriptions === 0) return
+    const handle = startDescriptionRefresh(setOverview)
+    return () => {
+      handle.stop()
+    }
+  }, [pendingDescriptions])
 
   const action = useCallback(
     async (key: string, path: string, body: Record<string, unknown>): Promise<boolean> => {
