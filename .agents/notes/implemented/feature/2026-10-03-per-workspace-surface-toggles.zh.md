@@ -9,7 +9,8 @@
 ## 为什么是这个形态
 
 - **全局存储、哈希 workspace 键**:开关是"这个用户对该项目的意见";同一仓库的两个 checkout 各持独立意见,且任何路径都不会泄进文件名。
-- **闸在挂载数据流而非 UI**:skills 经 `ToggledSkillProvider` 返回空列表,MCP 调度器对空 suite 列表做 reconcile,LSP 提供空服务表,用户命令 reconciliation 提前返回,角色列表折叠为空,market 路由不挂载。每个 surface 的座位在开关切换中保持存活,无需重注册。
+- **闸在挂载数据流而非 UI**:每个 surface 在它自己产出数据的地方应答自己的开关,且所有座位在开关切换中保持存活、无需重注册。skills 经 `ToggledSkillProvider` 返回空列表——它同时包住两个贡献者:套件 provider 与用户自己的面板条目;角色列表折叠为空。MCP、commands 与 LSP 的套件挂载在 reconciler 各自的挂载分支里读开关:enabled-suite 列表从不被过滤,因为三者都从同一份快照挂载,为某一个开关丢掉套件会连带拆掉它在另外两个 surface 上的挂载。同一道闸也覆盖项目维度贡献者,因此 commands 或 MCP 关闭时项目侧挂载同样归零,commands 关闭时会释放用户面板的命令注册而不是跳过该轮。LSP 另有直连服务表归零,所以直连行与套件挂载都归零。market 路由则完全不挂载。
+- **六面彼此正交**:MCP 与 LSP 共用一份套件快照,但不共用开关。关闭 MCP 会把 MCP 挂载 reconcile 到零个服务,而同一批套件保留其语言服务器;LSP 反之。开关经普通 reconcile 链抵达挂载分支。
 - **宿主 slot 而非自建面板**:`conversation.input.left` 是无占用、零替换风险(replaceRisk none)的增量座位,渲染位置正是用户要求的地方——会话框旁。
 
 ## 考虑过的替代方案
