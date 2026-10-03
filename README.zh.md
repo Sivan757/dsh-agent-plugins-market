@@ -49,7 +49,7 @@
 
 ## 你可以用它做什么
 
-- 在会话输入框旁的开关条里，按项目开关插件的六类 surface——市场、技能、命令、代理角色、MCP、LSP；状态存全局、按工作区键控，绝不写进项目目录。
+- 从会话输入框旁的四方格按钮打开项目资源窗口：列出本项目已安装的套件、技能、命令、代理角色、MCP 与 LSP 服务，可按条目只在本项目过滤；把整套开关保存为跨项目收藏，随处套用。状态存全局、按工作区键控，绝不写进项目目录。
 
 - **十种套件布局。** Claude Code、Codex、Cursor、Kimi Code、ZCode、Qoder CLI、GitHub Copilot CLI、Universal `.plugin/`、[agent-plugins](https://agent-plugins.org) 与无清单技能集合。
 - **来源。** 添加 Git 仓库、本地目录或压缩包（`.zip` / `.tar.gz` / `.tgz` / `.tar`）；收编自己克隆的目录；按需刷新；删除来源时可一并删除受管目录。
