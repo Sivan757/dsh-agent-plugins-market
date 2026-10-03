@@ -1,5 +1,6 @@
 {
   "name": "dsh-agent-plugins-market",
+  "icon": "./assets/dsh-agent-plugins.png",
   "description": "One-stop skills, subagent, MCP and LSP manager inside DeepSeek Harness (DSH), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.",
   "version": "0.9.0",
   "type": "module",
@@ -12,12 +13,15 @@
     },
     "./client": "./client/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
     "client",
     "schemas",
+    "locale",
+    "assets/dsh-agent-plugins.png",
     "cordis.patch.yml",
     "LICENSE",
     "README.md",

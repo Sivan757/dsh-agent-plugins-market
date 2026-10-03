@@ -10,6 +10,8 @@ The same shape repeated everywhere the plugin faced a host-owned surface. The br
 
 ## Decision
 
+Settings placement is owned by [localized Agent Plugins branding and bundle settings](../feature/2026-10-04-agent-plugins-branding.md): the installed package uses plugins.bundle.config rather than the official plugins.item list.
+
 **One owner per fact, and the host owns what the host already owns.**
 
 Settings. `src/contracts/settings.ts` is the single place a default, a field name, or a "what does absent mean" rule is written. `MarketSettingsSchema` declares those defaults to the host; it does not hold them. Every reader — the node half's four switches, the catalog's initial value, the browser card — goes through `resolveMarketSettings`. The registration declares no `base` layer: with every field carrying a schema default, a `base` was a second copy of the same values that changed nothing about the resolved result.

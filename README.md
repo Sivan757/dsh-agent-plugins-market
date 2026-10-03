@@ -1,6 +1,8 @@
-<img src="docs-site/public/favicon.svg" alt="" width="48" height="48" />
+<img src="assets/dsh-agent-plugins.png" alt="Agent Plugins" width="64" height="64" />
 
-# dsh-agent-plugins-market
+# Agent Plugins
+
+`dsh-agent-plugins-market`
 
 **A one-stop skills, subagent, MCP and LSP manager inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.**
 
@@ -73,7 +75,7 @@ Install into your profile, replacing `<name>` with its name:
 dsh plugin --profile <name> add dsh-agent-plugins-market
 ```
 
-1. Restart DSH and open **Settings → Agent Plugins Market**.
+1. Restart DSH and open **Settings → Agent Plugins**.
 2. The market already lists the first-party source; press **Refresh** to fetch its suites. To pull in more, add a source, for example `https://github.com/anthropics/claude-plugins-official`.
 3. Open a suite, review its contents, then install it and ensure it is enabled.
 4. For a suite with skills, check the **Skills** tab and type `/` in chat to find its user-invocable skills. For an MCP suite, check **MCP services** and resolve any credential or connection notice before using its tools.

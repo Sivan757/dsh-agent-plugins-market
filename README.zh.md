@@ -1,6 +1,8 @@
-<img src="docs-site/public/favicon.svg" alt="" width="48" height="48" />
+<img src="assets/dsh-agent-plugins.png" alt="Agent 扩展" width="64" height="64" />
 
-# dsh-agent-plugins-market
+# Agent 扩展
+
+`dsh-agent-plugins-market`
 
 **在 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 之内，一站式管理 skills、subagent、MCP、LSP，兼容 Claude Code、Codex、Cursor、Kimi 等 agent plugins 体系。**
 
@@ -73,7 +75,7 @@
 dsh plugin --profile <name> add dsh-agent-plugins-market
 ```
 
-1. 重启 DSH，打开 **设置 → Agent Plugins 市场**。
+1. 重启 DSH，打开 **设置 → Agent 扩展**。
 2. 市场里已经列出第一方来源；点**刷新**即可拉取其中的套件。想补充更多内容时再添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。
 3. 打开套件查看内容，确认后安装，并确保套件已启用。
 4. 如果套件提供技能，先在**技能**页签查看，再在聊天中输入 `/` 查找允许手动调用的技能。如果提供 MCP，前往 **MCP 服务**检查状态，处理凭据或连接提示后再使用工具。

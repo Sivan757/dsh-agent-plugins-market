@@ -1,24 +1,12 @@
 /**
- * The Agent Plugins Market page on the host's Plugins panel: the market
- * feature's configuration entry, named after the market itself.
- *
- * The page's Plugins panel renders every `plugins.item` entry twice: a
- * `summary` one-liner on the official card, and the `page` form on the
- * entry's detail page. This component answers both views. The page view is
- * the host's `SettingsForm` frame around controls bound to the published
- * `SettingsFormModel` through the market's binding (`market-card-form.ts`):
- * booleans ride the host Switch atom, the download region rides the host
- * SegmentedControl atom, and every control stages through the form's actions
- * so one save commits all of them. Leaving the page discards the staged
- * edits — the host form's own contract, which this entry adopts.
- *
+ * Configuration on the installed bundle's detail page. The host SettingsForm
+ * owns staged changes, save feedback, and discard-on-unmount behavior; the
+ * market binding supplies its switches, download region, and backend probe.
  * @module client/McpPluginCard
  */
 import { createElement as h, useEffect, type ReactNode } from 'react'
 import { SegmentedControl, SettingsForm, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-// Type-only: the Plugins page's SlotMap merge (the 'plugins.item' entry and its
-// summary/page view props). Cross-plugin collaboration goes through slots,
-// never a value import (client bundle purity gate).
+// Import the published slot types only; runtime collaboration uses the host slots service.
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
@@ -41,12 +29,9 @@ const SWITCH_COPY: Record<MarketSwitchField, { label: MarketCopyKey; description
   feedbackEnabled: { label: 'feedbackToggleLabel', description: 'feedbackToggleDesc' }
 }
 
-/** Copy key of the summary one-liner the official card renders. */
-const SUMMARY_KEY = 'marketCardDesc' satisfies MarketCopyKey
-
 /** The plugin's locale keys this entry renders. */
 type MarketCopyKey =
-  | 'marketCardDesc' | 'mcpCardTitle' | 'mcpCardDesc' | 'projectLayoutsLabel' | 'projectLayoutsDesc'
+  | 'mcpCardTitle' | 'mcpCardDesc' | 'projectLayoutsLabel' | 'projectLayoutsDesc'
   | 'autoUpdateLabel' | 'autoUpdateDesc' | 'feedbackToggleLabel' | 'feedbackToggleDesc'
   | 'mcpCardReadonly' | 'mcpBackendHostMissing' | 'regionLabel' | 'regionHint'
   | 'regionAuto' | 'regionGlobal' | 'regionChina' | 'regionResolved'
@@ -54,7 +39,7 @@ type MarketCopyKey =
   | 'settingOverridden' | 'settingReset' | 'settingUnavailable'
 
 /** Props the renderer binds: the asked view, the injected actions, and the locale seats. */
-export interface McpPluginCardProps extends MarketFormActions, PropsRuntime<'plugins.item'> {
+export interface McpPluginCardProps extends MarketFormActions, PropsRuntime<'plugins.bundle.config'> {
   /** The bound locale translate; the host puts it here through the `locale` registration. */
   t: (key: MarketCopyKey, params?: Record<string, unknown>) => string
   useMarketCard: <S>(select: (state: MarketCardState) => S) => S
@@ -132,15 +117,9 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
   const { t, useMarketCard, edit, resetField, save, discard, refreshProbe } = props
   const state = useMarketCard(current => current)
 
-  // Only the page reads the probe (the region hint and the compat guard); the
-  // summary stays a one-liner, and the official card shows many of them.
   useEffect(() => {
-    if (props.view === 'page') refreshProbe()
-  }, [refreshProbe, props.view])
-
-  // The official card asks for the one-liner; an entry whose namespace is not
-  // served leaves no trace, not even the one-liner.
-  if (props.view === 'summary') return state.available ? t(SUMMARY_KEY) : null
+    refreshProbe()
+  }, [refreshProbe])
 
   // Controls lock while a save is on the wire, so an edit staged mid-save
   // cannot be wiped by the save's own settlement clearing the staged map.

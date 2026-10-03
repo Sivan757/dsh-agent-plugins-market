@@ -10,6 +10,8 @@ Status: implemented
 
 ## Decision
 
+设置入口位置由 [Agent 扩展双语品牌与插件内设置](../feature/2026-10-04-agent-plugins-branding.zh.md) 持有：已安装插件使用 plugins.bundle.config，而非官方 plugins.item 列表。
+
 **一个事实只有一个归属，宿主已经拥有的就归宿主。**
 
 设置。`src/contracts/settings.ts` 是默认值、字段名与「缺失意味着什么」的唯一落笔处。`MarketSettingsSchema` 只是把这些默认值声明给宿主，并不持有它们。每个读取方——node 半边的四个开关、catalog 的初值、浏览器卡片——都走 `resolveMarketSettings`。注册不再声明 `base` 层：每个字段都带 schema 默认值，`base` 只是同一批值的第二份拷贝，且不改变解析结果。

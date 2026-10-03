@@ -2,14 +2,15 @@
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
-import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
+import { describe, expect, it, vi } from 'vitest'
+import { MARKET_SETTINGS_DEFAULTS, MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../src/contracts/settings.js'
 import { bindMarketCardForm, type MarketCardFace, type MarketCardState } from '../src/client/features/settings-card/market-card-form.js'
 import { McpPluginCard } from '../src/client/features/settings-card/McpPluginCard.js'
+import { apply, name as packageName } from '../src/client/index.js'
 
 /** The renderer-side props of the entry, written out so the test binds only what the host binds. */
 interface EntryProps {
-  view: 'summary' | 'page'
+  view: 'page'
   t: (key: string) => string
   useMarketCard: <S>(select: (state: MarketCardState) => S) => S
   edit: MarketCardFace['edit']
@@ -44,7 +45,7 @@ function scopeDouble(initial: Partial<MarketSettings> = {}) {
   }
 }
 
-function faceFor(view: 'summary' | 'page', initial: Partial<MarketSettings> = {}): EntryProps {
+function faceFor(view: 'page', initial: Partial<MarketSettings> = {}): EntryProps {
   const bound = bindMarketCardForm(scopeDouble(initial), async () => ({
     backend: 'builtin' as const,
     hostClient: { available: true },
@@ -62,10 +63,70 @@ function faceFor(view: 'summary' | 'page', initial: Partial<MarketSettings> = {}
   }
 }
 
-describe('market plugins.item entry views', () => {
-  it('renders the summary one-liner on the official card', () => {
-    const html = renderToStaticMarkup(h(McpPluginCard, faceFor('summary')))
-    expect(html).toBe('marketCardDesc')
+describe('installed bundle configuration', () => {
+  it('registers by package name only while its settings namespace is served', () => {
+    const entries: Array<{ meta: Record<string, unknown>; component: (props: never) => unknown }> = []
+    const active = new Set<Record<string, unknown>>()
+    const disposed = vi.fn()
+    const scope = { ...scopeDouble(), subscribe: () => disposed }
+    let serve!: () => () => void
+    let language = 'zh'
+    const slots = {
+      inject: (_slot: string, register: () => unknown) => {
+        register()
+      },
+      register: (meta: Record<string, unknown>, component: (props: never) => unknown) => {
+        entries.push({ meta, component })
+        active.add(meta)
+        return () => {
+          active.delete(meta)
+        }
+      }
+    }
+    const get = vi.fn(() => scope)
+    apply({
+      effect: () => {},
+      slots,
+      locale: { register: () => {}, bind: () => key => `${language}:${key}` },
+      remote: { credentials: { describe: async () => ({ ok: true }), set: async () => {}, unset: async () => {} } },
+      inject: (_services, register) =>
+        register({
+          slots,
+          configForms: {
+            get,
+            whileServed: (namespaces: readonly string[], register: (served: ReadonlySet<string>) => () => void) => {
+              expect(namespaces).toEqual([MARKET_SETTINGS_NAMESPACE])
+              serve = () => register(new Set(namespaces))
+              return () => {}
+            }
+          }
+        })
+    })
+    expect(entries.some(entry => entry.meta.name === 'plugins.bundle.config')).toBe(false)
+    let stop = serve()
+    const entry = entries.find(entry => entry.component === McpPluginCard)!
+    expect(entry.meta).toMatchObject({ name: 'plugins.bundle.config', key: packageName, locale: MARKET_SETTINGS_NAMESPACE })
+    expect(entry.meta).not.toHaveProperty('id')
+    expect(entries.some(entry => entry.meta.name === 'plugins.item')).toBe(false)
+    expect(entries.some(entry => entry.meta.name === 'settings.section')).toBe(true)
+    expect(get).toHaveBeenCalledWith(MARKET_SETTINGS_NAMESPACE)
+    const first = (entry.meta.inject as () => MarketCardFace)()
+    first.edit('autoUpdateSources', 'true')
+    stop()
+    expect(active.has(entry.meta)).toBe(false)
+    expect(disposed).toHaveBeenCalledOnce()
+    stop = serve()
+    const second = (entries.at(-1)!.meta.inject as () => MarketCardFace)()
+    expect(second).not.toBe(first)
+    expect(second.hooks.marketCard.getSnapshot().dirty).toBe(false)
+    stop()
+    expect(disposed).toHaveBeenCalledTimes(2)
+    const originalSection = entries.find(item => item.meta.name === 'settings.section')!
+    const firstLabel = typeof originalSection.meta.label === 'function' ? (originalSection.meta.label as () => string)() : originalSection.meta.label
+    expect(firstLabel).toBe('zh:nav')
+    language = 'en'
+    const nextLabel = originalSection.meta.label
+    expect(typeof nextLabel === 'function' ? (nextLabel as () => string)() : nextLabel).toBe('en:nav')
   })
 
   it('renders the staged form controls on the entry page', () => {
