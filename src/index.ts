@@ -405,9 +405,8 @@ export async function apply(
   // entries it serves collapse to none.
   ctx.skills.registerProvider(control => {
     userPanelControl = control
-    return new ToggledSkillProvider(
-      new EntryFilteredSkillProvider(new UserPanelSkillProvider(panels.skills), entryId => resourceFilters.allowsEntry('skills', entryId)),
-      () => surfaceToggles.allows('skills')
+    return new ToggledSkillProvider(new EntryFilteredSkillProvider(new UserPanelSkillProvider(panels.skills), entryId => resourceFilters.allowsEntry('skills', entryId)), () =>
+      surfaceToggles.allows('skills')
     )
   })
 
@@ -416,11 +415,9 @@ export async function apply(
   const listRoles = async (parent?: unknown) => {
     if (!surfaceToggles.allows('agents')) return []
     const user = (await resources.agents.list(true))
-      .filter(entry => resourceFilters.allowsEntry('agents', 'agents:' + (entry.origin === 'plugin' ? entry.id ?? entry.name : entry.name)))
+      .filter(entry => resourceFilters.allowsEntry('agents', 'agents:' + (entry.origin === 'plugin' ? (entry.id ?? entry.name) : entry.name)))
       .map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name }))
-    const project = (await projectAgentRoles(catalog, parent)).filter(role =>
-      resourceFilters.allowsEntry('agents', 'agents:' + role.name)
-    )
+    const project = (await projectAgentRoles(catalog, parent)).filter(role => resourceFilters.allowsEntry('agents', 'agents:' + role.name))
     return [...user, ...project]
   }
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
@@ -442,9 +439,7 @@ export async function apply(
       )
       const mcp = mountProjectMcp(hostCtx, catalog, dataRoot, () => surfaceToggles.allows('mcp'))
       const hooks = mountProjectHooks(hostCtx, catalog)
-      const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot, suite =>
-        resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id)
-      )
+      const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot, suite => resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id))
       projectCommands = mounted
       projectMcp = mcp
       projectHooks = hooks
@@ -460,14 +455,15 @@ export async function apply(
   })
 
   ctx.inject(['webServer', 'loader'], hostCtx => {
-    // With the market switch off the routes never mount, so the panel is
-    // unreachable for this workspace until the switch returns on and the
-    // refresh chain remounts them. The resource-window routes ride the same
-    // switch: the window is this plugin's own surface, and a workspace that
-    // switched the whole market off has no window to serve.
+    // With the market switch off the market routes never mount, so the panel
+    // is unreachable for this workspace until the switch returns on and the
+    // refresh chain remounts them. The resource-window routes stay mounted
+    // either way: the window is the meta-surface that owns all six switches,
+    // and taking it down with one of them would strand the user.
     hostCtx.effect(() => {
-      if (!surfaceToggles.allows('market')) return () => {}
-      const disposeSuite = mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles)
+      const disposeSuite = surfaceToggles.allows('market')
+        ? mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles)
+        : undefined
       const disposeResources = mountResourceRoutes(hostCtx, {
         catalog,
         panels: resources,
@@ -495,7 +491,7 @@ export async function apply(
         deleteFavorite: id => resourceFilters.deleteFavorite(id)
       })
       return () => {
-        disposeSuite()
+        disposeSuite?.()
         disposeResources()
       }
     }, 'dsh-agent-plugins-market: http routes')

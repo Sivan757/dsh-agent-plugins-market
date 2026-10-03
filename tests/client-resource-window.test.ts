@@ -150,15 +150,16 @@ describe('ResourceWindow', () => {
     expect(entryCall?.body).toMatchObject({ face: 'skills', entryId: 'skills:dsh-doc', enabled: false })
   })
 
-  it('toggles the card and list view through the segmented control', async () => {
+  it('toggles the card and list view through the single icon button', async () => {
     await mount()
-    const viewlist = [...document.querySelectorAll('[role="tablist"]')].at(-1)!
-    const segments = [...viewlist.querySelectorAll('[role="tab"]')] as HTMLButtonElement[]
-    expect(segments).toHaveLength(2)
-    // Card is selected by default; the list segment switches the data attribute.
+    const toggle = document.querySelector('[class*="viewToggle"]') as HTMLButtonElement
+    expect(toggle).not.toBeNull()
+    // Card is selected by default; one click flips the data attribute to list.
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('card')
-    await act(async () => segments[0]!.click())
+    await act(async () => toggle!.click())
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('list')
+    await act(async () => toggle!.click())
+    expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('card')
   })
 
   it('applies a favorite through its chip and reports a toast', async () => {

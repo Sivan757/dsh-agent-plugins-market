@@ -30,23 +30,31 @@
   color: var(--dsw-alias-state-business-primary);
 }
 
-.entryGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.6px;
-  width: 17px;
-  height: 17px;
+.entryGlyph {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.entryGridCell {
-  border-radius: 2.5px;
-  background: currentColor;
+.entryPlus {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--dsw-alias-state-business-primary);
+  transform: rotate(10deg);
 }
 
 .entryDot {
   position: absolute;
-  top: 3px;
-  right: 3px;
+  top: 5px;
+  right: 5px;
   width: 8px;
   height: 8px;
   border-radius: 999px;
@@ -279,4 +287,31 @@
 .nameField {
   width: 100%;
   box-sizing: border-box;
+}
+
+.viewToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.viewToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.viewToggle svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }

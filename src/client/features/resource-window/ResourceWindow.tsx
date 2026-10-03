@@ -9,7 +9,7 @@
  * chain the composer switches use, so the row state is live, not cosmetic.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, Input, Modal, Pill, SegmentedControl, SegmentedTabs, Switch, Tag, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Modal, Pill, SegmentedTabs, Switch, Tag, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SegmentedTab } from '@deepseek-ai/dsh-client-ui-primitives'
 import { IconSearchOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import { RESOURCE_FACE_ORDER, type ResourceEntryWire, type ResourceFace } from '../../../contracts/resource-window.js'
@@ -130,7 +130,6 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
     h(
       'div',
       { className: css.headerRow },
-      h('h2', { className: css.headerTitle }, t('resourceWindowTitle')),
       h('span', { className: css.workspaceChip, title: data?.workspace ?? '' }, workspaceLabel(data?.workspace ?? '')),
       h('span', { className: css.subtitle }, t('resourceWindowSubtitle'))
     ),
@@ -204,16 +203,24 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
         'aria-label': t('resourceWindowSearchPh'),
         onChange: event => setQuery(event.currentTarget.value)
       }),
-      h(SegmentedControl<ViewMode>, {
-        id: 'agent-plugins-resource-view',
-        label: t('resourceWindowViewGroup'),
-        value: view,
-        onChange: setView,
-        options: [
-          { value: 'list', label: t('resourceWindowViewList'), title: t('resourceWindowViewList') },
-          { value: 'card', label: t('resourceWindowViewCard'), title: t('resourceWindowViewCard') }
-        ]
-      })
+      h(
+        'button',
+        {
+          type: 'button',
+          className: css.viewToggle,
+          'aria-label': view === 'card' ? t('resourceWindowViewList') : t('resourceWindowViewCard'),
+          title: view === 'card' ? t('resourceWindowViewList') : t('resourceWindowViewCard'),
+          onClick: () => setView(view === 'card' ? 'list' : 'card')
+        },
+        view === 'card'
+          ? h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: 'M4 6h16M4 12h16M4 18h16' }))
+          : h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, [
+              h('rect', { x: 4, y: 4, width: 7, height: 7, rx: 1.5 }),
+              h('rect', { x: 13, y: 4, width: 7, height: 7, rx: 1.5 }),
+              h('rect', { x: 4, y: 13, width: 7, height: 7, rx: 1.5 }),
+              h('rect', { x: 13, y: 13, width: 7, height: 7, rx: 1.5 })
+            ])
+      )
     ),
     // The list. One shared panel id: only the active face renders.
     h(

@@ -51,13 +51,14 @@ export function ComposerResourceEntry({ t }: ComposerResourceEntryProps): ReactN
         onClick: () => setOpen(value => !value)
       },
       h(
-        'span',
-        { className: css.entryGrid, 'aria-hidden': true },
-        h('span', { className: css.entryGridCell }),
-        h('span', { className: css.entryGridCell }),
-        h('span', { className: css.entryGridCell }),
-        h('span', { className: css.entryGridCell })
+        'svg',
+        { className: css.entryGlyph, viewBox: '0 0 18 18', 'aria-hidden': true },
+        h('rect', { x: 1.5, y: 1.5, width: 6, height: 6, rx: 1.5 }),
+        h('rect', { x: 10.5, y: 1.5, width: 6, height: 6, rx: 1.5 }),
+        h('rect', { x: 1.5, y: 10.5, width: 6, height: 6, rx: 1.5 }),
+        h('rect', { x: 10.5, y: 10.5, width: 6, height: 6, rx: 1.5 })
       ),
+      h('span', { className: css.entryPlus, 'aria-hidden': true }, '+'),
       filtered ? h('span', { className: css.entryDot, 'aria-hidden': true }) : null
     ),
     h(ResourceWindow, { t, open, onClose: () => setOpen(false) })
