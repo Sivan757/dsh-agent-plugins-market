@@ -13,18 +13,15 @@ describe('pickBilingualDescription', () => {
   })
 
   it('picks the Chinese segment under the zh locale (middot separator)', () => {
-    expect(pickBilingualDescription('DSH 一次性只读旁问插件 · One-shot read-only side-ask plugin', zhT))
-      .toBe('DSH 一次性只读旁问插件')
+    expect(pickBilingualDescription('DSH 一次性只读旁问插件 · One-shot read-only side-ask plugin', zhT)).toBe('DSH 一次性只读旁问插件')
   })
 
   it('picks the English segment under the en locale (middot separator)', () => {
-    expect(pickBilingualDescription('DSH 一次性只读旁问插件 · One-shot read-only side-ask plugin', enT))
-      .toBe('One-shot read-only side-ask plugin')
+    expect(pickBilingualDescription('DSH 一次性只读旁问插件 · One-shot read-only side-ask plugin', enT)).toBe('One-shot read-only side-ask plugin')
   })
 
   it('supports the dash separator and either segment order', () => {
-    expect(pickBilingualDescription('One-shot read-only side-ask plugin - DSH 一次性只读旁问插件', zhT))
-      .toBe('DSH 一次性只读旁问插件')
+    expect(pickBilingualDescription('One-shot read-only side-ask plugin - DSH 一次性只读旁问插件', zhT)).toBe('DSH 一次性只读旁问插件')
     expect(pickBilingualDescription('管理套件来源 - Manage suite sources', enT)).toBe('Manage suite sources')
   })
 

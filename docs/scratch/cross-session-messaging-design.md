@@ -1,7 +1,6 @@
 # DSH 会话间通信(cross-session messaging)设计文档
 
-> 版本:架构研究稿(2026-10-03) · 对标 Claude Code `Message your other Claude Code sessions`
-> 标注约定:**【事实】** 已复核到源码行;**【推断】** 由事实推导但未直接验证;**【未证实】** 无证据;**【建议】** 提案而非结论。
+> 版本:架构研究稿(2026-10-03) · 对标 Claude Code `Message your other Claude Code sessions` 标注约定:**【事实】** 已复核到源码行;**【推断】** 由事实推导但未直接验证;**【未证实】** 无证据;**【建议】** 提案而非结论。
 
 ## 1. 现状盘点摘要
 
@@ -27,7 +26,7 @@
 ## 2. 与 Claude Code 逐项对齐表
 
 | 能力 | Claude Code | DSH 现状 | 差距 |
-| :- | :- | :- | :- |
+| :-- | :-- | :-- | :-- |
 | 发现 `ListAgents`(`/list-agents`) | 列 subagent / teammate / 本机其他会话 / 云 / Remote Control,含自身名字 | **部分**:Team 内 `list_agents` 仅本 Team(tool-agent-team:232-240);跨会话只有 `sessionQuery.listSessions` 与 Remote `sessionController.list` | 无统一 peer 视图、无本会话自身可寻址名、无跨进程 liveness |
 | 投递 `SendMessage` | 跨进程 socket + 步边界注入 + 回复地址 | **部分**:Team mailbox 语义完整;跨会话靠 `resolveAgent`+`prompt`(steer/followup)与 schedule 的 followup+flush | 无"会话间"语义工具、无 sender 身份与回复地址、无 refused/hold 分级 |
 | @提及定向 | `@name` typeahead + `/rename` + 重名消歧 | **无**:宿主有 `rename`/sessionTitle,但那是可被 [session/session-title-llm] 自动改写的展示标题,不是稳定 peer 名;客户端 @ 只覆盖文件引用 | 需 peer 名注册表 + 不可变名/重名后缀 |
@@ -61,7 +60,7 @@
 ## 5. 分阶段实施拆解
 
 | 阶段 | 内容 | 验收标准 | 工作量 | 前置 |
-| :- | :- | :- | :- | :- |
+| :-- | :-- | :-- | :-- | :-- |
 | P0 发现(只读) | 宿主新增 `list_peers`,数据源 `sessionQuery.listSessions` + 只读标题投影 | 能列出本进程全部会话:id、标题、cwd、live;**不含任何投递路径** | S | 无 |
 | P1 同进程投递 | `send_peer_message({target,message,notifyWhenIdle?})` + 会话级入站 `accept/hold/refuse`;复用 resolveAgent/steer/followup/messageId | 两会话互发;运行中步边界收到、空闲起新 turn;同一 messageId 重放只出现一次;hold 期间不投递且可放行 | M | P0 |
 | P2 空闲通知 | 监听 `agent/status` 边沿 → 会话目录内 idle 订阅记录 + 12h TTL | 被观察会话空闲后订阅方收到一行通知;超期自动清理并告知 | M | P1 |

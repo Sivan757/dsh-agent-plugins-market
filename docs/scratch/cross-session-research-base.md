@@ -9,7 +9,7 @@
 - **list_agents**(index.ts:232-240):只列本 Team 的 Lead+teammate,状态 running/inactive/provisioning/failed。发现域 = 一个 Team,不是机器上的会话。
 - **send_message**(index.ts:215-230):投递语义在 agent-team/src/mailbox.ts——先 journal 追加 `team/message/queued` 并 flush(mailbox.ts:140-147),再按 target 串行 dispatch;live 目标经 `root.steer()`(mailbox.ts:249-252)或 `steerHostSubagentPrompt`(mailbox.ts:262,定义于 packages/subagent/subagent/src/internal.ts:94-110)进入目标 Session inbox;目标 Session 持久持有 messageId 才记 delivered(mailbox.ts:301-306;session-message.ts:25-31)。inactive 目标冷恢复时先读磁盘日志去重(mailbox.ts:317-331)。上限:maxPending=64/成员、65536 字节(agent-team/src/index.ts:45-49)。
 - **wait_agent**(index.ts:242-275):只观察调用后的 roster/mailbox/task 边沿;无 active peer 立即 noProgress;不唤醒 inactive——即没有"等它空闲"的通知订阅。
-- **spawn_teammate / interrupt_agent / team_task_\***(index.ts:175-391):Lead-only 创建/打断;任务板带 CAS revision 与 advisory writeScopes。
+- **spawn_teammate / interrupt_agent / team_task\_\***(index.ts:175-391):Lead-only 创建/打断;任务板带 CAS revision 与 advisory writeScopes。
 
 **同机限定是硬边界**:README 明言"Process-local ownership…never cross-process consensus"(packages/experimental/agent-team/README.md:106)、"One process and one shared checkout"(同文件 :206)、"Mailbox is not cross-process exactly-once"(:210)。Team 服务 inject 全部为进程内服务(agent-team/src/index.ts:62)。
 
