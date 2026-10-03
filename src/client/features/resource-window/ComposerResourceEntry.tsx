@@ -1,10 +1,11 @@
 /**
  * The composer's project-resource entry button.
  *
- * One four-square glyph (the prototype's plugin grid) with a filter dot that
- * lights while this workspace filters anything off. Clicking opens the window;
- * the button keeps the flat ghost geometry the composer's other tool buttons
- * use, styled only through platform tokens.
+ * The prototype's plugin-entry glyph: a 2x2 grid of filled rounded cells (the
+ * two trailing cells dimmed) with a filter dot that lights while this
+ * workspace filters anything off. Clicking opens the window; the button keeps
+ * the flat ghost geometry the composer's other tool buttons use, styled only
+ * through platform tokens.
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import { fetchResourceWindow } from './resource-window-resource.js'
@@ -20,15 +21,14 @@ export function ComposerResourceEntry({ t }: ComposerResourceEntryProps): ReactN
   const [open, setOpen] = useState(false)
   const [filtered, setFiltered] = useState(false)
 
-  // The dot reflects live state: any denied entry or off surface in this
-  // workspace lights it. A failed read keeps the last known state.
+  // The dot reflects live state: any denied entry in this workspace lights
+  // it. A failed read keeps the last known state.
   useEffect(() => {
     let alive = true
     fetchResourceWindow()
       .then(window => {
         if (!alive) return
-        const anyOff = window.entries.some(entry => !entry.enabled)
-        setFiltered(anyOff)
+        setFiltered(window.entries.some(entry => !entry.enabled))
       })
       .catch(() => {})
     return () => {
@@ -50,15 +50,15 @@ export function ComposerResourceEntry({ t }: ComposerResourceEntryProps): ReactN
         title: t('resourceWindowOpen'),
         onClick: () => setOpen(value => !value)
       },
+      // The prototype's .plugin-entry .grid: four 8px cells, the b/c pair dimmed.
       h(
-        'svg',
-        { className: css.entryGlyph, viewBox: '0 0 18 18', 'aria-hidden': true },
-        h('rect', { x: 1.5, y: 1.5, width: 6, height: 6, rx: 1.5 }),
-        h('rect', { x: 10.5, y: 1.5, width: 6, height: 6, rx: 1.5 }),
-        h('rect', { x: 1.5, y: 10.5, width: 6, height: 6, rx: 1.5 }),
-        h('rect', { x: 10.5, y: 10.5, width: 6, height: 6, rx: 1.5 })
+        'span',
+        { className: css.entryGrid, 'aria-hidden': true },
+        h('span', { className: css.entryCellA }),
+        h('span', { className: css.entryCellB }),
+        h('span', { className: css.entryCellC }),
+        h('span', { className: css.entryCellD })
       ),
-      h('span', { className: css.entryPlus, 'aria-hidden': true }, '+'),
       filtered ? h('span', { className: css.entryDot, 'aria-hidden': true }) : null
     ),
     h(ResourceWindow, { t, open, onClose: () => setOpen(false) })

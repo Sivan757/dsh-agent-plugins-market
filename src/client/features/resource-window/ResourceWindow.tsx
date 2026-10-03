@@ -4,9 +4,12 @@
  * One Modal over the six switchable surfaces, listing only what this workspace
  * has installed. Every control is a host primitive — the tab row, the view
  * switch, the search input, the row switches, the favorite chips, the toasts —
- * and the row chrome reuses the market card shapes (ResourceCard). Switching
- * tabs never closes the window; flipping an entry reconciles through the same
- * chain the composer switches use, so the row state is live, not cosmetic.
+ * and the rows ride the shared ResourceCard anatomy — identity, action
+ * cluster, body, foot — the same chrome the market and MCP cards use, with
+ * the card itself toggling the entry the way the prototype flips a row.
+ * Switching tabs never closes the window; flipping an entry reconciles
+ * through the same chain the composer switches use, so the row state is
+ * live, not cosmetic.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button, Input, Modal, Pill, SegmentedTabs, Switch, Tag, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -16,7 +19,8 @@ import { RESOURCE_FACE_ORDER, type ResourceEntryWire, type ResourceFace } from '
 import { applyResourceFavorite, deleteResourceFavorite, fetchResourceWindow, saveResourceFavorite, setResourceEntry } from './resource-window-resource.js'
 import type { ResourceWindowData } from './resource-window-resource.js'
 import type { ResourceLocaleKey } from '../../locales-resources.js'
-import { ResourceCard } from '../../ui/ResourceCard.js'
+import { interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
+import rc from '../../ui/resource-card.module.css'
 import css from './resource-window.module.css'
 
 /** The window's translator: the resource dictionary keys, params like the host's. */
@@ -103,11 +107,18 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
     return rows.filter(row => row.name.toLowerCase().includes(q) || (row.description ?? '').toLowerCase().includes(q))
   }, [byFace, face, query])
 
+  // The tab label keeps the prototype's two levels (face word + small count)
+  // as a ReactNode: SegmentedTabs takes nodes, unlike SegmentedControl.
   const tabs = useMemo(
     () =>
-      RESOURCE_FACE_ORDER.map(key => ({
+      RESOURCE_FACE_ORDER.map((key): SegmentedTab<ResourceFace> => ({
         value: key,
-        label: t(faceLabelKey(key)) + ' ' + String(byFace.get(key)?.length ?? 0),
+        label: h(
+          'span',
+          { className: css.tabLabel },
+          t(faceLabelKey(key)),
+          h('span', { className: css.tabCount }, String(byFace.get(key)?.length ?? 0))
+        ),
         id: `${TAB_ID}-${key}`,
         panelId: PANEL_ID
       })) as [SegmentedTab<ResourceFace>, ...SegmentedTab<ResourceFace>[]],
@@ -124,7 +135,7 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
       title: t('resourceWindowTitle'),
       closeLabel: t('resourceWindowClose'),
       className: css.window,
-      contentClassName: css.window
+      contentClassName: css.content
     },
     // Header: title, workspace chip, subtitle. The host Modal owns the close button.
     h(
@@ -154,14 +165,25 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
             }
           },
           favorite.name,
+          // The delete affordance rides inside the chip the way the
+          // prototype's .pchip .del does: a span, because a button inside the
+          // chip's own button is invalid nesting. Keyboard parity comes from
+          // role="button" plus Enter/Space handling.
           h(
-            'button',
+            'span',
             {
-              type: 'button',
+              role: 'button',
+              tabIndex: 0,
               className: css.favoriteDelete,
               title: t('resourceWindowDeleteFavorite'),
               'aria-label': t('resourceWindowDeleteFavorite') + ' ' + favorite.name,
               onClick: (event: { stopPropagation(): void }) => {
+                event.stopPropagation()
+                void mutate(() => deleteResourceFavorite(favorite.id)).then(() => flash(t('resourceWindowDeleteFavoriteDone', { name: favorite.name })))
+              },
+              onKeyDown: (event: { key: string; stopPropagation(): void; preventDefault(): void }) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
                 event.stopPropagation()
                 void mutate(() => deleteResourceFavorite(favorite.id)).then(() => flash(t('resourceWindowDeleteFavoriteDone', { name: favorite.name })))
               }
@@ -204,28 +226,52 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
         onChange: event => setQuery(event.currentTarget.value)
       }),
       h(
-        'button',
-        {
-          type: 'button',
-          className: css.viewToggle,
-          'aria-label': view === 'card' ? t('resourceWindowViewList') : t('resourceWindowViewCard'),
-          title: view === 'card' ? t('resourceWindowViewList') : t('resourceWindowViewCard'),
-          onClick: () => setView(view === 'card' ? 'list' : 'card')
-        },
-        view === 'card'
-          ? h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: 'M4 6h16M4 12h16M4 18h16' }))
-          : h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, [
-              h('rect', { x: 4, y: 4, width: 7, height: 7, rx: 1.5 }),
-              h('rect', { x: 13, y: 4, width: 7, height: 7, rx: 1.5 }),
-              h('rect', { x: 4, y: 13, width: 7, height: 7, rx: 1.5 }),
-              h('rect', { x: 13, y: 13, width: 7, height: 7, rx: 1.5 })
-            ])
+        'span',
+        { className: css.viewGroup, role: 'group', 'aria-label': t('resourceWindowViewGroup') },
+        h(
+          'button',
+          {
+            type: 'button',
+            className: css.viewSeg,
+            'aria-pressed': view === 'list' ? 'true' : 'false',
+            'aria-label': t('resourceWindowViewList'),
+            title: t('resourceWindowViewList'),
+            onClick: () => setView('list')
+          },
+          h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: 'M4 6h16M4 12h16M4 18h16' }))
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: css.viewSeg,
+            'aria-pressed': view === 'card' ? 'true' : 'false',
+            'aria-label': t('resourceWindowViewCard'),
+            title: t('resourceWindowViewCard'),
+            onClick: () => setView('card')
+          },
+          h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, [
+            h('rect', { key: 'tl', x: 4, y: 4, width: 7, height: 7, rx: 1.5 }),
+            h('rect', { key: 'tr', x: 13, y: 4, width: 7, height: 7, rx: 1.5 }),
+            h('rect', { key: 'bl', x: 4, y: 13, width: 7, height: 7, rx: 1.5 }),
+            h('rect', { key: 'br', x: 13, y: 13, width: 7, height: 7, rx: 1.5 })
+          ])
+        )
       )
     ),
-    // The list. One shared panel id: only the active face renders.
+    // The list. One shared panel id: only the active face renders. The
+    // container is the shared ResourceCollection — the window's card view is
+    // the anatomy's grid view, its list view the anatomy's list — so the
+    // view rules (and the container queries below 700px) actually apply.
     h(
-      'div',
-      { className: css.list, role: 'tabpanel', id: PANEL_ID, 'aria-labelledby': `${TAB_ID}-${face}`, 'data-resource-view': view },
+      ResourceCollection,
+      {
+        view: view === 'card' ? 'grid' : 'list',
+        role: 'tabpanel',
+        id: PANEL_ID,
+        'aria-labelledby': `${TAB_ID}-${face}`,
+        className: css.list
+      },
       failed
         ? h('div', { className: css.loadFailed }, t('resourceWindowLoadFailed'))
         : visible.length === 0
@@ -234,7 +280,6 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
               h(ResourceRow, {
                 key: entry.id,
                 entry,
-                view,
                 busy,
                 t,
                 onToggle: enabled => {
@@ -282,27 +327,35 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
   )
 }
 
-/** One inventory row in either view; the card chrome comes from ResourceCard. */
-function ResourceRow(props: { entry: ResourceEntryWire; view: ViewMode; busy: boolean; t: ResourceTranslate; onToggle: (enabled: boolean) => void }): ReactNode {
-  const { entry, view, busy, t } = props
+/**
+ * One inventory row in either view. The card carries the shared anatomy
+ * (identity / action cluster / body / foot) and doubles as the toggle, the
+ * way the prototype flips a row; the state rail on its left edge already
+ * paints enabled versus filtered, so no text label repeats it.
+ */
+function ResourceRow(props: { entry: ResourceEntryWire; busy: boolean; t: ResourceTranslate; onToggle: (enabled: boolean) => void }): ReactNode {
+  const { entry, busy, t } = props
   const on = entry.enabled
   return h(
     ResourceCard,
     {
       state: on ? 'active' : 'disabled',
       surface: entry.face === 'agents' ? 'personas' : entry.face,
-      className: view === 'card' ? css.rowCard : css.rowList
+      ...interactiveCardProps(() => props.onToggle(!on))
     },
     h(
       'div',
-      { className: css.rowTop },
-      h('span', { className: css.rowName }, entry.name),
-      entry.version === undefined ? null : h('span', { className: css.rowVersion }, 'v' + entry.version),
-      h(Tag, { tone: 'neutral', className: css.rowTag }, entry.source),
+      { className: rc.rowId },
+      h('span', { className: rc.name }, entry.name),
+      entry.version === undefined ? null : h('span', { className: rc.version }, 'v' + entry.version),
+      h(Tag, { tone: 'neutral' }, entry.source)
+    ),
+    h(
+      'div',
+      { className: rc.rowActions },
       h(
         'span',
-        { className: css.rowActions },
-        h('span', { className: on ? css.rowState : css.rowStateOff }, on ? t('resourceWindowEntryOn') : t('resourceWindowEntryOff')),
+        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
         h(Switch, {
           checked: on,
           disabled: busy,
@@ -312,24 +365,22 @@ function ResourceRow(props: { entry: ResourceEntryWire; view: ViewMode; busy: bo
         })
       )
     ),
-    entry.description === undefined ? null : h('p', { className: css.rowDesc }, entry.description),
-    view === 'card' && (entry.counts === undefined || entry.counts.length === 0)
-      ? null
-      : h(
-          'div',
-          { className: css.rowFoot },
-          h('span', { className: css.rowFootSource }, entry.source),
-          ...(entry.counts ?? []).flatMap(count => [
-            h('span', { key: 'sep-' + count.label, className: css.rowFootSep }, '·'),
-            h(
-              'span',
-              { key: count.label, className: css.rowFootCount },
-              countLabel(t, count.label),
-              ' ',
-              h('span', { className: css.rowFootCountValue }, String(count.count))
-            )
-          ])
+    entry.description === undefined ? null : h('p', { className: `${rc.rowBody} ${rc.desc}` }, entry.description),
+    h(
+      'div',
+      { className: rc.rowFoot },
+      h('span', { className: rc.provenance, title: entry.source }, entry.source),
+      ...(entry.counts ?? []).flatMap(count => [
+        h('span', { key: 'sep-' + count.label, className: rc.separator }, '·'),
+        h(
+          'span',
+          { key: count.label, className: rc.count },
+          countLabel(t, count.label),
+          ' ',
+          h('span', { className: rc.countValue }, String(count.count))
         )
+      ])
+    )
   )
 }
 

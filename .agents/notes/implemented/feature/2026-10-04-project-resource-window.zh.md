@@ -8,14 +8,16 @@
 
 ## 决策
 
-- **全部控件用宿主原语。** 窗口整体骑在 Modal 上(对话框骨架、Escape、遮罩、关闭钮),六面 tab 用 SegmentedTabs(计数拼在标签字符串里),卡片/列表切换用 SegmentedControl,搜索用 Input(前导 IconSearchOutlineMedium),行开关用 Switch,收藏胶囊用 Pill,来源用 Tag,套用/保存/删除反馈用 Toast。会话输入框入口是带过滤圆点的四方格图形,按原型 .plugin_entry 的方式内联绘制(currentColor、无外框;原语未导出网格图形)。行形态复用 ResourceCard(3px 状态边条、data-resource-view),与市场卡和 MCP 卡完全同构。
-- **状态扩展面开关模式而非另起一套。** 条目过滤与六面开关同住一份按工作区路径哈希命名的文档(v2 增加 entries 节,v1 写入方在单面翻转时保留该节);收藏是 data root 下的单一全局文件,因为它的价值正是在另一个工作区重放一套配置。运行时门沿用面开关形态:每个挂载贡献者在计算期望行时各自应答拒绝集,各面保持正交;market 面的拒绝是唯一刻意的快照过滤,因为它的行就是套件本身。
+- **全部控件用宿主原语。** 窗口整体骑在 Modal 上(对话框骨架、Escape、遮罩、关闭钮),六面 tab 用 SegmentedTabs(与 SegmentedControl 不同,它接受 ReactNode 标签,因此每格标签由面词加小字计数两级组成),搜索用 Input(前导 IconSearchOutlineMedium),行开关用 Switch,收藏胶囊用 Pill,来源用 Tag,套用/保存/删除反馈用 Toast。卡片/列表切换是仿原型 .segc 的双段 aria-pressed 图标组:SegmentedControl 的 string 标签装不下图标,且 group 语义(按压与否)本就不是 tablist 语义。会话输入框入口是 2×2 填充圆角方格加过滤圆点,按原型 .plugin-entry 的方式内联绘制(currentColor、无外框;原语未导出网格图形;原型里未经样式化的 `<span class="plus">` 残渣不属于定稿视觉)。行形态骑在共享的 ResourceCard 解剖上,与市场卡和 MCP 卡完全同构(见下条)。
+- **行骑在共享的 ResourceCard 解剖上,不做形似物。** 列表容器是 ResourceCollection(窗口的卡片视图=解剖的 grid 视图,列表视图=紧凑单行),外层是尺寸容器;每行按解剖的分区(rowId/rowActions/rowBody/rowFoot)填充,卡片本身即开关——悬停行为、行内操作簇与窄容器分支的 container query 都与市场卡、MCP 卡同源。3px 状态边条已表达启用/已过滤,不再重复状态文字。 条目过滤与六面开关同住一份按工作区路径哈希命名的文档(v2 增加 entries 节,v1 写入方在单面翻转时保留该节);收藏是 data root 下的单一全局文件,因为它的价值正是在另一个工作区重放一套配置。运行时门沿用面开关形态:每个挂载贡献者在计算期望行时各自应答拒绝集,各面保持正交;market 面的拒绝是唯一刻意的快照过滤,因为它的行就是套件本身。
 - **一次聚合,不建第二套扫描。** 库存路由把 overview() + 面板存储 + mcpStatus() + lspStatus() 组装成窗口载荷;收藏的激活态由快照精确匹配推导,任何手动翻转都使工作区回到自定义态。
 - **词典隔离。** 窗口的 zh/en 键放在 locales-resources.ts,注册时合并进同一命名空间,主 locales.ts(被并行工作线持有)保持不动;Translate 仍以主词典为键,合并这一事实只在挂接处断言一次。
 
 ## 备选方案
 
 - 自绘窗口组件集:拒绝——宿主原语已实现完全一致的解剖结构(tablist 语义、受控开关、portal toast),且仓库样式规则禁止第二套视觉语言。
+- 入口像素级居首:不可达,拒绝——宿主 InputBar 先渲染原生加号钮,再渲染 permission/plan slot,最后才渲染 conversation.input.left,入口只能是左簇内第一个插件控件,DOM hack 禁用。
+- 用窗口模块的行类自绘行:第一轮实现被证明无效,拒绝——CSS module 的类名按文件哈希,窗口模块的 .rowId 永远匹配不上解剖规则;只有经 resource-card 模块(rc.*)在共享 ResourceCollection 上激活共享视图行为。
 - 收藏按工作区存储:拒绝——跨项目重放一套配置才是功能本身;按工作区存文件会让每个收藏都变成副本。
 - 对每个面都过滤共享的启用套件快照:拒绝(面开关笔记已警告过)——那会拆掉兄弟面的挂载。只有 market 面过滤快照,因为它的行就是套件。
 - 扩宽共享 Translate 联合类型以携带资源键:拒绝——会破坏已提交测试里的 zh[key] 恒等翻译;合并是注册词典的属性,只在唯一挂接点断言。

@@ -30,31 +30,29 @@
   color: var(--dsw-alias-state-business-primary);
 }
 
-.entryGlyph {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.entryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.6px;
+  width: 17px;
+  height: 17px;
 }
 
-.entryPlus {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  font-size: 12px;
-  line-height: 1;
-  font-weight: 700;
-  color: var(--dsw-alias-state-business-primary);
-  transform: rotate(10deg);
+/* One 8px filled cell; the b/c pair rides 0.38 opacity like the prototype. */
+.entryGrid span {
+  border-radius: 2.5px;
+  background: currentColor;
+}
+
+.entryGrid .entryCellB,
+.entryGrid .entryCellC {
+  opacity: 0.38;
 }
 
 .entryDot {
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: 3px;
+  right: 3px;
   width: 8px;
   height: 8px;
   border-radius: 999px;
@@ -63,11 +61,31 @@
 }
 
 .window {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
   width: min(680px, 100%);
+  height: min(640px, 100%);
+}
+
+/* The content column above the scrolling list; vertical rhythm comes from the
+   section paddings, not an even gap. It is also the size container the card
+   anatomy's narrow-branch queries resolve against. */
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+/* The host Modal nests header + body inside the content div (Modal.tsx). The
+   body has no flex of its own, so the window's list would push past a capped
+   dialog; stretching the body (always .content's last child) bounds it. */
+.content > div:last-child {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .headerRow {
@@ -77,10 +95,32 @@
   min-width: 0;
 }
 
-.headerTitle {
-  font-size: 16px;
-  font-weight: 600;
+.favoritesRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 26px;
+  padding: 8px 0 12px;
+}
+
+.tabs {
   margin: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0 8px;
+}
+
+/* The shared ResourceCollection owns the view layout and the scrollbar;
+   the window only adds its vertical rhythm. */
+.list {
+  flex: 1;
+  min-height: 120px;
+  padding: 6px 0 12px;
 }
 
 .workspaceChip {
@@ -98,14 +138,6 @@
 .subtitle {
   font-size: 11.5px;
   color: var(--dsw-alias-label-tertiary);
-}
-
-.favoritesRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-height: 26px;
 }
 
 .favoritesLabel {
@@ -141,30 +173,26 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.tabs {
-  margin: 0;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .search {
   flex: 1;
   min-width: 0;
 }
 
-.list {
-  flex: 1;
-  min-height: 160px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 2px 2px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.tabLabel {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.tabCount {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabs [aria-selected='true'] .tabCount {
+  color: var(--dsw-alias-state-business-primary);
 }
 
 .empty {
@@ -181,137 +209,50 @@
   font-size: 13px;
 }
 
-.rowCard {
-  padding: 10px 14px 10px 12px;
-}
-
-.rowList {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 10px;
-}
-
-.rowTop {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.rowList .rowTop {
-  flex: 1;
-}
-
-.rowName {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-}
-
-.rowList .rowName {
-  font-size: 13.5px;
-}
-
-.rowVersion {
-  font-size: 11.5px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.rowTag {
-  flex-shrink: 0;
-}
-
-.rowActions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.rowState {
-  font-size: 11px;
-  color: var(--dsw-alias-state-success-primary);
-}
-
-.rowStateOff {
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.rowList .rowState,
-.rowList .rowStateOff {
-  display: none;
-}
-
-.rowDesc {
-  margin: 3px 0 0;
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-secondary);
-  line-height: 19px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.rowFoot {
-  display: flex;
-  align-items: center;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.rowFootSource {
-  color: var(--dsw-alias-label-secondary);
-}
-
-.rowFootSep {
-  margin: 0 6px;
-}
-
-.rowFootCount {
-  color: var(--dsw-alias-label-secondary);
-}
-
-.rowFootCountValue {
-  font-weight: 500;
-}
-
-.rowList .rowDesc,
-.rowList .rowFoot {
-  display: none;
-}
-
 .nameField {
   width: 100%;
   box-sizing: border-box;
 }
 
-.viewToggle {
+/* The prototype's .segc: a compact two-segment track with the raised segment
+   carrying the layer-2 fill and the soft elevation. Icons only. */
+.viewGroup {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.viewSeg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  height: 24px;
+  padding: 0 10px;
   border: none;
   background: transparent;
-  border-radius: var(--dsw-radius-sm);
-  color: var(--dsw-alias-label-secondary);
+  border-radius: calc(var(--dsw-radius-sm) - 2px);
+  color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
 }
 
-.viewToggle:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-}
-
-.viewToggle svg {
-  width: 16px;
-  height: 16px;
+.viewSeg svg {
+  width: 13px;
+  height: 13px;
   stroke: currentColor;
   fill: none;
-  stroke-width: 1.6;
+  stroke-width: 1.7;
   stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewSeg[aria-pressed='true'] {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-elevation-soft);
+}
+
+.viewSeg:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
 }
