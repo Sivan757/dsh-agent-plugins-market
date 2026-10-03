@@ -13,10 +13,11 @@ import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../contracts/settings.js'
 import { fetchMcpBackend } from './api.js'
 import { en, zh, type LocaleKey } from './locales.js'
+import { resourcesEn, resourcesZh, type ResourceLocaleKey } from './locales-resources.js'
 import { PluginWorkspace } from './workspace/PluginWorkspace.js'
 import { McpPluginCard } from './features/settings-card/McpPluginCard.js'
 import { bindMarketCardForm, type MarketCardFace } from './features/settings-card/market-card-form.js'
-import { ComposerSurfaceToggles } from './features/surface-toggles/ComposerSurfaceToggles.js'
+import { ComposerResourceEntry } from './features/resource-window/ComposerResourceEntry.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './workspace/page-mode.js'
 
@@ -64,13 +65,6 @@ export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Toolti
 /** The composer toggle row needs nothing beyond React and the slots seat. */
 export const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
 
-/**
- * Register the MCP enhancement card into the host's shared 插件配置 tab
- * (`settings.plugin.item`), the same seat dshmarket uses. Called through
- * `ctx.inject(['settingsScope'])` at apply time; a host without the
- * settingsScope service simply skips the card.
- */
-
 /** Detect host primitives that predate the exports this UI relies on. */
 export function missingPrimitives(module: Record<string, unknown>, required: readonly string[] = REQUIRED_PRIMITIVES): string[] {
   return required.filter(name => module[name] === undefined)
@@ -81,12 +75,22 @@ export function apply(ctx: SuiteClientContext): void {
   // inject re-runs the registration whenever the host remounts the bar.
   ctx.slots.inject(COMPOSER_TOGGLE_SLOT, () => {
     const dispose = ctx.slots.register(
-      { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-surfaces', order: 60, label: () => ctx.locale.bind(NS)('toggleSurfaceTitle') },
-      () => h(ComposerSurfaceToggles, { t: ctx.locale.bind(NS) })
+      { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-resources', order: 60, label: () => ctx.locale.bind(NS)('toggleSurfaceTitle') },
+      // The merged dictionary carries the resource keys too; the window's
+      // wider key union is a property of the merged dict, asserted once here
+      // instead of widening Translate for every existing call site.
+      () => h(ComposerResourceEntry, { t: ctx.locale.bind(NS) as unknown as (key: ResourceLocaleKey, params?: Record<string, unknown>) => string })
     )
     return () => dispose?.()
   })
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-agent-plugins: dictionaries')
+  ctx.effect(
+    () =>
+      ctx.locale.register(NS, {
+        zh: { ...zh, ...resourcesZh },
+        en: { ...en, ...resourcesEn }
+      }),
+    'dsh-agent-plugins: dictionaries'
+  )
   const t = ctx.locale.bind(NS)
   const credentials = credentialApi(ctx.remote.credentials)
 
@@ -113,11 +117,8 @@ export function apply(ctx: SuiteClientContext): void {
     subscribeLocale: ctx.locale.subscribe === undefined ? undefined : (listener) => ctx.locale.subscribe!(listener),
   }), 'dsh-agent-plugins-market: legacy page mode')
 
-  // The host Plugins page entry. Registration rides the settings service's
-  // whileServed watch: the page's form reads the market's settings namespace —
-  // the namespace the node half registers, which is also what makes the panel
-  // serve our entry at all. The order seats the market after the official
-  // plugins (shell 10, agent-loop 20, subagent 30, web-search 40).
+  // Bundle configuration belongs to the installed package's detail page. The
+  // host settings namespace controls the form binding's served lifetime.
   ctx.inject?.(['configForms'], (scoped: { configForms?: ConfigFormsService; slots?: SlotsService }) => {
     const service = scoped.configForms
     const slots = scoped.slots
@@ -130,10 +131,8 @@ export function apply(ctx: SuiteClientContext): void {
       const bound = bindMarketCardForm(service.get<MarketSettings>(NS), fetchMcpBackend)
       card = bound.face
       const dispose = slots.register({
-        name: 'plugins.item',
-        id: NS,
-        order: 50,
-        label: () => t('nav'),
+        name: 'plugins.bundle.config',
+        key: name,
         locale: NS,
         inject: () => card!,
       }, McpPluginCard)
