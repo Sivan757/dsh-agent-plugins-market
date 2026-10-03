@@ -186,3 +186,27 @@ export class SuiteSkillProvider implements SkillProvider {
     return located
   }
 }
+
+/**
+ * A {@link SuiteSkillProvider} that answers nothing while the workspace's
+ * skills switch is off. Extending the real class keeps every inherited
+ * member (get, candidateFor, …) structurally intact for the host registry;
+ * only the two data-carrying methods observe the switch, so the provider
+ * seat itself survives a toggle without re-registering.
+ */
+export class ToggledSkillProvider extends SuiteSkillProvider {
+  constructor(
+    inner: SuiteSkillProvider,
+    private readonly allows: () => boolean
+  ) {
+    super(inner['manager'], inner['options'])
+  }
+
+  override list(options: Parameters<SuiteSkillProvider['list']>[0]): ReturnType<SuiteSkillProvider['list']> {
+    return this.allows() ? super.list(options) : Promise.resolve([])
+  }
+
+  override get(...args: Parameters<SuiteSkillProvider['get']>): ReturnType<SuiteSkillProvider['get']> {
+    return this.allows() ? super.get(...args) : Promise.resolve(undefined)
+  }
+}

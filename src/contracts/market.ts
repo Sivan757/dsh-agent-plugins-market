@@ -6,6 +6,8 @@ export const MARKET_API_PREFIX = '/api/agent-plugins/' as const
 /** Fixed Agent Plugins Market HTTP routes. */
 export const MARKET_ROUTES = {
   overview: `${MARKET_API_PREFIX}overview`,
+  surfaceToggles: `${MARKET_API_PREFIX}surface-toggles`,
+  setSurfaceToggle: `${MARKET_API_PREFIX}surface-toggles/set`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
   addMcpServer: `${MARKET_API_PREFIX}mcp-servers/add`,
   lspStatus: `${MARKET_API_PREFIX}lsp-status`,

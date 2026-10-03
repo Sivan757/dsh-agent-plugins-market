@@ -25,6 +25,7 @@ import { settlesWithin } from './application/deadline.js'
 import { RuntimeReconciler } from './runtime/core/reconciler.js'
 import { ReconcileScheduler } from './runtime/core/reconcile-scheduler.js'
 import { MarketSettingsNamespace } from './runtime/host/settings-namespace.js'
+import { SurfaceToggleService } from './runtime/host/surface-toggle-service.js'
 import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
 import { createDescriptionTranslator } from './runtime/host/description-translator.js'
@@ -37,7 +38,7 @@ import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteIns
 import { createPanelResources } from './application/panel-resources.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
-import { SuiteSkillProvider } from './runtime/surfaces/skills-provider.js'
+import { SuiteSkillProvider, ToggledSkillProvider } from './runtime/surfaces/skills-provider.js'
 import { shellSeamOf, type ShellSeam } from './runtime/surfaces/dynamic-context.js'
 import { loadLspServers } from './application/lsp/lsp-direct-config.js'
 import { loadDisabledLspServers } from './application/lsp/lsp-server-state.js'
@@ -198,7 +199,14 @@ export async function apply(
   let suitePrompts: ReturnType<typeof mountSuiteInstructions> | undefined
 
   const scheduler = new ReconcileScheduler(ctx, runtime, {
-    enabledSuites: () => catalog.enabledUserSuites(),
+    enabledSuites: async () => {
+      // The scheduler feeds the MCP/LSP mount reconciler only: a switched-off
+      // surface must unmount, so its suites drop out of this list and the pass
+      // reconciles to "nothing mounted for that surface".
+      const [suites, toggles] = await Promise.all([catalog.enabledUserSuites(), Promise.resolve(surfaceToggles.currentToggles())])
+      if (toggles.mcp && toggles.lsp) return suites
+      return suites.filter(suite => suite.surfaces.mcp <= 0 || toggles.mcp)
+    },
     publishMcpDiagnostics: diagnostics => {
       catalog.mcpDiagnostics = diagnostics
     }
@@ -206,6 +214,7 @@ export async function apply(
 
   /** Reconcile the user command mounts and report each failure once. */
   const reconcileUserCommands = async (): Promise<void> => {
+    if (!surfaceToggles.allows('commands')) return
     const diagnostics = await userCommands.reconcile().catch(() => [] as string[])
     for (const reason of diagnostics) {
       ctx.logger?.warn(`[dsh-agent-plugins-market] user commands: ${reason}`)
@@ -259,6 +268,15 @@ export async function apply(
     setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled)
   })
 
+  // Per-workspace surface switches: the composer control writes them and every
+  // mount below reads them, so a toggle runs through the ordinary refresh chain.
+  const surfaceToggles = new SurfaceToggleService(dataRoot, process.cwd(), {
+    onTogglesChanged: async () => {
+      await onChanged()
+    }
+  })
+  void surfaceToggles.reload()
+
   // The credentials store powers the MCP re-authorize action (dropping a grant
   // record forces the next mount through a fresh browser authorization). Every
   // port below is read at call time: this plugin's apply may run before the
@@ -306,7 +324,11 @@ export async function apply(
   await catalog.mergeSources([...(config.sources ?? []), presetSourceRef()])
   const resources = createPanelResources(catalog, panels)
   runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides(await catalog.enabledUserSuites()))
-  runtime.lsp.setDirectProvider(async () => (await loadLspServers(agentsRoot)).servers)
+  runtime.lsp.setDirectProvider(async () =>
+    // An empty table is the lsp-off state: the seam stays mounted (the plugin
+    // owns it unconditionally) but serves no servers.
+    surfaceToggles.allows('lsp') ? (await loadLspServers(agentsRoot)).servers : {}
+  )
   runtime.lsp.setDisabledProvider(() => loadDisabledLspServers(dataRoot))
   runtime.setMcpBackendProvider(() => catalog.mcpBackend())
 
@@ -335,7 +357,7 @@ export async function apply(
   const shellSeam = (): ShellSeam | undefined => shellSeamOf(ctx)
   ctx.skills.registerProvider(control => {
     providerControl = control
-    return new SuiteSkillProvider(catalog, { dataRoot, shell: shellSeam })
+    return new ToggledSkillProvider(new SuiteSkillProvider(catalog, { dataRoot, shell: shellSeam }), () => surfaceToggles.allows('skills'))
   })
 
   // User panel skills ride a second provider so a panel
@@ -347,10 +369,10 @@ export async function apply(
 
   // Both entry points read the same live user/project role set. Team owns the
   // enhanced entry's member identities and all subsequent collaboration.
-  const listRoles = async (parent?: unknown) => [
-    ...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })),
-    ...(await projectAgentRoles(catalog, parent))
-  ]
+  const listRoles = async (parent?: unknown) =>
+    surfaceToggles.allows('agents')
+      ? [...(await resources.agents.list(true)).map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name })), ...(await projectAgentRoles(catalog, parent))]
+      : []
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
     hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
   })
@@ -380,7 +402,13 @@ export async function apply(
   })
 
   ctx.inject(['webServer', 'loader'], hostCtx => {
-    hostCtx.effect(() => mountSuiteRoutes(hostCtx, catalog, resources), 'dsh-agent-plugins-market: http routes')
+    // With the market switch off the routes never mount, so the panel is
+    // unreachable for this workspace until the switch returns on and the
+    // refresh chain remounts them.
+    hostCtx.effect(() => {
+      if (surfaceToggles.allows('market')) return mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles)
+      return () => {}
+    }, 'dsh-agent-plugins-market: http routes')
   })
 
   ctx.effect(

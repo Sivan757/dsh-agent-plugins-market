@@ -4,6 +4,13 @@
 /** Chinese is the source-of-truth key set; English is checked against it below. */
 export const zh = {
   localeProbeLang: '中文',
+  toggleSurfaceTitle: '插件面开关',
+  toggleSurfaceMarket: '市场',
+  toggleSurfaceSkills: '技能',
+  toggleSurfaceCommands: '命令',
+  toggleSurfaceAgents: '代理角色',
+  toggleSurfaceMcp: 'MCP',
+  toggleSurfaceLsp: 'LSP',
   nav: 'Agent Plugins 市场',
   detailPreview: '预览',
   serverConfigReadOnly: '此服务由宿主管理，请在原始配置中编辑。',
@@ -425,6 +432,13 @@ export type LocaleKey = keyof typeof zh
 
 export const en: Record<LocaleKey, string> = {
   localeProbeLang: 'English',
+  toggleSurfaceTitle: 'Plugin surfaces',
+  toggleSurfaceMarket: 'Market',
+  toggleSurfaceSkills: 'Skills',
+  toggleSurfaceCommands: 'Commands',
+  toggleSurfaceAgents: 'Agents',
+  toggleSurfaceMcp: 'MCP',
+  toggleSurfaceLsp: 'LSP',
   nav: 'Agent Plugins Market',
   detailPreview: 'Preview',
   serverConfigReadOnly: 'This service is managed by the host. Edit its original configuration.',

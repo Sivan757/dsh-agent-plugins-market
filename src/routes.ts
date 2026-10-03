@@ -32,7 +32,11 @@ interface RouteHost {
 export function mountSuiteRoutes(
   hostCtx: unknown,
   manager: MarketService,
-  panels?: { skills: PanelResourceStore; commands: PanelResourceStore; agents: PanelResourceStore }
+  panels?: { skills: PanelResourceStore; commands: PanelResourceStore; agents: PanelResourceStore },
+  surfaceToggles?: {
+    currentToggles(): import('./contracts/surface-toggles.js').SurfaceToggles
+    set(key: import('./contracts/surface-toggles.js').SurfaceToggleKey, enabled: boolean): Promise<unknown>
+  }
 ): () => void {
   const host = hostCtx as RouteHost
   const disposers: Array<() => void> = []
@@ -120,6 +124,21 @@ export function mountSuiteRoutes(
 
   get(MARKET_ROUTES.lspServers, async (_request, response) => {
     sendJson(response, 200, { lspServers: await manager.lspServers() })
+  })
+
+  get(MARKET_ROUTES.surfaceToggles, async (_request, response) => {
+    sendJson(response, 200, surfaceToggles?.currentToggles() ?? {})
+  })
+
+  post(MARKET_ROUTES.setSurfaceToggle, async body => {
+    if (surfaceToggles === undefined) throw new Error('surface toggles are not available')
+    const key = body.key
+    if (typeof key !== 'string' || !['market', 'skills', 'commands', 'agents', 'mcp', 'lsp'].includes(key)) {
+      throw new Error('invalid surface key')
+    }
+    if (typeof body.enabled !== 'boolean') throw new Error('enabled must be a boolean')
+    await surfaceToggles.set(key as import('./contracts/surface-toggles.js').SurfaceToggleKey, body.enabled)
+    return { toggles: surfaceToggles.currentToggles() }
   })
 
   get(MARKET_ROUTES.progress, async (_request, response) => {

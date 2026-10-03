@@ -49,6 +49,10 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 ## What you can do
 
+- Turn the six plugin surfaces — market, skills, commands, agents, MCP, LSP — on or off per project from a switch row beside the composer; the state lives globally, keyed by workspace, never inside the project.
+
+- Turn the six plugin surfaces — market, skills, commands, agents, MCP, LSP — on or off per project from a switch row beside the composer; the state lives globally, keyed by workspace, never inside the project.
+
 - **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
 - **Sources.** Add a Git repository, a local directory or an archive (`.zip` / `.tar.gz` / `.tgz` / `.tar`); adopt a checkout you cloned yourself; refresh on demand; delete a managed checkout when you remove its source.
 - **First-party source.** The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run with no URL to paste. It is an ordinary Git source from there on — refresh it to fetch, then install and toggle its suites like any other.

@@ -1,116 +1,62 @@
-import { cp, mkdir, mkdtemp } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
-import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
-import { effectiveSurfaces } from '../src/model/types.js'
-import type { Context } from '@deepseek-ai/cordis'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { ALL_SURFACES_ON, resolveSurfaceToggles, SURFACE_TOGGLE_KEYS } from '../src/contracts/surface-toggles.js'
+import { loadSurfaceToggles, saveSurfaceToggles, surfaceTogglesPath } from '../src/application/state/surface-toggles.js'
 
-const here = dirname(fileURLToPath(import.meta.url))
-const fixture = join(here, 'fixtures', 'v1-suite')
-
-async function installFixture(manager: Catalog, sourceId = 'demo', suiteId = 'v1-suite'): Promise<void> {
-  const checkout = join(manager.userRoot, '.sources', sourceId)
-  await mkdir(checkout, { recursive: true })
-  await cp(fixture, checkout, { recursive: true })
-  await manager.mergeSources([{ id: sourceId, url: 'https://example.test/demo.git' }])
-  await manager.install(sourceId, suiteId)
-}
-
-function catalogAt(userRoot: string): Catalog {
-  return new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
-}
-
-/** A loaded Catalog holding one installed fixture suite, backed by its own temp user root. */
-async function installedCatalog(): Promise<Catalog> {
-  const manager = catalogAt(await mkdtemp(join(tmpdir(), 'dsh-surface-')))
-  await manager.load()
-  await installFixture(manager)
-  return manager
-}
-
-describe('effectiveSurfaces', () => {
-  it('defaults every surface to enabled without overrides', () => {
-    expect(effectiveSurfaces(undefined)).toEqual({ skills: true, mcp: true, hooks: true, commands: true, agents: true, lsp: true })
+describe('resolveSurfaceToggles', () => {
+  it('defaults every surface to on for absent or malformed input', () => {
+    expect(resolveSurfaceToggles(undefined)).toEqual(ALL_SURFACES_ON)
+    expect(resolveSurfaceToggles('nope')).toEqual(ALL_SURFACES_ON)
+    expect(resolveSurfaceToggles({ market: 'yes' })).toEqual(ALL_SURFACES_ON)
   })
 
-  it('merges overrides over the enabled default', () => {
-    expect(effectiveSurfaces({ mcp: false, hooks: false })).toEqual({ skills: true, mcp: false, hooks: false, commands: true, agents: true, lsp: true })
+  it('keeps known boolean keys and drops unknown ones', () => {
+    expect(resolveSurfaceToggles({ mcp: false, lsp: false, mystery: true })).toEqual({
+      ...ALL_SURFACES_ON,
+      mcp: false,
+      lsp: false
+    })
   })
 })
 
-describe('Catalog.setSurface', () => {
-  it('persists per-surface overrides and reflects them in the snapshot', async () => {
-    const manager = await installedCatalog()
+describe('surface toggle state roundtrip', () => {
+  it('persists per workspace under a hashed file name in the data root', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'surface-toggles-'))
+    const wsA = '/Users/sivan/workspace/alpha'
+    const wsB = '/Users/sivan/workspace/beta'
+    await saveSurfaceToggles(dataRoot, wsA, { ...ALL_SURFACES_ON, mcp: false, lsp: false })
+    await saveSurfaceToggles(dataRoot, wsB, { ...ALL_SURFACES_ON, skills: false })
 
-    await manager.setSurface('demo', 'v1-suite', 'mcp', false)
-    const suites = (await manager.readUserCatalog()).suites
-    expect(suites.find(suite => suite.id === 'v1-suite')!.activeSurfaces).toEqual({ skills: true, mcp: false, hooks: true, commands: true, agents: true, lsp: true })
-
-    await manager.setSurface('demo', 'v1-suite', 'mcp', true)
-    expect((await manager.readUserCatalog()).suites.find(suite => suite.id === 'v1-suite')!.activeSurfaces.mcp).toBe(true)
+    const a = await loadSurfaceToggles(dataRoot, wsA)
+    const b = await loadSurfaceToggles(dataRoot, wsB)
+    expect(a.mcp).toBe(false)
+    expect(a.lsp).toBe(false)
+    expect(a.skills).toBe(true)
+    expect(b.skills).toBe(false)
+    expect(b.mcp).toBe(true)
+    expect(surfaceTogglesPath(dataRoot, wsA)).not.toBe(surfaceTogglesPath(dataRoot, wsB))
+    expect(surfaceTogglesPath(dataRoot, wsA)).not.toContain('alpha')
   })
 
-  it('rejects unknown surfaces and uninstalled suites', async () => {
-    const manager = await installedCatalog()
-
-    await expect(manager.setSurface('demo', 'v1-suite', 'nope' as never, false)).rejects.toThrow('not toggleable')
-    await expect(manager.setSurface('demo', 'missing', 'mcp', false)).rejects.toThrow('not installed')
+  it('reads an all-on default when the workspace has no file', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'surface-toggles-'))
+    expect(await loadSurfaceToggles(dataRoot, '/nowhere')).toEqual(ALL_SURFACES_ON)
   })
 
-  it('shows surface toggles on installed overview cards only', async () => {
-    const manager = await installedCatalog()
-    await manager.setSurface('demo', 'v1-suite', 'hooks', false)
-
-    const overview = await manager.overview()
-    const card = overview.suites.find(suite => suite.suiteId === 'v1-suite')!
-    expect(card.installed).toBe(true)
-    expect(card.surfaceToggles).toEqual({ skills: true, mcp: true, hooks: false, commands: true, agents: true, lsp: true })
-  })
-
-  it('survives state reload (persisted overrides)', async () => {
-    const first = await installedCatalog()
-    await first.setSurface('demo', 'v1-suite', 'commands', false)
-
-    const second = catalogAt(first.userRoot)
-    await second.load()
-    const suite = (await second.readUserCatalog()).suites.find(entry => entry.id === 'v1-suite')!
-    const surfaces = suite.activeSurfaces
-    expect(surfaces.commands).toBe(false)
-    expect(surfaces.skills).toBe(true)
-  })
-})
-
-describe('surface filtering at runtime', () => {
-  it('hides skills of a suite with skills disabled', async () => {
-    const manager = await installedCatalog()
-    await manager.setSurface('demo', 'v1-suite', 'skills', false)
-
-    const provider = new SuiteSkillProvider(manager)
-    expect(await provider.list({})).toEqual([])
-  })
-
-  it('keeps skills when other surfaces are disabled', async () => {
-    const manager = await installedCatalog()
-    await manager.setSurface('demo', 'v1-suite', 'mcp', false)
-    await manager.setSurface('demo', 'v1-suite', 'hooks', false)
-
-    const provider = new SuiteSkillProvider(manager)
-    const candidates = await provider.list({})
-    expect(candidates.map(candidate => candidate.name)).toContain('greet')
-  })
-
-  it('skips MCP mounting for suites with mcp disabled', async () => {
-    const manager = await installedCatalog()
-    await manager.setSurface('demo', 'v1-suite', 'mcp', false)
-
-    const reconciler = new RuntimeReconciler({} as Context, join(manager.userRoot, 'data'))
-    const enabled = (await manager.readUserCatalog()).enabledSuites
-    const diagnostics = await reconciler.reconcile(enabled)
-    // The disabled suite's servers never even reach the mount adapter.
-    expect(diagnostics.mcp.filter(diagnostic => diagnostic.suiteId === 'v1-suite')).toEqual([])
+  it('degrades a hand-edited malformed file to the known keys', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'surface-toggles-'))
+    const ws = '/Users/sivan/workspace/alpha'
+    await saveSurfaceToggles(dataRoot, ws, { ...ALL_SURFACES_ON, agents: false })
+    const path = surfaceTogglesPath(dataRoot, ws)
+    const document = JSON.parse(await readFile(path, 'utf8')) as { toggles: Record<string, unknown> }
+    document.toggles.market = 42
+    document.toggles.unknown = true
+    await writeFile(path, `${JSON.stringify(document, null, 2)}\n`)
+    const loaded = await loadSurfaceToggles(dataRoot, ws)
+    expect(loaded.agents).toBe(false)
+    expect(loaded.market).toBe(true)
+    expect(SURFACE_TOGGLE_KEYS.every(key => typeof loaded[key] === 'boolean')).toBe(true)
   })
 })

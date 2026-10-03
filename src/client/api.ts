@@ -6,6 +6,7 @@ import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.j
 import type { McpBackendInfo, MarketFieldError, OverviewPayload, ServerConfigPayload, ServerPolicyRequest, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
+import type { SurfaceToggleKey, SurfaceToggles } from '../contracts/surface-toggles.js'
 
 export type {
   AgentPreview,
@@ -285,4 +286,16 @@ export async function deleteUserPanelEntry(kind: UserPanelKind, name: string): P
   return withBusyOperation(async () => {
     await postOkJson(userPanelMutationRoute(kind, 'delete'), { name }, 'delete failed')
   })
+}
+
+/** Read this workspace's six surface switches. */
+export async function loadSurfaceToggles(): Promise<SurfaceToggles> {
+  const response = await boundedFetch(MARKET_ROUTES.surfaceToggles, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
+  return (await response.json()) as SurfaceToggles
+}
+
+/** Flip one surface switch and return the full toggle state. */
+export async function setSurfaceToggle(key: SurfaceToggleKey, enabled: boolean): Promise<SurfaceToggles> {
+  const payload = await postAction('surface-toggles/set', { key, enabled })
+  return payload.toggles as SurfaceToggles
 }
