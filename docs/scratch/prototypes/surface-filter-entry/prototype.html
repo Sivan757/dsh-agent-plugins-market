@@ -1,445 +1,1196 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>项目资源 · 原型 v3(复用市场面板 + Profile 收藏)</title>
-<style>
-/* dsw design-platform 真实 token(亮/暗),来源 design-platform.css */
-:root{
-  --dsw-static-deepseek-100: rgb(228,237,253);
-  --dsw-static-deepseek-500: rgb(65,118,230);
-  --dsw-static-green-500: rgb(52,199,123);
-  --dsw-static-neutral-bluish-00: rgb(255,255,255);
-  --dsw-static-neutral-bluish-50: rgb(249,250,251);
-  --dsw-static-neutral-bluish-60: rgb(245,246,247);
-  --dsw-static-neutral-bluish-100: rgb(235,238,242);
-  --dsw-static-neutral-bluish-300: rgb(207,211,214);
-  --dsw-static-neutral-bluish-400: rgb(173,178,184);
-  --dsw-static-neutral-bluish-600: rgb(129,133,140);
-  --dsw-static-neutral-bluish-700: rgb(97,102,107);
-  --dsw-static-neutral-bluish-1000: rgb(15,17,21);
-  --dsw-static-neutral-bluish-800: rgb(53,54,56);
-  --dsw-static-neutral-bluish-850: rgb(44,44,46);
-  --dsw-radius-sm:6px; --dsw-radius-md:10px; --dsw-radius-lg:14px; --dsw-radius-panel:16px;
-  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
-  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
-  --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
-  --dsw-alias-bg-mask-1: rgba(15,17,21,.32);
-  --dsw-alias-border-l2: rgba(0,0,0,.1);
-  --dsw-alias-border-l3: rgba(0,0,0,.12);
-  --dsw-alias-interactive-bg-hover: rgba(38,49,72,.06);
-  --dsw-alias-interactive-bg-active: rgba(38,49,72,.1);
-  --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
-  --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
-  --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
-  --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
-  --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
-  --dsw-alias-state-success-primary: var(--dsw-static-green-500);
-  --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
-  --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-00);
-  --dsw-specific-input-major: var(--dsw-static-neutral-bluish-00);
-  --dsw-elevation-soft: 0 1px 2px rgba(15,17,21,.04), 0 4px 16px rgba(15,17,21,.06);
-  --dsw-elevation-prominent: 0 8px 40px rgba(15,17,21,.16);
-  --dsw-mask-blur: blur(6px);
-}
-:root[data-theme="dark"]{
-  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
-  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
-  --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
-  --dsw-alias-bg-mask-1: rgba(0,0,0,.5);
-  --dsw-alias-border-l2: rgba(255,255,255,.12);
-  --dsw-alias-border-l3: rgba(255,255,255,.16);
-  --dsw-alias-interactive-bg-hover: rgba(255,255,255,.08);
-  --dsw-alias-interactive-bg-active: rgba(255,255,255,.14);
-  --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
-  --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
-  --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
-  --dsw-alias-state-business-tertiary: rgb(52,65,91);
-  --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
-  --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-400);
-  --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
-  --dsw-elevation-soft: 0 1px 2px rgba(0,0,0,.2), 0 4px 16px rgba(0,0,0,.24);
-  --dsw-elevation-prominent: 0 8px 40px rgba(0,0,0,.5);
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14px;line-height:24px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-module-platform);display:flex;flex-direction:column;overflow:hidden}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>项目资源 · 原型 v3(复用市场面板 + Profile 收藏)</title>
+    <style>
+      /* dsw design-platform 真实 token(亮/暗),来源 design-platform.css */
+      :root {
+        --dsw-static-deepseek-100: rgb(228, 237, 253);
+        --dsw-static-deepseek-500: rgb(65, 118, 230);
+        --dsw-static-green-500: rgb(52, 199, 123);
+        --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+        --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+        --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+        --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+        --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+        --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+        --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+        --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+        --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+        --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+        --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+        --dsw-radius-sm: 6px;
+        --dsw-radius-md: 10px;
+        --dsw-radius-lg: 14px;
+        --dsw-radius-panel: 16px;
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+        --dsw-alias-bg-mask-1: rgba(15, 17, 21, 0.32);
+        --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+        --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+        --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+        --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+        --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+        --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+        --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-00);
+        --dsw-specific-input-major: var(--dsw-static-neutral-bluish-00);
+        --dsw-elevation-soft: 0 1px 2px rgba(15, 17, 21, 0.04), 0 4px 16px rgba(15, 17, 21, 0.06);
+        --dsw-elevation-prominent: 0 8px 40px rgba(15, 17, 21, 0.16);
+        --dsw-mask-blur: blur(6px);
+      }
+      :root[data-theme='dark'] {
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.5);
+        --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+        --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+        --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+        --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+        --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-alias-switch-thumb: var(--dsw-static-neutral-bluish-400);
+        --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
+        --dsw-elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.24);
+        --dsw-elevation-prominent: 0 8px 40px rgba(0, 0, 0, 0.5);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+        font-size: 14px;
+        line-height: 24px;
+        color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-module-platform);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
 
-/* 演示条 */
-.demobar{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);font-size:12.5px;color:var(--dsw-alias-label-tertiary);flex-shrink:0}
-.demobar .t{font-weight:600;color:var(--dsw-alias-label-secondary)}
-.demobar button{border:1px solid var(--dsw-alias-border-l2);background:transparent;border-radius:999px;padding:4px 12px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:pointer}
-.demobar button.on{background:var(--dsw-alias-state-business-tertiary);border-color:transparent;color:var(--dsw-alias-state-business-primary)}
+      /* 演示条 */
+      .demobar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 20px;
+        border-bottom: 1px solid var(--dsw-alias-border-l2);
+        background: var(--dsw-alias-bg-layer-2);
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        flex-shrink: 0;
+      }
+      .demobar .t {
+        font-weight: 600;
+        color: var(--dsw-alias-label-secondary);
+      }
+      .demobar button {
+        border: 1px solid var(--dsw-alias-border-l2);
+        background: transparent;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 12px;
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+      }
+      .demobar button.on {
+        background: var(--dsw-alias-state-business-tertiary);
+        border-color: transparent;
+        color: var(--dsw-alias-state-business-primary);
+      }
 
-/* 会话视图 */
-.chat{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.msgs{flex:1;overflow-y:auto;padding:28px 24px}
-.msg{max-width:66%;margin:0 auto 14px;padding:10px 14px;border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);box-shadow:var(--dsw-elevation-soft)}
-.msg.me{margin-left:auto;background:var(--dsw-alias-state-business-tertiary);color:var(--dsw-alias-label-primary)}
+      /* 会话视图 */
+      .chat {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .msgs {
+        flex: 1;
+        overflow-y: auto;
+        padding: 28px 24px;
+      }
+      .msg {
+        max-width: 66%;
+        margin: 0 auto 14px;
+        padding: 10px 14px;
+        border-radius: var(--dsw-radius-lg);
+        background: var(--dsw-alias-bg-layer-2);
+        color: var(--dsw-alias-label-secondary);
+        box-shadow: var(--dsw-elevation-soft);
+      }
+      .msg.me {
+        margin-left: auto;
+        background: var(--dsw-alias-state-business-tertiary);
+        color: var(--dsw-alias-label-primary);
+      }
 
-/* 输入卡(宿主 InputBar .card) */
-.inputbar{padding:0 24px 12px;display:flex;justify-content:center;flex-shrink:0}
-.card{position:relative;display:flex;flex-direction:column;gap:12px;width:100%;max-width:760px;padding-top:8px;border-radius:var(--dsw-radius-panel);background:var(--dsw-specific-input-major);box-shadow:var(--dsw-elevation-soft);font-size:14px;line-height:24px}
-.editable{min-height:52px;padding:8px 14px 4px;color:var(--dsw-alias-label-tertiary);cursor:text}
-.editable .ref{padding:0 4px;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-state-business-primary)}
-.editable .ref:hover{background:var(--dsw-alias-state-business-tertiary)}
-.accessory{display:flex;align-items:center;gap:8px;padding:10px 12px}
-.tbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;background:transparent;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-label-secondary);cursor:pointer}
-.tbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.tbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.spacer{flex:1}
-.modeltag{font-size:12px;color:var(--dsw-alias-label-tertiary)}
-.sendbtn{width:30px;height:30px;border:none;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-state-business-primary);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.sendbtn svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      /* 输入卡(宿主 InputBar .card) */
+      .inputbar {
+        padding: 0 24px 12px;
+        display: flex;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+        max-width: 760px;
+        padding-top: 8px;
+        border-radius: var(--dsw-radius-panel);
+        background: var(--dsw-specific-input-major);
+        box-shadow: var(--dsw-elevation-soft);
+        font-size: 14px;
+        line-height: 24px;
+      }
+      .editable {
+        min-height: 52px;
+        padding: 8px 14px 4px;
+        color: var(--dsw-alias-label-tertiary);
+        cursor: text;
+      }
+      .editable .ref {
+        padding: 0 4px;
+        border-radius: var(--dsw-radius-sm);
+        color: var(--dsw-alias-state-business-primary);
+      }
+      .editable .ref:hover {
+        background: var(--dsw-alias-state-business-tertiary);
+      }
+      .accessory {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+      }
+      .tbtn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: none;
+        background: transparent;
+        border-radius: var(--dsw-radius-sm);
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+      }
+      .tbtn:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        color: var(--dsw-alias-label-primary);
+      }
+      .tbtn svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .spacer {
+        flex: 1;
+      }
+      .modeltag {
+        font-size: 12px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .sendbtn {
+        width: 30px;
+        height: 30px;
+        border: none;
+        border-radius: var(--dsw-radius-sm);
+        background: var(--dsw-alias-state-business-primary);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .sendbtn svg {
+        width: 16px;
+        height: 16px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
 
-/* 主入口:四方格插件图标 */
-.plugin-entry{position:relative;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;background:transparent;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-label-secondary);cursor:pointer}
-.plugin-entry:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.plugin-entry.active{color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-active)}
-.plugin-entry .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.6px;width:17px;height:17px}
-.plugin-entry .cell{border-radius:2.5px;background:currentColor}
-.plugin-entry .cell.b,.plugin-entry .cell.c{opacity:.38}
-.plugin-entry .dot{position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:999px;background:var(--dsw-alias-state-business-primary);border:2px solid var(--dsw-specific-input-major)}
+      /* 主入口:四方格插件图标 */
+      .plugin-entry {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: none;
+        background: transparent;
+        border-radius: var(--dsw-radius-sm);
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+      }
+      .plugin-entry:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        color: var(--dsw-alias-label-primary);
+      }
+      .plugin-entry.active {
+        color: var(--dsw-alias-state-business-primary);
+        background: var(--dsw-alias-interactive-bg-active);
+      }
+      .plugin-entry .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.6px;
+        width: 17px;
+        height: 17px;
+      }
+      .plugin-entry .cell {
+        border-radius: 2.5px;
+        background: currentColor;
+      }
+      .plugin-entry .cell.b,
+      .plugin-entry .cell.c {
+        opacity: 0.38;
+      }
+      .plugin-entry .dot {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--dsw-alias-state-business-primary);
+        border: 2px solid var(--dsw-specific-input-major);
+      }
 
-/* ============ 窗口(宿主 Modal 形态,大卡) ============ */
-.modal-root{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:24px}
-.modal-root.open{display:flex;animation:fadein .15s ease}
-@keyframes fadein{from{opacity:0}to{opacity:1}}
-.modal-mask{position:absolute;inset:0;backdrop-filter:var(--dsw-mask-blur)}
-.modal-mask::after{content:"";position:absolute;inset:0;background:var(--dsw-alias-bg-mask-1)}
-.window{
-  position:relative;z-index:1;display:flex;flex-direction:column;
-  width:min(680px,100%);height:min(640px,100%);
-  border-radius:var(--dsw-radius-panel);
-  background:var(--dsw-alias-bg-layer-2);
-  box-shadow:var(--dsw-elevation-prominent);
-  overflow:hidden;animation:winup .18s ease;
-}
-@keyframes winup{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+      /* ============ 窗口(宿主 Modal 形态,大卡) ============ */
+      .modal-root {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .modal-root.open {
+        display: flex;
+        animation: fadein 0.15s ease;
+      }
+      @keyframes fadein {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .modal-mask {
+        position: absolute;
+        inset: 0;
+        backdrop-filter: var(--dsw-mask-blur);
+      }
+      .modal-mask::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--dsw-alias-bg-mask-1);
+      }
+      .window {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        width: min(680px, 100%);
+        height: min(640px, 100%);
+        border-radius: var(--dsw-radius-panel);
+        background: var(--dsw-alias-bg-layer-2);
+        box-shadow: var(--dsw-elevation-prominent);
+        overflow: hidden;
+        animation: winup 0.18s ease;
+      }
+      @keyframes winup {
+        from {
+          transform: translateY(10px);
+          opacity: 0;
+        }
+        to {
+          transform: none;
+          opacity: 1;
+        }
+      }
 
-/* 窗头 */
-.win-h{display:flex;align-items:center;gap:10px;padding:16px 18px 10px}
-.win-h .tt{font-size:16px;font-weight:600}
-.win-h .chip{font-size:11px;color:var(--dsw-alias-label-tertiary);background:var(--dsw-alias-bg-module-platform);border-radius:var(--dsw-radius-sm);padding:1px 8px}
-.win-h .sub{font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
-.xbtn{margin-left:auto;width:28px;height:28px;border:none;background:transparent;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-label-tertiary);font-size:14px;cursor:pointer}
-.xbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+      /* 窗头 */
+      .win-h {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 18px 10px;
+      }
+      .win-h .tt {
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .win-h .chip {
+        font-size: 11px;
+        color: var(--dsw-alias-label-tertiary);
+        background: var(--dsw-alias-bg-module-platform);
+        border-radius: var(--dsw-radius-sm);
+        padding: 1px 8px;
+      }
+      .win-h .sub {
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .xbtn {
+        margin-left: auto;
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        border-radius: var(--dsw-radius-sm);
+        color: var(--dsw-alias-label-tertiary);
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .xbtn:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        color: var(--dsw-alias-label-primary);
+      }
 
-/* ====== Profile 收藏行 ====== */
-.profiles{display:flex;align-items:center;gap:6px;padding:0 18px 12px;flex-wrap:wrap}
-.profiles .lb{font-size:12px;color:var(--dsw-alias-label-tertiary);margin-right:2px}
-.pchip{
-  display:inline-flex;align-items:center;gap:6px;
-  border:1px solid var(--dsw-alias-border-l2);border-radius:999px;
-  padding:3px 12px;font-size:12px;color:var(--dsw-alias-label-secondary);
-  background:var(--dsw-alias-bg-layer-2);cursor:pointer;transition:.12s;
-}
-.pchip:hover{border-color:var(--dsw-alias-state-business-primary);color:var(--dsw-alias-state-business-primary)}
-.pchip.on{background:var(--dsw-alias-state-business-tertiary);border-color:transparent;color:var(--dsw-alias-state-business-primary);font-weight:600}
-.pchip .del{width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--dsw-alias-label-tertiary)}
-.pchip .del:hover{background:var(--dsw-alias-interactive-bg-active);color:var(--dsw-alias-label-primary)}
-.pchip.follow{border-style:dashed}
-.pchip.add{border-style:dashed;color:var(--dsw-alias-label-tertiary)}
-.pchip.add:hover{color:var(--dsw-alias-state-business-primary)}
-.profiles .note{margin-left:auto;font-size:11px;color:var(--dsw-alias-label-tertiary)}
+      /* ====== Profile 收藏行 ====== */
+      .profiles {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 18px 12px;
+        flex-wrap: wrap;
+      }
+      .profiles .lb {
+        font-size: 12px;
+        color: var(--dsw-alias-label-tertiary);
+        margin-right: 2px;
+      }
+      .pchip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: 999px;
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--dsw-alias-label-secondary);
+        background: var(--dsw-alias-bg-layer-2);
+        cursor: pointer;
+        transition: 0.12s;
+      }
+      .pchip:hover {
+        border-color: var(--dsw-alias-state-business-primary);
+        color: var(--dsw-alias-state-business-primary);
+      }
+      .pchip.on {
+        background: var(--dsw-alias-state-business-tertiary);
+        border-color: transparent;
+        color: var(--dsw-alias-state-business-primary);
+        font-weight: 600;
+      }
+      .pchip .del {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .pchip .del:hover {
+        background: var(--dsw-alias-interactive-bg-active);
+        color: var(--dsw-alias-label-primary);
+      }
+      .pchip.follow {
+        border-style: dashed;
+      }
+      .pchip.add {
+        border-style: dashed;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .pchip.add:hover {
+        color: var(--dsw-alias-state-business-primary);
+      }
+      .profiles .note {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--dsw-alias-label-tertiary);
+      }
 
-/* SegmentedTabs(宿主同构) */
-.tabs{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:4px;margin:0 18px;border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-module-platform)}
-.indicator{position:absolute;inset:4px auto 4px 4px;box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-3);transition:transform .18s ease;pointer-events:none}
-.tab{position:relative;justify-content:center;height:34px;padding:0 6px;border:none;background:transparent;border-radius:var(--dsw-radius-md);font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:pointer;transition:color .18s ease;white-space:nowrap}
-.tab:hover,.tab[aria-selected="true"]{color:var(--dsw-alias-label-primary)}
-.tab[aria-selected="true"]{font-weight:600}
-.tab .n{font-size:10.5px;color:var(--dsw-alias-label-tertiary);margin-left:3px;font-weight:400}
-.tab[aria-selected="true"] .n{color:var(--dsw-alias-state-business-primary)}
+      /* SegmentedTabs(宿主同构) */
+      .tabs {
+        position: relative;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+        padding: 4px;
+        margin: 0 18px;
+        border-radius: var(--dsw-radius-lg);
+        background: var(--dsw-alias-bg-module-platform);
+      }
+      .indicator {
+        position: absolute;
+        inset: 4px auto 4px 4px;
+        box-sizing: border-box;
+        border: 0.5px solid var(--dsw-alias-border-l3);
+        border-radius: var(--dsw-radius-md);
+        background: var(--dsw-alias-bg-layer-3);
+        transition: transform 0.18s ease;
+        pointer-events: none;
+      }
+      .tab {
+        position: relative;
+        justify-content: center;
+        height: 34px;
+        padding: 0 6px;
+        border: none;
+        background: transparent;
+        border-radius: var(--dsw-radius-md);
+        font-size: 13px;
+        line-height: 20px;
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+        transition: color 0.18s ease;
+        white-space: nowrap;
+      }
+      .tab:hover,
+      .tab[aria-selected='true'] {
+        color: var(--dsw-alias-label-primary);
+      }
+      .tab[aria-selected='true'] {
+        font-weight: 600;
+      }
+      .tab .n {
+        font-size: 10.5px;
+        color: var(--dsw-alias-label-tertiary);
+        margin-left: 3px;
+        font-weight: 400;
+      }
+      .tab[aria-selected='true'] .n {
+        color: var(--dsw-alias-state-business-primary);
+      }
 
-/* 工具行:搜索 + 面总开关 */
-.tools{display:flex;align-items:center;gap:10px;padding:12px 18px 8px}
-.search{flex:1;display:flex;align-items:center;gap:8px;background:var(--dsw-alias-bg-module-platform);border-radius:var(--dsw-radius-md);padding:7px 12px;font-size:13px;color:var(--dsw-alias-label-tertiary)}
-.search svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
-.search input{flex:1;border:none;background:transparent;outline:none;color:var(--dsw-alias-label-primary);font-size:13px}
-.search input::placeholder{color:var(--dsw-alias-label-tertiary)}
+      /* 工具行:搜索 + 面总开关 */
+      .tools {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 18px 8px;
+      }
+      .search {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--dsw-alias-bg-module-platform);
+        border-radius: var(--dsw-radius-md);
+        padding: 7px 12px;
+        font-size: 13px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .search svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        flex-shrink: 0;
+      }
+      .search input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        outline: none;
+        color: var(--dsw-alias-label-primary);
+        font-size: 13px;
+      }
+      .search input::placeholder {
+        color: var(--dsw-alias-label-tertiary);
+      }
 
-/* Switch(宿主同构) */
-.switch{box-sizing:border-box;position:relative;flex:0 0 auto;width:36px;height:20px;padding:2px;border:0;border-radius:999px;background:var(--dsw-alias-border-l3);cursor:pointer}
-.switch[aria-checked="true"]{background:var(--dsw-alias-state-business-primary)}
-.switch:disabled{cursor:default;opacity:.5}
-.switch:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
-.thumb{display:block;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-switch-thumb);transition:transform .12s ease}
-.switch[aria-checked="true"] .thumb{background:#fff;transform:translateX(16px)}
+      /* Switch(宿主同构) */
+      .switch {
+        box-sizing: border-box;
+        position: relative;
+        flex: 0 0 auto;
+        width: 36px;
+        height: 20px;
+        padding: 2px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--dsw-alias-border-l3);
+        cursor: pointer;
+      }
+      .switch[aria-checked='true'] {
+        background: var(--dsw-alias-state-business-primary);
+      }
+      .switch:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+      .switch:focus-visible {
+        outline: 2px solid var(--dsw-alias-state-business-primary);
+        outline-offset: 2px;
+      }
+      .thumb {
+        display: block;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--dsw-alias-switch-thumb);
+        transition: transform 0.12s ease;
+      }
+      .switch[aria-checked='true'] .thumb {
+        background: #fff;
+        transform: translateX(16px);
+      }
 
-/* ====== 列表(复用市场面板 SuiteCard 形态) ====== */
-.list{flex:1;overflow-y:auto;padding:6px 18px 12px}
-.suite-card{
-  display:flex;flex-direction:column;gap:2px;
-  border-left:3px solid var(--dsw-alias-state-success-primary);
-  border-radius:var(--dsw-radius-md);
-  background:var(--dsw-alias-bg-layer-2);
-  padding:10px 14px 10px 12px;margin-bottom:8px;
-  cursor:pointer;transition:background .12s;
-}
-.suite-card:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.suite-card.off{border-left-color:var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-module-platform)}
-.card-top{display:flex;align-items:center;gap:8px}
-.card-top .nm{font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary)}
-.suite-card.off .card-top .nm{color:var(--dsw-alias-label-tertiary);font-weight:400}
-.card-top .ver{font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
-.card-top .tag{font-size:10.5px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform);border-radius:4px;padding:0 6px}
-.suite-card.off .card-top .tag{opacity:.6}
-.card-top .sw-wrap{margin-left:auto;display:flex;align-items:center;gap:8px}
-.card-top .state{font-size:11px;color:var(--dsw-alias-state-success-primary)}
-.suite-card.off .card-top .state{color:var(--dsw-alias-label-tertiary)}
-.card-desc{font-size:12.5px;color:var(--dsw-alias-label-secondary);line-height:19px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.suite-card.off .card-desc{color:var(--dsw-alias-label-tertiary)}
-.card-foot{display:flex;align-items:center;gap:0;margin-top:6px;font-size:11px;color:var(--dsw-alias-label-tertiary)}
-.card-foot .src{color:var(--dsw-alias-label-secondary)}
-.card-foot .sep{margin:0 6px}
-.card-foot .cnt b{color:var(--dsw-alias-label-secondary);font-weight:500}
-.empty{padding:48px 0;text-align:center;color:var(--dsw-alias-label-tertiary);font-size:13px}
+      /* ====== 列表(复用市场面板 SuiteCard 形态) ====== */
+      .list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px 18px 12px;
+      }
+      .suite-card {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        border-left: 3px solid var(--dsw-alias-state-success-primary);
+        border-radius: var(--dsw-radius-md);
+        background: var(--dsw-alias-bg-layer-2);
+        padding: 10px 14px 10px 12px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: background 0.12s;
+      }
+      .suite-card:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+      }
+      .suite-card.off {
+        border-left-color: var(--dsw-alias-border-l3);
+        background: var(--dsw-alias-bg-module-platform);
+      }
+      .card-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card-top .nm {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--dsw-alias-label-primary);
+      }
+      .suite-card.off .card-top .nm {
+        color: var(--dsw-alias-label-tertiary);
+        font-weight: 400;
+      }
+      .card-top .ver {
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .card-top .tag {
+        font-size: 10.5px;
+        color: var(--dsw-alias-label-secondary);
+        background: var(--dsw-alias-bg-module-platform);
+        border-radius: 4px;
+        padding: 0 6px;
+      }
+      .suite-card.off .card-top .tag {
+        opacity: 0.6;
+      }
+      .card-top .sw-wrap {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card-top .state {
+        font-size: 11px;
+        color: var(--dsw-alias-state-success-primary);
+      }
+      .suite-card.off .card-top .state {
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .card-desc {
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-secondary);
+        line-height: 19px;
+        margin-top: 3px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .suite-card.off .card-desc {
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .card-foot {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .card-foot .src {
+        color: var(--dsw-alias-label-secondary);
+      }
+      .card-foot .sep {
+        margin: 0 6px;
+      }
+      .card-foot .cnt b {
+        color: var(--dsw-alias-label-secondary);
+        font-weight: 500;
+      }
+      .empty {
+        padding: 48px 0;
+        text-align: center;
+        color: var(--dsw-alias-label-tertiary);
+        font-size: 13px;
+      }
 
-/* 窗脚 */
-.win-f{display:flex;align-items:center;gap:10px;padding:10px 18px 14px;border-top:1px solid var(--dsw-alias-border-l2);font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
-.win-f b{color:var(--dsw-alias-label-secondary)}
-.seg2{display:flex;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm);overflow:hidden;margin-left:auto}
-.seg2 button{border:none;background:transparent;padding:4px 12px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:pointer}
-.seg2 button.on{background:var(--dsw-alias-state-business-tertiary);color:var(--dsw-alias-state-business-primary);font-weight:600}
+      /* 窗脚 */
+      .win-f {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 18px 14px;
+        border-top: 1px solid var(--dsw-alias-border-l2);
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      .win-f b {
+        color: var(--dsw-alias-label-secondary);
+      }
+      .seg2 {
+        display: flex;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-sm);
+        overflow: hidden;
+        margin-left: auto;
+      }
+      .seg2 button {
+        border: none;
+        background: transparent;
+        padding: 4px 12px;
+        font-size: 12px;
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+      }
+      .seg2 button.on {
+        background: var(--dsw-alias-state-business-tertiary);
+        color: var(--dsw-alias-state-business-primary);
+        font-weight: 600;
+      }
 
-/* 应用反馈 toast */
-.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:1100;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12.5px;border-radius:var(--dsw-radius-md);box-shadow:var(--dsw-elevation-prominent);padding:9px 16px;display:none;align-items:center;gap:8px}
-.toast.show{display:flex;animation:toastIn .18s ease}
-.toast svg{width:14px;height:14px;stroke:var(--dsw-alias-state-success-primary);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-@keyframes toastIn{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
+      /* 应用反馈 toast */
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 88px;
+        transform: translateX(-50%);
+        z-index: 1100;
+        background: var(--dsw-alias-bg-layer-2);
+        color: var(--dsw-alias-label-primary);
+        font-size: 12.5px;
+        border-radius: var(--dsw-radius-md);
+        box-shadow: var(--dsw-elevation-prominent);
+        padding: 9px 16px;
+        display: none;
+        align-items: center;
+        gap: 8px;
+      }
+      .toast.show {
+        display: flex;
+        animation: toastIn 0.18s ease;
+      }
+      .toast svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--dsw-alias-state-success-primary);
+        fill: none;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      @keyframes toastIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, 6px);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+      }
 
-/* SegmentedControl 双段(宿主同构) */
-.segc{display:grid;grid-auto-flow:column;padding:2px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-module-platform)}
-.segc button{height:24px;padding:0 10px;border:none;background:transparent;border-radius:calc(var(--dsw-radius-sm) - 2px);font-size:12px;color:var(--dsw-alias-label-tertiary);cursor:pointer;display:inline-flex;align-items:center;gap:4px}
-.segc button svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7}
-.segc button[aria-pressed="true"]{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-soft)}
-/* 列表视图:紧凑单行(MCP 状态面板行形态) */
-.listview .suite-card{flex-direction:row;align-items:center;gap:10px;padding:8px 12px 8px 10px}
-.listview .card-top{flex:1;min-width:0}
-.listview .card-desc,.listview .card-foot{display:none}
-.listview .nm{font-size:13.5px}
-.listview .sw-wrap .state{display:none}
-.hint{padding:12px 24px 18px;text-align:center;font-size:12px;color:var(--dsw-alias-label-tertiary);flex-shrink:0}
-</style>
-</head>
-<body>
+      /* SegmentedControl 双段(宿主同构) */
+      .segc {
+        display: grid;
+        grid-auto-flow: column;
+        padding: 2px;
+        border-radius: var(--dsw-radius-sm);
+        background: var(--dsw-alias-bg-module-platform);
+      }
+      .segc button {
+        height: 24px;
+        padding: 0 10px;
+        border: none;
+        background: transparent;
+        border-radius: calc(var(--dsw-radius-sm) - 2px);
+        font-size: 12px;
+        color: var(--dsw-alias-label-tertiary);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .segc button svg {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.7;
+      }
+      .segc button[aria-pressed='true'] {
+        background: var(--dsw-alias-bg-layer-2);
+        color: var(--dsw-alias-label-primary);
+        box-shadow: var(--dsw-elevation-soft);
+      }
+      /* 列表视图:紧凑单行(MCP 状态面板行形态) */
+      .listview .suite-card {
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px 8px 10px;
+      }
+      .listview .card-top {
+        flex: 1;
+        min-width: 0;
+      }
+      .listview .card-desc,
+      .listview .card-foot {
+        display: none;
+      }
+      .listview .nm {
+        font-size: 13.5px;
+      }
+      .listview .sw-wrap .state {
+        display: none;
+      }
+      .hint {
+        padding: 12px 24px 18px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--dsw-alias-label-tertiary);
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="demobar">
+      <span class="t">原型 v3 · 复用市场面板界面 + 只列已安装 + Profile 收藏</span>
+      <button class="on" data-th="light" onclick="setTheme('light', this)">亮色</button>
+      <button data-th="dark" onclick="setTheme('dark', this)">暗色</button>
+      <span style="margin-left: auto">点输入框左侧四方格图标 → 窗口;切 tab 不关窗;试试套用/保存收藏</span>
+    </div>
 
-<div class="demobar">
-  <span class="t">原型 v3 · 复用市场面板界面 + 只列已安装 + Profile 收藏</span>
-  <button class="on" data-th="light" onclick="setTheme('light',this)">亮色</button>
-  <button data-th="dark" onclick="setTheme('dark',this)">暗色</button>
-  <span style="margin-left:auto">点输入框左侧四方格图标 → 窗口;切 tab 不关窗;试试套用/保存收藏</span>
-</div>
+    <div class="chat">
+      <div class="msgs">
+        <div class="msg">帮我把市场里的双语描述按当前语言显示…</div>
+        <div class="msg me">已完成 ✅</div>
+        <div class="msg">把项目过滤做成复用市场面板的样子,加收藏功能</div>
+      </div>
+      <div class="inputbar">
+        <div class="card">
+          <div class="editable">给这个项目套用 <span class="ref">前端开发</span> 收藏…</div>
+          <div class="accessory">
+            <button class="plugin-entry" id="entryBtn" aria-label="项目资源" onclick="toggleWin(event)">
+              <span class="grid"><span class="cell a"></span><span class="cell b"></span><span class="cell c"></span><span class="cell d"></span></span>
+              <span class="dot"></span>
+            </button>
+            <button class="tbtn">
+              <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49 6 6 0 018.49 0" /></svg>
+            </button>
+            <button class="tbtn">
+              <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" /></svg>
+            </button>
+            <span class="spacer"></span><span class="modeltag">GLM-5.3</span>
+            <button class="sendbtn">
+              <svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6l6 6-6 6" /></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="hint">窗口/搜索框/tab/Switch/卡片全部 dsw token + 宿主组件形态;收藏(Profile)跨项目复用。</div>
+    </div>
 
-<div class="chat">
-  <div class="msgs">
-    <div class="msg">帮我把市场里的双语描述按当前语言显示…</div>
-    <div class="msg me">已完成 ✅</div>
-    <div class="msg">把项目过滤做成复用市场面板的样子,加收藏功能</div>
-  </div>
-  <div class="inputbar">
-    <div class="card">
-      <div class="editable">给这个项目套用 <span class="ref">前端开发</span> 收藏…</div>
-      <div class="accessory">
-        <button class="plugin-entry" id="entryBtn" aria-label="项目资源" onclick="toggleWin(event)">
-          <span class="grid"><span class="cell a"></span><span class="cell b"></span><span class="cell c"></span><span class="cell d"></span></span>
-          <span class="dot"></span>
-        </button>
-        <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-8.49 8.49a6 6 0 01-8.49-8.49 6 6 0 018.49 0"/></svg></button>
-        <button class="tbtn"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></button>
-        <span class="spacer"></span><span class="modeltag">GLM-5.3</span>
-        <button class="sendbtn"><svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6l6 6-6 6"/></svg></button>
+    <!-- ============ 资源窗口 ============ -->
+    <div class="modal-root" id="win" onclick="if (event.target === this || event.target.classList.contains('modal-mask')) closeWin()">
+      <div class="mask modal-mask"></div>
+      <div class="window" role="dialog" aria-label="项目资源">
+        <div class="win-h">
+          <span class="tt">项目资源</span>
+          <span class="chip">dsh-agent-plugins-market</span>
+          <span class="sub">仅本项目生效</span>
+          <button class="xbtn" onclick="closeWin()" aria-label="关闭">✕</button>
+        </div>
+
+        <!-- Profile 收藏行 -->
+        <div class="profiles" id="profiles"></div>
+
+        <div class="tabs" id="tabs" role="tablist"></div>
+
+        <div class="tools">
+          <span class="search">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input id="q" placeholder="搜索本项目已安装…" oninput="renderList()" />
+          </span>
+          <span class="segc" role="group" aria-label="视图">
+            <button aria-pressed="false" title="列表视图" onclick="setView('list', this)">
+              <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <button aria-pressed="true" title="卡片视图" onclick="setView('card', this)">
+              <svg viewBox="0 0 24 24">
+                <rect x="4" y="4" width="7" height="7" rx="1.5" />
+                <rect x="13" y="4" width="7" height="7" rx="1.5" />
+                <rect x="4" y="13" width="7" height="7" rx="1.5" />
+                <rect x="13" y="13" width="7" height="7" rx="1.5" />
+              </svg>
+            </button>
+          </span>
+        </div>
+
+        <div class="list" id="list"></div>
       </div>
     </div>
-  </div>
-  <div class="hint">窗口/搜索框/tab/Switch/卡片全部 dsw token + 宿主组件形态;收藏(Profile)跨项目复用。</div>
-</div>
 
-<!-- ============ 资源窗口 ============ -->
-<div class="modal-root" id="win" onclick="if(event.target===this||event.target.classList.contains('modal-mask'))closeWin()">
-  <div class="mask modal-mask"></div>
-  <div class="window" role="dialog" aria-label="项目资源">
-    <div class="win-h">
-      <span class="tt">项目资源</span>
-      <span class="chip">dsh-agent-plugins-market</span>
-      <span class="sub">仅本项目生效</span>
-      <button class="xbtn" onclick="closeWin()" aria-label="关闭">✕</button>
+    <div class="toast" id="toast">
+      <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg><span id="toastTxt"></span>
     </div>
 
-    <!-- Profile 收藏行 -->
-    <div class="profiles" id="profiles"></div>
+    <script>
+      /* ============ 数据(已安装视角,mock 贴合真实环境) ============ */
+      const FACES = [
+        { key: 'market', label: '市场', installed: 3 },
+        { key: 'skills', label: '技能', installed: 14 },
+        { key: 'commands', label: '命令', installed: 9 },
+        { key: 'agents', label: '子代理', installed: 5 },
+        { key: 'mcp', label: 'MCP', installed: 8 },
+        { key: 'lsp', label: 'LSP', installed: 4 }
+      ]
+      const DATA = {
+        skills: [
+          {
+            nm: 'dsh-doc',
+            ver: 'v0.1.0',
+            tag: 'dsh-workflow',
+            desc: '创建、重构、评审或迁移 DeepSeek Harness Markdown 文档、包 README 与文档站:受众优先的层级、双语行对齐、渐进式细节与仓库校验。',
+            src: 'dsh-workflow',
+            counts: [['技能', 12]],
+            on: true
+          },
+          {
+            nm: 'dsh-code-review',
+            ver: 'v0.1.0',
+            tag: 'dsh-workflow',
+            desc: '评审 deepseek-harness 仓库的 PR:定位仓库规范(AGENTS.md 约定、防御模式、ADR、门禁)与代码本身给不出的评审检查。',
+            src: 'dsh-workflow',
+            counts: [['技能', 1]],
+            on: true
+          },
+          {
+            nm: 'dsh-pre-push-checks',
+            ver: 'v0.1.0',
+            tag: 'dsh-workflow',
+            desc: '推送前选择覆盖外发 diff 的最小测试与检查,而不是反射式跑全量套件。',
+            src: 'dsh-workflow',
+            counts: [['技能', 1]],
+            on: false
+          },
+          {
+            nm: 'database',
+            ver: 'v0.2.0',
+            tag: 'agent-plugins',
+            desc: '经一个 CLI 对 MySQL 与 PostgreSQL 执行 SQL:每条连接携带引擎,可按命令选库,带写语句确认守卫。',
+            src: 'agent-plugins',
+            counts: [['技能', 1]],
+            on: false
+          },
+          {
+            nm: 'config-center',
+            ver: 'v0.3.0',
+            tag: 'agent-plugins',
+            desc: '插件凭证与环境配置中心:Agent 侧读取自动脱敏,修改需 HTML UI。',
+            src: 'agent-plugins',
+            counts: [['技能', 1]],
+            on: true
+          },
+          {
+            nm: 'ponytail',
+            ver: 'v1.0.0',
+            tag: 'ponytail',
+            desc: '最懒可行解:能跑就行的最短路径,标准库优先、平台特性优先、一行胜五十行。',
+            src: 'ponytail',
+            counts: [['技能', 1]],
+            on: true
+          }
+        ],
+        mcp: [
+          {
+            nm: 'chrome-devtools',
+            ver: '',
+            tag: 'agent-plugins',
+            desc: '浏览器调试与自动化:DOM 检查、控制台、网络、性能与真实运行时验证。',
+            src: 'agent-plugins',
+            counts: [['工具', 24]],
+            on: true
+          },
+          { nm: 'database', ver: '', tag: 'agent-plugins', desc: 'MySQL / PostgreSQL 双引擎 SQL 执行与结构发现。', src: 'agent-plugins', counts: [['工具', 9]], on: true },
+          { nm: 'hcs-api', ver: '', tag: 'agent-plugins', desc: '华为云 109 服务 7180 操作的接口目录与帮助中心检索。', src: 'agent-plugins', counts: [['工具', 6]], on: false },
+          { nm: 'deepseek-openapi', ver: '', tag: '直连', desc: 'OpenAPI 规范直连服务。', src: '直连配置', counts: [['工具', 3]], on: true }
+        ],
+        market: [
+          {
+            nm: 'dsh-workflow',
+            ver: 'v0.1.0',
+            tag: '用户',
+            desc: '工作流套件:Agent Notes、PR 评审、预推验证、文档生命周期等 12 技能 + hooks + 命令。',
+            src: 'agent-plugins',
+            counts: [
+              ['技能', 12],
+              ['Hooks', 1],
+              ['命令', 1]
+            ],
+            on: true
+          },
+          {
+            nm: 'agent-plugins',
+            ver: '—',
+            tag: '用户',
+            desc: '内网套件集合:config-center、database、dsh-plugin-creator 等。',
+            src: 'agent-plugins',
+            counts: [['技能', 1]],
+            on: true
+          },
+          {
+            nm: 'mattpocock-skills',
+            ver: 'v1.2.3',
+            tag: '用户',
+            desc: 'Matt Pocock 的工程技能:grilling、spec/ticket 流、TDD、代码评审、领域建模等 37 项。',
+            src: 'mattpocock',
+            counts: [['技能', 37]],
+            on: false
+          }
+        ],
+        commands: [
+          { nm: '/market', ver: '', tag: '用户面板', desc: '打开插件市场面板。', src: 'dsh-workflow', counts: [], on: true },
+          { nm: '/context', ver: '', tag: '用户面板', desc: '打开上下文仪表盘,看清上下文构成与演变。', src: 'agent-plugins', counts: [], on: true },
+          { nm: '/better-harness', ver: '', tag: '用户面板', desc: '评审外层 coding-agent Harness。', src: 'agent-plugins', counts: [], on: false }
+        ],
+        agents: [
+          { nm: 'test-engineer', ver: '', tag: '角色', desc: 'QA 工程师:测试策略、测试编写与覆盖分析。', src: 'agent-plugins', counts: [], on: true },
+          { nm: 'security-auditor', ver: '', tag: '角色', desc: '安全工程师:漏洞检测、威胁建模与安全编码实践。', src: 'agent-plugins', counts: [], on: false },
+          { nm: 'code-simplifier', ver: '', tag: '角色', desc: '在不改变功能的前提下简化重构。', src: 'agent-plugins', counts: [], on: true }
+        ],
+        lsp: [
+          { nm: 'typescript', ver: 'v4', tag: '套件声明', desc: 'demo/alpha 项目的 TypeScript 语言服务。', src: 'agent-plugins', counts: [], on: true },
+          { nm: 'json', ver: '', tag: '套件声明', desc: 'JSON 配置文件语言服务。', src: 'agent-plugins', counts: [], on: false }
+        ]
+      }
+      /* Profile:跨项目收藏(完整开关快照;mock 两个) */
+      let PROFILES = [
+        {
+          name: '前端开发',
+          snap: {
+            skills: ['dsh-doc', 'dsh-code-review', 'ponytail'],
+            mcp: ['chrome-devtools'],
+            market: ['dsh-workflow', 'agent-plugins'],
+            commands: ['/market', '/context'],
+            agents: ['test-engineer', 'code-simplifier'],
+            lsp: ['typescript']
+          },
+          note: '网页开发日常'
+        },
+        {
+          name: '数据处理',
+          snap: { skills: ['database', 'config-center'], mcp: ['database', 'hcs-api'], market: ['agent-plugins'], commands: ['/context'], agents: ['test-engineer'], lsp: [] },
+          note: 'SQL 与云端数据'
+        }
+      ]
+      let activeProfile = null // null = 自定义
 
-    <div class="tabs" id="tabs" role="tablist"></div>
+      let cur = 'skills',
+        view = 'card'
+      function setView(v, btn) {
+        view = v
+        document.querySelectorAll('.segc button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
+        document.getElementById('list').classList.toggle('listview', v === 'list')
+      }
+      const $ = id => document.getElementById(id)
+      function setTheme(t, btn) {
+        document.documentElement.dataset.theme = t
+        document.querySelectorAll('.demobar button').forEach(b => b.classList.toggle('on', b === btn))
+      }
 
-    <div class="tools">
-      <span class="search">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="q" placeholder="搜索本项目已安装…" oninput="renderList()">
-      </span>
-      <span class="segc" role="group" aria-label="视图">
-        <button aria-pressed="false" title="列表视图" onclick="setView('list',this)"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-        <button aria-pressed="true" title="卡片视图" onclick="setView('card',this)"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
-      </span>
-    </div>
+      /* ============ 窗口开关 ============ */
+      function toggleWin(e) {
+        e && e.stopPropagation()
+        const w = $('win')
+        const open = !w.classList.contains('open')
+        w.classList.toggle('open', open)
+        $('entryBtn').classList.toggle('active', open)
+      }
+      function closeWin() {
+        $('win').classList.remove('open')
+        $('entryBtn').classList.remove('active')
+      }
 
-    <div class="list" id="list"></div>
+      /* ============ Profile 收藏 ============ */
+      function renderProfiles() {
+        $('profiles').innerHTML =
+          `<span class="lb">收藏</span>` +
+          `<button class="pchip follow ${activeProfile === null ? '' : 'on'}" onclick="setProfile(null)">跟随全局</button>` +
+          PROFILES.map(
+            (p, i) =>
+              `<button class="pchip ${activeProfile === i ? 'on' : ''}" onclick="setProfile(${i})" title="${p.note ?? ''}">${p.name}<span class="del" onclick="event.stopPropagation();delProfile(${i})" title="删除收藏">✕</span></button>`
+          ).join('') +
+          `<button class="pchip add" onclick="saveProfile()">＋ 保存当前为收藏</button>` +
+          `<span class="note">收藏跨项目可用</span>`
+      }
+      function setProfile(i) {
+        activeProfile = i
+        if (i !== null) {
+          const snap = PROFILES[i].snap
+          for (const k in DATA)
+            DATA[k].forEach(it => {
+              it.on = (snap[k] || []).includes(it.nm)
+            })
+          toast(`已套用收藏「${PROFILES[i].name}」`)
+        }
+        renderProfiles()
+        renderTabs()
+        renderList()
+      }
+      function saveProfile() {
+        const name = prompt('收藏名称:', '我的常用 ' + (PROFILES.length + 1))
+        if (!name) return
+        const snap = {}
+        for (const k in DATA) snap[k] = DATA[k].filter(it => it.on).map(it => it.nm)
+        PROFILES.push({ name, snap, note: '' })
+        activeProfile = PROFILES.length - 1
+        renderProfiles()
+        toast(`已保存收藏「${name}」(跨项目可用)`)
+      }
+      function delProfile(i) {
+        PROFILES.splice(i, 1)
+        if (activeProfile === i) activeProfile = null
+        else if (activeProfile > i) activeProfile--
+        renderProfiles()
+      }
+      function toast(msg) {
+        $('toastTxt').textContent = msg
+        const t = $('toast')
+        t.classList.add('show')
+        clearTimeout(t._h)
+        t._h = setTimeout(() => t.classList.remove('show'), 2200)
+      }
 
-    </div>
-    </div>
-</div>
+      /* ============ Tabs ============ */
+      function renderTabs() {
+        const tabs = $('tabs')
+        tabs.innerHTML = FACES.map(
+          f => `<button class="tab" role="tab" aria-selected="${f.key === cur}" onclick="switchTab('${f.key}')">${f.label}<span class="n">${f.installed}</span></button>`
+        ).join('')
+        let ind = tabs.querySelector('.indicator')
+        if (!ind) {
+          ind = document.createElement('span')
+          ind.className = 'indicator'
+          tabs.appendChild(ind)
+        }
+        const active = tabs.querySelector('[aria-selected="true"]')
+        ind.style.width = active.offsetWidth + 'px'
+        ind.style.transform = `translateX(${active.offsetLeft - 4}px)`
+      }
+      function switchTab(k) {
+        cur = k
+        renderTabs()
+        renderList()
+      } // ← 只切内容,不关窗
 
-<div class="toast" id="toast"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span id="toastTxt"></span></div>
-
-<script>
-/* ============ 数据(已安装视角,mock 贴合真实环境) ============ */
-const FACES = [
-  { key:'market', label:'市场', installed:3 },
-  { key:'skills', label:'技能', installed:14 },
-  { key:'commands', label:'命令', installed:9 },
-  { key:'agents', label:'子代理', installed:5 },
-  { key:'mcp', label:'MCP', installed:8 },
-  { key:'lsp', label:'LSP', installed:4 }
-];
-const DATA = {
-  skills: [
-    { nm:'dsh-doc', ver:'v0.1.0', tag:'dsh-workflow', desc:'创建、重构、评审或迁移 DeepSeek Harness Markdown 文档、包 README 与文档站:受众优先的层级、双语行对齐、渐进式细节与仓库校验。', src:'dsh-workflow', counts:[['技能',12]], on:true },
-    { nm:'dsh-code-review', ver:'v0.1.0', tag:'dsh-workflow', desc:'评审 deepseek-harness 仓库的 PR:定位仓库规范(AGENTS.md 约定、防御模式、ADR、门禁)与代码本身给不出的评审检查。', src:'dsh-workflow', counts:[['技能',1]], on:true },
-    { nm:'dsh-pre-push-checks', ver:'v0.1.0', tag:'dsh-workflow', desc:'推送前选择覆盖外发 diff 的最小测试与检查,而不是反射式跑全量套件。', src:'dsh-workflow', counts:[['技能',1]], on:false },
-    { nm:'database', ver:'v0.2.0', tag:'agent-plugins', desc:'经一个 CLI 对 MySQL 与 PostgreSQL 执行 SQL:每条连接携带引擎,可按命令选库,带写语句确认守卫。', src:'agent-plugins', counts:[['技能',1]], on:false },
-    { nm:'config-center', ver:'v0.3.0', tag:'agent-plugins', desc:'插件凭证与环境配置中心:Agent 侧读取自动脱敏,修改需 HTML UI。', src:'agent-plugins', counts:[['技能',1]], on:true },
-    { nm:'ponytail', ver:'v1.0.0', tag:'ponytail', desc:'最懒可行解:能跑就行的最短路径,标准库优先、平台特性优先、一行胜五十行。', src:'ponytail', counts:[['技能',1]], on:true }
-  ],
-  mcp: [
-    { nm:'chrome-devtools', ver:'', tag:'agent-plugins', desc:'浏览器调试与自动化:DOM 检查、控制台、网络、性能与真实运行时验证。', src:'agent-plugins', counts:[['工具',24]], on:true },
-    { nm:'database', ver:'', tag:'agent-plugins', desc:'MySQL / PostgreSQL 双引擎 SQL 执行与结构发现。', src:'agent-plugins', counts:[['工具',9]], on:true },
-    { nm:'hcs-api', ver:'', tag:'agent-plugins', desc:'华为云 109 服务 7180 操作的接口目录与帮助中心检索。', src:'agent-plugins', counts:[['工具',6]], on:false },
-    { nm:'deepseek-openapi', ver:'', tag:'直连', desc:'OpenAPI 规范直连服务。', src:'直连配置', counts:[['工具',3]], on:true }
-  ],
-  market: [
-    { nm:'dsh-workflow', ver:'v0.1.0', tag:'用户', desc:'工作流套件:Agent Notes、PR 评审、预推验证、文档生命周期等 12 技能 + hooks + 命令。', src:'agent-plugins', counts:[['技能',12],['Hooks',1],['命令',1]], on:true },
-    { nm:'agent-plugins', ver:'—', tag:'用户', desc:'内网套件集合:config-center、database、dsh-plugin-creator 等。', src:'agent-plugins', counts:[['技能',1]], on:true },
-    { nm:'mattpocock-skills', ver:'v1.2.3', tag:'用户', desc:'Matt Pocock 的工程技能:grilling、spec/ticket 流、TDD、代码评审、领域建模等 37 项。', src:'mattpocock', counts:[['技能',37]], on:false }
-  ],
-  commands: [
-    { nm:'/market', ver:'', tag:'用户面板', desc:'打开插件市场面板。', src:'dsh-workflow', counts:[], on:true },
-    { nm:'/context', ver:'', tag:'用户面板', desc:'打开上下文仪表盘,看清上下文构成与演变。', src:'agent-plugins', counts:[], on:true },
-    { nm:'/better-harness', ver:'', tag:'用户面板', desc:'评审外层 coding-agent Harness。', src:'agent-plugins', counts:[], on:false }
-  ],
-  agents: [
-    { nm:'test-engineer', ver:'', tag:'角色', desc:'QA 工程师:测试策略、测试编写与覆盖分析。', src:'agent-plugins', counts:[], on:true },
-    { nm:'security-auditor', ver:'', tag:'角色', desc:'安全工程师:漏洞检测、威胁建模与安全编码实践。', src:'agent-plugins', counts:[], on:false },
-    { nm:'code-simplifier', ver:'', tag:'角色', desc:'在不改变功能的前提下简化重构。', src:'agent-plugins', counts:[], on:true }
-  ],
-  lsp: [
-    { nm:'typescript', ver:'v4', tag:'套件声明', desc:'demo/alpha 项目的 TypeScript 语言服务。', src:'agent-plugins', counts:[], on:true },
-    { nm:'json', ver:'', tag:'套件声明', desc:'JSON 配置文件语言服务。', src:'agent-plugins', counts:[], on:false }
-  ]
-};
-/* Profile:跨项目收藏(完整开关快照;mock 两个) */
-let PROFILES = [
-  { name:'前端开发', snap:{ skills:['dsh-doc','dsh-code-review','ponytail'], mcp:['chrome-devtools'], market:['dsh-workflow','agent-plugins'], commands:['/market','/context'], agents:['test-engineer','code-simplifier'], lsp:['typescript'] },
-    note:'网页开发日常' },
-  { name:'数据处理', snap:{ skills:['database','config-center'], mcp:['database','hcs-api'], market:['agent-plugins'], commands:['/context'], agents:['test-engineer'], lsp:[] },
-    note:'SQL 与云端数据' }
-];
-let activeProfile = null; // null = 自定义
-
-let cur = 'skills', view = 'card';
-function setView(v, btn){
-  view = v;
-  document.querySelectorAll('.segc button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
-  document.getElementById('list').classList.toggle('listview', v === 'list');
-}
-const $ = id => document.getElementById(id);
-function setTheme(t, btn){ document.documentElement.dataset.theme = t; document.querySelectorAll('.demobar button').forEach(b => b.classList.toggle('on', b === btn)) }
-
-/* ============ 窗口开关 ============ */
-function toggleWin(e){ e && e.stopPropagation(); const w = $('win'); const open = !w.classList.contains('open'); w.classList.toggle('open', open); $('entryBtn').classList.toggle('active', open) }
-function closeWin(){ $('win').classList.remove('open'); $('entryBtn').classList.remove('active') }
-
-/* ============ Profile 收藏 ============ */
-function renderProfiles(){
-  $('profiles').innerHTML =
-    `<span class="lb">收藏</span>` +
-    `<button class="pchip follow ${activeProfile===null?'':'on'}" onclick="setProfile(null)">跟随全局</button>` +
-    PROFILES.map((p,i) =>
-      `<button class="pchip ${activeProfile===i?'on':''}" onclick="setProfile(${i})" title="${p.note ?? ''}">${p.name}<span class="del" onclick="event.stopPropagation();delProfile(${i})" title="删除收藏">✕</span></button>`).join('') +
-    `<button class="pchip add" onclick="saveProfile()">＋ 保存当前为收藏</button>` +
-    `<span class="note">收藏跨项目可用</span>`;
-}
-function setProfile(i){
-  activeProfile = i;
-  if (i !== null) {
-    const snap = PROFILES[i].snap;
-    for (const k in DATA) DATA[k].forEach(it => { it.on = (snap[k] || []).includes(it.nm) });
-    toast(`已套用收藏「${PROFILES[i].name}」`);
-  }
-  renderProfiles(); renderTabs(); renderList();
-}
-function saveProfile(){
-  const name = prompt('收藏名称:', '我的常用 ' + (PROFILES.length + 1));
-  if (!name) return;
-  const snap = {};
-  for (const k in DATA) snap[k] = DATA[k].filter(it => it.on).map(it => it.nm);
-  PROFILES.push({ name, snap, note:'' });
-  activeProfile = PROFILES.length - 1;
-  renderProfiles(); toast(`已保存收藏「${name}」(跨项目可用)`);
-}
-function delProfile(i){
-  PROFILES.splice(i, 1);
-  if (activeProfile === i) activeProfile = null;
-  else if (activeProfile > i) activeProfile--;
-  renderProfiles();
-}
-function toast(msg){
-  $('toastTxt').textContent = msg;
-  const t = $('toast'); t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
-}
-
-/* ============ Tabs ============ */
-function renderTabs(){
-  const tabs = $('tabs');
-  tabs.innerHTML = FACES.map(f =>
-    `<button class="tab" role="tab" aria-selected="${f.key===cur}" onclick="switchTab('${f.key}')">${f.label}<span class="n">${f.installed}</span></button>`).join('');
-  let ind = tabs.querySelector('.indicator');
-  if (!ind){ ind = document.createElement('span'); ind.className = 'indicator'; tabs.appendChild(ind) }
-  const active = tabs.querySelector('[aria-selected="true"]');
-  ind.style.width = active.offsetWidth + 'px';
-  ind.style.transform = `translateX(${active.offsetLeft - 4}px)`;
-}
-function switchTab(k){ cur = k; renderTabs(); renderList() } // ← 只切内容,不关窗
-
-/* ============ 列表 ============ */
-function renderList(){
-  const q = $('q').value.trim().toLowerCase();
-  const items = (DATA[cur] || []).filter(i => !q || i.nm.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q));
-  $('list').innerHTML = items.length ? items.map(i =>
-    `<div class="suite-card ${i.on?'':'off'}" onclick="flipRow(this)">
+      /* ============ 列表 ============ */
+      function renderList() {
+        const q = $('q').value.trim().toLowerCase()
+        const items = (DATA[cur] || []).filter(i => !q || i.nm.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q))
+        $('list').innerHTML = items.length
+          ? items
+              .map(
+                i =>
+                  `<div class="suite-card ${i.on ? '' : 'off'}" onclick="flipRow(this)">
       <div class="card-top">
-        <span class="nm">${i.nm}</span>${i.ver?`<span class="ver">${i.ver}</span>`:''}<span class="tag">${i.tag}</span>
-        <span class="sw-wrap"><span class="state">${i.on?'已启用':'已过滤'}</span>
+        <span class="nm">${i.nm}</span>${i.ver ? `<span class="ver">${i.ver}</span>` : ''}<span class="tag">${i.tag}</span>
+        <span class="sw-wrap"><span class="state">${i.on ? '已启用' : '已过滤'}</span>
         <button class="switch" role="switch" aria-checked="${i.on}" onclick="event.stopPropagation();flipRow(this)" aria-label="${i.nm} 开关"><span class="thumb"></span></button></span>
       </div>
       <div class="card-desc">${i.desc}</div>
-      <div class="card-foot"><span class="src">${i.src}</span>${i.counts.map(c=>`<span class="sep">·</span><span class="cnt">${c[0]} <b>${c[1]}</b></span>`).join('')}</div>
-    </div>`).join('') : `<div class="empty">没有匹配的已安装条目</div>`;
-  updateStats();
-}
-function flipRow(el){
-  const sw = el.classList.contains('switch') ? el : el.querySelector('.switch');
-  sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
-  const card = sw.closest('.suite-card');
-  card.classList.toggle('off', sw.getAttribute('aria-checked') === 'false');
-  card.querySelector('.state').textContent = sw.getAttribute('aria-checked') === 'true' ? '已启用' : '已过滤';
-  activeProfile = null; renderProfiles(); updateStats(); // 手动改动即脱离收藏
-}
-function updateStats(){ /* stats bar removed */ }
+      <div class="card-foot"><span class="src">${i.src}</span>${i.counts.map(c => `<span class="sep">·</span><span class="cnt">${c[0]} <b>${c[1]}</b></span>`).join('')}</div>
+    </div>`
+              )
+              .join('')
+          : `<div class="empty">没有匹配的已安装条目</div>`
+        updateStats()
+      }
+      function flipRow(el) {
+        const sw = el.classList.contains('switch') ? el : el.querySelector('.switch')
+        sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true')
+        const card = sw.closest('.suite-card')
+        card.classList.toggle('off', sw.getAttribute('aria-checked') === 'false')
+        card.querySelector('.state').textContent = sw.getAttribute('aria-checked') === 'true' ? '已启用' : '已过滤'
+        activeProfile = null
+        renderProfiles()
+        updateStats() // 手动改动即脱离收藏
+      }
+      function updateStats() {
+        /* stats bar removed */
+      }
 
-renderProfiles(); renderTabs(); renderList();
-window.addEventListener('resize', renderTabs);
-</script>
-</body>
+      renderProfiles()
+      renderTabs()
+      renderList()
+      window.addEventListener('resize', renderTabs)
+    </script>
+  </body>
 </html>

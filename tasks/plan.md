@@ -68,12 +68,13 @@
 
 ## 终态(2026-10-03 深夜,Agent Teams 收尾)
 
-| 任务 | 实现 | Teams 验收 | 状态 |
-|------|------|-----------|------|
-| T1 中文本地化 | 508fd3b + 622be58(+7 加固) | t1-localization-verifier(deepseek-flash) 5/5 通过 | ✅ |
-| T2 会话间通信设计 | 5454ccc(+底座 caf1652) | Lead 评审,引用抽查吻合 | ✅ |
-| T3 surface 开关 | 83efdfd 系列 + 修复 efc2b85/88529e4/3482682 | t3-toggles-verifier(space-bunny-free) 两轮:有条件→无条件通过 | ✅ |
+| 任务              | 实现                                        | Teams 验收                                                   | 状态 |
+| ----------------- | ------------------------------------------- | ------------------------------------------------------------ | ---- |
+| T1 中文本地化     | 508fd3b + 622be58(+7 加固)                  | t1-localization-verifier(deepseek-flash) 5/5 通过            | ✅   |
+| T2 会话间通信设计 | 5454ccc(+底座 caf1652)                      | Lead 评审,引用抽查吻合                                       | ✅   |
+| T3 surface 开关   | 83efdfd 系列 + 修复 efc2b85/88529e4/3482682 | t3-toggles-verifier(space-bunny-free) 两轮:有条件→无条件通过 | ✅   |
 
 ### Backlog(复验建议,非阻断)
+
 - user-commands 的 reconcile(allow=false) 补一条回归用例(变异探针未被现有测试接住)
 - surface-toggle-routes 测试补跨域 403 用例(活体 curl 已验过,缺自动化锁)
