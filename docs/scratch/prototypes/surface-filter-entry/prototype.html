@@ -159,7 +159,6 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
 .search svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
 .search input{flex:1;border:none;background:transparent;outline:none;color:var(--dsw-alias-label-primary);font-size:13px}
 .search input::placeholder{color:var(--dsw-alias-label-tertiary)}
-.face-master{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
 
 /* Switch(宿主同构) */
 .switch{box-sizing:border-box;position:relative;flex:0 0 auto;width:36px;height:20px;padding:2px;border:0;border-radius:999px;background:var(--dsw-alias-border-l3);cursor:pointer}
@@ -268,10 +267,6 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         <input id="q" placeholder="搜索本项目已安装…" oninput="renderList()">
       </span>
-      <span class="face-master">
-        <span id="masterLabel">技能面总开关</span>
-        <button class="switch" id="masterSw" role="switch" aria-checked="true" onclick="flipMaster(this)"><span class="thumb"></span></button>
-      </span>
     </div>
 
     <div class="list" id="list"></div>
@@ -361,7 +356,7 @@ function setProfile(i){
     for (const k in DATA) DATA[k].forEach(it => { it.on = (snap[k] || []).includes(it.nm) });
     toast(`已套用收藏「${PROFILES[i].name}」`);
   }
-  renderProfiles(); renderTabs(); renderList(); updateMaster();
+  renderProfiles(); renderTabs(); renderList();
 }
 function saveProfile(){
   const name = prompt('收藏名称:', '我的常用 ' + (PROFILES.length + 1));
@@ -395,7 +390,7 @@ function renderTabs(){
   ind.style.width = active.offsetWidth + 'px';
   ind.style.transform = `translateX(${active.offsetLeft - 4}px)`;
 }
-function switchTab(k){ cur = k; renderTabs(); renderList(); updateMaster() } // ← 只切内容,不关窗
+function switchTab(k){ cur = k; renderTabs(); renderList() } // ← 只切内容,不关窗
 
 /* ============ 列表 ============ */
 function renderList(){
@@ -421,24 +416,9 @@ function flipRow(el){
   card.querySelector('.state').textContent = sw.getAttribute('aria-checked') === 'true' ? '已启用' : '已过滤';
   activeProfile = null; renderProfiles(); updateStats(); // 手动改动即脱离收藏
 }
-function flipMaster(sw){
-  sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
-  const on = sw.getAttribute('aria-checked') === 'true';
-  document.querySelectorAll('#list .switch').forEach(s => {
-    s.setAttribute('aria-checked', on);
-    const card = s.closest('.suite-card');
-    card.classList.toggle('off', !on);
-    card.querySelector('.state').textContent = on ? '已启用' : '已过滤';
-  });
-  activeProfile = null; renderProfiles(); updateStats();
-}
-function updateMaster(){
-  const f = FACES.find(x => x.key === cur);
-  $('masterLabel').textContent = f.label + '面总开关';
-}
 function updateStats(){ /* stats bar removed */ }
 
-renderProfiles(); renderTabs(); renderList(); updateMaster();
+renderProfiles(); renderTabs(); renderList();
 window.addEventListener('resize', renderTabs);
 </script>
 </body>
