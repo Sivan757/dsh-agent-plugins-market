@@ -461,9 +461,7 @@ export async function apply(
     // either way: the window is the meta-surface that owns all six switches,
     // and taking it down with one of them would strand the user.
     hostCtx.effect(() => {
-      const disposeSuite = surfaceToggles.allows('market')
-        ? mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles)
-        : undefined
+      const disposeSuite = surfaceToggles.allows('market') ? mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles) : undefined
       const disposeResources = mountResourceRoutes(hostCtx, {
         catalog,
         panels: resources,

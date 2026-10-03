@@ -156,9 +156,9 @@ describe('ResourceWindow', () => {
     expect(toggle).not.toBeNull()
     // Card is selected by default; one click flips the data attribute to list.
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('card')
-    await act(async () => toggle!.click())
+    await act(async () => toggle.click())
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('list')
-    await act(async () => toggle!.click())
+    await act(async () => toggle.click())
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('card')
   })
 
