@@ -18,6 +18,7 @@
     "tests/globals.d.ts",
     "tests/jsdom.d.ts",
     "tests/bilingual-description.test.ts",
+    "tests/bilingual-description-real-case.test.ts",
     "tests/client-api-timeout.test.ts",
     "tests/client-busy-overlay.test.ts",
     "tests/client-credentials.test.ts",
