@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>项目资源 · 原型 v3(复用市场面板 + Profile 合集)</title>
+<title>项目资源 · 原型 v3(复用市场面板 + Profile 收藏)</title>
 <style>
 /* dsw design-platform 真实 token(亮/暗),来源 design-platform.css */
 :root{
@@ -126,7 +126,7 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
 .xbtn{margin-left:auto;width:28px;height:28px;border:none;background:transparent;border-radius:var(--dsw-radius-sm);color:var(--dsw-alias-label-tertiary);font-size:14px;cursor:pointer}
 .xbtn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 
-/* ====== Profile 合集行 ====== */
+/* ====== Profile 收藏行 ====== */
 .profiles{display:flex;align-items:center;gap:6px;padding:0 18px 12px;flex-wrap:wrap}
 .profiles .lb{font-size:12px;color:var(--dsw-alias-label-tertiary);margin-right:2px}
 .pchip{
@@ -217,21 +217,21 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
 <body>
 
 <div class="demobar">
-  <span class="t">原型 v3 · 复用市场面板界面 + 只列已安装 + Profile 合集</span>
+  <span class="t">原型 v3 · 复用市场面板界面 + 只列已安装 + Profile 收藏</span>
   <button class="on" data-th="light" onclick="setTheme('light',this)">亮色</button>
   <button data-th="dark" onclick="setTheme('dark',this)">暗色</button>
-  <span style="margin-left:auto">点输入框左侧四方格图标 → 窗口;切 tab 不关窗;试试套用/保存合集</span>
+  <span style="margin-left:auto">点输入框左侧四方格图标 → 窗口;切 tab 不关窗;试试套用/保存收藏</span>
 </div>
 
 <div class="chat">
   <div class="msgs">
     <div class="msg">帮我把市场里的双语描述按当前语言显示…</div>
     <div class="msg me">已完成 ✅</div>
-    <div class="msg">把项目过滤做成复用市场面板的样子,加合集功能</div>
+    <div class="msg">把项目过滤做成复用市场面板的样子,加收藏功能</div>
   </div>
   <div class="inputbar">
     <div class="card">
-      <div class="editable">给这个项目套用 <span class="ref">前端开发</span> 合集…</div>
+      <div class="editable">给这个项目套用 <span class="ref">前端开发</span> 收藏…</div>
       <div class="accessory">
         <button class="plugin-entry" id="entryBtn" aria-label="项目资源" onclick="toggleWin(event)">
           <span class="grid"><span class="cell a"></span><span class="cell b"></span><span class="cell c"></span><span class="cell d"></span></span>
@@ -244,7 +244,7 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
       </div>
     </div>
   </div>
-  <div class="hint">窗口/搜索框/tab/Switch/卡片全部 dsw token + 宿主组件形态;合集(Profile)跨项目复用。</div>
+  <div class="hint">窗口/搜索框/tab/Switch/卡片全部 dsw token + 宿主组件形态;收藏(Profile)跨项目复用。</div>
 </div>
 
 <!-- ============ 资源窗口 ============ -->
@@ -254,11 +254,11 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
     <div class="win-h">
       <span class="tt">项目资源</span>
       <span class="chip">dsh-agent-plugins-market</span>
-      <span class="sub">仅本项目生效 · 不改全局安装</span>
+      <span class="sub">仅本项目生效</span>
       <button class="xbtn" onclick="closeWin()" aria-label="关闭">✕</button>
     </div>
 
-    <!-- Profile 合集行 -->
+    <!-- Profile 收藏行 -->
     <div class="profiles" id="profiles"></div>
 
     <div class="tabs" id="tabs" role="tablist"></div>
@@ -276,11 +276,8 @@ body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;font-size:14p
 
     <div class="list" id="list"></div>
 
-    <div class="win-f">
-      <span>已启用 <b id="stat">12/14</b> · 已过滤 <b id="offStat">2</b> 项</span>
-      <div class="seg2"><button>跟随全局</button><button class="on">本项目自定义</button></div>
     </div>
-  </div>
+    </div>
 </div>
 
 <div class="toast" id="toast"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span id="toastTxt"></span></div>
@@ -330,7 +327,7 @@ const DATA = {
     { nm:'json', ver:'', tag:'套件声明', desc:'JSON 配置文件语言服务。', src:'agent-plugins', counts:[], on:false }
   ]
 };
-/* Profile:跨项目合集(完整开关快照;mock 两个) */
+/* Profile:跨项目收藏(完整开关快照;mock 两个) */
 let PROFILES = [
   { name:'前端开发', snap:{ skills:['dsh-doc','dsh-code-review','ponytail'], mcp:['chrome-devtools'], market:['dsh-workflow','agent-plugins'], commands:['/market','/context'], agents:['test-engineer','code-simplifier'], lsp:['typescript'] },
     note:'网页开发日常' },
@@ -347,33 +344,33 @@ function setTheme(t, btn){ document.documentElement.dataset.theme = t; document.
 function toggleWin(e){ e && e.stopPropagation(); const w = $('win'); const open = !w.classList.contains('open'); w.classList.toggle('open', open); $('entryBtn').classList.toggle('active', open) }
 function closeWin(){ $('win').classList.remove('open'); $('entryBtn').classList.remove('active') }
 
-/* ============ Profile 合集 ============ */
+/* ============ Profile 收藏 ============ */
 function renderProfiles(){
   $('profiles').innerHTML =
-    `<span class="lb">合集</span>` +
+    `<span class="lb">收藏</span>` +
     `<button class="pchip follow ${activeProfile===null?'':'on'}" onclick="setProfile(null)">跟随全局</button>` +
     PROFILES.map((p,i) =>
-      `<button class="pchip ${activeProfile===i?'on':''}" onclick="setProfile(${i})" title="${p.note ?? ''}">${p.name}<span class="del" onclick="event.stopPropagation();delProfile(${i})" title="删除合集">✕</span></button>`).join('') +
-    `<button class="pchip add" onclick="saveProfile()">＋ 保存当前为合集</button>` +
-    `<span class="note">合集跨项目可用</span>`;
+      `<button class="pchip ${activeProfile===i?'on':''}" onclick="setProfile(${i})" title="${p.note ?? ''}">${p.name}<span class="del" onclick="event.stopPropagation();delProfile(${i})" title="删除收藏">✕</span></button>`).join('') +
+    `<button class="pchip add" onclick="saveProfile()">＋ 保存当前为收藏</button>` +
+    `<span class="note">收藏跨项目可用</span>`;
 }
 function setProfile(i){
   activeProfile = i;
   if (i !== null) {
     const snap = PROFILES[i].snap;
     for (const k in DATA) DATA[k].forEach(it => { it.on = (snap[k] || []).includes(it.nm) });
-    toast(`已套用合集「${PROFILES[i].name}」`);
+    toast(`已套用收藏「${PROFILES[i].name}」`);
   }
   renderProfiles(); renderTabs(); renderList(); updateMaster();
 }
 function saveProfile(){
-  const name = prompt('合集名称:', '我的常用 ' + (PROFILES.length + 1));
+  const name = prompt('收藏名称:', '我的常用 ' + (PROFILES.length + 1));
   if (!name) return;
   const snap = {};
   for (const k in DATA) snap[k] = DATA[k].filter(it => it.on).map(it => it.nm);
   PROFILES.push({ name, snap, note:'' });
   activeProfile = PROFILES.length - 1;
-  renderProfiles(); toast(`已保存合集「${name}」(跨项目可用)`);
+  renderProfiles(); toast(`已保存收藏「${name}」(跨项目可用)`);
 }
 function delProfile(i){
   PROFILES.splice(i, 1);
@@ -422,7 +419,7 @@ function flipRow(el){
   const card = sw.closest('.suite-card');
   card.classList.toggle('off', sw.getAttribute('aria-checked') === 'false');
   card.querySelector('.state').textContent = sw.getAttribute('aria-checked') === 'true' ? '已启用' : '已过滤';
-  activeProfile = null; renderProfiles(); updateStats(); // 手动改动即脱离合集
+  activeProfile = null; renderProfiles(); updateStats(); // 手动改动即脱离收藏
 }
 function flipMaster(sw){
   sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
@@ -439,12 +436,7 @@ function updateMaster(){
   const f = FACES.find(x => x.key === cur);
   $('masterLabel').textContent = f.label + '面总开关';
 }
-function updateStats(){
-  const sws = [...document.querySelectorAll('#list .switch')];
-  const on = sws.filter(s => s.getAttribute('aria-checked') === 'true').length;
-  $('stat').textContent = on + '/' + sws.length;
-  $('offStat').textContent = sws.length - on;
-}
+function updateStats(){ /* stats bar removed */ }
 
 renderProfiles(); renderTabs(); renderList(); updateMaster();
 window.addEventListener('resize', renderTabs);
