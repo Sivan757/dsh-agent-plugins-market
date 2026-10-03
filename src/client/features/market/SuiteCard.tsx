@@ -4,6 +4,7 @@
  * description, and a source row carrying the counts.
  */
 import { createElement as h, type HTMLAttributes, type ReactElement, type ReactNode } from 'react'
+import { pickBilingualDescription } from './bilingual-description.js'
 import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Switch, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../index.js'
@@ -144,7 +145,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
       h(Tag, { tone: 'neutral' }, provenance)
     ),
     h('div', { className: rc.rowActions }, ...actions),
-    h('p', { className: `${rc.rowBody} ${rc.desc}` }, suite.description ?? ''),
+    h('p', { className: `${rc.rowBody} ${rc.desc}` }, pickBilingualDescription(suite.description, t) ?? ''),
     h(
       'div',
       { className: rc.rowFoot },

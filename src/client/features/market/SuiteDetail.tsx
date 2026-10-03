@@ -13,6 +13,7 @@
  * dialog), not inside the suite detail preview.
  */
 import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
+import { pickBilingualDescription } from './bilingual-description.js'
 import { Button, JsonTree, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { MarkdownDocument } from '../../ui/MarkdownDocument.js'
@@ -171,7 +172,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                 ),
                 detail.description === null
                   ? null
-                  : h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('detailDescriptionLabel')), h('p', { className: panelCss.detailProse }, detail.description)),
+                  : h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('detailDescriptionLabel')), h('p', { className: panelCss.detailProse }, pickBilingualDescription(detail.description, t))),
                 h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('rootLabel')), h('pre', { className: panelCss.monoBlock }, detail.root)),
                 detail.installed === false || detail.surfaceToggles === null
                   ? null

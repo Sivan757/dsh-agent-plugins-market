@@ -3,6 +3,7 @@
 
 /** Chinese is the source-of-truth key set; English is checked against it below. */
 export const zh = {
+  localeProbeLang: '中文',
   nav: 'Agent Plugins 市场',
   detailPreview: '预览',
   serverConfigReadOnly: '此服务由宿主管理，请在原始配置中编辑。',
@@ -423,6 +424,7 @@ export const zh = {
 export type LocaleKey = keyof typeof zh
 
 export const en: Record<LocaleKey, string> = {
+  localeProbeLang: 'English',
   nav: 'Agent Plugins Market',
   detailPreview: 'Preview',
   serverConfigReadOnly: 'This service is managed by the host. Edit its original configuration.',
