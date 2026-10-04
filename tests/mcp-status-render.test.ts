@@ -99,6 +99,9 @@ const disabledPayload = vi.hoisted(() => ({
 vi.mock('../src/client/api.js', () => ({
   fetchMcpStatus: vi.fn().mockResolvedValue(statusPayload),
   fetchServerConfig: vi.fn().mockResolvedValue({ kind: 'mcp', id: 'direct-observation', editable: false, config: {} }),
+  // The create form reads its template from this route; without it the mock
+  // module has no such export and the dialog throws before it can render.
+  fetchServerConfigDefaults: vi.fn().mockResolvedValue({ kind: 'mcp', id: '', key: '', editable: true, config: {} }),
   saveServerConfig: vi.fn(),
   fetchSuiteDetail: vi.fn(),
   fetchSkillContent: vi.fn(),
