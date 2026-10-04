@@ -91,13 +91,26 @@ async function mount(): Promise<void> {
   })
 }
 
-/** Await until the load lands (a toolbar count above zero marks the data render). */
+/** Await until the load lands (a filter count above zero marks the data render). */
 async function settled(): Promise<void> {
   for (let i = 0; i < 80; i += 1) {
-    const segments = [...document.querySelectorAll('[role="tablist"][aria-label="resourceWindowTitle"] [role="tab"]')]
-    if (segments.some(node => /[1-9]/.test(node.textContent ?? ''))) return
+    const options = filterOptions()
+    if (options.some(node => /[1-9]/.test(node.textContent ?? ''))) return
     await new Promise(resolve => setTimeout(resolve, 25))
   }
+}
+
+// The window has two tablists and both read the tab-section label, so the
+// queries go through the tabs' stable ids — the caller-supplied bases — with
+// role=tab keeping the tabpanel (whose id shares the filter base) out.
+/** The face tablist's six plain tabs, in face order. */
+function faceTabs(): HTMLButtonElement[] {
+  return [...document.querySelectorAll('[role="tab"][id^="agent-plugins-resource-tab-"]')] as HTMLButtonElement[]
+}
+
+/** The toolbar's three-state entry filter, in segment order. */
+function filterOptions(): HTMLButtonElement[] {
+  return [...document.querySelectorAll('[role="tab"][id^="agent-plugins-resource-filter-"]')] as HTMLButtonElement[]
 }
 
 /** The toolbar's single view toggle: one always-pressed Pill, the shared shape. */
@@ -113,46 +126,47 @@ function entryCard(name: string): HTMLElement {
 }
 
 describe('ResourceWindow', () => {
-  it('renders the header actions, favorites row, six face tabs, and the filter counts', async () => {
+  it('renders the favorites row with the tail save button, six face tabs, and the filter counts', async () => {
     await mount()
     const dialog = document.querySelector('[role="dialog"]')
     expect(dialog).not.toBeNull()
     expect(dialog!.getAttribute('aria-label')).toBe('resourceWindowTitle')
-    expect(document.body.textContent).toContain('demo-project')
-    expect(document.body.textContent).toContain('resourceWindowSubtitle')
-    // Header commands: the add icon opens the naming dialog, the refresh icon re-reads.
-    expect(document.querySelector('[aria-label="resourceWindowSaveFavorite"]')).not.toBeNull()
-    expect(document.querySelector('[aria-label="resourceWindowRefresh"]')).not.toBeNull()
+    // The window drops the subtitle sentence and the workspace chip: the
+    // title row is the only header, the list gains the visible area.
+    expect(document.body.textContent).not.toContain('resourceWindowSubtitle')
+    expect(document.querySelector('[class*="workspaceChip"]')).toBeNull()
+    // The save-favorite icon button rides the favorites row's tail; the
+    // refresh button is gone — opening re-reads the inventory every time.
+    const favoritesRow = document.querySelector('[class*="favoritesRow"]')
+    expect(favoritesRow).not.toBeNull()
+    expect(favoritesRow!.querySelector('[aria-label="resourceWindowSaveFavorite"]')).not.toBeNull()
+    expect(document.querySelector('[aria-label="resourceWindowRefresh"]')).toBeNull()
     // Favorite chips: follow-global (inactive here), the saved one (active), cross note.
     expect(document.body.textContent).toContain('resourceWindowFollowGlobal')
     expect(document.body.textContent).toContain('前端开发')
     expect(document.body.textContent).toContain('resourceWindowFavoriteCrossNote')
-    // Six plain face tabs: the face word only, no count span.
-    const tablist = document.querySelector('[aria-label="resourceWindowTabList"]')
-    expect(tablist).not.toBeNull()
-    const tabs = [...tablist!.querySelectorAll('[role="tab"]')]
+    // Six plain face tabs: the face word only, the market face renamed.
+    const tabs = faceTabs()
     expect(tabs).toHaveLength(6)
+    expect(tabs[0]!.textContent).toBe('resourceWindowFaceMarket')
     expect(tabs[1]!.textContent).toBe('resourceWindowCountSkills')
     expect(tabs[4]!.textContent).toBe('resourceWindowCountMcp')
     // The counts live in the filter segment, one per mounted state, computed
     // for the active face: the skills face has 2 on, 1 off.
-    const segment = document.querySelector('[role="tablist"][aria-label="resourceWindowTitle"]')
-    expect(segment).not.toBeNull()
-    const options = [...segment!.querySelectorAll('[role="tab"]')]
+    const options = filterOptions()
     expect(options.map(option => option.textContent)).toEqual(['resourceWindowFilterAll 2', 'resourceWindowFilterOn 1', 'resourceWindowFilterOff 1'])
   })
 
   it('switches tabs without closing the window', async () => {
     await mount()
-    const tablist = document.querySelector('[aria-label="resourceWindowTabList"]')!
-    const tabs = [...tablist.querySelectorAll('[role="tab"]')] as HTMLButtonElement[]
+    const tabs = faceTabs()
     await act(async () => tabs[4]!.click())
     const dialog = document.querySelector('[role="dialog"]')
     expect(dialog).not.toBeNull()
     expect(document.body.textContent).toContain('alpha__db')
     expect(tabs[4]!.getAttribute('aria-selected')).toBe('true')
     // The face switch recomputes the filter counts for the new face.
-    const options = [...document.querySelectorAll('[role="tablist"][aria-label="resourceWindowTitle"] [role="tab"]')]
+    const options = filterOptions()
     expect(options.map(option => option.textContent)).toEqual(['resourceWindowFilterAll 1', 'resourceWindowFilterOn 1', 'resourceWindowFilterOff 0'])
   })
 
@@ -201,8 +215,7 @@ describe('ResourceWindow', () => {
 
   it('narrows the list through the entry filter segment', async () => {
     await mount()
-    const segment = document.querySelector('[role="tablist"][aria-label="resourceWindowTitle"]')!
-    const options = [...segment.querySelectorAll('[role="tab"]')] as HTMLButtonElement[]
+    const options = filterOptions()
     await act(async () => options[2]!.click())
     // Only the filtered-out entry survives the 'off' segment.
     expect(document.body.textContent).toContain('ponytail')
@@ -215,8 +228,7 @@ describe('ResourceWindow', () => {
     await act(async () => {
       typeInto(search, 'lazy')
     })
-    const tablist = document.querySelector('[aria-label="resourceWindowTabList"]')!
-    const tabs = [...tablist.querySelectorAll('[role="tab"]')] as HTMLButtonElement[]
+    const tabs = faceTabs()
     await act(async () => tabs[4]!.click())
     expect((document.querySelector('input[aria-label="resourceWindowSearchPh"]') as HTMLInputElement).value).toBe('lazy')
     // The window stays open and the empty state names the face with no match.
@@ -263,7 +275,7 @@ describe('ResourceWindow', () => {
     expect(document.body.textContent).toContain('resourceWindowApplyFavoriteDone')
   })
 
-  it('opens the naming dialog from the header add and posts the chosen name', async () => {
+  it('opens the naming dialog from the favorites-row save button and posts the chosen name', async () => {
     await mount()
     const add = document.querySelector('button[aria-label="resourceWindowSaveFavorite"]') as HTMLButtonElement
     await act(async () => add.click())

@@ -8,13 +8,12 @@
 
 /** Chinese is the source-of-truth key set; English mirrors it one for one. */
 export const resourcesZh = {
-  resourceWindowTitle: '项目资源',
-  resourceWindowSubtitle: '仅本项目生效',
+  resourceWindowTitle: '市场',
+  resourceWindowFaceMarket: '市场套件',
   resourceWindowTabList: '项目资源分区',
   resourceWindowSearchPh: '搜索本项目已安装…',
   resourceWindowEmpty: '没有匹配的已安装条目',
   resourceWindowLoadFailed: '资源清单读取失败',
-  resourceWindowRefresh: '刷新资源清单',
   resourceWindowLoading: '加载中…',
   resourceWindowFilterAll: '全部',
   resourceWindowFilterOn: '已启用',
@@ -51,13 +50,12 @@ export const resourcesZh = {
 export type ResourceLocaleKey = keyof typeof resourcesZh
 
 export const resourcesEn: Record<ResourceLocaleKey, string> = {
-  resourceWindowTitle: 'Project resources',
-  resourceWindowSubtitle: 'This project only',
+  resourceWindowTitle: 'Market',
+  resourceWindowFaceMarket: 'Market suites',
   resourceWindowTabList: 'Project resource sections',
   resourceWindowSearchPh: 'Search installed in this project…',
   resourceWindowEmpty: 'No installed entries match',
   resourceWindowLoadFailed: 'Failed to load the resource inventory',
-  resourceWindowRefresh: 'Refresh the resource inventory',
   resourceWindowLoading: 'Loading…',
   resourceWindowFilterAll: 'All',
   resourceWindowFilterOn: 'Enabled',

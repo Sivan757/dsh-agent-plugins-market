@@ -3,16 +3,15 @@
  *
  * One Modal over the six switchable surfaces, listing only what this workspace
  * has installed. Every control is a host or shared primitive — the tab row,
- * the shared SearchFilterToolbar, the header PanelActions, the favorite chips,
- * the toasts — and the rows ride the shared ResourceCard anatomy (identity,
- * body, foot), the same chrome the market and MCP cards use, with the card
- * itself acting as the entry toggle (a role=button carrying aria-pressed).
- * Switching tabs never closes the window; flipping an entry reconciles
- * through the same chain the composer switches use, so the row state is
- * live, not cosmetic.
+ * the shared SearchFilterToolbar, the favorite chips, the toasts — and the
+ * rows ride the shared ResourceCard anatomy (identity, body, foot), the same
+ * chrome the market and MCP cards use, with the card itself acting as the
+ * entry toggle (a role=button carrying aria-pressed). Switching tabs never
+ * closes the window; flipping an entry reconciles through the same chain the
+ * composer switches use, so the row state is live, not cosmetic.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, Input, Modal, Pill, SegmentedTabs, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPinFillMedium, Input, Modal, Pill, SegmentedTabs, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SegmentedTab } from '@deepseek-ai/dsh-client-ui-primitives'
 import { RESOURCE_FACE_ORDER, type ResourceEntryWire, type ResourceFace } from '../../../contracts/resource-window.js'
 import { applyResourceFavorite, deleteResourceFavorite, fetchResourceWindow, saveResourceFavorite, setResourceEntry } from './resource-window-resource.js'
@@ -20,7 +19,6 @@ import type { ResourceWindowData } from './resource-window-resource.js'
 import type { ResourceLocaleKey } from '../../locales-resources.js'
 import { interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
 import { SearchFilterToolbar, type SearchFilterToolbarView } from '../../ui/SearchFilterToolbar.js'
-import { PanelActions } from '../../ui/panel.js'
 import panelCss from '../../ui/panel.module.css'
 import rc from '../../ui/resource-card.module.css'
 import css from './resource-window.module.css'
@@ -71,6 +69,7 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
       })
   }, [])
 
+  // Opening reads the inventory every time; no separate refresh control.
   useEffect(() => {
     if (!open) return
     let alive = true
@@ -141,37 +140,22 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
     'aria-labelledby': `${FILTER_ID}-${entryFilter}`
   }
 
+  /** Open the naming dialog pre-filled with the next default favorite name. */
+  const openNaming = useCallback(() => {
+    setNameDraft(t('resourceWindowNameDefault', { n: String((data?.favorites.length ?? 0) + 1) }))
+    setNaming(true)
+  }, [t, data?.favorites.length])
+
   return h(
     Modal,
     {
       open,
       onClose,
       title: t('resourceWindowTitle'),
-      description: data === undefined ? undefined : t('resourceWindowSubtitle'),
       closeLabel: t('resourceWindowClose'),
       className: css.window,
       contentClassName: css.content
     },
-    // The workspace chip rides with the header commands: add saves the current
-    // state as a favorite, refresh re-reads the inventory — the five panels'
-    // header anatomy, scoped to this window.
-    h(
-      'div',
-      { className: css.headerRow },
-      h('span', { className: css.workspaceChip, title: data?.workspace ?? '' }, workspaceLabel(data?.workspace ?? '')),
-      h(PanelActions, {
-        addLabel: t('resourceWindowSaveFavorite'),
-        onAdd: () => {
-          setNameDraft(t('resourceWindowNameDefault', { n: String((data?.favorites.length ?? 0) + 1) }))
-          setNaming(true)
-        },
-        refreshLabel: t('resourceWindowRefresh'),
-        onRefresh: () => {
-          void load(() => true)
-        },
-        busy
-      })
-    ),
     // Favorites row: follow-global chip and the saved favorites (deletable).
     h(
       'div',
@@ -220,6 +204,21 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
           )
         )
       ),
+      // The cross-project note hugs the save button at the row's tail: the
+      // button carries the auto margin the note used to hold, so both stay
+      // flush right while the chips flow left.
+      h(
+        'button',
+        {
+          type: 'button',
+          className: `${rc.iconBtn} ${css.favoritesSave}`,
+          title: t('resourceWindowSaveFavorite'),
+          'aria-label': t('resourceWindowSaveFavorite'),
+          disabled: busy,
+          onClick: openNaming
+        },
+        h(IconPinFillMedium)
+      ),
       h('span', { className: css.favoritesNote }, t('resourceWindowFavoriteCrossNote'))
     ),
     // Six face tabs; switching never closes the window (Modal stays open above).
@@ -243,7 +242,7 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
         { id: 'off', label: t('resourceWindowFilterOff'), count: faceRows.filter(row => !row.enabled).length, active: entryFilter === 'off', onSelect: () => setEntryFilter('off') }
       ],
       filterId: FILTER_ID,
-      filterLabel: t('resourceWindowTitle'),
+      filterLabel: t('resourceWindowTabList'),
       view,
       toListLabel: t('resourceWindowViewList'),
       toGridLabel: t('resourceWindowViewCard'),
@@ -361,7 +360,7 @@ function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; on
 /** The locale key naming one face's tab. */
 function faceLabelKey(face: ResourceFace): ResourceLocaleKey {
   const keys: Record<ResourceFace, ResourceLocaleKey> = {
-    market: 'resourceWindowTitle',
+    market: 'resourceWindowFaceMarket',
     skills: 'resourceWindowCountSkills',
     commands: 'resourceWindowCountCommands',
     agents: 'resourceWindowCountAgents',
@@ -380,11 +379,4 @@ function countLabel(t: ResourceTranslate, label: string): string {
   if (label === 'agents') return t('resourceWindowCountAgents')
   if (label === 'lsp') return t('resourceWindowCountLsp')
   return label
-}
-
-/** The workspace's directory name, the way the prototype's chip shows it. */
-function workspaceLabel(workspace: string): string {
-  const trimmed = workspace.replace(/\/+$/, '')
-  const slash = trimmed.lastIndexOf('/')
-  return slash === -1 ? trimmed : trimmed.slice(slash + 1)
 }

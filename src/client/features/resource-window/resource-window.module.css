@@ -62,7 +62,7 @@
 
 .window {
   width: min(680px, 100%);
-  height: min(640px, 100%);
+  height: min(700px, 100%);
 }
 
 /* The content column above the scrolling list; vertical rhythm comes from the
@@ -88,20 +88,13 @@
   flex-direction: column;
 }
 
-.headerRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
 .favoritesRow {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   min-height: 26px;
-  padding: 8px 0 12px;
+  padding: 4px 0 10px;
 }
 
 /* The shared toolbar row carries no outer spacing of its own and the window
@@ -118,21 +111,10 @@
   padding: 6px 0 12px;
 }
 
-.workspaceChip {
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-  background: var(--dsw-alias-bg-module-platform);
-  border-radius: 6px;
-  padding: 1px 8px;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.subtitle {
-  font-size: 11.5px;
-  color: var(--dsw-alias-label-tertiary);
+/* The save-favorite button rides the shared iconBtn anatomy; this only
+   pushes it and the cross-project note after it to the row's tail. */
+.favoritesSave {
+  margin-left: auto;
 }
 
 .favoritesLabel {
@@ -142,7 +124,6 @@
 }
 
 .favoritesNote {
-  margin-left: auto;
   font-size: 11px;
   color: var(--dsw-alias-label-tertiary);
 }
