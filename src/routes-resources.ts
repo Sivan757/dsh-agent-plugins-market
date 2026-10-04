@@ -26,6 +26,8 @@ export interface ResourceRouteDeps extends ResourceInventoryDeps {
   saveFavorite(name: string): Promise<string>
   /** Drop one favorite by id. */
   deleteFavorite(id: string): Promise<void>
+  /** Reset this workspace to the installed default: no entry filters, every surface switch on. */
+  resetWorkspace(): Promise<void>
 }
 
 interface RouteHost {
@@ -100,6 +102,14 @@ export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): 
   post(RESOURCE_ROUTES.deleteFavorite, async body => {
     if (typeof body.id !== 'string' || body.id === '') throw new Error('missing favorite id')
     await deps.deleteFavorite(body.id)
+    return { window: await buildResourceWindow(deps) }
+  })
+
+  // Follow global: the workspace drops every project-level opinion — no entry
+  // filters, all six surface switches back on — and the payload returns the
+  // plain installed inventory.
+  post(RESOURCE_ROUTES.reset, async () => {
+    await deps.resetWorkspace()
     return { window: await buildResourceWindow(deps) }
   })
 

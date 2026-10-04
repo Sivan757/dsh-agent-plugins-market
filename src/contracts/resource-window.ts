@@ -7,6 +7,7 @@ import { SURFACE_TOGGLE_KEYS, type SurfaceToggleKey } from './surface-toggles.js
 export const RESOURCE_ROUTES = {
   inventory: `${MARKET_API_PREFIX}resource-window`,
   setEntry: `${MARKET_API_PREFIX}resource-window/entry`,
+  reset: `${MARKET_API_PREFIX}resource-window/reset`,
   applyFavorite: `${MARKET_API_PREFIX}resource-window/favorites/apply`,
   saveFavorite: `${MARKET_API_PREFIX}resource-window/favorites/save`,
   deleteFavorite: `${MARKET_API_PREFIX}resource-window/favorites/delete`
@@ -52,8 +53,6 @@ export interface ResourceWindowPayload {
   workspace: string
   entries: ResourceEntryWire[]
   favorites: ResourceFavoriteWire[]
-  /** The id of the favorite this workspace currently follows; null = custom. */
-  activeFavoriteId: string | null
 }
 
 /** One cross-project favorite: a complete snapshot of every switch. */

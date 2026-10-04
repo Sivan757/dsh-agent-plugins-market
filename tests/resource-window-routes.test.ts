@@ -123,7 +123,10 @@ async function makeDeps(): Promise<{ deps: ResourceRouteDeps; service: ResourceF
         const face = entry.slice(0, entry.indexOf(':'))
         ;(offEntries[face] ??= []).push(entry)
       }
-      await service.applyFilters(favorite.surfaces, offEntries, id)
+      await service.applyFilters(favorite.surfaces, offEntries)
+    },
+    resetWorkspace: async () => {
+      await service.applyFilters({ ...ALL_SURFACES_ON }, {})
     },
     saveFavorite: async name => {
       const filters = service.currentFilters()
@@ -201,7 +204,6 @@ describe('resource window routes', () => {
     expect(window.entries.map(entry => entry.face)).toEqual(['market', 'skills', 'commands', 'agents', 'mcp', 'lsp'])
     expect(window.entries.every(entry => entry.enabled)).toBe(true)
     expect(window.favorites).toEqual([])
-    expect(window.activeFavoriteId).toBeNull()
     dispose()
   })
 
@@ -243,21 +245,15 @@ describe('resource window routes', () => {
     expect(saved.status).toBe(200)
     expect(typeof saved.body.favoriteId).toBe('string')
     const favoriteId = saved.body.favoriteId as string
-    expect((saved.body.window as ResourceWindowPayload).activeFavoriteId).toBe(favoriteId)
-    // Manual deviation leaves the custom state.
-    await post(routes, '/api/agent-plugins/resource-window/entry', { face: 'skills', entryId: 'skills:dsh-doc', enabled: true })
-    expect((await getWindow(routes)).activeFavoriteId).toBeNull()
     // Applying the favorite restores the snapshot exactly.
     const applied = await post(routes, '/api/agent-plugins/resource-window/favorites/apply', { id: favoriteId })
     expect(applied.status).toBe(200)
     const reapplied = applied.body.window as ResourceWindowPayload
-    expect(reapplied.activeFavoriteId).toBe(favoriteId)
     expect(reapplied.entries.find(entry => entry.id === 'skills:dsh-doc')?.enabled).toBe(false)
     // Deleting the favorite leaves the workspace state untouched.
     const deleted = await post(routes, '/api/agent-plugins/resource-window/favorites/delete', { id: favoriteId })
     expect(deleted.status).toBe(200)
     expect((deleted.body.window as ResourceWindowPayload).favorites).toEqual([])
-    expect((deleted.body.window as ResourceWindowPayload).activeFavoriteId).toBeNull()
     dispose()
   })
 
@@ -307,14 +303,14 @@ describe('resource window routes', () => {
 })
 
 describe('buildResourceWindow', () => {
-  it('marks the matching favorite active only on an exact snapshot match', async () => {
+  it('serves the plain installed inventory without any derived favorite state', async () => {
     const { deps, service } = await makeDeps()
-    const favoriteA = await service.saveFavorite({ name: 'A', surfaces: { ...ALL_SURFACES_ON }, offEntries: [] })
-    const window = await buildResourceWindow(deps)
-    expect(window.activeFavoriteId).toBe(favoriteA.id)
-    // One denied entry breaks the exact match.
+    await service.saveFavorite({ name: 'A', surfaces: { ...ALL_SURFACES_ON }, offEntries: [] })
+    // Favorites are presets the user applies; the payload carries no derived
+    // "currently followed" favorite.
+    expect(await buildResourceWindow(deps)).not.toHaveProperty('activeFavoriteId')
     await service.setEntry('mcp', 'mcp:alpha__db', false)
-    expect((await buildResourceWindow(deps)).activeFavoriteId).toBeNull()
+    expect(await buildResourceWindow(deps)).not.toHaveProperty('activeFavoriteId')
   })
 
   it('mirrors the user-level state: globally off entries read disabled and carry the flag', async () => {
@@ -346,6 +342,7 @@ describe('buildResourceWindow', () => {
       workspace: '/ws/global',
       setEntry: (face, entryId, enabled) => service.setEntry(face, entryId, enabled),
       applyFavorite: async () => {},
+      resetWorkspace: async () => {},
       saveFavorite: async () => 'x',
       deleteFavorite: async () => {}
     }

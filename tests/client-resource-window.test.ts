@@ -36,17 +36,14 @@ function payload(): ResourceWindowPayload {
         surfaces: { market: true, skills: true, commands: true, agents: true, mcp: false, lsp: true },
         offEntries: ['skills:ponytail']
       }
-    ],
-    activeFavoriteId: 'fav-1'
+    ]
   }
 }
 
 /** The module-level fetch double every mutation route answers through. */
 const fetchState = {
   window: payload(),
-  calls: [] as Array<{ url: string; body: Record<string, unknown> | undefined }>,
-  /** A manual flip detaches the active favorite server-side; the double mirrors that. */
-  deviated: false
+  calls: [] as Array<{ url: string; body: Record<string, unknown> | undefined }>
 }
 
 vi.stubGlobal(
@@ -59,8 +56,7 @@ vi.stubGlobal(
     // it in the market API's result envelope. A minimal Response double:
     // undici's real Response schedules its body read on macrotasks the act
     // loop cannot flush deterministically.
-    const window =
-      fetchState.deviated && target.endsWith('/resource-window') === false ? { ...structuredClone(fetchState.window), activeFavoriteId: null } : structuredClone(fetchState.window)
+    const window = structuredClone(fetchState.window)
     const json = target.endsWith('/resource-window') ? window : target.endsWith('/favorites/save') ? { ok: true, window, favoriteId: 'fav-2' } : { ok: true, window }
     return { ok: true, status: 200, json: async () => json } as unknown as Response
   })
@@ -80,7 +76,6 @@ afterEach(async () => {
   window.location.hash = ''
   fetchState.window = payload()
   fetchState.calls = []
-  fetchState.deviated = false
 })
 
 async function mount(): Promise<void> {
@@ -334,33 +329,26 @@ describe('ResourceWindow', () => {
     expect(document.body.textContent).toContain('resourceWindowEmpty')
   })
 
-  it('detaches the follow-global state when a manual flip deviates from the favorite', async () => {
+  it('resets the workspace through the follow-global chip and reports it', async () => {
     await mount()
-    // Favorite fav-1 is applied, so the follow-global chip is NOT selected
-    // and the favorite reads as the strip's selected chip (srcTabOn).
-    const chip = (name: string) => [...document.querySelectorAll('[class*="srcTab"]')].find(node => (node.textContent ?? '').startsWith(name))
-    const isSelected = (node: Element | undefined): boolean => node !== undefined && node.className.includes('srcTabOn')
-    expect(isSelected(chip('resourceWindowFollowGlobal'))).toBe(false)
-    expect(isSelected(chip('前端开发'))).toBe(true)
-    // One manual card flip: the refreshed window carries activeFavoriteId null.
-    fetchState.deviated = true
-    await act(async () => entryCard('dsh-doc').click())
-    // The mutation rides a fire-and-forget promise; settle the chain so the
-    // refreshed window's re-render lands before reading the chips.
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-    // The deviation detaches the favorite: follow-global becomes the selected
-    // chip and the favorite chip drops its selected fill.
-    expect(isSelected(chip('resourceWindowFollowGlobal'))).toBe(true)
-    expect(isSelected(chip('前端开发'))).toBe(false)
+    // The follow-global chip is an action: it clears every project-level
+    // opinion through the reset route and answers with the plain inventory.
+    const chip = [...document.querySelectorAll<HTMLButtonElement>('button[class*="srcTabMain"]')]
+    expect(chip[0]!.textContent).toContain('resourceWindowFollowGlobal')
+    await act(async () => chip[0]!.click())
+    const resetCall = fetchState.calls.find(call => call.url.endsWith('/resource-window/reset'))
+    expect(resetCall).toBeDefined()
+    expect(document.body.textContent).toContain('resourceWindowResetDone')
   })
 
-  it('keeps the follow-global chip a state, not an action: first chip, no apply request', async () => {
+  it('keeps the favorites chips pure actions: a manual flip changes no chip', async () => {
     await mount()
-    const chips = [...document.querySelectorAll<HTMLButtonElement>('button[class*="srcTabMain"]')]
-    expect(chips[0]!.textContent).toContain('resourceWindowFollowGlobal')
-    await act(async () => chips[0]!.click())
+    // Flipping a row is workspace state only: no favorite applies, no chip
+    // highlights, the strip stays exactly as it was.
+    const before = [...document.querySelectorAll('button[class*="srcTabMain"]')].map(node => node.textContent)
+    await act(async () => entryCard('dsh-doc').click())
+    const after = [...document.querySelectorAll('button[class*="srcTabMain"]')].map(node => node.textContent)
+    expect(after).toEqual(before)
     expect(fetchState.calls.find(call => call.url.endsWith('/favorites/apply'))).toBeUndefined()
   })
 

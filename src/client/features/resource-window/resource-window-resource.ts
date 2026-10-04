@@ -57,3 +57,10 @@ export async function deleteResourceFavorite(id: string): Promise<ResourceWindow
   if (answer.window === undefined) throw new Error('resource window response carried no window')
   return answer.window
 }
+
+/** Reset this workspace to the installed default (no filters, all surfaces on). */
+export async function resetResourceWindow(): Promise<ResourceWindowData> {
+  const answer = await postWindow(RESOURCE_ROUTES.reset, {})
+  if (answer.window === undefined) throw new Error('resource window response carried no window')
+  return answer.window
+}

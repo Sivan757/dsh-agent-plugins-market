@@ -26,6 +26,7 @@ import { RuntimeReconciler } from './runtime/core/reconciler.js'
 import { ReconcileScheduler } from './runtime/core/reconcile-scheduler.js'
 import { MarketSettingsNamespace } from './runtime/host/settings-namespace.js'
 import { SurfaceToggleService } from './runtime/host/surface-toggle-service.js'
+import { ALL_SURFACES_ON } from './contracts/surface-toggles.js'
 import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
 import { createLlmTranslator } from './runtime/host/llm-translator.js'
@@ -509,7 +510,11 @@ export async function apply(
             ;(offEntries[face as keyof typeof favorite.surfaces] ??= []).push(entry)
           }
           await surfaceToggles.applyAll(favorite.surfaces)
-          await resourceFilters.applyFilters(favorite.surfaces, offEntries, id)
+          await resourceFilters.applyFilters(favorite.surfaces, offEntries)
+        },
+        resetWorkspace: async () => {
+          await surfaceToggles.applyAll({ ...ALL_SURFACES_ON })
+          await resourceFilters.applyFilters({ ...ALL_SURFACES_ON }, {})
         },
         saveFavorite: async name => {
           const filters = resourceFilters.currentFilters()

@@ -18,7 +18,7 @@ import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, 
 import { Button, IconInspectOutlineMedium, Input, Modal, SegmentedTabs, Switch, Tag, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SegmentedTab } from '@deepseek-ai/dsh-client-ui-primitives'
 import { RESOURCE_FACE_ORDER, type ResourceEntryWire, type ResourceFace } from '../../../contracts/resource-window.js'
-import { applyResourceFavorite, deleteResourceFavorite, fetchResourceWindow, saveResourceFavorite, setResourceEntry } from './resource-window-resource.js'
+import { applyResourceFavorite, deleteResourceFavorite, fetchResourceWindow, resetResourceWindow, saveResourceFavorite, setResourceEntry } from './resource-window-resource.js'
 import type { ResourceWindowData } from './resource-window-resource.js'
 import type { ResourceLocaleKey } from '../../locales-resources.js'
 import type { Translate } from '../../index.js'
@@ -140,7 +140,6 @@ export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps
         ? current
         : {
             ...current,
-            activeFavoriteId: null,
             entries: current.entries.map(entry => (entry.id === target.id ? { ...entry, enabled } : entry))
           }
     )
@@ -187,12 +186,10 @@ export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps
     [wt, entryFilter]
   )
 
-  // The favorites strip reuses the market's collapsible chip strip, chip
-  // order and all: the follow-global state rides the first chip (the market
-  // puts `全部` there) and lights while no favorite applies; every saved
-  // favorite follows as a chip that applies on click and carries a trailing
-  // delete control. Selecting the state chip is a no-op — it is a state, not
-  // an action.
+  // The favorites strip reuses the market's chip strip, laid on one line.
+  // Every chip is an action, never a state: the first resets the workspace to
+  // the installed default, the rest apply their snapshot once. Nothing below
+  // — switches or filters — ever changes a chip; only saving creates one.
   const favoriteItems = useMemo<SourceTabItem[]>(
     () => [
       { id: FOLLOW_GLOBAL_ID, label: t('resourceWindowFollowGlobal') },
@@ -202,7 +199,10 @@ export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps
   )
   const selectFavorite = useCallback(
     (id: string) => {
-      if (id === FOLLOW_GLOBAL_ID) return
+      if (id === FOLLOW_GLOBAL_ID) {
+        void mutate(() => resetResourceWindow()).then(() => flash(t('resourceWindowResetDone')))
+        return
+      }
       void mutate(() => applyResourceFavorite(id)).then(() => {
         const favorite = data?.favorites.find(entry => entry.id === id)
         if (favorite !== undefined) flash(t('resourceWindowApplyFavoriteDone', { name: favorite.name }))
@@ -262,7 +262,7 @@ export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps
         t: t as unknown as Translate,
         layout: 'row',
         items: favoriteItems,
-        activeId: data?.activeFavoriteId ?? FOLLOW_GLOBAL_ID,
+        activeId: '',
         onSelect: selectFavorite,
         onDelete: deleteFavorite,
         deleteTitle: t('resourceWindowDeleteFavorite')

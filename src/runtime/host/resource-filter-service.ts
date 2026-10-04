@@ -72,19 +72,15 @@ export class ResourceFilterService {
     const next = enabled ? current.filter(id => id !== entryId) : current.includes(entryId) ? current : [...current, entryId]
     const offEntries =
       next.length === 0 ? Object.fromEntries(Object.entries(this.filters.offEntries).filter(([key]) => key !== face)) : { ...this.filters.offEntries, [face]: next }
-    // A manual flip is a deviation: it clears the followed favorite and never
-    // adopts whatever snapshot the resulting state happens to equal.
-    this.filters = { ...this.filters, offEntries, activeFavoriteId: null }
+    this.filters = { ...this.filters, offEntries }
     if (this.workspace !== '') await saveResourceFilters(this.dataRoot, this.workspace, this.filters)
     await this.hooks.onFiltersChanged()
     return this.filters
   }
 
   /** Overwrite the deny sets from one favorite, persist, and reconcile. */
-  async applyFilters(toggles: Record<SurfaceToggleKey, boolean>, offEntries: Partial<Record<ResourceFace, string[]>>, favoriteId?: string): Promise<ResourceFilters> {
-    // Only an explicit apply records the favorite: the state matching a saved
-    // snapshot is a consequence of the click, never the cause of activation.
-    this.filters = { toggles, offEntries, activeFavoriteId: favoriteId ?? null }
+  async applyFilters(toggles: Record<SurfaceToggleKey, boolean>, offEntries: Partial<Record<ResourceFace, string[]>>): Promise<ResourceFilters> {
+    this.filters = { toggles, offEntries }
     if (this.workspace !== '') await saveResourceFilters(this.dataRoot, this.workspace, this.filters)
     await this.hooks.onFiltersChanged()
     return this.filters
@@ -95,20 +91,13 @@ export class ResourceFilterService {
     return loadResourceFavorites(this.dataRoot)
   }
 
-  /** Append one favorite snapshot to the global file and follow it here. */
+  /** Append one favorite snapshot to the global file. */
   async saveFavorite(input: ResourceFavoriteInput): Promise<ResourceFavoriteWire> {
-    const favorite = await saveResourceFavorite(this.dataRoot, input)
-    this.filters = { ...this.filters, activeFavoriteId: favorite.id }
-    if (this.workspace !== '') await saveResourceFilters(this.dataRoot, this.workspace, this.filters)
-    return favorite
+    return saveResourceFavorite(this.dataRoot, input)
   }
 
-  /** Drop one favorite from the global file; following it reverts to custom. */
+  /** Drop one favorite from the global file. */
   async deleteFavorite(id: string): Promise<void> {
     await deleteResourceFavorite(this.dataRoot, id)
-    if (this.filters.activeFavoriteId === id) {
-      this.filters = { ...this.filters, activeFavoriteId: null }
-      if (this.workspace !== '') await saveResourceFilters(this.dataRoot, this.workspace, this.filters)
-    }
   }
 }

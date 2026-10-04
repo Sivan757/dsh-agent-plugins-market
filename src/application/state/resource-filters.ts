@@ -21,17 +21,11 @@ export interface ResourceFilters {
   toggles: SurfaceToggles
   /** Entry ids turned off; absent faces mean "nothing filtered". */
   offEntries: Partial<Record<FilterFace, string[]>>
-  /**
-   * The favorite this workspace last applied explicitly; null = custom. Only
-   * an explicit apply sets it — a manual flip is a deviation that clears it,
-   * never an adoption of whatever snapshot happens to match.
-   */
-  activeFavoriteId: string | null
 }
 
 /** The all-on, nothing-filtered default. */
 export function allFiltersOn(): ResourceFilters {
-  return { toggles: { ...ALL_SURFACES_ON }, offEntries: {}, activeFavoriteId: null }
+  return { toggles: { ...ALL_SURFACES_ON }, offEntries: {} }
 }
 
 /** Read one untrusted `entries` record keeping only string arrays on known faces. */
@@ -55,28 +49,24 @@ export async function loadResourceFilters(dataRoot: string, workspace: string): 
   const record = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>
   return {
     toggles: resolveSurfaceToggles(record.toggles),
-    offEntries: resolveOffEntries(record.entries),
-    // A v2 document has no recorded favorite; v3 keeps the explicit one.
-    activeFavoriteId: typeof record.activeFavoriteId === 'string' && record.activeFavoriteId !== '' ? record.activeFavoriteId : null
+    offEntries: resolveOffEntries(record.entries)
   }
 }
 
 interface FilterDocument {
-  version: 3
+  version: 2
   workspace: string
   toggles: SurfaceToggles
   entries: Partial<Record<FilterFace, string[]>>
-  activeFavoriteId: string | null
 }
 
-/** Persist one workspace's filters atomically, upgrading the document to v3. */
+/** Persist one workspace's filters atomically, upgrading the document to v2. */
 export async function saveResourceFilters(dataRoot: string, workspace: string, filters: ResourceFilters): Promise<void> {
   const document: FilterDocument = {
-    version: 3,
+    version: 2,
     workspace,
     toggles: filters.toggles,
-    entries: filters.offEntries,
-    activeFavoriteId: filters.activeFavoriteId
+    entries: filters.offEntries
   }
   await writeJsonDocument(surfaceTogglesPath(dataRoot, workspace), document)
 }

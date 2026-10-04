@@ -133,15 +133,9 @@ export async function buildResourceWindow(deps: ResourceInventoryDeps): Promise<
     })
   }
 
-  // The active favorite is whatever the workspace last applied explicitly:
-  // recorded in the filter state by the service, never derived from the state
-  // (a manual flip deviating into some saved snapshot must not adopt it).
-  const activeFavorite = favorites.find(favorite => favorite.id === filters.activeFavoriteId) ?? null
-
   return {
     workspace: deps.workspace ?? process.cwd(),
     entries,
-    favorites,
-    activeFavoriteId: activeFavorite?.id ?? null
+    favorites
   }
 }
