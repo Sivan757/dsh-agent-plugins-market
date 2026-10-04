@@ -776,41 +776,6 @@
   color: var(--dsw-alias-label-tertiary, #8b93a1);
 }
 
-.pluginCardFooter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-top: 16px;
-}
-
-.pluginCardFooter .pluginCardError {
-  flex: 1;
-}
-
-.pluginCardDiscard {
-  appearance: none;
-  font: inherit;
-  font-size: 13px;
-  line-height: 20px;
-  padding: 4px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.pluginCardDiscard {
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  background: none;
-  color: var(--dsw-alias-label-primary, #1f2328);
-}
-
-.pluginCardDiscard:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.04));
-}
-
-.pluginCardDiscard:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
 
 .pluginChevron {
   flex: none;

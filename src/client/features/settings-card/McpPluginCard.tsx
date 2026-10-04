@@ -2,6 +2,8 @@
  * Configuration on the installed bundle's detail page. The host SettingsForm
  * owns staged changes, save feedback, and discard-on-unmount behavior; the
  * market binding supplies its switches, download region, and backend probe.
+ * Leaving the page drops every staged edit, so the card offers no discard
+ * control of its own.
  * @module client/McpPluginCard
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
@@ -38,7 +40,7 @@ type MarketCopyKey =
   | 'translationToggleLabel' | 'translationToggleDesc' | 'translationReset' | 'translationResetDone'
   | 'mcpCardReadonly' | 'mcpBackendHostMissing' | 'regionLabel' | 'regionHint'
   | 'regionAuto' | 'regionGlobal' | 'regionChina' | 'regionResolved'
-  | 'settingSaveFailed' | 'settingSave' | 'settingSaving' | 'settingDiscard'
+  | 'settingSaveFailed' | 'settingSave' | 'settingSaving'
   | 'settingOverridden' | 'settingReset' | 'settingUnavailable'
 
 /** Props the renderer binds: the asked view, the injected actions, and the locale seats. */
@@ -165,8 +167,7 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
   const effectiveRegion = state.probe?.downloadRegion.effective ?? (region.text === 'china' ? 'china' : 'global')
 
   // The host frame owns the read-only notice, the save control, and the
-  // failure echo; the body carries the market's own controls plus the discard
-  // the frame does not offer.
+  // failure echo; the body carries only the market's own controls.
   return h(
     SettingsForm,
     {
@@ -241,17 +242,6 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
               { className: css.pluginCardDesc },
               t('regionResolved', { region: t(effectiveRegion === 'china' ? 'regionChina' : 'regionGlobal') })
             ),
-        state.dirty
-          ? h(
-              'div',
-              { className: css.pluginCardFooter },
-              h(
-                'button',
-                { type: 'button', className: css.pluginCardDiscard, disabled: state.saving, onClick: discard },
-                t('settingDiscard')
-              )
-            )
-          : null
       )
     }
   )
