@@ -1,9 +1,9 @@
 /* Shared search + filter + view-switch row.
  *
  * The filter control is the host's SegmentedControl and the view switch is one
- * Pill: two independent segments of the same chrome, so the current filter and
- * the current view are both readable without hovering. The search box flexes;
- * the segments keep their natural width and are pushed to the trailing edge.
+ * flat icon button, so the current filter and the current view are both readable
+ * without hovering. The search box flexes; the filter and the switch keep their
+ * natural width and are pushed to the trailing edge.
  */
 .toolbar {
   display: flex;
@@ -32,9 +32,15 @@
   line-height: 20px;
 }
 
-/* The filter's 28px segments and the view Pill's 24px both sit inside the
-   host control's 4px padding, lining both up with the 32px search field. */
+/* The filter's 28px segments sit inside the host control's 4px padding, lining
+   them up with the 32px search field. */
 .segment {
+  flex: none;
+}
+
+/* The view switch is a flat 24px glyph like every other panel action; the
+   toolbar's own colour already marks it as available. */
+.viewSwitch {
   flex: none;
 }
 

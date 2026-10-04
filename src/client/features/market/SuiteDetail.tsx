@@ -234,7 +234,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                   t('commandsSection'),
                   detail.commands.length,
                   detail.commands.map(command =>
-                    row(openRow, `c:${command.name}`, `/${command.name}`, command.description, () => void toggleRow(`c:${command.name}`), h(MarkdownDocument, { text: command.content, t }))
+                    row(openRow, `c:${command.name}`, command.name, command.description, () => void toggleRow(`c:${command.name}`), h(MarkdownDocument, { text: command.content, t }))
                   )
                 ),
                 block(

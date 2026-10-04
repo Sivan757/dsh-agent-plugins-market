@@ -321,10 +321,10 @@ function UserEntryRow(props: {
   onDelete?: () => void
 }): ReactNode {
   const { entry, t } = props
-  // A command registers under its flattened call name, and that slash name is
-  // what the user types, so it stays the card's identity untranslated. A skill
-  // and a persona are recognized by their name, which reads translated.
-  const title = props.kind === 'commands' ? `/${commandCallName(entry.name)}` : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
+  // A command registers under its flattened call name, and that name is what the
+  // user types, so it stays the card's identity untranslated. A skill and a
+  // persona are recognized by their name, which reads translated.
+  const title = props.kind === 'commands' ? commandCallName(entry.name) : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
   const description = displayText(entry.translatedDescription, entry.description, t)
   const mono = props.kind === 'commands'
   // A rejected document cannot be switched on: its state is recomputed from the

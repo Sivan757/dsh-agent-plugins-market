@@ -2,13 +2,14 @@
  * Shared search, filter, and view controls for catalog-style settings panels.
  *
  * The filters ride the host's SegmentedControl (one controlled tablist with
- * roving focus) and the view switch stays a single always-pressed Pill, so the
- * current mode is always readable without hovering: the selected filter
- * carries the host's raised indicator, and the view button shows the mode in
- * force with its pressed fill.
+ * roving focus) and the view switch is one flat icon button, so the current mode
+ * is always readable without hovering: the selected filter carries the host's
+ * raised indicator, and the view button draws the mode in force in its glyph —
+ * the grid or the list — while its accessible name says where a click leads.
  */
 import { createElement as h, type ReactNode } from 'react'
-import { IconSearchOutlineMedium, Input, Pill, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconSearchOutlineMedium, Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives'
+import rc from './resource-card.module.css'
 import css from './SearchFilterToolbar.module.css'
 
 export type SearchFilterToolbarView = 'grid' | 'list'
@@ -87,23 +88,21 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
       label: props.filterLabel,
       className: css.segment
     }),
-    // One button, permanently pressed: the glyph and the fill report the mode in
-    // force and its accessible name says where a click leads, so the control
-    // states the present mode instead of only naming the mode it would switch to.
+    // One flat glyph, the same geometry as every other panel action: the icon
+    // shows the mode in force, `aria-pressed` reports it, and the accessible
+    // name says where a click leads.
     h(
-      'div',
-      { className: css.segment },
-      h(
-        Pill,
-        {
-          active: true,
-          title: viewLabel,
-          'aria-label': viewLabel,
-          'aria-pressed': true,
-          onClick: () => props.onViewChange(grid ? 'list' : 'grid')
-        },
-        h(ViewIcon, { mode: props.view })
-      )
+      'button',
+      {
+        type: 'button',
+        className: `${rc.iconBtn} ${css.viewSwitch}`,
+        title: viewLabel,
+        'aria-label': viewLabel,
+        'aria-pressed': grid,
+        'data-view-switch': props.view,
+        onClick: () => props.onViewChange(grid ? 'list' : 'grid')
+      },
+      h(ViewIcon, { mode: props.view })
     )
   )
 }

@@ -16,12 +16,6 @@ import type { UserPanelEntry, UserPanelKind } from '../api.js'
 import { displayText } from './translated-text.js'
 import css from './panel.module.css'
 
-const NOUN_KEY: Record<UserPanelKind, 'workspaceTabSkills' | 'workspaceTabCommands' | 'workspaceTabPersonas'> = {
-  skills: 'workspaceTabSkills',
-  commands: 'workspaceTabCommands',
-  agents: 'workspaceTabPersonas'
-}
-
 /** Metadata keys the identity row already carries. */
 const HIDDEN_META = new Set(['description', 'disabled', 'name'])
 /** Routing keys an agent persona renders as its own rows, not in the catch-all. */
@@ -41,9 +35,9 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   const updated = entry.updatedAt === undefined || entry.updatedAt === null ? null : lastChangeLabel(t, entry.updatedAt)
   const provenance = entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
   // A command registers under its flattened call name, which is the identity the
-  // user types, so its dialog keeps that slash name untranslated; a skill and a
-  // persona are recognized by their name, which reads translated.
-  const title = kind === 'commands' ? `/${commandCallName(entry.name)}` : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
+  // user types, so its dialog keeps that name untranslated; a skill and a persona
+  // are recognized by their name, which reads translated.
+  const title = kind === 'commands' ? commandCallName(entry.name) : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
   const description = displayText(entry.translatedDescription, entry.description, t)
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
   const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key) && !(kind === 'agents' && ROUTING_META.has(key)))
@@ -53,7 +47,6 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
       open: true,
       onClose: props.onClose,
       title,
-      description: `${t(NOUN_KEY[kind])} · ${provenance}`,
       closeLabel: t('cancel')
     },
     h(
