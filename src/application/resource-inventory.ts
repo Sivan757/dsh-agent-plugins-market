@@ -133,16 +133,10 @@ export async function buildResourceWindow(deps: ResourceInventoryDeps): Promise<
     })
   }
 
-  // The active favorite is the one whose snapshot the workspace state matches
-  // exactly; any manual deviation leaves the workspace custom (null).
-  const toggles = filters.toggles
-  const offAll = new Set(Object.values(filters.offEntries).flat())
-  const activeFavorite =
-    favorites.find(favorite => {
-      const favoriteOff = new Set(favorite.offEntries)
-      if (favoriteOff.size !== offAll.size || [...favoriteOff].every(id => offAll.has(id)) === false) return false
-      return Object.entries(favorite.surfaces).every(([face, on]) => toggles[face as ResourceFace] === on)
-    }) ?? null
+  // The active favorite is whatever the workspace last applied explicitly:
+  // recorded in the filter state by the service, never derived from the state
+  // (a manual flip deviating into some saved snapshot must not adopt it).
+  const activeFavorite = favorites.find(favorite => favorite.id === filters.activeFavoriteId) ?? null
 
   return {
     workspace: deps.workspace ?? process.cwd(),

@@ -28,11 +28,14 @@ describe('resource filter state roundtrip', () => {
     const workspace = '/ws/resource-window'
     await saveResourceFilters(dataRoot, workspace, {
       toggles: { ...ALL_SURFACES_ON, mcp: false },
-      offEntries: { mcp: ['mcp:alpha__db'], skills: ['skills:dsh-doc'] }
+      offEntries: { mcp: ['mcp:alpha__db'], skills: ['skills:dsh-doc'] },
+      activeFavoriteId: 'fav-1'
     })
     const loaded = await loadResourceFilters(dataRoot, workspace)
     expect(loaded.toggles.mcp).toBe(false)
     expect(loaded.offEntries).toEqual({ mcp: ['mcp:alpha__db'], skills: ['skills:dsh-doc'] })
+    // The v3 document roundtrips the explicit favorite follow too.
+    expect(loaded.activeFavoriteId).toBe('fav-1')
     // Same file as the v1 toggles: one document answers both reads.
     expect(await loadSurfaceToggles(dataRoot, workspace)).toEqual({ ...ALL_SURFACES_ON, mcp: false })
   })
@@ -45,7 +48,7 @@ describe('resource filter state roundtrip', () => {
   it('keeps the entries section when a single surface toggle flips', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'resource-filters-'))
     const workspace = '/ws/shared-document'
-    await saveResourceFilters(dataRoot, workspace, { toggles: { ...ALL_SURFACES_ON }, offEntries: { lsp: ['lsp:direct/json'] } })
+    await saveResourceFilters(dataRoot, workspace, { toggles: { ...ALL_SURFACES_ON }, offEntries: { lsp: ['lsp:direct/json'] }, activeFavoriteId: null })
     // The surface-toggle writer must not drop the entry filters.
     await saveSurfaceToggles(dataRoot, workspace, { ...ALL_SURFACES_ON, agents: false })
     const reloaded = await loadResourceFilters(dataRoot, workspace)
@@ -56,7 +59,7 @@ describe('resource filter state roundtrip', () => {
   it('degrades a hand-edited malformed entries record to the known faces', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'resource-filters-'))
     const workspace = '/ws/hand-edited'
-    await saveResourceFilters(dataRoot, workspace, { toggles: { ...ALL_SURFACES_ON }, offEntries: { mcp: ['mcp:alpha__db'] } })
+    await saveResourceFilters(dataRoot, workspace, { toggles: { ...ALL_SURFACES_ON }, offEntries: { mcp: ['mcp:alpha__db'] }, activeFavoriteId: null })
     const path = surfaceTogglesDocumentPath(dataRoot, workspace)
     const document = JSON.parse(await readFile(path, 'utf8')) as { entries: Record<string, unknown> }
     document.entries.mcp = 'corrupted'

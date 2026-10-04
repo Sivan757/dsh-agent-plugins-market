@@ -59,6 +59,7 @@ import { createUserPanelStores } from './runtime/panels/user-panels.js'
 import { SourceAutoUpdater } from './runtime/core/source-auto-update.js'
 import { UserPanelSkillProvider } from './runtime/panels/user-panels.js'
 import { UserCommandMountRegistry } from './runtime/panels/user-commands.js'
+import { collectMenuRowIdentities } from './runtime/host/menu-row-identities.js'
 import type { SourceRef } from './model/types.js'
 import { presetSourceRef } from './model/preset-source.js'
 
@@ -166,8 +167,9 @@ export async function apply(
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
   const agentsRoot = resolveAgentsRoot()
   // A caller may hand apply() a partial config, and the switch is absent until
-  // the host applies its first value; both read as "translation on".
-  const translationEnabled = (): boolean => config.translationEnabled?.get() !== false
+  // the host applies its first value; both read as "translation off", which is
+  // also the declared default. Only an explicit true turns the chain on.
+  const translationEnabled = (): boolean => config.translationEnabled?.get() === true
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
 
@@ -345,13 +347,25 @@ export async function apply(
     setMcpBackend: backend => settings.setBackend(backend),
     downloadRegion: () => settings.downloadRegion(),
     localePreference: () => readLocalePreference() ?? 'zh',
-    // Built from the live context at apply time; every provider reads its host
-    // services per call, so a late-provisioning model is still picked up. An
-    // empty array means the market renders upstream text as authored.
-    translationProviders: translationEnabled() ? createTranslationProviders({ host: ctx, llm: createLlmTranslator(ctx) }) : [],
-    // Folded into every cache key: flipping the switch, or a future change to
-    // the chain, must miss translations the previous configuration produced.
-    translationProviderIdentity: () => (translationEnabled() ? 'google|microsoft|llm' : 'off')
+    // Read per call, like every port here: the registries change on each
+    // reconcile and the panels on each edit, so a snapshot would serve rows the
+    // menu no longer has. Attribution is by the panel's own listing, so the
+    // text a row translates is the text the panel already cached.
+    menuRowIdentities: () =>
+      collectMenuRowIdentities({
+        panels: resources,
+        commands: [...userCommands.registrations(), ...runtime.commandRegistrations()]
+      }),
+    // Built unconditionally: every provider reads its host services per call,
+    // and the settings switch is read live by the localizer. Capturing the
+    // switch here froze it at apply time, so turning translation on after load
+    // left an empty chain and nothing was ever translated.
+    translationProviders: createTranslationProviders({ host: ctx, llm: createLlmTranslator(ctx) }),
+    translationEnabled: () => translationEnabled(),
+    // Folded into every cache key. Constant while the chain is unchanged, so
+    // switching translation off and on again reuses what is already cached
+    // instead of re-paying for every text under a second key space.
+    translationProviderIdentity: () => 'google|microsoft|llm'
   }
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
@@ -495,7 +509,7 @@ export async function apply(
             ;(offEntries[face as keyof typeof favorite.surfaces] ??= []).push(entry)
           }
           await surfaceToggles.applyAll(favorite.surfaces)
-          await resourceFilters.applyFilters(favorite.surfaces, offEntries)
+          await resourceFilters.applyFilters(favorite.surfaces, offEntries, id)
         },
         saveFavorite: async name => {
           const filters = resourceFilters.currentFilters()

@@ -123,7 +123,7 @@ async function makeDeps(): Promise<{ deps: ResourceRouteDeps; service: ResourceF
         const face = entry.slice(0, entry.indexOf(':'))
         ;(offEntries[face] ??= []).push(entry)
       }
-      await service.applyFilters(favorite.surfaces, offEntries)
+      await service.applyFilters(favorite.surfaces, offEntries, id)
     },
     saveFavorite: async name => {
       const filters = service.currentFilters()

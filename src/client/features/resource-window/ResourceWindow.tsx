@@ -127,6 +127,34 @@ export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps
     []
   )
 
+  /**
+   * One quick entry toggle: the flip paints at once (the switch is the user's
+   * own action — waiting a full reconcile round-trip to show it reads as a
+   * hang), the write rides in the background, and the authoritative payload
+   * replaces the optimistic rows when the reconcile finishes. A failure rolls
+   * the row back; rapid flips compose because each write carries its own ids.
+   */
+  const toggleEntry = useCallback((target: ResourceEntryWire, enabled: boolean): void => {
+    setData(current =>
+      current === undefined
+        ? current
+        : {
+            ...current,
+            activeFavoriteId: null,
+            entries: current.entries.map(entry => (entry.id === target.id ? { ...entry, enabled } : entry))
+          }
+    )
+    void setResourceEntry(target.face, target.id, enabled)
+      .then(window => setData(window))
+      .catch(() => {
+        setData(current =>
+          current === undefined
+            ? current
+            : { ...current, entries: current.entries.map(entry => (entry.id === target.id ? { ...entry, enabled: !enabled } : entry)) }
+        )
+      })
+  }, [])
+
   const entries = data?.entries ?? []
   const byFace = useMemo(() => {
     const grouped = new Map<ResourceFace, ResourceEntryWire[]>()
@@ -296,10 +324,7 @@ export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps
                   key: entry.id,
                   entry,
                   t,
-                  busy,
-                  onToggle: enabled => {
-                    void mutate(() => setResourceEntry(entry.face, entry.id, enabled))
-                  },
+                  onToggle: enabled => toggleEntry(entry, enabled),
                   onView: () => viewEntry(entry.face, entry.id)
                 })
               )
@@ -376,8 +401,8 @@ function SaveGlyph(): ReactNode {
  * while the entry mounts; the cluster's controls keep their clicks (and key
  * presses) off the card.
  */
-function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; busy: boolean; onToggle: (enabled: boolean) => void; onView: () => void }): ReactNode {
-  const { entry, t, busy } = props
+function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; onToggle: (enabled: boolean) => void; onView: () => void }): ReactNode {
+  const { entry, t } = props
   const on = entry.enabled
   const counts = entry.counts ?? []
   const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
@@ -421,21 +446,20 @@ function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; bu
           className: rc.iconBtn,
           title: t('resourceWindowView') + ' ' + entry.name,
           'aria-label': t('resourceWindowView') + ' ' + entry.name,
-          disabled: busy,
           onClick: stop(props.onView)
         },
         h(IconInspectOutlineMedium)
       ),
-      // The enable switch reads last, at the cluster's trailing edge. Busy
-      // locks it exactly while a window mutation is in flight; a globally
-      // disabled entry locks it for good — this surface can filter further,
-      // never re-enable what the user level turned off.
+      // The enable switch reads last, at the cluster's trailing edge. A
+      // globally disabled entry locks it for good — this surface can filter
+      // further, never re-enable what the user level turned off. Per-project
+      // flips stay unlocked: they paint at once (see toggleEntry).
       h(
         'span',
         { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
         h(Switch, {
           checked: on,
-          disabled: busy || entry.globalDisabled === true,
+          disabled: entry.globalDisabled === true,
           label: entry.globalDisabled === true ? t('resourceWindowGloballyOff') : t('resourceWindowToggleEntry'),
           title:
             entry.globalDisabled === true

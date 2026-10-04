@@ -57,12 +57,22 @@ describe('ResourceFilterService', () => {
     expect(second.allowsEntry('mcp', 'mcp:alpha__db')).toBe(false)
   })
 
-  it('applies a favorite snapshot as one coherent write', async () => {
+  it('applies a favorite snapshot as one coherent write, recording only an explicit follow', async () => {
     const service = await makeService('/ws/service-epsilon')
+    // Without an id the workspace goes custom — a favorite never activates
+    // because its snapshot happens to match.
     await service.applyFilters({ ...ALL_SURFACES_ON, lsp: false }, { mcp: ['mcp:alpha__db'] })
     expect(service.currentFilters()).toEqual({
       toggles: { ...ALL_SURFACES_ON, lsp: false },
-      offEntries: { mcp: ['mcp:alpha__db'] }
+      offEntries: { mcp: ['mcp:alpha__db'] },
+      activeFavoriteId: null
+    })
+    // The explicit apply records the favorite it came from.
+    await service.applyFilters({ ...ALL_SURFACES_ON }, {}, 'fav-9')
+    expect(service.currentFilters()).toEqual({
+      toggles: { ...ALL_SURFACES_ON },
+      offEntries: {},
+      activeFavoriteId: 'fav-9'
     })
   })
 })

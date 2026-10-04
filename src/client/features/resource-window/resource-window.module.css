@@ -99,7 +99,8 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  flex-wrap: wrap;
+  /* One horizontal band: the strip folds inside its own grid, the row never wraps. */
+  flex-wrap: nowrap;
   padding: 0 0 10px;
 }
 
@@ -121,6 +122,7 @@
    keeps it flush right while the strip folds. */
 .favoritesSave {
   margin-left: auto;
+  flex: none;
 }
 
 /* The toolbar row, the counts, and the empty state ride the shared
