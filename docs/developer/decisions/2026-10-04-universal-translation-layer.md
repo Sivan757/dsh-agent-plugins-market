@@ -32,11 +32,11 @@ Batches are capped and de-duplicated before they leave. On the local catalog the
 
 ### 2. The provider identity is part of the cache key
 
-A cached translation is stored under a SHA-256 digest of the target locale, the unit's surface, id and role, the source text, and a stable identity of the provider chain. Entries expire after seven days.
+A cached translation is stored under a SHA-256 digest of the target locale, the unit's surface, id and role, the source text, and a stable identity of the provider chain. Entries do not expire; the settings card carries a reset that clears the whole cache.
 
 Putting the provider in the key is what makes an engine switch self-correcting: a deployment that changes its chain misses every entry the old chain produced and re-translates, rather than serving text one engine wrote under another engine's name. The alternative — content-only keys plus a per-entry "upgradable" flag — is a second state machine whose only job is to reproduce the miss the key already produces, and it needs its own invalidation rules, its own migration and its own tests. The provider is still recorded on each entry, but as an operator-visible fact rather than as a decision input.
 
-The seven-day TTL exists because content-addressed keys only accumulate: an upstream description edited once leaves its old key behind forever, and without expiry the file grows monotonically with every upstream edit rather than with the catalog.
+Content-addressed keys only accumulate: an upstream description edited once leaves its old key behind forever. The reset control is what zeroes that growth, so the decision to keep entries indefinitely is paired with giving the user a way to drop them.
 
 ### 3. Only the UI layer is translated
 
@@ -48,9 +48,9 @@ What a model reads is a different artifact from what a human reads, and the laye
 
 - **The panel is never worse than before the change.** With no network, no model route, a rate-limited endpoint or a corrupt cache file, every surface renders exactly the upstream text it rendered before. The failure mode of the whole feature is the pre-change state.
 - **One timeout per session is the price of the first level.** On a network where Google is blocked, the first translation pays 3 seconds and the breaker removes it; Microsoft answers in under half a second afterwards.
-- **Translation quality is the provider's, not ours.** A mediocre translation is cached as-is for up to seven days. The masking layer protects inline code, URLs, angle-bracket fragments, `${VAR}` references and a fixed glossary of terms from being rewritten, which is the part of quality this plugin can actually own.
-- **The cache file grows with the catalog, bounded by the TTL.** It is written whole on each flush; sharding it by source is deferred until the write cost is measured rather than assumed.
-- **A stale translation can outlive an upstream edit by up to seven days.** Content addressing catches an edited text immediately (a new key), but an entry whose upstream text was deleted simply expires later.
+- **Translation quality is the provider's, not ours.** A mediocre translation is cached as-is until the cache is cleared. The masking layer protects inline code, URLs, angle-bracket fragments, `${VAR}` references and a fixed glossary of terms from being rewritten, which is the part of quality this plugin can actually own.
+- **The cache file grows with the catalog until a user clears it.** It is written whole on each flush; sharding it by source is deferred until the write cost is measured rather than assumed.
+- **A stale translation outlives an upstream edit until the cache is cleared.** Content addressing catches an edited text immediately (a new key), but an entry whose upstream text was deleted simply stays until a reset.
 - **The layer's scope is a standing boundary.** Any future surface that injects text into a model's context must not route through this layer, and any new rendered field needs a deliberate decision about whether it is an identity or prose.
 
 ## Alternatives considered
@@ -58,7 +58,7 @@ What a model reads is a different artifact from what a human reads, and the laye
 - **Translate in the client — rejected.** `src/client/**` may not import `node:**` and holds no persistent cache. A browser-side translator would re-call a provider on every page load and could not remember a result across restarts.
 - **Ship the two free machine-translation endpoints only — rejected.** Terminology fidelity is a general MT engine's weak point: `skill`, `suite` and `surface` come back rendered inconsistently, and proper nouns drift between calls. The user's model stays in the chain as the level that can be told how to render the domain vocabulary.
 - **Leave the provider out of the cache key — rejected.** See decision 2: the key would be pure content, and a deployment that switched engines would keep serving the old engine's text indefinitely.
-- **Shard the cache by source — deferred, not rejected.** The design proposed one file per source because a single file is rewritten whole on each flush. At this catalog's size the whole document is a few megabytes and the TTL bounds growth without it; sharding adds a multi-file migration and a concurrent-write problem whose cost has not been measured.
+- **Shard the cache by source — deferred, not rejected.** The design proposed one file per source because a single file is rewritten whole on each flush. At this catalog's size the whole document is a few megabytes and the reset control bounds growth without it; sharding adds a multi-file migration and a concurrent-write problem whose cost has not been measured.
 - **Gate the machine-translation levels behind an explicit opt-in — rejected.** The whole point of the two public endpoints is that a fresh install works with no configuration. A consent step would restore the English panel the feature exists to remove, and the switch that does exist turns the layer off rather than on.
 
 ## Revisit when

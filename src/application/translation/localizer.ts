@@ -20,7 +20,7 @@
  */
 import type { TranslationUnit } from './unit.js'
 import { runChain, type TranslationProvider } from './chain.js'
-import { TRANSLATION_TTL_MS, loadTranslationCache, saveTranslationCache, translationKey, type TranslationRecord } from '../state/translation-cache.js'
+import { clearTranslationCache, loadTranslationCache, saveTranslationCache, translationKey, type TranslationRecord } from '../state/translation-cache.js'
 
 /** The localization answer for one field. */
 export interface LocalizedText {
@@ -113,13 +113,24 @@ export class TranslationLocalizer {
 
   /**
    * Read the persisted cache once. A missing or unreadable file is not an
-   * error: the market simply starts with nothing translated. Expired entries
-   * are dropped here rather than at each read.
+   * error: the market simply starts with nothing translated.
    */
   async load(): Promise<void> {
-    // The clock seam reaches the loader too: pruning against the real clock
-    // here would discard entries this instance stamped with its own.
-    this.entries = await loadTranslationCache(this.dataRoot, this.now())
+    this.entries = await loadTranslationCache(this.dataRoot)
+  }
+
+  /**
+   * Drop every cached translation, in memory and on disk.
+   *
+   * The caller re-reads afterwards: the panel translates lazily, so the next
+   * read is what repopulates the cache.
+   * @returns fulfillment once the file is gone and memory is empty.
+   */
+  async clear(): Promise<void> {
+    this.entries = {}
+    this.retry.clear()
+    this.dirty = false
+    await clearTranslationCache(this.dataRoot)
   }
 
   /** Number of texts waiting for a provider call; drives the client's re-read. */
@@ -212,7 +223,7 @@ export class TranslationLocalizer {
           this.fail(job.key)
           return
         }
-        this.entries[job.key] = { text, provider: result.provider, at, expiresAt: at + TRANSLATION_TTL_MS }
+        this.entries[job.key] = { text, provider: result.provider, at }
         this.retry.delete(job.key)
         this.dirty = true
       })

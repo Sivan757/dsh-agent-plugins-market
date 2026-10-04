@@ -38,7 +38,8 @@ export const MARKET_ROUTES = {
   mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
   mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
   setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`,
-  userPanel: `${MARKET_API_PREFIX}user-panel`
+  userPanel: `${MARKET_API_PREFIX}user-panel`,
+  clearTranslations: `${MARKET_API_PREFIX}translations/clear`
 } as const
 
 /** One timeout's three layers: the user's value, the suite declaration, and the value in force. */

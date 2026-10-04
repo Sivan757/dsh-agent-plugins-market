@@ -426,8 +426,10 @@ export const zh = {
   autoUpdateLabel: '后台更新',
   autoUpdateDesc: '每 6 小时刷新全部已配置来源。',
   feedbackToggleDesc: 'Agent 遇到本插件的问题时可自动提交 issue 反馈。',
-  translationToggleLabel: '翻译界面文案',
-  translationToggleDesc: '把插件、技能、快捷指令、专家、MCP 与 LSP 的名称和描述翻成界面语言，结果缓存 7 天。'
+  translationToggleLabel: '自动翻译',
+  translationToggleDesc: '把插件、技能、快捷指令、专家、MCP 与 LSP 的名称和描述翻成界面语言。打开面板时才翻译，结果缓存在本地。',
+  translationReset: '清空翻译缓存',
+  translationResetDone: '翻译缓存已清空',
 }
 
 export type LocaleKey = keyof typeof zh
@@ -854,6 +856,8 @@ export const en: Record<LocaleKey, string> = {
   autoUpdateLabel: 'Background updates',
   autoUpdateDesc: 'Refreshes every configured source every 6 hours.',
   feedbackToggleDesc: 'The agent may auto-file an issue when it hits a problem in this plugin.',
-  translationToggleLabel: 'Translate interface text',
-  translationToggleDesc: 'Translates plugin, skill, command, expert, MCP and LSP names and descriptions into the interface language, cached for 7 days.'
+  translationToggleLabel: 'Auto-translate',
+  translationToggleDesc: 'Translates plugin, skill, command, expert, MCP and LSP names and descriptions into the interface language. Text is translated when a panel opens, and results are cached locally.',
+  translationReset: 'Clear translation cache',
+  translationResetDone: 'Translation cache cleared'
 }

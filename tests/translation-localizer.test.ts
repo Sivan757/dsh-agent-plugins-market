@@ -207,7 +207,7 @@ describe('TranslationLocalizer', () => {
     reloaded.dispose()
   })
 
-  it('drops expired entries at load time', async () => {
+  it('keeps a cached entry indefinitely: nothing expires it', async () => {
     const { provider } = recorder()
     const localizer = build([provider])
     await localizer.load()
@@ -216,11 +216,36 @@ describe('TranslationLocalizer', () => {
     await localizer.flush()
     localizer.dispose()
 
-    clock += 8 * 24 * 60 * 60 * 1000
+    // A year later the entry is still served: only an explicit clear removes it.
+    clock += 365 * 24 * 60 * 60 * 1000
     const later = build([provider])
     await later.load()
-    expect(later.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(true)
+    expect(later.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
     later.dispose()
+  })
+
+  it('clear empties memory and disk, so the next read translates again', async () => {
+    const { provider, batches } = recorder()
+    const localizer = build([provider])
+    await localizer.load()
+    localizer.localize(unit('a/b', 'Read files'), 'zh')
+    await localizer.settle(1_000)
+    await localizer.flush()
+    expect(batches).toHaveLength(1)
+
+    await localizer.clear()
+    // The in-memory copy must go too, or this instance keeps serving text the
+    // file no longer holds.
+    expect(localizer.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(true)
+    await localizer.settle(1_000)
+    expect(batches).toHaveLength(2)
+
+    // And a fresh instance over the same root starts from nothing.
+    const reopened = build([provider])
+    await reopened.load()
+    expect(reopened.localize(unit('a/b', 'Other text'), 'zh').pending).toBe(true)
+    localizer.dispose()
+    reopened.dispose()
   })
 
   it('does not queue text that is already Chinese', async () => {

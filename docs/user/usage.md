@@ -35,7 +35,7 @@ Translation runs through four levels, in order, and the first one that answers w
 3. **Your default model** — used when the deployment has a model route configured. Highest quality, and the only level that can be told how to render domain vocabulary.
 4. **The upstream text** — when no level answers, every surface renders the original English, with no error, no spinner and no blocked first paint.
 
-Only a Chinese interface translates: an English panel already shows the authored text. A translation is cached for seven days under a key that includes the provider that produced it, so changing engines re-translates instead of serving the old engine's output. A second process start serves cached text with no calls at all.
+Only a Chinese interface translates: an English panel already shows the authored text. Translation is lazy — text is translated when a panel opens, never at startup — and a result is cached under a key that includes the provider that produced it, so changing engines re-translates instead of serving the old engine's output. Cached text never expires; **Auto-translate** in the plugin settings clears it, and the next panel open translates again.
 
 **A translated name is display-only.** Search, sorting, copying, `aria-label` values and `/` invocation all keep using the original name, which stays visible as the card's hover tooltip. Descriptions have no such second role and render translated.
 
@@ -111,7 +111,7 @@ Plugin state lives under `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it 
 | `state.json`             | Configured sources and install state                                     |
 | `.sources/<sourceId>/`   | Source checkouts                                                         |
 | `data/`                  | Overrides, suite `${PLUGIN_DATA}` directories, feedback rate-limit stamp |
-| `translation-cache.json` | Cached translations, keyed by content and provider (seven-day TTL)       |
+| `translation-cache.json` | Cached translations, keyed by content and provider (kept until cleared)  |
 
 Content you author yourself lives in the shared Agent layout root, `~/.agents/` (`$DSH_AGENTS_HOME` overrides it) — the same directory shape this plugin reads from a project's `.agents/`:
 

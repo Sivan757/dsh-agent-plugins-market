@@ -4,11 +4,12 @@
  * market binding supplies its switches, download region, and backend probe.
  * @module client/McpPluginCard
  */
-import { createElement as h, useEffect, type ReactNode } from 'react'
-import { SegmentedControl, SettingsForm, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { createElement as h, useEffect, useState, type ReactNode } from 'react'
+import { IconRefreshOutlineMedium, SegmentedControl, SettingsForm, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 // Import the published slot types only; runtime collaboration uses the host slots service.
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { clearTranslations } from '../../api.js'
 import {
   MARKET_SWITCH_FIELDS,
   regionChoice,
@@ -34,7 +35,7 @@ const SWITCH_COPY: Record<MarketSwitchField, { label: MarketCopyKey; description
 type MarketCopyKey =
   | 'mcpCardTitle' | 'mcpCardDesc' | 'projectLayoutsLabel' | 'projectLayoutsDesc'
   | 'autoUpdateLabel' | 'autoUpdateDesc' | 'feedbackToggleLabel' | 'feedbackToggleDesc'
-  | 'translationToggleLabel' | 'translationToggleDesc'
+  | 'translationToggleLabel' | 'translationToggleDesc' | 'translationReset' | 'translationResetDone'
   | 'mcpCardReadonly' | 'mcpBackendHostMissing' | 'regionLabel' | 'regionHint'
   | 'regionAuto' | 'regionGlobal' | 'regionChina' | 'regionResolved'
   | 'settingSaveFailed' | 'settingSave' | 'settingSaving' | 'settingDiscard'
@@ -74,6 +75,35 @@ function FieldHead(props: { label: string; overridden: boolean; badge: ReactNode
   )
 }
 
+/**
+ * The reset control: one flat icon button, sized and coloured like the row's
+ * other affordances. It clears the whole translation cache rather than staging
+ * a setting, so it acts immediately and reports through its own label.
+ */
+function ResetButton(props: { t: CardTranslate; disabled: boolean; onClear: () => void }): ReactNode {
+  const [busy, setBusy] = useState(false)
+  const label = props.t('translationReset')
+  return h(
+    'button',
+    {
+      type: 'button',
+      className: css.pluginFieldIcon,
+      title: label,
+      'aria-label': label,
+      disabled: props.disabled || busy,
+      onClick: () => {
+        if (busy) return
+        setBusy(true)
+        props.onClear()
+        // The clear is fire-and-forget: the next panel read repopulates, and a
+        // failure costs nothing worse than text that translates again.
+        setTimeout(() => { setBusy(false) }, 400)
+      }
+    },
+    h(IconRefreshOutlineMedium)
+  )
+}
+
 /** One boolean switch row: its copy, the control, and the reset when it is overridden. */
 function SwitchRow(props: {
   t: CardTranslate
@@ -82,6 +112,8 @@ function SwitchRow(props: {
   disabled: boolean
   onEdit: (field: MarketSwitchField, text: string) => void
   onReset: (field: MarketSwitchField) => void
+  /** Extra control on the row's leading edge, before the switch. */
+  accessory?: ReactNode
 }): ReactNode {
   const copy = SWITCH_COPY[props.field]
   const label = props.t(copy.label)
@@ -98,6 +130,7 @@ function SwitchRow(props: {
       }),
       h('div', { className: css.pluginCardDesc }, props.t(copy.description))
     ),
+    props.accessory ?? null,
     h(Switch, {
       // The draft text is the value's wire spelling; the Switch only renders it.
       checked: props.state.text === 'true',
@@ -158,7 +191,12 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
             state: state[field],
             disabled,
             onEdit: edit,
-            onReset: resetField
+            onReset: resetField,
+            // Only the translation row carries a reset: it clears a cache, not
+            // a staged setting, so it sits outside the form's own save cycle.
+            ...(field === 'translationEnabled'
+              ? { accessory: h(ResetButton, { t, disabled, onClear: () => { void clearTranslations() } }) }
+              : {})
           })
         ),
         state.hostClientMissing && state.mcpEnhanced.text !== 'true'

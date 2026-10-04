@@ -82,6 +82,14 @@ export function mountSuiteRoutes(
     sendJson(response, 200, await manager.overview())
   })
 
+  // The reset control in the plugin's configuration card. Dropping the cache is
+  // the whole operation: translation is lazy, so the next overview read
+  // repopulates it and the panel shows the authored text until it lands.
+  post(MARKET_ROUTES.clearTranslations, async () => {
+    await manager.clearTranslations()
+    return {}
+  })
+
   get(MARKET_ROUTES.modelCatalog, async (request, response) => {
     try {
       const query = queryOf(request)

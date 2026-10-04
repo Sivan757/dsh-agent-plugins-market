@@ -356,14 +356,11 @@ export async function apply(
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
-  // The model-backed provider needs the host model services, and those
-  // provision *after* apply() returns — warming here would find them absent and
-  // do nothing. Warm once they land instead, so a returning user's panel opens
-  // on the translations it already paid for. The keyless endpoints in front of
-  // it need no such wait; this hook governs the model's own warm-up only.
-  ctx.inject(['llm', 'agentDefaultModel'], () => {
-    void catalog.warmDescriptions()
-  })
+  // Translation is lazy by design: nothing is translated until a panel read
+  // asks for it, so a deployment that never opens the market pays nothing. The
+  // model-backed provider needs the host model services, and those provision
+  // *after* apply() returns, which is exactly why no warm-up is scheduled here —
+  // the read path resolves them per call.
   // Configured seeds first, then the record this plugin presets: the market
   // lists the first-party collection on the first open, and the ordinary
   // refresh path clones it. Registration performs no network access.

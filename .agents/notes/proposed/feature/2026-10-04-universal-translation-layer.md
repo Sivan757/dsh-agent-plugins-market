@@ -35,7 +35,7 @@ Google is tried first and given 3 seconds, Microsoft 15, and the model 30. A pro
 
 ### The cache and its key
 
-A translation is cached under a SHA-256 digest of the target locale, the unit's surface, id, role and text, and the identity of the provider chain. Content addressing means an entity that rewrites its text is translated again while one that merely bumps a version keeps its translation. Entries expire after seven days, so an upstream edit cannot pin a stale translation forever.
+A translation is cached under a SHA-256 digest of the target locale, the unit's surface, id, role and text, and the identity of the provider chain. Content addressing means an entity that rewrites its text is translated again while one that merely bumps a version keeps its translation. Entries do not expire; the settings card carries a reset that clears the whole cache, and the next panel read translates again.
 
 The provider identity sits inside the key on purpose. A deployment that changes engines must miss what the old engine produced rather than serve it as if the new one had; the alternative — a per-entry "upgradable" marker — is a second state machine that buys nothing the key does not already give. The `provider` field is still recorded on each entry, for an operator reading the file rather than for a decision.
 
@@ -57,9 +57,9 @@ Only a `zh` deployment translates; an English panel already shows the authored t
 
 **Ship the two free machine-translation endpoints only.** Rejected: terminology fidelity is the weak point of a general MT engine — `skill`, `suite` and `surface` come back inconsistently rendered, and proper nouns drift between calls. The user's own model stays in the chain as the level that can be told how to render the domain vocabulary, and the chain reaches it only when the deployment configured it.
 
-**Leave the provider out of the cache key.** Rejected: the key would then be pure content, and a deployment that switched engines would keep serving the old engine's text forever. Invalidating by hand or by a version bump is a state marker in disguise; folding the provider identity into the key makes the miss automatic and lets the old entries fall out through the TTL.
+**Leave the provider out of the cache key.** Rejected: the key would then be pure content, and a deployment that switched engines would keep serving the old engine's text forever. Invalidating by hand or by a version bump is a state marker in disguise; folding the provider identity into the key makes the miss automatic.
 
-**Shard the cache by source.** Not this round. The design proposed one file per source because a single file is rewritten whole on every flush; at this catalog's size the whole document is a few megabytes, and the seven-day TTL bounds growth without it. Sharding would add a multi-file migration and a concurrent-write problem for a cost that is not yet measured.
+**Shard the cache by source.** Not this round. The design proposed one file per source because a single file is rewritten whole on every flush; at this catalog's size the whole document is a few megabytes, and the reset control lets a user zero the growth whenever they want. Sharding would add a multi-file migration and a concurrent-write problem for a cost that is not yet measured.
 
 ## Acceptance criteria
 
@@ -75,4 +75,4 @@ Only a `zh` deployment translates; an English panel already shows the authored t
 - **The public endpoints are keyless and therefore unpromised.** A rate limit or a withdrawn endpoint degrades silently to the next level, with no notification to the user and no active-provider readout to diagnose it from.
 - **MT quality is below the model's.** The masking layer protects code, paths and a fixed glossary, and the model level remains the quality ceiling for a deployment that configures one.
 - **The first call on a blocked network costs one timeout per session.** The circuit breaker bounds it, and Microsoft answers in under half a second once Google is out of the way.
-- **The cache grows with the catalog.** Content-addressed keys only accumulate; the seven-day TTL is what stops the growth, and a single file is rewritten whole on each flush.
+- **The cache grows with the catalog.** Content-addressed keys only accumulate; the reset control is what zeroes that growth, and a single file is rewritten whole on each flush.

@@ -3,9 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  TRANSLATION_TTL_MS,
+  clearTranslationCache,
   loadTranslationCache,
-  pruneExpired,
   saveTranslationCache,
   translationCachePath,
   translationKey,
@@ -14,6 +13,9 @@ import {
 import type { TranslationUnit } from '../src/application/translation/unit.js'
 
 const roots: string[] = []
+
+/** The separator the cache key joins its parts with. */
+const SEP = String.fromCharCode(0)
 
 async function tempRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-translation-cache-'))
@@ -32,7 +34,7 @@ function unit(overrides: Partial<TranslationUnit> = {}): TranslationUnit {
 
 /** A record as a successful translation would have written it. */
 function record(overrides: Partial<TranslationRecord> = {}): TranslationRecord {
-  return { text: '管理套件来源', provider: 'google', at: 1_000, expiresAt: 1_000 + TRANSLATION_TTL_MS, ...overrides }
+  return { text: '管理套件来源', provider: 'google', at: 1_000, ...overrides }
 }
 
 describe('translationCachePath', () => {
@@ -66,7 +68,7 @@ describe('translationKey', () => {
   })
 
   it('keeps identities that contain the join separator distinct', () => {
-    const separated = translationKey(unit({ id: 'a\u0000b' }), 'zh', 'chain')
+    const separated = translationKey(unit({ id: 'a' + SEP + 'b' }), 'zh', 'chain')
     const plain = translationKey(unit({ id: 'a' }), 'zh', 'chain')
     const other = translationKey(unit({ id: 'b' }), 'zh', 'chain')
     expect(new Set([separated, plain, other]).size).toBe(3)
@@ -77,47 +79,21 @@ describe('translationKey', () => {
   })
 })
 
-describe('pruneExpired', () => {
-  it('drops entries whose expiry has passed and keeps the live ones', () => {
-    const live = record({ expiresAt: 2_000 })
-    const gone = record({ expiresAt: 999 })
-    expect(pruneExpired({ live, gone }, 1_000)).toEqual({ live })
-  })
-
-  it('drops an entry expiring exactly at the reference time', () => {
-    expect(pruneExpired({ edge: record({ expiresAt: 1_000 }) }, 1_000)).toEqual({})
-  })
-
-  it('returns a new record rather than mutating its input', () => {
-    const entries = { gone: record({ expiresAt: 999 }) }
-    expect(pruneExpired(entries, 1_000)).toEqual({})
-    expect(Object.keys(entries)).toEqual(['gone'])
-  })
-})
-
 describe('loadTranslationCache', () => {
-  it('round-trips a saved entry with its provider and expiry', async () => {
+  it('round-trips a saved entry with its provider and timestamp', async () => {
     const root = await tempRoot()
     const key = translationKey(unit(), 'zh', 'chain')
     const entry = record()
     await saveTranslationCache(root, { [key]: entry })
-    expect(await loadTranslationCache(root, 1_000)).toEqual({ [key]: entry })
+    expect(await loadTranslationCache(root)).toEqual({ [key]: entry })
   })
 
-  it('drops expired entries when reading', async () => {
+  it('keeps an entry indefinitely: nothing expires it', async () => {
     const root = await tempRoot()
     const key = translationKey(unit(), 'zh', 'chain')
-    await saveTranslationCache(root, { [key]: record({ expiresAt: 5_000 }) })
-    expect(await loadTranslationCache(root, 5_000)).toEqual({})
-    expect(await loadTranslationCache(root, 4_999)).toEqual({ [key]: record({ expiresAt: 5_000 }) })
-  })
-
-  it('defaults the prune clock to now, so a week-old entry is gone', async () => {
-    const root = await tempRoot()
-    const key = translationKey(unit(), 'zh', 'chain')
-    const at = Date.now() - TRANSLATION_TTL_MS - 1
-    await saveTranslationCache(root, { [key]: record({ at, expiresAt: at + TRANSLATION_TTL_MS }) })
-    expect(await loadTranslationCache(root)).toEqual({})
+    const ancient = record({ at: 0 })
+    await saveTranslationCache(root, { [key]: ancient })
+    expect(await loadTranslationCache(root)).toEqual({ [key]: ancient })
   })
 
   it('degrades to an empty cache when the file is missing', async () => {
@@ -148,22 +124,19 @@ describe('loadTranslationCache', () => {
           [key]: record(),
           emptyText: record({ text: '' }),
           unknownProvider: { ...record(), provider: 'deepl' },
-          noExpiry: { text: '管理套件来源', provider: 'llm', at: 1 },
           junk: 'nope'
         }
       }),
       'utf8'
     )
-    // A record without a usable expiry is dropped: an entry whose age cannot be
-    // established is exactly what a TTL exists to bound.
-    expect(Object.keys(await loadTranslationCache(root, 1_000))).toEqual([key])
+    expect(Object.keys(await loadTranslationCache(root))).toEqual([key])
   })
 
   it('fills a missing timestamp rather than dropping the translation', async () => {
     const root = await tempRoot()
     const key = translationKey(unit(), 'zh', 'chain')
-    await writeFile(translationCachePath(root), JSON.stringify({ version: 1, entries: { [key]: { text: '管理套件来源', provider: 'llm', expiresAt: 9_000 } } }), 'utf8')
-    expect(await loadTranslationCache(root, 1_000)).toEqual({ [key]: { text: '管理套件来源', provider: 'llm', at: 0, expiresAt: 9_000 } })
+    await writeFile(translationCachePath(root), JSON.stringify({ version: 1, entries: { [key]: { text: '管理套件来源', provider: 'llm' } } }), 'utf8')
+    expect(await loadTranslationCache(root)).toEqual({ [key]: { text: '管理套件来源', provider: 'llm', at: 0 } })
   })
 })
 
@@ -182,12 +155,21 @@ describe('saveTranslationCache', () => {
     const fresh = translationKey(unit({ id: 'fresh' }), 'zh', 'chain')
     await saveTranslationCache(root, { [stale]: record() })
     await saveTranslationCache(root, { [fresh]: record() })
-    expect(Object.keys(await loadTranslationCache(root, 1_000))).toEqual([fresh])
+    expect(Object.keys(await loadTranslationCache(root))).toEqual([fresh])
   })
 })
 
-describe('TRANSLATION_TTL_MS', () => {
-  it('is seven days', () => {
-    expect(TRANSLATION_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000)
+describe('clearTranslationCache', () => {
+  it('removes every entry', async () => {
+    const root = await tempRoot()
+    await saveTranslationCache(root, { [translationKey(unit(), 'zh', 'chain')]: record() })
+    await clearTranslationCache(root)
+    expect(await loadTranslationCache(root)).toEqual({})
+  })
+
+  it('is idempotent: clearing a missing file is not an error', async () => {
+    const root = await tempRoot()
+    await expect(clearTranslationCache(root)).resolves.toBeUndefined()
+    await expect(clearTranslationCache(root)).resolves.toBeUndefined()
   })
 })

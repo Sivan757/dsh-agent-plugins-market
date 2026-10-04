@@ -61,6 +61,8 @@ export interface MarketMutations {
   mcpReauthorizeAvailable(): boolean
   /** The active MCP backend, host-client probe, and download region. */
   mcpBackendInfo(): Promise<McpBackendInfo>
+  /** Drop every cached translation; translation is lazy, so the next read refills it. */
+  clearTranslations(): Promise<void>
   /** Switch the MCP mount backend and remount every suite server through it. */
   setMcpBackend(backend: McpBackend): Promise<void>
   /**

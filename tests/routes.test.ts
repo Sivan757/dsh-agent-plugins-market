@@ -18,6 +18,7 @@ function service(): MarketService {
     sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
     serverConfig: async (kind, id) => ({ kind, id, key: 'service', editable: true, config: {} }),
     lspStatus: async () => ({ entries: [], observedAt: '', totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 }, hostMissing: false }),
+    clearTranslations: async () => {},
     lspServers: async () => ({}),
     mcpOverrides: async () => ({}),
     suiteDetail: async () => {

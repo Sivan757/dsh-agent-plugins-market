@@ -295,6 +295,16 @@ export async function deleteUserPanelEntry(kind: UserPanelKind, name: string): P
 }
 
 /** Read this workspace's six surface switches. */
+/**
+ * Drop every cached translation.
+ *
+ * Translation is lazy, so nothing is queued here: the next overview read is
+ * what repopulates the cache.
+ */
+export async function clearTranslations(): Promise<void> {
+  await postAction(MARKET_ROUTES.clearTranslations, {})
+}
+
 export async function loadSurfaceToggles(): Promise<SurfaceToggles> {
   const response = await boundedFetch(MARKET_ROUTES.surfaceToggles, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
   return (await response.json()) as SurfaceToggles

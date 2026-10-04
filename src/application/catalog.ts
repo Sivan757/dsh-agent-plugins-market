@@ -109,46 +109,24 @@ export class Catalog implements MarketService {
   }
 
   /**
-   * Queue translations for every suite name and description the catalog is missing.
+   * Drop every cached translation, in memory and on disk.
    *
-   * The panel translates lazily on read, which means a first open shows
-   * upstream text and fills in over the following seconds. This warm-up runs
-   * the same queue ahead of that first read, so a catalog that just scanned
-   * arrives already translated.
-   *
-   * It is inherently incremental and cheap to repeat: a field already in the
-   * cache enqueues nothing, so calling this on every startup costs one memory
-   * lookup per field once the catalog has settled.
-   *
-   * The returned promise settles once the work is *queued*, not once it is
-   * translated — a caller that wants the translations themselves follows it
-   * with {@link settleDescriptions}. Callers with nothing to wait for use
-   * `void`.
-   *
-   * Nothing here runs for an `en` deployment: an English panel already shows
-   * the authored text, and translating it would spend quota to reproduce the
-   * input.
-   * @returns fulfillment after the missing fields are queued.
+   * Translation is lazy, so this is the whole of the reset: nothing is queued
+   * here, and the next panel read repopulates the cache from scratch. The
+   * in-memory copy is emptied too, or the same process would keep serving text
+   * the file no longer holds.
+   * @returns fulfillment once the cache is empty.
    */
-  async warmDescriptions(): Promise<void> {
-    try {
-      const locale = this.ports.localePreference()
-      if (locale !== 'zh') return
-      const snapshot = await this.readUserCatalog()
-      for (const suite of snapshot.suites) {
-        this.translateFields('market', qualifiedSuiteId(suite.sourceId, suite.id), { name: suite.manifest.name, description: suite.manifest.description }, locale)
-      }
-    } catch {
-      // A warm-up that cannot read the catalog leaves the lazy path intact.
-    }
+  async clearTranslations(): Promise<void> {
+    await this.localizer.clear()
   }
 
   /**
    * Wait for queued translations to finish.
    *
    * Nothing on the request path calls this — the panel renders upstream text
-   * and re-reads. It exists so a warm-up pass or a test can observe the
-   * settled state instead of polling.
+   * and re-reads. It exists so a test can observe the settled state instead of
+   * polling.
    * @param deadlineMs - maximum wait; omitted waits for the queue alone.
    * @returns whether the queue drained before the deadline.
    */
@@ -351,9 +329,9 @@ export class Catalog implements MarketService {
   /** Refresh one source checkout, or every source when sourceId is omitted. */
   async refreshSource(sourceId?: string): Promise<void> {
     await this.sourceStore.refresh(sourceId)
-    // A refresh is the moment new descriptions arrive; queue them before the
-    // user's next panel read rather than making that read discover them.
-    void this.warmDescriptions()
+    // No warm-up here: a refresh runs from the background updater too, and
+    // translating then would make the layer eager again. The next panel read
+    // discovers the new text and queues it.
   }
 
   /** Progress snapshot for the progress route. */

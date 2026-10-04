@@ -170,48 +170,77 @@ describe('Catalog translation', () => {
     reopened.dispose()
   })
 
-  it('warms the whole catalog without a panel read', async () => {
+  it('translates nothing until a read asks for it', async () => {
     const provider = stubProvider(text => (text === SUITE_DESCRIPTION ? '中文描述' : '中文名称'))
     const { catalog } = await catalogWith({ locale: 'zh', provider })
-    // No overview() call: the warm-up alone must queue and complete the work,
-    // so a returning user's panel opens on translations already paid for.
-    await catalog.warmDescriptions()
-    await catalog.settleDescriptions(5_000)
-    const card = await onlyCard(catalog)
-    expect(card.translatedDescription).toBe('中文描述')
-    expect(card.translatedName).toBe('中文名称')
-    expect(provider.calls).toHaveLength(2)
-  })
-
-  it('re-warms incrementally, paying only for fields not yet cached', async () => {
-    const provider = stubProvider(text => (text === SUITE_DESCRIPTION ? '中文描述' : '中文名称'))
-    const { catalog } = await catalogWith({ locale: 'zh', provider })
-    await catalog.warmDescriptions()
-    await catalog.settleDescriptions(5_000)
-    expect(provider.calls).toHaveLength(2)
-    // A second pass is a cache lookup per field: nothing new to translate.
-    await catalog.warmDescriptions()
-    await catalog.settleDescriptions(1_000)
-    expect(provider.calls).toHaveLength(2)
-  })
-
-  it('warms nothing for the en locale', async () => {
-    const provider = stubProvider(() => '中文描述')
-    const { catalog } = await catalogWith({ locale: 'en', provider })
-    await catalog.warmDescriptions()
-    await catalog.settleDescriptions(1_000)
+    // Lazy by design: constructing and loading a catalog must not spend a single
+    // provider call, so a deployment that never opens the market pays nothing.
+    expect(provider.calls).toEqual([])
+    await catalog.settleDescriptions(200)
     expect(provider.calls).toEqual([])
   })
 
-  it('keeps the panel usable when the warm-up itself fails', async () => {
+  it('the first read queues the work and the second serves it', async () => {
+    const provider = stubProvider(text => (text === SUITE_DESCRIPTION ? '中文描述' : '中文名称'))
+    const { catalog } = await catalogWith({ locale: 'zh', provider })
+    const first = await catalog.overview()
+    expect(first.suites[0]?.translatedDescription).toBeUndefined()
+    expect(first.translationPending).toBe(2)
+    await catalog.settleDescriptions(5_000)
+    const second = await catalog.overview()
+    expect(second.suites[0]?.translatedDescription).toBe('中文描述')
+    expect(second.suites[0]?.translatedName).toBe('中文名称')
+    expect(second.translationPending).toBeUndefined()
+    expect(provider.calls).toHaveLength(2)
+  })
+
+  it('pays only for fields not yet cached on a repeated read', async () => {
+    const provider = stubProvider(text => (text === SUITE_DESCRIPTION ? '中文描述' : '中文名称'))
+    const { catalog } = await catalogWith({ locale: 'zh', provider })
+    await catalog.overview()
+    await catalog.settleDescriptions(5_000)
+    expect(provider.calls).toHaveLength(2)
+    // Every later read is a cache lookup per field: nothing new to translate.
+    await catalog.overview()
+    await catalog.settleDescriptions(1_000)
+    expect(provider.calls).toHaveLength(2)
+  })
+
+  it('queues nothing for the en locale', async () => {
+    const provider = stubProvider(() => '中文描述')
+    const { catalog } = await catalogWith({ locale: 'en', provider })
+    const overview = await catalog.overview()
+    await catalog.settleDescriptions(1_000)
+    expect(overview.translationPending).toBeUndefined()
+    expect(provider.calls).toEqual([])
+  })
+
+  it('keeps the panel usable when the provider fails', async () => {
     const provider = stubProvider(() => new Error('provider unavailable'))
     const { catalog } = await catalogWith({ locale: 'zh', provider })
-    await catalog.warmDescriptions()
+    await catalog.overview()
     await catalog.settleDescriptions(1_000)
-    // A failed warm-up is silent: the read still answers with upstream text.
+    // A failed batch is silent: the read still answers with upstream text.
     const overview = await catalog.overview()
     expect(overview.suites).toHaveLength(1)
     expect(overview.suites[0]?.description).toBeTruthy()
+  })
+
+  it('clearTranslations drops the cache so the next read translates again', async () => {
+    const provider = stubProvider(text => (text === SUITE_DESCRIPTION ? '中文描述' : '中文名称'))
+    const { catalog } = await catalogWith({ locale: 'zh', provider })
+    await catalog.overview()
+    await catalog.settleDescriptions(5_000)
+    expect(provider.calls).toHaveLength(2)
+
+    await catalog.clearTranslations()
+    // The in-memory copy must go too, or the same process keeps serving text
+    // the file no longer holds.
+    const afterClear = await catalog.overview()
+    expect(afterClear.suites[0]?.translatedDescription).toBeUndefined()
+    expect(afterClear.translationPending).toBe(2)
+    await catalog.settleDescriptions(5_000)
+    expect(provider.calls).toHaveLength(4)
   })
 
   it('renders upstream text when no provider chain is wired at all', async () => {
