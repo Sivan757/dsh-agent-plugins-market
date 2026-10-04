@@ -52,7 +52,10 @@ export function PanelActions(props: { addLabel?: string; onAdd?: () => void; ref
  * description, which is the part that says something the tab does not.
  */
 export function PanelHeader(props: { title?: string; subtitle?: string; actions?: ReactNode }): ReactNode {
-  return h('header', { className: css.header, 'data-panel-header': true },
+  // Without a heading the row holds one line, so the two-line floor it carries
+  // for a title and its description would only leave a band of empty space.
+  const compact = props.title === undefined && props.subtitle !== undefined
+  return h('header', { className: compact ? `${css.header} ${css.headerCompact}` : css.header, 'data-panel-header': true },
     h('div', { className: css.headerText },
       props.title === undefined ? null : h('h2', { className: css.title }, props.title),
       props.subtitle === undefined ? null : h('p', { className: css.subtitle }, props.subtitle)),

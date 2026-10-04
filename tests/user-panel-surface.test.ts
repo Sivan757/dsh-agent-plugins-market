@@ -114,7 +114,9 @@ describe('unified Markdown resource panel', () => {
     api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
     api.updateUserPanelEntry.mockResolvedValue(undefined)
     await mountPanel()
-    expect(host.textContent).toContain('workspaceTabPersonas')
+    // The tab row already names this panel, so the header carries only the
+    // description that says something the tab does not.
+    expect(host.querySelector('[data-panel-header] h2')).toBeNull()
     expect(host.textContent).toContain('personasPanelDescription')
     expect(host.querySelectorAll('input').length).toBeGreaterThan(0)
     await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="switchToList"]')!.click())
@@ -155,14 +157,15 @@ describe('unified Markdown resource panel', () => {
     root = createRoot(host)
     await act(async () => root.render(h(UserPanelSurface, { t, kind: 'commands' })))
 
-    // The slash menu only accepts `git-commit`, so the card shows that name
-    // rather than the `git/commit` path the panel addresses the document by.
-    expect([...host.querySelectorAll('span')].some(span => span.textContent === '/git-commit')).toBe(true)
+    // The slash menu only accepts `git-commit`, so the card shows that name —
+    // without the slash the user never types — rather than the `git/commit`
+    // path the panel addresses the document by.
+    expect([...host.querySelectorAll('span')].some(span => span.textContent === 'git-commit')).toBe(true)
 
     const card = host.querySelector<HTMLElement>('[role="button"]')
     expect(card).not.toBeNull()
     await act(async () => card!.click())
-    expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('/git-commit')
+    expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('git-commit')
   })
 
   it('offers edit and delete only on user-authored entries', async () => {
@@ -207,10 +210,10 @@ describe('unified Markdown resource panel', () => {
     expect(dialog).toContain('detailProviderLabel')
     expect(dialog).toContain('detailReasoningLabel')
     expect(dialog).toContain('high')
-    // The catch-all row keeps the remaining keys without repeating the ones
-    // that now have rows of their own.
-    expect(dialog).toContain('detailMetadata')
-    expect(dialog).toContain('tools: ["Read"]')
+    // Routing keys are the panel's own domain, so the dialog states them as
+    // their own labelled rows rather than folding them into a metadata row.
+    expect(dialog).toContain('detailToolsLabel')
+    expect(dialog).toContain('Read')
     expect(dialog).not.toContain('model: inherit')
     expect(dialog).not.toContain('reasoning_effort')
   })

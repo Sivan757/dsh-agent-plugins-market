@@ -148,7 +148,12 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   return h(
     'div',
     { className: css.surface },
-    h(PanelHeader, { title: t('lspStatusTitle'), subtitle: t('lspStatusSubtitle'), actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setEditorOpen(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading }) }),
+    // The tab row already names this panel; the description is the part that
+    // says something the tab does not.
+    h(PanelHeader, {
+      subtitle: t('lspStatusSubtitle'),
+      actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setEditorOpen(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
+    }),
     payload.legacySeam === undefined
       ? seamMigration === undefined
         ? null

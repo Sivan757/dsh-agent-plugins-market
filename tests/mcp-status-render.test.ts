@@ -151,7 +151,9 @@ describe('MCP status actions', () => {
     expect(describeCredentials).not.toHaveBeenCalled()
     const card = el.querySelector('[data-resource-surface="mcp"]')
     expect(card?.textContent).toContain('service')
-    expect(card?.querySelector('[title="demo__service"]')).not.toBeNull()
+    // The identity line shows the display name; the raw server name is the
+    // card's hover hint, which the host tooltip renders only on hover.
+    expect(card?.textContent).toContain('demo')
 
     // The report reports: its dialog carries no credential block at all.
     await act(async () => {

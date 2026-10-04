@@ -88,16 +88,26 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   )
 }
 
-/** Routing frontmatter rows for agent personas: model, provider, reasoning effort. */
+/**
+ * Routing frontmatter rows for agent personas: model, provider, reasoning
+ * effort, and the tools the persona may call. These keys steer how the agent
+ * runs, so each gets its own labelled row rather than a line of raw YAML.
+ */
 function routingRows(t: Translate, metadata: Record<string, unknown>): ReactNode {
   const model = typeof metadata['model'] === 'string' ? metadata['model'] : undefined
   const provider = typeof metadata['provider'] === 'string' ? metadata['provider'] : undefined
   const snake = typeof metadata['reasoning_effort'] === 'string' ? metadata['reasoning_effort'] : undefined
   const camel = typeof metadata['reasoningEffort'] === 'string' ? metadata['reasoningEffort'] : undefined
   const reasoning = snake ?? camel
+  const tools = Array.isArray(metadata['tools'])
+    ? metadata['tools'].map(tool => String(tool)).join(', ')
+    : typeof metadata['tools'] === 'string'
+      ? metadata['tools']
+      : undefined
   return [
     model === undefined ? null : kvCell(t('detailModelLabel'), model, true, 'model'),
     provider === undefined ? null : kvCell(t('detailProviderLabel'), provider, true, 'provider'),
-    reasoning === undefined ? null : kvCell(t('detailReasoningLabel'), reasoning, true, 'reasoning')
+    reasoning === undefined ? null : kvCell(t('detailReasoningLabel'), reasoning, true, 'reasoning'),
+    tools === undefined ? null : kvCell(t('detailToolsLabel'), tools, true, 'tools')
   ]
 }

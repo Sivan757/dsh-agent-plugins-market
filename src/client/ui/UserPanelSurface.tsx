@@ -190,7 +190,12 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   return h(
     'div',
     { className: css.shell },
-    h(PanelHeader, { title: panelTitle, subtitle: panelDescription, actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: openCreate, refreshLabel: t('refresh'), onRefresh: () => { void refresh() }, busy }) }),
+    // The tab row already names this panel; the description is the part that
+    // says something the tab does not.
+    h(PanelHeader, {
+      subtitle: panelDescription,
+      actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: openCreate, refreshLabel: t('refresh'), onRefresh: () => { void refresh() }, busy })
+    }),
     error === undefined ? null : h('div', { className: css.editorError }, error),
     busy ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
     h(SearchFilterToolbar, {

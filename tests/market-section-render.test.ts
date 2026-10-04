@@ -105,13 +105,27 @@ function installButton(): HTMLButtonElement {
 }
 
 describe('MarketSection rendering', () => {
-  it('renders the section title, source tabs, and suite cards after load', async () => {
+  it('renders the description, source tabs, and suite cards after load', async () => {
     const el = await mountSection()
     const text = el.textContent ?? ''
-    expect(text).toContain('nav')
+    // The Market tab already names this page, so the header carries only the
+    // description that says something the tab does not.
+    expect(text).toContain('navDescription')
+    expect(el.querySelector('[data-panel-header] h2')).toBeNull()
     expect(text).toContain('Demo Suite')
     expect(text).toContain('demo')
     expect(el.querySelector('article')).not.toBeNull()
+  })
+
+  it('drops the repeated heading but keeps the description row compact', async () => {
+    const el = await mountSection()
+    const header = el.querySelector('[data-panel-header]')
+    expect(header).not.toBeNull()
+    expect(header!.querySelector('h2')).toBeNull()
+    expect(header!.querySelector('p')?.textContent).toBe('navDescription')
+    // The 46px floor is sized for a title plus its description; a
+    // description-only header must not carry that band of dead space.
+    expect(header!.className).toContain('headerCompact')
   })
 
   it('renders the add-source and refresh controls in the header', async () => {

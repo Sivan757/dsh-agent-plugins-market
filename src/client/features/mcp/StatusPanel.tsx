@@ -109,8 +109,9 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   return h(
     'div',
     { className: css.surface },
+    // The tab row already names this panel; the description is the part that
+    // says something the tab does not.
     h(PanelHeader, {
-      title: t('mcpStatusTitle'),
       subtitle: t('mcpStatusSubtitle'),
       actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setAdding(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
     }),

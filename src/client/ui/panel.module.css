@@ -12,7 +12,7 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   color: var(--dsw-alias-label-primary, #1f2328);
   container-type: inline-size;
 }
@@ -25,6 +25,12 @@
   align-items: center;
   justify-content: space-between;
   min-height: 46px;
+}
+
+/* A description-only header holds one 20px line; the 46px floor above is sized
+   for a title plus its description and would leave a band of dead space. */
+.headerCompact {
+  min-height: 0;
 }
 
 .headerText {
