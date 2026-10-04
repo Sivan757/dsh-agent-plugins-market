@@ -205,10 +205,12 @@ describe('unified Markdown resource panel', () => {
     const card = host.querySelector<HTMLElement>('[role="button"]')
     await act(async () => card!.click())
     const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
-    expect(dialog).toContain('detailModelLabel')
+    // The same three words the routing editor labels these fields with.
+    expect(dialog).toContain('personaProvider')
+    expect(dialog).toContain('vendor')
+    expect(dialog).toContain('personaModel')
     expect(dialog).toContain('inherit')
-    expect(dialog).toContain('detailProviderLabel')
-    expect(dialog).toContain('detailReasoningLabel')
+    expect(dialog).toContain('personaReasoningEffort')
     expect(dialog).toContain('high')
     // Routing keys are the panel's own domain, so the dialog states them as
     // their own labelled rows rather than folding them into a metadata row.
@@ -216,6 +218,21 @@ describe('unified Markdown resource panel', () => {
     expect(dialog).toContain('Read')
     expect(dialog).not.toContain('model: inherit')
     expect(dialog).not.toContain('reasoning_effort')
+  })
+
+  it('states the route a persona inherits when it declares none of its own', async () => {
+    api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: {} }])
+    await mountPanel()
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    await act(async () => card!.click())
+    const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
+    // A missing row cannot answer "what will this agent run on", so the three
+    // route rows stay and name what they fall back to.
+    expect(dialog).toContain('personaProvider')
+    expect(dialog).toContain('personaModel')
+    expect(dialog).toContain('personaReasoningEffort')
+    expect(dialog).toContain('personaInherit')
+    expect(dialog).toContain('personaEffortAutomatic')
   })
 
   it('switches a skill through the harness invocation pair, never the panel key', async () => {
