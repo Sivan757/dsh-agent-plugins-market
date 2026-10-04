@@ -332,10 +332,13 @@
   pointer-events: auto;
 }
 
+/* Hover reveals the plate; keyboard focus keeps it too, but only for
+   focus-visible — a mouse click's plain focus would otherwise pin the plate
+   on the selected chip after the pick, which must stay hover-only. */
 .srcTab:hover .srcTabControls,
-.srcTab:focus-within .srcTabControls,
+.srcTab:has(:focus-visible) .srcTabControls,
 .srcTabOn:hover .srcTabControls,
-.srcTabOn:focus-within .srcTabControls {
+.srcTabOn:has(:focus-visible) .srcTabControls {
   opacity: 1;
 }
 
