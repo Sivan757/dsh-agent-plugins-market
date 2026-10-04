@@ -158,7 +158,8 @@ describe('MCP status actions', () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    expect(document.body.textContent).toContain('mcpServiceDetail')
+    // The dialog's title names the service; no subtitle repeats that it is one.
+    expect(document.body.textContent).not.toContain('mcpServiceDetail')
     expect(document.body.textContent).not.toContain('mcpCredentialTitle')
     expect(describeCredentials).not.toHaveBeenCalled()
 

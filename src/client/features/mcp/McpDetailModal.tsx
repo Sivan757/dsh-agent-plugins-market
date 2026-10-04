@@ -127,7 +127,6 @@ export function McpDetailModal({
       if (!pending) onClose()
     },
     title: mcpDisplayName(entry),
-    description: t('mcpServiceDetail'),
     closeLabel: t('mcpClose'),
     contentClassName: css.detailBody,
     children: h(

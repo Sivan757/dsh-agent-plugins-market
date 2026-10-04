@@ -125,9 +125,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
     open: true,
     onClose,
     title: detail === undefined ? t('detailTitle') : (displayText(detail.translatedName, detail.name, t) ?? detail.name),
-    // `插件套件 · <source>`: what this dialog is about. The version lives in the
-    // status band with the state and the provenance, not in the title.
-    description: detail === undefined ? undefined : `${t('detailKicker')} · ${detail.sourceId}`,
+    // No subtitle: the kind and the source are already tags on the identity row.
     closeLabel: t('cancel'),
     footer: footer(t, detail, { onClose, onInstall, onUninstall }),
     children: h(ErrorBoundary, {

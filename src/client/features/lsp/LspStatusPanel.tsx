@@ -362,7 +362,6 @@ export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t
     open: true,
     onClose,
     title: displayText(entry.translatedName, entry.serverKey, t) ?? entry.serverKey,
-    description: t('lspDetailSubtitle'),
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,
     footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))),
