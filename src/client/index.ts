@@ -152,8 +152,10 @@ export function apply(ctx: SuiteClientContext): void {
     const workspaceDispose = ctx.slots.register({
       name: 'settings.section',
       id: 'agent-plugin-workspace',
-      // Directly below Agent presets (order 20), above the notification section.
-      order: 21,
+      // Directly below Agent presets (order 20) and above the IM section, which
+      // claims 21: a shared number loses the tie to registration order and drops
+      // this entry down the nav.
+      order: 20.5,
       label: () => t('nav'),
       locale: NS,
       inject: () => ({ t }),
