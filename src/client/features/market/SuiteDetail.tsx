@@ -20,7 +20,7 @@ import { MarkdownDocument } from '../../ui/MarkdownDocument.js'
 import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import { lastChangeLabel } from '../../ui/last-change.js'
 import { jsonTreeLabels } from '../../ui/json-tree-labels.js'
-import { fetchSkillContent, fetchSuiteDetail, postAction, type McpServerDetail, type SuiteDetail } from '../../api.js'
+import { fetchSkillContent, fetchSuiteDetail, type McpServerDetail, type SuiteDetail } from '../../api.js'
 import type { Translate } from '../../index.js'
 import { suiteLayoutLabel } from '../../layout-label.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
@@ -28,16 +28,6 @@ import { createLatestRequestGuard } from './suite-detail-resource.js'
 import css from './market.module.css'
 import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
-
-/** Toggleable surface keys paired with their translation keys. */
-const SURFACE_TOGGLE_ROWS = [
-  ['skills', 'surfaceSkills'],
-  ['mcp', 'surfaceMcp'],
-  ['hooks', 'surfaceHooks'],
-  ['commands', 'surfaceCommands'],
-  ['agents', 'surfaceAgents'],
-  ['lsp', 'surfaceLsp']
-] as const
 
 export interface SuiteDetailModalProps {
   t: Translate
@@ -57,7 +47,6 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
   const [skillText, setSkillText] = useState<string | undefined>(undefined)
   const [skillLoading, setSkillLoading] = useState(false)
   const skillRequestGuard = useRef(createLatestRequestGuard())
-  const [surfaceBusy, setSurfaceBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -96,18 +85,6 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
       if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(`⚠ ${clientErrorMessage(t, reason)}`)
     } finally {
       if (skillRequestGuard.current.isCurrent(requestId)) setSkillLoading(false)
-    }
-  }
-
-  const toggleSurface = async (surface: string, enabled: boolean): Promise<void> => {
-    setSurfaceBusy(true)
-    try {
-      await postAction('set-surface', { sourceId, suiteId, surface, enabled })
-      setDetail(await fetchSuiteDetail(sourceId, suiteId))
-    } catch (reason) {
-      setError(clientErrorMessage(t, reason))
-    } finally {
-      setSurfaceBusy(false)
     }
   }
 
@@ -171,33 +148,6 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                 detail.description === null
                   ? null
                   : h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('detailDescriptionLabel')), h('p', { className: panelCss.detailProse }, displayText(detail.translatedDescription, detail.description, t))),
-                h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('rootLabel')), h('pre', { className: panelCss.monoBlock }, detail.root)),
-                detail.installed === false || detail.surfaceToggles === null
-                  ? null
-                  : h(
-                      'div',
-                      { className: panelCss.block },
-                      h('h4', { className: panelCss.blockHead }, t('surfaceTogglesSection')),
-                      h(
-                        'div',
-                        { className: css.surfaceToggles, title: t('surfaceTogglesHint') },
-                        ...SURFACE_TOGGLE_ROWS.map(([key, labelKey]) =>
-                          h(
-                            'label',
-                            { key, className: css.surfaceToggle },
-                            h('input', {
-                              type: 'checkbox',
-                              checked: detail.surfaceToggles?.[key] === true,
-                              disabled: surfaceBusy,
-                              onChange: event => {
-                                void toggleSurface(key, (event.target).checked)
-                              }
-                            }),
-                            t(labelKey)
-                          )
-                        )
-                      )
-                    ),
                 block(
                   t('skillsSection'),
                   detail.skills.length,

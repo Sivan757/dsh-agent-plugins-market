@@ -335,28 +335,6 @@
   }
 }
 
-.surfaceToggles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  align-items: center;
-}
-
-.surfaceToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary, rgb(97, 102, 107));
-  cursor: pointer;
-  user-select: none;
-}
-
-.surfaceToggle input[type='checkbox'] {
-  accent-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color, rgb(65, 118, 230));
-  margin: 0;
-}
-
 /* The 插件配置 card mirrors the host PluginCard chrome (border-l2 tokens,
    14/16 header padding, disclosure body at 0 16px) so it sits visually
    identical beside the native cards. */
