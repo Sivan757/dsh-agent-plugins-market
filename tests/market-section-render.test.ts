@@ -161,6 +161,24 @@ describe('MarketSection rendering', () => {
     expect(bodyText).not.toContain('f0e9fdf066c1')
   })
 
+  it('renders the selected source chip with reachable edit and delete controls', async () => {
+    // The selected chip renders with .srcTabOn (not .srcTab), so the hover-reveal
+    // selector must cover both classes — the regression that hid the ✎/× plate.
+    const el = await mountSection()
+    // Select the demo source chip: its main button carries the chip id.
+    const chipButton = [...el.querySelectorAll('button')].find(button => (button.textContent ?? '').startsWith('demo '))
+    expect(chipButton).toBeDefined()
+    await act(async () => {
+      chipButton!.click()
+    })
+    const chip = [...el.querySelectorAll('[class]')].find(node => node.className.includes('srcTabOn'))
+    expect(chip).toBeDefined()
+    // The plate must exist with both controls, reachable inside the chip.
+    const plate = chip!.querySelector('[class*=srcTabControls]')
+    expect(plate).not.toBeNull()
+    expect(plate!.querySelectorAll('button')).toHaveLength(2)
+  })
+
   it('renders an adopted source like any other chip, without an adoption badge', async () => {
     await stubOverview({
       ...overviewPayload,

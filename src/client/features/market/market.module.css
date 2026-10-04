@@ -333,7 +333,9 @@
 }
 
 .srcTab:hover .srcTabControls,
-.srcTab:focus-within .srcTabControls {
+.srcTab:focus-within .srcTabControls,
+.srcTabOn:hover .srcTabControls,
+.srcTabOn:focus-within .srcTabControls {
   opacity: 1;
 }
 
