@@ -38,6 +38,14 @@
   flex: none;
 }
 
+/* The host sizes a segment to its widest label through 16px of side padding,
+   which reads as a wide gap between two short filters; half of it keeps the
+   labels apart without the spread. The track's indicator derives its width
+   from the track, so it follows this padding on its own. */
+.segment [role='tab'] {
+  padding-inline: 8px;
+}
+
 /* The view switch is a flat 24px glyph like every other panel action; the
    toolbar's own colour already marks it as available. */
 .viewSwitch {
