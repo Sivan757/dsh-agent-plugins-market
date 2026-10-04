@@ -133,16 +133,17 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
       open,
       onClose,
       title: t('resourceWindowTitle'),
+      description: data === undefined ? undefined : t('resourceWindowSubtitle'),
       closeLabel: t('resourceWindowClose'),
       className: css.window,
       contentClassName: css.content
     },
-    // Header: title, workspace chip, subtitle. The host Modal owns the close button.
+    // The workspace chip rides alone: the scope sentence is the Modal's own
+    // description, and one chip line keeps the heading area tight.
     h(
       'div',
       { className: css.headerRow },
-      h('span', { className: css.workspaceChip, title: data?.workspace ?? '' }, workspaceLabel(data?.workspace ?? '')),
-      h('span', { className: css.subtitle }, t('resourceWindowSubtitle'))
+      h('span', { className: css.workspaceChip, title: data?.workspace ?? '' }, workspaceLabel(data?.workspace ?? ''))
     ),
     // Favorites row: follow-global chip, saved favorites (deletable), save-current.
     h(
@@ -225,38 +226,18 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
         'aria-label': t('resourceWindowSearchPh'),
         onChange: event => setQuery(event.currentTarget.value)
       }),
+      // One toggle in the shared SearchFilterToolbar's shape: the glyph shows
+      // the mode in force, the pressed state and the label name the target.
       h(
-        'span',
-        { className: css.viewGroup, role: 'group', 'aria-label': t('resourceWindowViewGroup') },
-        h(
-          'button',
-          {
-            type: 'button',
-            className: css.viewSeg,
-            'aria-pressed': view === 'list' ? 'true' : 'false',
-            'aria-label': t('resourceWindowViewList'),
-            title: t('resourceWindowViewList'),
-            onClick: () => setView('list')
-          },
-          h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: 'M4 6h16M4 12h16M4 18h16' }))
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            className: css.viewSeg,
-            'aria-pressed': view === 'card' ? 'true' : 'false',
-            'aria-label': t('resourceWindowViewCard'),
-            title: t('resourceWindowViewCard'),
-            onClick: () => setView('card')
-          },
-          h('svg', { viewBox: '0 0 24 24', 'aria-hidden': true }, [
-            h('rect', { key: 'tl', x: 4, y: 4, width: 7, height: 7, rx: 1.5 }),
-            h('rect', { key: 'tr', x: 13, y: 4, width: 7, height: 7, rx: 1.5 }),
-            h('rect', { key: 'bl', x: 4, y: 13, width: 7, height: 7, rx: 1.5 }),
-            h('rect', { key: 'br', x: 13, y: 13, width: 7, height: 7, rx: 1.5 })
-          ])
-        )
+        Pill,
+        {
+          active: true,
+          title: view === 'card' ? t('resourceWindowViewList') : t('resourceWindowViewCard'),
+          'aria-label': view === 'card' ? t('resourceWindowViewList') : t('resourceWindowViewCard'),
+          'aria-pressed': true,
+          onClick: () => setView(value => (value === 'card' ? 'list' : 'card'))
+        },
+        h(ViewGlyph, { mode: view })
       )
     ),
     // The list. One shared panel id: only the active face renders. The
@@ -413,4 +394,31 @@ function workspaceLabel(workspace: string): string {
   const trimmed = workspace.replace(/\/+$/, '')
   const slash = trimmed.lastIndexOf('/')
   return slash === -1 ? trimmed : trimmed.slice(slash + 1)
+}
+
+/**
+ * The two view glyphs, drawn like SearchFilterToolbar's: one paint, so the
+ * single toggle reads as the same control the settings panels use.
+ */
+function ViewGlyph({ mode }: { mode: ViewMode }): ReactNode {
+  const common = {
+    width: 16,
+    height: 16,
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeLinecap: 'round',
+    strokeWidth: 1.3,
+    'aria-hidden': true
+  } as const
+  return mode === 'list'
+    ? h('svg', common, h('path', { d: 'M3 4h10M3 8h10M3 12h10' }))
+    : h(
+        'svg',
+        common,
+        h('rect', { x: 3, y: 3, width: 4, height: 4, rx: 1 }),
+        h('rect', { x: 9, y: 3, width: 4, height: 4, rx: 1 }),
+        h('rect', { x: 3, y: 9, width: 4, height: 4, rx: 1 }),
+        h('rect', { x: 9, y: 9, width: 4, height: 4, rx: 1 })
+      )
 }

@@ -155,27 +155,23 @@ describe('ResourceWindow', () => {
     expect(entryCall?.body).toMatchObject({ face: 'skills', entryId: 'skills:dsh-doc', enabled: false })
   })
 
-  it('switches views through the two-segment icon group', async () => {
+  it('switches views through the single pressed toggle', async () => {
     await mount()
-    const group = document.querySelector('[role="group"][aria-label="resourceWindowViewGroup"]')
-    expect(group).not.toBeNull()
-    const segments = [...group!.querySelectorAll('button')] as HTMLButtonElement[]
-    expect(segments).toHaveLength(2)
-    // Card is selected by default; only the card segment reads pressed. The
-    // card view rides the shared anatomy's grid view (data-resource-view).
-    expect(segments[0]!.getAttribute('aria-pressed')).toBe('false')
-    expect(segments[1]!.getAttribute('aria-pressed')).toBe('true')
+    // One always-pressed Pill, the shared toolbar's shape: the glyph names the
+    // mode in force, the accessible label names the view a click leads to.
+    const toggle = document.querySelector('[aria-pressed="true"][aria-label="resourceWindowViewList"]') as HTMLButtonElement
+    expect(toggle).not.toBeNull()
+    // The card view rides the shared anatomy's grid view (data-resource-view).
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('grid')
-    await act(async () => segments[0]!.click())
+    await act(async () => toggle.click())
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('list')
-    expect(segments[0]!.getAttribute('aria-pressed')).toBe('true')
-    expect(segments[1]!.getAttribute('aria-pressed')).toBe('false')
+    expect(document.querySelector('[aria-pressed="true"][aria-label="resourceWindowViewCard"]')).not.toBeNull()
     // The list keeps the search: switching views must not clear the query.
     const search = document.querySelector('input[type="search"]') as HTMLInputElement
     await act(async () => {
       typeInto(search, 'lazy')
     })
-    await act(async () => segments[1]!.click())
+    await act(async () => toggle.click())
     expect((document.querySelector('input[type="search"]') as HTMLInputElement).value).toBe('lazy')
   })
 

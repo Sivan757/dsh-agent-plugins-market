@@ -11,8 +11,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
   border-radius: 6px;
@@ -33,9 +33,9 @@
 .entryGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.6px;
-  width: 17px;
-  height: 17px;
+  gap: 1.3px;
+  width: 12px;
+  height: 12px;
 }
 
 /* One 8px filled cell; the b/c pair rides 0.38 opacity like the prototype. */
@@ -51,10 +51,10 @@
 
 .entryDot {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 8px;
-  height: 8px;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: var(--dsw-alias-state-business-primary);
   border: 2px solid var(--dsw-specific-input-major);
@@ -212,47 +212,4 @@
 .nameField {
   width: 100%;
   box-sizing: border-box;
-}
-
-/* The prototype's .segc: a compact two-segment track with the raised segment
-   carrying the layer-2 fill and the soft elevation. Icons only. */
-.viewGroup {
-  display: inline-flex;
-  padding: 2px;
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-module-platform);
-}
-
-.viewSeg {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 24px;
-  padding: 0 10px;
-  border: none;
-  background: transparent;
-  border-radius: calc(var(--dsw-radius-sm) - 2px);
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-}
-
-.viewSeg svg {
-  width: 13px;
-  height: 13px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.viewSeg[aria-pressed='true'] {
-  background: var(--dsw-alias-bg-layer-2);
-  color: var(--dsw-alias-label-primary);
-  box-shadow: var(--dsw-elevation-soft);
-}
-
-.viewSeg:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 1px;
 }
