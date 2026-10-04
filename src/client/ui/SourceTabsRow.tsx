@@ -112,7 +112,7 @@ export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
 
   const className = [
     css.sourceTabsBox,
-    layout === 'row' ? css.sourceTabsRowLine : '',
+    layout === 'row' ? css.sourceTabsBoxLine : '',
     folded ? css.sourceTabsBoxFold : '',
     picked ? css.sourceTabsBoxPicked : ''
   ].filter(Boolean).join(' ')
