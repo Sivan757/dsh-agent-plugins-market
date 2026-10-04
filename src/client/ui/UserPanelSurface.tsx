@@ -13,6 +13,7 @@ import type { Translate } from '../index.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ResourceCard.js'
 import { displayText } from './translated-text.js'
+import { hintProps, hoverHint } from './hover-hint.js'
 import { useWorkspaceView } from './workspace-view.js'
 import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
@@ -350,7 +351,7 @@ function UserEntryRow(props: {
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: mono ? `${rc.name} ${rc.nameMono}` : rc.name, title: entry.name }, title),
+      hoverHint(entry.name, h('span', hintProps({ className: mono ? `${rc.name} ${rc.nameMono}` : rc.name }), title)),
       h(Tag, { tone: 'neutral' }, entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin'))
     ),
     h(
@@ -390,16 +391,16 @@ function UserEntryRow(props: {
       )
     ),
     // Two lines fit; anything longer stays readable through the hint.
-    description === undefined || description === '' ? null : h('p', { className: `${rc.rowBody} ${rc.desc}`, title: description }, description),
+    // Two lines fit; anything longer stays readable through the hint.
+    description === undefined || description === '' ? null : hoverHint(description, h('p', hintProps({ className: `${rc.rowBody} ${rc.desc}` }), description)),
     h(
       'div',
       { className: rc.rowFoot },
       // The source row names where the entry comes from: the owning suite for a
       // plugin-provided file, the file's own location for a user-authored one.
-      h(
-        'span',
-        { className: rc.provenance, title: entry.suiteName ?? entry.path },
-        entry.origin === 'plugin' && entry.suiteName !== undefined ? entry.suiteName : entry.path
+      hoverHint(
+        entry.suiteName ?? entry.path,
+        h('span', hintProps({ className: rc.provenance }), entry.origin === 'plugin' && entry.suiteName !== undefined ? entry.suiteName : entry.path)
       )
     )
   )

@@ -11,6 +11,7 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
 import { kvCell } from '../../ui/DetailRows.js'
 import { displayText } from '../../ui/translated-text.js'
+import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { mcpCardState, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
 import { setMcpServerTool } from '../../api.js'
@@ -261,23 +262,25 @@ export function McpDetailModal({
                       // takes. The name, the description, and the note each clip to
                       // one line, so every one carries its full text as a hint.
                       tool.parameters === undefined
-                        ? h('span', { className: css.toolName, title: tool.name }, tool.name)
-                        : h(
-                            'button',
-                            {
-                              type: 'button',
-                              className: `${css.toolName} ${css.toolNameButton}`,
-                              title: tool.name,
-                              'aria-expanded': expandedTools[tool.name] === true,
-                              onClick: () => setExpandedTools(current => ({ ...current, [tool.name]: current[tool.name] !== true }))
-                            },
-                            tool.name
+                        ? hoverHint(tool.name, h('span', hintProps({ className: css.toolName }), tool.name))
+                        : hoverHint(
+                            tool.name,
+                            h(
+                              'button',
+                              hintProps({
+                                type: 'button',
+                                className: `${css.toolName} ${css.toolNameButton}`,
+                                'aria-expanded': expandedTools[tool.name] === true,
+                                onClick: () => setExpandedTools(current => ({ ...current, [tool.name]: current[tool.name] !== true }))
+                              }),
+                              tool.name
+                            )
                           )
                     ),
                     toolDescriptionText === ''
                       ? null
-                      : h('span', { className: css.toolDescription, title: toolDescriptionText }, toolDescriptionText),
-                    tool.suiteLimited ? h('span', { className: css.toolNote, title: t('mcpToolSuiteLimited') }, t('mcpToolSuiteLimited')) : null,
+                      : hoverHint(toolDescriptionText, h('span', hintProps({ className: css.toolDescription }), toolDescriptionText)),
+                    tool.suiteLimited ? hoverHint(t('mcpToolSuiteLimited'), h('span', hintProps({ className: css.toolNote }), t('mcpToolSuiteLimited'))) : null,
                     expandedTools[tool.name] === true ? h('div', { className: css.toolParams }, toolParameterRows(tool.parameters, t)) : null
                   )
                 }),

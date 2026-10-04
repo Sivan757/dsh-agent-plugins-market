@@ -39,6 +39,7 @@ A row with the same file path as an existing `src/` file is an update, not a dup
 | `src/client/ui/workspace-view.ts` | @deepseek-ai/dsh-client-store.createSnapshotStore | use-host | ../../.agents/notes/implemented/architecture/2026-09-13-settings-and-card-ride-the-host.md |
 | `src/client/ui/json-tree-labels.ts` | Label factory feeding @deepseek-ai/dsh-client-ui-primitives.JsonTreeLabels:type | use-host | ../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md |
 | `src/client/ui/last-change.ts` | @deepseek-ai/dsh-client-ui-primitives.relativeTime | use-host | ../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md |
+| `src/client/ui/hover-hint.ts` | @deepseek-ai/dsh-client-ui-primitives.Tooltip | use-host | ../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md |
 | `src/client/ui/MarkdownDocument.tsx` | @deepseek-ai/dsh-client-ui-primitives.MarkdownText | use-host | ../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md |
 | `src/client/ui/DetailModal.tsx` | @deepseek-ai/dsh-client-ui-primitives.Modal | use-host | ../../.agents/notes/implemented/architecture/2026-09-12-shared-primitives-and-declared-seams.md |
 | `src/client/index.ts` | Registers through the host slots service (`ctx.slots.inject('settings.section', ...)`), declared against the slots package's `SlotMap` type | use-host | ../../docs/developer/decisions/0003-agent-plugins-v1-conformance-and-namespace.md |

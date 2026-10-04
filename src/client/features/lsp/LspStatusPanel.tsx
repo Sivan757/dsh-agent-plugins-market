@@ -39,6 +39,7 @@ import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { displayText } from '../../ui/translated-text.js'
+import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 
 interface LspStatusPanelProps {
   t: Translate
@@ -310,7 +311,7 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: `${rc.name} ${rc.nameMono}`, title: entry.serverKey }, displayText(entry.translatedName, entry.serverKey, t) ?? entry.serverKey),
+      hoverHint(entry.serverKey, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), displayText(entry.translatedName, entry.serverKey, t) ?? entry.serverKey)),
       // The state rail on the card's leading edge carries the state; a written
       // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')))
@@ -346,11 +347,11 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
       )
     ),
     // The card clips this line to one row, so it carries the full command as a hint.
-    h('p', { className: `${rc.rowBody} ${rc.monoLine}`, title: [entry.command, ...entry.args].join(' ') }, [entry.command, ...entry.args].join(' ')),
+    hoverHint([entry.command, ...entry.args].join(' '), h('p', hintProps({ className: `${rc.rowBody} ${rc.monoLine}` }), [entry.command, ...entry.args].join(' '))),
     h(
       'div',
       { className: rc.rowFoot },
-      h('span', { className: rc.provenance, title: entry.kind === 'plugin' ? entry.suiteName : entry.serverKey }, entry.kind === 'plugin' ? entry.suiteName : t('lspDirect')),
+      hoverHint(entry.kind === 'plugin' ? entry.suiteName : entry.serverKey, h('span', hintProps({ className: rc.provenance }), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'))),
       h('span', { className: rc.separator }, '·'),
       h('span', { className: rc.count }, h('span', { className: rc.countValue }, String(extensions)), ' ', t('lspExtensionCount'))
     )

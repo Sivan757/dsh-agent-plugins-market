@@ -13,6 +13,7 @@ import { mcpCardState, mcpDisplayName } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { displayText } from '../../ui/translated-text.js'
+import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { McpDetailModal } from './McpDetailModal.js'
 import { McpConfigModal } from './McpConfigModal.js'
 import { McpAddModal } from './McpAddModal.js'
@@ -213,7 +214,7 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: `${rc.name} ${rc.nameMono}`, title: entry.name }, displayText(entry.translatedName, displayName, t) ?? displayName),
+      hoverHint(entry.name, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), displayText(entry.translatedName, displayName, t) ?? displayName)),
       // The state rail on the card's left edge carries the state; a written
       // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect')))
@@ -252,11 +253,11 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
       )
     ),
     // The card clips this line to one row, so it carries the endpoint as a hint.
-    h('p', { className: `${rc.rowBody} ${rc.monoLine}`, title: entry.endpoint ?? t('mcpObservedEndpoint') }, entry.endpoint ?? t('mcpObservedEndpoint')),
+    hoverHint(entry.endpoint ?? t('mcpObservedEndpoint'), h('p', hintProps({ className: `${rc.rowBody} ${rc.monoLine}` }), entry.endpoint ?? t('mcpObservedEndpoint'))),
     h(
       'div',
       { className: rc.rowFoot },
-      h('span', { className: rc.provenance, title: entry.suiteId ?? entry.source }, entry.kind === 'plugin' ? entry.suiteId ?? entry.source ?? '—' : t('mcpDirect')),
+      hoverHint(entry.suiteId ?? entry.source ?? '', h('span', hintProps({ className: rc.provenance }), entry.kind === 'plugin' ? entry.suiteId ?? entry.source ?? '—' : t('mcpDirect'))),
       h('span', { className: rc.separator }, '·'),
       h('span', { className: rc.count }, h('span', { className: rc.countValue }, String(entry.tools.length)), ' ', toolCount),
       h('span', { className: rc.separator }, '·'),

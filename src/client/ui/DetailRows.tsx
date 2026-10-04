@@ -11,6 +11,7 @@
  */
 import { createElement as h, type ReactNode } from 'react'
 import { IconChevronDownOutlineMedium, IconChevronRightOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
+import { hintProps, hoverHint } from './hover-hint.js'
 import css from './detail-rows.module.css'
 import panelCss from './panel.module.css'
 
@@ -38,10 +39,11 @@ export function DetailRows({
   children?: ReactNode
 }): ReactNode {
   const shown = open !== false
-  // Both bands clip to one line, so each carries its full text as a hint.
+  // Both bands clip to one line, so each carries its full text as a hint — the
+  // host tooltip, which shows on hover with no delay.
   const head = (interactive: boolean): ReactNode => {
-    const name = h('span', { className: css.name, title: label }, label)
-    const note = summary === undefined || summary === '' ? null : h('span', { className: css.summary, title: summary }, summary)
+    const name = label === undefined ? null : hoverHint(label, h('span', hintProps({ className: css.name }), label))
+    const note = summary === undefined || summary === '' ? null : hoverHint(summary, h('span', hintProps({ className: css.summary }), summary))
     if (!interactive) return h('div', { className: css.row }, name, note, h('span', { className: css.chevron }))
     return h(
       'button',
@@ -76,8 +78,8 @@ export function DetailRow(props: {
   const expandable = props.expandable !== false
   const open = props.open === true
   const header = [
-    h('span', { key: 'name', className: css.name, title: props.name }, props.name),
-    props.summary === undefined || props.summary === '' ? null : h('span', { key: 'summary', className: css.summary, title: props.summary }, props.summary),
+    hoverHint(props.name, h('span', hintProps({ key: 'name', className: css.name }), props.name)),
+    props.summary === undefined || props.summary === '' ? null : hoverHint(props.summary, h('span', hintProps({ key: 'summary', className: css.summary }), props.summary)),
     expandable ? null : h('span', { key: 'spacer', className: css.chevron })
   ]
   if (!expandable) {
@@ -104,5 +106,5 @@ export function DetailRow(props: {
 
 /** One label/value pair in a detail dialog's overview grid; `key` props a row built in a loop. */
 export function kvCell(label: string, value: string, mono = false, key?: string): ReactNode {
-  return h('div', key === undefined ? null : { key }, h('dt', { className: panelCss.kvKey }, label), h('dd', { className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue, title: value }, value))
+  return h('div', key === undefined ? null : { key }, h('dt', { className: panelCss.kvKey }, label), hoverHint(value, h('dd', hintProps({ className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue }), value)))
 }

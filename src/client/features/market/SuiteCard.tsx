@@ -5,6 +5,7 @@
  */
 import { createElement as h, type HTMLAttributes, type ReactElement, type ReactNode } from 'react'
 import { displayText } from '../../ui/translated-text.js'
+import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Switch, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../index.js'
@@ -142,17 +143,17 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: rc.name, title: suite.name }, displayText(suite.translatedName, suite.name, t) ?? suite.name),
+      hoverHint(suite.name, h('span', hintProps({ className: rc.name }), displayText(suite.translatedName, suite.name, t) ?? suite.name)),
       suite.version === undefined ? null : h('span', { className: rc.version }, `v${suite.version}`),
       h(Tag, { tone: 'neutral' }, provenance)
     ),
     h('div', { className: rc.rowActions }, ...actions),
     // Two lines fit; anything longer stays readable through the hint.
-    description === '' ? null : h('p', { className: `${rc.rowBody} ${rc.desc}`, title: description }, description),
+    description === '' ? null : hoverHint(description, h('p', hintProps({ className: `${rc.rowBody} ${rc.desc}` }), description)),
     h(
       'div',
       { className: rc.rowFoot },
-      h('span', { className: rc.provenance, title: suite.sourceId }, suite.sourceId),
+      hoverHint(suite.sourceId, h('span', hintProps({ className: rc.provenance }), suite.sourceId)),
       ...counts.flatMap(([label, count]) => [
         h('span', { key: `sep-${label}`, className: rc.separator }, '·'),
         h('span', { key: label, className: rc.count }, label, ' ', h('span', { className: rc.countValue }, String(count)))
