@@ -40,7 +40,7 @@ export const resourcesZh = {
   resourceWindowCountHooks: 'Hooks',
   resourceWindowCountCommands: '快捷指令',
   resourceWindowCountAgents: '专家',
-  resourceWindowCountLsp: '代码智能',
+  resourceWindowCountLsp: '语言引擎',
   resourceWindowSourceDirect: '直连',
   resourceWindowSourceUser: '用户'
 } as const
@@ -80,7 +80,7 @@ export const resourcesEn: Record<ResourceLocaleKey, string> = {
   resourceWindowCountHooks: 'Hooks',
   resourceWindowCountCommands: 'Shortcuts',
   resourceWindowCountAgents: 'Experts',
-  resourceWindowCountLsp: 'Code intelligence',
+  resourceWindowCountLsp: 'Language Engine',
   resourceWindowSourceDirect: 'direct',
   resourceWindowSourceUser: 'user'
 }

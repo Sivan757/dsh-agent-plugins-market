@@ -51,7 +51,7 @@ Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量�
 pnpm add dsh-agent-plugins-market
 ```
 
-当前 DSH 外壳中，市场是设置页的一个区块（**设置 → Agent Plugins 市场**）；未提供插件设置席位的旧版外壳会把它显示为顶层页面入口。
+当前 DSH 外壳中，市场是设置页的一个区块（**设置 → Agent 扩展**）；未提供插件设置席位的旧版外壳会把它显示为顶层页面入口。
 
 从 GitHub 安装：
 

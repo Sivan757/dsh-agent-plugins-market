@@ -51,7 +51,7 @@ The recommended CLI command is in the [quick start](../../README.md#quick-start)
 pnpm add dsh-agent-plugins-market
 ```
 
-On current DSH shells the market is a section of the settings page (**Settings → Agent Plugins Market**); an older shell that does not expose the plugin-settings seat shows it as a top-level page entry instead.
+On current DSH shells the market is a section of the settings page (**Settings → Agent Plugins**); an older shell that does not expose the plugin-settings seat shows it as a top-level page entry instead.
 
 For a GitHub installation:
 

@@ -45,11 +45,16 @@ export function PanelActions(props: { addLabel?: string; onAdd?: () => void; ref
   )
 }
 
-/** Shared heading geometry for all resource tabs. */
-export function PanelHeader(props: { title: string; subtitle?: string; actions?: ReactNode }): ReactNode {
+/**
+ * Shared heading geometry for all resource tabs.
+ *
+ * A panel whose tab row already names it drops the heading and keeps the
+ * description, which is the part that says something the tab does not.
+ */
+export function PanelHeader(props: { title?: string; subtitle?: string; actions?: ReactNode }): ReactNode {
   return h('header', { className: css.header, 'data-panel-header': true },
     h('div', { className: css.headerText },
-      h('h2', { className: css.title }, props.title),
+      props.title === undefined ? null : h('h2', { className: css.title }, props.title),
       props.subtitle === undefined ? null : h('p', { className: css.subtitle }, props.subtitle)),
     props.actions === undefined ? null : h('div', { className: css.headerActions }, props.actions))
 }

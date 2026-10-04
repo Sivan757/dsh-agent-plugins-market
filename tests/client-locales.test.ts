@@ -13,8 +13,8 @@ describe('Agent Plugins Market client compatibility', () => {
 
   it('uses everyday names consistently across navigation and content labels', () => {
     const tabKeys = ['workspaceTabMarket', 'workspaceTabSkills', 'workspaceTabCommands', 'workspaceTabPersonas', 'workspaceTabMcp', 'workspaceTabLsp'] as const
-    expect(tabKeys.map(key => zh[key])).toEqual(['市场', '技能', '快捷指令', '专家', '连接器', '代码智能'])
-    expect(tabKeys.map(key => en[key])).toEqual(['Market', 'Skills', 'Shortcuts', 'Experts', 'Connectors', 'Code intelligence'])
+    expect(tabKeys.map(key => zh[key])).toEqual(['市场', '技能', '快捷指令', '专家', '连接器', '语言引擎'])
+    expect(tabKeys.map(key => en[key])).toEqual(['Market', 'Skills', 'Shortcuts', 'Experts', 'Connectors', 'Language Engine'])
     for (const labels of [zh, en]) {
       expect(labels.commandsSection).toBe(labels.workspaceTabCommands)
       expect(labels.agentsSection).toBe(labels.workspaceTabPersonas)

@@ -198,7 +198,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         'div',
         { className: css.header },
         h(PanelHeader, {
-          title: t('nav'),
+          // The Market tab already names this page; the description is the part
+          // that says something the tab does not.
+          subtitle: t('navDescription'),
           leading: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
           actions: h(PanelActions, { addLabel: t('addSource'), onAdd: () => setEditor({ mode: 'add' }), refreshLabel: t('refreshAll'), onRefresh: () => { void action('s:refresh:all', 'sources/refresh', {}) }, busy: busy !== undefined })
         }),
