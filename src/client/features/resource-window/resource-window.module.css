@@ -80,11 +80,14 @@
 
 /* The host Modal nests header + body inside the content div (Modal.tsx). The
    body has no flex of its own, so the window's list would push past a capped
-   dialog; stretching the body (always .content's last child) bounds it. */
+   dialog; stretching the body (always .content's last child) bounds it. The
+   body also carries the host's 20px margin-top — dead space under an
+   already-padded title row — which the shim cancels. */
 .content > div:last-child {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  margin-top: 0;
   flex-direction: column;
 }
 
@@ -94,7 +97,7 @@
   gap: 6px;
   flex-wrap: wrap;
   min-height: 26px;
-  padding: 4px 0 10px;
+  padding: 0 0 10px;
 }
 
 /* The shared toolbar row carries no outer spacing of its own and the window
