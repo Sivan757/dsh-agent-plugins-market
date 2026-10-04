@@ -152,7 +152,8 @@ export function apply(ctx: SuiteClientContext): void {
     const workspaceDispose = ctx.slots.register({
       name: 'settings.section',
       id: 'agent-plugin-workspace',
-      order: 45,
+      // Directly below Agent presets (order 20), above the notification section.
+      order: 21,
       label: () => t('nav'),
       locale: NS,
       inject: () => ({ t }),
