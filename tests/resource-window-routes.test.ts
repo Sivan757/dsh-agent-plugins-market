@@ -7,6 +7,8 @@ import { ResourceFilterService } from '../src/runtime/host/resource-filter-servi
 import { buildResourceWindow } from '../src/application/resource-inventory.js'
 import { ALL_SURFACES_ON } from '../src/contracts/surface-toggles.js'
 import type { ResourceWindowPayload } from '../src/contracts/resource-window.js'
+import type { McpStatusPayload } from '../src/contracts/mcp-status.js'
+import type { LspStatusPayload } from '../src/contracts/lsp-status.js'
 import type { UserPanelEntryWire } from '../src/contracts/market.js'
 import type { PanelResourceStore } from '../src/application/panel-resources.js'
 
@@ -78,22 +80,26 @@ function catalogDouble() {
   }
 }
 
-function panelDouble(names: string[]): PanelResourceStore {
+function panelDouble(names: string[], disabled = false): PanelResourceStore {
   const entries = (): UserPanelEntryWire[] =>
     names.map(name => ({
       name,
       description: name + ' entry',
-      disabled: false,
+      disabled,
       origin: 'user',
       rawText: '',
       metadata: {},
       path: '/nowhere',
       content: ''
     }))
+  const list = async (): Promise<UserPanelEntryWire[]> => entries()
   return {
-    list: async () => entries(),
-    get: async name => entries().find(entry => entry.name === name),
-    create: async () => entries()[0]!,
+    // A panel read reports its translation count beside the rows; these stubs
+    // serve settled text, so the count is always zero.
+    read: async () => ({ entries: await list(), translationPending: 0 }),
+    list,
+    get: async name => (await list()).find(entry => entry.name === name),
+    create: async () => (await list())[0]!,
     update: async () => {},
     remove: async () => {}
   }
@@ -309,5 +315,58 @@ describe('buildResourceWindow', () => {
     // One denied entry breaks the exact match.
     await service.setEntry('mcp', 'mcp:alpha__db', false)
     expect((await buildResourceWindow(deps)).activeFavoriteId).toBeNull()
+  })
+
+  it('mirrors the user-level state: globally off entries read disabled and carry the flag', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'resource-routes-'))
+    const service = new ResourceFilterService(dataRoot, '/ws/global', { onFiltersChanged: () => {} })
+    await service.reload()
+    const base = catalogDouble()
+    const deps: ResourceRouteDeps = {
+      catalog: {
+        overview: async () => {
+          const overview = await base.overview()
+          return { ...overview, suites: overview.suites.map(suite => ({ ...suite, enabled: false })) }
+        },
+        mcpStatus: async () => {
+          const status = await base.mcpStatus()
+          return { ...status, entries: status.entries.map(row => ({ ...row, state: 'disabled' })) } as McpStatusPayload
+        },
+        lspStatus: async () => {
+          const status = await base.lspStatus()
+          return { ...status, entries: status.entries.map(row => ({ ...row, state: 'disabled' })) } as LspStatusPayload
+        }
+      },
+      panels: {
+        skills: panelDouble(['dsh-doc'], true),
+        commands: panelDouble(['/market']),
+        agents: panelDouble(['test-engineer'])
+      },
+      filters: service,
+      workspace: '/ws/global',
+      setEntry: (face, entryId, enabled) => service.setEntry(face, entryId, enabled),
+      applyFavorite: async () => {},
+      saveFavorite: async () => 'x',
+      deleteFavorite: async () => {}
+    }
+    const window = await buildResourceWindow(deps)
+    // Follow-global: the window mirrors the user-level state exactly — every
+    // row its source surface reports off reads disabled with the flag set.
+    const market = window.entries.find(entry => entry.face === 'market')!
+    expect(market.globalDisabled).toBe(true)
+    expect(market.enabled).toBe(false)
+    const skill = window.entries.find(entry => entry.id === 'skills:dsh-doc')!
+    expect(skill.globalDisabled).toBe(true)
+    expect(skill.enabled).toBe(false)
+    const mcp = window.entries.find(entry => entry.face === 'mcp')!
+    expect(mcp.globalDisabled).toBe(true)
+    const lsp = window.entries.find(entry => entry.face === 'lsp')!
+    expect(lsp.globalDisabled).toBe(true)
+    // A workspace filter stacks on top; it can filter further, never re-enable.
+    await service.setEntry('skills', 'skills:dsh-doc', true)
+    const filtered = await buildResourceWindow(deps)
+    const filteredSkill = filtered.entries.find(entry => entry.id === 'skills:dsh-doc')!
+    expect(filteredSkill.enabled).toBe(false)
+    expect(filteredSkill.globalDisabled).toBe(true)
   })
 })

@@ -229,6 +229,28 @@ describe('ResourceWindow', () => {
     expect(switchCalls[0]!.body).toMatchObject({ face: 'skills', entryId: 'skills:dsh-doc', enabled: false })
   })
 
+  it('locks the switch of a globally disabled entry with the explaining title', async () => {
+    // ponytail rides the fixture globally off: the settings pages turned it
+    // off themselves, so this surface can filter further but never re-enable.
+    fetchState.window = {
+      ...payload(),
+      entries: payload().entries.map(entry => (entry.id === 'skills:ponytail' ? { ...entry, globalDisabled: true } : entry))
+    }
+    await mount()
+    const card = entryCard('ponytail')
+    const sw = card.querySelector('[role="switch"]') as HTMLInputElement
+    expect(sw).not.toBeNull()
+    expect(sw.disabled).toBe(true)
+    expect(sw.getAttribute('aria-disabled') ?? sw.getAttribute('disabled')).not.toBeNull()
+    // The title names the reason instead of the generic toggle action.
+    const wrap = sw.closest('[class*="switchWrap"]')!
+    const labelled = [...wrap.querySelectorAll('[title]')].find(node => (node.getAttribute('title') ?? '').includes('resourceWindowGloballyOff'))
+    expect(labelled).not.toBeNull()
+    // No entry write can come from the locked row's card either.
+    await act(async () => card.click())
+    expect(fetchState.calls.find(call => call.url.endsWith('/resource-window/entry') && JSON.stringify(call.body).includes('ponytail'))).toBeUndefined()
+  })
+
   it('toggles an entry through its card and reports the pressed state', async () => {
     await mount()
     const cards = [...document.querySelectorAll('article[role="button"][aria-pressed]')] as HTMLElement[]

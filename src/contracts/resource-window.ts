@@ -38,6 +38,13 @@ export interface ResourceEntryWire {
   counts?: Array<{ label: string; count: number }>
   /** Whether this workspace mounts the entry right now. */
   enabled: boolean
+  /**
+   * Whether the user-level (global) state itself has the entry off: the
+   * settings page's own disable, not this workspace's filter. A globally off
+   * entry reads disabled here and its switch locks — this surface can filter
+   * further, never re-enable what the user level turned off.
+   */
+  globalDisabled?: boolean
 }
 
 /** The workspace's installed inventory with per-entry filter state. */

@@ -52,6 +52,10 @@ export async function buildResourceWindow(deps: ResourceInventoryDeps): Promise<
     deps.filters.favorites()
   ])
   const filters = deps.filters.currentFilters()
+  // The row state is the conjunction of the two levels: the user-level
+  // (global) state the settings pages control, and this workspace's own
+  // filter. The window mirrors global while it follows it and can only
+  // filter further, never re-enable what the user level turned off.
   const enabled = (face: ResourceFace, entryId: string): boolean => !(filters.offEntries[face]?.includes(entryId) ?? false)
 
   const entries: ResourceEntryWire[] = []
@@ -75,7 +79,8 @@ export async function buildResourceWindow(deps: ResourceInventoryDeps): Promise<
         { label: 'agents', count: suite.surfaces.agents },
         { label: 'lsp', count: suite.surfaces.lsp }
       ].filter(count => count.count > 0),
-      enabled: enabled('market', id)
+      enabled: enabled('market', id) && suite.enabled !== false,
+      ...(suite.enabled === false ? { globalDisabled: true } : {})
     })
   }
 
@@ -91,7 +96,8 @@ export async function buildResourceWindow(deps: ResourceInventoryDeps): Promise<
         name: entry.name,
         source: entry.origin === 'plugin' ? (entry.suiteName ?? 'plugin') : 'user',
         description: entry.description,
-        enabled: enabled(PANEL_FACE[kind], id)
+        enabled: enabled(PANEL_FACE[kind], id) && !entry.disabled,
+        ...(entry.disabled === true ? { globalDisabled: true } : {})
       })
     }
   }
@@ -108,7 +114,8 @@ export async function buildResourceWindow(deps: ResourceInventoryDeps): Promise<
       name: row.name,
       source: row.source ?? 'direct',
       description: row.transport,
-      enabled: enabled('mcp', id)
+      enabled: enabled('mcp', id) && row.state !== 'disabled',
+      ...(row.state === 'disabled' ? { globalDisabled: true } : {})
     })
   }
 
@@ -121,7 +128,8 @@ export async function buildResourceWindow(deps: ResourceInventoryDeps): Promise<
       name: row.serverKey,
       source: row.kind === 'direct' ? 'direct' : row.suiteName,
       description: row.command,
-      enabled: enabled('lsp', id)
+      enabled: enabled('lsp', id) && row.state !== 'disabled',
+      ...(row.state === 'disabled' ? { globalDisabled: true } : {})
     })
   }
 

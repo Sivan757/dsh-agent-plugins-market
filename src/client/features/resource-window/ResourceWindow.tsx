@@ -384,13 +384,21 @@ function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; bu
     event.stopPropagation()
     callback()
   }
+  // The card doubles as the quick toggle — except for a globally disabled
+  // entry, where the toggle would silently do nothing: the user level owns
+  // that switch, and this surface can only filter further.
+  const quickToggle = (): void => {
+    if (entry.globalDisabled === true) return
+    props.onToggle(!on)
+  }
   return h(
     ResourceCard,
     {
       state: on ? 'active' : 'disabled',
       surface: entry.face === 'agents' ? 'personas' : entry.face,
-      ...interactiveCardProps(() => props.onToggle(!on)),
-      'aria-label': t('resourceWindowToggleEntry') + ' ' + entry.name,
+      ...interactiveCardProps(quickToggle),
+      'aria-label':
+        entry.globalDisabled === true ? t('resourceWindowGloballyOff') : t('resourceWindowToggleEntry') + ' ' + entry.name,
       'aria-pressed': on ? 'true' : 'false'
     },
     h(
@@ -418,16 +426,21 @@ function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; bu
         },
         h(IconInspectOutlineMedium)
       ),
-      // The enable switch reads last, at the cluster's trailing edge; busy
-      // locks it exactly while a window mutation is in flight.
+      // The enable switch reads last, at the cluster's trailing edge. Busy
+      // locks it exactly while a window mutation is in flight; a globally
+      // disabled entry locks it for good — this surface can filter further,
+      // never re-enable what the user level turned off.
       h(
         'span',
         { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
         h(Switch, {
           checked: on,
-          disabled: busy,
-          label: t('resourceWindowToggleEntry'),
-          title: t('resourceWindowToggleEntry'),
+          disabled: busy || entry.globalDisabled === true,
+          label: entry.globalDisabled === true ? t('resourceWindowGloballyOff') : t('resourceWindowToggleEntry'),
+          title:
+            entry.globalDisabled === true
+              ? t('resourceWindowGloballyOff')
+              : t('resourceWindowToggleEntry'),
           onChange: props.onToggle
         })
       )
