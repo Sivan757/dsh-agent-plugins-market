@@ -91,9 +91,9 @@
   flex-direction: column;
 }
 
-/* The row pairs the follow-global Pill with the favorites strip and the tail
-   save button. The strip's folded box is flex:none and taller than the pill,
-   so the row aligns at the top edge; when the strip unfolds on hover the row
+/* The row is the market's source strip with the tail save button: the strip
+   takes the row's free width (the save button's auto margin keeps it flush
+   right while the strip folds), and when the strip unfolds on hover the row
    grows with it. */
 .favoritesRow {
   display: flex;
@@ -118,7 +118,7 @@
 }
 
 /* The save-favorite button rides the shared iconBtn anatomy; the auto margin
-   keeps it flush right while the strip folds and the pill wraps. */
+   keeps it flush right while the strip folds. */
 .favoritesSave {
   margin-left: auto;
 }

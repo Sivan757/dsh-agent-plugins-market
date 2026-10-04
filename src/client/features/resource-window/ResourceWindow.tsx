@@ -4,15 +4,18 @@
  * One Modal over the six switchable surfaces, listing only what this workspace
  * has installed. Every control is a host or shared primitive — the tab row,
  * the shared SearchFilterToolbar, the favorites riding the market's source
- * strip (ui/SourceTabsRow), the toasts — and the rows ride the shared
- * ResourceCard anatomy (identity, body, foot), the same chrome the market and
- * MCP cards use, with the card itself acting as the entry toggle (a
- * role=button carrying aria-pressed). Switching tabs never closes the window;
+ * strip (ui/SourceTabsRow), the toasts — and the rows carry the settings
+ * page's full card anatomy: the provenance tag in the identity row, the view
+ * and enable cluster on its trailing edge (view first, the switch last), and
+ * the source line plus counts in the foot. The card itself stays the entry
+ * toggle (a role=button carrying aria-pressed): the window is the settings
+ * page's user-level capability set as a fast-switch surface — toggling and
+ * viewing, no editing writes. Switching tabs never closes the window;
  * flipping an entry reconciles through the same chain the composer switches
  * use, so the row state is live, not cosmetic.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, Input, Modal, Pill, SegmentedTabs, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconInspectOutlineMedium, Input, Modal, SegmentedTabs, Switch, Tag, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SegmentedTab } from '@deepseek-ai/dsh-client-ui-primitives'
 import { RESOURCE_FACE_ORDER, type ResourceEntryWire, type ResourceFace } from '../../../contracts/resource-window.js'
 import { applyResourceFavorite, deleteResourceFavorite, fetchResourceWindow, saveResourceFavorite, setResourceEntry } from './resource-window-resource.js'
@@ -29,8 +32,27 @@ import css from './resource-window.module.css'
 /** The window's translator: the resource dictionary keys, params like the host's. */
 export type ResourceTranslate = (key: ResourceLocaleKey, params?: Record<string, unknown>) => string
 
+/** The merged namespace serves the main dictionary too (index.ts registers
+ * both under the one namespace), so the face tabs read the settings page's
+ * exact words through this widened view of the translator — widened here
+ * only, keeping every resource-key call site checked. */
+type WideTranslate = (key: string, params?: Record<string, unknown>) => string
+
+/** The settings workspace's tab ids — the deep link's segment per face. */
+type WorkspaceTab = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp'
+
 const TAB_ID = 'agent-plugins-resource-tab'
 const FILTER_ID = 'agent-plugins-resource-filter'
+/** The strip's state chip: active while no favorite applies. */
+const FOLLOW_GLOBAL_ID = 'follow-global'
+
+// The settings panel's activation channel and its panel name: the same
+// literals page-mode.tsx dispatches to lift the market panel in page mode.
+// Repeated here instead of imported so the window (features/) and the
+// page-mode bootstrap (workspace/) stay decoupled; renaming the channel means
+// renaming it in both files in one change.
+const PANEL_EVENT = 'dsh-panel-activate'
+const PANEL_NAME = 'agent-plugins-market'
 
 /** The entry filter rides the shared toolbar's segment: every entry, mounted, or filtered out. */
 type EntryFilter = 'all' | 'on' | 'off'
@@ -45,9 +67,12 @@ export interface ResourceWindowProps {
   t: ResourceTranslate
   open: boolean
   onClose: () => void
+  /** Open the entry's settings-page surface; the window's own default closes
+   * and deep-links, so callers may omit it. */
+  onView?: (face: ResourceFace, entryId: string) => void
 }
 
-export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): ReactNode {
+export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps): ReactNode {
   const [data, setData] = useState<ResourceWindowData | undefined>(undefined)
   const [failed, setFailed] = useState(false)
   const [face, setFace] = useState<ResourceFace>('skills')
@@ -118,34 +143,38 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
     return matched.filter(row => row.name.toLowerCase().includes(q) || (row.description ?? '').toLowerCase().includes(q))
   }, [faceRows, query, entryFilter])
 
-  // Plain face words: the counts live in the filter segment below, the same
-  // one place the five panels keep them.
+  // The settings page names each face with its own tab word — the main
+  // dictionary's workspaceTab* keys, the exact labels PluginWorkspace shows.
+  const wt = t as WideTranslate
   const tabs = useMemo(
     () =>
       RESOURCE_FACE_ORDER.map((key): SegmentedTab<ResourceFace> => ({
         value: key,
-        label: t(faceLabelKey(key)),
+        label: wt(FACE_LABEL_KEYS[key]),
         id: `${TAB_ID}-${key}`,
         // Every face shows through the one list area, whose id follows the
         // filter segment's `<filterId>-<value>-panel` convention (StatusPanel).
         panelId: `${FILTER_ID}-${entryFilter}-panel`
       })) as [SegmentedTab<ResourceFace>, ...SegmentedTab<ResourceFace>[]],
-    [t, entryFilter]
+    [wt, entryFilter]
   )
 
-  const followGlobal = data?.activeFavoriteId == null
-
-  // The favorites strip reuses the market's collapsible chip strip: every
-  // saved favorite is a chip that applies on click and carries a trailing
-  // delete control; the active favorite reads as the selected chip. While the
-  // window follows global no chip is active — the follow-global Pill on the
-  // left is the state indicator, and it stays a non-actionable span.
+  // The favorites strip reuses the market's collapsible chip strip, chip
+  // order and all: the follow-global state rides the first chip (the market
+  // puts `全部` there) and lights while no favorite applies; every saved
+  // favorite follows as a chip that applies on click and carries a trailing
+  // delete control. Selecting the state chip is a no-op — it is a state, not
+  // an action.
   const favoriteItems = useMemo<SourceTabItem[]>(
-    () => (data?.favorites ?? []).map(favorite => ({ id: favorite.id, label: favorite.name, deletable: true })),
-    [data?.favorites]
+    () => [
+      { id: FOLLOW_GLOBAL_ID, label: t('resourceWindowFollowGlobal') },
+      ...(data?.favorites ?? []).map(favorite => ({ id: favorite.id, label: favorite.name, deletable: true }))
+    ],
+    [t, data?.favorites]
   )
   const selectFavorite = useCallback(
     (id: string) => {
+      if (id === FOLLOW_GLOBAL_ID) return
       void mutate(() => applyResourceFavorite(id)).then(() => {
         const favorite = data?.favorites.find(entry => entry.id === id)
         if (favorite !== undefined) flash(t('resourceWindowApplyFavoriteDone', { name: favorite.name }))
@@ -162,6 +191,12 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
     },
     [mutate, data?.favorites, t, flash]
   )
+
+  /** Close the window and land on the entry's settings-page surface. */
+  const viewEntry = (viewFace: ResourceFace, viewId: string): void => {
+    onClose()
+    ;(onView ?? defaultViewDetail)(viewFace, viewId)
+  }
 
   // The filter tablist names this region, and the host derives the active
   // tab's aria-controls from the same base, so the reference always resolves.
@@ -187,22 +222,18 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
       className: css.window,
       contentClassName: css.content
     },
-    // Favorites row: the follow-global Pill as the state indicator, the
-    // favorites riding the market's collapsible source strip, and the save
-    // button at the tail.
+    // Favorites row: the market's source strip — the follow-global chip
+    // first, then the saved favorites — and the save button at the tail.
     h(
       'div',
       { className: css.favoritesRow },
-      // Follow-global is the state indicator, not an action: the workspace
-      // always holds concrete state, so the chip renders without a click path.
-      h(Pill, { active: followGlobal, title: t('resourceWindowFollowGlobal') }, t('resourceWindowFollowGlobal')),
       h(SourceTabsRow, {
         // The strip is shared with the market section, whose translator takes
         // the full locale union; the window's t covers the keys the strip
         // renders, so the widening is a property of the shared component.
         t: t as unknown as Translate,
         items: favoriteItems,
-        activeId: data?.activeFavoriteId ?? '',
+        activeId: data?.activeFavoriteId ?? FOLLOW_GLOBAL_ID,
         onSelect: selectFavorite,
         onDelete: deleteFavorite,
         deleteTitle: t('resourceWindowDeleteFavorite')
@@ -265,9 +296,11 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
                   key: entry.id,
                   entry,
                   t,
+                  busy,
                   onToggle: enabled => {
                     void mutate(() => setResourceEntry(entry.face, entry.id, enabled))
-                  }
+                  },
+                  onView: () => viewEntry(entry.face, entry.id)
                 })
               )
             ),
@@ -335,16 +368,22 @@ function SaveGlyph(): ReactNode {
 }
 
 /**
- * One inventory row in either view. The card carries the shared anatomy
- * (identity / body / foot) and doubles as the toggle — a role=button carrying
- * aria-pressed, pressed while the entry mounts — the way the prototype flips
- * a row; the state rail on its left edge already paints enabled versus
- * filtered, so no text label repeats it.
+ * One inventory row in either view, the settings page's SuiteCard anatomy:
+ * identity row (name, version, provenance tag) with the action cluster on its
+ * trailing edge — view details first, the enable switch last — a full-width
+ * description, and a foot carrying the source line and the counts. The card
+ * itself doubles as the toggle — a role=button carrying aria-pressed, pressed
+ * while the entry mounts; the cluster's controls keep their clicks (and key
+ * presses) off the card.
  */
-function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; onToggle: (enabled: boolean) => void }): ReactNode {
-  const { entry, t } = props
+function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; busy: boolean; onToggle: (enabled: boolean) => void; onView: () => void }): ReactNode {
+  const { entry, t, busy } = props
   const on = entry.enabled
   const counts = entry.counts ?? []
+  const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
+    event.stopPropagation()
+    callback()
+  }
   return h(
     ResourceCard,
     {
@@ -358,39 +397,100 @@ function ResourceRow(props: { entry: ResourceEntryWire; t: ResourceTranslate; on
       'div',
       { className: rc.rowId },
       h('span', { className: rc.name }, entry.name),
-      entry.version === undefined ? null : h('span', { className: rc.version }, 'v' + entry.version)
+      entry.version === undefined ? null : h('span', { className: rc.version }, 'v' + entry.version),
+      h(Tag, { tone: 'neutral' }, entry.source)
+    ),
+    // Key presses stop here too: a focused switch or view button would
+    // otherwise bubble Enter/Space into the card's own button handler and
+    // toggle the entry a second time.
+    h(
+      'div',
+      { className: rc.rowActions, onKeyDown: (event: { stopPropagation(): void }) => event.stopPropagation() },
+      h(
+        'button',
+        {
+          type: 'button',
+          className: rc.iconBtn,
+          title: t('resourceWindowView') + ' ' + entry.name,
+          'aria-label': t('resourceWindowView') + ' ' + entry.name,
+          disabled: busy,
+          onClick: stop(props.onView)
+        },
+        h(IconInspectOutlineMedium)
+      ),
+      // The enable switch reads last, at the cluster's trailing edge; busy
+      // locks it exactly while a window mutation is in flight.
+      h(
+        'span',
+        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
+        h(Switch, {
+          checked: on,
+          disabled: busy,
+          label: t('resourceWindowToggleEntry'),
+          title: t('resourceWindowToggleEntry'),
+          onChange: props.onToggle
+        })
+      )
     ),
     entry.description === undefined ? null : h('p', { className: `${rc.rowBody} ${rc.desc}` }, entry.description),
-    counts.length === 0
-      ? null
-      : h(
-          'div',
-          { className: rc.rowFoot },
-          ...counts.flatMap(count => [
-            h('span', { key: 'sep-' + count.label, className: rc.separator }, '·'),
-            h(
-              'span',
-              { key: count.label, className: rc.count },
-              countLabel(t, count.label),
-              ' ',
-              h('span', { className: rc.countValue }, String(count.count))
-            )
-          ])
+    h(
+      'div',
+      { className: rc.rowFoot },
+      h('span', { className: rc.provenance, title: entry.source }, entry.source),
+      ...counts.flatMap(count => [
+        h('span', { key: 'sep-' + count.label, className: rc.separator }, '·'),
+        h(
+          'span',
+          { key: count.label, className: rc.count },
+          countLabel(t, count.label),
+          ' ',
+          h('span', { className: rc.countValue }, String(count.count))
         )
+      ])
+    )
   )
 }
 
-/** The locale key naming one face's tab. */
-function faceLabelKey(face: ResourceFace): ResourceLocaleKey {
-  const keys: Record<ResourceFace, ResourceLocaleKey> = {
-    market: 'resourceWindowFaceMarket',
-    skills: 'resourceWindowCountSkills',
-    commands: 'resourceWindowCountCommands',
-    agents: 'resourceWindowCountAgents',
-    mcp: 'resourceWindowCountMcp',
-    lsp: 'resourceWindowCountLsp'
+/** The settings page's tab word for one face: the main dictionary's
+ * workspaceTab* keys, the exact labels PluginWorkspace renders. */
+const FACE_LABEL_KEYS: Record<ResourceFace, string> = {
+  market: 'workspaceTabMarket',
+  skills: 'workspaceTabSkills',
+  commands: 'workspaceTabCommands',
+  agents: 'workspaceTabPersonas',
+  mcp: 'workspaceTabMcp',
+  lsp: 'workspaceTabLsp'
+}
+
+/** The settings page's tab id for one face — the `#/agent-plugins/<tab>`
+ * segment the workspace shell parses; `agents` is the personas tab there. */
+function faceTab(face: ResourceFace): WorkspaceTab {
+  const tabs: Record<ResourceFace, WorkspaceTab> = {
+    market: 'market',
+    skills: 'skills',
+    commands: 'commands',
+    agents: 'personas',
+    mcp: 'mcp',
+    lsp: 'lsp'
   }
-  return keys[face]
+  return tabs[face]
+}
+
+/**
+ * The default view action: land on the entry's settings page. The hash the
+ * workspace shell parses selects the tab, and the panel event lifts the
+ * market panel when the settings surface is not on screen yet — the same
+ * literals page-mode.tsx dispatches for its own entry.
+ */
+function defaultViewDetail(viewFace: ResourceFace): void {
+  if (typeof location !== 'undefined') {
+    try {
+      location.hash = `#/agent-plugins/${faceTab(viewFace)}`
+    } catch {
+      // Sandboxed contexts may refuse hash writes; the dispatch below still lifts the surface.
+    }
+  }
+  document.dispatchEvent(new CustomEvent(PANEL_EVENT, { detail: PANEL_NAME }))
 }
 
 /** Map one wire count label onto the window's localized word. */

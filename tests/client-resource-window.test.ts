@@ -68,12 +68,16 @@ vi.stubGlobal(
 
 let root: Root | undefined
 let host: HTMLDivElement | undefined
+/** The mount helper's live open state; onClose flips it through a re-render. */
+let windowOpen = true
 
 afterEach(async () => {
   await act(async () => root?.unmount())
   host?.remove()
   root = undefined
   host = undefined
+  windowOpen = true
+  window.location.hash = ''
   fetchState.window = payload()
   fetchState.calls = []
   fetchState.deviated = false
@@ -83,7 +87,21 @@ async function mount(): Promise<void> {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  await act(async () => root!.render(h(ResourceWindow, { t, open: true, onClose: () => {} })))
+  // onClose really closes: the render is driven by this open flag, so a
+  // view action's onClose lands as an unmounted dialog.
+  const rerender = (open: boolean): void => {
+    root!.render(
+      h(ResourceWindow, {
+        t,
+        open,
+        onClose: () => {
+          windowOpen = false
+          rerender(false)
+        }
+      })
+    )
+  }
+  await act(async () => rerender(true))
   // The first paint renders before the inventory fetch resolves; settle the
   // promise chain (fetch -> json -> setState) before asserting on data.
   await act(async () => {
@@ -141,19 +159,20 @@ describe('ResourceWindow', () => {
     expect(favoritesRow).not.toBeNull()
     expect(favoritesRow!.querySelector('[aria-label="resourceWindowSaveFavorite"]')).not.toBeNull()
     expect(document.querySelector('[aria-label="resourceWindowRefresh"]')).toBeNull()
-    // The favorites strip rides the market's source strip: the follow-global
-    // state pill, the saved favorite as a strip chip, the save button.
-    expect(document.body.textContent).toContain('resourceWindowFollowGlobal')
+    // The favorites strip rides the market's source strip: follow-global as
+    // the first chip (the market's 全部 slot), the saved favorite next.
     expect(favoritesRow!.querySelector('[class*="sourceTabsBox"]')).not.toBeNull()
-    const chipMain = favoritesRow!.querySelector<HTMLButtonElement>('button[class*="srcTabMain"]')
-    expect(chipMain).not.toBeNull()
-    expect(chipMain!.textContent).toContain('前端开发')
-    // Six plain face tabs: the face word only, the market face renamed.
+    const chipMains = [...favoritesRow!.querySelectorAll<HTMLButtonElement>('button[class*="srcTabMain"]')]
+    expect(chipMains).toHaveLength(2)
+    expect(chipMains[0]!.textContent).toContain('resourceWindowFollowGlobal')
+    expect(chipMains[1]!.textContent).toContain('前端开发')
+    // Six plain face tabs, named with the settings page's words: the tests'
+    // translator echoes keys, so the main-dictionary tab keys read verbatim.
     const tabs = faceTabs()
     expect(tabs).toHaveLength(6)
-    expect(tabs[0]!.textContent).toBe('resourceWindowFaceMarket')
-    expect(tabs[1]!.textContent).toBe('resourceWindowCountSkills')
-    expect(tabs[4]!.textContent).toBe('resourceWindowCountMcp')
+    expect(tabs[0]!.textContent).toBe('workspaceTabMarket')
+    expect(tabs[1]!.textContent).toBe('workspaceTabSkills')
+    expect(tabs[4]!.textContent).toBe('workspaceTabMcp')
     // The counts live in the filter segment, one per mounted state, computed
     // for the active face: the skills face has 2 on, 1 off.
     const options = filterOptions()
@@ -184,6 +203,32 @@ describe('ResourceWindow', () => {
     expect(document.body.textContent).not.toContain('dsh-doc')
   })
 
+  it('restores the settings-page card anatomy: provenance tag, view-then-switch cluster', async () => {
+    await mount()
+    const card = entryCard('dsh-doc')
+    // The identity row carries the source tag, the foot the source line.
+    const tag = card.querySelector('[class*="rowId"] [data-tone="neutral"]')
+    expect(tag).not.toBeNull()
+    expect(tag!.textContent).toBe('dsh-workflow')
+    expect(card.querySelector('[class*="rowFoot"]')!.textContent).toContain('dsh-workflow')
+    // The cluster: view details first, the enable switch at its trailing edge.
+    const actions = card.querySelector('[class*="rowActions"]')!
+    const viewBtn = actions.querySelector('button[aria-label="resourceWindowView dsh-doc"]')
+    expect(viewBtn).not.toBeNull()
+    const sw = actions.querySelector('[role="switch"]') as HTMLElement
+    expect(sw).not.toBeNull()
+    expect(actions.querySelector('[class*="switchWrap"]')).not.toBeNull()
+    expect(actions.children[actions.children.length - 1]).toBe(actions.querySelector('[class*="switchWrap"]'))
+    // The pressed card still reads the entry's mount state.
+    expect(card.getAttribute('aria-pressed')).toBe('true')
+    // Flipping through the switch stays a single entry write: the wrapper
+    // keeps the click (and its key press) off the card's own toggle.
+    await act(async () => sw.click())
+    const switchCalls = fetchState.calls.filter(call => call.url.endsWith('/resource-window/entry'))
+    expect(switchCalls).toHaveLength(1)
+    expect(switchCalls[0]!.body).toMatchObject({ face: 'skills', entryId: 'skills:dsh-doc', enabled: false })
+  })
+
   it('toggles an entry through its card and reports the pressed state', async () => {
     await mount()
     const cards = [...document.querySelectorAll('article[role="button"][aria-pressed]')] as HTMLElement[]
@@ -194,6 +239,31 @@ describe('ResourceWindow', () => {
     await act(async () => cards[0]!.click())
     const entryCall = fetchState.calls.find(call => call.url.endsWith('/resource-window/entry'))
     expect(entryCall?.body).toMatchObject({ face: 'skills', entryId: 'skills:dsh-doc', enabled: false })
+  })
+
+  it('views an entry: closes the window and deep-links to its settings tab', async () => {
+    await mount()
+    const tabs = faceTabs()
+    await act(async () => tabs[4]!.click())
+    // The mcp entry's view action: the window closes, the settings page's
+    // mcp tab is selected through the hash, and the panel event lifts the
+    // market panel in page mode.
+    const viewBtn = document.querySelector<HTMLButtonElement>('button[aria-label="resourceWindowView alpha__db"]')
+    expect(viewBtn).not.toBeNull()
+    const events: string[] = []
+    const listener = (event: Event): void => {
+      events.push((event as CustomEvent<string>).detail)
+    }
+    document.addEventListener('dsh-panel-activate', listener)
+    try {
+      await act(async () => viewBtn!.click())
+    } finally {
+      document.removeEventListener('dsh-panel-activate', listener)
+    }
+    expect(window.location.hash).toBe('#/agent-plugins/mcp')
+    expect(events).toEqual(['agent-plugins-market'])
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(windowOpen).toBe(false)
   })
 
   it('switches views through the shared toolbar toggle', async () => {
@@ -244,22 +314,12 @@ describe('ResourceWindow', () => {
 
   it('detaches the follow-global state when a manual flip deviates from the favorite', async () => {
     await mount()
-    // Favorite fav-1 is applied, so the follow-global pill is NOT active here.
-    // Pill carries the exact `active` class token when active (a static Pill
-    // renders a span, an interactive one a button); the favorite reads as the
-    // selected strip chip (`srcTabOn`).
-    const chip = (name: string) => [...document.querySelectorAll('[class*="pill"]')].find(node => (node.textContent ?? '').startsWith(name))
-    const favoriteChip = [...document.querySelectorAll('[class*="srcTab"]')].find(node => (node.textContent ?? '').startsWith('前端开发'))
-    expect(favoriteChip).toBeDefined()
-    // Vitest serves CSS modules as hashed class names (_active_<hash>), so the
-    // active state reads through a token-boundary match on the class attribute.
-    const isActive = (node: Element | undefined): boolean => {
-      if (node === undefined) return false
-      return node.className.split(/\s+/).some(token => /(^|[^a-z])active($|[^a-z])/.test(token))
-    }
+    // Favorite fav-1 is applied, so the follow-global chip is NOT selected
+    // and the favorite reads as the strip's selected chip (srcTabOn).
+    const chip = (name: string) => [...document.querySelectorAll('[class*="srcTab"]')].find(node => (node.textContent ?? '').startsWith(name))
     const isSelected = (node: Element | undefined): boolean => node !== undefined && node.className.includes('srcTabOn')
-    expect(isSelected(favoriteChip)).toBe(true)
-    expect(isActive(chip('resourceWindowFollowGlobal'))).toBe(false)
+    expect(isSelected(chip('resourceWindowFollowGlobal'))).toBe(false)
+    expect(isSelected(chip('前端开发'))).toBe(true)
     // One manual card flip: the refreshed window carries activeFavoriteId null.
     fetchState.deviated = true
     await act(async () => entryCard('dsh-doc').click())
@@ -268,24 +328,18 @@ describe('ResourceWindow', () => {
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The deviation detaches the favorite: follow-global becomes the active
-    // state and the favorite chip drops its selected fill.
-    expect(isActive(chip('resourceWindowFollowGlobal'))).toBe(true)
-    expect(isSelected([...document.querySelectorAll('[class*="srcTab"]')].find(node => (node.textContent ?? '').startsWith('前端开发')))).toBe(false)
+    // The deviation detaches the favorite: follow-global becomes the selected
+    // chip and the favorite chip drops its selected fill.
+    expect(isSelected(chip('resourceWindowFollowGlobal'))).toBe(true)
+    expect(isSelected(chip('前端开发'))).toBe(false)
   })
 
-  it('keeps the follow-global pill a non-actionable span while the strip chips stay buttons', async () => {
+  it('keeps the follow-global chip a state, not an action: first chip, no apply request', async () => {
     await mount()
-    // The follow-global chip is a state indicator: a static Pill renders a
-    // span, so it never gains button semantics.
-    const follow = [...document.querySelectorAll('[class*="pill"]')].find(node => (node.textContent ?? '') === 'resourceWindowFollowGlobal')
-    expect(follow).toBeDefined()
-    expect(follow!.tagName).toBe('SPAN')
-    expect(follow!.querySelector('button')).toBeNull()
-    // The favorites strip renders every favorite as a clickable strip chip.
-    const chipButtons = [...document.querySelectorAll('button[class*="srcTabMain"]')]
-    expect(chipButtons).toHaveLength(1)
-    expect(chipButtons[0]!.textContent).toContain('前端开发')
+    const chips = [...document.querySelectorAll<HTMLButtonElement>('button[class*="srcTabMain"]')]
+    expect(chips[0]!.textContent).toContain('resourceWindowFollowGlobal')
+    await act(async () => chips[0]!.click())
+    expect(fetchState.calls.find(call => call.url.endsWith('/favorites/apply'))).toBeUndefined()
   })
 
   it('applies a favorite through its strip chip and reports a toast', async () => {
