@@ -8,7 +8,7 @@ The package needs a user-facing name and icon distinct from its technical npm id
 
 ## Decision
 
-The npm identity stays dsh-agent-plugins-market. The display name is Agent 扩展 in Chinese and Agent Plugins in English. Exported locale/en.json and locale/zh.json provide meta.title and meta.description through the host package metadata resolver. package.json points icon to the bundled 256px PNG, a transparent, scaled copy of the supplied artwork below the host's 256 KiB limit. The package files list includes both locale resources and the image.
+The npm identity stays dsh-agent-plugins-market. The exported locale resources carry meta.description but no meta.title: the host falls back to the package name, so a component row shows the identity exactly once instead of a brand name beside two technical ids. The brand name stays on our own surfaces — the workspace tabs, the settings section label, and the READMEs. package.json points icon to the bundled 256px PNG, a transparent, scaled copy of the supplied artwork below the host's 256 KiB limit. The package files list includes both locale resources and the image.
 
 The existing SettingsForm binding registers at plugins.bundle.config, keyed by the npm package name, rather than plugins.item. Configuration appears inside the installed bundle page. The settings workspace remains accessible under its localized brand name; label thunks and the host locale renderer update it without re-registration. Namespace, persistence keys, save/discard behavior, and technical identifiers remain unchanged.
 
@@ -24,4 +24,4 @@ This partially supersedes the placement described in [settings and card reuse](.
 
 ## Consequences
 
-No new runtime dependency or settings store is introduced. Metadata remains available when the plugin is disabled because the host reads packaged resources. Tests pin exported locales, image dimensions and size, technical identity, slot ownership, and binding disposal. An isolated DSH profile verifies the installed category, image loading, embedded settings, and live Chinese-to-English title, description, and settings changes.
+No new runtime dependency or settings store is introduced. Metadata remains available when the plugin is disabled because the host reads packaged resources. Tests pin the exported descriptions, the absent titles, image dimensions and size, technical identity, slot ownership, and binding disposal. An isolated DSH profile verified the installed category, image loading, embedded settings, and live Chinese-to-English settings changes.

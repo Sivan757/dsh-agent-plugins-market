@@ -3,22 +3,22 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { en, zh } from '../src/client/locales.js'
 
+const labels = (language: 'zh' | 'en'): typeof zh | typeof en => (language === 'zh' ? zh : en)
+
 describe('published Agent Plugins branding', () => {
-  it('exports paired metadata without changing the package identity', async () => {
+  it('exports description-only metadata so the row shows one identity', async () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { name: string; files: string[]; icon: string }
     expect(manifest.name).toBe('dsh-agent-plugins-market')
     expect(manifest.files).toContain('locale')
     expect(manifest.files).toContain('assets/dsh-agent-plugins.png')
-    for (const [language, labels] of [
-      ['zh', zh],
-      ['en', en]
-    ] as const) {
+    // No localized title: the host falls back to the package name, so the
+    // component row never shows a brand name beside two technical ids.
+    for (const language of ['zh', 'en'] as const) {
       const resource = import.meta.resolve(`dsh-agent-plugins-market/locale/${language}.json`)
-      const { meta } = JSON.parse(await readFile(fileURLToPath(resource), 'utf8')) as { meta: { title: string; description: string } }
-      expect(meta).toEqual({ title: labels.nav, description: labels.marketCardDesc })
+      const { meta } = JSON.parse(await readFile(fileURLToPath(resource), 'utf8')) as { meta: { title?: string; description: string } }
+      expect(meta.title).toBeUndefined()
+      expect(meta.description).toBe(labels(language).marketCardDesc)
     }
-    expect(zh.nav).toBe('Agent 扩展')
-    expect(en.nav).toBe('Agent Plugins')
   })
 
   it('ships a PNG icon inside the host metadata size limit', async () => {

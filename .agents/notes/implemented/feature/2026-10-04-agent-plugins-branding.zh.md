@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-npm 标识保持 dsh-agent-plugins-market。中文显示名为 Agent 扩展，英文为 Agent Plugins。导出的 locale/en.json 与 locale/zh.json 通过 meta.title 和 meta.description 交由宿主包元数据解析器处理。package.json 的 icon 指向随包发布的 256px PNG：它由用户提供的图案等比缩放，保留透明背景，并低于宿主 256 KiB 限制。发布文件列表包含双语资源与图片。
+npm 标识保持 dsh-agent-plugins-market。导出的语言资源只携带 meta.description，不含 meta.title：宿主在标题缺失时回退到包名，组件行因此只显示一次身份，而不是品牌名旁边并列两行技术名。品牌名保留在我们自己的界面上——工作区页签、设置分区标签与 README。package.json 的 icon 指向随包发布的 256px PNG：它由用户提供的图案等比缩放，保留透明背景，并低于宿主 256 KiB 限制。发布文件列表包含双语资源与图片。
 
 既有 SettingsForm 绑定注册到 plugins.bundle.config，以 npm 包名为 key，不再注册 plugins.item。配置显示在已安装插件的详情页内。设置工作区仍可通过本地化品牌名称进入；标签 thunk 与宿主语言渲染器无需重新注册即可更新。命名空间、持久化键、保存/放弃行为与技术标识保持不变。
 
@@ -24,4 +24,4 @@ npm 标识保持 dsh-agent-plugins-market。中文显示名为 Agent 扩展，�
 
 ## Consequences
 
-没有新增运行时依赖或设置存储。宿主读取随包资源，因此插件停用时品牌元信息仍可显示。测试固定语言资源导出、图片尺寸与大小、技术标识、槽归属及绑定清理。独立 DSH profile 已验证已安装分类、图片加载、内嵌设置，以及中文切换英文时名称、介绍和设置文案即时更新。
+没有新增运行时依赖或设置存储。宿主读取随包资源，因此插件停用时元信息仍可显示。测试固定语言资源的描述导出、标题缺失、图片尺寸与大小、技术标识、槽归属及绑定清理。独立 DSH profile 已验证已安装分类、图片加载、内嵌设置，以及中文切换英文时介绍和设置文案即时更新。
