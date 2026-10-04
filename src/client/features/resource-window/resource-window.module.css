@@ -104,15 +104,10 @@
   padding: 8px 0 12px;
 }
 
+/* The shared toolbar row carries no outer spacing of its own and the window
+   has no shell gap, so the rhythm below the face tabs rides here. */
 .tabs {
-  margin: 0;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 0 8px;
+  margin: 0 0 12px;
 }
 
 /* The shared ResourceCollection owns the view layout and the scrollbar;
@@ -173,41 +168,8 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.search {
-  flex: 1;
-  min-width: 0;
-}
-
-.tabLabel {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-}
-
-.tabCount {
-  font-size: 10.5px;
-  font-weight: 400;
-  color: var(--dsw-alias-label-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
-.tabs [aria-selected='true'] .tabCount {
-  color: var(--dsw-alias-state-business-primary);
-}
-
-.empty {
-  padding: 48px 0;
-  text-align: center;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-}
-
-.loadFailed {
-  padding: 24px 0;
-  text-align: center;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-}
+/* The toolbar row, the counts, and the empty state ride the shared
+   SearchFilterToolbar and panel.module.css styles. */
 
 .nameField {
   width: 100%;
