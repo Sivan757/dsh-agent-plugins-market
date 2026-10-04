@@ -16,11 +16,6 @@ import type { UserPanelEntry, UserPanelKind } from '../api.js'
 import { displayText } from './translated-text.js'
 import css from './panel.module.css'
 
-/** Metadata keys the identity row already carries. */
-const HIDDEN_META = new Set(['description', 'disabled', 'name'])
-/** Routing keys an agent persona renders as its own rows, not in the catch-all. */
-const ROUTING_META = new Set(['model', 'provider', 'reasoning_effort', 'reasoningEffort'])
-
 export interface UserEntryDetailProps {
   t: Translate
   kind: UserPanelKind
@@ -40,7 +35,6 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   const title = kind === 'commands' ? commandCallName(entry.name) : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
   const description = displayText(entry.translatedDescription, entry.description, t)
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
-  const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key) && !(kind === 'agents' && ROUTING_META.has(key)))
   return h(
     DetailModal,
     {
@@ -77,8 +71,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
         kvCell(t('detailTypeLabel'), entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')),
         kvCell(t('diskPathLabel'), entry.path, true),
         updated === null ? null : kvCell(t('updatedLabel'), updated),
-        kind === 'agents' ? routingRows(t, entry.metadata) : null,
-        metaPairs.length === 0 ? null : kvCell(t('detailMetadata'), metaPairs.map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · '))
+        kind === 'agents' ? routingRows(t, entry.metadata) : null
       )
     ),
     description === undefined || description === '' ? null : h('div', { className: css.block }, h('h4', { className: css.blockHead }, t('detailDescriptionLabel')), h('p', { className: css.detailProse }, description)),

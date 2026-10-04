@@ -251,7 +251,8 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
         })
       )
     ),
-    h('p', { className: `${rc.rowBody} ${rc.monoLine}` }, entry.endpoint ?? t('mcpObservedEndpoint')),
+    // The card clips this line to one row, so it carries the endpoint as a hint.
+    h('p', { className: `${rc.rowBody} ${rc.monoLine}`, title: entry.endpoint ?? t('mcpObservedEndpoint') }, entry.endpoint ?? t('mcpObservedEndpoint')),
     h(
       'div',
       { className: rc.rowFoot },

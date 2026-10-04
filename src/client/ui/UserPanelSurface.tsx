@@ -389,7 +389,8 @@ function UserEntryRow(props: {
         })
       )
     ),
-    description === undefined || description === '' ? null : h('p', { className: `${rc.rowBody} ${rc.desc}` }, description),
+    // Two lines fit; anything longer stays readable through the hint.
+    description === undefined || description === '' ? null : h('p', { className: `${rc.rowBody} ${rc.desc}`, title: description }, description),
     h(
       'div',
       { className: rc.rowFoot },

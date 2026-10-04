@@ -59,6 +59,8 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
   // The card itself is the click target, so every control inside it has to keep
   // its own click from reaching the card.
   const toolbarStop = (event: { stopPropagation(): void }): void => event.stopPropagation()
+  // Rendered twice: the visible two-line clamp and the hint that reveals the rest.
+  const description = displayText(suite.translatedDescription, suite.description, t) ?? ''
 
   const actions = suite.installed
     ? [
@@ -145,7 +147,8 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
       h(Tag, { tone: 'neutral' }, provenance)
     ),
     h('div', { className: rc.rowActions }, ...actions),
-    h('p', { className: `${rc.rowBody} ${rc.desc}` }, displayText(suite.translatedDescription, suite.description, t) ?? ''),
+    // Two lines fit; anything longer stays readable through the hint.
+    description === '' ? null : h('p', { className: `${rc.rowBody} ${rc.desc}`, title: description }, description),
     h(
       'div',
       { className: rc.rowFoot },

@@ -239,8 +239,10 @@ export function McpDetailModal({
             : h(
                 'div',
                 { className: css.toolList },
-                shownTools.map(tool =>
-                  h(
+                shownTools.map(tool => {
+                  // Resolved once: the visible line and its hover hint are the same text.
+                  const toolDescriptionText = displayText(tool.translatedDescription, tool.description, t) ?? ''
+                  return h(
                     'div',
                     { key: tool.name, className: css.tool },
                     h(
@@ -255,25 +257,30 @@ export function McpDetailModal({
                             onChange: (event: { target: HTMLInputElement }) => toggleTool(tool.name, event.target.checked)
                           })
                         : null,
-                      // A name with a schema is the control that reveals what the tool takes.
+                      // A name with a schema is the control that reveals what the tool
+                      // takes. The name, the description, and the note each clip to
+                      // one line, so every one carries its full text as a hint.
                       tool.parameters === undefined
-                        ? h('span', { className: css.toolName }, tool.name)
+                        ? h('span', { className: css.toolName, title: tool.name }, tool.name)
                         : h(
                             'button',
                             {
                               type: 'button',
                               className: `${css.toolName} ${css.toolNameButton}`,
+                              title: tool.name,
                               'aria-expanded': expandedTools[tool.name] === true,
                               onClick: () => setExpandedTools(current => ({ ...current, [tool.name]: current[tool.name] !== true }))
                             },
                             tool.name
                           )
                     ),
-                    h('span', { className: css.toolDescription }, displayText(tool.translatedDescription, tool.description, t) ?? ''),
-                    h('span', { className: css.toolNote }, tool.suiteLimited ? t('mcpToolSuiteLimited') : ''),
+                    toolDescriptionText === ''
+                      ? null
+                      : h('span', { className: css.toolDescription, title: toolDescriptionText }, toolDescriptionText),
+                    tool.suiteLimited ? h('span', { className: css.toolNote, title: t('mcpToolSuiteLimited') }, t('mcpToolSuiteLimited')) : null,
                     expandedTools[tool.name] === true ? h('div', { className: css.toolParams }, toolParameterRows(tool.parameters, t)) : null
                   )
-                ),
+                }),
                 hiddenToolCount > 0
                   ? h(
                       'button',

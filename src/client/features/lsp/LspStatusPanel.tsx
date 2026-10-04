@@ -345,7 +345,8 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
         })
       )
     ),
-    h('p', { className: `${rc.rowBody} ${rc.monoLine}` }, [entry.command, ...entry.args].join(' ')),
+    // The card clips this line to one row, so it carries the full command as a hint.
+    h('p', { className: `${rc.rowBody} ${rc.monoLine}`, title: [entry.command, ...entry.args].join(' ') }, [entry.command, ...entry.args].join(' ')),
     h(
       'div',
       { className: rc.rowFoot },
