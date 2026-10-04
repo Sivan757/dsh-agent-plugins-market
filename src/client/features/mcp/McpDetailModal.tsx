@@ -191,10 +191,9 @@ export function McpDetailModal({
           kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteId ?? entry.source ?? '—' : t('mcpDirect'), true),
           kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser')),
           kvCell(t('detailTransport'), entry.transport, true),
-          kvCell(t('mcpServerKeyLabel'), entry.serverKey ?? entry.name, true),
           // The mount identity the runtime registers, which is not always the
           // name the declaration uses. A user's own declaration mounts under
-          // its key, and then the row would only repeat the one above.
+          // its key and then there is nothing extra to name.
           entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
         )
       ),

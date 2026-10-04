@@ -78,9 +78,8 @@ it('titles a plugin row with its readable server key and shows the mount name in
 })
 it('leaves out the mount-name row when the declaration mounts under its own key', async () => {
   // A user's own mcp.json owns the top-level namespace, so its mount name and
-  // server key are the same string and one overview row says it.
+  // server key are the same string and there is nothing extra to name.
   await mount({ ...base, suiteId: '@user-mcp/user-mcp', serverKey: 'kuboard', name: 'kuboard' })
-  expect([...document.querySelectorAll('dt')].some(node => node.textContent === 'mcpServerKeyLabel')).toBe(true)
   expect([...document.querySelectorAll('dt')].some(node => node.textContent === 'mcpMountNameLabel')).toBe(false)
 })
 it('titles a direct row with its own name', async () => {
