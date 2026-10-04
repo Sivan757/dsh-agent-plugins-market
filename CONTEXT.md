@@ -27,3 +27,11 @@ The user dimension applies across sessions. The project dimension applies to a w
 ## Agent layout root
 
 The shared `~/.agents` directory (or `$DSH_AGENTS_HOME`) holding the resources the user authors by hand: `skills/`, `commands/`, `agents/`, and the `mcp.json` / `lsp.json` service declarations. It is distinct from the plugin state root, `~/.dsh/agent-plugins`, which holds checkouts, install state and overrides.
+
+## Translation unit
+
+One translatable field of one entity: the surface it belongs to, the entity's stable id inside that surface, the role (`name` or `description`), and the upstream text exactly as authored. A unit is what the translation cache keys on and what the provider chain answers for.
+
+## Translation provider
+
+One level of the ordered fallback chain that answers a translation unit: Google Translate, Microsoft Translator, the user's default model, or the upstream text when none of them answers. A provider's identity is part of the cache key, so changing the chain re-translates instead of serving text another level produced.

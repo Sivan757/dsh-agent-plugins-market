@@ -4,7 +4,7 @@ English | [简体中文](usage.zh.md) | [README](../../README.md)
 
 ## Host requirements
 
-Open **Plugins → Installed → Agent Plugins** to configure this extension. Its display name, description, and settings follow the DSH interface language. The configuration page carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), and the **experience feedback tool**. The card stages what you pick and applies it when you press Save, so what is on screen is what saving writes; a setting marked **customized** also offers **Use default**, which hands that one setting back to the plugin. **Download region** starts on **Follow interface language**, and choosing it again clears your explicit choice.
+Open **Plugins → Installed → Agent Plugins** to configure this extension. Its display name, description, and settings follow the DSH interface language. The configuration page carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), the **experience feedback tool**, and **Translation** (`translationEnabled`, default on; see [translation](#translation)). The card stages what you pick and applies it when you press Save, so what is on screen is what saving writes; a setting marked **customized** also offers **Use default**, which hands that one setting back to the plugin. **Download region** starts on **Follow interface language**, and choosing it again clears your explicit choice.
 
 Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environment references, tool allow/deny lists and timeouts are preserved; unsupported fields are diagnosed. Project LSP is not mounted because the host registry is global; this plugin does not modify host APIs.
 
@@ -14,6 +14,34 @@ Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environm
 - MCP uses the built-in bridge by default. Host-client compatibility mode additionally needs `@deepseek-ai/dsh-mcp-client`; hooks need `@deepseek-ai/dsh-hooks-claude-code`.
 - LSP support installs and mounts its own `@deepseek-ai/dsh-lsp`, `dsh-lsp-stdio` and `dsh-tool-lsp` packages as soon as an enabled suite declares language servers, so no profile step is needed. The language-server executables themselves must be available on the machine.
 - Host credentials are optional. Without that service, environment references resolve from the launch environment, and changes require a restart.
+
+## Translation
+
+The six workspace tabs render upstream text authored in English. With the host language set to Chinese, names and descriptions follow it: suite names and descriptions in **Market**, skill / command / agent-persona names and descriptions, MCP service names and their per-tool descriptions, and LSP server names. Keywords are not translated — they drive search and matching, not display.
+
+| Tab            | Name         | Description                        |
+| -------------- | ------------ | ---------------------------------- |
+| Market         | Suite name   | Suite description                  |
+| Skills         | Skill name   | Skill description                  |
+| Commands       | Command name | Command description                |
+| Agent personas | Persona name | Persona description                |
+| MCP services   | Service name | One line per tool                  |
+| LSP servers    | Server key   | The entry has no description field |
+
+Translation runs through four levels, in order, and the first one that answers wins:
+
+1. **Google Translate** — a public endpoint, no key required. It is given 3 seconds; a network where it is blocked makes it hang rather than fail, so it is dropped for the rest of the session after one failure.
+2. **Microsoft Translator** — a public endpoint with no authentication, and the level that makes this work on a fresh install with nothing configured.
+3. **Your default model** — used when the deployment has a model route configured. Highest quality, and the only level that can be told how to render domain vocabulary.
+4. **The upstream text** — when no level answers, every surface renders the original English, with no error, no spinner and no blocked first paint.
+
+Only a Chinese interface translates: an English panel already shows the authored text. A translation is cached for seven days under a key that includes the provider that produced it, so changing engines re-translates instead of serving the old engine's output. A second process start serves cached text with no calls at all.
+
+**A translated name is display-only.** Search, sorting, copying, `aria-label` values and `/` invocation all keep using the original name, which stays visible as the card's hover tooltip. Descriptions have no such second role and render translated.
+
+Turn the layer off with the **Translation** switch (`translationEnabled`, default on) in the plugin configuration card. Nothing is translated while it is off, and every surface renders the upstream text.
+
+The prompts and tool descriptions this plugin injects into a session are not translated: they stay in the language their author wrote them in.
 
 ## Installation options
 
@@ -78,11 +106,12 @@ Git/archive acquisition is tunable through the host config:
 
 Plugin state lives under `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it to `$DSH_HOME/agent-plugins/`.
 
-| Path under the root    | Contents                                                                 |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `state.json`           | Configured sources and install state                                     |
-| `.sources/<sourceId>/` | Source checkouts                                                         |
-| `data/`                | Overrides, suite `${PLUGIN_DATA}` directories, feedback rate-limit stamp |
+| Path under the root      | Contents                                                                 |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `state.json`             | Configured sources and install state                                     |
+| `.sources/<sourceId>/`   | Source checkouts                                                         |
+| `data/`                  | Overrides, suite `${PLUGIN_DATA}` directories, feedback rate-limit stamp |
+| `translation-cache.json` | Cached translations, keyed by content and provider (seven-day TTL)       |
 
 Content you author yourself lives in the shared Agent layout root, `~/.agents/` (`$DSH_AGENTS_HOME` overrides it) — the same directory shape this plugin reads from a project's `.agents/`:
 

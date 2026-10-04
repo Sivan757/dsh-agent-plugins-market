@@ -1,0 +1,1124 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>通用翻译层 · 技术设计</title>
+    <style>
+      :root {
+        --canvas: #eef1f7;
+        --surface: #fbfcfe;
+        --white: #fff;
+        --ink: #101828;
+        --muted: #667085;
+        --faint: #98a2b3;
+        --line: #e2e7ef;
+        --line-strong: #d4dce8;
+        --blue: #4966f5;
+        --blue-soft: #edf1ff;
+        --green: #159957;
+        --green-soft: #e9f8ef;
+        --amber: #a86f17;
+        --amber-soft: #fdf4e3;
+        --red: #d34242;
+        --red-soft: #fdecec;
+        --violet: #7c4dd1;
+        --violet-soft: #f2ecfd;
+        --slate-soft: #f1f3f8;
+        --mono: 'SFMono-Regular', 'SF Mono', Menlo, Consolas, monospace;
+        --ui: 'Avenir Next', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        min-height: 100vh;
+        padding: 40px 24px 96px;
+        color: var(--ink);
+        background: radial-gradient(circle at 10% 0%, rgba(73, 102, 245, 0.09), transparent 32%), var(--canvas);
+        font-family: var(--ui);
+        font-size: 14px;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 232px minmax(0, 1fr);
+        gap: 34px;
+        max-width: 1240px;
+        margin: 0 auto;
+        align-items: start;
+      }
+      nav {
+        position: sticky;
+        top: 40px;
+        padding: 20px 18px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      }
+      nav .navHead {
+        color: var(--faint);
+        font: 600 10px/16px var(--mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+      nav a {
+        display: block;
+        padding: 5px 8px;
+        margin: 0 -8px;
+        color: var(--muted);
+        border-radius: 7px;
+        font-size: 12.5px;
+        text-decoration: none;
+        transition:
+          background 0.12s,
+          color 0.12s;
+      }
+      nav a:hover {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+      nav a .n {
+        display: inline-block;
+        width: 20px;
+        color: var(--faint);
+        font: 500 11px var(--mono);
+      }
+      main {
+        min-width: 0;
+      }
+      header.doc {
+        margin-bottom: 30px;
+      }
+      .kicker {
+        color: var(--blue);
+        font: 600 10px/16px var(--mono);
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      h1 {
+        font-size: 30px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+        margin-bottom: 10px;
+      }
+      .lede {
+        color: var(--muted);
+        font-size: 14.5px;
+        max-width: 76ch;
+      }
+      .metaRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .metaRow span {
+        padding: 4px 10px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font: 500 11.5px var(--mono);
+      }
+      section {
+        margin-bottom: 20px;
+        padding: 24px 26px 26px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+        scroll-margin-top: 24px;
+      }
+      h2 {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-size: 18px;
+        letter-spacing: -0.01em;
+        margin-bottom: 6px;
+      }
+      h2 .num {
+        color: var(--faint);
+        font: 500 12px var(--mono);
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 18px;
+        max-width: 80ch;
+      }
+      h3 {
+        font-size: 13.5px;
+        margin: 22px 0 10px;
+      }
+      h3:first-of-type {
+        margin-top: 4px;
+      }
+      p {
+        margin-bottom: 10px;
+        max-width: 82ch;
+      }
+      code {
+        padding: 1.5px 5px;
+        background: var(--slate-soft);
+        border-radius: 5px;
+        font: 500 12px var(--mono);
+        color: #344054;
+      }
+      .chain {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        margin: 6px 0 4px;
+      }
+      .hop {
+        flex: 1 1 176px;
+        min-width: 168px;
+        padding: 14px 15px;
+        background: var(--white);
+        border: 1px solid var(--line-strong);
+        border-radius: 11px;
+        position: relative;
+      }
+      .hop + .hop {
+        margin-left: 26px;
+      }
+      .hop + .hop::before {
+        content: '';
+        position: absolute;
+        left: -21px;
+        top: 50%;
+        width: 16px;
+        height: 1.5px;
+        background: var(--line-strong);
+      }
+      .hop + .hop::after {
+        content: '';
+        position: absolute;
+        left: -8px;
+        top: 50%;
+        width: 6px;
+        height: 6px;
+        border-top: 1.5px solid var(--line-strong);
+        border-right: 1.5px solid var(--line-strong);
+        transform: translateY(-50%) rotate(45deg);
+      }
+      .hop .rank {
+        font: 600 10px var(--mono);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+      .hop .title {
+        font-size: 14px;
+        font-weight: 650;
+        margin-bottom: 3px;
+      }
+      .hop .host {
+        font: 500 11px var(--mono);
+        color: var(--faint);
+        word-break: break-all;
+        margin-bottom: 9px;
+      }
+      .hop .fact {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .hop .fact b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .hop.g {
+        border-color: #b9e3cb;
+        background: linear-gradient(180deg, var(--green-soft), var(--white) 62%);
+      }
+      .hop.g .rank {
+        color: var(--green);
+      }
+      .hop.m {
+        border-color: #bcd0fb;
+        background: linear-gradient(180deg, var(--blue-soft), var(--white) 62%);
+      }
+      .hop.m .rank {
+        color: var(--blue);
+      }
+      .hop.l {
+        border-color: #d9c8f5;
+        background: linear-gradient(180deg, var(--violet-soft), var(--white) 62%);
+      }
+      .hop.l .rank {
+        color: var(--violet);
+      }
+      .hop.o {
+        background: linear-gradient(180deg, var(--slate-soft), var(--white) 62%);
+      }
+      .hop.o .rank {
+        color: var(--faint);
+      }
+      .layers {
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        margin-top: 4px;
+      }
+      .layer {
+        display: grid;
+        grid-template-columns: 148px minmax(0, 1fr);
+        gap: 16px;
+        padding: 13px 15px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--line-strong);
+        border-radius: 10px;
+      }
+      .layer.new {
+        border-left-color: var(--blue);
+        background: linear-gradient(90deg, var(--blue-soft), var(--white) 34%);
+      }
+      .layer.touch {
+        border-left-color: var(--amber);
+        background: linear-gradient(90deg, var(--amber-soft), var(--white) 34%);
+      }
+      .layer .lname {
+        font: 600 12.5px var(--mono);
+      }
+      .layer .lrole {
+        font-size: 11.5px;
+        color: var(--faint);
+        margin-top: 2px;
+      }
+      .layer .lmods {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        padding: 3px 8px;
+        border-radius: 6px;
+        font: 500 11.5px var(--mono);
+        background: var(--slate-soft);
+        color: #475467;
+        border: 1px solid transparent;
+      }
+      .chip.add {
+        background: var(--blue-soft);
+        color: #2f4bd8;
+        border-color: #cdd9fb;
+      }
+      .chip.edit {
+        background: var(--amber-soft);
+        color: #8a5a12;
+        border-color: #f0dcb4;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+        gap: 10px;
+        margin-top: 6px;
+      }
+      .step {
+        padding: 12px 13px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .step .snum {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 19px;
+        height: 19px;
+        margin-bottom: 7px;
+        background: var(--ink);
+        color: var(--white);
+        border-radius: 6px;
+        font: 600 10.5px var(--mono);
+      }
+      .step .stitle {
+        font-size: 12.5px;
+        font-weight: 650;
+        margin-bottom: 4px;
+      }
+      .step .sbody {
+        font-size: 11.5px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+        margin-top: 4px;
+      }
+      th {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1.5px solid var(--line-strong);
+        color: var(--faint);
+        font: 600 10.5px var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      td {
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      td.mono {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: #344054;
+        word-break: break-all;
+      }
+      .tag {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 5px;
+        font: 600 10px var(--mono);
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+      .tag.new {
+        background: var(--blue-soft);
+        color: #2f4bd8;
+      }
+      .tag.mod {
+        background: var(--amber-soft);
+        color: #8a5a12;
+      }
+      .tag.mv {
+        background: var(--violet-soft);
+        color: #6234b8;
+      }
+      .tag.tst {
+        background: var(--green-soft);
+        color: #0f7a45;
+      }
+      .tag.doc {
+        background: var(--slate-soft);
+        color: #475467;
+      }
+      .callout {
+        margin-top: 16px;
+        padding: 13px 15px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--white);
+        font-size: 12.5px;
+        line-height: 1.65;
+      }
+      .callout.warn {
+        border-color: #f0dcb4;
+        background: var(--amber-soft);
+      }
+      .callout.ok {
+        border-color: #b9e3cb;
+        background: var(--green-soft);
+      }
+      .callout b {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 12px;
+      }
+      pre {
+        margin: 10px 0 0;
+        padding: 13px 15px;
+        background: #101828;
+        color: #e4e7ec;
+        border-radius: 10px;
+        overflow-x: auto;
+        font: 500 11.5px/1.75 var(--mono);
+      }
+      pre .c {
+        color: #7f8ea3;
+      }
+      pre .k {
+        color: #8ab4ff;
+      }
+      pre .s {
+        color: #86e0a8;
+      }
+      pre .w {
+        color: #f5c26b;
+      }
+      ul.plain {
+        margin: 6px 0 0 18px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      ul.plain li {
+        margin-bottom: 5px;
+      }
+      ul.plain b {
+        color: var(--ink);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
+        gap: 12px;
+        margin-top: 4px;
+      }
+      .mini {
+        padding: 13px 15px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .mini h4 {
+        font-size: 12.5px;
+        margin-bottom: 5px;
+      }
+      .mini p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0;
+      }
+      footer {
+        max-width: 1240px;
+        margin: 26px auto 0;
+        padding-left: 266px;
+        color: var(--faint);
+        font-size: 11.5px;
+      }
+      @media (max-width: 940px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+        nav {
+          position: static;
+        }
+        nav a {
+          display: inline-block;
+          margin-right: 6px;
+        }
+        footer {
+          padding-left: 0;
+        }
+        .hop + .hop {
+          margin-left: 0;
+          margin-top: 26px;
+        }
+        .hop + .hop::before {
+          left: 50%;
+          top: -21px;
+          width: 1.5px;
+          height: 16px;
+        }
+        .hop + .hop::after {
+          left: 50%;
+          top: -8px;
+          transform: translateX(-50%) rotate(135deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <nav>
+        <div class="navHead">目录</div>
+        <a href="#s1"><span class="n">01</span>问题与目标</a>
+        <a href="#s2"><span class="n">02</span>回退链</a>
+        <a href="#s3"><span class="n">03</span>分层架构</a>
+        <a href="#s4"><span class="n">04</span>数据流</a>
+        <a href="#s5"><span class="n">05</span>缓存设计</a>
+        <a href="#s6"><span class="n">06</span>遮蔽层</a>
+        <a href="#s7"><span class="n">07</span>渲染点</a>
+        <a href="#s8"><span class="n">08</span>代码改动清单</a>
+        <a href="#s9"><span class="n">09</span>风险与验收</a>
+      </nav>
+      <main>
+        <header class="doc">
+          <div class="kicker">Technical Design · 待实现</div>
+          <h1>通用翻译层</h1>
+          <p class="lede">
+            把当前只覆盖市场套件描述的本地化，扩展为横跨六个面的通用层：市场、技能、快捷指令、专家、MCP、LSP 的
+            <b>名称与描述</b>，跟随宿主语言，开箱即用，翻译一次即缓存。
+          </p>
+          <div class="metaRow">
+            <span>2026-10-04</span>
+            <span>状态 · proposed</span>
+            <span>基线 · dsh 0.2.0-rc.2</span>
+            <span>部分取代 · 2026-10-03 描述本地化</span>
+          </div>
+        </header>
+
+        <section id="s1">
+          <h2><span class="num">01</span>问题与目标</h2>
+          <p class="sub">上游 catalog 是别人仓库的 checkout，每次更新都会刷新，翻译不能写回 manifest。现状只覆盖了套件描述这一条路径。</p>
+          <div class="grid2">
+            <div class="mini">
+              <h4>现状</h4>
+              <p>只有 <code>suite.manifest.description</code> 走本地化。技能、快捷指令、专家、MCP、LSP 的名称与描述全部原样渲染英文。</p>
+            </div>
+            <div class="mini">
+              <h4>目标</h4>
+              <p>六个面的名称与描述都跟随宿主 <code>locale.preference</code>；名称只翻展示，调用标识保持原名。</p>
+            </div>
+            <div class="mini">
+              <h4>硬约束</h4>
+              <p>开箱即用（零注册零配置）、翻译只出现在 UI 层、注入模型上下文的那一份保持英文。</p>
+            </div>
+            <div class="mini">
+              <h4>体量（本机实测）</h4>
+              <p>8,041 条 / 1.19M 字符；去重后 4,775 条唯一文本，省 28%。增量只来自新装或更新的 suite。</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="s2">
+          <h2><span class="num">02</span>回退链</h2>
+          <p class="sub">四级有序回退，任一级失败或超时即降级到下一级，全部失败时静默渲染原文。延迟为本机实测值。</p>
+          <div class="chain">
+            <div class="hop g">
+              <div class="rank">第 1 级 · 优先</div>
+              <div class="title">Google Translate</div>
+              <div class="host">translate-pa.googleapis.com/v1/translateHtml</div>
+              <div class="fact">走系统代理时 <b>暖 0.26s</b> / 冷 1.28s；无代理时 <b>4s+ 超时</b>。<br />3s 超时 + <b>进程级熔断</b>：一次超时后本次会话不再尝试。</div>
+            </div>
+            <div class="hop m">
+              <div class="rank">第 2 级 · 兜底</div>
+              <div class="title">Microsoft Translator</div>
+              <div class="host">edge.microsoft.com/translate/translatetext</div>
+              <div class="fact"><b>零认证、零配置、无需代理</b>，直连 <b>0.38–0.45s</b>。支持数组批量，换行安全。<br />开箱即用的保证由这一级提供。</div>
+            </div>
+            <div class="hop l">
+              <div class="rank">第 3 级 · 质量</div>
+              <div class="title">用户默认模型</div>
+              <div class="host">agentDefaultModel.currentSelection()</div>
+              <div class="fact">质量最高，术语可控。走用户额度，当前部署 <b>402 余额不足</b>。<br />保留为最高质量档，余额恢复后自动参与。</div>
+            </div>
+            <div class="hop o">
+              <div class="rank">第 4 级 · 降级</div>
+              <div class="title">渲染原文</div>
+              <div class="host">upstream text as authored</div>
+              <div class="fact">面板永远可用。<b>静默降级，不弹提示</b>；当前生效的 provider 只在设置页显示。</div>
+            </div>
+          </div>
+          <div class="callout warn">
+            <b>为什么必须熔断</b>
+            无代理网络下 Google 不是快速失败而是挂住 4 秒以上。没有熔断，每次冷启动面板都要先等一次超时；有了熔断，整个会话只付一次代价。
+          </div>
+        </section>
+
+        <section id="s3">
+          <h2><span class="num">03</span>分层架构</h2>
+          <p class="sub">
+            沿用既有边界：<code>contracts</code> 不 import 任何东西，<code>application</code> 不 import <code>runtime</code>，<code>client</code> 不 import
+            服务端层。所有网络效应留在 <code>runtime/host/</code>，通过 port 注入 <code>application</code>。
+          </p>
+          <div class="layers">
+            <div class="layer new">
+              <div>
+                <div class="lname">src/contracts</div>
+                <div class="lrole">不 import 任何模块</div>
+              </div>
+              <div class="lmods"><span class="chip add">translation.ts</span></div>
+            </div>
+            <div class="layer touch">
+              <div>
+                <div class="lname">src/application</div>
+                <div class="lrole">用例 · port · 纯逻辑</div>
+              </div>
+              <div class="lmods">
+                <span class="chip add">translation/unit.ts</span>
+                <span class="chip add">translation/chain.ts</span>
+                <span class="chip add">translation/localizer.ts</span>
+                <span class="chip add">state/translation-cache.ts</span>
+                <span class="chip edit">ports.ts</span>
+                <span class="chip edit">catalog.ts</span>
+                <span class="chip edit">panel-resources.ts</span>
+                <span class="chip edit">mcp-service.ts</span>
+              </div>
+            </div>
+            <div class="layer new">
+              <div>
+                <div class="lname">src/runtime/host</div>
+                <div class="lrole">唯一持有网络效应的一层</div>
+              </div>
+              <div class="lmods">
+                <span class="chip add">machine-translator.ts</span>
+                <span class="chip add">llm-translator.ts</span>
+                <span class="chip add">translation-providers.ts</span>
+                <span class="chip add">text-masking.ts</span>
+              </div>
+            </div>
+            <div class="layer touch">
+              <div>
+                <div class="lname">src/client</div>
+                <div class="lrole">只读缓存结果，不发起翻译</div>
+              </div>
+              <div class="lmods">
+                <span class="chip add">ui/use-translations.ts</span>
+                <span class="chip edit">ui/UserPanelSurface.tsx</span>
+                <span class="chip edit">features/market/SuiteCard.tsx</span>
+                <span class="chip edit">features/market/SuiteDetail.tsx</span>
+                <span class="chip edit">features/mcp/StatusPanel.tsx</span>
+                <span class="chip edit">features/lsp/LspStatusPanel.tsx</span>
+                <span class="chip edit">locales.ts</span>
+              </div>
+            </div>
+          </div>
+          <div class="callout">
+            <b>边界为什么这样切</b>
+            <code>client</code> 不得 import <code>node:*</code> 也不持有缓存，因此浏览器侧不能翻译；翻译结果由服务端算好、随既有 API 一起下发，客户端只负责渲染与轮询。
+          </div>
+        </section>
+
+        <section id="s4">
+          <h2><span class="num">04</span>数据流</h2>
+          <p class="sub">读路径永不等待模型或网络。缓存命中即刻返回，未命中返回原文并计数，客户端轮询到计数归零。</p>
+          <div class="flow">
+            <div class="step">
+              <div class="snum">1</div>
+              <div class="stitle">扫描产出翻译单元</div>
+              <div class="sbody">catalog / panel-resources / mcp-service 各自把可翻字段交给 <code>TranslationUnit</code> 收集器。</div>
+            </div>
+            <div class="step">
+              <div class="snum">2</div>
+              <div class="stitle">同步查缓存</div>
+              <div class="sbody">命中 → 直接返回译文；未命中 → 返回原文 + <code>pending</code>，并把工作入队。</div>
+            </div>
+            <div class="step">
+              <div class="snum">3</div>
+              <div class="stitle">批处理与去重</div>
+              <div class="sbody">跨面共享的文本只入队一次（省 28% 字符）；每批打包 N 条，一次请求。</div>
+            </div>
+            <div class="step">
+              <div class="snum">4</div>
+              <div class="stitle">遮蔽 → 送翻 → 还原</div>
+              <div class="sbody">占位符替换代码块、URL、尖括号标签、包名；按链逐级尝试；还原后再入缓存。</div>
+            </div>
+            <div class="step">
+              <div class="snum">5</div>
+              <div class="stitle">落盘</div>
+              <div class="sbody">按 <code>sourceId</code> 分片写入，带 TTL 与来源标记（哪个 provider 翻的）。</div>
+            </div>
+            <div class="step">
+              <div class="snum">6</div>
+              <div class="stitle">客户端轮询</div>
+              <div class="sbody">1.5s 重读直到 <code>translationPending</code> 归零；出错即停，不无限轮询。</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="s5">
+          <h2><span class="num">05</span>缓存设计</h2>
+          <p class="sub">内容寻址，provider 进 key：换引擎自动 miss 重翻，不需要额外的「可升级」状态；旧条目由 TTL 回收。</p>
+          <pre><span class="c">// key = sha256 的输入，用 NUL 连接避免 id 含分隔符时互相别名</span>
+<span class="k">targetLocale</span> <span class="c">\0</span> <span class="k">surfaceKind</span> <span class="c">\0</span> <span class="k">surfaceId</span> <span class="c">\0</span> <span class="k">role</span> <span class="c">\0</span> <span class="k">sourceText</span> <span class="c">\0</span> <span class="k">providerIdentity</span>
+
+<span class="c">// 落盘记录</span>
+{
+  <span class="s">"text"</span>: <span class="s">"…译文…"</span>,
+  <span class="s">"provider"</span>: <span class="s">"google"</span> | <span class="s">"microsoft"</span> | <span class="s">"llm"</span>,   <span class="c">// 已进 key，此处仅供诊断</span>
+  <span class="s">"at"</span>: <span class="w">1759500000000</span>,
+  <span class="s">"expiresAt"</span>: <span class="w">1759500000000</span>            <span class="c">// TTL = 7 天</span>
+}</pre>
+          <table>
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>决定</th>
+                <th>理由</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">key 组成</td>
+                <td>含 <code>providerIdentity</code></td>
+                <td>换引擎后旧译文质量差，进 key 会自动 miss 重翻，省掉一套版本管理状态。</td>
+              </tr>
+              <tr>
+                <td class="mono">role</td>
+                <td>名称与描述分开</td>
+                <td>同一实体的 name 与 description 是两条独立文本，共用 key 会互相覆盖。</td>
+              </tr>
+              <tr>
+                <td class="mono">TTL</td>
+                <td>7 天 + 24h 定时清理</td>
+                <td>内容寻址 key 只增不减；上游改一次描述就多一条永久垃圾。现状缺这一层。</td>
+              </tr>
+              <tr>
+                <td class="mono">分片</td>
+                <td>按 <code>sourceId</code> 一个文件</td>
+                <td>现状整份原子重写已 243KB；全量约 3MB，单文件重写代价随目录增长。</td>
+              </tr>
+              <tr>
+                <td class="mono">写入时机</td>
+                <td>1.5s 批量 flush</td>
+                <td>沿用现状，避免每条译文一次写盘。</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="s6">
+          <h2><span class="num">06</span>遮蔽层</h2>
+          <p class="sub">两个 MT 引擎都会破坏技术文本：Microsoft 把裸尖括号融进伪标签，Google 会转义并吞掉字面换行。送翻前统一遮蔽，回来后还原。</p>
+          <pre><span class="c">// 遮蔽顺序即还原的逆序；占位符用引擎不会改写的形态</span>
+行内代码        →  <span class="s">⟦C1⟧</span>
+尖括号标签      →  <span class="s">⟦T1⟧</span>
+URL             →  <span class="s">⟦U1⟧</span>
+路径变量        →  <span class="s">⟦V1⟧</span>
+MCP / LSP / DSH →  <span class="s">⟦K1⟧</span>   <span class="c">// 术语表，防止被意译</span>
+
+<span class="c">// 还原后校验：占位符数量必须一致，否则本次结果作废、不入缓存</span></pre>
+          <div class="callout ok">
+            <b>与术语表是同一层</b>
+            遮蔽同时解决三件事：防止标签腐蚀、保护代码与路径、固定术语译法。一次实现，三个收益。
+          </div>
+        </section>
+
+        <section id="s7">
+          <h2><span class="num">07</span>渲染点</h2>
+          <p class="sub">六个面，全部在客户端。注入模型上下文的那一份（system prompt / 工具描述）保持英文，不经过本层。</p>
+          <table>
+            <thead>
+              <tr>
+                <th>面</th>
+                <th class="mono">组件</th>
+                <th>名称</th>
+                <th>描述</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>市场</td>
+                <td class="mono">features/market/SuiteCard.tsx · SuiteDetail.tsx</td>
+                <td>新增</td>
+                <td>已有（沿用）</td>
+              </tr>
+              <tr>
+                <td>技能</td>
+                <td class="mono">ui/UserPanelSurface.tsx · kind=skills</td>
+                <td>新增</td>
+                <td>新增</td>
+              </tr>
+              <tr>
+                <td>快捷指令</td>
+                <td class="mono">ui/UserPanelSurface.tsx · kind=commands</td>
+                <td>新增</td>
+                <td>新增</td>
+              </tr>
+              <tr>
+                <td>专家</td>
+                <td class="mono">ui/UserPanelSurface.tsx · kind=agents</td>
+                <td>新增</td>
+                <td>新增</td>
+              </tr>
+              <tr>
+                <td>MCP</td>
+                <td class="mono">features/mcp/StatusPanel.tsx</td>
+                <td>新增</td>
+                <td>新增</td>
+              </tr>
+              <tr>
+                <td>LSP</td>
+                <td class="mono">features/lsp/LspStatusPanel.tsx</td>
+                <td>新增</td>
+                <td>新增</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            <b>名称是调用标识</b>
+            搜索、排序、复制、斜杠调用一律用原名；译文只出现在标题与卡片主行。卡片保留 <code>title</code> 属性指向原文，hover 可见。<code>UserPanelSurface</code> 一个组件覆盖技能 /
+            快捷指令 / 专家三面，三面一次改完。
+          </div>
+        </section>
+
+        <section id="s8">
+          <h2><span class="num">08</span>代码改动清单</h2>
+          <p class="sub">共 9 个新增源文件、16 个修改、4 个迁移；测试与文档另列。路径相对于仓库根。</p>
+
+          <h3>新增 · 源文件</h3>
+          <table>
+            <thead>
+              <tr>
+                <th class="mono">路径</th>
+                <th>层</th>
+                <th>职责</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">src/contracts/translation.ts <span class="tag new">新增</span></td>
+                <td>contracts</td>
+                <td>翻译状态的 wire 形状与路由常量；<code>TranslationSurfaceKind</code> 枚举。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/translation/unit.ts <span class="tag new">新增</span></td>
+                <td>application</td>
+                <td><code>TranslationUnit</code> 记录（面、id、role、文本）与跨面收集器。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/translation/chain.ts <span class="tag new">新增</span></td>
+                <td>application</td>
+                <td>有序 provider 链、逐级回退、超时与熔断策略（纯函数，可测）。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/translation/localizer.ts <span class="tag mv">迁移</span></td>
+                <td>application</td>
+                <td>由 <code>description-localizer.ts</code> 泛化：批处理、跨面去重、并发上限、退避。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/state/translation-cache.ts <span class="tag mv">迁移</span></td>
+                <td>application</td>
+                <td>由 <code>description-translations.ts</code> 泛化：provider 进 key、TTL、按 sourceId 分片、旧文件迁移。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/runtime/host/machine-translator.ts <span class="tag new">新增</span></td>
+                <td>runtime</td>
+                <td>Google 与 Microsoft 两个 HTTP 适配器；唯一发起 MT 网络请求的地方。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/runtime/host/llm-translator.ts <span class="tag mv">迁移</span></td>
+                <td>runtime</td>
+                <td>由 <code>description-translator.ts</code> 泛化：接口从「描述」放宽到「任意文本 + role」。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/runtime/host/translation-providers.ts <span class="tag new">新增</span></td>
+                <td>runtime</td>
+                <td>组装 Google → Microsoft → 模型 链；读取设置与宿主 locale。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/runtime/host/text-masking.ts <span class="tag new">新增</span></td>
+                <td>runtime</td>
+                <td>占位符遮蔽与还原、还原后完整性校验、术语表。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/ui/use-translations.ts <span class="tag new">新增</span></td>
+                <td>client</td>
+                <td>客户端译文读取与轮询 hook；只消费服务端已算好的结果。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>修改 · 源文件</h3>
+          <table>
+            <thead>
+              <tr>
+                <th class="mono">路径</th>
+                <th>改动</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">src/application/ports.ts <span class="tag mod">修改</span></td>
+                <td><code>descriptionTranslator</code> 单值 → <code>translationProviders</code> 有序数组 + <code>translationSettings</code>。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/catalog.ts <span class="tag mod">修改</span></td>
+                <td><code>localizeDescription</code> → <code>localizeUnits</code>；<code>overview()</code> 与 <code>suiteDetail()</code> 输出名称与描述两路译文。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/panel-resources.ts <span class="tag mod">修改</span></td>
+                <td>为 skills / commands / agents 三类条目产出翻译单元；<code>list()</code> 返回值带上译文。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/mcp-service.ts <span class="tag mod">修改</span></td>
+                <td>MCP 行名称与描述进单元；状态聚合带上译文。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/lsp/status.ts <span class="tag mod">修改</span></td>
+                <td>LSP 行 <code>serverKey</code> 与描述进单元。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/contracts/market.ts <span class="tag mod">修改</span></td>
+                <td><code>descriptionPending</code> → <code>translationPending</code>；卡片与面板条目加 <code>translatedName</code> / <code>translatedDescription</code>。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/contracts/mcp-status.ts <span class="tag mod">修改</span></td>
+                <td><code>McpStatusEntry</code> 加译文字段。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/contracts/lsp-status.ts <span class="tag mod">修改</span></td>
+                <td><code>LspStatusEntry</code> 加译文字段。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/index.ts <span class="tag mod">修改</span></td>
+                <td>组合根接线：构建 provider 链、注入 port、挂载设置字段、启动 TTL 清理定时器。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/runtime/host/settings-namespace.ts <span class="tag mod">修改</span></td>
+                <td>新增设置字段：翻译开关、provider 优先级覆盖、TTL。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/ui/UserPanelSurface.tsx <span class="tag mod">修改</span></td>
+                <td>三面的名称与描述渲染改用译文；搜索仍走原名。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/features/market/SuiteCard.tsx <span class="tag mod">修改</span></td>
+                <td>套件名称渲染改用译文，保留原文 tooltip。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/features/market/SuiteDetail.tsx <span class="tag mod">修改</span></td>
+                <td>详情弹窗标题与描述改用译文。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/features/mcp/StatusPanel.tsx <span class="tag mod">修改</span></td>
+                <td>卡片主行名称与详情描述改用译文。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/features/lsp/LspStatusPanel.tsx <span class="tag mod">修改</span></td>
+                <td>同上。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/locales.ts <span class="tag mod">修改</span></td>
+                <td>新增设置页与状态文案的中英双语键。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>迁移与删除</h3>
+          <table>
+            <thead>
+              <tr>
+                <th class="mono">路径</th>
+                <th>处理</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">src/application/description-localizer.ts <span class="tag mv">迁移</span></td>
+                <td>移入 <code>translation/localizer.ts</code>，保留全部既有性质（同步返回、静默降级、退避）。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/application/state/description-translations.ts <span class="tag mv">迁移</span></td>
+                <td>移入 <code>state/translation-cache.ts</code>；旧文件按内容哈希重新索引，首次加载时迁移。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/runtime/host/description-translator.ts <span class="tag mv">迁移</span></td>
+                <td>移入 <code>llm-translator.ts</code>；调用形状（route / effort / BlockAssembler）不变。</td>
+              </tr>
+              <tr>
+                <td class="mono">src/client/features/market/bilingual-description.ts <span class="tag mv">迁移</span></td>
+                <td>上移为 <code>src/client/ui/bilingual-text.ts</code>，供六个面共用。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>测试</h3>
+          <table>
+            <thead>
+              <tr>
+                <th class="mono">路径</th>
+                <th>覆盖</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">tests/translation-chain.test.ts <span class="tag tst">新增</span></td>
+                <td>逐级回退顺序、超时触发降级、熔断后不再尝试 Google、全失败落到原文。</td>
+              </tr>
+              <tr>
+                <td class="mono">tests/machine-translator.test.ts <span class="tag tst">新增</span></td>
+                <td>两个适配器的请求形状与响应解析；非 2xx、畸形载荷、空结果。</td>
+              </tr>
+              <tr>
+                <td class="mono">tests/text-masking.test.ts <span class="tag tst">新增</span></td>
+                <td>遮蔽/还原往返、占位符数量校验失败即作废、术语保真。</td>
+              </tr>
+              <tr>
+                <td class="mono">tests/translation-cache.test.ts <span class="tag tst">新增</span></td>
+                <td>provider 进 key、TTL 过期、分片读写、旧文件迁移、损坏文件降级为空缓存。</td>
+              </tr>
+              <tr>
+                <td class="mono">tests/translation-units.test.ts <span class="tag tst">新增</span></td>
+                <td>六个面各自产出正确的单元；跨面重复文本只入队一次。</td>
+              </tr>
+              <tr>
+                <td class="mono">tests/description-localizer.test.ts <span class="tag mod">扩展</span></td>
+                <td>沿用既有断言（key 稳定、并发上限、退避、静默降级），补批处理与去重。</td>
+              </tr>
+              <tr>
+                <td class="mono">tests/client-description-refresh.test.ts <span class="tag mod">扩展</span></td>
+                <td>轮询到 pending 归零即停、出错即停、卸载即停。</td>
+              </tr>
+              <tr>
+                <td class="mono">其余 4 个既有测试 <span class="tag mod">跟进</span></td>
+                <td>bilingual-description / real-case / translator / translator-seam / translator-host-surface 随模块迁移更新导入路径。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>文档</h3>
+          <table>
+            <thead>
+              <tr>
+                <th class="mono">路径</th>
+                <th>内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">docs/developer/decisions/2026-10-04-universal-translation-layer.md <span class="tag doc">新增</span></td>
+                <td>ADR：分层可降级、provider 进 key、只翻 UI 层三条决策与替代方案。</td>
+              </tr>
+              <tr>
+                <td class="mono">.agents/notes/proposed/feature/2026-10-04-universal-translation-layer.md + .zh.md <span class="tag doc">新增</span></td>
+                <td>Agent Note 双语对；实现完成后移入 <code>implemented/</code> 并按该骨架重写。</td>
+              </tr>
+              <tr>
+                <td class="mono">.agents/notes/implemented/feature/2026-10-03-description-localization.md + .zh.md <span class="tag doc">修改</span></td>
+                <td>部分取代：交叉链接到新 note，更新「名称与其余面未翻译」这一段事实。</td>
+              </tr>
+              <tr>
+                <td class="mono">README.md / README.zh.md · docs/user/usage.md / .zh.md <span class="tag doc">修改</span></td>
+                <td>说明翻译层行为、生效的 provider、如何关闭。</td>
+              </tr>
+              <tr>
+                <td class="mono">CONTEXT.md <span class="tag doc">修改</span></td>
+                <td>加入 <code>Translation unit</code> 与 <code>Translation provider</code> 两个领域词。</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="s9">
+          <h2><span class="num">09</span>风险与验收</h2>
+          <div class="grid2">
+            <div class="mini">
+              <h4>公开 key 被吊销</h4>
+              <p>Google 级静默降级到 Microsoft，用户无感。设置页显示当前生效的 provider，不做打扰式提示。</p>
+            </div>
+            <div class="mini">
+              <h4>MT 质量低于模型</h4>
+              <p>技术术语保真度明显更差。遮蔽层缓解；模型级保留为最高质量档。</p>
+            </div>
+            <div class="mini">
+              <h4>无代理网络的首次代价</h4>
+              <p>每个会话一次 3s 超时。熔断后不再重试；Microsoft 级 0.4s 立即接管。</p>
+            </div>
+            <div class="mini">
+              <h4>缓存体积</h4>
+              <p>全量约 3MB，按 sourceId 分片 + 7 天 TTL；条目数不再单调增长。</p>
+            </div>
+          </div>
+          <h3>验收标准</h3>
+          <ul class="plain">
+            <li><b>开箱即用</b>：全新安装、无代理、无模型配置时，六个面在首次打开后一次刷新内显示中文。</li>
+            <li><b>降级可见</b>：断开网络时面板与改动前完全一致，渲染原文，无错误提示、无卡顿。</li>
+            <li><b>只翻一次</b>：重启进程后二次打开零请求；同一文本跨面只翻译一次。</li>
+            <li><b>标识不变</b>：搜索、复制、斜杠调用全部命中原名。</li>
+            <li><b>上下文不受影响</b>：注入模型的 system prompt 与工具描述仍为英文（既有测试断言）。</li>
+            <li><b>门禁</b>：<code>pnpm run check:refactor</code> 与全量 <code>pnpm run test</code> 绿。</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+    <footer>通用翻译层 · 技术设计 · 2026-10-04 · 本文档为实现前的设计记录，非现状描述</footer>
+  </body>
+</html>

@@ -66,6 +66,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 - **Background source updates.** Optionally refresh every configured source on a timer; off by default.
 - **Web workspace.** Six tabs — Market, Skills, Commands, Agent personas, MCP services and LSP servers — each with search, filters and a grid/list toggle, plus status panels with diagnostics, credential editing, and an install confirmation that warns before executable third-party content is enabled.
 - **Bilingual interface and feedback.** Workspace strings and injected prompts follow the host language. With feedback enabled, the model can file a `report_market_issue` report through the `gh` CLI or a GitHub token; with neither, it opens a prefilled GitHub issue page and hands you the complete issue text.
+- **Translation.** Names and descriptions across the six tabs follow the host language: Google Translate first, then Microsoft Translator, then your own default model, and the upstream text when none of them answers. Results are cached for seven days, and the whole layer can be switched off in the plugin settings. A translated name is display-only — search, copying and `/` invocation still use the original.
 
 ## Quick start
 
