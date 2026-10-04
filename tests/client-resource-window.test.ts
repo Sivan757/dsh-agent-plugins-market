@@ -141,10 +141,13 @@ describe('ResourceWindow', () => {
     expect(favoritesRow).not.toBeNull()
     expect(favoritesRow!.querySelector('[aria-label="resourceWindowSaveFavorite"]')).not.toBeNull()
     expect(document.querySelector('[aria-label="resourceWindowRefresh"]')).toBeNull()
-    // Favorite chips: follow-global (inactive here), the saved one (active), cross note.
+    // The favorites strip rides the market's source strip: the follow-global
+    // state pill, the saved favorite as a strip chip, the save button.
     expect(document.body.textContent).toContain('resourceWindowFollowGlobal')
-    expect(document.body.textContent).toContain('前端开发')
-    expect(document.body.textContent).toContain('resourceWindowFavoriteCrossNote')
+    expect(favoritesRow!.querySelector('[class*="sourceTabsBox"]')).not.toBeNull()
+    const chipMain = favoritesRow!.querySelector<HTMLButtonElement>('button[class*="srcTabMain"]')
+    expect(chipMain).not.toBeNull()
+    expect(chipMain!.textContent).toContain('前端开发')
     // Six plain face tabs: the face word only, the market face renamed.
     const tabs = faceTabs()
     expect(tabs).toHaveLength(6)
@@ -203,7 +206,10 @@ describe('ResourceWindow', () => {
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('grid')
     await act(async () => toggle.click())
     expect(document.querySelector('[data-resource-view]')!.getAttribute('data-resource-view')).toBe('list')
-    expect(document.querySelector('[aria-pressed="true"][aria-label="resourceWindowViewCard"]')).not.toBeNull()
+    // The view switch is the shared toolbar's flat icon button now: pressed
+    // reports the mode in force (list mode is the unpressed state), and the
+    // accessible name says where a click leads.
+    expect(document.querySelector('[aria-pressed="false"][aria-label="resourceWindowViewCard"]')).not.toBeNull()
     // The list keeps the search: switching views must not clear the query.
     const search = document.querySelector('input[aria-label="resourceWindowSearchPh"]') as HTMLInputElement
     await act(async () => {
@@ -238,18 +244,21 @@ describe('ResourceWindow', () => {
 
   it('detaches the follow-global state when a manual flip deviates from the favorite', async () => {
     await mount()
-    // Favorite fav-1 is applied, so the follow-global chip is NOT the active
-    // pill here. Pill carries the exact `active` class token when active (a
-    // static Pill renders a span, an interactive one a button).
-    // The favorite chip embeds its delete button, so match by prefix.
+    // Favorite fav-1 is applied, so the follow-global pill is NOT active here.
+    // Pill carries the exact `active` class token when active (a static Pill
+    // renders a span, an interactive one a button); the favorite reads as the
+    // selected strip chip (`srcTabOn`).
     const chip = (name: string) => [...document.querySelectorAll('[class*="pill"]')].find(node => (node.textContent ?? '').startsWith(name))
+    const favoriteChip = [...document.querySelectorAll('[class*="srcTab"]')].find(node => (node.textContent ?? '').startsWith('前端开发'))
+    expect(favoriteChip).toBeDefined()
     // Vitest serves CSS modules as hashed class names (_active_<hash>), so the
     // active state reads through a token-boundary match on the class attribute.
     const isActive = (node: Element | undefined): boolean => {
       if (node === undefined) return false
       return node.className.split(/\s+/).some(token => /(^|[^a-z])active($|[^a-z])/.test(token))
     }
-    expect(isActive(chip('前端开发'))).toBe(true)
+    const isSelected = (node: Element | undefined): boolean => node !== undefined && node.className.includes('srcTabOn')
+    expect(isSelected(favoriteChip)).toBe(true)
     expect(isActive(chip('resourceWindowFollowGlobal'))).toBe(false)
     // One manual card flip: the refreshed window carries activeFavoriteId null.
     fetchState.deviated = true
@@ -259,15 +268,30 @@ describe('ResourceWindow', () => {
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The deviation detaches the favorite: follow-global becomes the active state.
+    // The deviation detaches the favorite: follow-global becomes the active
+    // state and the favorite chip drops its selected fill.
     expect(isActive(chip('resourceWindowFollowGlobal'))).toBe(true)
-    expect(isActive(chip('前端开发'))).toBe(false)
+    expect(isSelected([...document.querySelectorAll('[class*="srcTab"]')].find(node => (node.textContent ?? '').startsWith('前端开发')))).toBe(false)
   })
 
-  it('applies a favorite through its chip and reports a toast', async () => {
+  it('keeps the follow-global pill a non-actionable span while the strip chips stay buttons', async () => {
     await mount()
-    const chips = [...document.querySelectorAll('button')] as HTMLButtonElement[]
-    const favoriteChip = chips.find(chip => chip.textContent?.includes('前端开发'))
+    // The follow-global chip is a state indicator: a static Pill renders a
+    // span, so it never gains button semantics.
+    const follow = [...document.querySelectorAll('[class*="pill"]')].find(node => (node.textContent ?? '') === 'resourceWindowFollowGlobal')
+    expect(follow).toBeDefined()
+    expect(follow!.tagName).toBe('SPAN')
+    expect(follow!.querySelector('button')).toBeNull()
+    // The favorites strip renders every favorite as a clickable strip chip.
+    const chipButtons = [...document.querySelectorAll('button[class*="srcTabMain"]')]
+    expect(chipButtons).toHaveLength(1)
+    expect(chipButtons[0]!.textContent).toContain('前端开发')
+  })
+
+  it('applies a favorite through its strip chip and reports a toast', async () => {
+    await mount()
+    // The strip chip's main button carries the favorite's name.
+    const favoriteChip = [...document.querySelectorAll<HTMLButtonElement>('button[class*="srcTabMain"]')].find(chip => chip.textContent?.includes('前端开发'))
     expect(favoriteChip).toBeDefined()
     await act(async () => favoriteChip!.click())
     const applyCall = fetchState.calls.find(call => call.url.endsWith('/favorites/apply'))
@@ -294,8 +318,11 @@ describe('ResourceWindow', () => {
 
   it('deletes a favorite from its chip without applying it', async () => {
     await mount()
-    const del = document.querySelector<HTMLButtonElement>('[aria-label^="resourceWindowDeleteFavorite"]')
+    // The strip chip's trailing delete control is a real button whose aria
+    // name rides the resource window's own delete wording.
+    const del = document.querySelector<HTMLButtonElement>('button[class*="srcTabDel"][aria-label^="resourceWindowDeleteFavorite"]')
     expect(del).not.toBeNull()
+    expect(del!.title).toBe('resourceWindowDeleteFavorite')
     await act(async () => del!.click())
     const deleteCall = fetchState.calls.find(call => call.url.endsWith('/favorites/delete'))
     expect(deleteCall?.body).toMatchObject({ id: 'fav-1' })

@@ -1,7 +1,7 @@
 /** A source tab with trailing edit and delete controls. */
 import { createElement as h, type ReactNode } from 'react'
-import type { Translate } from '../../index.js'
-import css from './market.module.css'
+import type { Translate } from '../index.js'
+import css from './source-strip.module.css'
 
 export interface SourceTabProps {
   t: Translate
@@ -12,11 +12,15 @@ export interface SourceTabProps {
   onSelect: () => void
   onDelete?: () => void
   onEdit?: () => void
+  /** Accessible name for the delete control; callers whose domain names
+   * deletion differently pass their own (the market keeps the shared
+   * remove label). */
+  deleteTitle?: string
 }
 
 /** A source chip with a trailing delete control (deletion confirms at the section level). */
 export function SourceTab(props: SourceTabProps): ReactNode {
-  const { t, active = false, label, title, onSelect, onDelete, onEdit } = props
+  const { t, active = false, label, title, onSelect, onDelete, onEdit, deleteTitle } = props
   return h(
     'div',
     { className: active ? css.srcTabOn : css.srcTab, title },
@@ -48,7 +52,8 @@ export function SourceTab(props: SourceTabProps): ReactNode {
                 {
                   type: 'button',
                   className: css.srcTabDel,
-                  title: t('remove'),
+                  title: deleteTitle ?? t('remove'),
+                  ...(deleteTitle === undefined ? {} : { 'aria-label': deleteTitle }),
                   onClick: (event: { stopPropagation(): void }) => {
                     event.stopPropagation()
                     onDelete()

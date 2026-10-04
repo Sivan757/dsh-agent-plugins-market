@@ -3,21 +3,24 @@
  *
  * One Modal over the six switchable surfaces, listing only what this workspace
  * has installed. Every control is a host or shared primitive — the tab row,
- * the shared SearchFilterToolbar, the favorite chips, the toasts — and the
- * rows ride the shared ResourceCard anatomy (identity, body, foot), the same
- * chrome the market and MCP cards use, with the card itself acting as the
- * entry toggle (a role=button carrying aria-pressed). Switching tabs never
- * closes the window; flipping an entry reconciles through the same chain the
- * composer switches use, so the row state is live, not cosmetic.
+ * the shared SearchFilterToolbar, the favorites riding the market's source
+ * strip (ui/SourceTabsRow), the toasts — and the rows ride the shared
+ * ResourceCard anatomy (identity, body, foot), the same chrome the market and
+ * MCP cards use, with the card itself acting as the entry toggle (a
+ * role=button carrying aria-pressed). Switching tabs never closes the window;
+ * flipping an entry reconciles through the same chain the composer switches
+ * use, so the row state is live, not cosmetic.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, IconPinFillMedium, Input, Modal, Pill, SegmentedTabs, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Modal, Pill, SegmentedTabs, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SegmentedTab } from '@deepseek-ai/dsh-client-ui-primitives'
 import { RESOURCE_FACE_ORDER, type ResourceEntryWire, type ResourceFace } from '../../../contracts/resource-window.js'
 import { applyResourceFavorite, deleteResourceFavorite, fetchResourceWindow, saveResourceFavorite, setResourceEntry } from './resource-window-resource.js'
 import type { ResourceWindowData } from './resource-window-resource.js'
 import type { ResourceLocaleKey } from '../../locales-resources.js'
+import type { Translate } from '../../index.js'
 import { interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
+import { SourceTabsRow, type SourceTabItem } from '../../ui/SourceTabsRow.js'
 import { SearchFilterToolbar, type SearchFilterToolbarView } from '../../ui/SearchFilterToolbar.js'
 import panelCss from '../../ui/panel.module.css'
 import rc from '../../ui/resource-card.module.css'
@@ -132,6 +135,34 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
 
   const followGlobal = data?.activeFavoriteId == null
 
+  // The favorites strip reuses the market's collapsible chip strip: every
+  // saved favorite is a chip that applies on click and carries a trailing
+  // delete control; the active favorite reads as the selected chip. While the
+  // window follows global no chip is active — the follow-global Pill on the
+  // left is the state indicator, and it stays a non-actionable span.
+  const favoriteItems = useMemo<SourceTabItem[]>(
+    () => (data?.favorites ?? []).map(favorite => ({ id: favorite.id, label: favorite.name, deletable: true })),
+    [data?.favorites]
+  )
+  const selectFavorite = useCallback(
+    (id: string) => {
+      void mutate(() => applyResourceFavorite(id)).then(() => {
+        const favorite = data?.favorites.find(entry => entry.id === id)
+        if (favorite !== undefined) flash(t('resourceWindowApplyFavoriteDone', { name: favorite.name }))
+      })
+    },
+    [mutate, data?.favorites, t, flash]
+  )
+  const deleteFavorite = useCallback(
+    (id: string) => {
+      void mutate(() => deleteResourceFavorite(id)).then(() => {
+        const favorite = data?.favorites.find(entry => entry.id === id)
+        if (favorite !== undefined) flash(t('resourceWindowDeleteFavoriteDone', { name: favorite.name }))
+      })
+    },
+    [mutate, data?.favorites, t, flash]
+  )
+
   // The filter tablist names this region, and the host derives the active
   // tab's aria-controls from the same base, so the reference always resolves.
   const panelProps = {
@@ -156,57 +187,26 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
       className: css.window,
       contentClassName: css.content
     },
-    // Favorites row: follow-global chip and the saved favorites (deletable).
+    // Favorites row: the follow-global Pill as the state indicator, the
+    // favorites riding the market's collapsible source strip, and the save
+    // button at the tail.
     h(
       'div',
       { className: css.favoritesRow },
-      h('span', { className: css.favoritesLabel }, t('resourceWindowFavoritesLabel')),
       // Follow-global is the state indicator, not an action: the workspace
       // always holds concrete state, so the chip renders without a click path.
       h(Pill, { active: followGlobal, title: t('resourceWindowFollowGlobal') }, t('resourceWindowFollowGlobal')),
-      ...(data?.favorites ?? []).map(favorite =>
-        h(
-          Pill,
-          {
-            key: favorite.id,
-            active: data?.activeFavoriteId === favorite.id,
-            disabled: busy,
-            title: favorite.name,
-            onClick: () => {
-              void mutate(() => applyResourceFavorite(favorite.id)).then(() => flash(t('resourceWindowApplyFavoriteDone', { name: favorite.name })))
-            }
-          },
-          favorite.name,
-          // The delete affordance rides inside the chip the way the
-          // prototype's .pchip .del does: a span, because a button inside the
-          // chip's own button is invalid nesting. Keyboard parity comes from
-          // role="button" plus Enter/Space handling.
-          h(
-            'span',
-            {
-              role: 'button',
-              tabIndex: 0,
-              className: css.favoriteDelete,
-              title: t('resourceWindowDeleteFavorite'),
-              'aria-label': t('resourceWindowDeleteFavorite') + ' ' + favorite.name,
-              onClick: (event: { stopPropagation(): void }) => {
-                event.stopPropagation()
-                void mutate(() => deleteResourceFavorite(favorite.id)).then(() => flash(t('resourceWindowDeleteFavoriteDone', { name: favorite.name })))
-              },
-              onKeyDown: (event: { key: string; stopPropagation(): void; preventDefault(): void }) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                event.preventDefault()
-                event.stopPropagation()
-                void mutate(() => deleteResourceFavorite(favorite.id)).then(() => flash(t('resourceWindowDeleteFavoriteDone', { name: favorite.name })))
-              }
-            },
-            '✕'
-          )
-        )
-      ),
-      // The cross-project note hugs the save button at the row's tail: the
-      // button carries the auto margin the note used to hold, so both stay
-      // flush right while the chips flow left.
+      h(SourceTabsRow, {
+        // The strip is shared with the market section, whose translator takes
+        // the full locale union; the window's t covers the keys the strip
+        // renders, so the widening is a property of the shared component.
+        t: t as unknown as Translate,
+        items: favoriteItems,
+        activeId: data?.activeFavoriteId ?? '',
+        onSelect: selectFavorite,
+        onDelete: deleteFavorite,
+        deleteTitle: t('resourceWindowDeleteFavorite')
+      }),
       h(
         'button',
         {
@@ -217,9 +217,8 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
           disabled: busy,
           onClick: openNaming
         },
-        h(IconPinFillMedium)
-      ),
-      h('span', { className: css.favoritesNote }, t('resourceWindowFavoriteCrossNote'))
+        h(SaveGlyph)
+      )
     ),
     // Six face tabs; switching never closes the window (Modal stays open above).
     h(SegmentedTabs<ResourceFace>, {
@@ -308,6 +307,30 @@ export function ResourceWindow({ t, open, onClose }: ResourceWindowProps): React
         })
       : null,
     toast === undefined ? null : h(Toast, { key: toast.key, text: toast.message, tone: 'success', onDone: () => setToast(undefined) })
+  )
+}
+
+/**
+ * The save-favorite glyph: a hollow bookmark outline. The host icon set has no
+ * bookmark or save glyph, so it stays drawn here in the platform's outline
+ * paint — the same 16-grid, currentColor, medium-weight stroke the shared
+ * toolbar's view glyphs use.
+ */
+function SaveGlyph(): ReactNode {
+  return h(
+    'svg',
+    {
+      width: 16,
+      height: 16,
+      viewBox: '0 0 16 16',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      strokeWidth: 1.3,
+      'aria-hidden': true
+    },
+    h('path', { d: 'M4.5 2.5h7a.5.5 0 01.5.5v10.2l-4-2.3-4 2.3V3a.5.5 0 01.5-.5z' })
   )
 }
 

@@ -13,8 +13,8 @@
  */
 import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type ReactNode } from 'react'
 import { SourceTab } from './SourceTab.js'
-import type { Translate } from '../../index.js'
-import css from './market.module.css'
+import type { Translate } from '../index.js'
+import css from './source-strip.module.css'
 
 /** Rows kept visible while folded. */
 const COLLAPSED_ROWS = 2
@@ -53,7 +53,12 @@ export interface SourceTabsRowProps {
   activeId: string
   onSelect: (id: string) => void
   onDelete: (id: string) => void
-  onEdit: (id: string) => void
+  /** Chip edit control; the strip is shared, and callers without an edit
+   * affordance (the resource window's favorites) omit it. */
+  onEdit?: (id: string) => void
+  /** Accessible name for every chip's delete control; callers whose domain
+   * names deletion differently pass their own. */
+  deleteTitle?: string
 }
 
 /**
@@ -63,7 +68,7 @@ export interface SourceTabsRowProps {
  * @returns An equal-width pill grid that unfolds as an overlay.
  */
 export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
-  const { t, items, activeId, onSelect, onDelete, onEdit } = props
+  const { t, items, activeId, onSelect, onDelete, onEdit, deleteTitle } = props
   const gridRef = useRef<HTMLDivElement>(null)
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [folded, setFolded] = useState(false)
@@ -134,7 +139,8 @@ export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
             onSelect(item.id)
           },
           onDelete: item.deletable === true ? () => onDelete(item.id) : undefined,
-          onEdit: item.editable === true ? () => onEdit(item.id) : undefined
+          onEdit: item.editable === true && onEdit !== undefined ? () => onEdit(item.id) : undefined,
+          deleteTitle
         })
       )
     )

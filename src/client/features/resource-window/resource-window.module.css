@@ -91,12 +91,15 @@
   flex-direction: column;
 }
 
+/* The row pairs the follow-global Pill with the favorites strip and the tail
+   save button. The strip's folded box is flex:none and taller than the pill,
+   so the row aligns at the top edge; when the strip unfolds on hover the row
+   grows with it. */
 .favoritesRow {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
   flex-wrap: wrap;
-  min-height: 26px;
   padding: 0 0 10px;
 }
 
@@ -114,42 +117,10 @@
   padding: 6px 0 12px;
 }
 
-/* The save-favorite button rides the shared iconBtn anatomy; this only
-   pushes it and the cross-project note after it to the row's tail. */
+/* The save-favorite button rides the shared iconBtn anatomy; the auto margin
+   keeps it flush right while the strip folds and the pill wraps. */
 .favoritesSave {
   margin-left: auto;
-}
-
-.favoritesLabel {
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary);
-  margin-right: 2px;
-}
-
-.favoritesNote {
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.favoriteDelete {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border: none;
-  border-radius: 999px;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  font-size: 10px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.favoriteDelete:hover {
-  background: var(--dsw-alias-interactive-bg-active);
-  color: var(--dsw-alias-label-primary);
 }
 
 /* The toolbar row, the counts, and the empty state ride the shared

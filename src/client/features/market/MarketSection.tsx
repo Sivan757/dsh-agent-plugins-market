@@ -11,7 +11,7 @@ import { Button, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-
 import { postAction, type OverviewData, type SuiteCardData } from '../../api.js'
 import { loadOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from '../../features/market/market-resource.js'
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from '../../features/market/market-view-model.js'
-import { SourceTabsRow, type SourceTabItem } from '../../features/market/SourceTabsRow.js'
+import { SourceTabsRow, type SourceTabItem } from '../../ui/SourceTabsRow.js'
 import { SourceEditorModal, type EditorState } from '../../features/market/SourceEditorModal.js'
 import { InstallConfirmModal, type InstallConfirmState } from '../../features/market/InstallConfirmModal.js'
 import { SuiteCard } from '../../features/market/SuiteCard.js'
@@ -19,6 +19,7 @@ import type { Translate } from '../../index.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
+import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { BusyIndicator } from '../../ui/panel.js'
 import css from './market.module.css'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
@@ -79,6 +80,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   // uninstall actions the card does.
   const [detail, setDetail] = useState<SuiteCardData | undefined>(undefined)
   const [progress, setProgress] = useState<SourceProgressState>({ step: undefined, error: undefined })
+  // One reading mode for the whole market page: the switch lives here, so the
+  // cards, the detail dialog, and both header rows flip together.
+  const [showOriginal, setShowOriginal] = useState(false)
   // The irreversible uninstall is gated behind the host's risk acknowledgement.
   const [uninstallAck, setUninstallAck] = useState(false)
 
@@ -193,7 +197,11 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       h(
         'div',
         { className: css.header },
-        h(PanelHeader, { title: t('nav'), actions: h(PanelActions, { addLabel: t('addSource'), onAdd: () => setEditor({ mode: 'add' }), refreshLabel: t('refreshAll'), onRefresh: () => { void action('s:refresh:all', 'sources/refresh', {}) }, busy: busy !== undefined }) }),
+        h(PanelHeader, {
+          title: t('nav'),
+          leading: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
+          actions: h(PanelActions, { addLabel: t('addSource'), onAdd: () => setEditor({ mode: 'add' }), refreshLabel: t('refreshAll'), onRefresh: () => { void action('s:refresh:all', 'sources/refresh', {}) }, busy: busy !== undefined })
+        }),
         h(
           'div',
           { className: css.marketControls },
@@ -287,6 +295,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   t,
                   suite,
                   busy: busy !== undefined,
+                  showOriginal,
                   onOpen: () => setDetail(suite),
                   onInstall: () => {
                     const source = overview.sources.find(entry => entry.id === suite.sourceId)
@@ -391,6 +400,8 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             t,
             sourceId: detail.sourceId,
             suiteId: detail.suiteId,
+            showOriginal,
+            onToggleOriginal: () => setShowOriginal(current => !current),
             onClose: () => setDetail(undefined),
             onInstall: () => {
               const source = overview.sources.find(entry => entry.id === detail.sourceId)
