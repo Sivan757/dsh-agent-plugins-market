@@ -15,6 +15,7 @@
 import type { LspStatusCode, LspStatusEntry, LspStatusPayload, LspStatusState } from '../../contracts/lsp-status.js'
 import type { LspMountDiagnostic } from '../../contracts/lsp.js'
 import { qualifiedSuiteId } from '../../catalog/paths.js'
+import type { LocalizeFields } from '../ports.js'
 import type { LspServerSpec, Suite } from '../../model/types.js'
 
 /** Sentinel suite id for user-configured (non-suite) LSP servers. */
@@ -69,8 +70,25 @@ function deriveState(
   return { state: 'starting' }
 }
 
-/** Build the status payload from declarations, direct configuration, and mount diagnostics. */
-export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatusSource, direct: LspDirectServersSource = { servers: {}, errors: [] }): LspStatusPayload {
+/**
+ * Build the status payload from declarations, direct configuration, and mount diagnostics.
+ *
+ * A row's only translatable text is its server key: the declaration carries no
+ * description, so nothing else goes to the chain. The callback is optional, and
+ * a caller that omits it gets the upstream key, which is what the contract's
+ * absent translated field means.
+ * @param suites - the discovered suites whose LSP declarations form the inventory.
+ * @param registry - the mount registry's diagnostics and live-mount flag.
+ * @param direct - the user's own configured servers.
+ * @param localizeFields - resolves one entity's translated fields, when the deployment translates at all.
+ * @returns the status payload with each row's translated name.
+ */
+export function buildLspStatus(
+  suites: readonly Suite[],
+  registry: LspMountStatusSource,
+  direct: LspDirectServersSource = { servers: {}, errors: [] },
+  localizeFields?: LocalizeFields
+): LspStatusPayload {
   const diagnostics = registry.diagnosticsSnapshot()
   const anyLive = registry.hasLiveMounts()
   const disabledServers = registry.disabledServers?.() ?? new Set<string>()
@@ -98,6 +116,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
         args: spec.args,
         extensions: spec.extensionToLanguage,
         state: disabled || disabledServers.has(`${suiteKey}/${spec.key}`) ? 'disabled' : state,
+        ...(localizeFields === undefined ? {} : localizeFields('lsp', spec.key, { name: spec.key })),
         ...(reason === undefined ? {} : { reason }),
         ...(code === undefined ? {} : { code }),
         ...(causes === undefined ? {} : { causes }),
@@ -122,6 +141,7 @@ export function buildLspStatus(suites: readonly Suite[], registry: LspMountStatu
       args: spec.args,
       extensions: spec.extensionToLanguage,
       state: disabledServers.has(`${DIRECT_LSP_SUITE_ID}/${spec.key}`) ? 'disabled' : directState,
+      ...(localizeFields === undefined ? {} : localizeFields('lsp', spec.key, { name: spec.key })),
       ...(directReason === undefined ? {} : { reason: directReason }),
       ...(directCode === undefined ? {} : { code: directCode }),
       ...(directCauses === undefined ? {} : { causes: directCauses }),

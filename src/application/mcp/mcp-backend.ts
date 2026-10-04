@@ -33,7 +33,8 @@ export const MarketSettingsFields = {
   scanProjectLayouts: z.boolean().default(MARKET_SETTINGS_DEFAULTS.scanProjectLayouts),
   downloadRegion: z.union([z.const('auto'), z.const('global'), z.const('china')]).default(MARKET_SETTINGS_DEFAULTS.downloadRegion),
   feedbackEnabled: z.boolean().default(MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
-  autoUpdateSources: z.boolean().default(MARKET_SETTINGS_DEFAULTS.autoUpdateSources)
+  autoUpdateSources: z.boolean().default(MARKET_SETTINGS_DEFAULTS.autoUpdateSources),
+  translationEnabled: z.boolean().default(MARKET_SETTINGS_DEFAULTS.translationEnabled)
 } as const
 
 export const MarketSettingsSchema = z.object(MarketSettingsFields)

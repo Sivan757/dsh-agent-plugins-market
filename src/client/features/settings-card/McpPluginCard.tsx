@@ -26,13 +26,15 @@ const SWITCH_COPY: Record<MarketSwitchField, { label: MarketCopyKey; description
   mcpEnhanced: { label: 'mcpCardTitle', description: 'mcpCardDesc' },
   scanProjectLayouts: { label: 'projectLayoutsLabel', description: 'projectLayoutsDesc' },
   autoUpdateSources: { label: 'autoUpdateLabel', description: 'autoUpdateDesc' },
-  feedbackEnabled: { label: 'feedbackToggleLabel', description: 'feedbackToggleDesc' }
+  feedbackEnabled: { label: 'feedbackToggleLabel', description: 'feedbackToggleDesc' },
+  translationEnabled: { label: 'translationToggleLabel', description: 'translationToggleDesc' }
 }
 
 /** The plugin's locale keys this entry renders. */
 type MarketCopyKey =
   | 'mcpCardTitle' | 'mcpCardDesc' | 'projectLayoutsLabel' | 'projectLayoutsDesc'
   | 'autoUpdateLabel' | 'autoUpdateDesc' | 'feedbackToggleLabel' | 'feedbackToggleDesc'
+  | 'translationToggleLabel' | 'translationToggleDesc'
   | 'mcpCardReadonly' | 'mcpBackendHostMissing' | 'regionLabel' | 'regionHint'
   | 'regionAuto' | 'regionGlobal' | 'regionChina' | 'regionResolved'
   | 'settingSaveFailed' | 'settingSave' | 'settingSaving' | 'settingDiscard'

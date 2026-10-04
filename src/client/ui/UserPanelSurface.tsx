@@ -12,6 +12,7 @@ import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ResourceCard.js'
+import { displayText } from './translated-text.js'
 import { useWorkspaceView } from './workspace-view.js'
 import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
@@ -320,8 +321,11 @@ function UserEntryRow(props: {
   onDelete?: () => void
 }): ReactNode {
   const { entry, t } = props
-  // A command registers under its flattened call name, so the card shows that.
-  const title = props.kind === 'commands' ? `/${commandCallName(entry.name)}` : entry.name
+  // A command registers under its flattened call name, and that slash name is
+  // what the user types, so it stays the card's identity untranslated. A skill
+  // and a persona are recognized by their name, which reads translated.
+  const title = props.kind === 'commands' ? `/${commandCallName(entry.name)}` : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
+  const description = displayText(entry.translatedDescription, entry.description, t)
   const mono = props.kind === 'commands'
   // A rejected document cannot be switched on: its state is recomputed from the
   // document, so the fix is editing the document.
@@ -346,7 +350,7 @@ function UserEntryRow(props: {
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: mono ? `${rc.name} ${rc.nameMono}` : rc.name }, title),
+      h('span', { className: mono ? `${rc.name} ${rc.nameMono}` : rc.name, title: entry.name }, title),
       h(Tag, { tone: 'neutral' }, entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin'))
     ),
     h(
@@ -385,7 +389,7 @@ function UserEntryRow(props: {
         })
       )
     ),
-    entry.description === '' ? null : h('p', { className: `${rc.rowBody} ${rc.desc}` }, entry.description),
+    description === undefined || description === '' ? null : h('p', { className: `${rc.rowBody} ${rc.desc}` }, description),
     h(
       'div',
       { className: rc.rowFoot },

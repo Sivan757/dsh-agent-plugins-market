@@ -10,6 +10,7 @@ import { mcpDetailActions } from './detail-actions.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
 import { kvCell } from '../../ui/DetailRows.js'
+import { displayText } from '../../ui/translated-text.js'
 import { mcpCardState, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
 import { setMcpServerTool } from '../../api.js'
@@ -269,7 +270,7 @@ export function McpDetailModal({
                             tool.name
                           )
                     ),
-                    h('span', { className: css.toolDescription }, tool.description ?? ''),
+                    h('span', { className: css.toolDescription }, displayText(tool.translatedDescription, tool.description, t) ?? ''),
                     h('span', { className: css.toolNote }, tool.suiteLimited ? t('mcpToolSuiteLimited') : ''),
                     expandedTools[tool.name] === true ? h('div', { className: css.toolParams }, toolParameterRows(tool.parameters, t)) : null
                   )

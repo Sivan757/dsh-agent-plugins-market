@@ -13,6 +13,7 @@ import { lastChangeLabel } from './last-change.js'
 import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
 import type { UserPanelEntry, UserPanelKind } from '../api.js'
+import { displayText } from './translated-text.js'
 import css from './panel.module.css'
 
 const NOUN_KEY: Record<UserPanelKind, 'workspaceTabSkills' | 'workspaceTabCommands' | 'workspaceTabPersonas'> = {
@@ -39,8 +40,11 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   const [open, setOpen] = useState(false)
   const updated = entry.updatedAt === undefined || entry.updatedAt === null ? null : lastChangeLabel(t, entry.updatedAt)
   const provenance = entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
-  // A command registers under its flattened call name, so the dialog title shows that.
-  const title = kind === 'commands' ? `/${commandCallName(entry.name)}` : entry.name
+  // A command registers under its flattened call name, which is the identity the
+  // user types, so its dialog keeps that slash name untranslated; a skill and a
+  // persona are recognized by their name, which reads translated.
+  const title = kind === 'commands' ? `/${commandCallName(entry.name)}` : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
+  const description = displayText(entry.translatedDescription, entry.description, t)
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
   const metaPairs = Object.entries(entry.metadata).filter(([key]) => !HIDDEN_META.has(key) && !(kind === 'agents' && ROUTING_META.has(key)))
   return h(
@@ -84,7 +88,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
         metaPairs.length === 0 ? null : kvCell(t('detailMetadata'), metaPairs.map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · '))
       )
     ),
-    entry.description === '' ? null : h('div', { className: css.block }, h('h4', { className: css.blockHead }, t('detailDescriptionLabel')), h('p', { className: css.detailProse }, entry.description)),
+    description === undefined || description === '' ? null : h('div', { className: css.block }, h('h4', { className: css.blockHead }, t('detailDescriptionLabel')), h('p', { className: css.detailProse }, description)),
     h(
       'div',
       { className: css.block },

@@ -216,8 +216,12 @@ export interface SuiteOverviewCard {
   sourceId: string
   suiteId: string
   name: string
+  /** The suite name translated for the panel's locale; absent means render `name`. */
+  translatedName?: string
   version?: string
   description?: string
+  /** The description translated for the panel's locale; absent means render `description`. */
+  translatedDescription?: string
   keywords: string[]
   surfaces: SuiteSurfaceCounts
   enabled: boolean
@@ -240,11 +244,12 @@ export interface OverviewPayload {
   /** Unmanaged `.sources/` checkouts (manual clones) available for adoption. */
   unmanaged?: UnmanagedSource[]
   /**
-   * Descriptions still waiting for a translation, absent or 0 when none are.
-   * The panel re-reads while this is non-zero so a translated card replaces
-   * the original text without a manual refresh.
+   * Translatable fields still waiting for a translation, absent or 0 when none
+   * are. One field counts once, so a card whose name and description both miss
+   * the cache contributes two. The panel re-reads while this is non-zero so a
+   * translated card replaces the original text without a manual refresh.
    */
-  descriptionPending?: number
+  translationPending?: number
 }
 
 /** Host-side progress of the source mutation currently in flight. */
@@ -321,8 +326,12 @@ export interface SuiteDetail {
   sourceId: string
   suiteId: string
   name: string
+  /** The suite name translated for the panel's locale; absent means render `name`. */
+  translatedName?: string
   version: string | null
   description: string | null
+  /** The description translated for the panel's locale; absent means render `description`. */
+  translatedDescription?: string
   author: string | null
   keywords: string[]
   /** Last modification of the suite checkout, as an ISO timestamp; null when it cannot be read. */
@@ -362,7 +371,11 @@ export interface UserPanelEntryWire {
    * path relative to the panel directory (`git/commit`).
    */
   name: string
+  /** The entry name translated for the panel's locale; absent means render `name`. */
+  translatedName?: string
   description: string
+  /** The description translated for the panel's locale; absent means render `description`. */
+  translatedDescription?: string
   disabled: boolean
   /** User entries are editable; suite-owned plugin entries answer only to the enable switch. */
   origin: 'user' | 'plugin'

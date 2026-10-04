@@ -16,7 +16,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
-import { createDescriptionTranslator } from '../src/runtime/host/description-translator.js'
+import { createLlmTranslator } from '../src/runtime/host/llm-translator.js'
 
 /** A minimal stand-in for the host LLM service. */
 class FakeLlm extends Service {
@@ -61,9 +61,9 @@ describe('description translator over a real Cordis tree', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(injected).toBeDefined()
 
-    const translator = createDescriptionTranslator(injected as Context)
+    const translator = createLlmTranslator(injected as Context)
     expect(translator.available()).toBe(true)
-    await expect(translator.translate({ text: 'Manage suite sources', locale: 'zh', signal: new AbortController().signal })).resolves.toBe('中文描述')
+    await expect(translator.translate({ texts: ['Manage suite sources'], locale: 'zh', signal: new AbortController().signal })).resolves.toEqual(['中文描述'])
   })
 
   it('reaches sibling services from a context that injected neither', async () => {
@@ -76,9 +76,9 @@ describe('description translator over a real Cordis tree', () => {
     const entry = root.extend({})
     entry.inject(['skills'], () => {})
     await new Promise(resolve => setTimeout(resolve, 0))
-    const translator = createDescriptionTranslator(entry)
+    const translator = createLlmTranslator(entry)
     expect(translator.available()).toBe(true)
-    await expect(translator.translate({ text: 't', locale: 'zh', signal: new AbortController().signal })).resolves.toBe('中文描述')
+    await expect(translator.translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })).resolves.toEqual(['中文描述'])
   })
 
   it('reports unavailable when the deployment mounts no LLM service', async () => {
@@ -88,7 +88,7 @@ describe('description translator over a real Cordis tree', () => {
     const entry = root.extend({})
     entry.inject(['skills'], () => {})
     await new Promise(resolve => setTimeout(resolve, 0))
-    const translator = createDescriptionTranslator(entry)
+    const translator = createLlmTranslator(entry)
     expect(translator.available()).toBe(false)
   })
 })

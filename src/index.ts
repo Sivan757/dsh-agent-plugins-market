@@ -28,7 +28,8 @@ import { MarketSettingsNamespace } from './runtime/host/settings-namespace.js'
 import { SurfaceToggleService } from './runtime/host/surface-toggle-service.js'
 import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
-import { createDescriptionTranslator } from './runtime/host/description-translator.js'
+import { createLlmTranslator } from './runtime/host/llm-translator.js'
+import { createTranslationProviders } from './runtime/host/translation-providers.js'
 import { migratePluginStorage } from './application/state/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agents/agent-role-router.js'
 import { mountUnlessAgentTeams } from './runtime/agents/agent-teams-seat.js'
@@ -98,10 +99,12 @@ export interface Config {
   feedbackEnabled: Volatile<boolean | undefined>
   /** Background source-update switch; updated live through the host settings service. */
   autoUpdateSources: Volatile<boolean | undefined>
+  /** UI translation switch; updated live through the host settings service. */
+  translationEnabled: Volatile<boolean | undefined>
 }
 
 /**
- * Schemastery projection the host loader reads: the five volatile fields become
+ * Schemastery projection the host loader reads: the six volatile fields become
  * the `dsh-agent-plugins-market` settings namespace (the Plugins panel's
  * configuration page reads it), while the startup fields stay plain.
  */
@@ -123,6 +126,7 @@ export interface ConfigInput {
   downloadRegion?: 'auto' | 'global' | 'china' | null
   feedbackEnabled?: boolean | null
   autoUpdateSources?: boolean | null
+  translationEnabled?: boolean | null
 }
 
 export const Config = z.object({
@@ -141,18 +145,29 @@ export const Config = z.object({
   scanProjectLayouts: MarketSettingsFields.scanProjectLayouts.volatile(),
   downloadRegion: MarketSettingsFields.downloadRegion.volatile(),
   feedbackEnabled: MarketSettingsFields.feedbackEnabled.volatile(),
-  autoUpdateSources: MarketSettingsFields.autoUpdateSources.volatile()
+  autoUpdateSources: MarketSettingsFields.autoUpdateSources.volatile(),
+  translationEnabled: MarketSettingsFields.translationEnabled.volatile()
 })
 
 const undefinedRef = { get: () => undefined as never }
 
 export async function apply(
   ctx: Context,
-  config: Config = { mcpEnhanced: undefinedRef, scanProjectLayouts: undefinedRef, downloadRegion: undefinedRef, feedbackEnabled: undefinedRef, autoUpdateSources: undefinedRef }
+  config: Config = {
+    mcpEnhanced: undefinedRef,
+    scanProjectLayouts: undefinedRef,
+    downloadRegion: undefinedRef,
+    feedbackEnabled: undefinedRef,
+    autoUpdateSources: undefinedRef,
+    translationEnabled: undefinedRef
+  }
 ): Promise<void> {
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
   const agentsRoot = resolveAgentsRoot()
+  // A caller may hand apply() a partial config, and the switch is absent until
+  // the host applies its first value; both read as "translation on".
+  const translationEnabled = (): boolean => config.translationEnabled?.get() !== false
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
 
@@ -330,18 +345,22 @@ export async function apply(
     setMcpBackend: backend => settings.setBackend(backend),
     downloadRegion: () => settings.downloadRegion(),
     localePreference: () => readLocalePreference() ?? 'zh',
-    // Built from the live context at apply time; the translator reads the LLM
-    // and default-model services per call, so a late-provisioning service is
-    // still picked up. Undefined here means the market renders upstream text.
-    descriptionTranslator: createDescriptionTranslator(ctx)
+    // Built from the live context at apply time; every provider reads its host
+    // services per call, so a late-provisioning model is still picked up. An
+    // empty array means the market renders upstream text as authored.
+    translationProviders: translationEnabled() ? createTranslationProviders({ host: ctx, llm: createLlmTranslator(ctx) }) : [],
+    // Folded into every cache key: flipping the switch, or a future change to
+    // the chain, must miss translations the previous configuration produced.
+    translationProviderIdentity: () => (translationEnabled() ? 'google|microsoft|llm' : 'off')
   }
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
-  // Translation needs the host model services, and those provision *after*
-  // apply() returns — warming here would find them absent and do nothing. Warm
-  // once they land instead, so a returning user's panel opens on translations
-  // it already paid for rather than starting from upstream text again.
+  // The model-backed provider needs the host model services, and those
+  // provision *after* apply() returns — warming here would find them absent and
+  // do nothing. Warm once they land instead, so a returning user's panel opens
+  // on the translations it already paid for. The keyless endpoints in front of
+  // it need no such wait; this hook governs the model's own warm-up only.
   ctx.inject(['llm', 'agentDefaultModel'], () => {
     void catalog.warmDescriptions()
   })

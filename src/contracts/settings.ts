@@ -30,6 +30,8 @@ export interface MarketSettings {
   feedbackEnabled: boolean
   /** ON = every configured source refreshes in the background. */
   autoUpdateSources: boolean
+  /** ON = suite, skill, command, agent, MCP and LSP text is localized for the host locale. */
+  translationEnabled: boolean
 }
 
 /**
@@ -43,7 +45,8 @@ export const MARKET_SETTINGS_DEFAULTS: MarketSettings = {
   scanProjectLayouts: false,
   downloadRegion: 'auto',
   feedbackEnabled: true,
-  autoUpdateSources: false
+  autoUpdateSources: false,
+  translationEnabled: true
 }
 
 /** Every field name the market's settings section carries. */
@@ -83,6 +86,7 @@ export function resolveMarketSettings(section: unknown): MarketSettings {
     scanProjectLayouts: narrowBoolean(stored['scanProjectLayouts'], MARKET_SETTINGS_DEFAULTS.scanProjectLayouts),
     downloadRegion: narrowDownloadRegion(stored['downloadRegion']),
     feedbackEnabled: narrowBoolean(stored['feedbackEnabled'], MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
-    autoUpdateSources: narrowBoolean(stored['autoUpdateSources'], MARKET_SETTINGS_DEFAULTS.autoUpdateSources)
+    autoUpdateSources: narrowBoolean(stored['autoUpdateSources'], MARKET_SETTINGS_DEFAULTS.autoUpdateSources),
+    translationEnabled: narrowBoolean(stored['translationEnabled'], MARKET_SETTINGS_DEFAULTS.translationEnabled)
   }
 }

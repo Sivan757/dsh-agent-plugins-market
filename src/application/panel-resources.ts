@@ -8,6 +8,7 @@ import { pluginRootOf } from '../catalog/plugin-variables.js'
 import { isWithin, suiteDataDir } from '../catalog/paths.js'
 import { parseSkillFrontmatter, stripFrontmatter } from '../catalog/skills-parse.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
+import type { LocalizeFields } from './ports.js'
 /** The user-panel store surface the panel resources drive (structural). */
 interface UserPanelEntries {
   list(strict?: boolean): Promise<UserPanelEntryWire[]>
@@ -52,11 +53,20 @@ const FLIPPABLE_KEYS: Record<UserPanelKind, readonly string[]> = {
   agents: ['model', 'provider', 'reasoning_effort', 'reasoningEffort']
 }
 
+/**
+ * Build the three panel stores over one catalog.
+ *
+ * Translation reaches the panels as a callback rather than a direct
+ * collaborator: the catalog owns the localizer, and a panel only needs the
+ * resolved field set for one entry. Each panel binds its own kind, which is
+ * also the translation surface its entries belong to.
+ */
 export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelEntries>): Record<UserPanelKind, PanelResourceStore> {
+  const localizeFields: LocalizeFields = (surface, id, fields) => catalog.translateFields(surface, id, fields).fields
   return {
-    skills: new PanelResources(catalog, users.skills, 'skills'),
-    commands: new PanelResources(catalog, users.commands, 'commands'),
-    agents: new PanelResources(catalog, users.agents, 'agents')
+    skills: new PanelResources(catalog, users.skills, 'skills', localizeFields),
+    commands: new PanelResources(catalog, users.commands, 'commands', localizeFields),
+    agents: new PanelResources(catalog, users.agents, 'agents', localizeFields)
   }
 }
 
@@ -64,7 +74,8 @@ class PanelResources implements PanelResourceStore {
   constructor(
     private catalog: Catalog,
     private users: UserPanelEntries,
-    private kind: UserPanelKind
+    private kind: UserPanelKind,
+    private localizeFields: LocalizeFields
   ) {}
 
   async list(strict = false): Promise<UserPanelEntryWire[]> {
@@ -91,6 +102,10 @@ class PanelResources implements PanelResourceStore {
         }
         const skill = this.kind === 'skills' ? parseSkillFrontmatter(rawText, undefined) : undefined
         const invocationOff = typeof skill === 'object' && !skill.invocation.modelInvocable && !skill.invocation.userInvocable
+        const description = typeof metadata.description === 'string' ? metadata.description : ''
+        // The entry is addressed by the identity the panel already uses for it,
+        // so the same document always lands on the same cache entry.
+        const translated = this.localizeFields(this.kind, pluginResourceId(suite.sourceId, suite.id, this.kind, name), { name, description })
         entries.push({
           id: pluginResourceId(suite.sourceId, suite.id, this.kind, name),
           name,
@@ -101,20 +116,24 @@ class PanelResources implements PanelResourceStore {
           rawText,
           content: stripFrontmatter(rawText),
           path: file,
-          description: typeof metadata.description === 'string' ? metadata.description : '',
+          description,
+          ...translated,
           ...(pluginRootOf(suite) === undefined ? {} : { suiteRoot: suite.root, suiteData: suiteDataDir(this.catalog.dataRoot, suite.sourceId, suite.id) })
         })
       }
     }
-    // One pass stamps each entry's own last modification: the panel reads every
-    // file's text anyway, and both origins get the same treatment here.
+    // One pass stamps each entry's own last modification and resolves the
+    // user-authored entries' translations: the panel reads every file's text
+    // anyway, and both origins get the same treatment here.
     return await Promise.all(
       entries.map(async entry => {
+        const localized = entry.origin === 'plugin' ? {} : this.localizeFields(this.kind, entry.id ?? entry.name, { name: entry.name, description: entry.description })
+        const stamped = { ...entry, ...localized }
         try {
           const stats = await stat(entry.path)
-          return { ...entry, updatedAt: new Date(stats.mtimeMs).toISOString() }
+          return { ...stamped, updatedAt: new Date(stats.mtimeMs).toISOString() }
         } catch {
-          return entry
+          return stamped
         }
       })
     )

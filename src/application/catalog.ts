@@ -22,11 +22,13 @@ import { loadUserHooksSuite } from './panels/user-hooks.js'
 import { applyLspOverrides } from './server-config.js'
 import { buildSuiteDetail, readSkillContent } from './details.js'
 import { CatalogContext, type CatalogGitOptions, type CatalogOptions } from './catalog-context.js'
-import { DescriptionLocalizer, needsTranslation, type LocalizedDescription } from './description-localizer.js'
+import { TranslationLocalizer } from './translation/localizer.js'
+import { collectUnits } from './translation/unit.js'
+import type { TranslationFields, TranslationSurfaceKind } from '../contracts/translation.js'
 import { InstallStore } from './install-store.js'
 import { LspService } from './lsp-service.js'
 import { McpService } from './mcp-service.js'
-import { resolveCatalogPorts, type CatalogPorts, type LspServerTable, type McpBackendInfo, type SourceInput, type SourcePatch } from './ports.js'
+import { resolveCatalogPorts, type CatalogPorts, type LocalizeFields, type LspServerTable, type McpBackendInfo, type SourceInput, type SourcePatch } from './ports.js'
 import { SnapshotCache, type CatalogSnapshot } from './snapshot-cache.js'
 import { SourceStore, codeloadTarballUrl } from './source-store.js'
 import type { MarketService } from './queries.js'
@@ -39,7 +41,7 @@ export class Catalog implements MarketService {
   private readonly installs: InstallStore
   private readonly mcp: McpService
   private readonly lsp: LspService
-  private readonly localizer: DescriptionLocalizer
+  private readonly localizer: TranslationLocalizer
 
   constructor(options: CatalogOptions) {
     this.context = new CatalogContext(options)
@@ -47,9 +49,17 @@ export class Catalog implements MarketService {
     this.snapshots = this.context.snapshots
     this.sourceStore = new SourceStore(this.context, this.ports)
     this.installs = new InstallStore(this.context, this.sourceStore)
-    this.mcp = new McpService(this.context, this.ports, this.sourceStore)
-    this.lsp = new LspService(this.context, this.ports)
-    this.localizer = new DescriptionLocalizer({ dataRoot: this.context.dataRoot, translator: this.ports.descriptionTranslator })
+    // The status builders resolve translations through this callback rather
+    // than reaching into the localizer, so the panel surfaces stay independent
+    // of how the catalog stores them.
+    const localizeFields: LocalizeFields = (surface, id, fields) => this.translateFields(surface, id, fields).fields
+    this.mcp = new McpService(this.context, this.ports, this.sourceStore, localizeFields)
+    this.lsp = new LspService(this.context, this.ports, localizeFields)
+    this.localizer = new TranslationLocalizer({
+      dataRoot: this.context.dataRoot,
+      providers: this.ports.translationProviders ?? [],
+      providerIdentity: this.ports.translationProviderIdentity ?? (() => 'none')
+    })
   }
 
   /** Latest MCP mount diagnostics (suiteId -> reasons), fed by host reconcile. */
@@ -89,7 +99,7 @@ export class Catalog implements MarketService {
   async load(): Promise<void> {
     await this.context.load()
     // Cached translations load alongside the catalog so the first overview
-    // answers from cache instead of re-asking the model.
+    // answers from cache instead of re-asking a provider.
     await this.localizer.load()
   }
 
@@ -99,16 +109,16 @@ export class Catalog implements MarketService {
   }
 
   /**
-   * Queue translations for every description the current catalog is missing.
+   * Queue translations for every suite name and description the catalog is missing.
    *
    * The panel translates lazily on read, which means a first open shows
    * upstream text and fills in over the following seconds. This warm-up runs
    * the same queue ahead of that first read, so a catalog that just scanned
    * arrives already translated.
    *
-   * It is inherently incremental and cheap to repeat: a description already in
-   * the cache enqueues nothing, so calling this on every startup costs one
-   * memory lookup per suite once the catalog has settled.
+   * It is inherently incremental and cheap to repeat: a field already in the
+   * cache enqueues nothing, so calling this on every startup costs one memory
+   * lookup per field once the catalog has settled.
    *
    * The returned promise settles once the work is *queued*, not once it is
    * translated — a caller that wants the translations themselves follows it
@@ -118,7 +128,7 @@ export class Catalog implements MarketService {
    * Nothing here runs for an `en` deployment: an English panel already shows
    * the authored text, and translating it would spend quota to reproduce the
    * input.
-   * @returns fulfillment after the missing descriptions are queued.
+   * @returns fulfillment after the missing fields are queued.
    */
   async warmDescriptions(): Promise<void> {
     try {
@@ -126,7 +136,7 @@ export class Catalog implements MarketService {
       if (locale !== 'zh') return
       const snapshot = await this.readUserCatalog()
       for (const suite of snapshot.suites) {
-        this.localizeDescription(suite.sourceId, suite.id, suite.manifest.description, locale)
+        this.translateFields('market', qualifiedSuiteId(suite.sourceId, suite.id), { name: suite.manifest.name, description: suite.manifest.description }, locale)
       }
     } catch {
       // A warm-up that cannot read the catalog leaves the lazy path intact.
@@ -134,7 +144,7 @@ export class Catalog implements MarketService {
   }
 
   /**
-   * Wait for queued description translations to finish.
+   * Wait for queued translations to finish.
    *
    * Nothing on the request path calls this — the panel renders upstream text
    * and re-reads. It exists so a warm-up pass or a test can observe the
@@ -202,27 +212,28 @@ export class Catalog implements MarketService {
   /**
    * The full market overview from one user snapshot.
    *
-   * Descriptions are localized on the way out: a suite whose description is
+   * Name and description are localized on the way out: a suite whose text is
    * already Chinese (or already bilingual) is served as authored, and every
-   * other one is translated in the background. The read itself never waits on
-   * a model call — a suite with no cached translation renders its original
-   * text and reports itself pending, and the panel re-reads until it lands.
+   * other field is translated in the background. The read itself never waits on
+   * a provider call — a suite with no cached translation carries its original
+   * text plus a translated field only once one lands, and the panel re-reads
+   * while anything reports itself pending.
    */
   async overview(): Promise<OverviewPayload> {
     const snapshot = await this.readUserCatalog()
     const sourceRows: SourceOverview[] = await this.sourceStore.overviewRows(snapshot)
     const locale = this.ports.localePreference()
-    let descriptionPending = 0
+    let translationPending = 0
     const cards = snapshot.suites.map(suite => {
       const isInstalled = this.isInstalled(suite.sourceId, suite.id)
-      const localized = this.localizeDescription(suite.sourceId, suite.id, suite.manifest.description, locale)
-      if (localized.pending) descriptionPending += 1
+      const localized = this.translateFields('market', qualifiedSuiteId(suite.sourceId, suite.id), { name: suite.manifest.name, description: suite.manifest.description }, locale)
+      translationPending += localized.pending
       return {
         sourceId: suite.sourceId,
         suiteId: suite.id,
         name: suite.manifest.name,
         version: suite.manifest.version,
-        description: localized.text,
+        description: suite.manifest.description,
         keywords: suite.manifest.keywords ?? [],
         surfaces: suite.surfaces,
         enabled: suite.enabled,
@@ -232,7 +243,8 @@ export class Catalog implements MarketService {
         dimension: suite.dimension,
         layout: suite.manifest.layout,
         errors: suite.errors,
-        mcpErrors: this.mcp.diagnostics.filter(diagnostic => diagnostic.suiteId === suite.id).map(diagnostic => `${diagnostic.serverKey}: ${diagnostic.reason}`)
+        mcpErrors: this.mcp.diagnostics.filter(diagnostic => diagnostic.suiteId === suite.id).map(diagnostic => `${diagnostic.serverKey}: ${diagnostic.reason}`),
+        ...localized.fields
       }
     })
     return {
@@ -245,20 +257,47 @@ export class Catalog implements MarketService {
       },
       roots: { user: this.context.userRoot, data: this.context.dataRoot },
       unmanaged: await this.sourceStore.unmanaged(),
-      ...(descriptionPending === 0 ? {} : { descriptionPending })
+      ...(translationPending === 0 ? {} : { translationPending })
     }
   }
 
   /**
-   * Resolve one description for the active locale.
+   * Translate one entity's name and description for a surface.
    *
-   * Only the zh deployment translates: an English panel is already showing the
-   * authored text, so queueing model calls for it would spend the user's quota
-   * to reproduce the input.
+   * The two fields are resolved independently, so a name whose translation is
+   * already cached renders translated while its description is still in
+   * flight. Nothing here waits on a provider: an uncached field answers with
+   * the upstream text and reports itself pending.
+   *
+   * Only a zh deployment translates. An English panel is already showing the
+   * authored text, so queueing provider calls for it would spend the user's
+   * quota to reproduce the input.
+   *
+   * Exposed for the panel and status surfaces that build their own rows; it is
+   * not part of the HTTP route surface.
+   * @param surface - the surface the entity belongs to.
+   * @param id - the entity's stable identity inside that surface.
+   * @param fields - the entity's upstream name and description.
+   * @param locale - the locale the caller is rendering in; defaults to the host preference.
+   * @returns the translated fields and how many of them are still pending.
    */
-  private localizeDescription(sourceId: string, suiteId: string, description: string | undefined, locale: string): LocalizedDescription {
-    if (locale !== 'zh' || !needsTranslation(description)) return { text: description, pending: false }
-    return this.localizer.localize(sourceId, suiteId, description, locale)
+  translateFields(
+    surface: TranslationSurfaceKind,
+    id: string,
+    fields: { name?: string | undefined; description?: string | undefined },
+    locale: string = this.ports.localePreference()
+  ): { fields: TranslationFields; pending: number } {
+    if (locale !== 'zh') return { fields: {}, pending: 0 }
+    const translated: TranslationFields = {}
+    let pending = 0
+    for (const unit of collectUnits(surface, id, fields)) {
+      const result = this.localizer.localize(unit, locale)
+      if (result.pending) pending += 1
+      if (unit.role === 'name') {
+        if (result.text !== unit.text) translated.translatedName = result.text
+      } else if (result.text !== unit.text) translated.translatedDescription = result.text
+    }
+    return { fields: translated, pending }
   }
 
   /** One suite's full detail for the market detail modal. */
@@ -268,10 +307,10 @@ export class Catalog implements MarketService {
     if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
     const suiteKey = qualifiedSuiteId(sourceId, suiteId)
     const detail = await buildSuiteDetail(suite, this.context.installed(sourceId, suiteId), this.mcp.diagnostics, await loadSuiteOverrides(this.context.dataRoot, suiteKey))
-    // The detail modal renders the same description as the card, so it takes
-    // the same translation (and queues the same cache miss).
-    const localized = this.localizeDescription(sourceId, suiteId, detail.description ?? undefined, this.ports.localePreference())
-    return { ...detail, description: localized.text ?? null }
+    // The detail modal renders the same name and description as the card, so it
+    // takes the same translations (and queues the same cache misses).
+    const localized = this.translateFields('market', suiteKey, { name: detail.name, description: detail.description ?? undefined })
+    return { ...detail, ...localized.fields }
   }
 
   /** One skill's full SKILL.md text for the market detail modal. */

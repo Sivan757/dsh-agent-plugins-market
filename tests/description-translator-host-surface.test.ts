@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { LlmRuntime, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { createDescriptionTranslator } from '../src/runtime/host/description-translator.js'
+import { createLlmTranslator } from '../src/runtime/host/llm-translator.js'
 
 describe('the LLM surface the translator calls', () => {
   it('exists on the real runtime', () => {
@@ -33,6 +33,6 @@ describe('the LLM surface the translator calls', () => {
     expect(host.get('llm')).toBeDefined()
     // With an llm but no default model there is no route, so the translator
     // must report unavailable instead of attempting a call.
-    expect(createDescriptionTranslator(host).available()).toBe(false)
+    expect(createLlmTranslator(host).available()).toBe(false)
   })
 })

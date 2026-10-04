@@ -25,6 +25,7 @@ export interface MarketSettingRefs {
   downloadRegion: { get(): DownloadRegionSetting | undefined }
   feedbackEnabled: { get(): boolean | undefined }
   autoUpdateSources: { get(): boolean | undefined }
+  translationEnabled: { get(): boolean | undefined }
 }
 
 /** Runtime reactions the namespace drives. */
@@ -38,6 +39,7 @@ export interface SettingsNamespaceHost {
 }
 
 export class MarketSettingsNamespace {
+  private readonly refs: MarketSettingRefs
   private readonly watchers: Array<() => void> = []
   private feedbackDisposer: (() => void) | undefined
   /**
@@ -50,11 +52,15 @@ export class MarketSettingsNamespace {
 
   constructor(
     private readonly ctx: Context,
-    private readonly refs: MarketSettingRefs,
+    refs: MarketSettingRefs,
     private readonly dataRoot: string,
     private readonly locale: { t: HostTranslate },
     private readonly host: SettingsNamespaceHost
-  ) {}
+  ) {
+    // A caller may hand in a partial ref set (a test, or a config written
+    // before this field existed); an absent switch reads as its default.
+    this.refs = { ...refs, translationEnabled: refs.translationEnabled ?? { get: () => undefined } }
+  }
 
   /** Subscribe the runtime reactions to live settings updates. */
   mount(): void {
@@ -91,7 +97,8 @@ export class MarketSettingsNamespace {
       scanProjectLayouts: this.refs.scanProjectLayouts.get(),
       downloadRegion: this.refs.downloadRegion.get(),
       feedbackEnabled: this.refs.feedbackEnabled.get(),
-      autoUpdateSources: this.refs.autoUpdateSources.get()
+      autoUpdateSources: this.refs.autoUpdateSources.get(),
+      translationEnabled: this.refs.translationEnabled.get()
     })
   }
 

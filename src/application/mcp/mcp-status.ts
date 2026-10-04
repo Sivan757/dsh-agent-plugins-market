@@ -1,7 +1,7 @@
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
 import type { McpStatusEntry, McpStatusCode, McpStatusPayload, McpStatusState, McpStatusTool } from '../../contracts/mcp-status.js'
-import type { McpToolSnapshot } from '../ports.js'
+import type { LocalizeFields, McpToolSnapshot } from '../ports.js'
 import { redactMcpConfig, redactUrl } from './mcp-redaction.js'
 import { qualifiedSuiteId } from '../../catalog/paths.js'
 import type { McpServer, Suite } from '../../model/types.js'
@@ -31,12 +31,26 @@ export function declaresAuthHeader(config: Record<string, unknown> | undefined):
   return Object.keys(headers).some(name => name.toLowerCase() === 'authorization')
 }
 
-/** Build status rows from discovered plugin MCP definitions and observed tool names. */
+/**
+ * Build status rows from discovered plugin MCP definitions and observed tool names.
+ *
+ * The service name and each tool's description are translated on the way out;
+ * a tool's own `name` is its call identifier and is never translated. The
+ * callback is optional: a caller that omits it gets the upstream text, which is
+ * what the contract's absent translated field means.
+ * @param suites - the discovered suites whose MCP declarations form the inventory.
+ * @param diagnostics - the latest mount diagnostics, keyed by suite and server.
+ * @param observed - the live host tool registry snapshot.
+ * @param overrides - persisted per-server overrides, keyed by qualified suite id.
+ * @param localizeFields - resolves one entity's translated fields, when the deployment translates at all.
+ * @returns the status payload with every translatable field carrying its translation.
+ */
 export function buildMcpStatus(
   suites: Suite[],
   diagnostics: McpDiagnostic[],
   observed: readonly McpToolSnapshot[],
-  overrides: Map<string, McpSuiteOverrides> = new Map()
+  overrides: Map<string, McpSuiteOverrides> = new Map(),
+  localizeFields?: LocalizeFields
 ): McpStatusPayload {
   const entries: McpStatusEntry[] = []
   const claimedServers = new Set<string>()
@@ -109,7 +123,8 @@ export function buildMcpStatus(
         transport: effective.type,
         endpoint: endpointOf(effective),
         config: redactMcpConfig(effective) as Record<string, unknown>,
-        tools: disabled && !orphaned ? [] : observedTools(tools),
+        tools: disabled && !orphaned ? [] : observedTools(tools, serverName, localizeFields),
+        ...(localizeFields === undefined ? {} : localizeFields('mcp', serverName, { name: serverName })),
         advertisedTools: tools.length > 0,
         retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',
         ...(effective.type === 'stdio' || effective.auth !== undefined ? {} : { oauthDefault: true }),
@@ -141,7 +156,8 @@ export function buildMcpStatus(
         transport: stale.server.type,
         endpoint: endpointOf(stale.server),
         config: redactMcpConfig(stale.server) as Record<string, unknown>,
-        tools: observedTools(tools),
+        tools: observedTools(tools, serverName, localizeFields),
+        ...(localizeFields === undefined ? {} : localizeFields('mcp', serverName, { name: serverName })),
         reason: 'MCP tools remain after this plugin was disabled or uninstalled',
         code: 'orphaned-tools',
         ...(staleRefs.length === 0 ? {} : { credentialRefs: staleRefs })
@@ -154,7 +170,8 @@ export function buildMcpStatus(
       kind: 'direct',
       state: 'connected',
       transport: 'observed',
-      tools: observedTools(tools)
+      tools: observedTools(tools, serverName, localizeFields),
+      ...(localizeFields === undefined ? {} : localizeFields('mcp', serverName, { name: serverName }))
     })
   }
 
@@ -174,11 +191,15 @@ export function buildMcpStatus(
 /** One tool projection for the status wire: the input schema rides along only while it stays small. */
 const MAX_SCHEMA_CHARS = 20_000
 
-function observedTools(tools: readonly McpToolSnapshot[]): McpStatusTool[] {
+function observedTools(tools: readonly McpToolSnapshot[], serverId: string, localizeFields: LocalizeFields | undefined): McpStatusTool[] {
   return tools.map(tool => ({
     name: tool.name,
     ...(tool.description === undefined ? {} : { description: tool.description }),
-    ...(tool.parameters === undefined || JSON.stringify(tool.parameters).length > MAX_SCHEMA_CHARS ? {} : { parameters: tool.parameters })
+    ...(tool.parameters === undefined || JSON.stringify(tool.parameters).length > MAX_SCHEMA_CHARS ? {} : { parameters: tool.parameters }),
+    // One tool per `<serverId>#<toolName>`: two servers may advertise the same
+    // tool name with different descriptions, and the same server may describe
+    // one tool differently from another.
+    ...(localizeFields === undefined ? {} : localizeFields('mcp', `${serverId}#${tool.name}`, { description: tool.description }))
   }))
 }
 

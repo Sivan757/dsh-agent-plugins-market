@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pickBilingualDescription } from '../src/client/features/market/bilingual-description.js'
+import { pickBilingualDescription } from '../src/client/ui/bilingual-text.js'
 import type { Translate } from '../src/client/index.js'
 
 const zhT: Translate = key => (key === 'localeProbeLang' ? '中文' : '')

@@ -27,7 +27,7 @@ import type { DownloadRegionSetting, MarketSettings } from '../../../contracts/s
 import type { McpBackendInfo } from '../../api.js'
 
 /** The boolean switches this card renders, in display order. */
-export const MARKET_SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled'] as const
+export const MARKET_SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled', 'translationEnabled'] as const
 
 /** One boolean switch the card renders. */
 export type MarketSwitchField = (typeof MARKET_SWITCH_FIELDS)[number]
@@ -88,6 +88,7 @@ export interface MarketCardState extends SettingsFormShell {
   scanProjectLayouts: SettingsFieldState
   autoUpdateSources: SettingsFieldState
   feedbackEnabled: SettingsFieldState
+  translationEnabled: SettingsFieldState
   downloadRegion: SettingsFieldState
   /** Live host-client probe driving the compat-mode guard and the region hint. */
   probe: McpBackendInfo | undefined
@@ -129,6 +130,7 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
     settingsBooleanField('scanProjectLayouts'),
     settingsBooleanField('autoUpdateSources'),
     settingsBooleanField('feedbackEnabled'),
+    settingsBooleanField('translationEnabled'),
     settingsRegionField('downloadRegion')
   ])
   // The staged actions refuse edits while a save is on the wire, so nothing
@@ -176,6 +178,7 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
       scanProjectLayouts: model.field('scanProjectLayouts'),
       autoUpdateSources: model.field('autoUpdateSources'),
       feedbackEnabled: model.field('feedbackEnabled'),
+      translationEnabled: model.field('translationEnabled'),
       downloadRegion: model.field('downloadRegion'),
       probe,
       hostClientMissing: hostClientMissing()

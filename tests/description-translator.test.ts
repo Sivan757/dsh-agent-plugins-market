@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FinishReason, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { createDescriptionTranslator } from '../src/runtime/host/description-translator.js'
+import { createLlmTranslator } from '../src/runtime/host/llm-translator.js'
 
 /** A text delta for one assistant block, in the host's own chunk vocabulary. */
 function textDelta(text: string, index = 0): StreamChunk {
@@ -47,7 +47,7 @@ function streamOf(chunks: StreamChunk[]): (options?: unknown) => AsyncIterable<S
   })
 }
 
-describe('createDescriptionTranslator availability', () => {
+describe('createLlmTranslator availability', () => {
   it('reports unavailable with no model route and becomes available once one lands', () => {
     // The host provisions services after apply(), so availability is read per call.
     const services: {
@@ -61,7 +61,7 @@ describe('createDescriptionTranslator availability', () => {
         return undefined
       }
     }
-    const translator = createDescriptionTranslator(host)
+    const translator = createLlmTranslator(host)
     expect(translator.available()).toBe(false)
     services.selection = { provider: 'local', model: 'deepseek-flash' }
     expect(translator.available()).toBe(false)
@@ -74,7 +74,7 @@ describe('createDescriptionTranslator availability', () => {
       { provider: 'local', model: '' },
       { provider: '', model: 'm' }
     ]) {
-      expect(createDescriptionTranslator(hostWith({ selection, stream: streamOf([]) })).available()).toBe(false)
+      expect(createLlmTranslator(hostWith({ selection, stream: streamOf([]) })).available()).toBe(false)
     }
   })
 
@@ -91,11 +91,11 @@ describe('createDescriptionTranslator availability', () => {
         return { stream: streamOf([]) }
       }
     }
-    expect(createDescriptionTranslator(host).available()).toBe(false)
+    expect(createLlmTranslator(host).available()).toBe(false)
   })
 })
 
-describe('createDescriptionTranslator translate', () => {
+describe('createLlmTranslator translate', () => {
   it('sends the selected route, the locale instruction, and the description', async () => {
     const seen: Array<Record<string, unknown>> = []
     const host = hostWith({
@@ -105,7 +105,7 @@ describe('createDescriptionTranslator translate', () => {
         return streamOf([textDelta('管理套件来源'), finish()])()
       }
     })
-    const text = await createDescriptionTranslator(host).translate({ text: 'Manage suite sources', locale: 'zh', signal: new AbortController().signal })
+    const [text] = await createLlmTranslator(host).translate({ texts: ['Manage suite sources'], locale: 'zh', signal: new AbortController().signal })
     expect(text).toBe('管理套件来源')
     expect(seen[0]).toMatchObject({ provider: 'local', model: 'deepseek-flash', temperature: 0, maxTokens: 512 })
     // The published purpose field accepts only compaction and session-title,
@@ -124,7 +124,7 @@ describe('createDescriptionTranslator translate', () => {
         return streamOf([textDelta('x'), finish()])()
       }
     })
-    await createDescriptionTranslator(host).translate({ text: 't', locale: 'ja', signal: new AbortController().signal })
+    await createLlmTranslator(host).translate({ texts: ['t'], locale: 'ja', signal: new AbortController().signal })
     expect(String(seen[0]?.system)).toContain('into ja')
   })
 
@@ -144,7 +144,7 @@ describe('createDescriptionTranslator translate', () => {
         return streamOf([textDelta('中文'), finish()])()
       }
     })
-    await createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })
+    await createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })
     expect(asked).toEqual(['off'])
     expect(seen[0]?.reasoningEffort).toBe('off')
   })
@@ -161,7 +161,7 @@ describe('createDescriptionTranslator translate', () => {
         return streamOf([textDelta('中文'), finish()])()
       }
     })
-    await createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })
+    await createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })
     expect(seen[0]?.reasoningEffort).toBe('low')
   })
 
@@ -178,7 +178,7 @@ describe('createDescriptionTranslator translate', () => {
       }
     })
     // A rejected effort must still produce a working call, not a failure.
-    await expect(createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })).resolves.toBe('中文')
+    await expect(createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })).resolves.toEqual(['中文'])
     expect(seen[0]?.reasoningEffort).toBeUndefined()
   })
 
@@ -187,25 +187,25 @@ describe('createDescriptionTranslator translate', () => {
       selection: { provider: 'p', model: 'm' },
       stream: streamOf([textDelta(' 管理'), textDelta('套件来源 '), finish()])
     })
-    const text = await createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })
+    const [text] = await createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })
     expect(text).toBe('管理套件来源')
   })
 
   it('rejects an empty answer so the caller keeps the original text', async () => {
     const host = hostWith({ selection: { provider: 'p', model: 'm' }, stream: streamOf([finish()]) })
-    await expect(createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/no text/)
+    await expect(createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/no text/)
   })
 
   it('rejects a terminal error finish reason', async () => {
     const failure = { code: 'LLM_HTTP_ERROR', message: 'provider exploded' } as unknown as FinishReason extends { kind: 'error'; failure: infer F } ? F : never
     const host = hostWith({ selection: { provider: 'p', model: 'm' }, stream: streamOf([{ type: 'finish', reason: { kind: 'error', failure } }]) })
-    await expect(createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/provider exploded/)
+    await expect(createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/provider exploded/)
   })
 
   it('rejects an aborted finish reason', async () => {
     const failure = { code: 'ABORTED', message: 'cancelled upstream' } as unknown as FinishReason extends { kind: 'aborted'; failure: infer F } ? F : never
     const host = hostWith({ selection: { provider: 'p', model: 'm' }, stream: streamOf([{ type: 'finish', reason: { kind: 'aborted', failure } }]) })
-    await expect(createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/cancelled upstream/)
+    await expect(createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/cancelled upstream/)
   })
 
   it('rejects when the model route disappears mid-flight', async () => {
@@ -216,9 +216,9 @@ describe('createDescriptionTranslator translate', () => {
         return { stream: streamOf([textDelta('x'), finish()]) }
       }
     }
-    const translator = createDescriptionTranslator(host)
+    const translator = createLlmTranslator(host)
     live = false
-    await expect(translator.translate({ text: 't', locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/unavailable/)
+    await expect(translator.translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/unavailable/)
   })
 
   it('stops reading once the caller aborts', async () => {
@@ -234,6 +234,6 @@ describe('createDescriptionTranslator translate', () => {
         }
       })
     })
-    await expect(createDescriptionTranslator(host).translate({ text: 't', locale: 'zh', signal: controller.signal })).rejects.toThrow()
+    await expect(createLlmTranslator(host).translate({ texts: ['t'], locale: 'zh', signal: controller.signal })).rejects.toThrow()
   })
 })

@@ -98,17 +98,17 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
     void refresh()
   }, [refresh])
 
-  // Descriptions translate off the read path, so the first response can carry
-  // upstream text plus a count still in flight. Follow that count down and swap
-  // the translated cards in; the panel is fully usable throughout.
-  const pendingDescriptions = overview.descriptionPending ?? 0
+  // Text translates off the read path, so the first response can carry upstream
+  // text plus a count still in flight. Follow that count down and swap the
+  // translated cards in; the panel is fully usable throughout.
+  const pendingTranslations = overview.translationPending ?? 0
   useEffect(() => {
-    if (pendingDescriptions === 0) return
+    if (pendingTranslations === 0) return
     const handle = startDescriptionRefresh(setOverview)
     return () => {
       handle.stop()
     }
-  }, [pendingDescriptions])
+  }, [pendingTranslations])
 
   const action = useCallback(
     async (key: string, path: string, body: Record<string, unknown>): Promise<boolean> => {

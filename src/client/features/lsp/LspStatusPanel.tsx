@@ -38,6 +38,7 @@ import rc from '../../ui/resource-card.module.css'
 import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
+import { displayText } from '../../ui/translated-text.js'
 
 interface LspStatusPanelProps {
   t: Translate
@@ -309,7 +310,7 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: `${rc.name} ${rc.nameMono}` }, entry.serverKey),
+      h('span', { className: `${rc.name} ${rc.nameMono}`, title: entry.serverKey }, displayText(entry.translatedName, entry.serverKey, t) ?? entry.serverKey),
       // The state rail on the card's leading edge carries the state; a written
       // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')))
@@ -360,7 +361,7 @@ export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t
   return h(DetailModal, {
     open: true,
     onClose,
-    title: entry.serverKey,
+    title: displayText(entry.translatedName, entry.serverKey, t) ?? entry.serverKey,
     description: t('lspDetailSubtitle'),
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,

@@ -83,6 +83,8 @@ export interface McpToolRow {
   /** The suite's own declaration leaves the tool out, so the user cannot open it. */
   suiteLimited: boolean
   description?: string
+  /** The description translated for the panel's locale; absent means render `description`. */
+  translatedDescription?: string
   /** The advertised input schema, so the row can show what the tool takes. */
   parameters?: unknown
 }
@@ -110,6 +112,7 @@ export function mcpToolRows(entry: McpStatusEntry): McpToolRow[] {
       allowed: !suiteLimited && !userDenied.has(name),
       suiteLimited,
       ...(tool?.description === undefined ? {} : { description: tool.description }),
+      ...(tool?.translatedDescription === undefined ? {} : { translatedDescription: tool.translatedDescription }),
       ...(tool?.parameters === undefined ? {} : { parameters: tool.parameters })
     }
   })

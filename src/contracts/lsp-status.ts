@@ -22,6 +22,8 @@ export interface LspStatusEntry {
   id: string
   /** Server key from the declaring `lspServers` table. */
   serverKey: string
+  /** The server key translated for the panel's locale; absent means render `serverKey`. */
+  translatedName?: string
   /** Declaring suite id; the sentinel `direct` for user-configured rows. */
   suiteId: string
   /** Declaring suite display name. */

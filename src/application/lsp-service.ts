@@ -14,19 +14,20 @@ import { buildLspStatus } from './lsp/lsp-status.js'
 import { describeLegacySeam, findLegacyLspSeams, migrateLegacyLspSeam } from './lsp/profile-seam.js'
 import { applyLspOverrides, lspConfig, validateServerLsp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
-import type { CatalogPorts, LspServerTable } from './ports.js'
+import type { CatalogPorts, LocalizeFields, LspServerTable } from './ports.js'
 
 export class LspService {
   constructor(
     private readonly context: CatalogContext,
-    private readonly ports: CatalogPorts
+    private readonly ports: CatalogPorts,
+    private readonly localizeFields: LocalizeFields
   ) {}
 
   /** The LSP status surface: declared servers merged with mount diagnostics. */
   async status(): Promise<LspStatusPayload> {
     const snapshot = await this.context.snapshots.readUserCatalog()
     const direct = await loadLspServers(this.context.agentsRoot)
-    const payload = buildLspStatus(await applyLspOverrides(this.context.dataRoot, snapshot.suites), this.ports.lspStatusSource, direct)
+    const payload = buildLspStatus(await applyLspOverrides(this.context.dataRoot, snapshot.suites), this.ports.lspStatusSource, direct, this.localizeFields)
     // The profile scan is filesystem work, so it runs only while the conflict
     // it explains is actually on screen — the panel polls this while rows start.
     if (payload.entries.some(entry => entry.state === 'conflict')) payload.legacySeam = await this.legacySeam()

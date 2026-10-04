@@ -425,7 +425,9 @@ export const zh = {
   projectLayoutsDesc: '读取项目 .claude、.agents 等目录中的技能、快捷指令、专家、MCP 与 hooks。',
   autoUpdateLabel: '后台更新',
   autoUpdateDesc: '每 6 小时刷新全部已配置来源。',
-  feedbackToggleDesc: 'Agent 遇到本插件的问题时可自动提交 issue 反馈。'
+  feedbackToggleDesc: 'Agent 遇到本插件的问题时可自动提交 issue 反馈。',
+  translationToggleLabel: '翻译界面文案',
+  translationToggleDesc: '把插件、技能、快捷指令、专家、MCP 与 LSP 的名称和描述翻成界面语言，结果缓存 7 天。'
 }
 
 export type LocaleKey = keyof typeof zh
@@ -851,5 +853,7 @@ export const en: Record<LocaleKey, string> = {
   projectLayoutsDesc: 'Reads skills, shortcuts, experts, MCP servers, and hooks from the project .claude, .agents, and similar directories.',
   autoUpdateLabel: 'Background updates',
   autoUpdateDesc: 'Refreshes every configured source every 6 hours.',
-  feedbackToggleDesc: 'The agent may auto-file an issue when it hits a problem in this plugin.'
+  feedbackToggleDesc: 'The agent may auto-file an issue when it hits a problem in this plugin.',
+  translationToggleLabel: 'Translate interface text',
+  translationToggleDesc: 'Translates plugin, skill, command, expert, MCP and LSP names and descriptions into the interface language, cached for 7 days.'
 }

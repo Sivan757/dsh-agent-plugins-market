@@ -2,8 +2,11 @@
 
 /** A tool observed in the host MCP tool registry. */
 export interface McpStatusTool {
+  /** The tool's call name, as the server advertises it; never translated. */
   name: string
   description?: string
+  /** The description translated for the panel's locale; absent means render `description`. */
+  translatedDescription?: string
   /** The advertised input schema, kept only while it stays small enough to transport; absent otherwise. */
   parameters?: unknown
 }
@@ -38,6 +41,8 @@ export type McpStatusCode =
 export interface McpStatusEntry {
   id: string
   name: string
+  /** The service name translated for the panel's locale; absent means render `name`. */
+  translatedName?: string
   kind: McpStatusKind
   /** A direct service whose persisted configuration is owned by this plugin. */
   managed?: boolean

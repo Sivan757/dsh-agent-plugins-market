@@ -34,7 +34,7 @@ import { buildMcpStatus, declaresAuthHeader } from './mcp/mcp-status.js'
 import { resolveRegion } from './regions.js'
 import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
-import type { CatalogPorts, McpBackendInfo } from './ports.js'
+import type { CatalogPorts, LocalizeFields, McpBackendInfo } from './ports.js'
 import type { SourceStore } from './source-store.js'
 
 /** The host compatibility client mounts servers without a startup timeout or tool filters. */
@@ -61,14 +61,15 @@ export class McpService {
   constructor(
     private readonly context: CatalogContext,
     private readonly ports: CatalogPorts,
-    private readonly sources: SourceStore
+    private readonly sources: SourceStore,
+    private readonly localizeFields: LocalizeFields
   ) {}
 
   /** Build the flat MCP service inventory for the status surface. */
   async status(): Promise<McpStatusPayload> {
     const snapshot = await this.context.snapshots.readUserCatalog()
     const suites = [...snapshot.suites, await loadUserMcpSuite(this.context.agentsRoot)]
-    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites))
+    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), this.localizeFields)
     for (const entry of payload.entries)
       if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
         entry.kind = 'direct'

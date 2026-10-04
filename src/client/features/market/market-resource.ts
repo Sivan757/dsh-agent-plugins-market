@@ -34,10 +34,10 @@ export function invalidateOverview(): void {
 }
 
 /**
- * Re-read the overview while descriptions are still being translated.
+ * Re-read the overview while text is still being translated.
  *
  * Translation happens off the read path, so the first response carries the
- * upstream text plus a count of descriptions still in flight. This polls until
+ * upstream text plus a count of fields still in flight. This polls until
  * that count reaches zero, which swaps the translated text in without the user
  * refreshing. Polling stops on the first error, on a response with nothing
  * pending, and when the caller unmounts — a panel that never resolves its
@@ -56,7 +56,7 @@ export function startDescriptionRefresh(report: (data: OverviewData) => void, is
       const data = await loadOverview().promise
       if (stopped || isStopped()) return
       report(data)
-      if ((data.descriptionPending ?? 0) === 0) return
+      if ((data.translationPending ?? 0) === 0) return
     } catch {
       // A failed re-read keeps the current text; the panel stays usable.
       return

@@ -31,11 +31,11 @@ afterEach(() => {
 })
 
 describe('startDescriptionRefresh', () => {
-  it('re-reads while descriptions are pending and stops when none are', async () => {
+  it('re-reads while translations are pending and stops when none are', async () => {
     vi.useFakeTimers()
-    payloads.queue.push({ ...EMPTY, descriptionPending: 2 }, { ...EMPTY, descriptionPending: 1 }, { ...EMPTY })
+    payloads.queue.push({ ...EMPTY, translationPending: 2 }, { ...EMPTY, translationPending: 1 }, { ...EMPTY })
     const seen: number[] = []
-    const handle = startDescriptionRefresh(data => seen.push(data.descriptionPending ?? 0))
+    const handle = startDescriptionRefresh(data => seen.push(data.translationPending ?? 0))
     // Two ticks for the two pending responses, a third to observe zero.
     await vi.advanceTimersByTimeAsync(1_500)
     await vi.advanceTimersByTimeAsync(1_500)
@@ -61,7 +61,7 @@ describe('startDescriptionRefresh', () => {
   it('stops when the caller reports the panel is gone', async () => {
     vi.useFakeTimers()
     let mounted = true
-    payloads.queue.push({ ...EMPTY, descriptionPending: 5 }, { ...EMPTY, descriptionPending: 5 }, { ...EMPTY, descriptionPending: 5 })
+    payloads.queue.push({ ...EMPTY, translationPending: 5 }, { ...EMPTY, translationPending: 5 }, { ...EMPTY, translationPending: 5 })
     const seen: unknown[] = []
     const handle = startDescriptionRefresh(
       data => seen.push(data),
@@ -77,7 +77,7 @@ describe('startDescriptionRefresh', () => {
 
   it('stops on a failed re-read instead of retrying forever', async () => {
     vi.useFakeTimers()
-    payloads.queue.push({ ...EMPTY, descriptionPending: 3 }, new Error('overview: 500'))
+    payloads.queue.push({ ...EMPTY, translationPending: 3 }, new Error('overview: 500'))
     const seen: unknown[] = []
     const handle = startDescriptionRefresh(data => seen.push(data))
     await vi.advanceTimersByTimeAsync(1_500)

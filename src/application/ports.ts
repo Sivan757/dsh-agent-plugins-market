@@ -14,7 +14,18 @@ export type { McpBackendInfo } from '../contracts/market.js'
 import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../contracts/mcp.js'
 import type { LspMountDiagnostic } from '../contracts/lsp.js'
-import type { DescriptionTranslator } from './description-localizer.js'
+import type { TranslationFields, TranslationSurfaceKind } from '../contracts/translation.js'
+import type { TranslationProvider } from './translation/chain.js'
+
+/**
+ * Resolve one entity's name and description for the panel's locale.
+ *
+ * The catalog implements this over its own translation localizer; the panel and
+ * status builders receive it as a parameter so they stay independent of how the
+ * catalog stores translations. A returned field set with both members absent
+ * means nothing is translated yet, and the caller renders the upstream text.
+ */
+export type LocalizeFields = (surface: TranslationSurfaceKind, id: string, fields: { name?: string | undefined; description?: string | undefined }) => TranslationFields
 
 /** One MCP tool observed from the host tool registry (structural). */
 export interface McpToolSnapshot {
@@ -80,11 +91,18 @@ export interface CatalogPorts {
   /** The host locale preference ('zh' default when unset). */
   localePreference(): string
   /**
-   * The host LLM seam used to translate upstream suite descriptions, or
-   * undefined when this deployment has no model route. Absent means the market
-   * renders upstream text as authored, which is the pre-existing behavior.
+   * The ordered translation chain, best provider first. An empty array means
+   * this deployment translates nothing and every surface renders the upstream
+   * text as authored.
    */
-  descriptionTranslator?: DescriptionTranslator | undefined
+  translationProviders?: readonly TranslationProvider[] | undefined
+  /**
+   * Stable identity of the current chain, folded into every cache key.
+   *
+   * A deployment that changes engines must miss the entries the previous chain
+   * filled rather than serve its output as if the new chain had produced it.
+   */
+  translationProviderIdentity?: (() => string) | undefined
 }
 
 /** The seams a composition root may wire; the rest fall back to the defaults. */
@@ -103,6 +121,8 @@ export const defaultCatalogPorts: CatalogPorts = {
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
   mcpBackend: async () => 'builtin',
   localePreference: () => 'zh',
+  translationProviders: [],
+  translationProviderIdentity: () => 'none',
   setMcpBackend: async () => {
     throw new Error('the settings service is not mounted')
   },

@@ -12,6 +12,7 @@ import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './m
 import { mcpCardState, mcpDisplayName } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
+import { displayText } from '../../ui/translated-text.js'
 import { McpDetailModal } from './McpDetailModal.js'
 import { McpConfigModal } from './McpConfigModal.js'
 import { McpAddModal } from './McpAddModal.js'
@@ -212,7 +213,7 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
     h(
       'div',
       { className: rc.rowId },
-      h('span', { className: `${rc.name} ${rc.nameMono}`, title: entry.name }, displayName),
+      h('span', { className: `${rc.name} ${rc.nameMono}`, title: entry.name }, displayText(entry.translatedName, displayName, t) ?? displayName),
       // The state rail on the card's left edge carries the state; a written
       // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect')))
