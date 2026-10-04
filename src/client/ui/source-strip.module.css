@@ -34,6 +34,35 @@
   min-width: 0;
 }
 
+/* One horizontal line, chips at natural width, never folding: the resource
+   window's favorites ride in a modal where the fold's two-row cap and its
+   overlay would only get between the user and the chips. A narrow strip
+   scrolls sideways instead of stacking. */
+.sourceTabsBoxLine .sourceTabsRow {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sourceTabsBoxLine .sourceTabsRow::-webkit-scrollbar {
+  display: none;
+}
+
+.sourceTabsBoxLine .srcTab,
+.sourceTabsBoxLine .srcTabOn {
+  flex: none;
+  max-width: 220px;
+}
+
+.sourceTabsBoxLine .srcTabMain,
+.sourceTabsBoxLine .srcTabOn .srcTabMain {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  display: block;
+}
+
 /* Folded: two 24px rows plus the 4px gap, with 6px of overlay padding above
    only — a bottom pad would paint a white band over the toolbar below. */
 .sourceTabsBoxFold {

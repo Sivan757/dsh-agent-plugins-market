@@ -260,6 +260,7 @@ export function ResourceWindow({ t, open, onClose, onView }: ResourceWindowProps
         // the full locale union; the window's t covers the keys the strip
         // renders, so the widening is a property of the shared component.
         t: t as unknown as Translate,
+        layout: 'row',
         items: favoriteItems,
         activeId: data?.activeFavoriteId ?? FOLLOW_GLOBAL_ID,
         onSelect: selectFavorite,

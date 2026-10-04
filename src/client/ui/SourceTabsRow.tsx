@@ -59,6 +59,13 @@ export interface SourceTabsRowProps {
   /** Accessible name for every chip's delete control; callers whose domain
    * names deletion differently pass their own. */
   deleteTitle?: string
+  /**
+   * Layout: `fold` (default) stacks chips in an equal-width grid that folds
+   * to two rows; `row` lays every chip on one horizontal line that never
+   * folds or wraps — the resource window's favorites ride inside a modal and
+   * always stay on one line.
+   */
+  layout?: 'fold' | 'row'
 }
 
 /**
@@ -68,7 +75,7 @@ export interface SourceTabsRowProps {
  * @returns An equal-width pill grid that unfolds as an overlay.
  */
 export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
-  const { t, items, activeId, onSelect, onDelete, onEdit, deleteTitle } = props
+  const { t, items, activeId, onSelect, onDelete, onEdit, deleteTitle, layout = 'fold' } = props
   const gridRef = useRef<HTMLDivElement>(null)
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [folded, setFolded] = useState(false)
@@ -84,13 +91,15 @@ export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
   useEffect(() => cancelLeave, [cancelLeave])
 
   const measure = useCallback(() => {
+    // The row layout never folds: one horizontal line, however many chips.
+    if (layout === 'row') return
     const grid = gridRef.current
     if (grid === null) return
     // scrollHeight reports the full content height even while the fold clips
     // it, and it does not change when the overlay expands on hover — so the
     // fold state stays stable while the pointer is inside the strip.
     setFolded(grid.scrollHeight > COLLAPSED_SCROLL_HEIGHT)
-  }, [])
+  }, [layout])
 
   useLayoutEffect(() => {
     measure()
@@ -101,7 +110,12 @@ export function SourceTabsRow(props: SourceTabsRowProps): ReactNode {
     return () => observer.disconnect()
   }, [measure, items])
 
-  const className = [css.sourceTabsBox, folded ? css.sourceTabsBoxFold : '', picked ? css.sourceTabsBoxPicked : ''].filter(Boolean).join(' ')
+  const className = [
+    css.sourceTabsBox,
+    layout === 'row' ? css.sourceTabsRowLine : '',
+    folded ? css.sourceTabsBoxFold : '',
+    picked ? css.sourceTabsBoxPicked : ''
+  ].filter(Boolean).join(' ')
   return h(
     'div',
     {
