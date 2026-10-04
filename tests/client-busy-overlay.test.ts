@@ -282,7 +282,7 @@ describe('shared operation overlay', () => {
     expect(host.querySelector('[data-visible="true"]')).not.toBeNull()
   })
 
-  it('gives a new read its own delay after a fast read finishes', async () => {
+  it('never paints an overlay for a read, however long it runs', async () => {
     vi.useFakeTimers()
     const target = document.createElement('div')
     document.body.append(target)
@@ -295,15 +295,14 @@ describe('shared operation overlay', () => {
       end = beginBusyOperation(target, { blocking: false })
       releases.push(end)
     })
-    await act(async () => vi.advanceTimersByTime(150))
-    await act(async () => end())
-    await act(async () => {
-      releases.push(beginBusyOperation(target, { blocking: false }))
-    })
-    await act(async () => vi.advanceTimersByTime(199))
+    // The panel shows its own loading line, so the overlay stays out of the way
+    // no matter how long the read takes.
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS + 50))
     expect(host.querySelector('[data-operation-overlay]')).toBeNull()
-    await act(async () => vi.advanceTimersByTime(1))
-    expect(host.querySelector('[data-operation-overlay]')).not.toBeNull()
+    await act(async () => vi.advanceTimersByTime(BUSY_LONG_RUNNING_MS))
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    await act(async () => end())
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('does not retain or refocus a disconnected target after completion', async () => {
@@ -333,7 +332,7 @@ describe('shared operation overlay', () => {
     expect(target.hasAttribute('inert')).toBe(false)
   })
 
-  it('shows slow reads and restores pre-existing attributes on unmount', async () => {
+  it('restores pre-existing attributes on unmount', async () => {
     vi.useFakeTimers()
     const dialog = document.createElement('div')
     dialog.setAttribute('inert', '')
@@ -344,7 +343,7 @@ describe('shared operation overlay', () => {
     root = createRoot(host)
     await act(async () => root!.render(h(BusyOverlay, { t })))
     await act(async () => {
-      releases.push(beginBusyOperation(dialog, { blocking: false }))
+      releases.push(beginBusyOperation(dialog))
     })
     await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
     expect(host.querySelector('[data-operation-overlay]')).not.toBeNull()
@@ -353,6 +352,7 @@ describe('shared operation overlay', () => {
     // React schedules an immediate callback while detaching the root.
     vi.advanceTimersByTime(0)
     root = undefined
+    // `inert` was already there, so the overlay must leave it in place.
     expect(dialog.hasAttribute('inert')).toBe(true)
     expect(dialog.getAttribute('aria-busy')).toBe('false')
     expect(vi.getTimerCount()).toBe(0)
@@ -382,7 +382,8 @@ describe('shared operation overlay', () => {
     button.onclick = clicked
     button.onkeydown = keyed
     await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
-    expect(host.querySelector('[data-blocking="false"]')).not.toBeNull()
+    // A read never paints, and never takes focus or input from the dialog.
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
     expect(target.hasAttribute('inert')).toBe(false)
     expect(document.activeElement).toBe(button)
     button.click()

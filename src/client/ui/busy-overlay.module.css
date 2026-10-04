@@ -5,21 +5,12 @@
   place-items: center;
   box-sizing: border-box;
   background: var(--dsw-alias-bg-mask-3);
-  backdrop-filter: blur(3px);
+  /* No backdrop blur: Chrome samples past the rounded corner and paints a dark
+     fringe along the arc, and the platform's own mask resolves
+     `--dsw-mask-blur` to `none`, so the plain tint is what the host does. */
   cursor: progress;
   outline: none;
   overflow: hidden;
-}
-.overlay[data-blocking='false'] {
-  pointer-events: none;
-  background: transparent;
-  backdrop-filter: none;
-  place-items: end;
-  padding: 12px;
-}
-.overlay[data-blocking='false'] .content {
-  width: min(280px, 100%);
-  padding: 12px;
 }
 .overlay[data-visible='true'] {
   animation: busy-enter 140ms ease-out;

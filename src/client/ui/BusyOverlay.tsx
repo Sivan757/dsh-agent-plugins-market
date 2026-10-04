@@ -11,14 +11,18 @@ export const BUSY_LONG_RUNNING_MS = 20_000
 export function BusyOverlay({ t }: { t: Translate }): ReactNode {
   const tasks = useSyncExternalStore(subscribeBusy, busySnapshot, busySnapshot)
   const latest = [...tasks].reverse()
-  const target = latest.find(task => task.blocking && task.target?.isConnected)?.target ?? latest.find(task => task.target?.isConnected)?.target ?? (tasks.length ? operationTarget() : null)
+  const blocking = tasks.some(task => task.blocking)
+  // Only a blocking lease earns an overlay. A read reports itself where it is
+  // read — the panel shows its own loading line and keeps its controls usable —
+  // so a second floating card would only repeat that, over content the user can
+  // still work with.
+  const target = blocking ? latest.find(task => task.blocking && task.target?.isConnected)?.target ?? operationTarget() : null
   const [visible, setVisible] = useState(false)
   const [slow, setSlow] = useState(false)
-  const active = tasks.length > 0
-  const blocking = tasks.some(task => task.blocking)
+  const overlay = target !== null
 
   useLayoutEffect(() => {
-    if (!active) return
+    if (!overlay) return
     const show = setTimeout(() => setVisible(true), BUSY_SHOW_DELAY_MS)
     const warn = setTimeout(() => setSlow(true), BUSY_LONG_RUNNING_MS)
     return () => {
@@ -27,12 +31,12 @@ export function BusyOverlay({ t }: { t: Translate }): ReactNode {
       setVisible(false)
       setSlow(false)
     }
-  }, [active])
+  }, [overlay])
 
-  return active && target ? h(ActiveOverlay, { target, t, visible, slow, blocking }) : null
+  return overlay && target !== null ? h(ActiveOverlay, { target, t, visible, slow }) : null
 }
 
-function ActiveOverlay({ target, t, visible, slow, blocking }: { target: HTMLElement; t: Translate; visible: boolean; slow: boolean; blocking: boolean }): ReactNode {
+function ActiveOverlay({ target, t, visible, slow }: { target: HTMLElement; t: Translate; visible: boolean; slow: boolean }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
   const [rect, setRect] = useState(() => target.getBoundingClientRect())
   const [message, setMessage] = useState(0)
@@ -45,7 +49,6 @@ function ActiveOverlay({ target, t, visible, slow, blocking }: { target: HTMLEle
   }, [hints.length, visible])
 
   useLayoutEffect(() => {
-    if (!blocking) return
     const scope = target.closest('[role="presentation"]') ?? target
     const stop = (event: Event): void => {
       if (ref.current?.contains(event.target as Node)) return
@@ -59,14 +62,14 @@ function ActiveOverlay({ target, t, visible, slow, blocking }: { target: HTMLEle
     return () => {
       for (const event of ['pointerdown', 'click', 'keydown', 'submit']) window.removeEventListener(event, stop, true)
     }
-  }, [target, blocking])
+  }, [target])
 
   useLayoutEffect(() => {
     if (!visible) return
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const inertBefore = target.hasAttribute('inert')
     const busyBefore = target.getAttribute('aria-busy')
-    if (blocking) target.setAttribute('inert', '')
+    target.setAttribute('inert', '')
     target.setAttribute('aria-busy', 'true')
     const scope = target.closest('[role="presentation"]') ?? target
     const trapFocus = (event: FocusEvent): void => {
@@ -87,10 +90,8 @@ function ActiveOverlay({ target, t, visible, slow, blocking }: { target: HTMLEle
     observer?.observe(target)
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
-    if (blocking) {
-      window.addEventListener('focusin', trapFocus, true)
-      ref.current?.focus({ preventScroll: true })
-    }
+    window.addEventListener('focusin', trapFocus, true)
+    ref.current?.focus({ preventScroll: true })
     update()
     return () => {
       if (frame) cancelAnimationFrame(frame)
@@ -98,12 +99,12 @@ function ActiveOverlay({ target, t, visible, slow, blocking }: { target: HTMLEle
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
       window.removeEventListener('focusin', trapFocus, true)
-      if (blocking && !inertBefore) target.removeAttribute('inert')
+      if (!inertBefore) target.removeAttribute('inert')
       if (busyBefore === null) target.removeAttribute('aria-busy')
       else target.setAttribute('aria-busy', busyBefore)
-      if (blocking && previousFocus?.isConnected && !previousFocus.closest('[inert]')) previousFocus.focus({ preventScroll: true })
+      if (previousFocus?.isConnected && !previousFocus.closest('[inert]')) previousFocus.focus({ preventScroll: true })
     }
-  }, [target, visible, blocking])
+  }, [target, visible])
 
   if (!visible) return null
   return h(
@@ -111,16 +112,14 @@ function ActiveOverlay({ target, t, visible, slow, blocking }: { target: HTMLEle
     {
       ref,
       className: css.overlay,
-      tabIndex: blocking ? -1 : undefined,
+      tabIndex: -1,
       'data-operation-overlay': true,
       'data-visible': true,
-      'data-blocking': blocking,
       role: 'status',
       'aria-live': 'polite',
       'aria-label': t('panelWorking'),
       style: { top: rect.top, left: rect.left, width: rect.width, height: rect.height, borderRadius: getComputedStyle(target).borderRadius },
       onKeyDown: (event: { preventDefault(): void; stopPropagation(): void }) => {
-        if (!blocking) return
         event.preventDefault()
         event.stopPropagation()
       }
