@@ -218,18 +218,12 @@ export function ServerConfigEditor(props: {
         : h('label', { className: formCss.field }, h('span', null, props.nameField.label), props.nameField.control)
   /**
    * The advanced disclosure: one seat for the optional inputs. A stdio server
-   * offers its working directory there, a remote one its OAuth block, and both
-   * offer the client timeouts when the calling dialog supplies the policy.
+   * offers its working directory there, and both transports offer the client
+   * timeouts when the calling dialog supplies the policy.
    */
   const advancedFields: ReactNode[] = []
-  if (config !== undefined) {
-    advancedFields.push(
-      type === 'stdio'
-        ? textField('cwd', props.t('detailCwd'), false, true)
-        : // OAuth is detected from the server's own 401 challenge, so the form
-          // states the behavior rather than asking for an opt-in.
-          h('span', { key: 'oauth', className: `${formCss.hint} ${formCss.full}` }, props.t('mcpOauthAuto'))
-    )
+  if (config !== undefined && type === 'stdio') {
+    advancedFields.push(textField('cwd', props.t('detailCwd'), false, true))
   }
   if (timeouts) {
     advancedFields.push(
@@ -390,11 +384,9 @@ function TimeoutField(props: {
   onChange: (value: string) => void
 }): ReactNode {
   const invalid = timeoutMsFromText(props.value) === undefined
-  const hint = invalid
-    ? props.t('mcpTimeoutInvalid')
-    : props.value.trim() === ''
-      ? `${props.t('mcpTimeoutInherit')} · ${props.resolution.suite === null ? props.t('mcpTimeoutFromDefault') : props.t('mcpTimeoutFromSuite')}`
-      : props.t('mcpTimeoutUserSet')
+  // An empty field inherits the placeholder's value silently; only a rejected
+  // value and a value the user set themselves need a line of their own.
+  const hint = invalid ? props.t('mcpTimeoutInvalid') : props.value.trim() === '' ? undefined : props.t('mcpTimeoutUserSet')
   return h(
     'div',
     { className: `${formCss.field} ${formCss.full}` },
@@ -429,7 +421,7 @@ function TimeoutField(props: {
             props.t('mcpTimeoutClear')
           )
     ),
-    h('span', { className: invalid ? formCss.footerError : formCss.hint }, hint),
+    hint === undefined ? null : h('span', { className: invalid ? formCss.footerError : formCss.hint }, hint),
     props.blocked === undefined ? null : h('span', { className: formCss.hint }, props.blocked)
   )
 }

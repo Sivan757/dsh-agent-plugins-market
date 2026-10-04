@@ -122,8 +122,10 @@ describe('MCP advanced settings', () => {
     expect(button('mcpAdvanced')?.getAttribute('aria-expanded')).toBe('true')
     expect(input('mcpToolCallTimeout').placeholder).toBe('30000')
     expect(input('mcpStartupTimeout').placeholder).toBe('10000')
-    expect(host.textContent).toContain('mcpTimeoutInherit · mcpTimeoutFromSuite')
-    expect(host.textContent).toContain('mcpTimeoutInherit · mcpTimeoutFromDefault')
+    // An empty field inherits silently: the placeholder carries the effective
+    // value and no line repeats where it came from.
+    expect(host.textContent).not.toContain('mcpTimeoutInherit')
+    expect(host.textContent).not.toContain('mcpTimeoutUserSet')
   })
 
   it('moves the stdio working directory into the disclosure', async () => {
@@ -143,14 +145,15 @@ describe('MCP advanced settings', () => {
     expect(disclosureBody().contains(input('mcpStartupTimeout'))).toBe(true)
   })
 
-  it('states that a remote server negotiates OAuth itself instead of offering a switch', async () => {
+  it('offers no OAuth switch and no note for a remote server', async () => {
     await render(h(EditorHarness, { config: { type: 'streamable-http', url: 'https://example.test/mcp' } }))
     expect(find('detailUrl')).not.toBeNull()
-    expect(host.textContent).not.toContain('mcpOauthAuto')
 
     await act(async () => button('mcpAdvanced')!.click())
+    // A remote server's advanced block carries only the timeouts: the working
+    // directory belongs to stdio, and OAuth needs no control or explanation.
     expect(find('detailCwd')).toBeNull()
-    expect(disclosureBody().textContent).toContain('mcpOauthAuto')
+    expect(disclosureBody().querySelectorAll('input')).toHaveLength(2)
     expect(disclosureBody().contains(input('mcpToolCallTimeout'))).toBe(true)
     expect(disclosureBody().contains(input('mcpStartupTimeout'))).toBe(true)
   })
@@ -376,6 +379,6 @@ describe('ServerConfigDetail policy', () => {
     expect(input('mcpToolCallTimeout').value).toBe('120000')
     expect(input('mcpToolCallTimeout').placeholder).toBe('120000')
     expect(document.body.textContent).toContain('mcpTimeoutUserSet')
-    expect(document.body.textContent).not.toContain('mcpTimeoutInherit · mcpTimeoutFromSuite')
+    expect(document.body.textContent).not.toContain('mcpTimeoutInherit')
   })
 })
