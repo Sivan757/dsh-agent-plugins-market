@@ -23,6 +23,14 @@ import { defaultMarkdownResources, resourceText, resourceCommandName } from '../
 import { bindHostLocale, type HostTranslate } from '../host/host-locale.js'
 import { injectDynamicContext, shellSeamOf, type ShellSeam } from './dynamic-context.js'
 import { pluginMarketSource } from '../host/plugin-message-source.js'
+import { CommandNameRegistry, registerWithAllocatedName } from '../host/command-name-allocator.js'
+import { pluginResourceId } from '../../application/panel-resources.js'
+import type { MenuRowRegistration } from '../host/menu-row-identities.js'
+
+/** Render a thrown value for a diagnostic, without trusting its string coercion. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 export interface CommandMountDiagnostic {
   suiteId: string
@@ -35,6 +43,13 @@ interface CommandSpec {
   description: string
   body: string
   hint?: string
+  /**
+   * The resource name as authored, before it was flattened into
+   * {@link CommandSpec.name} (`git/commit` where the call name is
+   * `git-commit`). The panel addresses the same document by this spelling, so
+   * it is the id the two surfaces have to agree on.
+   */
+  resourceName?: string
   /** Set when the command file belongs to a suite with a plugin root; absent for project-native files. */
   suiteRoot?: string
   /** The suite's `${PLUGIN_DATA}` directory; absent for project-native files. */
@@ -65,6 +80,18 @@ const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/
 export class CommandMountRegistry {
   private readonly fingerprints = new Map<string, string>()
   private readonly live = new Map<string, () => void>()
+  /**
+   * The call names this seat holds, and the keys they were registered under.
+   *
+   * Occupancy is per layer, which is the unit the host checks: this registry
+   * instance registers into one layer (an agent's scope on the project path,
+   * the global layer on the user path), and a sibling registry in another
+   * layer neither sees nor is seen by these names.
+   */
+  private readonly names = new CommandNameRegistry()
+  private readonly registeredName = new Map<string, string>()
+  /** The menu row each live registration produces, with the panel id it translates as. */
+  private readonly registered = new Map<string, MenuRowRegistration>()
   /** Per-workspace entry filter; an absent provider registers everything wanted. */
   private entryFilter: (() => { allows(face: 'commands', entryId: string): boolean }) | undefined
 
@@ -91,7 +118,9 @@ export class CommandMountRegistry {
   /** Register/unregister suite commands to match the enabled suites exactly. */
   async reconcile(enabledSuites: Suite[]): Promise<CommandMountDiagnostic[]> {
     const diagnostics: CommandMountDiagnostic[] = []
-    const wanted = new Map<string, CommandSpec & { suiteId: string; suiteName: string }>()
+    const wanted = new Map<string, CommandSpec & { suiteId: string; suiteName: string; sourceId: string; rawSuiteId: string }>()
+    /** How many specs already claimed one suite-qualified call name this pass. */
+    const occurrences = new Map<string, number>()
     for (const suite of enabledSuites) {
       const specs = suite.activeSurfaces.commands === false ? [] : await readCommands(suite.root, suite.resources?.commands)
       const suiteRoot = pluginRootOf(suite)
@@ -100,18 +129,26 @@ export class CommandMountRegistry {
         // The registry key is source-qualified: bare suite ids are unique per
         // source only, so two sources' same-named suites would collide.
         const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
-        const key = `${suiteKey}/${spec.name}`
+        // Two files of one suite flatten to one call name (`git/commit` and
+        // `git-commit`) and are both real commands, so the key counts them
+        // apart and allocation gives the second one a suffix instead of
+        // dropping it. The count is per pass, so re-reading the same suite
+        // reproduces the same keys.
+        const qualified = `${suiteKey}/${spec.name}`
+        const occurrence = occurrences.get(qualified) ?? 0
+        occurrences.set(qualified, occurrence + 1)
+        const key = occurrence === 0 ? qualified : `${qualified}#${occurrence}`
         // The per-workspace resource filter answers by the call name the model
         // types, so the window and the registry agree on what one row names.
         if (this.entryFilter?.().allows('commands', `commands:${spec.name}`) === false) continue
-        if (wanted.has(key)) {
-          diagnostics.push({ suiteId: suiteKey, command: spec.name, reason: 'duplicate normalized command name' })
-          continue
-        }
         wanted.set(key, {
           ...spec,
           suiteId: suiteKey,
           suiteName: suite.manifest.name,
+          // Kept apart from the qualified `suiteId` above: the panel id is built
+          // from the two raw halves, exactly as the panel builds it.
+          sourceId: suite.sourceId,
+          rawSuiteId: suite.id,
           ...(suiteRoot === undefined ? {} : { suiteRoot }),
           ...(suiteData === undefined ? {} : { suiteData })
         })
@@ -121,10 +158,13 @@ export class CommandMountRegistry {
       if (!wanted.has(key)) {
         disposer()
         this.live.delete(key)
+        this.fingerprints.delete(key)
+        this.releaseName(key)
       }
     }
     const host = this.ctx as unknown as CommandsHost
-    if (typeof host.commands?.register !== 'function') {
+    const commands = host.commands
+    if (typeof commands?.register !== 'function') {
       if (wanted.size > 0) diagnostics.push({ suiteId: '', command: '', reason: 'ctx.commands is not available in this profile' })
       return diagnostics
     }
@@ -134,9 +174,15 @@ export class CommandMountRegistry {
       this.live.get(key)?.()
       this.live.delete(key)
       this.fingerprints.delete(key)
-      try {
-        const disposer = host.commands.register({
-          name: spec.name,
+      this.releaseName(key)
+      // A name the layer already holds — a sibling suite flattening to the
+      // same call name, a host built-in such as /compact, or a leftover
+      // registration — is the one case the host refuses outright, and a
+      // refused definition is what the slash menu drops. Allocating the name
+      // first turns that collision into a suffix instead of a disappearance.
+      const attempt = registerWithAllocatedName(this.names, spec.name, name =>
+        commands.register({
+          name,
           description: `[${spec.suiteName}] ${spec.description}`,
           ...(spec.hint === undefined ? {} : { input: { hint: spec.hint } }),
           handler: async invocation => {
@@ -159,7 +205,7 @@ export class CommandMountRegistry {
                   source: pluginMarketSource()
                 })
               )
-              return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
+              return { kind: 'success', text: this.t('commandAcknowledged', { command: name }) }
             }
             let text: string
             try {
@@ -173,23 +219,64 @@ export class CommandMountRegistry {
                 source: pluginMarketSource()
               })
             )
-            return { kind: 'success', text: this.t('commandAcknowledged', { command: spec.name }) }
+            return { kind: 'success', text: this.t('commandAcknowledged', { command: name }) }
           }
         })
-        this.live.set(key, disposer)
-        this.fingerprints.set(key, fingerprint)
-      } catch (error) {
-        diagnostics.push({ suiteId: spec.suiteId, command: spec.name, reason: error instanceof Error ? error.message : String(error) })
+      )
+      if (attempt.kind === 'failed') {
+        diagnostics.push({ suiteId: spec.suiteId, command: spec.name, reason: messageOf(attempt.error) })
+        continue
+      }
+      this.live.set(key, attempt.disposer)
+      this.fingerprints.set(key, fingerprint)
+      this.registeredName.set(key, attempt.name)
+      // The panel addresses this document by the resource name it read plus the
+      // suite it belongs to, so the id is built exactly as the panel builds it —
+      // same inputs, same string, one shared cache entry.
+      this.registered.set(key, { name: attempt.name, id: pluginResourceId(spec.sourceId, spec.rawSuiteId, 'commands', spec.resourceName ?? spec.name) })
+      // A renamed command still works, so this is not a failure: it is the
+      // one record that the name a user types is not the name the file
+      // carries, which nothing else in the status surfaces would show.
+      if (attempt.name !== spec.name) {
+        diagnostics.push({
+          suiteId: spec.suiteId,
+          command: attempt.name,
+          reason: `registered as "${attempt.name}" because "${spec.name}" is already taken in this command layer`
+        })
       }
     }
     return diagnostics
   }
 
+  /**
+   * Every command this layer currently holds: the call name the menu row
+   * carries and the panel identity that owns its translation.
+   *
+   * Two files of one suite can flatten to the same call name, so the
+   * registration key (not the name) is what tells those rows apart; each one
+   * keeps its own resource name and therefore its own translation id.
+   * @returns one row per live registration, in registration-key order.
+   */
+  registrations(): MenuRowRegistration[] {
+    return [...this.registered.values()]
+  }
+
   /** Dispose every registered command; used at plugin teardown. */
   disposeAll(): void {
     for (const disposer of [...this.live.values()]) disposer()
+    for (const key of [...this.registeredName.keys()]) this.releaseName(key)
+    this.registered.clear()
     this.live.clear()
     this.fingerprints.clear()
+  }
+
+  /** Free the call name one unmounted key held, so a later claim can reuse it. */
+  private releaseName(key: string): void {
+    const name = this.registeredName.get(key)
+    if (name === undefined) return
+    this.names.forget(name)
+    this.registeredName.delete(key)
+    this.registered.delete(key)
   }
 }
 
@@ -214,7 +301,7 @@ export async function readCommands(root: string, resources?: SuiteMarkdownResour
     const meta = commandMeta(text)
     const description = meta?.description ?? firstLine(text)
     if (description === undefined) continue
-    specs.push({ name, description, hint: meta?.hint, body: stripFrontmatter(text) })
+    specs.push({ name, description, hint: meta?.hint, body: stripFrontmatter(text), resourceName: entry.name })
   }
   return specs
 }

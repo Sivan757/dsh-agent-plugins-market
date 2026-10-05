@@ -8,6 +8,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { CommandMountRegistry, type CommandMountDiagnostic } from '../surfaces/commands-mounts.js'
+import type { MenuRowRegistration } from '../host/menu-row-identities.js'
 import { HooksMountRegistry, type HooksMountDiagnostic } from '../surfaces/hooks-mounts.js'
 import { LspMountRegistry, type LspMountDiagnostic } from '../lsp/lsp-mounts.js'
 import { McpMountRegistry, type McpMountDiagnostic } from '../mcp/mcp-mounts.js'
@@ -66,6 +67,11 @@ export class RuntimeReconciler {
   /** The LSP mount registry, consumed by the LSP status surface. */
   get lsp(): LspMountRegistry {
     return this.lspRegistry
+  }
+
+  /** The suite commands the global layer currently holds, for the slash menu's row faces. */
+  commandRegistrations(): MenuRowRegistration[] {
+    return this.commands.registrations()
   }
 
   /** Install the per-workspace entry filter on the MCP mount registry. */
