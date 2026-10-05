@@ -15,7 +15,7 @@ import { repoName } from '../catalog/manifests.js'
 import { deriveSourceIdCandidates, expandHome, sanitizeId, sourceCheckoutDir, sourcesDir } from '../catalog/paths.js'
 import { isDirectory, pathExists } from '../catalog/fs-probes.js'
 import { canonicalGitUrl } from '../catalog/scan-resolvers.js'
-import { githubCloneUrl, resolveRegion } from './regions.js'
+import { githubCloneUrl, resolveRegion, type EffectiveRegion } from './regions.js'
 import type { SourceOverview, SourceProgress, UnmanagedSource } from '../contracts/market.js'
 import { resolveSourceKind, type SourceRef } from '../model/types.js'
 import type { CatalogContext } from './catalog-context.js'
@@ -226,6 +226,10 @@ export class SourceStore {
   async refresh(sourceId?: string): Promise<void> {
     return this.context.enqueue(async () => {
       const targets = sourceId === undefined ? this.context.state.sources : this.context.state.sources.filter(source => source.id === sourceId)
+      // One route for the whole pass: resolving it reads the host locale
+      // preference, so asking per source made a refresh of N sources pay N
+      // whole-profile projections.
+      const route = await this.downloadRoute()
       for (const source of targets) {
         const kind = resolveSourceKind(source)
         if (kind === 'local') {
@@ -275,8 +279,7 @@ export class SourceStore {
         // source.url) are re-pointed — a foreign remote is left untouched.
         if (source.kind === 'git' || (source.kind === undefined && source.local !== true)) {
           try {
-            const region = resolveRegion(await this.ports.downloadRegion(), this.ports.localePreference())
-            const routed = githubCloneUrl(region, source.url)
+            const routed = githubCloneUrl(route, source.url)
             const origin = await gitRemoteUrl(checkout)
             if (origin !== routed && (origin === source.url || origin === githubCloneUrl('china', source.url))) {
               await gitSetRemoteUrl(checkout, routed)
@@ -294,6 +297,18 @@ export class SourceStore {
       }
       await this.context.notifyChanged()
     })
+  }
+
+  /**
+   * The download route one acquisition pass applies to its sources.
+   *
+   * Reading it resolves the host locale preference, which the host answers by
+   * projecting every active profile entry's live configuration. A pass over
+   * several sources reads it once and reuses the value, so a refresh's cost
+   * follows its work instead of its source count.
+   */
+  private async downloadRoute(): Promise<EffectiveRegion> {
+    return resolveRegion(await this.ports.downloadRegion(), this.ports.localePreference())
   }
 
   /** Progress snapshot for the progress route. */
@@ -391,8 +406,7 @@ export class SourceStore {
     try {
       // The region routes github.com clones through the China mirror prefix;
       // the proxied URL becomes `origin`, so refreshes follow the same route.
-      const region = resolveRegion(await this.ports.downloadRegion(), this.ports.localePreference())
-      await gitClone(githubCloneUrl(region, source.url), source.branch, checkout, this.context.git)
+      await gitClone(githubCloneUrl(await this.downloadRoute(), source.url), source.branch, checkout, this.context.git)
       return undefined
     } catch (error) {
       if (this.context.git.fallbackTarball !== true) throw error

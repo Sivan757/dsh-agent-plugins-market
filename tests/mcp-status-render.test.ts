@@ -104,7 +104,7 @@ vi.mock('../src/client/api.js', () => ({
   fetchServerConfigDefaults: vi.fn().mockResolvedValue({ kind: 'mcp', id: '', key: '', editable: true, config: {} }),
   saveServerConfig: vi.fn(),
   fetchSuiteDetail: vi.fn(),
-  fetchSkillContent: vi.fn(),
+  fetchSuiteDocument: vi.fn(),
   postAction: vi.fn(),
   retryMcpMounts: vi.fn()
 }))

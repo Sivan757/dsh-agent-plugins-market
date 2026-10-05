@@ -376,8 +376,13 @@ describe('suite detail and skill content (market detail endpoints)', () => {
     expect(detail).toMatchObject({ name: 'v1-suite', version: '1.2.3', layout: 'agent-plugin-v1' })
     expect((detail['skills'] as Array<{ name: string }>).map(skill => skill.name)).toEqual(['greet'])
     expect((detail['mcpServers'] as Array<{ key: string }>).map(server => server.key)).toEqual(['toolbox', 'remote'])
-    const content = await manager.skillContent('demo', 'v1-suite', 'greet')
+    // Document bodies stay out of the detail payload: a command or agent entry
+    // carries the identity its row renders, and the text is one read away.
+    expect(detail.commands).toEqual([{ name: 'deploy', description: 'Deploy the fixture' }])
+    expect(detail.agents).toEqual([{ name: 'reviewer', description: 'Review code changes' }])
+    const content = await manager.suiteDocument('demo', 'v1-suite', 'skills', 'greet')
     expect(content.content).toContain('${CLAUDE_PLUGIN_ROOT}')
+    expect((await manager.suiteDocument('demo', 'v1-suite', 'commands', 'deploy')).content).toContain('Deploy the v1 fixture suite.')
     await expect(manager.suiteDetail('demo', 'missing')).rejects.toThrow('not found')
   })
 })

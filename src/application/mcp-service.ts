@@ -34,7 +34,7 @@ import { buildMcpStatus, declaresAuthHeader } from './mcp/mcp-status.js'
 import { resolveRegion } from './regions.js'
 import { applyLspOverrides, lspConfig, restoreRedactedConfig, saveLspOverride, validateServerLsp, validateServerMcp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
-import type { CatalogPorts, LocalizeFields, McpBackendInfo } from './ports.js'
+import type { CatalogPorts, Localization, LocalizeFields, McpBackendInfo } from './ports.js'
 import type { SourceStore } from './source-store.js'
 
 /** The host compatibility client mounts servers without a startup timeout or tool filters. */
@@ -69,7 +69,12 @@ export class McpService {
   async status(): Promise<McpStatusPayload> {
     const snapshot = await this.context.snapshots.readUserCatalog()
     const suites = [...snapshot.suites, await loadUserMcpSuite(this.context.agentsRoot)]
-    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), this.localizeFields)
+    // One preference read for the whole inventory, servers and observed tools
+    // alike. The host answers it by projecting every active profile entry's live
+    // configuration, so resolving it per entity made this status — one MCP server
+    // with many tools especially — scale with the tool count.
+    const localization: Localization = { locale: this.ports.localePreference(), localizeFields: this.localizeFields }
+    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), localization)
     for (const entry of payload.entries)
       if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
         entry.kind = 'direct'

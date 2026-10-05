@@ -56,6 +56,12 @@ export interface CatalogOptions {
    * staleness regressions need no real sleeps.
    */
   userSnapshotTtlMs?: number
+  /**
+   * Clock seam for every TTL and window the snapshot cache keeps. Defaults to
+   * `Date.now`; a test injects a hand-driven clock so freshness, the scan
+   * cache, and the keep-warm window are asserted instead of waited for.
+   */
+  now?: () => number
 }
 
 /** Key of one install entry in the persisted `installed` record. */
@@ -93,6 +99,8 @@ export class CatalogContext implements SnapshotHost {
   readonly git: CatalogGitOptions
   /** Discovery scans and dimension snapshots derived from {@link state}. */
   readonly snapshots: SnapshotCache
+  /** The clock every TTL and window in this context is measured against. */
+  readonly now: () => number
   private readonly onChanged: () => void | Promise<void>
 
   constructor(options: CatalogOptions) {
@@ -102,10 +110,15 @@ export class CatalogContext implements SnapshotHost {
     this.agentsRoot = options.agentsRoot
     this.git = options.git ?? {}
     this.onChanged = options.onChanged
-    this.snapshots = new SnapshotCache(this, {
-      user: options.userSnapshotTtlMs ?? SCAN_CACHE_TTL_MS,
-      project: options.projectSnapshotTtlMs ?? 5_000
-    })
+    this.now = options.now ?? Date.now
+    this.snapshots = new SnapshotCache(
+      this,
+      {
+        user: options.userSnapshotTtlMs ?? SCAN_CACHE_TTL_MS,
+        project: options.projectSnapshotTtlMs ?? 5_000
+      },
+      this.now
+    )
   }
 
   get state(): SuiteState {

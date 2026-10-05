@@ -244,7 +244,9 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     const declared = suite.resources?.commands ?? []
     if (declared.length > 0) {
       expect(detail.commands.map(command => command.name)).toEqual(declared.map(resource => resource.name))
-      for (const command of detail.commands) expect(command.content.trim(), command.name).not.toBe('')
+      // The payload names documents; their bodies are one read away and never
+      // travel with it.
+      for (const command of detail.commands) expect(Object.hasOwn(command, 'content'), command.name).toBe(false)
       for (const resource of declared) expect(Object.hasOwn(data.files, relative(root, resource.file).replace(/\\/g, '/')), resource.file).toBe(true)
     } else {
       expect(detail.commands).toEqual([])

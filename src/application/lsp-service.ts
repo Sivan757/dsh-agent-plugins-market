@@ -14,7 +14,7 @@ import { buildLspStatus } from './lsp/lsp-status.js'
 import { describeLegacySeam, findLegacyLspSeams, migrateLegacyLspSeam } from './lsp/profile-seam.js'
 import { applyLspOverrides, lspConfig, validateServerLsp } from './server-config.js'
 import type { CatalogContext } from './catalog-context.js'
-import type { CatalogPorts, LocalizeFields, LspServerTable } from './ports.js'
+import type { CatalogPorts, Localization, LocalizeFields, LspServerTable } from './ports.js'
 
 export class LspService {
   constructor(
@@ -27,7 +27,11 @@ export class LspService {
   async status(): Promise<LspStatusPayload> {
     const snapshot = await this.context.snapshots.readUserCatalog()
     const direct = await loadLspServers(this.context.agentsRoot)
-    const payload = buildLspStatus(await applyLspOverrides(this.context.dataRoot, snapshot.suites), this.ports.lspStatusSource, direct, this.localizeFields)
+    // One preference read for the whole inventory: the host answers it by
+    // projecting every active profile entry's live configuration, so resolving
+    // it per declared server made this status scale with the server count.
+    const localization: Localization = { locale: this.ports.localePreference(), localizeFields: this.localizeFields }
+    const payload = buildLspStatus(await applyLspOverrides(this.context.dataRoot, snapshot.suites), this.ports.lspStatusSource, direct, localization)
     // The profile scan is filesystem work, so it runs only while the conflict
     // it explains is actually on screen — the panel polls this while rows start.
     if (payload.entries.some(entry => entry.state === 'conflict')) payload.legacySeam = await this.legacySeam()

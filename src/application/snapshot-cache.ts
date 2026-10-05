@@ -18,6 +18,26 @@ import type { DiscoveredSuite, SourceRef, Suite, SuiteDimension, SuiteState } fr
 export const SCAN_CACHE_TTL_MS = 30_000
 const SCAN_CACHE_MAX_ENTRIES = 8
 
+/**
+ * When the background refresh of the user snapshot runs, as a fraction of its
+ * TTL. Refreshing before the snapshot expires is what keeps the TTL a
+ * *staleness* bound rather than a cost every read pays: a read arriving after
+ * the refresh lands is served from the cache, where it used to trigger the
+ * whole discovery scan itself.
+ */
+const USER_REFRESH_LEAD_RATIO = 0.8
+
+/**
+ * How long the background refresh keeps running after the last user-dimension
+ * read, in TTLs. The TTL exists to bound how long an out-of-band working-tree
+ * edit stays invisible, so the refresh has to stay frequent while the catalog
+ * is in use; this multiple is what stops it from scanning a 2,500-suite
+ * catalog forever once nobody is reading. A read after the window pays exactly
+ * one scan — the cost every read paid before the window existed — and warms
+ * the cache up again.
+ */
+const USER_KEEP_WARM_TTL_MULTIPLE = 10
+
 /** A coherent discovered-and-installed view for one catalog dimension. */
 export interface CatalogSnapshot {
   revision: number
@@ -48,13 +68,21 @@ export class SnapshotCache {
   private userSnapshot: CatalogSnapshot | undefined
   private userSnapshotExpiresAt = 0
   private userSnapshotPromise: Promise<CatalogSnapshot> | undefined
+  /** The armed keep-warm refresh, or undefined when none is scheduled. */
+  private userRefreshTimer: ReturnType<typeof setTimeout> | undefined
+  /** Set by {@link dispose}: the keep-warm chain is over and never re-arms. */
+  private disposed = false
+  /** When the user dimension was last read; the keep-warm window closes from here. */
+  private lastUserReadAt = 0
   /** Project-dimension snapshots keyed by project root, with TTL freshness. */
   private readonly projectSnapshots = new Map<string, { snapshot: CatalogSnapshot; expiresAt: number }>()
   private readonly projectSnapshotPromises = new Map<string, Promise<CatalogSnapshot>>()
 
   constructor(
     private readonly host: SnapshotHost,
-    private readonly ttls: { user: number; project: number }
+    private readonly ttls: { user: number; project: number },
+    /** Clock seam; tests drive TTL expiry, the scan cache, and the idle window through it. */
+    private readonly now: () => number = Date.now
   ) {}
 
   /** Read one coherent user-dimension snapshot, reusing in-flight discovery. */
@@ -62,15 +90,30 @@ export class SnapshotCache {
     // TTL 0 disables snapshot caching: every read observes fresh discovery,
     // mirroring the project dimension's caching-disabled semantics.
     if (this.ttls.user <= 0) return this.build(this.host.state, 'user', this.host.userRoot)
-    if (this.userSnapshot !== undefined && Date.now() < this.userSnapshotExpiresAt) return this.userSnapshot
+    this.lastUserReadAt = this.now()
+    const snapshot = await this.loadUserSnapshot(false)
+    this.armUserRefresh()
+    return snapshot
+  }
+
+  /**
+   * Build the user snapshot, or join the build already in flight.
+   *
+   * `forceRescan` is the keep-warm refresh's entry point: it re-reads the
+   * working tree even while the discovery cache would still answer, because
+   * replaying that cache would let one scan outlive the freshness bound the
+   * TTL states.
+   */
+  private loadUserSnapshot(forceRescan: boolean): Promise<CatalogSnapshot> {
+    if (!forceRescan && this.userSnapshot !== undefined && this.now() < this.userSnapshotExpiresAt) return Promise.resolve(this.userSnapshot)
     if (this.userSnapshotPromise !== undefined) return this.userSnapshotPromise
     const revision = this.host.revision
     const generation = this.host.scanGeneration
-    const promise = this.build(this.host.state, 'user', this.host.userRoot)
+    const promise = this.build(this.host.state, 'user', this.host.userRoot, forceRescan)
       .then(snapshot => {
         if (revision === this.host.revision && generation === this.host.scanGeneration) {
           this.userSnapshot = snapshot
-          this.userSnapshotExpiresAt = Date.now() + this.ttls.user
+          this.userSnapshotExpiresAt = this.now() + this.ttls.user
         }
         return snapshot
       })
@@ -79,6 +122,35 @@ export class SnapshotCache {
       })
     this.userSnapshotPromise = promise
     return promise
+  }
+
+  /**
+   * Keep the user snapshot warm while the catalog is in use.
+   *
+   * Without this, the first read after the TTL lapses pays the full discovery
+   * scan — the normal case for a panel opened minutes apart. The refresh runs
+   * {@link USER_REFRESH_LEAD_RATIO} of the TTL before the snapshot expires, so
+   * a read never waits for it, and it is armed by reads: the chain ends
+   * {@link USER_KEEP_WARM_TTL_MULTIPLE} TTLs after the last one.
+   */
+  private armUserRefresh(): void {
+    if (this.disposed || this.ttls.user <= 0 || this.userRefreshTimer !== undefined) return
+    const delay = Math.max(1, Math.round(this.ttls.user * USER_REFRESH_LEAD_RATIO))
+    const timer = setTimeout(() => {
+      if (this.userRefreshTimer === timer) this.userRefreshTimer = undefined
+      this.refreshUserSnapshot()
+    }, delay)
+    // A waiting refresh must not hold the host process open.
+    timer.unref?.()
+    this.userRefreshTimer = timer
+  }
+
+  /** Run one background refresh unless the catalog has been idle past its window. */
+  private refreshUserSnapshot(): void {
+    if (this.disposed || this.now() - this.lastUserReadAt > this.ttls.user * USER_KEEP_WARM_TTL_MULTIPLE) return
+    void this.loadUserSnapshot(true)
+      .catch(() => undefined)
+      .finally(() => this.armUserRefresh())
   }
 
   /** Read one coherent project-dimension snapshot for a workspace cwd. */
@@ -93,7 +165,7 @@ export class SnapshotCache {
     }
     if (this.ttls.project <= 0) return this.buildProjectSnapshot(projectRoot)
     const cached = this.projectSnapshots.get(projectRoot)
-    if (cached !== undefined && cached.expiresAt > Date.now()) return cached.snapshot
+    if (cached !== undefined && cached.expiresAt > this.now()) return cached.snapshot
     const inFlight = this.projectSnapshotPromises.get(projectRoot)
     if (inFlight !== undefined) return inFlight
     const revision = this.host.revision
@@ -101,7 +173,7 @@ export class SnapshotCache {
     const promise = this.buildProjectSnapshot(projectRoot)
       .then(snapshot => {
         if (revision === this.host.revision && generation === this.host.scanGeneration) {
-          this.projectSnapshots.set(projectRoot, { snapshot, expiresAt: Date.now() + this.ttls.project })
+          this.projectSnapshots.set(projectRoot, { snapshot, expiresAt: this.now() + this.ttls.project })
         }
         return snapshot
       })
@@ -119,7 +191,7 @@ export class SnapshotCache {
     // The user snapshot's TTL also bounds scan reuse: a snapshot rebuild that
     // replays a 30s scan cache would silently outlive its own staleness bound.
     const scanCacheTtl = dimension === 'user' ? Math.min(this.ttls.user, SCAN_CACHE_TTL_MS) : SCAN_CACHE_TTL_MS
-    const cacheFresh = !skipScanCache && cached !== undefined && Date.now() - cached.at < scanCacheTtl
+    const cacheFresh = !skipScanCache && cached !== undefined && this.now() - cached.at < scanCacheTtl
     let discovered: DiscoveredSuite[]
     let scanNotes: Record<string, string[]>
     if (cacheFresh && cached !== undefined) {
@@ -143,7 +215,7 @@ export class SnapshotCache {
       // A scan started before a content mutation must not repopulate its cache.
       if (generation === this.host.scanGeneration) {
         if (this.scanCache.size >= SCAN_CACHE_MAX_ENTRIES) this.scanCache.clear()
-        this.scanCache.set(fingerprint, { at: Date.now(), discovered, scanNotes })
+        this.scanCache.set(fingerprint, { at: this.now(), discovered, scanNotes })
       }
     }
     const suites = this.host.project(discovered, state, dimension)
@@ -163,6 +235,24 @@ export class SnapshotCache {
     this.userSnapshotPromise = undefined
     this.projectSnapshots.clear()
     this.projectSnapshotPromises.clear()
+  }
+
+  /**
+   * End the keep-warm refresh for good.
+   *
+   * Clearing the armed timer is not enough on its own: a refresh already in
+   * flight re-arms through its own `.finally()`, so a teardown landing while
+   * one runs would leave the chain scanning the whole catalog every 0.8 TTL
+   * with nobody reading it. Disposal is therefore terminal — the chain end is
+   * checked before it arms and before it runs — and reads after it still answer
+   * from the cache or rebuild one, they just no longer keep it warm.
+   */
+  dispose(): void {
+    this.disposed = true
+    if (this.userRefreshTimer !== undefined) {
+      clearTimeout(this.userRefreshTimer)
+      this.userRefreshTimer = undefined
+    }
   }
 
   /** Drop cached discovery and its in-flight dedupe slots. */

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { beginBusyOperation, busySnapshot, withBusyOperation } from '../src/client/ui/busy-operation.js'
 import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_LONG_RUNNING_MS } from '../src/client/ui/BusyOverlay.js'
 import { stubTranslate as t } from './helpers/translate.js'
-import { fetchLspStatus, fetchMcpStatus, fetchOverview, fetchServerConfig, fetchSkillContent, fetchSuiteDetail, fetchUserPanel, postAction } from '../src/client/api.js'
+import { fetchLspStatus, fetchMcpStatus, fetchOverview, fetchServerConfig, fetchSuiteDetail, fetchSuiteDocument, fetchUserPanel, postAction } from '../src/client/api.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: Root | undefined
@@ -53,7 +53,7 @@ describe('shared operation overlay', () => {
   it.each([
     ['overview', () => fetchOverview()],
     ['suite detail', () => fetchSuiteDetail('source', 'suite')],
-    ['skill content', () => fetchSkillContent('source', 'suite', 'skill')],
+    ['suite document', () => fetchSuiteDocument('source', 'suite', 'skills', 'skill')],
     ['server config', () => fetchServerConfig('mcp', 'server')],
     ['MCP status', () => fetchMcpStatus()],
     ['LSP status', () => fetchLspStatus()],

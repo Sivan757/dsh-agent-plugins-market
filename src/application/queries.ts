@@ -1,7 +1,8 @@
 /** Narrow application interfaces consumed by the HTTP transport adapter. */
 import type { McpStatusPayload } from './mcp/mcp-status.js'
 import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
-import type { OverviewPayload, SkillContent, SourceProgress, SuiteDetail } from '../contracts/market.js'
+import type { MenuRowFaceWire, OverviewPayload, SourceProgress, SuiteDetail, SuiteDocumentText, UserPanelKind } from '../contracts/market.js'
+import type { DocumentTranslation } from '../contracts/translation.js'
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from './mcp/mcp-overrides.js'
 import type { McpBackend } from '../contracts/mcp.js'
@@ -19,8 +20,25 @@ export interface MarketQueries {
   lspServers(): Promise<LspServerTable>
   sourceProgress(): SourceProgress
   suiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail>
-  skillContent(sourceId: string, suiteId: string, skillName: string): Promise<SkillContent>
+  /**
+   * One suite document's authored text — a skill, a command, or an agent — for
+   * the market detail page's lazy row read. The suite and the document are
+   * resolved here: the caller names an identity and never a path or text.
+   */
+  suiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<SuiteDocumentText>
+  /**
+   * One suite document translated for the market detail page's locale, chunk by
+   * chunk. The suite and the document are re-read here: the route names an
+   * identity and never carries text.
+   */
+  suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<DocumentTranslation>
   mcpOverrides(sourceId: string, suiteId: string): Promise<McpSuiteOverrides>
+  /**
+   * The localized face of every `/` menu row this plugin owns: the slash
+   * commands and skills the menu shows, with the text the panels already
+   * translated. Empty while nothing is translated.
+   */
+  menuRowFaces(): Promise<MenuRowFaceWire[]>
 }
 
 /** Mutating market operations required by HTTP routes. */

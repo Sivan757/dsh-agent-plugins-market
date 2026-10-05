@@ -93,7 +93,7 @@
 
 ### 阶段 8 — Web 呈现与 API
 
-- `./client` bundle 是纯市场 UI：fetch `/api/agent-plugins/*` 路由（GET overview/config/suite/skill/mcp-status/mcp-overrides/progress；POST sources/add·update·remove·refresh·install·uninstall·set-enabled·set-surface·set-mcp-override），same-origin POST、body ≤64KiB（`src/routes.ts`、`src/contracts/market.ts`）。UI 不参与运行时注入。
+- `./client` bundle 是纯市场 UI：fetch `/api/agent-plugins/*` 路由（GET overview/config/suite/suite/document/mcp-status/mcp-overrides/progress；POST sources/add·update·remove·refresh·install·uninstall·set-enabled·set-surface·set-mcp-override），same-origin POST、body ≤64KiB（`src/routes.ts`、`src/contracts/market.ts`）。`suite/document` 是唯一取文档正文的读路径：套件详情负载只带名字与描述，技能、命令、代理在展开时才取全文。UI 不参与运行时注入。
 - 元数据层与运行层的边界：本包已在 `f0e9fdf` 移除冗余的 `agent_plugins` 上下文工具，模型侧能力完全由 skills catalog + MCP 工具自然暴露，套件库存只在 Web 市场页呈现。
 
 ---

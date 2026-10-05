@@ -16,7 +16,7 @@ Status: implemented
 - **桥接配置词汇**：`mcp-client/config.ts` 改为 `application/mcp-bridge-config.ts`。它是扩展 `model` 类型的类型/常量数据，`ReconnectConfig` 的所有权随之迁移。
 - **选择器与 seam**：`mcp-backend`（schema 声明 + 宿主探测；node:module/fs 属 application 合法范围）、`regions`、`deadline`，以及 agent-role frontmatter 解析器（从 527 行的 cordis router 抽出为 `application/agent-roles.ts`，执行半边留在 runtime）。
 - **结构化 seam 类型声明在 `ports.ts`**：`McpToolSnapshot`、`LspMountStatusSource`、panel-resources 里的 user-panel store 面。线上类型（`McpBackend`、`McpMountDiagnostic`、`LspMountDiagnostic`）迁至 `contracts/mcp.ts` 与 `contracts/lsp.ts`。
-- **locale 读取改为端口**：`CatalogPorts` 增加 `localePreference(): string`，由 `index.ts` 以 `readLocalePreference() ?? 'zh'` 接线。组合根持有宿主 seam，service 保持宿主无关。
+- **locale 读取改为端口**：`CatalogPorts` 增加 `localePreference(): string`，由 `index.ts` 接到入口在三个刷新点重读的那个偏好（[读路径的成本上界与 locale 新鲜度契约](../architecture/2026-10-05-read-path-cost-bounds-and-locale-freshness.zh.md)）。组合根持有宿主 seam，service 保持宿主无关。
 - `dependency-cruiser` 的 `application-cannot-import-runtime` 由 warn 升为 error；当前零违规。
 
 ## Alternatives considered
