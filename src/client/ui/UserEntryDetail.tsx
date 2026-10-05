@@ -4,22 +4,26 @@
  * place through the host disclosure row.
  * @module client/ui/UserEntryDetail
  */
-import { createElement as h, useState, type ReactNode } from 'react'
+import { createElement as h, Fragment, useEffect, useState, type ReactNode } from 'react'
 import { StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
+import { DocumentTranslationView } from './DocumentTranslation.js'
 import { DetailRow, DetailRows, kvCell } from './DetailRows.js'
 import { lastChangeLabel } from './last-change.js'
 import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
-import type { UserPanelEntry, UserPanelKind } from '../api.js'
+import { fetchDocumentTranslation, fetchUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
 import { displayText } from './translated-text.js'
+import { clientErrorMessage } from './error-message.js'
 import css from './panel.module.css'
 
 export interface UserEntryDetailProps {
   t: Translate
   kind: UserPanelKind
   entry: UserPanelEntry
+  /** The panel's text view, and the switch that drives it. */
+  showOriginal?: boolean
   onClose: () => void
 }
 
@@ -27,13 +31,36 @@ export interface UserEntryDetailProps {
 export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   const { t, kind, entry } = props
   const [open, setOpen] = useState(false)
+  // The document arrives with the entry read, not with the list the dialog was
+  // opened from, so the row shows a loading line until it lands.
+  const [document, setDocument] = useState<string | undefined>(undefined)
+  const [documentError, setDocumentError] = useState<string | undefined>(undefined)
+  const entryId = entry.id ?? entry.name
+  useEffect(() => {
+    if (!open) return
+    let current = true
+    setDocument(undefined)
+    setDocumentError(undefined)
+    void fetchUserPanelEntry(kind, entryId)
+      .then(loaded => {
+        if (current) setDocument(loaded.rawText)
+      })
+      .catch((reason: unknown) => {
+        if (current) setDocumentError(clientErrorMessage(t, reason))
+      })
+    return () => {
+      current = false
+    }
+  }, [open, kind, entryId])
   const updated = entry.updatedAt === undefined || entry.updatedAt === null ? null : lastChangeLabel(t, entry.updatedAt)
   const provenance = entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
-  // A command registers under its flattened call name, which is the identity the
-  // user types, so its dialog keeps that name untranslated; a skill and a persona
-  // are recognized by their name, which reads translated.
-  const title = kind === 'commands' ? commandCallName(entry.name) : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
-  const description = displayText(entry.translatedDescription, entry.description, t)
+  // A command registers under its flattened call name and every other kind under
+  // its own name; a name is never translated, so the dialog title reads the same
+  // in either view.
+  const view = { original: props.showOriginal === true }
+  // Only the description flips with the view.
+  const title = kind === 'commands' ? commandCallName(entry.name) : entry.name
+  const description = displayText(entry.translatedDescription, entry.description, t, view)
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
   return h(
     DetailModal,
@@ -74,7 +101,14 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
         kind === 'agents' ? routingRows(t, entry.metadata) : null
       )
     ),
-    description === undefined || description === '' ? null : h('div', { className: css.block }, h('h4', { className: css.blockHead }, t('detailDescriptionLabel')), h('p', { className: css.detailProse }, description)),
+    description === undefined || description === ''
+      ? null
+      : h(
+          'div',
+          { className: css.block },
+          h('h4', { className: css.blockHead }, t('detailDescriptionLabel')),
+          h('p', { className: css.detailProse }, description)
+        ),
     h(
       'div',
       { className: css.block },
@@ -82,7 +116,26 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
       h(
         DetailRows,
         null,
-        h(DetailRow, { name: docName, summary: t('detailDocHint'), open, onToggle: () => setOpen(!open), children: h(MarkdownDocument, { text: entry.rawText, t }) })
+        h(DetailRow, {
+          name: docName,
+          summary: t('detailDocHint'),
+          open,
+          onToggle: () => setOpen(!open),
+          children:
+            documentError ??
+            (document === undefined
+              ? t('loading')
+              : h(
+                  Fragment,
+                  null,
+                  h(MarkdownDocument, { text: document, t }),
+                  // The translation is its own section under the document rather
+                  // than a second view of it: a reader who wants the Chinese
+                  // reads the whole file in one place, and one who does not never
+                  // pays for it.
+                  h(DocumentTranslationView, { t, load: () => fetchDocumentTranslation(kind, entryId) })
+                ))
+        })
       )
     )
   )

@@ -82,6 +82,13 @@ export function mountSuiteRoutes(
     sendJson(response, 200, await manager.overview())
   })
 
+  // The slash menu's row faces. The menu asks on mount and on a locale change;
+  // translation stays lazy, so this reads the cache the panels filled and never
+  // starts a provider round of its own.
+  get(MARKET_ROUTES.menuRowFaces, async (_request, response) => {
+    sendJson(response, 200, await manager.menuRowFaces())
+  })
+
   // The reset control in the plugin's configuration card. Dropping the cache is
   // the whole operation: translation is lazy, so the next overview read
   // repopulates it and the panel shows the authored text until it lands.
@@ -172,20 +179,42 @@ export function mountSuiteRoutes(
     }
   })
 
-  get(MARKET_ROUTES.skill, async (request, response) => {
+  // One suite document's authored text, whole. This is the market detail page's
+  // only document read — skills, commands, and agents all arrive through it when
+  // a reader opens the row — and it names the suite and the document rather than
+  // a path, so the catalog re-reads the file the scan found.
+  get(MARKET_ROUTES.suiteDocument, async (request, response) => {
     const query = queryOf(request)
     const sourceId = query.get('sourceId')
     const suiteId = query.get('suiteId')
-    const skill = query.get('skill')
-    if (sourceId === null || suiteId === null || skill === null) {
-      sendJson(response, 400, { ok: false, error: 'missing sourceId, suiteId, or skill' })
+    const kind = query.get('kind')
+    const name = query.get('name')
+    if (sourceId === null || suiteId === null || name === null || (kind !== 'skills' && kind !== 'commands' && kind !== 'agents')) {
+      sendJson(response, 400, { ok: false, error: 'missing sourceId, suiteId, kind, or name' })
       return
     }
     try {
-      sendJson(response, 200, await manager.skillContent(sourceId, suiteId, skill))
+      sendJson(response, 200, await manager.suiteDocument(sourceId, suiteId, kind, name))
     } catch (error) {
       sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }
+  })
+
+  // One suite document's translation, for the market detail page's skills,
+  // commands, and agents. The body names the suite and the document and nothing
+  // else: the catalog re-reads that file from the suite's own checkout, so a
+  // script on the page cannot spend the operator's translation quota on text of
+  // its own choosing — the same contract the user-panel route keeps. The
+  // document the reader sees arrives through the document route above, and this
+  // route re-reads the same file rather than trusting the page.
+  post(MARKET_ROUTES.suiteDocumentTranslation, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    const kind = body['kind']
+    if (kind !== 'skills' && kind !== 'commands' && kind !== 'agents') throw new Error('invalid document kind')
+    const name = textField(body['name'] ?? '', 'document name')
+    if (name === '') throw new Error('missing document name')
+    const { text, pending } = await manager.suiteDocumentTranslation(sourceId, suiteId, kind, name)
+    return { text, pending }
   })
 
   post(MARKET_ROUTES.addSource, async body => {
@@ -405,8 +434,19 @@ export function mountSuiteRoutes(
     const storeOf = (kind: UserPanelKind): PanelResourceStore => panels[kind]
 
     for (const kind of kinds) {
-      get(userPanelRoute(kind), async (_request, response) => {
-        sendJson(response, 200, { entries: await storeOf(kind).list() })
+      get(userPanelRoute(kind), async (request, response) => {
+        // `refresh=1` is the panel's Refresh button: a user asking for the
+        // working tree as it stands must never be answered from the row cache,
+        // so the route carries an explicit force path instead of relying on how
+        // old the cached rows happen to be.
+        const force = queryOf(request).get('refresh') === '1'
+        // The pending count rides the same read: a panel re-reads while it is
+        // non-zero, so translated text arrives without a manual refresh.
+        const read = await storeOf(kind).read(false, force)
+        sendJson(response, 200, {
+          entries: read.entries,
+          ...(read.translationPending === 0 ? {} : { translationPending: read.translationPending })
+        })
       })
 
       get(`${userPanelRoute(kind)}/entry`, async (request, response) => {
@@ -417,6 +457,17 @@ export function mountSuiteRoutes(
           return
         }
         sendJson(response, 200, { entry })
+      })
+
+      // One entry's document, translated chunk by chunk. The body names the
+      // entry and nothing else: the store re-reads that entry itself, so a
+      // script on the page cannot spend the operator's translation quota on
+      // text of its own choosing.
+      post(`${userPanelRoute(kind)}/entry/translation`, async body => {
+        const name = textField(body['name'] ?? '', 'entry name')
+        if (name === '') throw new Error('missing entry name')
+        const { text, pending } = await storeOf(kind).translateDocument(name)
+        return { text, pending }
       })
 
       post(`${userPanelRoute(kind)}/create`, async body => {

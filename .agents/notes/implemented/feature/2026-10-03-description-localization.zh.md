@@ -6,7 +6,7 @@ Status: implemented
 
 市场面板原样渲染上游 catalog。这些 manifest 以英文撰写，因此 `zh` 部署看到的是中文界面里嵌着英文套件描述—— 正是用户报告的那个缺陷：面板外壳已经翻译，只剩数据字段还是英文。
 
-catalog 不归我们编辑。一个 source 是别人仓库的 checkout，每次更新都会刷新，所以翻译不能写回 manifest。它必须放在 catalog 旁边，在输出的路上应用。[通用翻译层 note](../../proposed/feature/2026-10-04-universal-translation-layer.md) 把这一安排推广到每个面与每一个可渲染名称；本文描述的「已双语描述只做切分」不受影响。
+catalog 不归我们编辑。一个 source 是别人仓库的 checkout，每次更新都会刷新，所以翻译不能写回 manifest。它必须放在 catalog 旁边，在输出的路上应用。[通用翻译层 note](2026-10-04-universal-translation-layer.md) 把这一安排推广到每个面的描述；本文描述的「已双语描述只做切分」不受影响。
 
 ## Decision
 
@@ -79,7 +79,7 @@ catalog 不归我们编辑。一个 source 是别人仓库的 checkout，每次�
 
 代价是每条未见过的描述一次后台模型调用，限流为同时 3 次，且同一描述在缓存有效期内只调用一次。翻译质量是模型的，不是我们的：糟糕的译文会被原样缓存，直到上游描述改变。没有逐条淘汰或容量上限 —— 文件随 catalog 增长，每个套件一条短字符串。
 
-本篇覆盖套件描述；名称与其余五个面 —— 技能、快捷指令、专家、MCP 与 LSP —— 由[通用翻译层 note](../../proposed/feature/2026-10-04-universal-translation-layer.md)记录的翻译层本地化，该 note 部分取代本篇。关键词仍不翻译：它参与搜索与匹配，不用于展示。
+本篇覆盖套件描述；技能、快捷指令、专家与 MCP 工具的描述由[通用翻译层 note](2026-10-04-universal-translation-layer.md)记录的翻译层本地化，该 note 部分取代本篇。名称与关键词仍不翻译：名称是标识，关键词参与搜索与匹配，不用于展示。
 
 ## Testing
 

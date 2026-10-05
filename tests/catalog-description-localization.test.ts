@@ -1,6 +1,6 @@
 /**
  * End-to-end localization through the Catalog facade: the overview and the
- * suite detail must serve translated names and descriptions, report what is
+ * suite detail must serve translated descriptions, report what is
  * still pending, and never let a provider failure break the read.
  */
 import { cp, mkdtemp, mkdir, rm } from 'node:fs/promises'
@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
+import { MAX_DOCUMENT_CHUNK_CHARS } from '../src/application/translation/document.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
 
 const fixture = join(process.cwd(), 'tests', 'fixtures', 'v1-suite')
@@ -81,8 +82,7 @@ describe('Catalog translation', () => {
     if (first === undefined) throw new Error('expected one suite')
     expect(first.description).toBe(SUITE_DESCRIPTION)
     expect(first.translatedDescription).toBeUndefined()
-    expect(first.translatedName).toBeUndefined()
-    expect(firstRead.translationPending).toBe(2)
+    expect(firstRead.translationPending).toBe(1)
     await catalog.settleDescriptions(5_000)
     const second = await catalog.overview()
     const card = second.suites[0]
@@ -90,22 +90,21 @@ describe('Catalog translation', () => {
     // which to render, and the panel's search keeps reading the original.
     expect(card?.description).toBe(SUITE_DESCRIPTION)
     expect(card?.translatedDescription).toBe('中文描述')
+    // The name is never translated, so it carries no translated counterpart.
     expect(card?.name).toBe(SUITE_NAME)
-    expect(card?.translatedName).toBe('中文名称')
     expect(second.translationPending).toBeUndefined()
-    expect(provider.calls).toHaveLength(2)
+    expect(provider.calls).toHaveLength(1)
   })
 
-  it('translates name and description independently, so one may land without the other', async () => {
-    // An empty result fails only its own key: the description still lands, and
-    // the name backs off instead of blocking it.
-    const provider = stubProvider(text => (text === SUITE_DESCRIPTION ? '中文描述' : ''))
+  it('leaves the authored description when the provider answers with nothing', async () => {
+    // An empty answer fails only its own key, so the authored text stays.
+    const provider = stubProvider(() => '')
     const { catalog } = await catalogWith({ locale: 'zh', provider })
     await catalog.overview()
     await catalog.settleDescriptions(5_000)
     const card = await onlyCard(catalog)
-    expect(card.translatedDescription).toBe('中文描述')
-    expect(card.translatedName).toBeUndefined()
+    expect(card.description).toBe(SUITE_DESCRIPTION)
+    expect(card.translatedDescription).toBeUndefined()
   })
 
   it('leaves the overview untouched for the en locale', async () => {
@@ -114,7 +113,6 @@ describe('Catalog translation', () => {
     const overview = await catalog.overview()
     expect(overview.suites[0]?.description).not.toBe('中文描述')
     expect(overview.suites[0]?.translatedDescription).toBeUndefined()
-    expect(overview.suites[0]?.translatedName).toBeUndefined()
     expect(overview.translationPending).toBeUndefined()
     expect(provider.calls).toEqual([])
   })
@@ -139,8 +137,7 @@ describe('Catalog translation', () => {
     expect(detail.description).toBe(SUITE_DESCRIPTION)
     expect(detail.translatedDescription).toBe('中文描述')
     expect(detail.name).toBe(SUITE_NAME)
-    expect(detail.translatedName).toBe('中文名称')
-    expect(provider.calls).toHaveLength(2)
+    expect(provider.calls).toHaveLength(1)
   })
 
   it('reuses the persisted cache across catalog instances', async () => {
@@ -164,10 +161,34 @@ describe('Catalog translation', () => {
     await reopened.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
     const overview = await reopened.overview()
     expect(overview.suites[0]?.translatedDescription).toBe('中文描述')
-    expect(overview.suites[0]?.translatedName).toBe('中文名称')
     expect(overview.translationPending).toBeUndefined()
     expect(second.calls).toEqual([])
     reopened.dispose()
+  })
+
+  it('chunks a description longer than one call may carry, and reassembles it whole', async () => {
+    // Real catalogs ship descriptions past the size one text used to be
+    // budgeted for (the longest measured is 1,428 characters), and a text that
+    // overruns the model hop's output budget is cut off mid-generation — which
+    // fails the batch and retires the provider for the session. So a long
+    // description travels the way a document does.
+    const long = Array.from({ length: 6 }, (_, index) => `Paragraph ${String(index)} ` + 'of a description long enough to travel in chunks.'.repeat(4)).join('\n\n')
+    expect(long.length).toBeGreaterThan(MAX_DOCUMENT_CHUNK_CHARS)
+    const provider = stubProvider(text => `ZH<${text}>`)
+    const { catalog } = await catalogWith({ locale: 'zh', provider })
+    const first = catalog.translateFields('market', 'demo/suite', { description: long }, 'zh')
+    // The read never waits: it answers the authored text and counts the chunks
+    // it just queued.
+    expect(first.fields.translatedDescription).toBeUndefined()
+    expect(first.pending).toBeGreaterThan(1)
+
+    await catalog.settleDescriptions(5_000)
+    const settled = catalog.translateFields('market', 'demo/suite', { description: long }, 'zh')
+    expect(settled.pending).toBe(0)
+    // Every chunk went on its own, nothing was dropped or reordered, and the
+    // authored blank lines between them survive the round trip.
+    for (const call of provider.calls) expect(call.length).toBeLessThanOrEqual(MAX_DOCUMENT_CHUNK_CHARS)
+    expect(settled.fields.translatedDescription?.replace(/ZH<|>/g, '')).toBe(long)
   })
 
   it('translates nothing until a read asks for it', async () => {
@@ -185,13 +206,12 @@ describe('Catalog translation', () => {
     const { catalog } = await catalogWith({ locale: 'zh', provider })
     const first = await catalog.overview()
     expect(first.suites[0]?.translatedDescription).toBeUndefined()
-    expect(first.translationPending).toBe(2)
+    expect(first.translationPending).toBe(1)
     await catalog.settleDescriptions(5_000)
     const second = await catalog.overview()
     expect(second.suites[0]?.translatedDescription).toBe('中文描述')
-    expect(second.suites[0]?.translatedName).toBe('中文名称')
     expect(second.translationPending).toBeUndefined()
-    expect(provider.calls).toHaveLength(2)
+    expect(provider.calls).toHaveLength(1)
   })
 
   it('pays only for fields not yet cached on a repeated read', async () => {
@@ -199,11 +219,11 @@ describe('Catalog translation', () => {
     const { catalog } = await catalogWith({ locale: 'zh', provider })
     await catalog.overview()
     await catalog.settleDescriptions(5_000)
-    expect(provider.calls).toHaveLength(2)
+    expect(provider.calls).toHaveLength(1)
     // Every later read is a cache lookup per field: nothing new to translate.
     await catalog.overview()
     await catalog.settleDescriptions(1_000)
-    expect(provider.calls).toHaveLength(2)
+    expect(provider.calls).toHaveLength(1)
   })
 
   it('queues nothing for the en locale', async () => {
@@ -231,16 +251,16 @@ describe('Catalog translation', () => {
     const { catalog } = await catalogWith({ locale: 'zh', provider })
     await catalog.overview()
     await catalog.settleDescriptions(5_000)
-    expect(provider.calls).toHaveLength(2)
+    expect(provider.calls).toHaveLength(1)
 
     await catalog.clearTranslations()
     // The in-memory copy must go too, or the same process keeps serving text
     // the file no longer holds.
     const afterClear = await catalog.overview()
     expect(afterClear.suites[0]?.translatedDescription).toBeUndefined()
-    expect(afterClear.translationPending).toBe(2)
+    expect(afterClear.translationPending).toBe(1)
     await catalog.settleDescriptions(5_000)
-    expect(provider.calls).toHaveLength(4)
+    expect(provider.calls).toHaveLength(2)
   })
 
   it('renders upstream text when no provider chain is wired at all', async () => {
@@ -248,7 +268,6 @@ describe('Catalog translation', () => {
     const overview = await catalog.overview()
     expect(overview.suites).toHaveLength(1)
     expect(overview.suites[0]?.translatedDescription).toBeUndefined()
-    expect(overview.suites[0]?.translatedName).toBeUndefined()
     expect(overview.translationPending).toBeUndefined()
   })
 })

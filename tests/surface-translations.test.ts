@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Catalog } from '../src/application/catalog.js'
-import { createPanelResources } from '../src/application/panel-resources.js'
+import { createPanelResources, pluginResourceId } from '../src/application/panel-resources.js'
 import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
 
@@ -67,7 +67,7 @@ async function seededCatalog(options: { provider?: TranslationProvider; mcp?: un
 }
 
 describe('MCP status translations', () => {
-  it('translates the service name and every tool description, leaving tool call names alone', async () => {
+  it('leaves the service name alone: a name is an identity, not prose', async () => {
     const { catalog } = await seededCatalog({
       provider: prefixProvider(),
       mcp: { mcpServers: { toolbox: { type: 'stdio', command: './bin/toolbox' } } }
@@ -76,16 +76,14 @@ describe('MCP status translations', () => {
     const before = await catalog.mcpStatus()
     const entryBefore = before.entries[0]
     if (entryBefore === undefined) throw new Error('expected the fixture MCP server row')
-    // The derived service name is the row's upstream text until the provider answers.
     expect(entryBefore.name).toBe('v1-suite__toolbox')
-    expect(entryBefore.translatedName).toBeUndefined()
 
     await catalog.settleDescriptions(5_000)
     const after = await catalog.mcpStatus()
     const entry = after.entries[0]
     if (entry === undefined) throw new Error('expected the fixture MCP server row')
+    // Settling the queue changes nothing about the name: it was never queued.
     expect(entry.name).toBe('v1-suite__toolbox')
-    expect(entry.translatedName).toBe('ZH:v1-suite__toolbox')
   })
 
   it('keys each tool description by server and tool, so two servers never share one entry', async () => {
@@ -120,41 +118,37 @@ describe('MCP status translations', () => {
     const { catalog } = await seededCatalog({ mcp: { mcpServers: { toolbox: { type: 'stdio', command: './bin/toolbox' } } } })
     const entry = (await catalog.mcpStatus()).entries[0]
     expect(entry?.name).toBe('v1-suite__toolbox')
-    expect(entry?.translatedName).toBeUndefined()
   })
 })
 
 describe('LSP status translations', () => {
-  it('translates the server key, which is the only text an LSP row carries', async () => {
+  it('leaves the server key alone: it is the only text an LSP row carries, and it is a key', async () => {
     const { catalog } = await seededCatalog({ provider: prefixProvider() })
     await catalog.lspStatus()
     await catalog.settleDescriptions(5_000)
     const entry = (await catalog.lspStatus()).entries[0]
     expect(entry?.serverKey).toBe('typescript')
-    expect(entry?.translatedName).toBe('ZH:typescript')
   })
 
   it('serves the upstream key when the deployment has no provider chain', async () => {
     const { catalog } = await seededCatalog()
     const entry = (await catalog.lspStatus()).entries[0]
     expect(entry?.serverKey).toBe('typescript')
-    expect(entry?.translatedName).toBeUndefined()
   })
 })
 
 describe('panel entry translations', () => {
-  it('translates the name and description of every installed resource', async () => {
+  it('translates the description of every installed resource and leaves its name', async () => {
     const { catalog, root } = await seededCatalog({ provider: prefixProvider() })
     const panels = createPanelResources(catalog, createUserPanelStores(root))
     const before = (await panels.skills.list()).find(entry => entry.origin === 'plugin')
     expect(before?.name).toBe('greet')
-    expect(before?.translatedName).toBeUndefined()
+    expect(before?.translatedDescription).toBeUndefined()
 
     await catalog.settleDescriptions(5_000)
     const after = (await panels.skills.list()).find(entry => entry.origin === 'plugin')
     expect(after?.name).toBe('greet')
     expect(after?.description).toBe('Greet the user and resolve bundled resources.')
-    expect(after?.translatedName).toBe('ZH:greet')
     expect(after?.translatedDescription).toBe('ZH:Greet the user and resolve bundled resources.')
   })
 
@@ -166,10 +160,10 @@ describe('panel entry translations', () => {
     await Promise.all([panels.skills.list(), panels.commands.list(), panels.agents.list()])
     await catalog.settleDescriptions(5_000)
     const commands = (await panels.commands.list()).find(entry => entry.origin === 'plugin')
-    expect(commands?.translatedName).toBe('ZH:deploy')
+    expect(commands?.name).toBe('deploy')
     expect(commands?.translatedDescription).toBe('ZH:Deploy the fixture')
     const agents = (await panels.agents.list()).find(entry => entry.origin === 'plugin')
-    expect(agents?.translatedName).toBe('ZH:reviewer')
+    expect(agents?.name).toBe('reviewer')
     expect(agents?.translatedDescription).toBe('ZH:Review code changes')
   })
 
@@ -182,7 +176,6 @@ describe('panel entry translations', () => {
     await catalog.settleDescriptions(5_000)
     const row = (await panels.skills.list()).find(entry => entry.origin === 'user')
     expect(row?.name).toBe('mine')
-    expect(row?.translatedName).toBe('ZH:mine')
     expect(row?.translatedDescription).toBe('ZH:My own skill')
   })
 
@@ -190,7 +183,97 @@ describe('panel entry translations', () => {
     const { catalog, root } = await seededCatalog()
     const panels = createPanelResources(catalog, createUserPanelStores(root))
     const entry = (await panels.skills.list()).find(row => row.origin === 'plugin')
-    expect(entry?.translatedName).toBeUndefined()
     expect(entry?.translatedDescription).toBeUndefined()
+  })
+
+  it('pays once for a description two entries carry and renders it on both', async () => {
+    const seen: string[] = []
+    const provider: TranslationProvider = {
+      id: 'microsoft',
+      available: () => true,
+      translate: async ({ texts }) => {
+        seen.push(...texts)
+        return texts.map(text => 'ZH:' + text)
+      }
+    }
+    const { catalog, root } = await seededCatalog({ provider })
+    const users = createUserPanelStores(root)
+    // Two entries, two identities, one description: the source text is what a
+    // translation is for, so the second entry is answered from the first's.
+    await users.skills.create('one', '---\ndescription: Shared description\n---\nBody one')
+    await users.skills.create('two', '---\ndescription: Shared description\n---\nBody two')
+    const panels = createPanelResources(catalog, users)
+    await panels.skills.list()
+    await catalog.settleDescriptions(5_000)
+    const rows = await panels.skills.list()
+    expect(rows.find(entry => entry.name === 'one')?.translatedDescription).toBe('ZH:Shared description')
+    expect(rows.find(entry => entry.name === 'two')?.translatedDescription).toBe('ZH:Shared description')
+    expect(seen.filter(text => text === 'Shared description')).toHaveLength(1)
+  })
+})
+
+describe('market suite document translations', () => {
+  it('covers all three document surfaces, each from its own file', async () => {
+    const { catalog } = await seededCatalog({ provider: prefixProvider() })
+    // Every surface is asked once so each queues its own document, then read
+    // back settled: a surface left unread would still answer authored text.
+    const ask = (kind: 'skills' | 'commands' | 'agents', name: string) => catalog.suiteDocumentTranslation('active', 'v1-suite', kind, name)
+    await Promise.all([ask('skills', 'greet'), ask('commands', 'deploy'), ask('agents', 'reviewer')])
+    expect(await catalog.settleDescriptions(5_000)).toBe(true)
+    const [skill, command, agent] = await Promise.all([ask('skills', 'greet'), ask('commands', 'deploy'), ask('agents', 'reviewer')])
+    expect(skill.pending).toBe(0)
+    expect(skill.text).toContain('ZH:# Greet')
+    // Frontmatter is metadata: the provider never sees it, so it is never
+    // translated into YAML the file could no longer parse.
+    expect(skill.text).not.toContain('description:')
+    // The authored trailing newline survives assembly: nothing was invented.
+    expect(command.text).toBe('ZH:Deploy the v1 fixture suite.\n')
+    expect(agent.text).toBe('ZH:Review carefully.\n')
+  })
+
+  it('re-reads the file rather than translating whatever a caller last saw', async () => {
+    const { catalog, root } = await seededCatalog({ provider: prefixProvider() })
+    // The detail payload that put the authored text on screen is stale by the
+    // time a reader asks for a translation; the answer follows the disk.
+    await writeFile(join(root, '.sources', 'active', 'com.deepseek.harness', 'commands', 'deploy.md'), '---\ndescription: Deploy the fixture\n---\nRewritten command body')
+    const first = await catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', 'deploy')
+    // The queued chunk stands in as authored text — and that authored text is
+    // the rewritten file, not the body the detail payload had carried.
+    expect(first.text).toBe('Rewritten command body')
+    expect(first.pending).toBe(1)
+    expect(await catalog.settleDescriptions(5_000)).toBe(true)
+    expect(await catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', 'deploy')).toEqual({ text: 'ZH:Rewritten command body', pending: 0 })
+  })
+
+  it('shares one cache entry with the user panel for the same document', async () => {
+    let calls = 0
+    const provider: TranslationProvider = {
+      id: 'microsoft',
+      available: () => true,
+      translate: async ({ texts }) => {
+        calls += 1
+        return texts.map(text => 'ZH:' + text)
+      }
+    }
+    const { catalog, root } = await seededCatalog({ provider })
+    const panels = createPanelResources(catalog, createUserPanelStores(root))
+    // The panel translates the suite's own file first, through the identity it
+    // gives every suite-owned document.
+    expect((await panels.commands.translateDocument(pluginResourceId('active', 'v1-suite', 'commands', 'deploy'))).pending).toBe(1)
+    expect(await catalog.settleDescriptions(5_000)).toBe(true)
+    expect(calls).toBe(1)
+    // The market detail page asks for the same file through the suite identity:
+    // one document is one cache entry, so no provider is paid twice.
+    expect(await catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', 'deploy')).toEqual({ text: 'ZH:Deploy the v1 fixture suite.\n', pending: 0 })
+    expect(calls).toBe(1)
+  })
+
+  it('answers a name the suite does not carry with a miss, not a lookup', async () => {
+    const { catalog } = await seededCatalog({ provider: prefixProvider() })
+    // A path-shaped name is a miss like any other: paths come from the suite's
+    // own scan, never from the caller.
+    await expect(catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', '../../etc/passwd')).rejects.toThrow(/no commands document named/)
+    await expect(catalog.suiteDocumentTranslation('active', 'v1-suite', 'agents', 'deploy')).rejects.toThrow(/no agents document named/)
+    await expect(catalog.suiteDocumentTranslation('active', 'missing-suite', 'commands', 'deploy')).rejects.toThrow(/not found in source/)
   })
 })

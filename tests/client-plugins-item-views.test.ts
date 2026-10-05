@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-import { createElement as h } from 'react'
+import { act, createElement as h } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { MARKET_SETTINGS_DEFAULTS, MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../src/contracts/settings.js'
 import { bindMarketCardForm, type MarketCardFace, type MarketCardState } from '../src/client/features/settings-card/market-card-form.js'
 import { McpPluginCard } from '../src/client/features/settings-card/McpPluginCard.js'
 import { apply, name as packageName } from '../src/client/index.js'
+import * as api from '../src/client/api.js'
+import { translationEnabled } from '../src/client/ui/translation-enabled.js'
 
 /** The renderer-side props of the entry, written out so the test binds only what the host binds. */
 interface EntryProps {
@@ -41,7 +44,8 @@ function scopeDouble(initial: Partial<MarketSettings> = {}) {
         listeners.delete(listener)
       }
     },
-    mutate: async (): Promise<boolean> => true
+    mutate: async (): Promise<boolean> => true,
+    listeners
   }
 }
 
@@ -64,11 +68,96 @@ function faceFor(view: 'page', initial: Partial<MarketSettings> = {}): EntryProp
 }
 
 describe('installed bundle configuration', () => {
+  it.each([true, false])('shares one preference across service lifetimes (menu first: %s)', async menuFirst => {
+    const load = vi.spyOn(api, 'fetchMenuRowFaces').mockResolvedValue([])
+    const source = scopeDouble({ translationEnabled: false })
+    /** The locale row's form: the interface language the translation default follows. */
+    const localeSource = { getSnapshot: () => ({ value: { preference: 'en' } }), subscribe: () => () => {} }
+    const get = vi.fn((id: string) => (id === 'locale' ? localeSource : source))
+    const children = new Map<string, (scope: Record<string, unknown>) => unknown>()
+    const childReleases: Array<() => void> = []
+    const rootReleases: Array<() => void> = []
+    let stopNamespace: (() => void) | undefined
+    const unwatch = vi.fn(() => {
+      stopNamespace?.()
+      stopNamespace = undefined
+    })
+    const forms = {
+      get,
+      whileServed: (_namespaces: readonly string[], register: (served: ReadonlySet<string>) => () => void) => {
+        stopNamespace = register(new Set([MARKET_SETTINGS_NAMESPACE]))
+        return unwatch
+      }
+    }
+    const candidates = async () => []
+    const menu = Object.create({ candidates }) as { candidates: typeof candidates }
+    apply({
+      effect: (effect, label) => {
+        if (label === 'dsh-agent-plugins-market: settings binding' || label === 'dsh-agent-plugins-market: menu row faces') {
+          rootReleases.push(effect() as () => void)
+        }
+      },
+      slots: { inject: () => {}, register: () => undefined },
+      locale: { register: () => {}, bind: () => key => key },
+      remote: { credentials: { describe: async () => ({ ok: true }), set: async () => {}, unset: async () => {} } },
+      inject: (services, callback) => {
+        children.set(services.includes('commandUi') ? 'menu' : 'settings', callback)
+      }
+    })
+    const mount = (name: string): (() => void) => {
+      const release = children.get(name)!({ configForms: forms, commandUi: menu })
+      const stop = typeof release === 'function' ? (release as () => void) : () => {}
+      childReleases.push(stop)
+      return stop
+    }
+    try {
+      if (menuFirst) mount('menu')
+      const stopSettings = mount('settings')
+      if (!menuFirst) mount('menu')
+      // One market form is fetched and shared by the read-only preference and the card.
+      expect(get.mock.calls.filter(([id]) => id === MARKET_SETTINGS_NAMESPACE)).toHaveLength(1)
+      expect(source.listeners.size).toBe(1)
+      expect(menu.candidates).toBe(candidates)
+      expect(load).not.toHaveBeenCalled()
+      const update = (enabled: boolean) => {
+        source.getSnapshot().value.translationEnabled = enabled
+        for (const listener of source.listeners) listener()
+      }
+      update(true)
+      expect(translationEnabled.getSnapshot()).toBe(true)
+      expect(menu.candidates).not.toBe(candidates)
+      expect(load).toHaveBeenCalledOnce()
+      update(true)
+      expect(load).toHaveBeenCalledOnce()
+      stopNamespace!()
+      expect(menu.candidates).toBe(candidates)
+      expect(translationEnabled.getSnapshot()).toBe(false)
+      expect(source.listeners.size).toBe(0)
+      stopSettings()
+      expect(unwatch).toHaveBeenCalledOnce()
+      mount('settings')
+      expect(menu.candidates).not.toBe(candidates)
+      expect(source.listeners.size).toBe(1)
+      for (const stop of childReleases.splice(0).reverse()) stop()
+      expect(source.listeners.size).toBe(0)
+      expect(menu.candidates).toBe(candidates)
+      mount('menu')
+      mount('settings')
+      expect(source.listeners.size).toBe(1)
+      expect(load).toHaveBeenCalledTimes(3)
+      await Promise.resolve()
+    } finally {
+      for (const stop of childReleases.reverse()) stop()
+      for (const stop of rootReleases.reverse()) stop()
+      unwatch()
+      load.mockRestore()
+    }
+  })
+
   it('registers by package name only while its settings namespace is served', () => {
     const entries: Array<{ meta: Record<string, unknown>; component: (props: never) => unknown }> = []
     const active = new Set<Record<string, unknown>>()
-    const disposed = vi.fn()
-    const scope = { ...scopeDouble(), subscribe: () => disposed }
+    const scope = scopeDouble()
     let serve!: () => () => void
     let language = 'zh'
     const slots = {
@@ -114,13 +203,13 @@ describe('installed bundle configuration', () => {
     first.edit('autoUpdateSources', 'true')
     stop()
     expect(active.has(entry.meta)).toBe(false)
-    expect(disposed).toHaveBeenCalledOnce()
+    expect(scope.listeners.size).toBe(0)
     stop = serve()
     const second = (entries.at(-1)!.meta.inject as () => MarketCardFace)()
     expect(second).not.toBe(first)
     expect(second.hooks.marketCard.getSnapshot().dirty).toBe(false)
     stop()
-    expect(disposed).toHaveBeenCalledTimes(2)
+    expect(scope.listeners.size).toBe(0)
     const originalSection = entries.find(item => item.meta.name === 'settings.section')!
     const firstLabel = typeof originalSection.meta.label === 'function' ? (originalSection.meta.label as () => string)() : originalSection.meta.label
     expect(firstLabel).toBe('zh:nav')
@@ -194,5 +283,33 @@ describe('installed bundle configuration', () => {
     const html = renderToStaticMarkup(h(McpPluginCard, faceFor('page', { scanProjectLayouts: true })))
     expect(html).toContain('settingOverridden')
     expect(html).toContain('settingReset')
+  })
+
+  it('clears the cache from a named text button on the translation row', async () => {
+    const clear = vi.spyOn(api, 'clearTranslations').mockResolvedValue()
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    try {
+      await act(async () => {
+        root.render(h(McpPluginCard, faceFor('page')))
+      })
+      const button = [...container.querySelectorAll('button')].find(candidate => candidate.textContent === 'translationReset')
+      expect(button).toBeDefined()
+      // The row's own label is the control: no icon is left standing in for it.
+      expect(button!.querySelector('svg')).toBeNull()
+      await act(async () => {
+        button!.click()
+      })
+      expect(clear).toHaveBeenCalledOnce()
+      // The clear reports through the same label once it settles.
+      expect(button!.textContent).toBe('translationResetDone')
+    } finally {
+      await act(async () => {
+        root.unmount()
+      })
+      container.remove()
+      clear.mockRestore()
+    }
   })
 })

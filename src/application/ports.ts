@@ -10,22 +10,67 @@
  * shape the tests build — fully functional.
  */
 import type { LspServerSpec, SourceKind } from '../model/types.js'
+import type { MenuRowSource } from '../contracts/market.js'
 export type { McpBackendInfo } from '../contracts/market.js'
 import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../contracts/mcp.js'
 import type { LspMountDiagnostic } from '../contracts/lsp.js'
-import type { TranslationFields, TranslationSurfaceKind } from '../contracts/translation.js'
+import type { DocumentTranslation, TranslationFields, TranslationSurfaceKind } from '../contracts/translation.js'
 import type { TranslationProvider } from './translation/chain.js'
 
 /**
- * Resolve one entity's name and description for the panel's locale.
- *
- * The catalog implements this over its own translation localizer; the panel and
- * status builders receive it as a parameter so they stay independent of how the
- * catalog stores translations. A returned field set with both members absent
- * means nothing is translated yet, and the caller renders the upstream text.
+ * One localization read: the fields resolved now, and how many of them this
+ * read queued and has not seen land yet. A surface reports the count so its
+ * reader can re-read until the translations arrive instead of staying on the
+ * authored text.
  */
-export type LocalizeFields = (surface: TranslationSurfaceKind, id: string, fields: { name?: string | undefined; description?: string | undefined }) => TranslationFields
+export interface LocalizeResult {
+  fields: TranslationFields
+  pending: number
+}
+
+/**
+ * Resolve one entity's translatable fields for a surface.
+ *
+ * `locale` is required: the caller resolved the host preference once for the
+ * read it is serving. Resolving it is not free — the host projects every active
+ * profile entry's live configuration to answer it — so there is deliberately no
+ * default and no omitted form here: a resolver that fell back to resolving the
+ * preference itself made a read's cost scale with its entity count.
+ */
+export type LocalizeFields = (
+  surface: TranslationSurfaceKind,
+  id: string,
+  fields: { name?: string | undefined; description?: string | undefined },
+  locale: string
+) => LocalizeResult
+
+/**
+ * Resolve one document body for a surface, chunk by chunk.
+ *
+ * A document is not a field: it is longer than any single provider request may
+ * carry, so the resolver splits it, queues what is missing, and answers with
+ * whatever is ready. The same "never wait, report pending" contract as
+ * {@link LocalizeFields} holds, and for the same reason — a reader must be able
+ * to open a document without a provider round trip standing between it and the
+ * page.
+ *
+ * `locale` is required for the reason {@link LocalizeFields} documents.
+ */
+export type LocalizeDocument = (surface: TranslationSurfaceKind, id: string, text: string, locale: string) => DocumentTranslation
+
+/**
+ * One read's localization: the host locale, and the resolver that applies it.
+ *
+ * The two travel together because resolving the locale is a whole-profile
+ * projection, never a per-entity question. A surface that walks entities — the
+ * MCP and LSP status inventories — receives the pair from the caller that owns
+ * the read instead of resolving anything itself.
+ */
+export interface Localization {
+  locale: string
+  localizeFields: LocalizeFields
+}
 
 /** One MCP tool observed from the host tool registry (structural). */
 export interface McpToolSnapshot {
@@ -68,6 +113,28 @@ export interface CredentialGrantStore {
   deleteGrantRecord(serverName: string): Promise<void>
 }
 
+/**
+ * One menu row this plugin owns, paired with the panel identity that
+ * translates it.
+ *
+ * The runtime half of the join lives behind this record because only the
+ * registries know the call name a command actually got, while only the panels
+ * know the id and authored text a translation is cached under. The catalog
+ * joins them without importing either.
+ */
+export interface MenuRowIdentity {
+  /** Which `/` menu group the row belongs to. */
+  readonly source: MenuRowSource
+  /** The name the menu row carries — the allocated call name for a command. */
+  readonly name: string
+  /** The identity the panel translates the entry under; the same id means the same cache entry. */
+  readonly id: string
+  /** The authored name the panel handed to the translator. */
+  readonly authoredName: string
+  /** The authored description the panel handed to the translator; absent when it had none. */
+  readonly authoredDescription?: string
+}
+
 /** The complete set of host seams a catalog needs; every member is resolved. */
 export interface CatalogPorts {
   /** Live host MCP tool registry snapshot for the status surface. */
@@ -91,11 +158,24 @@ export interface CatalogPorts {
   /** The host locale preference ('zh' default when unset). */
   localePreference(): string
   /**
+   * Every `/` menu row this plugin currently owns, with the panel identity it
+   * translates as. Empty when nothing is registered.
+   */
+  menuRowIdentities(): Promise<readonly MenuRowIdentity[]>
+  /**
    * The ordered translation chain, best provider first. An empty array means
    * this deployment translates nothing and every surface renders the upstream
    * text as authored.
    */
   translationProviders?: readonly TranslationProvider[] | undefined
+  /**
+   * Whether translation is switched on, read per call.
+   *
+   * The chain above is built once, while the user's switch can flip at any
+   * time, so the switch is a live read rather than a second captured value.
+   * Absent means on, so a composition that omits it keeps translating.
+   */
+  translationEnabled?: (() => boolean) | undefined
   /**
    * Stable identity of the current chain, folded into every cache key.
    *
@@ -121,6 +201,7 @@ export const defaultCatalogPorts: CatalogPorts = {
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
   mcpBackend: async () => 'builtin',
   localePreference: () => 'zh',
+  menuRowIdentities: async () => [],
   translationProviders: [],
   translationProviderIdentity: () => 'none',
   setMcpBackend: async () => {

@@ -46,6 +46,8 @@
 
 /* The block heading with its optional trailing control (the tool search). */
 .blockHeadRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The tools heading with its text-view switch on the same line. */
+.toolsHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 /* A line of context under a block heading, dimmer than the rows it introduces. */
 .blockSub { margin: 0 0 6px; color: var(--dsw-alias-label-tertiary, #8b93a1); font-size: 11px; line-height: 16px; }
 

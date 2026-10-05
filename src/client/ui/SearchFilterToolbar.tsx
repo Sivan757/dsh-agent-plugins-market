@@ -45,6 +45,12 @@ export interface SearchFilterToolbarProps {
   /** Accessible name of the view button while the list shows: it switches to the grid. */
   toGridLabel: string
   onViewChange: (view: SearchFilterToolbarView) => void
+  /**
+   * Trailing control rendered immediately left of the view switch. The text
+   * view belongs to this cluster: it reads the same list the switch re-lays
+   * out, so the two sit together at the row's trailing edge.
+   */
+  beforeView?: ReactNode
   className?: string
 }
 
@@ -88,6 +94,7 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
       label: props.filterLabel,
       className: css.segment
     }),
+    props.beforeView === undefined ? null : h('div', { className: css.beforeView }, props.beforeView),
     // One flat glyph, the same geometry as every other panel action: the icon
     // shows the mode in force, `aria-pressed` reports it, and the accessible
     // name says where a click leads.

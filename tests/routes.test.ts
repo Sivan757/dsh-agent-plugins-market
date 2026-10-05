@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MARKET_ROUTES } from '../src/contracts/market.js'
+import { MARKET_ROUTES, userPanelTranslationRoute } from '../src/contracts/market.js'
 import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
 import type { MarketService } from '../src/application/queries.js'
 
@@ -24,7 +24,10 @@ function service(): MarketService {
     suiteDetail: async () => {
       throw new Error('not found')
     },
-    skillContent: async () => {
+    suiteDocument: async () => {
+      throw new Error('not found')
+    },
+    suiteDocumentTranslation: async () => {
       throw new Error('not found')
     },
     addSource: async input => ({ id: 'source', ...input }),
@@ -54,6 +57,7 @@ function service(): MarketService {
       downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
     }),
     setMcpBackend: async () => {},
+    menuRowFaces: async () => [],
     notifyPanelsChanged: async () => {}
   }
 }
@@ -243,7 +247,13 @@ describe('market HTTP routes', () => {
     const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const created: Array<{ kind: string; name: string; text: string }> = []
+    const reads: Array<{ kind: string; force: boolean | undefined }> = []
+    const translated: Array<{ kind: string; name: string }> = []
     const store = (kind: string) => ({
+      read: async (_strict?: boolean, force?: boolean) => {
+        reads.push({ kind, force })
+        return { entries: [{ name: 'demo', description: 'd', disabled: false, metadata: {}, path: `/${kind}/demo.md` }], translationPending: 0 }
+      },
       list: async () => [{ name: 'demo', description: 'd', disabled: false, metadata: {}, path: `/${kind}/demo.md`, content: 'body' }],
       get: async (name: string) => ({ name, description: 'd', disabled: false, metadata: {}, path: `/${kind}/${name}.md`, content: 'body' }),
       create: async (name: string, text: string) => {
@@ -251,7 +261,11 @@ describe('market HTTP routes', () => {
         return { name, description: 'd', disabled: false, metadata: {}, path: `/${kind}/${name}.md`, content: text }
       },
       update: async () => {},
-      remove: async () => {}
+      remove: async () => {},
+      translateDocument: async (name: string) => {
+        translated.push({ kind, name })
+        return { text: `translated ${name}`, pending: 1 }
+      }
     })
     const panels = {
       skills: store('skills'),
@@ -267,9 +281,19 @@ describe('market HTTP routes', () => {
     }
     const dispose = mountSuiteRoutes({ webServer }, panelService, panels)
 
-    // Three panels × five routes each (list, entry read, create, update, delete).
+    // Three panels × six routes each (list, entry read, document translation,
+    // create, update, delete).
     const panelRoutes = [...routes.keys()].filter(path => path.startsWith(MARKET_ROUTES.userPanel))
-    expect(panelRoutes).toHaveLength(15)
+    expect(panelRoutes).toHaveLength(18)
+    // A bare count keeps passing when one kind loses a route and another gains
+    // one, so each kind is checked for its own set — through the same helper the
+    // client builds its URLs with, which is what keeps the two sides agreeing.
+    for (const kind of ['skills', 'commands', 'agents'] as const) {
+      const base = `${MARKET_ROUTES.userPanel}/${kind}`
+      for (const path of [`${base}`, `${base}/entry`, userPanelTranslationRoute(kind), `${base}/create`, `${base}/update`, `${base}/delete`]) {
+        expect(panelRoutes).toContain(path)
+      }
+    }
 
     // Create: POST body {name, text} → entry, then a change notification.
     const createPath = `${MARKET_ROUTES.userPanel}/skills/create`
@@ -280,8 +304,119 @@ describe('market HTTP routes', () => {
     expect(created).toEqual([{ kind: 'skills', name: 'demo', text: '---\ndescription: d\n---\nbody' }])
     expect(notifyCalls).toHaveLength(1)
 
+    // The list read may be answered from the host's row cache. `refresh=1` is
+    // the panel's Refresh button asking for the working tree as it stands, and
+    // it has to reach the store as a forced read.
+    const listPath = `${MARKET_ROUTES.userPanel}/skills`
+    const listResponse = response()
+    await routes.get(listPath)?.({ method: 'GET', url: listPath }, listResponse)
+    await settle()
+    expect(listResponse.value()).toMatchObject({ entries: [{ name: 'demo' }] })
+    const forcedResponse = response()
+    await routes.get(listPath)?.({ method: 'GET', url: `${listPath}?refresh=1` }, forcedResponse)
+    await settle()
+    expect(forcedResponse.value()).toMatchObject({ entries: [{ name: 'demo' }] })
+    expect(reads).toEqual([
+      { kind: 'skills', force: false },
+      { kind: 'skills', force: true }
+    ])
+
+    // The document translation route names an entry and nothing else: the store
+    // re-reads that entry itself, so a page cannot spend the operator's
+    // translation quota on text of its own choosing.
+    const translationPath = userPanelTranslationRoute('skills')
+    const translationResponse = response()
+    await routes.get(translationPath)?.(postRequest(translationPath, { name: 'demo' }), translationResponse)
+    await settle()
+    expect(translationResponse.value()).toMatchObject({ ok: true, text: 'translated demo', pending: 1 })
+    expect(translated).toEqual([{ kind: 'skills', name: 'demo' }])
+
+    // A body with no entry to name is rejected before the store is asked.
+    const namelessResponse = response()
+    await routes.get(translationPath)?.(postRequest(translationPath, {}), namelessResponse)
+    await settle()
+    expect(namelessResponse.value()).toMatchObject({ ok: false })
+    expect(translated).toHaveLength(1)
+
     dispose()
     expect(routes.size).toBe(0)
+  })
+
+  it('serves one suite document whole from an identity, for the three document surfaces', async () => {
+    const routes: RouteTable = new Map()
+    const calls: Array<[string, string, string, string]> = []
+    const manager = {
+      ...service(),
+      suiteDocument: async (sourceId: string, suiteId: string, kind: string, name: string) => {
+        calls.push([sourceId, suiteId, kind, name])
+        if (name === 'ghost') throw new Error(`no ${kind} document named "${name}"`)
+        return { name, content: `# ${name}\n\nfull body` }
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, manager)
+    try {
+      const read = async (query: string): Promise<Record<string, unknown>> => {
+        const output = response()
+        await routes.get(MARKET_ROUTES.suiteDocument)!({ method: 'GET', url: `${MARKET_ROUTES.suiteDocument}?${query}` }, output)
+        return output.value() as Record<string, unknown>
+      }
+
+      // The read names the suite, the surface, and the document: the body is the
+      // whole file, and no request field can point it anywhere else.
+      expect(await read('sourceId=active&suiteId=v1-suite&kind=commands&name=deploy')).toMatchObject({ name: 'deploy', content: '# deploy\n\nfull body' })
+      expect(calls).toEqual([['active', 'v1-suite', 'commands', 'deploy']])
+
+      // An unknown surface and a nameless document are rejected before the
+      // catalog is asked; a document the suite does not carry comes back as a 404.
+      for (const query of ['sourceId=active&suiteId=v1-suite&kind=hooks&name=deploy', 'sourceId=active&suiteId=v1-suite&kind=commands']) {
+        expect(await read(query)).toMatchObject({ ok: false })
+      }
+      expect(calls).toHaveLength(1)
+      expect(await read('sourceId=active&suiteId=v1-suite&kind=agents&name=ghost')).toMatchObject({ ok: false, error: 'no agents document named "ghost"' })
+    } finally {
+      dispose()
+    }
+  })
+
+  it('translates one suite document from an identity, never from submitted text', async () => {
+    const routes: RouteTable = new Map()
+    const calls: Array<[string, string, string, string]> = []
+    const manager = {
+      ...service(),
+      suiteDocumentTranslation: async (sourceId: string, suiteId: string, kind: string, name: string) => {
+        calls.push([sourceId, suiteId, kind, name])
+        return { text: `translated ${name}`, pending: 2 }
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, manager)
+    try {
+      const path = MARKET_ROUTES.suiteDocumentTranslation
+      const translatedResponse = response()
+      await routes.get(path)?.(postRequest(path, { sourceId: 'active', suiteId: 'v1-suite', kind: 'commands', name: 'deploy' }), translatedResponse)
+      await settle()
+      expect(translatedResponse.value()).toMatchObject({ ok: true, text: 'translated deploy', pending: 2 })
+      expect(calls).toEqual([['active', 'v1-suite', 'commands', 'deploy']])
+
+      // The document the reader sees arrives through the document route above
+      // and this route re-reads the same file: there is no field here a page
+      // could put text in, so an extra one reaches nothing.
+      const extra = response()
+      await routes.get(path)?.(postRequest(path, { sourceId: 'active', suiteId: 'v1-suite', kind: 'agents', name: 'reviewer', text: 'translate this instead' }), extra)
+      await settle()
+      expect(calls[1]).toEqual(['active', 'v1-suite', 'agents', 'reviewer'])
+
+      // A missing suite identity, an unknown surface, and a nameless document
+      // are each rejected before the catalog is asked.
+      for (const body of [{}, { sourceId: 'active', suiteId: 'v1-suite', kind: 'hooks', name: 'deploy' }, { sourceId: 'active', suiteId: 'v1-suite', kind: 'commands' }]) {
+        const rejected = response()
+        await routes.get(path)?.(postRequest(path, body), rejected)
+        await settle()
+        expect(rejected.value()).toMatchObject({ ok: false })
+      }
+      expect(calls).toHaveLength(2)
+    } finally {
+      dispose()
+    }
   })
 
   it('rejects panel entry names outside the grammar without filesystem effect', async () => {

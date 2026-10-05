@@ -375,6 +375,14 @@
   opacity: 0.4;
 }
 
+/* The panel-wide text-view switch: the cluster's flat icon geometry with a
+   pressed fill, so the view in force is readable without hovering. The fill is
+   neutral rather than brand-coloured: this is a reading mode, not a state. */
+.translateToggle[aria-pressed='true'] {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+}
+
 /* Destructive action only announces itself on hover, like the platform. */
 .iconBtnDanger:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover-danger);

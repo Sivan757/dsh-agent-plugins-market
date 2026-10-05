@@ -25,6 +25,7 @@ import {
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { DownloadRegionSetting, MarketSettings } from '../../../contracts/settings.js'
 import type { McpBackendInfo } from '../../api.js'
+import { effectiveTranslationEnabled, type InterfaceLanguage } from '../../ui/translation-enabled.js'
 
 /** The boolean switches this card renders, in display order. */
 export const MARKET_SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled', 'translationEnabled'] as const
@@ -118,9 +119,10 @@ type ProbeSource = () => Promise<McpBackendInfo>
  * renderer face for the card.
  * @param scope - the host configuration form for the market namespace.
  * @param probeSource - reads the live host-client and region state from the market API.
+ * @param language - the interface language the translation row's derived default follows; absent keeps the declared default.
  * @returns the model, the injected face, and the disposer releasing the form.
  */
-export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, probeSource: ProbeSource): {
+export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, probeSource: ProbeSource, language?: InterfaceLanguage): {
   model: SettingsFormModel<MarketSettings>
   face: MarketCardFace
   dispose: () => void
@@ -169,6 +171,19 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
   // guard permissive: it cannot learn anything more.
   const compatBlocked = (): boolean =>
     model.field('mcpEnhanced').text !== 'true' && (probeStatus === 'loading' || hostClientMissing())
+  /**
+   * The translation row reads the effective switch. While the document carries
+   * no value the interface language decides it, so a control left empty would
+   * render "off" beside text the market is translating — a switch that lies
+   * about the state it reports. A staged draft answers for itself, so only an
+   * empty one takes the derived value.
+   * @returns the row's state, with the derived value standing in for the absent one.
+   */
+  const translationField = (): SettingsFieldState => {
+    const field = model.field('translationEnabled')
+    if (field.text !== '') return field
+    return { ...field, text: String(effectiveTranslationEnabled(scope.getSnapshot().value, language?.current())) }
+  }
   const project = (): MarketCardState => {
     const shell = model.shell()
     return {
@@ -178,13 +193,16 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
       scanProjectLayouts: model.field('scanProjectLayouts'),
       autoUpdateSources: model.field('autoUpdateSources'),
       feedbackEnabled: model.field('feedbackEnabled'),
-      translationEnabled: model.field('translationEnabled'),
+      translationEnabled: translationField(),
       downloadRegion: model.field('downloadRegion'),
       probe,
       hostClientMissing: hostClientMissing()
     }
   }
   const store = model.bind(project)
+  // A language switch moves that derived value without touching this namespace,
+  // so the projection republishes on the language's own signal.
+  const unsubscribeLanguage = language?.subscribe(() => { store.set(project()) })
 
   /** Read the host-client probe once; a second call while one is in flight is a no-op. */
   const loadProbe = async (): Promise<void> => {
@@ -216,6 +234,7 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
     },
     dispose: () => {
       probeGeneration += 1
+      unsubscribeLanguage?.()
       model.dispose()
     }
   }

@@ -52,6 +52,14 @@
   flex: none;
 }
 
+/* The caller's trailing control sits in the same cluster as the view switch,
+   so it keeps that glyph's width and never absorbs the search field's squeeze. */
+.beforeView {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
 /* The toolbar stays on one row: the search field absorbs the squeeze, exactly
    as the settings column's width changes. Only a genuinely narrow container —
    below where the filter segments would overflow — stacks it. */

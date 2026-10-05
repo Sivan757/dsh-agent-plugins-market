@@ -201,7 +201,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
           // The Market tab already names this page; the description is the part
           // that says something the tab does not.
           subtitle: t('navDescription'),
-          leading: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
           actions: h(PanelActions, { addLabel: t('addSource'), onAdd: () => setEditor({ mode: 'add' }), refreshLabel: t('refreshAll'), onRefresh: () => { void action('s:refresh:all', 'sources/refresh', {}) }, busy: busy !== undefined })
         }),
         h(
@@ -273,7 +272,8 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             view,
             toListLabel: t('switchToList'),
             toGridLabel: t('switchToGrid'),
-            onViewChange: nextView => setView(nextView)
+            onViewChange: nextView => setView(nextView),
+            beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) })
           })
         )
       ),
@@ -403,7 +403,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             sourceId: detail.sourceId,
             suiteId: detail.suiteId,
             showOriginal,
-            onToggleOriginal: () => setShowOriginal(current => !current),
             onClose: () => setDetail(undefined),
             onInstall: () => {
               const source = overview.sources.find(entry => entry.id === detail.sourceId)

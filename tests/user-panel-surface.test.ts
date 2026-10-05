@@ -6,7 +6,39 @@ import { stubTranslate as t } from './helpers/translate.js'
 import { parse } from 'yaml'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-const api = vi.hoisted(() => ({ fetchModelCatalog: vi.fn(), fetchUserPanel: vi.fn(), createUserPanelEntry: vi.fn(), updateUserPanelEntry: vi.fn(), deleteUserPanelEntry: vi.fn() }))
+const api = vi.hoisted(() => {
+  const fetchUserPanel = vi.fn()
+  return {
+    fetchModelCatalog: vi.fn(),
+    fetchUserPanel,
+    // The surface reads through `readUserPanel`, which carries the translation
+    // count it polls on; these fixtures serve settled text, so the count is
+    // zero and one read is the whole exchange.
+    //
+    // Both mocks mirror the real routes: the list ships rows without their
+    // documents, and the entry read is the one that carries the document.
+    readUserPanel: vi.fn(async (...args: unknown[]) => {
+      const rows = (await fetchUserPanel(...args)) as Array<Record<string, unknown>>
+      return {
+        entries: rows.map(row => {
+          const wire = { ...row }
+          delete wire['rawText']
+          return wire
+        }),
+        translationPending: 0
+      }
+    }),
+    fetchUserPanelEntry: vi.fn(async (kind: string, name: string) => {
+      const rows = (await fetchUserPanel(kind)) as Array<Record<string, unknown>>
+      const entry = rows.find(row => (row['id'] ?? row['name']) === name)
+      if (entry?.['rawText'] === undefined) throw new Error(`no entry named "${name}"`)
+      return entry
+    }),
+    createUserPanelEntry: vi.fn(),
+    updateUserPanelEntry: vi.fn(),
+    deleteUserPanelEntry: vi.fn()
+  }
+})
 vi.mock('../src/client/api.js', () => api)
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async importOriginal => ({
   ...(await importOriginal<typeof import('@deepseek-ai/dsh-client-ui-primitives')>()),
@@ -317,6 +349,39 @@ describe('unified Markdown resource panel', () => {
     expect(control().getAttribute('aria-checked')).toBe('true')
   })
 
+  it('reads an entry document when the detail row is opened, not with the list', async () => {
+    api.fetchUserPanel.mockResolvedValue([user])
+    api.fetchUserPanelEntry.mockResolvedValue({ ...user, rawText: '---\ndescription: Review implementation\n---\nFRESHDOCBODY' })
+    await mountPanel()
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    await act(async () => card!.click())
+    // The dialog opens from the list row alone; the document is a second read,
+    // taken only when the reader asks for it.
+    expect(api.fetchUserPanelEntry).not.toHaveBeenCalled()
+    await click('reviewer.md')
+    expect(api.fetchUserPanelEntry).toHaveBeenCalledWith('agents', user.id)
+    expect(host.textContent).toContain('FRESHDOCBODY')
+  })
+
+  it('fetches the document before flipping an enable switch', async () => {
+    const row = { ...user, id: 'user:notes', name: 'notes', path: '/user/notes.md' }
+    // The list read carries no document (the mock strips it, as the route
+    // does), so the rewrite can only come from the entry read.
+    api.fetchUserPanel.mockResolvedValue([row])
+    api.fetchUserPanelEntry.mockResolvedValue({ ...row, rawText: '---\nname: notes\ndescription: take notes\n---\nFETCHEDBODY' })
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
+    await act(async () => host.querySelector<HTMLButtonElement>('button[role="switch"]')!.click())
+    expect(api.fetchUserPanelEntry).toHaveBeenCalledWith('skills', 'user:notes')
+    const text = api.updateUserPanelEntry.mock.calls[0]?.[2] as string
+    expect(text).toContain('disable-model-invocation: true')
+    expect(text).toContain('user-invocable: false')
+    expect(text).toContain('FETCHEDBODY')
+  })
+
   it('refuses to switch a document whose frontmatter failed validation', async () => {
     api.fetchUserPanel.mockResolvedValue([{ ...user, id: 'user:broken', name: 'broken', disabled: true, metadata: { validationError: 'missing YAML frontmatter' } }])
     api.updateUserPanelEntry.mockResolvedValue(undefined)
@@ -326,5 +391,20 @@ describe('unified Markdown resource panel', () => {
     await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
     const switchButton = host.querySelector<HTMLButtonElement>('button[role="switch"]')
     expect(switchButton?.disabled).toBe(true)
+  })
+
+  it('asks for a genuine re-read when the user presses Refresh', async () => {
+    api.fetchUserPanel.mockResolvedValue([user])
+    await mountPanel()
+    // The panel's own load is an ordinary read: the host's row cache is what
+    // keeps repeated reads cheap while translations land.
+    expect(api.readUserPanel).toHaveBeenCalledWith('agents', false)
+
+    api.readUserPanel.mockClear()
+    await click('refresh')
+    // Refresh is the user asking for the working tree as it stands, so it must
+    // never be answered from that cache.
+    expect(api.readUserPanel).toHaveBeenCalledWith('agents', true)
+    expect(api.readUserPanel.mock.calls.every(call => call[1] === true)).toBe(true)
   })
 })

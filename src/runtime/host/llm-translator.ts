@@ -48,11 +48,44 @@ interface TranslationRoute {
 /** Bound the call: a stalled model must not pin a translation slot forever. */
 const TRANSLATE_TIMEOUT_MS = 30_000
 
-/** One text worth of output; a batch asks for a multiple of this. */
-const MAX_OUTPUT_TOKENS_PER_ITEM = 512
+/**
+ * Output tokens one source character is expected to need.
+ *
+ * An estimate, and labelled as one: nothing in this tree tokenizes. It covers
+ * the measured expansion of this repository's own bilingual documents — across
+ * the 90 English/Chinese pairs it ships, the Chinese side runs at 0.461 of the
+ * English character count at the median and 0.617 in the worst case — at an
+ * assumed 0.7 tokens per Chinese character, which puts the worst case near 0.43
+ * tokens per source character. 0.6 leaves about 40% headroom over that estimate
+ * and still lets one call carry a whole `MAX_BATCH_CHARS` batch (6,400 source
+ * characters) inside {@link MAX_OUTPUT_TOKENS_CAP}.
+ *
+ * The budget used to be per text (512 × the number of texts), which sized a
+ * batch of twenty short descriptions at the 4,096 ceiling while sizing one long
+ * text at 512: any single text past ~1,100 characters was cut off
+ * mid-generation, and a cut-off generation fails the batch *and* takes that
+ * provider out of the chain for the rest of the session.
+ */
+const OUTPUT_TOKENS_PER_SOURCE_CHAR = 0.6
 
-/** Ceiling for one batch, so a large one cannot ask for an unbounded generation. */
-const MAX_OUTPUT_TOKENS_CAP = 4_096
+/** Floor for one call, so a short text still has room for its own output. */
+const MIN_OUTPUT_TOKENS = 512
+
+/** Ceiling for one call, so a large one cannot ask for an unbounded generation. */
+export const MAX_OUTPUT_TOKENS_CAP = 4_096
+
+/**
+ * The output budget for one call carrying this much source text.
+ *
+ * Sized from the source rather than from the text count: what a call has to
+ * answer is the expansion of the text it was handed, so a batch of one long
+ * text and a batch of twenty short ones are budgeted by the same rule.
+ * @param sourceChars - characters in the user turn this call will send.
+ * @returns the output token ceiling to ask the route for.
+ */
+export function outputTokenBudget(sourceChars: number): number {
+  return Math.min(Math.max(Math.ceil(sourceChars * OUTPUT_TOKENS_PER_SOURCE_CHAR), MIN_OUTPUT_TOKENS), MAX_OUTPUT_TOKENS_CAP)
+}
 
 /**
  * Batch separator: a line holding only two percent signs.
@@ -64,6 +97,33 @@ const BATCH_SEPARATOR = '\n\n%%\n\n'
 const BATCH_SEPARATOR_PATTERN = /\r?\n[ \t]*%%[ \t]*\r?\n/
 
 /**
+ * The language name a target tag is asked for in.
+ *
+ * A model reads a language name, not a tag: `zh` alone is answered in
+ * Traditional as often as in Simplified. The layer resolves the interface
+ * preference to the language the market actually renders ({@link
+ * resolveTranslationTarget}) before the chain is called, so the tags that reach
+ * here are few; the table names the spellings a caller may still hand in,
+ * because a tag that names a script should be answered in that script rather
+ * than left for the model to interpret.
+ */
+const TARGET_LANGUAGE_NAMES: Record<string, string> = {
+  zh: 'Simplified Chinese',
+  'zh-hans': 'Simplified Chinese',
+  'zh-cn': 'Simplified Chinese',
+  'zh-sg': 'Simplified Chinese',
+  'zh-hant': 'Traditional Chinese',
+  'zh-tw': 'Traditional Chinese',
+  'zh-hk': 'Traditional Chinese',
+  en: 'English'
+}
+
+/** The language to translate into, named for the prompt. */
+function targetLanguageName(locale: string): string {
+  return TARGET_LANGUAGE_NAMES[locale.toLowerCase()] ?? locale
+}
+
+/**
  * Stable instruction; the target language and the batch flag are the variables.
  * @param locale - target locale id.
  * @param batched - whether the user turn carries several segments.
@@ -72,7 +132,7 @@ const BATCH_SEPARATOR_PATTERN = /\r?\n[ \t]*%%[ \t]*\r?\n/
 function systemPrompt(locale: string, batched: boolean): string {
   const lines = [
     'You translate plugin marketplace text for a developer tool.',
-    'Translate the user text into ' + (locale === 'zh' ? 'Simplified Chinese' : locale) + '.',
+    'Translate the user text into ' + targetLanguageName(locale) + '.',
     'Preserve product names, package names, acronyms (MCP, LSP, DSH, CLI), and URLs exactly as written.',
     'Keep the tone factual and concise. Output the translation alone: no quotes, no notes, no alternatives.'
   ]
@@ -229,12 +289,16 @@ export function createLlmTranslator(host: TranslatorHost): TranslationProvider {
       timeout.unref?.()
       try {
         const effort = await chooseEffort(llm, route, controller.signal)
+        // The budget is sized from what this call actually carries: the batch
+        // separator is part of the turn, and a text longer than any earlier
+        // batch is what the response has to cover.
+        const source = batched ? texts.join(BATCH_SEPARATOR) : (texts[0] ?? '')
         const options: GenerateOptions = {
           provider: route.provider,
           model: route.model,
           system: systemPrompt(request.locale, batched),
-          messages: [userMessage(batched ? texts.join(BATCH_SEPARATOR) : (texts[0] ?? ''))],
-          maxTokens: Math.min(MAX_OUTPUT_TOKENS_PER_ITEM * texts.length, MAX_OUTPUT_TOKENS_CAP),
+          messages: [userMessage(source)],
+          maxTokens: outputTokenBudget(source.length),
           temperature: 0,
           ...(effort === undefined ? {} : { reasoningEffort: effort as GenerateOptions['reasoningEffort'] }),
           signal: controller.signal

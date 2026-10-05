@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, IconEditOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { PanelActions, PanelHeader } from '../../ui/panel.js'
@@ -8,11 +8,12 @@ import { fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, setMcpServerEnabl
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
 import { interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
+import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './mcp-status-view-model.js'
 import { mcpCardState, mcpDisplayName } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
-import { displayText } from '../../ui/translated-text.js'
+import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { McpDetailModal } from './McpDetailModal.js'
 import { McpConfigModal } from './McpConfigModal.js'
@@ -46,6 +47,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   const [selected, setSelected] = useState<McpStatusEntry | undefined>(undefined)
   const [editing, setEditing] = useState<McpStatusEntry>()
   const [adding, setAdding] = useState(false)
+  // One reading mode for the whole panel: the switch lifts to this surface so a
+  // single click re-reads every card and the detail dialog under it.
+  const [showOriginal, setShowOriginal] = useState(false)
+  const flipOriginal = (): void => setShowOriginal(current => !current)
 
   const observe = async (id: string): Promise<McpStatusEntry> => {
     const refreshed = await fetchMcpStatus()
@@ -66,11 +71,32 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       return observe(id)
     })
 
+  // One settle poll at a time: every refresh restarts it, and the effect's
+  // cleanup stops the previous one so an unmounted panel never keeps polling.
+  const settle = useRef<{ stop: () => void } | undefined>(undefined)
+
   const refresh = (): void => {
     setLoading(true)
     setError(undefined)
+    settle.current?.stop()
+    settle.current = undefined
     fetchMcpStatus()
-      .then(setPayload)
+      .then(next => {
+        setPayload(next)
+        // Tool descriptions are translated off the read path, so the first read
+        // carries authored text and a count. Polling until the count clears is
+        // what swaps the translated text in without a manual refresh.
+        if ((next.translationPending ?? 0) > 0) {
+          settle.current = pollUntilTranslated({
+            read: async () => {
+              const polled = await fetchMcpStatus()
+              return { value: polled, pending: polled.translationPending ?? 0 }
+            },
+            report: setPayload,
+            isStopped: () => settle.current === undefined
+          })
+        }
+      })
       .catch(caught => {
         setError(clientErrorMessage(t, caught))
       })
@@ -94,6 +120,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
 
   useEffect(() => {
     refresh()
+    return () => {
+      settle.current?.stop()
+      settle.current = undefined
+    }
   }, [])
 
   const { activeEntries, filtered, filterCounts } = deriveMcpStatusViewModel(payload, filter, search)
@@ -135,7 +165,8 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       view,
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView)
+      onViewChange: nextView => setView(nextView),
+      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: flipOriginal })
     }),
     error !== undefined
       ? h('div', { className: css.error, ...panelProps }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
@@ -146,7 +177,16 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           : h(
               ResourceCollection,
               { view, ...panelProps },
-              filtered.map(entry => h(McpCard, { key: entry.id, entry, t, onClick: () => setSelected(entry), onToggle: () => toggle(entry), onEdit: () => setEditing(entry) }))
+              filtered.map(entry =>
+                h(McpCard, {
+                  key: entry.id,
+                  entry,
+                  t,
+                  onClick: () => setSelected(entry),
+                  onToggle: () => toggle(entry),
+                  onEdit: () => setEditing(entry)
+                })
+              )
             ),
     adding
       ? h(McpAddModal, {
@@ -165,6 +205,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           entry: selected,
           t,
           backend: payload.backend ?? 'builtin',
+          showOriginal,
           onClose: () => {
             setSelected(undefined)
             refresh()
@@ -195,7 +236,19 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
  * configuration) live in the detail dialog, so a wall of failing cards stays
  * scannable.
  */
-function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntry; t: Translate; onClick: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
+function McpCard({
+  entry,
+  t,
+  onClick,
+  onToggle,
+  onEdit
+}: {
+  entry: McpStatusEntry
+  t: Translate
+  onClick: () => void
+  onToggle: () => void
+  onEdit: () => void
+}): ReactNode {
   const interactive = interactiveCardProps(onClick)
   const toolCount = entry.tools.length === 1 ? t('mcpTool') : t('mcpTools')
   // A foreign mount belongs to another MCP client, so this plugin cannot
@@ -215,7 +268,7 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
     h(
       'div',
       { className: rc.rowId },
-      hoverHint(entry.name, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), displayText(entry.translatedName, displayName, t) ?? displayName)),
+      hoverHint(entry.name, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), displayName)),
       // The state rail on the card's left edge carries the state; a written
       // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect')))

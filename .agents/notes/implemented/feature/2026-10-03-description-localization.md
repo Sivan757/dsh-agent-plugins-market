@@ -6,7 +6,7 @@ Status: implemented
 
 The market renders the upstream catalog verbatim. Those manifests are authored in English, so a `zh` deployment shows a Chinese UI wrapped around English suite descriptions — the exact defect the user reported, with the panel chrome already translated and only the data fields left behind.
 
-The catalog is not ours to edit. A source is a checkout of someone else's repository, refreshed on every update, so a translation cannot be written back into the manifest. It has to live beside the catalog and be applied on the way out. [The universal translation layer note](../../proposed/feature/2026-10-04-universal-translation-layer.md) generalizes this arrangement to every surface and every rendered name; the split of an already-bilingual description described here is unchanged by it.
+The catalog is not ours to edit. A source is a checkout of someone else's repository, refreshed on every update, so a translation cannot be written back into the manifest. It has to live beside the catalog and be applied on the way out. [The universal translation layer note](2026-10-04-universal-translation-layer.md) generalizes this arrangement to every surface's descriptions; the split of an already-bilingual description described here is unchanged by it.
 
 ## Decision
 
@@ -79,7 +79,7 @@ The panel is never worse than before the change: with no model configured, no ne
 
 The cost is a background model call per unseen description, bounded to three at a time and one call per description for the life of the cache. Translation quality is the model's, not ours: a poor translation is cached as-is until the upstream description changes. There is no per-entry eviction or size cap — the file grows with the catalog and holds one short string per suite.
 
-This note covers suite descriptions; names and the other five surfaces — skills, commands, agent personas, MCP and LSP — are localized by the layer recorded in [the universal translation layer note](../../proposed/feature/2026-10-04-universal-translation-layer.md), which partially supersedes this one. Keywords stay untranslated: they feed search and matching rather than display.
+This note covers suite descriptions; the descriptions of skills, commands, agent personas and MCP tools are localized by the layer recorded in [the universal translation layer note](2026-10-04-universal-translation-layer.md), which partially supersedes this one. Names and keywords stay untranslated: a name is an identifier, and a keyword feeds search and matching rather than display.
 
 ## Testing
 

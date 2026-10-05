@@ -22,6 +22,7 @@ export function McpDetailModal({
   entry,
   t,
   backend,
+  showOriginal = false,
   onClose,
   onRetry,
   onReauthorize,
@@ -31,6 +32,8 @@ export function McpDetailModal({
   t: Translate
   /** The mount backend; `host` cannot enforce tool filters. */
   backend: 'builtin' | 'host'
+  /** The panel's text view, and the switch that drives it. */
+  showOriginal?: boolean
   onClose: () => void
   onRetry: (entryId: string) => Promise<McpStatusEntry>
   onReauthorize: (id: string, serverName: string) => Promise<McpStatusEntry>
@@ -43,6 +46,9 @@ export function McpDetailModal({
   const [toolsExpanded, setToolsExpanded] = useState(false)
   const [toolSearch, setToolSearch] = useState('')
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
+  // The dialog renders the panel's view and flips that same state, so the two
+  // switches are one control seen from two places rather than two states.
+  const view = { original: showOriginal === true }
   const actions = mcpDetailActions(entry)
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
   const tools = mcpToolRows(entry)
@@ -204,7 +210,11 @@ export function McpDetailModal({
         h(
           'div',
           { className: css.blockHeadRow },
-          h('h4', { className: panelCss.blockHead }, `${t('mcpTools')} (${tools.length})`),
+          h(
+            'div',
+            { className: css.toolsHead },
+            h('h4', { className: panelCss.blockHead }, `${t('mcpTools')} (${tools.length})`)
+          ),
           // A long capability list is worth filtering; a short one needs no
           // control above it.
           tools.length > TOOL_PAGE_SIZE
@@ -241,7 +251,7 @@ export function McpDetailModal({
                 { className: css.toolList },
                 shownTools.map(tool => {
                   // Resolved once: the visible line and its hover hint are the same text.
-                  const toolDescriptionText = displayText(tool.translatedDescription, tool.description, t) ?? ''
+                  const toolDescriptionText = displayText(tool.translatedDescription, tool.description, t, view) ?? ''
                   return h(
                     'div',
                     { key: tool.name, className: css.tool },
@@ -259,7 +269,8 @@ export function McpDetailModal({
                         : null,
                       // A name with a schema is the control that reveals what the tool
                       // takes. The name, the description, and the note each clip to
-                      // one line, so every one carries its full text as a hint.
+                      // one line, so every one carries its full text as a hint —
+                      // through the host tooltip, which has no show delay.
                       tool.parameters === undefined
                         ? hoverHint(tool.name, h('span', hintProps({ className: css.toolName }), tool.name))
                         : hoverHint(
@@ -279,7 +290,9 @@ export function McpDetailModal({
                     toolDescriptionText === ''
                       ? null
                       : hoverHint(toolDescriptionText, h('span', hintProps({ className: css.toolDescription }), toolDescriptionText)),
-                    tool.suiteLimited ? hoverHint(t('mcpToolSuiteLimited'), h('span', hintProps({ className: css.toolNote }), t('mcpToolSuiteLimited'))) : null,
+                    tool.suiteLimited
+                      ? hoverHint(t('mcpToolSuiteLimited'), h('span', hintProps({ className: css.toolNote }), t('mcpToolSuiteLimited')))
+                      : null,
                     expandedTools[tool.name] === true ? h('div', { className: css.toolParams }, toolParameterRows(tool.parameters, t)) : null
                   )
                 }),

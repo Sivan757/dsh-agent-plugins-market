@@ -11,12 +11,14 @@ import { BusyOverlay } from './ui/BusyOverlay.js'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../contracts/settings.js'
-import { fetchMcpBackend } from './api.js'
+import { fetchMcpBackend, fetchMenuRowFaces } from './api.js'
+import { createMenuRowFaces, type MenuRowFaces } from './menu-row-faces.js'
 import { en, zh, type LocaleKey } from './locales.js'
 import { resourcesEn, resourcesZh, type ResourceLocaleKey } from './locales-resources.js'
 import { PluginWorkspace } from './workspace/PluginWorkspace.js'
 import { McpPluginCard } from './features/settings-card/McpPluginCard.js'
 import { bindMarketCardForm, type MarketCardFace } from './features/settings-card/market-card-form.js'
+import { bindInterfaceLanguage, bindTranslationEnabled, translationEnabled, LOCALE_SETTINGS_ENTRY } from './ui/translation-enabled.js'
 import { ComposerResourceEntry } from './features/resource-window/ComposerResourceEntry.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './workspace/page-mode.js'
@@ -51,7 +53,7 @@ interface ConfigFormsService {
 interface SuiteClientContext {
   effect(callback: () => unknown, label?: string): void
   /** Late service resolution; absent on hosts predating cross-plugin inject. */
-  inject?(services: string[], callback: (resolved: Record<string, unknown>) => void): void
+  inject?(services: string[], callback: (resolved: Record<string, unknown>) => (() => void) | undefined): void
   configForms?: ConfigFormsService
   locale: LocaleService
   slots: SlotsService
@@ -122,13 +124,18 @@ export function apply(ctx: SuiteClientContext): void {
   ctx.inject?.(['configForms'], (scoped: { configForms?: ConfigFormsService; slots?: SlotsService }) => {
     const service = scoped.configForms
     const slots = scoped.slots
-    if (service === undefined || slots === undefined) return
-    // One form binding per served lifetime: when the namespace stops being
-    // served the registration unwinds, and a re-served namespace gets a live
-    // binding rather than the disposed one from before.
+    if (service === undefined) return
+    // One host form supplies both the read-only preference and the editable card.
     let card: MarketCardFace | undefined
-    service.whileServed([NS], () => {
-      const bound = bindMarketCardForm(service.get<MarketSettings>(NS), fetchMcpBackend)
+    return service.whileServed([NS], () => {
+      const form = service.get<MarketSettings>(NS)
+      // The translation default follows the interface language, so the
+      // read-only preference and the card both resolve it off the locale row's
+      // own form — the same `locale.preference` the node half reads.
+      const language = bindInterfaceLanguage(service.get<{ preference?: string }>(LOCALE_SETTINGS_ENTRY))
+      const unbindTranslation = bindTranslationEnabled(form, language)
+      if (slots === undefined) return unbindTranslation
+      const bound = bindMarketCardForm(form, fetchMcpBackend, language)
       card = bound.face
       const dispose = slots.register({
         name: 'plugins.bundle.config',
@@ -137,11 +144,48 @@ export function apply(ctx: SuiteClientContext): void {
         inject: () => card!,
       }, McpPluginCard)
       return () => {
+        unbindTranslation()
         bound.dispose()
         card = undefined
         if (typeof dispose === 'function') dispose()
       }
     })
+  })
+
+  // The `/` menu's rows: our commands and skills carry the same translated
+  // title and description the panels show. Wrapping is the whole feature, so it
+  // follows the translation switch exactly — while the switch is off nothing is
+  // wrapped and the menu renders the host's own text, as it does without us.
+  ctx.inject?.(['commandUi', 'inputTriggers'], (scoped: { commandUi?: unknown; inputTriggers?: unknown }) => {
+    let faces: MenuRowFaces | undefined
+    /** Bring the wrapper in line with the switch; installing is idempotent. */
+    const sync = (): void => {
+      if (!translationEnabled.getSnapshot()) {
+        faces?.dispose()
+        faces = undefined
+        return
+      }
+      if (faces !== undefined) return
+      faces = createMenuRowFaces({
+        commandUi: scoped.commandUi,
+        inputTriggers: scoped.inputTriggers,
+        load: fetchMenuRowFaces,
+        onError: error => console.warn('[dsh-agent-plugins-market] menu row faces unavailable:', error)
+      })
+      void faces.refresh()
+    }
+    const unsubscribe = translationEnabled.subscribe(sync)
+    // The label is the host's translation of our text, so a language switch
+    // invalidates every face; a fresh read is the whole update.
+    const unsubscribeLocale = ctx.locale.subscribe?.(() => {
+      void faces?.refresh()
+    })
+    sync()
+    return () => {
+      unsubscribeLocale?.()
+      unsubscribe()
+      faces?.dispose()
+    }
   })
 
   ctx.slots.inject('settings.section', () => {

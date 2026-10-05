@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement as h } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { displayText } from '../src/client/ui/translated-text.js'
+import { bindTranslationEnabled } from '../src/client/ui/translation-enabled.js'
 import type { Translate } from '../src/client/index.js'
 import { en, zh } from '../src/client/locales.js'
 
@@ -12,22 +13,31 @@ import { en, zh } from '../src/client/locales.js'
 const zhT: Translate = key => (key === 'localeProbeLang' ? '中文' : String(key))
 const enT: Translate = key => (key === 'localeProbeLang' ? 'English' : String(key))
 
-const api = vi.hoisted(() => ({
-  fetchUserPanel: vi.fn(),
-  createUserPanelEntry: vi.fn(),
-  updateUserPanelEntry: vi.fn(),
-  deleteUserPanelEntry: vi.fn(),
-  fetchMcpStatus: vi.fn(),
-  retryMcpMounts: vi.fn(),
-  reauthorizeMcpServer: vi.fn(),
-  setMcpServerEnabled: vi.fn(),
-  setMcpServerTool: vi.fn(),
-  fetchLspStatus: vi.fn(),
-  setLspServerEnabled: vi.fn(),
-  migrateLspSeam: vi.fn(),
-  postAction: vi.fn(),
-  fetchSuiteDetail: vi.fn()
-}))
+const api = vi.hoisted(() => {
+  const fetchUserPanel = vi.fn()
+  return {
+    fetchUserPanel,
+    // The panel reads through `readUserPanel`, which also reports the translation
+    // count it polls on; these fixtures serve settled text, so it is zero.
+    readUserPanel: vi.fn(async (...args: unknown[]) => {
+      const entries = (await fetchUserPanel(...args)) as Array<Record<string, unknown>>
+      return { entries, translationPending: 0 }
+    }),
+    createUserPanelEntry: vi.fn(),
+    updateUserPanelEntry: vi.fn(),
+    deleteUserPanelEntry: vi.fn(),
+    fetchMcpStatus: vi.fn(),
+    retryMcpMounts: vi.fn(),
+    reauthorizeMcpServer: vi.fn(),
+    setMcpServerEnabled: vi.fn(),
+    setMcpServerTool: vi.fn(),
+    fetchLspStatus: vi.fn(),
+    setLspServerEnabled: vi.fn(),
+    migrateLspSeam: vi.fn(),
+    postAction: vi.fn(),
+    fetchSuiteDetail: vi.fn()
+  }
+})
 vi.mock('../src/client/api.js', () => api)
 vi.mock('../src/client/features/market/market-resource.js', () => ({
   loadOverview: () => ({ initial: overview, revalidating: false, promise: Promise.resolve(overview) }),
@@ -44,7 +54,6 @@ const overview = {
       suiteId: 'demo-suite',
       name: 'Demo Suite',
       description: 'English description',
-      translatedName: '示例套件',
       translatedDescription: '中文描述',
       version: '1.0.0',
       layout: 'agent-plugin-v1',
@@ -71,7 +80,6 @@ const ENTRY = {
   id: 'plugin:demo/reviewer',
   name: 'reviewer',
   description: 'Review implementation',
-  translatedName: '审查者',
   translatedDescription: '审查实现',
   origin: 'plugin' as const,
   suiteName: 'Demo Suite',
@@ -87,7 +95,6 @@ const MCP_STATUS = {
     {
       id: 'plugin:demo/service',
       name: 'demo__service',
-      translatedName: '连接器服务',
       kind: 'plugin' as const,
       state: 'connected' as const,
       source: 'Demo Suite',
@@ -108,7 +115,6 @@ const LSP_STATUS = {
     {
       id: 'plugin:demo/typescript',
       serverKey: 'typescript',
-      translatedName: 'TypeScript 服务',
       suiteId: 'demo',
       suiteName: 'Demo Suite',
       sourceId: 'demo',
@@ -188,15 +194,28 @@ describe('displayText with the authored-text view', () => {
 })
 
 describe('the panel text-view switch', () => {
+  // The switch only exists while auto-translate is on, so this suite states
+  // that precondition instead of inheriting whatever the default happens to be.
+  let unbind: () => void
+  beforeEach(() => {
+    unbind = bindTranslationEnabled({
+      getSnapshot: () => ({ value: { translationEnabled: true } }),
+      subscribe: () => () => {}
+    })
+  })
+  afterEach(async () => {
+    await act(async () => unbind())
+  })
+
   // One surface component renders skills, commands, and personas; each is a
   // face of its own, so each gets the switch.
-  it.each(['skills', 'commands', 'agents'] as const)('flips the %s panel from translated to authored text, name and description together', async kind => {
+  it.each(['skills', 'commands', 'agents'] as const)('flips the %s panel from translated to authored text, leaving the name alone', async kind => {
     api.fetchUserPanel.mockResolvedValue([ENTRY])
     await mount(h(UserPanelSurface, { t: zhT, kind }))
-    // A command keeps its bare call name: that identity is what the user types
-    // and the slash menu matches, so the switch never rewrites it.
-    if (kind === 'commands') expect(host!.textContent).toContain('reviewer')
-    else expect(host!.textContent).toContain('审查者')
+    // A name is never translated, so every kind shows the authored one in both
+    // views; only the description flips.
+    expect(host!.textContent).toContain('reviewer')
+    expect(host!.textContent).not.toContain('审查者')
     expect(host!.textContent).toContain('审查实现')
 
     const button = toggle()!
@@ -204,16 +223,18 @@ describe('the panel text-view switch', () => {
     expect(button.type).toBe('button')
     expect(button.title).toBe('translationShowOriginal')
     expect(button.getAttribute('aria-label')).toBe('translationShowOriginal')
-    expect(button.getAttribute('aria-pressed')).toBe('false')
+    // Pressed means the translation is showing, so it reads as on at rest.
+    expect(button.getAttribute('aria-pressed')).toBe('true')
 
     await flip()
     expect(host!.textContent).toContain('Review implementation')
     expect(host!.textContent).not.toContain('审查实现')
-    // Commands show the call name in both views; the other kinds flip to it.
+    // The name is the same in both views: it was never translated.
     expect(host!.textContent).toContain('reviewer')
     const back = toggle()!
     expect(back.title).toBe('translationShowTranslated')
-    expect(back.getAttribute('aria-pressed')).toBe('true')
+    // The authored text is showing, so the switch reads as off.
+    expect(back.getAttribute('aria-pressed')).toBe('false')
 
     // Reading the authored text is a display flip, not a translation request:
     // the panel reads its list once, and switching asks the server for nothing.
@@ -227,7 +248,8 @@ describe('the panel text-view switch', () => {
   it('flips the MCP panel, its detail dialog riding the same state', async () => {
     api.fetchMcpStatus.mockResolvedValue(MCP_STATUS)
     await mount(h(McpStatusPanel, { t: zhT }))
-    expect(host!.textContent).toContain('连接器服务')
+    // The service name is authored text and stays.
+    expect(host!.textContent).toContain('service')
     // One list read at mount; the switch never asks the server for text.
     expect(api.fetchMcpStatus).toHaveBeenCalledTimes(1)
 
@@ -240,24 +262,23 @@ describe('the panel text-view switch', () => {
     expect(document.body.textContent).toContain('Search upstream')
     expect(document.body.textContent).not.toContain('搜索上游')
     expect(host!.textContent).toContain('service')
-    expect(host!.textContent).not.toContain('连接器服务')
     expect(api.fetchMcpStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('flips the LSP panel and its detail dialog', async () => {
+  it('offers no switch on the LSP panel: a row carries nothing but a key', async () => {
     api.fetchLspStatus.mockResolvedValue(LSP_STATUS)
     await mount(h(LspStatusPanel, { t: zhT }))
-    expect(host!.textContent).toContain('TypeScript 服务')
-
-    await flip()
+    // Only descriptions are translated, and an LSP row has none — its server key
+    // is an identity. A switch here would flip a text against itself.
+    expect(toggle()).toBeNull()
     expect(host!.textContent).toContain('typescript')
-    expect(host!.textContent).not.toContain('TypeScript 服务')
     expect(api.fetchLspStatus).toHaveBeenCalledTimes(1)
   })
 
   it('flips the market cards and the suite detail together', async () => {
     await mount(h(MarketSection, { t: enT }))
-    expect(host!.textContent).toContain('示例套件')
+    // The suite name is authored text and stays; only the description flips.
+    expect(host!.textContent).toContain('Demo Suite')
     expect(host!.textContent).toContain('中文描述')
 
     await flip()
@@ -298,5 +319,51 @@ describe('the panel text-view switch', () => {
     await flip(document.body)
     expect(document.body.textContent).toContain('中文描述')
     expect(document.body.textContent).not.toContain('English description')
+  })
+})
+
+describe('the switch follows the auto-translate setting', () => {
+  /** A settings binding stand-in: the value the host document would answer with. */
+  function binding(enabled: boolean): {
+    getSnapshot: () => { value: { translationEnabled: boolean } }
+    subscribe: () => () => void
+  } {
+    return { getSnapshot: () => ({ value: { translationEnabled: enabled } }), subscribe: () => () => {} }
+  }
+
+  it('withholds the control while auto-translate is off', async () => {
+    const unbind = bindTranslationEnabled(binding(false))
+    api.fetchUserPanel.mockResolvedValue([ENTRY])
+    await mount(h(UserPanelSurface, { t: zhT, kind: 'skills' }))
+    // querySelector answers null for an absent element.
+    expect(toggle()).toBeNull()
+    // The panel itself still renders; only the switch is withheld.
+    expect(host!.textContent).toContain('reviewer')
+    expect(host!.textContent).toContain('审查实现')
+    unbind()
+  })
+
+  it('shows the control once auto-translate is on', async () => {
+    const unbind = bindTranslationEnabled(binding(true))
+    api.fetchUserPanel.mockResolvedValue([ENTRY])
+    await mount(h(UserPanelSurface, { t: zhT, kind: 'skills' }))
+    expect(toggle()).not.toBeNull()
+    await act(async () => unbind())
+  })
+
+  it('assumes the declared default before the host answers', async () => {
+    // No binding at all is the pre-answer state, and the declared default is
+    // off: an unread namespace withholds the control rather than flashing it.
+    api.fetchUserPanel.mockResolvedValue([ENTRY])
+    await mount(h(UserPanelSurface, { t: zhT, kind: 'skills' }))
+    expect(toggle()).toBeNull()
+  })
+
+  it('drops the binding on dispose, falling back to the default', async () => {
+    const unbind = bindTranslationEnabled(binding(true))
+    unbind()
+    api.fetchUserPanel.mockResolvedValue([ENTRY])
+    await mount(h(UserPanelSurface, { t: zhT, kind: 'skills' }))
+    expect(toggle()).toBeNull()
   })
 })

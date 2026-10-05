@@ -67,6 +67,18 @@ describe('MCP backend persistence', () => {
     expect(off.downloadRegion).toBe('china')
   })
 
+  it('declares no default for the translation switch, keeping "never set" apart from "turned off"', () => {
+    // A declared default is materialized into the live config reference, where
+    // both states would read false; the language-derived default needs the
+    // difference, so the schema leaves the field absent.
+    const unset = MarketSettingsSchema({}) as { translationEnabled?: boolean }
+    expect(unset.translationEnabled).toBeUndefined()
+    const off = MarketSettingsSchema({ translationEnabled: false }) as { translationEnabled?: boolean }
+    expect(off.translationEnabled).toBe(false)
+    const on = MarketSettingsSchema({ translationEnabled: true }) as { translationEnabled?: boolean }
+    expect(on.translationEnabled).toBe(true)
+  })
+
   it('reads a missing scanProjectLayouts as off so a project joins only on an explicit opt-in', () => {
     const resolved = MarketSettingsSchema({}) as { scanProjectLayouts?: boolean }
     expect(resolved.scanProjectLayouts).toBe(false)

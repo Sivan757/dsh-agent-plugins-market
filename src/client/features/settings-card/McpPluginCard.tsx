@@ -7,7 +7,7 @@
  * @module client/McpPluginCard
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { IconRefreshOutlineMedium, SegmentedControl, SettingsForm, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, SegmentedControl, SettingsForm, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 // Import the published slot types only; runtime collaboration uses the host slots service.
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -37,7 +37,8 @@ const SWITCH_COPY: Record<MarketSwitchField, { label: MarketCopyKey; description
 type MarketCopyKey =
   | 'mcpCardTitle' | 'mcpCardDesc' | 'projectLayoutsLabel' | 'projectLayoutsDesc'
   | 'autoUpdateLabel' | 'autoUpdateDesc' | 'feedbackToggleLabel' | 'feedbackToggleDesc'
-  | 'translationToggleLabel' | 'translationToggleDesc' | 'translationReset' | 'translationResetDone'
+  | 'translationToggleLabel' | 'translationToggleDesc' | 'translationToggleExperimental'
+  | 'translationReset' | 'translationResetDone'
   | 'mcpCardReadonly' | 'mcpBackendHostMissing' | 'regionLabel' | 'regionHint'
   | 'regionAuto' | 'regionGlobal' | 'regionChina' | 'regionResolved'
   | 'settingSaveFailed' | 'settingSave' | 'settingSaving'
@@ -67,42 +68,48 @@ function OverrideBadge(props: { t: CardTranslate; disabled: boolean; onReset: ()
   )
 }
 
-/** The head of one field row: its label and the override state above the control. */
-function FieldHead(props: { label: string; overridden: boolean; badge: ReactNode }): ReactNode {
+/** The head of one field row: its label, a standing marker, and the override state. */
+function FieldHead(props: { label: string; overridden: boolean; badge: ReactNode; tag?: ReactNode }): ReactNode {
   return h(
     'div',
     { className: css.pluginFieldHead },
     h('div', { className: css.pluginCardRowLabel }, props.label),
+    // A standing marker is part of the label, not of the override state, so it
+    // shows whether or not the field has been touched.
+    props.tag === undefined ? null : h('span', { className: css.pluginFieldBadges }, props.tag),
     props.overridden ? props.badge : null
   )
 }
 
 /**
- * The reset control: one flat icon button, sized and coloured like the row's
- * other affordances. It clears the whole translation cache rather than staging
- * a setting, so it acts immediately and reports through its own label.
+ * The reset control: the host's text button, named for what it clears. It
+ * clears the whole translation cache rather than staging a setting, so it acts
+ * immediately — outside the form's save cycle — and reports through its own
+ * label, settling on the cleared state before returning to its name.
  */
-function ResetButton(props: { t: CardTranslate; disabled: boolean; onClear: () => void }): ReactNode {
-  const [busy, setBusy] = useState(false)
-  const label = props.t('translationReset')
+function ResetButton(props: { t: CardTranslate; disabled: boolean; onClear: () => Promise<void> }): ReactNode {
+  const [phase, setPhase] = useState<'idle' | 'busy' | 'done'>('idle')
+  // The settled label is a moment of feedback, not a state the row keeps.
+  useEffect(() => {
+    if (phase !== 'done') return
+    const timer = setTimeout(() => { setPhase('idle') }, 1600)
+    return () => { clearTimeout(timer) }
+  }, [phase])
   return h(
-    'button',
+    Button,
     {
-      type: 'button',
-      className: css.pluginFieldIcon,
-      title: label,
-      'aria-label': label,
-      disabled: props.disabled || busy,
+      variant: 'ghost',
+      size: 'sm',
+      disabled: props.disabled || phase === 'busy',
       onClick: () => {
-        if (busy) return
-        setBusy(true)
-        props.onClear()
+        if (phase === 'busy') return
+        setPhase('busy')
         // The clear is fire-and-forget: the next panel read repopulates, and a
         // failure costs nothing worse than text that translates again.
-        setTimeout(() => { setBusy(false) }, 400)
+        void props.onClear().then(() => { setPhase('done') }, () => { setPhase('idle') })
       }
     },
-    h(IconRefreshOutlineMedium)
+    props.t(phase === 'done' ? 'translationResetDone' : 'translationReset')
   )
 }
 
@@ -128,6 +135,11 @@ function SwitchRow(props: {
       h(FieldHead, {
         label,
         overridden: props.state.overridden,
+        // The translation chain reaches third-party providers, so the row says
+        // so before a user turns it on.
+        ...(props.field === 'translationEnabled'
+          ? { tag: h(Tag, { tone: 'neutral' }, props.t('translationToggleExperimental')) }
+          : {}),
         badge: h(OverrideBadge, { t: props.t, disabled: props.disabled, onReset: () => { props.onReset(props.field) } })
       }),
       h('div', { className: css.pluginCardDesc }, props.t(copy.description))
@@ -196,7 +208,7 @@ export function McpPluginCard(props: McpPluginCardProps): ReactNode {
             // Only the translation row carries a reset: it clears a cache, not
             // a staged setting, so it sits outside the form's own save cycle.
             ...(field === 'translationEnabled'
-              ? { accessory: h(ResetButton, { t, disabled, onClear: () => { void clearTranslations() } }) }
+              ? { accessory: h(ResetButton, { t, disabled, onClear: clearTranslations }) }
               : {})
           })
         ),

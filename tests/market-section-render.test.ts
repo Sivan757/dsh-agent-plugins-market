@@ -43,7 +43,7 @@ vi.mock('../src/client/api.js', () => ({
   fetchSourceProgress: vi.fn().mockResolvedValue({ step: undefined, error: undefined }),
   fetchSuiteDetail: vi.fn(),
   fetchMcpStatus: vi.fn(),
-  fetchSkillContent: vi.fn(),
+  fetchSuiteDocument: vi.fn(),
   postAction: vi.fn().mockResolvedValue({})
 }))
 

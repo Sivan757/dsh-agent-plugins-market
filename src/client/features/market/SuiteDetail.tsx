@@ -5,22 +5,25 @@
  * already says, and one block per surface — skills, MCP servers, commands,
  * agent roles, hooks, LSP servers, then validation diagnostics. Every block is
  * a list of disclosure rows that render the real content in place: a skill's
- * SKILL.md through the safe Markdown renderer, and validated configuration
- * through the host JSON tree.
+ * SKILL.md, a command, or an agent role arrives through one read made when the
+ * row is opened, rendered through the safe Markdown renderer, and validated
+ * configuration through the host JSON tree.
  *
  * The MCP region is intentionally read-only: credentials and per-server
  * overrides are configured on the MCP services panel (their own detail
  * dialog), not inside the suite detail preview.
  */
-import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createElement as h, Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { displayText } from '../../ui/translated-text.js'
 import { Button, JsonTree, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { MarkdownDocument } from '../../ui/MarkdownDocument.js'
+import { DocumentTranslationView } from '../../ui/DocumentTranslation.js'
 import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import { lastChangeLabel } from '../../ui/last-change.js'
 import { jsonTreeLabels } from '../../ui/json-tree-labels.js'
-import { fetchSkillContent, fetchSuiteDetail, type McpServerDetail, type SuiteDetail } from '../../api.js'
+import { fetchSuiteDetail, fetchSuiteDocument, fetchSuiteDocumentTranslation, type McpServerDetail, type SuiteDetail, type UserPanelKind } from '../../api.js'
+import type { DocumentTranslation } from '../../../contracts/translation.js'
 import type { Translate } from '../../index.js'
 import { suiteLayoutLabel } from '../../layout-label.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
@@ -38,23 +41,30 @@ export interface SuiteDetailModalProps {
   onInstall?: (() => void) | undefined
   /** Uninstalls this suite; present only while it is installed. */
   onUninstall?: (() => void) | undefined
+  /** The panel's text view, and the switch that drives it. */
+  showOriginal: boolean
 }
 
-export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onUninstall }: SuiteDetailModalProps): ReactNode {
+export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onUninstall, showOriginal }: SuiteDetailModalProps): ReactNode {
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [openRow, setOpenRow] = useState<string | undefined>(undefined)
-  const [skillText, setSkillText] = useState<string | undefined>(undefined)
-  const [skillLoading, setSkillLoading] = useState(false)
-  const skillRequestGuard = useRef(createLatestRequestGuard())
+  // One slot for whichever document row is open: a row's body renders only while
+  // it is the open one, so the three document surfaces share one read state.
+  const [documentText, setDocumentText] = useState<string | undefined>(undefined)
+  const [documentLoading, setDocumentLoading] = useState(false)
+  const documentRequestGuard = useRef(createLatestRequestGuard())
+  // The dialog renders the panel's view and flips that same state, so the two
+  // switches are one control seen from two places rather than two states.
+  const view = { original: showOriginal }
 
   useEffect(() => {
     let cancelled = false
-    skillRequestGuard.current.invalidate()
+    documentRequestGuard.current.invalidate()
     setDetail(undefined)
     setError(undefined)
     setOpenRow(undefined)
-    setSkillText(undefined)
+    setDocumentText(undefined)
     fetchSuiteDetail(sourceId, suiteId)
       .then(value => {
         if (!cancelled) setDetail(value)
@@ -64,7 +74,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
       })
     return () => {
       cancelled = true
-      skillRequestGuard.current.invalidate()
+      documentRequestGuard.current.invalidate()
     }
   }, [sourceId, suiteId])
 
@@ -75,18 +85,37 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
     }
     setOpenRow(id)
     if (load === undefined) return
-    const requestId = skillRequestGuard.current.next()
-    setSkillLoading(true)
-    setSkillText(undefined)
+    const requestId = documentRequestGuard.current.next()
+    setDocumentLoading(true)
+    setDocumentText(undefined)
     try {
       const content = await load()
-      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(content)
+      if (documentRequestGuard.current.isCurrent(requestId)) setDocumentText(content)
     } catch (reason) {
-      if (skillRequestGuard.current.isCurrent(requestId)) setSkillText(`⚠ ${clientErrorMessage(t, reason)}`)
+      if (documentRequestGuard.current.isCurrent(requestId)) setDocumentText(`⚠ ${clientErrorMessage(t, reason)}`)
     } finally {
-      if (skillRequestGuard.current.isCurrent(requestId)) setSkillLoading(false)
+      if (documentRequestGuard.current.isCurrent(requestId)) setDocumentLoading(false)
     }
   }
+
+  /**
+   * One document row — a skill, a command, or an agent. The three surfaces take
+   * one path: opening the row starts the read, the row shows its own loading
+   * line until that read lands, and a failed read writes the same failure text
+   * into the body. The detail payload never carries a document's bytes, so no
+   * row can render a body that was cut to fit it.
+   */
+  const documentRow = (kind: UserPanelKind, id: string, name: string, description: string | undefined): ReactNode =>
+    row(
+      openRow,
+      id,
+      name,
+      description,
+      () => void toggleRow(id, async () => (await fetchSuiteDocument(sourceId, suiteId, kind, name)).content),
+      openRow === id && documentLoading
+        ? h('div', { className: css.empty }, t('loading'))
+        : documentBody(t, h(MarkdownDocument, { text: documentText ?? '', t }), () => fetchSuiteDocumentTranslation(sourceId, suiteId, kind, name))
+    )
 
   const layoutLabel = detail === undefined ? '' : suiteLayoutLabel(detail.layout, t)
   const updated = detail === undefined || detail.updatedAt === null ? null : lastChangeLabel(t, detail.updatedAt)
@@ -101,8 +130,9 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
   return h(DetailModal, {
     open: true,
     onClose,
-    title: detail === undefined ? t('detailTitle') : (displayText(detail.translatedName, detail.name, t) ?? detail.name),
-    // No subtitle: the kind and the source are already tags on the identity row.
+    title: detail === undefined ? t('detailTitle') : detail.name,
+    // No subtitle: the kind and the source are already tags on the identity row,
+    // and the source repeats the overview grid's own `来源套件` cell.
     closeLabel: t('cancel'),
     footer: footer(t, detail, { onClose, onInstall, onUninstall }),
     children: h(ErrorBoundary, {
@@ -147,20 +177,16 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                 ),
                 detail.description === null
                   ? null
-                  : h('div', { className: panelCss.block }, h('h4', { className: panelCss.blockHead }, t('detailDescriptionLabel')), h('p', { className: panelCss.detailProse }, displayText(detail.translatedDescription, detail.description, t))),
+                  : h(
+                      'div',
+                      { className: panelCss.block },
+                      h('h4', { className: panelCss.blockHead }, t('detailDescriptionLabel')),
+                      h('p', { className: panelCss.detailProse }, displayText(detail.translatedDescription, detail.description, t, view))
+                    ),
                 block(
                   t('skillsSection'),
                   detail.skills.length,
-                  detail.skills.map(skill =>
-                    row(
-                      openRow,
-                      `s:${skill.name}`,
-                      skill.name,
-                      skill.description,
-                      () => void toggleRow(`s:${skill.name}`, async () => (await fetchSkillContent(sourceId, suiteId, skill.name)).content),
-                      skillLoading && openRow === `s:${skill.name}` ? h('div', { className: css.empty }, t('loading')) : h(MarkdownDocument, { text: skillText ?? '', t })
-                    )
-                  )
+                  detail.skills.map(skill => documentRow('skills', `s:${skill.name}`, skill.name, skill.description))
                 ),
                 block(
                   t('mcpSection'),
@@ -181,14 +207,12 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                 block(
                   t('commandsSection'),
                   detail.commands.length,
-                  detail.commands.map(command =>
-                    row(openRow, `c:${command.name}`, command.name, command.description, () => void toggleRow(`c:${command.name}`), h(MarkdownDocument, { text: command.content, t }))
-                  )
+                  detail.commands.map(command => documentRow('commands', `c:${command.name}`, command.name, command.description))
                 ),
                 block(
                   t('agentsSection'),
                   detail.agents.length,
-                  detail.agents.map(agent => row(openRow, `a:${agent.name}`, agent.name, agent.description, () => void toggleRow(`a:${agent.name}`), h(MarkdownDocument, { text: agent.content, t })))
+                  detail.agents.map(agent => documentRow('agents', `a:${agent.name}`, agent.name, agent.description))
                 ),
                 block(
                   t('hooksLabel'),
@@ -220,6 +244,20 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
               )
     })
   })
+}
+
+/**
+ * One document row's body: the file as authored, and under it the collapsible
+ * translation section every other document surface carries.
+ *
+ * The section starts closed and reads nothing until a reader opens it, so a
+ * document nobody translates costs nothing. It is the component the user-panel
+ * detail page renders, against the same contract: the read names this suite and
+ * this document, and the server re-reads the file rather than trusting the
+ * detail payload that put the authored text on screen.
+ */
+function documentBody(t: Translate, document: ReactNode, load: () => Promise<DocumentTranslation>): ReactNode {
+  return h(Fragment, null, document, h(DocumentTranslationView, { t, load }))
 }
 
 /** One surface group. A surface the suite does not carry is left out entirely. */

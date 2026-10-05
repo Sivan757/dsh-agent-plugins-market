@@ -1,18 +1,28 @@
 /** Typed fetch helpers over the host's `/api/agent-plugins/*` routes. */
 import { withBusyOperation } from './ui/busy-operation.js'
 import { RequestTimeoutError } from './request-error.js'
-import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
-import { MARKET_API_PREFIX, skillRoute, suiteRoute } from '../contracts/market.js'
-import type { McpBackendInfo, MarketFieldError, OverviewPayload, ServerConfigPayload, ServerPolicyRequest, SkillContent, SourceProgress, SuiteDetail, SuiteOverviewCard } from '../contracts/market.js'
+import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, userPanelTranslationRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
+import { documentRoute, MARKET_API_PREFIX, suiteRoute } from '../contracts/market.js'
+import type {
+  McpBackendInfo,
+  MarketFieldError,
+  MenuRowFaceWire,
+  OverviewPayload,
+  ServerConfigPayload,
+  ServerPolicyRequest,
+  SourceProgress,
+  SuiteDetail,
+  SuiteDocumentText,
+  SuiteOverviewCard
+} from '../contracts/market.js'
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspStatusPayload } from '../contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../contracts/surface-toggles.js'
+import type { DocumentTranslation } from '../contracts/translation.js'
 
 export type {
-  AgentPreview,
   HookPreview,
   LspPreview,
-  MarkdownPreview,
   MarketFieldError,
   McpServerDetail,
   OverviewPayload,
@@ -20,10 +30,11 @@ export type {
   ServerPolicyPayload,
   ServerPolicyRequest,
   ServerTimeoutPolicy,
-  SkillContent,
   SourceOverview,
   SourceProgress,
   SuiteDetail,
+  SuiteDocumentMeta,
+  SuiteDocumentText,
   SuiteOverviewCard,
   SuiteSkillMeta,
   SuiteSurfaceCounts,
@@ -150,6 +161,17 @@ export async function fetchSourceProgress(): Promise<SourceProgress> {
   return getJson<SourceProgress>(MARKET_ROUTES.progress, 'progress failed')
 }
 
+/**
+ * The localized face of every `/` menu row this plugin owns.
+ *
+ * Read on menu mount and on a locale change only. Translation stays lazy on the
+ * host: this route reports what the panels already translated and queues
+ * nothing, so an uncached row simply arrives without a face.
+ */
+export async function fetchMenuRowFaces(): Promise<MenuRowFaceWire[]> {
+  return getJson<MenuRowFaceWire[]>(MARKET_ROUTES.menuRowFaces, 'menu row faces failed')
+}
+
 export async function fetchSuiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail> {
   return withBusyOperation(() => getJson<SuiteDetail>(suiteRoute(sourceId, suiteId), 'suite detail failed'), { blocking: false })
 }
@@ -181,8 +203,41 @@ export async function migrateLspSeam(profile: string): Promise<import('../contra
   })
 }
 
-export async function fetchSkillContent(sourceId: string, suiteId: string, skill: string): Promise<SkillContent> {
-  return withBusyOperation(() => getJson<SkillContent>(skillRoute(sourceId, suiteId, skill), 'skill content failed'), { blocking: false })
+/**
+ * One suite document's authored text, whole.
+ *
+ * This is the market detail page's only document read: a skill, a command, and
+ * an agent row all call it when a reader opens the row, so no row renders a
+ * body the detail payload shipped (and none can be cut to fit one).
+ * @param sourceId - the source the suite belongs to.
+ * @param suiteId - the suite's id inside that source.
+ * @param kind - which document surface the name belongs to.
+ * @param name - the document's name inside that surface.
+ * @returns the document's text exactly as authored.
+ */
+export async function fetchSuiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<SuiteDocumentText> {
+  return withBusyOperation(() => getJson<SuiteDocumentText>(documentRoute(sourceId, suiteId, kind, name), 'document content failed'), { blocking: false })
+}
+
+/**
+ * Translate one suite document, chunk by chunk.
+ *
+ * The call names the suite and the document and nothing else. The server
+ * re-reads that file from the suite's own checkout, so a page cannot spend the
+ * operator's translation quota on text of its own — and a document that changed
+ * since the detail payload was built is translated as it stands on disk, not as
+ * the payload remembers it.
+ * @param sourceId - the source the suite belongs to.
+ * @param suiteId - the suite's id inside that source.
+ * @param kind - which document surface the name belongs to.
+ * @param name - the document's name inside that surface.
+ * @returns the body in the target language, and how many chunks are still in flight.
+ */
+export async function fetchSuiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<DocumentTranslation> {
+  return withBusyOperation(async () => {
+    const body = await postOkJson<{ text?: string; pending?: number }>(MARKET_ROUTES.suiteDocumentTranslation, { sourceId, suiteId, kind, name }, 'document translation failed')
+    return { text: body.text ?? '', pending: body.pending ?? 0 }
+  }, { blocking: false })
 }
 
 /** Re-run the host MCP reconcile: retries failed mounts, clears residual tools. */
@@ -255,9 +310,67 @@ export type UserPanelEntry = UserPanelEntryWire
 
 /** List one panel's entries. */
 export async function fetchUserPanel(kind: UserPanelKind): Promise<UserPanelEntry[]> {
+  return (await readUserPanel(kind)).entries
+}
+
+/**
+ * One panel read with its translation count.
+ *
+ * The count is what lets a panel re-read until the translated text lands; the
+ * entries-only view above is for callers that just need the rows.
+ * @param kind - which panel to read.
+ * @param force - ask for a genuine re-read instead of the host's row cache.
+ * The Refresh button sets it; the translation poll does not, because the poll
+ * runs every 1.5 s and the cache is what keeps that poll cheap.
+ * @returns the entries and how many description fields are still in flight.
+ */
+export async function readUserPanel(kind: UserPanelKind, force = false): Promise<{ entries: UserPanelEntry[]; translationPending: number }> {
   return withBusyOperation(async () => {
-    const body = await getJson<{ entries?: UserPanelEntry[] }>(userPanelRoute(kind), 'user panel failed')
-    return body.entries ?? []
+    const route = force ? `${userPanelRoute(kind)}?refresh=1` : userPanelRoute(kind)
+    const body = await getJson<{ entries?: UserPanelEntry[]; translationPending?: number }>(route, 'user panel failed')
+    return { entries: body.entries ?? [], translationPending: body.translationPending ?? 0 }
+  }, { blocking: false })
+}
+
+/** One entry with the document the list read omits. */
+export interface UserPanelEntryDetail extends UserPanelEntry {
+  rawText: string
+}
+
+/**
+ * Read one panel entry, document included.
+ *
+ * The list route drops every entry's document, so a surface that shows or
+ * rewrites one — the detail dialog, the editor seed, the enable switch's
+ * frontmatter rewrite — fetches exactly the entry it opened.
+ * @param kind - which panel the entry belongs to.
+ * @param name - the entry's id (suite-owned entries) or its name (user entries).
+ * @returns the entry; rejects when it no longer exists.
+ */
+export async function fetchUserPanelEntry(kind: UserPanelKind, name: string): Promise<UserPanelEntryDetail> {
+  return withBusyOperation(async () => {
+    const body = await getJson<{ entry?: UserPanelEntry }>(`${userPanelRoute(kind)}/entry?${new URLSearchParams({ name })}`, 'user panel entry failed')
+    const entry = body.entry
+    if (entry?.rawText === undefined) throw new Error('user panel entry carried no document')
+    return { ...entry, rawText: entry.rawText }
+  }, { blocking: false })
+}
+
+/**
+ * Translate one panel entry's document, chunk by chunk.
+ *
+ * The call names the entry and nothing else. The server re-reads that entry's
+ * file, so a page cannot spend the operator's translation quota on text of its
+ * own — and a document that changed since it was rendered is translated as it
+ * stands, not as the page remembers it.
+ * @param kind - which panel the entry belongs to.
+ * @param name - the entry's id (suite-owned entries) or its name (user entries).
+ * @returns the body in the target language, and how many chunks are still in flight.
+ */
+export async function fetchDocumentTranslation(kind: UserPanelKind, name: string): Promise<DocumentTranslation> {
+  return withBusyOperation(async () => {
+    const body = await postOkJson<{ text?: string; pending?: number }>(userPanelTranslationRoute(kind), { name }, 'document translation failed')
+    return { text: body.text ?? '', pending: body.pending ?? 0 }
   }, { blocking: false })
 }
 

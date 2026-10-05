@@ -478,36 +478,6 @@
   opacity: 0.5;
 }
 
-/**
- * A flat icon control on a settings row: no border or background until hover,
- * matching the harness ghost-button geometry so it sits beside the switch
- * without drawing a box of its own.
- */
-.pluginFieldIcon {
-  appearance: none;
-  border: 0;
-  background: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 6px;
-  color: var(--dsw-alias-label-secondary, #6b7280);
-  cursor: pointer;
-}
-
-.pluginFieldIcon:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(16, 24, 40, 0.06));
-  color: var(--dsw-alias-label-primary, #101828);
-}
-
-.pluginFieldIcon:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
 .pluginCardReadonly {
   margin: 4px 0 0;
   font-size: 12px;

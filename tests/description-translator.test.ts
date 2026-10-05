@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FinishReason, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { createLlmTranslator } from '../src/runtime/host/llm-translator.js'
+import { MAX_OUTPUT_TOKENS_CAP, createLlmTranslator, outputTokenBudget } from '../src/runtime/host/llm-translator.js'
+import { isTripped, resetCircuitBreaker, runChain } from '../src/application/translation/chain.js'
 
 /** A text delta for one assistant block, in the host's own chunk vocabulary. */
 function textDelta(text: string, index = 0): StreamChunk {
@@ -115,7 +116,7 @@ describe('createLlmTranslator translate', () => {
     expect(JSON.stringify(seen[0]?.messages)).toContain('Manage suite sources')
   })
 
-  it('names the target language for a non-zh locale', async () => {
+  it('names the language a target tag asks for, by script', async () => {
     const seen: Array<Record<string, unknown>> = []
     const host = hostWith({
       selection: { provider: 'local', model: 'm' },
@@ -124,8 +125,53 @@ describe('createLlmTranslator translate', () => {
         return streamOf([textDelta('x'), finish()])()
       }
     })
-    await createLlmTranslator(host).translate({ texts: ['t'], locale: 'ja', signal: new AbortController().signal })
-    expect(String(seen[0]?.system)).toContain('into ja')
+    const translator = createLlmTranslator(host)
+    // The layer resolves an interface preference to the language the market
+    // renders (`resolveTranslationTarget`) before it calls the chain, so the
+    // tags that arrive here name a language rather than a preference: a script
+    // tag is answered in that script, and the market's own target is Chinese.
+    for (const [locale, expected] of [
+      ['zh', 'Simplified Chinese'],
+      ['zh-CN', 'Simplified Chinese'],
+      ['zh-Hant', 'Traditional Chinese'],
+      ['en', 'English']
+    ] as const) {
+      await translator.translate({ texts: ['t'], locale, signal: new AbortController().signal })
+      expect(String(seen.at(-1)?.system)).toContain('into ' + expected + '.')
+    }
+  })
+
+  it('sizes the output ceiling from the source the call carries', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const host = hostWith({
+      selection: { provider: 'local', model: 'm' },
+      stream: options => {
+        seen.push(options as Record<string, unknown>)
+        // Echo the turn back: a batched call then answers with the same number
+        // of segments, which is all this case cares about.
+        const messages = (options as { messages?: Array<{ content?: Array<{ text?: string }> }> }).messages
+        return streamOf([textDelta(messages?.[0]?.content?.[0]?.text ?? '译文'), finish()])()
+      }
+    })
+    const translator = createLlmTranslator(host)
+    const long = 'word '.repeat(240)
+    expect(long).toHaveLength(1_200)
+    await translator.translate({ texts: [long], locale: 'zh', signal: new AbortController().signal })
+    // A single text used to get 512 tokens whatever it was, which is where the
+    // expansion of a ~1,200-character description stopped fitting.
+    expect(seen[0]?.maxTokens).toBe(outputTokenBudget(1_200))
+    expect(seen[0]?.maxTokens).toBeGreaterThan(512)
+
+    // A short text keeps the floor; a full batch is sized by everything it
+    // carries and stays under the call's ceiling.
+    await translator.translate({ texts: ['Read files'], locale: 'zh', signal: new AbortController().signal })
+    expect(seen.at(-1)?.maxTokens).toBe(outputTokenBudget('Read files'.length))
+    expect(seen.at(-1)?.maxTokens).toBe(512)
+    const batch = Array.from({ length: 20 }, () => 'x'.repeat(320))
+    await translator.translate({ texts: batch, locale: 'zh', signal: new AbortController().signal })
+    const batchBudget = seen.at(-1)?.maxTokens as number
+    expect(batchBudget).toBeGreaterThan(outputTokenBudget(6_400))
+    expect(batchBudget).toBeLessThanOrEqual(MAX_OUTPUT_TOKENS_CAP)
   })
 
   it('asks for reasoning off, because the adapter default is high', async () => {
@@ -219,6 +265,33 @@ describe('createLlmTranslator translate', () => {
     const translator = createLlmTranslator(host)
     live = false
     await expect(translator.translate({ texts: ['t'], locale: 'zh', signal: new AbortController().signal })).rejects.toThrow(/unavailable/)
+  })
+
+  it('translates a text past the old per-text ceiling instead of retiring the provider', async () => {
+    // A model hop that behaves like the real one at its ceiling: it needs about
+    // half the source length in output tokens, and reports the terminal reason
+    // the route uses for a generation that was cut off. Under the old constant
+    // (512 tokens for any single text) this call is cut off, which throws, which
+    // trips the chain's breaker — and the provider then serves nothing for the
+    // rest of the process.
+    const host = hostWith({
+      selection: { provider: 'local', model: 'm' },
+      stream: options => {
+        const request = options as { maxTokens?: number; messages?: Array<{ content?: Array<{ text?: string }> }> }
+        const source = request.messages?.[0]?.content?.[0]?.text ?? ''
+        const needed = Math.ceil(source.length * 0.5)
+        return streamOf(needed > (request.maxTokens ?? 0) ? [{ type: 'finish', reason: { kind: 'max-tokens' } }] : [textDelta('译'.repeat(needed)), finish()])()
+      }
+    })
+    const long = 'word '.repeat(240)
+    // The premise, asserted rather than assumed: this text needs more than the
+    // ceiling one text used to receive.
+    expect(Math.ceil(long.length * 0.5)).toBeGreaterThan(512)
+    const translator = createLlmTranslator(host)
+    const result = await runChain([translator], [long], 'zh')
+    expect(result.provider).toBe('llm')
+    expect(isTripped('llm')).toBe(false)
+    resetCircuitBreaker()
   })
 
   it('stops reading once the caller aborts', async () => {

@@ -29,7 +29,7 @@ afterEach(async () => {
 
 /** A unit with every identity part spelled out, so a case can vary one of them. */
 function unit(overrides: Partial<TranslationUnit> = {}): TranslationUnit {
-  return { surface: 'market', id: 'source/suite', role: 'description', text: 'Manage suite sources', ...overrides }
+  return { surface: 'market', id: 'source/suite', text: 'Manage suite sources', ...overrides }
 }
 
 /** A record as a successful translation would have written it. */
@@ -63,7 +63,6 @@ describe('translationKey', () => {
     const base = translationKey(unit(), 'zh', 'chain')
     expect(translationKey(unit({ surface: 'skills' }), 'zh', 'chain')).not.toBe(base)
     expect(translationKey(unit({ id: 'other/suite' }), 'zh', 'chain')).not.toBe(base)
-    expect(translationKey(unit({ role: 'name' }), 'zh', 'chain')).not.toBe(base)
     expect(translationKey(unit({ text: 'Other text' }), 'zh', 'chain')).not.toBe(base)
   })
 
@@ -76,6 +75,30 @@ describe('translationKey', () => {
 
   it('is a bounded digest, not the raw text', () => {
     expect(translationKey(unit({ text: 'x'.repeat(10_000) }), 'zh', 'chain')).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('keeps the key a unit with no role was already written under', () => {
+    // Every entry on disk was keyed while descriptions were the only role the
+    // layer had. Naming that role explicitly must not move the key: doing so
+    // would orphan the whole cache on upgrade and re-pay for every text in it.
+    expect(translationKey(unit({ role: 'description' }), 'zh', 'chain')).toBe(translationKey(unit(), 'zh', 'chain'))
+  })
+
+  it('keeps the exact key every entry on disk was written under', () => {
+    // A frozen digest, not a re-derivation: dropping or reordering a slot, or
+    // changing the separator, would orphan every entry in the user's
+    // translation-cache.json and re-pay for all of them. This is the case that
+    // catches that, and the reason a change to the reuse path above may not
+    // touch this formula.
+    expect(translationKey(unit(), 'zh', 'google|microsoft|llm')).toBe('f46a8d6a1e76fb9a956e55641ad54f2a11789771f3e6fe8d812961ebcbf13988')
+  })
+
+  it('separates a document chunk from the description of the same entity', () => {
+    // A document body belongs to the same entity as its description. Without
+    // the role in the key, a chunk whose text matched the description would
+    // answer for it — and be rendered where the description belongs.
+    const text = 'Greet the user and resolve bundled resources.'
+    expect(translationKey(unit({ text, role: 'document' }), 'zh', 'chain')).not.toBe(translationKey(unit({ text }), 'zh', 'chain'))
   })
 })
 

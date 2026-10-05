@@ -1,7 +1,8 @@
+import type { TranslationFields } from '../../contracts/translation.js'
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
 import type { McpStatusEntry, McpStatusCode, McpStatusPayload, McpStatusState, McpStatusTool } from '../../contracts/mcp-status.js'
-import type { LocalizeFields, McpToolSnapshot } from '../ports.js'
+import type { Localization, McpToolSnapshot } from '../ports.js'
 import { redactMcpConfig, redactUrl } from './mcp-redaction.js'
 import { qualifiedSuiteId } from '../../catalog/paths.js'
 import type { McpServer, Suite } from '../../model/types.js'
@@ -34,15 +35,18 @@ export function declaresAuthHeader(config: Record<string, unknown> | undefined):
 /**
  * Build status rows from discovered plugin MCP definitions and observed tool names.
  *
- * The service name and each tool's description are translated on the way out;
- * a tool's own `name` is its call identifier and is never translated. The
+ * Each tool's description is translated on the way out; a service name and a
+ * tool's own `name` are call identifiers and are never translated. The
  * callback is optional: a caller that omits it gets the upstream text, which is
  * what the contract's absent translated field means.
  * @param suites - the discovered suites whose MCP declarations form the inventory.
  * @param diagnostics - the latest mount diagnostics, keyed by suite and server.
  * @param observed - the live host tool registry snapshot.
  * @param overrides - persisted per-server overrides, keyed by qualified suite id.
- * @param localizeFields - resolves one entity's translated fields, when the deployment translates at all.
+ * @param localization - the locale this whole inventory renders in and the
+ * resolver bound to it, when the deployment translates at all. Resolved once by
+ * the caller: a server and each of its tools is localized from this one value,
+ * never from a fresh read of the host preference.
  * @returns the status payload with every translatable field carrying its translation.
  */
 export function buildMcpStatus(
@@ -50,9 +54,18 @@ export function buildMcpStatus(
   diagnostics: McpDiagnostic[],
   observed: readonly McpToolSnapshot[],
   overrides: Map<string, McpSuiteOverrides> = new Map(),
-  localizeFields?: LocalizeFields
+  localization?: Localization
 ): McpStatusPayload {
   const entries: McpStatusEntry[] = []
+  // Counted so a caller can re-read until the translated text lands, exactly as
+  // the market overview reports its own pending count.
+  let translationPending = 0
+  const localize = (id: string, fields: { name?: string; description?: string }): TranslationFields => {
+    if (localization === undefined) return {}
+    const result = localization.localizeFields('mcp', id, fields, localization.locale)
+    translationPending += result.pending
+    return result.fields
+  }
   const claimedServers = new Set<string>()
   const knownServerNames = new Set<string>()
   const knownDefinitions = new Map<string, { suite: Suite; serverKey: string; server: McpServer }>()
@@ -123,8 +136,8 @@ export function buildMcpStatus(
         transport: effective.type,
         endpoint: endpointOf(effective),
         config: redactMcpConfig(effective) as Record<string, unknown>,
-        tools: disabled && !orphaned ? [] : observedTools(tools, serverName, localizeFields),
-        ...(localizeFields === undefined ? {} : localizeFields('mcp', serverName, { name: serverName })),
+        tools: disabled && !orphaned ? [] : observedTools(tools, serverName, localization === undefined ? undefined : localize),
+        ...(localization === undefined ? {} : localize(serverName, { name: serverName })),
         advertisedTools: tools.length > 0,
         retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',
         ...(effective.type === 'stdio' || effective.auth !== undefined ? {} : { oauthDefault: true }),
@@ -156,8 +169,8 @@ export function buildMcpStatus(
         transport: stale.server.type,
         endpoint: endpointOf(stale.server),
         config: redactMcpConfig(stale.server) as Record<string, unknown>,
-        tools: observedTools(tools, serverName, localizeFields),
-        ...(localizeFields === undefined ? {} : localizeFields('mcp', serverName, { name: serverName })),
+        tools: observedTools(tools, serverName, localization === undefined ? undefined : localize),
+        ...(localization === undefined ? {} : localize(serverName, { name: serverName })),
         reason: 'MCP tools remain after this plugin was disabled or uninstalled',
         code: 'orphaned-tools',
         ...(staleRefs.length === 0 ? {} : { credentialRefs: staleRefs })
@@ -170,8 +183,8 @@ export function buildMcpStatus(
       kind: 'direct',
       state: 'connected',
       transport: 'observed',
-      tools: observedTools(tools, serverName, localizeFields),
-      ...(localizeFields === undefined ? {} : localizeFields('mcp', serverName, { name: serverName }))
+      tools: observedTools(tools, serverName, localization === undefined ? undefined : localize),
+      ...(localization === undefined ? {} : localize(serverName, { name: serverName }))
     })
   }
 
@@ -185,13 +198,23 @@ export function buildMcpStatus(
     disabled: entries.filter(entry => entry.state === 'disabled').length,
     foreign: entries.filter(entry => entry.state === 'foreign').length
   }
-  return { entries, observedAt: new Date().toISOString(), totals, directObservationOnly: true }
+  return {
+    entries,
+    observedAt: new Date().toISOString(),
+    totals,
+    directObservationOnly: true,
+    ...(translationPending === 0 ? {} : { translationPending })
+  }
 }
 
 /** One tool projection for the status wire: the input schema rides along only while it stays small. */
 const MAX_SCHEMA_CHARS = 20_000
 
-function observedTools(tools: readonly McpToolSnapshot[], serverId: string, localizeFields: LocalizeFields | undefined): McpStatusTool[] {
+function observedTools(
+  tools: readonly McpToolSnapshot[],
+  serverId: string,
+  localize: ((id: string, fields: { description?: string }) => TranslationFields) | undefined
+): McpStatusTool[] {
   return tools.map(tool => ({
     name: tool.name,
     ...(tool.description === undefined ? {} : { description: tool.description }),
@@ -199,7 +222,7 @@ function observedTools(tools: readonly McpToolSnapshot[], serverId: string, loca
     // One tool per `<serverId>#<toolName>`: two servers may advertise the same
     // tool name with different descriptions, and the same server may describe
     // one tool differently from another.
-    ...(localizeFields === undefined ? {} : localizeFields('mcp', `${serverId}#${tool.name}`, { description: tool.description }))
+    ...(localize === undefined ? {} : localize(`${serverId}#${tool.name}`, { description: tool.description }))
   }))
 }
 

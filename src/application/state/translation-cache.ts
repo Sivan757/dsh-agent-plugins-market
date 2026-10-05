@@ -61,7 +61,12 @@ export function translationCachePath(dataRoot: string): string {
  * @returns a stable key for the persisted entry.
  */
 export function translationKey(unit: TranslationUnit, locale: string, providerIdentity: string): string {
-  const identity = [locale, unit.surface, unit.id, unit.role, unit.text, providerIdentity].join('\u0000')
+  // The role slot stays in the key: it is what every entry already on disk was
+  // keyed with, and dropping it silently orphaned the whole cache on upgrade.
+  // A unit that names no role reads as a description, which is the only role
+  // the layer had when those entries were written — so they keep their keys and
+  // a document chunk can never answer for the entity's description.
+  const identity = [locale, unit.surface, unit.id, unit.role ?? 'description', unit.text, providerIdentity].join('\u0000')
   return createHash('sha256').update(identity, 'utf8').digest('hex')
 }
 

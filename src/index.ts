@@ -31,6 +31,7 @@ import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
 import { createLlmTranslator } from './runtime/host/llm-translator.js'
 import { createTranslationProviders } from './runtime/host/translation-providers.js'
+import { resetCircuitBreaker } from './application/translation/chain.js'
 import { migratePluginStorage } from './application/state/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agents/agent-role-router.js'
 import { mountUnlessAgentTeams } from './runtime/agents/agent-teams-seat.js'
@@ -167,10 +168,6 @@ export async function apply(
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
   const agentsRoot = resolveAgentsRoot()
-  // A caller may hand apply() a partial config, and the switch is absent until
-  // the host applies its first value; both read as "translation off", which is
-  // also the declared default. Only an explicit true turns the chain on.
-  const translationEnabled = (): boolean => config.translationEnabled?.get() === true
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
 
@@ -178,8 +175,24 @@ export async function apply(
   let userPanelControl: SkillProviderControl | undefined
   // Host runtime copy resolves from the harness `locale.preference` setting.
   const hostLocale: { t: HostTranslate } = { t: bindHostLocale(undefined) }
+  /**
+   * The host locale preference the panel and status surfaces render in.
+   *
+   * Held beside the host copy above rather than re-read per call: the host
+   * answers the preference by projecting every active profile entry's live
+   * configuration, so one read is a whole-profile scan. Both values come from
+   * one read and are refreshed by the same three points — activation, the
+   * settings service landing, and the `locale` entry's own document update — so
+   * the panels follow a language switch exactly as the copy the plugin renders
+   * does, and no per-entity read pays a projection for a value that has not
+   * moved. A change that fires no settings-document event leaves both stale
+   * together, which is the freshness the host copy already lives with.
+   */
+  let localePreference = 'zh'
   const refreshHostLocale = (): void => {
-    hostLocale.t = bindHostLocale(readLocalePreference())
+    const preference = readLocalePreference()
+    hostLocale.t = bindHostLocale(preference)
+    localePreference = preference ?? 'zh'
     providerControl?.invalidate()
     userPanelControl?.invalidate()
   }
@@ -292,13 +305,27 @@ export async function apply(
   // Background source updates: off until the settings switch says otherwise.
   const autoUpdate = new SourceAutoUpdater(ctx, () => catalog.refreshSource())
 
-  const settings = new MarketSettingsNamespace(ctx, config, dataRoot, hostLocale, {
-    setScanProjectLayouts: enabled => catalog.setScanProjectLayouts(enabled),
-    refreshMcpMounts: () => {
-      void Promise.all([scheduler.request(), projectMcp?.refresh()]).catch(() => {})
+  const settings = new MarketSettingsNamespace(
+    ctx,
+    config,
+    dataRoot,
+    hostLocale,
+    {
+      setScanProjectLayouts: enabled => catalog.setScanProjectLayouts(enabled),
+      refreshMcpMounts: () => {
+        void Promise.all([scheduler.request(), projectMcp?.refresh()]).catch(() => {})
+      },
+      setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled),
+      // Switched back on is the user asking for translation again: the chain's
+      // breaker is process-wide and otherwise permanent, and one retired
+      // provider used to mean a process restart before anything was translated
+      // again. Switching off and on, or clearing the cache below, is the retry.
+      resetTranslationProviders: () => resetCircuitBreaker()
     },
-    setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled)
-  })
+    // The cached preference above, not a fresh host read: the translation default
+    // follows the language, and this reader is called on every settings read.
+    () => localePreference
+  )
 
   // Per-workspace surface switches: the composer control writes them and every
   // mount below reads them, so a toggle runs through the ordinary refresh chain.
@@ -347,7 +374,7 @@ export async function apply(
     mcpBackend: () => settings.backend(),
     setMcpBackend: backend => settings.setBackend(backend),
     downloadRegion: () => settings.downloadRegion(),
-    localePreference: () => readLocalePreference() ?? 'zh',
+    localePreference: () => localePreference,
     // Read per call, like every port here: the registries change on each
     // reconcile and the panels on each edit, so a snapshot would serve rows the
     // menu no longer has. Attribution is by the panel's own listing, so the
@@ -362,7 +389,7 @@ export async function apply(
     // switch here froze it at apply time, so turning translation on after load
     // left an empty chain and nothing was ever translated.
     translationProviders: createTranslationProviders({ host: ctx, llm: createLlmTranslator(ctx) }),
-    translationEnabled: () => translationEnabled(),
+    translationEnabled: () => settings.translationEnabled(),
     // Folded into every cache key. Constant while the chain is unchanged, so
     // switching translation off and on again reuses what is already cached
     // instead of re-paying for every text under a second key space.

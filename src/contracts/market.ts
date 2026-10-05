@@ -20,7 +20,20 @@ export const MARKET_ROUTES = {
   config: `${MARKET_API_PREFIX}config`,
   modelCatalog: `${MARKET_API_PREFIX}model-catalog`,
   suite: `${MARKET_API_PREFIX}suite`,
-  skill: `${MARKET_API_PREFIX}skill`,
+  /**
+   * One suite document's authored text (GET). The query names the suite, the
+   * surface, and the document — `{ sourceId, suiteId, kind, name }` — and the
+   * body is read server-side when a reader opens the row, so the detail payload
+   * never carries a document's bytes.
+   */
+  suiteDocument: `${MARKET_API_PREFIX}suite/document`,
+  /**
+   * One suite document's translation (POST). The body names the suite and the
+   * document — `{ sourceId, suiteId, kind, name }` — and never carries text, so
+   * this is the market detail page's counterpart of
+   * {@link userPanelTranslationRoute}: the file is re-read server-side.
+   */
+  suiteDocumentTranslation: `${MARKET_API_PREFIX}suite/document/translation`,
   addSource: `${MARKET_API_PREFIX}sources/add`,
   updateSource: `${MARKET_API_PREFIX}sources/update`,
   adoptSource: `${MARKET_API_PREFIX}sources/adopt`,
@@ -39,6 +52,7 @@ export const MARKET_ROUTES = {
   mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
   setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`,
   userPanel: `${MARKET_API_PREFIX}user-panel`,
+  menuRowFaces: `${MARKET_API_PREFIX}menu-row-faces`,
   clearTranslations: `${MARKET_API_PREFIX}translations/clear`
 } as const
 
@@ -136,6 +150,18 @@ export function userPanelRoute(kind: UserPanelKind): string {
   return `${MARKET_ROUTES.userPanel}/${kind}`
 }
 
+/**
+ * Build the document-translation route URL for one panel's entries (POST).
+ *
+ * It sits under the entry segment because it translates one entry's document,
+ * and it is a POST because it queues provider work — the entry it names is the
+ * only input, and the server re-reads that entry rather than trusting text
+ * from the page.
+ */
+export function userPanelTranslationRoute(kind: UserPanelKind): string {
+  return `${userPanelRoute(kind)}/entry/translation`
+}
+
 /** Build one user-panel mutation route URL (all POSTs). */
 export function userPanelMutationRoute(kind: UserPanelKind, mutation: UserPanelMutation, name?: string): string {
   const base = `${userPanelRoute(kind)}/${mutation}`
@@ -217,8 +243,6 @@ export interface SuiteOverviewCard {
   sourceId: string
   suiteId: string
   name: string
-  /** The suite name translated for the panel's locale; absent means render `name`. */
-  translatedName?: string
   version?: string
   description?: string
   /** The description translated for the panel's locale; absent means render `description`. */
@@ -245,9 +269,9 @@ export interface OverviewPayload {
   /** Unmanaged `.sources/` checkouts (manual clones) available for adoption. */
   unmanaged?: UnmanagedSource[]
   /**
-   * Translatable fields still waiting for a translation, absent or 0 when none
-   * are. One field counts once, so a card whose name and description both miss
-   * the cache contributes two. The panel re-reads while this is non-zero so a
+   * Translatable chunks still waiting for a translation, absent or 0 when none
+   * are. One chunk counts once, so a card contributes one per chunk of its
+   * description still in flight. The panel re-reads while this is non-zero so a
    * translated card replaces the original text without a manual refresh.
    */
   translationPending?: number
@@ -268,15 +292,16 @@ export interface SuiteSkillMeta {
   path: string
 }
 
-/** One command or agent preview in a suite detail response. */
-export interface MarkdownPreview {
+/**
+ * One command or agent as the suite detail payload carries it: the identity its
+ * row renders, never the body. The text is a separate read, made when a reader
+ * opens that row.
+ */
+export interface SuiteDocumentMeta {
   name: string
+  /** The document's frontmatter `description`, when it declares one. */
   description?: string
-  content: string
 }
-
-/** Claude Code agent preview alias retained for feature-specific readability. */
-export type AgentPreview = MarkdownPreview
 
 /** One LSP definition preview in a suite detail response. */
 export interface LspPreview {
@@ -327,8 +352,6 @@ export interface SuiteDetail {
   sourceId: string
   suiteId: string
   name: string
-  /** The suite name translated for the panel's locale; absent means render `name`. */
-  translatedName?: string
   version: string | null
   description: string | null
   /** The description translated for the panel's locale; absent means render `description`. */
@@ -349,19 +372,17 @@ export interface SuiteDetail {
   skills: SuiteSkillMeta[]
   mcpServers: McpServerDetail[]
   hooks: { count: number; entries: HookPreview[] }
-  commands: MarkdownPreview[]
-  agents: MarkdownPreview[]
+  commands: SuiteDocumentMeta[]
+  agents: SuiteDocumentMeta[]
   lsp: LspSurfaceDetail
   errors: string[]
   mcpErrors: string[]
 }
 
-/** One skill's full file text served by the skill route. */
-export interface SkillContent {
+/** One document's full authored text, served by the suite document route. */
+export interface SuiteDocumentText {
   name: string
-  description: string
   content: string
-  path: string
 }
 
 /** A user panel entry (skills / commands / agent personas) over HTTP. */
@@ -372,8 +393,6 @@ export interface UserPanelEntryWire {
    * path relative to the panel directory (`git/commit`).
    */
   name: string
-  /** The entry name translated for the panel's locale; absent means render `name`. */
-  translatedName?: string
   description: string
   /** The description translated for the panel's locale; absent means render `description`. */
   translatedDescription?: string
@@ -381,18 +400,48 @@ export interface UserPanelEntryWire {
   /** User entries are editable; suite-owned plugin entries answer only to the enable switch. */
   origin: 'user' | 'plugin'
   id?: string
-  rawText: string
+  /**
+   * The document's own text, exactly as authored. The list read omits it — it
+   * was the bulk of the response and the client fetches the one entry it opens
+   * — while the single-entry read and the raw user store always carry it.
+   */
+  rawText?: string
   /** Human-readable suite owner for a plugin-provided entry. */
   suiteName?: string
   metadata: Record<string, unknown>
   path: string
   /** The entry file's last modification, as an ISO timestamp. */
   updatedAt?: string | null
-  content: string
+  /**
+   * Frontmatter-stripped body. Supplied by the raw user store, which needs it
+   * for a command's payload; the panel view deliberately omits it, because the
+   * client renders `rawText` and sending both shipped the same document twice.
+   */
+  content?: string
   /** Suite checkout root of a plugin-provided file; runtime consumers resolve `${PLUGIN_ROOT}` against it. */
   suiteRoot?: string
   /** The suite's `${PLUGIN_DATA}` directory, for the same runtime resolution. */
   suiteData?: string
+}
+
+/** The `/` menu groups whose rows this plugin owns. */
+export type MenuRowSource = 'commands' | 'skills'
+
+/**
+ * One localized `/` menu row face over HTTP.
+ *
+ * The row's identity fields never travel: the client matches on `source` +
+ * `name` and the host row supplies everything else. Only the description is
+ * translated — a name is an identifier the user types and matches against
+ * upstream documentation, so no field here can override the host's title.
+ */
+export interface MenuRowFaceWire {
+  /** Which menu group the row belongs to: the slash-command group or the skill group. */
+  source: MenuRowSource
+  /** Command call name or skill name, exactly as the menu row carries it. */
+  name: string
+  /** Translated description; absent when nothing was translated. */
+  description?: string
 }
 
 /** The user panel surface the market exposes. */
@@ -403,7 +452,7 @@ export function suiteRoute(sourceId: string, suiteId: string): string {
   return `${MARKET_ROUTES.suite}?sourceId=${encodeURIComponent(sourceId)}&suiteId=${encodeURIComponent(suiteId)}`
 }
 
-/** Build a skill-content URL without duplicating route or query encoding logic. */
-export function skillRoute(sourceId: string, suiteId: string, skill: string): string {
-  return `${MARKET_ROUTES.skill}?sourceId=${encodeURIComponent(sourceId)}&suiteId=${encodeURIComponent(suiteId)}&skill=${encodeURIComponent(skill)}`
+/** Build a suite-document URL without duplicating route or query encoding logic. */
+export function documentRoute(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): string {
+  return `${MARKET_ROUTES.suiteDocument}?sourceId=${encodeURIComponent(sourceId)}&suiteId=${encodeURIComponent(suiteId)}&kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(name)}`
 }

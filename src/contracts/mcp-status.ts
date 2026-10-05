@@ -41,8 +41,6 @@ export type McpStatusCode =
 export interface McpStatusEntry {
   id: string
   name: string
-  /** The service name translated for the panel's locale; absent means render `name`. */
-  translatedName?: string
   kind: McpStatusKind
   /** A direct service whose persisted configuration is owned by this plugin. */
   managed?: boolean
@@ -94,4 +92,10 @@ export interface McpStatusPayload {
   /** The mount backend the rows were observed under; `host` cannot enforce tool
    *  filters or startup timeouts, so the panel disables those controls. */
   backend?: 'builtin' | 'host'
+  /**
+   * Descriptions this read queued that have not landed yet; absent means the
+   * text is settled. The panel re-reads while it is non-zero, so translated
+   * text appears without the user pressing refresh.
+   */
+  translationPending?: number
 }

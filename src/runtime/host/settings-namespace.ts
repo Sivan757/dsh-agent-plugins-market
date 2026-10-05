@@ -2,13 +2,15 @@
  * The market settings the host carries in this plugin's own config: the loader
  * projects the entry's `Config` schema into the `dsh-agent-plugins-market`
  * settings namespace, so the Plugins panel's configuration page reads and
- * writes these five switches, and the host updates the volatile references in
+ * writes these six fields, and the host updates the volatile references in
  * place on every change (emitting `loader/volatile-update`).
  *
  * Every consumer reads through {@link MarketSettingsNamespace.settings} so
  * "the field is absent" has exactly one answer —
  * {@link resolveMarketSettings} — instead of each caller inventing its own
- * fallback for the window before the host applies its first value.
+ * fallback for the window before the host applies its first value. That reader
+ * also takes the interface language, because one field's default follows it
+ * rather than a constant.
  *
  * @module runtime/settings-namespace
  */
@@ -18,7 +20,7 @@ import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from './feedback-tool.js'
 import type { HostLocaleKey, HostTranslate } from './host-locale.js'
 import type { McpBackend } from '../../contracts/mcp.js'
 
-/** The five volatile references the entry's config carries for this namespace. */
+/** The six volatile references the entry's config carries for this namespace. */
 export interface MarketSettingRefs {
   mcpEnhanced: { get(): boolean | undefined }
   scanProjectLayouts: { get(): boolean | undefined }
@@ -36,6 +38,17 @@ export interface SettingsNamespaceHost {
   refreshMcpMounts(): void
   /** Arm or disarm the background source updater. */
   setAutoUpdateSources(enabled: boolean): void
+  /**
+   * Forget that a translation provider failed, because translation was just
+   * switched on.
+   *
+   * The provider chain retires a failure for the process's lifetime, and the
+   * switch is the user's own "try again": without this, one cut-off generation
+   * or one endpoint that was briefly down leaves the chain short a provider
+   * until the process restarts, with the switch reading "on" and nothing
+   * pending to show for it.
+   */
+  resetTranslationProviders(): void
 }
 
 export class MarketSettingsNamespace {
@@ -55,7 +68,13 @@ export class MarketSettingsNamespace {
     refs: MarketSettingRefs,
     private readonly dataRoot: string,
     private readonly locale: { t: HostTranslate },
-    private readonly host: SettingsNamespaceHost
+    private readonly host: SettingsNamespaceHost,
+    /**
+     * The host interface language, read per call. It is a reader rather than a
+     * captured string because a language switch must move the translation
+     * default without rebuilding this namespace.
+     */
+    private readonly localePreference: () => string
   ) {
     // A caller may hand in a partial ref set (a test, or a config written
     // before this field existed); an absent switch reads as its default.
@@ -68,12 +87,14 @@ export class MarketSettingsNamespace {
     this.syncAutoUpdateSources()
     this.syncFeedbackTool()
     let previousBackend = this.settings().mcpEnhanced
+    let previousTranslation = this.settings().translationEnabled
     const watcher = this.ctx.on('loader/volatile-update' as Parameters<Context['on']>[0], () => {
       const backend = this.settings().mcpEnhanced
       if (backend !== previousBackend) {
         previousBackend = backend
         this.host.refreshMcpMounts()
       }
+      previousTranslation = this.syncTranslationProviders(previousTranslation)
       this.syncProjectLayouts()
       this.syncAutoUpdateSources()
       this.syncFeedbackTool()
@@ -89,17 +110,21 @@ export class MarketSettingsNamespace {
   }
 
   /**
-   * The resolved settings, from the volatile references the host updates in place.
+   * The resolved settings, from the volatile references the host updates in
+   * place and the interface language they resolve over.
    */
   private settings(): MarketSettings {
-    return resolveMarketSettings({
-      mcpEnhanced: this.refs.mcpEnhanced.get(),
-      scanProjectLayouts: this.refs.scanProjectLayouts.get(),
-      downloadRegion: this.refs.downloadRegion.get(),
-      feedbackEnabled: this.refs.feedbackEnabled.get(),
-      autoUpdateSources: this.refs.autoUpdateSources.get(),
-      translationEnabled: this.refs.translationEnabled.get()
-    })
+    return resolveMarketSettings(
+      {
+        mcpEnhanced: this.refs.mcpEnhanced.get(),
+        scanProjectLayouts: this.refs.scanProjectLayouts.get(),
+        downloadRegion: this.refs.downloadRegion.get(),
+        feedbackEnabled: this.refs.feedbackEnabled.get(),
+        autoUpdateSources: this.refs.autoUpdateSources.get(),
+        translationEnabled: this.refs.translationEnabled.get()
+      },
+      this.localePreference()
+    )
   }
 
   /** The persisted MCP backend choice; the built-in client until the host applies a value. */
@@ -119,6 +144,35 @@ export class MarketSettingsNamespace {
   /** The persisted download-region setting. */
   async downloadRegion(): Promise<DownloadRegionSetting> {
     return this.settings().downloadRegion
+  }
+
+  /**
+   * Read the live translation switch: the user's stored value while they have
+   * one, the interface language's default otherwise.
+   */
+  translationEnabled(): boolean {
+    return this.settings().translationEnabled
+  }
+
+  /**
+   * Give the provider chain a clean slate when translation is switched back on.
+   *
+   * Only the off-to-on edge: every other settings write leaves a retired
+   * provider retired, which is what keeps an unreachable endpoint from costing
+   * a timeout per settings change.
+   * @param previous - whether translation was on at the last look.
+   * @returns whether it is on now, for the next comparison.
+   */
+  private syncTranslationProviders(previous: boolean): boolean {
+    const enabled = this.settings().translationEnabled
+    if (enabled && !previous) {
+      try {
+        this.host.resetTranslationProviders()
+      } catch (error) {
+        this.ctx.logger?.error?.(`[dsh-agent-plugins-market] translation provider reset failed: ${String(error)}`)
+      }
+    }
+    return enabled
   }
 
   /** Apply the background source-update switch. */

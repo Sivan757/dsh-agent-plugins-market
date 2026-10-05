@@ -38,7 +38,6 @@ import rc from '../../ui/resource-card.module.css'
 import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
-import { displayText } from '../../ui/translated-text.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 
 interface LspStatusPanelProps {
@@ -80,6 +79,8 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const [editing, setEditing] = useState<LspStatusEntry>()
   const [editorOpen, setEditorOpen] = useState(false)
   const [seamMigration, setSeamMigration] = useState<LspLegacySeamMigration | undefined>(undefined)
+  // One reading mode for the whole panel: the switch lifts to this surface so a
+  // single click re-reads every card and the detail dialog under it.
 
   const refresh = (): void => {
     setLoading(true)
@@ -186,7 +187,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       view,
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView)
+      onViewChange: nextView => setView(nextView),
     }),
     error !== undefined
       ? h('div', { className: css.error, ...panelProps }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
@@ -197,9 +198,20 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
           : h(
               ResourceCollection,
               { view, ...panelProps },
-              filtered.map(entry => h(LspRow, { key: entry.id, entry, t, onOpen: () => setSelected(entry), onToggle: () => toggle(entry), onEdit: () => setEditing(entry) }))
+              filtered.map(entry =>
+                h(LspRow, {
+                  key: entry.id,
+                  entry,
+                  t,
+                  onOpen: () => setSelected(entry),
+                  onToggle: () => toggle(entry),
+                  onEdit: () => setEditing(entry)
+                })
+              )
             ),
-    selected === undefined ? null : h(LspDetailModal, { entry: selected, t, onClose: () => { setSelected(undefined); refresh() } }),
+    selected === undefined
+      ? null
+      : h(LspDetailModal, { entry: selected, t, onClose: () => { setSelected(undefined); refresh() } }),
     // The editor is the dialog the add flow uses, opened from the card's own
     // edit action rather than from inside the detail report.
     editing === undefined ? null : h(LspConfigModal, { entry: editing, t, onClose: () => setEditing(undefined), onSaved: refresh }),
@@ -306,7 +318,19 @@ function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | '
  * row and the enable switch on its trailing edge; the command on the body row;
  * the declaring suite and the extension count on the source row.
  */
-function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry; t: Translate; onOpen: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
+function LspRow({
+  entry,
+  t,
+  onOpen,
+  onToggle,
+  onEdit
+}: {
+  entry: LspStatusEntry
+  t: Translate
+  onOpen: () => void
+  onToggle: () => void
+  onEdit: () => void
+}): ReactNode {
   const interactive = interactiveCardProps(onOpen)
   const extensions = Object.keys(entry.extensions).length
   const disabled = entry.state === 'disabled'
@@ -316,7 +340,7 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
     h(
       'div',
       { className: rc.rowId },
-      hoverHint(entry.serverKey, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), displayText(entry.translatedName, entry.serverKey, t) ?? entry.serverKey)),
+      hoverHint(entry.serverKey, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), entry.serverKey)),
       // The state rail on the card's leading edge carries the state; a written
       // label beside it would say the same thing twice.
       h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')))
@@ -363,12 +387,20 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
   )
 }
 
-export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Translate; onClose: () => void }): ReactNode {
+export function LspDetailModal({
+  entry,
+  t,
+  onClose
+}: {
+  entry: LspStatusEntry
+  t: Translate
+  onClose: () => void
+}): ReactNode {
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
   return h(DetailModal, {
     open: true,
     onClose,
-    title: displayText(entry.translatedName, entry.serverKey, t) ?? entry.serverKey,
+    title: entry.serverKey,
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,
     footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))),

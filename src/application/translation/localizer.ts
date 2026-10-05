@@ -13,13 +13,15 @@
  *   original text plus a pending flag; the work happens off the read path.
  * - **A failure is invisible.** An unavailable, throttled, or broken provider
  *   degrades to the original text. Nothing here throws into the caller.
- * - **Each text is paid for once.** The cache survives restarts, the queue
- *   de-duplicates by key, and a key that keeps failing backs off instead of
- *   retrying in a loop.
+ * - **Each text is paid for once.** The cache survives restarts, and the queue
+ *   is indexed by the source text: the cache key names the entity, but two
+ *   entities carrying one text share one provider call and each keeps its own
+ *   entry. A text that keeps failing backs off instead of retrying in a loop.
  * @module application/translation/localizer
  */
 import type { TranslationUnit } from './unit.js'
-import { runChain, type TranslationProvider } from './chain.js'
+import { resetCircuitBreaker, runChain, type TranslationProvider } from './chain.js'
+import { resolveTranslationTarget } from '../../contracts/settings.js'
 import { clearTranslationCache, loadTranslationCache, saveTranslationCache, translationKey, type TranslationRecord } from '../state/translation-cache.js'
 
 /** The localization answer for one field. */
@@ -34,7 +36,10 @@ export interface LocalizedText {
 interface TranslationJob {
   key: string
   unit: TranslationUnit
-  locale: string
+  /** The resolved target language tag; every job in one batch shares it. */
+  target: string
+  /** Identity of the source text under this target and chain; see {@link textIdentity}. */
+  textId: string
 }
 
 export interface LocalizerOptions {
@@ -50,6 +55,14 @@ export interface LocalizerOptions {
    * engine's output as if it were the new engine's.
    */
   providerIdentity: () => string
+  /**
+   * Whether translation is switched on, read per call rather than captured.
+   *
+   * The settings switch can flip long after construction, so a chain built once
+   * must still stop and start with it. Absent means always on, which keeps the
+   * localizer usable on its own in a test.
+   */
+  enabled?: (() => boolean) | undefined
   /** Clock seam; tests drive backoff and TTL through it. */
   now?: (() => number) | undefined
 }
@@ -57,8 +70,64 @@ export interface LocalizerOptions {
 /** In-flight batches, not in-flight texts: one batch is one provider call. */
 const MAX_CONCURRENT_BATCHES = 3
 
+/** One Han ideograph; the script the market renders its own copy in. */
+const HAN = /\p{Script=Han}/gu
+
+/** One Latin letter; the script upstream catalogs are authored in. */
+const LATIN = /\p{Script=Latin}/gu
+
+/** How many characters of one script a text carries. */
+function scriptCount(text: string, pattern: RegExp): number {
+  return (text.match(pattern) ?? []).length
+}
+
 /** Texts per provider call. Bounds both payload size and the blast radius of one failure. */
 export const MAX_BATCH_SIZE = 20
+
+/**
+ * Source characters per provider call.
+ *
+ * The model hop sizes one call's output from the source that call carries (see
+ * `runtime/host/llm-translator.ts`), so this is the input half of the same
+ * number: 6,400 source characters is what one call's response is sized for, and
+ * {@link MAX_DOCUMENT_CHUNK_CHARS} bounds each text inside it first. A
+ * count-only cap let a batch of document chunks ask for several times the output
+ * the call is allowed to produce, and a generation cut off at that ceiling fails
+ * the whole batch *and* retires the model hop for the rest of the session
+ * (`chain.ts` trips a provider on any failure).
+ *
+ * The expansion this covers is measured over this repository's own bilingual
+ * documents — 0.461 of the English character count at the median, 0.617 at the
+ * worst, over 90 pairs. What that costs in *tokens* is an estimate rather than a
+ * measurement, because nothing in this tree tokenizes; the arithmetic lives with
+ * the translator's own constant.
+ *
+ * The binding constraint is the model hop's own output budget, not a vendor
+ * request limit. The two public endpoints this chain calls are the consumer
+ * endpoints the vendors' own translation widgets call, not the Cloud APIs whose
+ * documented per-request limits are quoted for these products, so no
+ * request-size number is claimed here. Moving a hop onto an officially
+ * documented API would have to re-derive this constant against that API's own
+ * limit.
+ *
+ * Description traffic reaches this budget only for a long field: a description
+ * longer than one chunk travels in chunks like a document body, and everything
+ * shorter batches by count.
+ */
+export const MAX_BATCH_CHARS = 6_400
+
+/**
+ * How long an enqueue waits for company before its batch starts.
+ *
+ * Callers enqueue as they discover text: the panel learns one description per
+ * file it reads, so a synchronous pump sent one text per provider call. A
+ * short deferral lets a burst land in one batch, and a lone unit waits at most
+ * this long — invisible beside a provider round trip. A batch that is already
+ * full never waits: {@link TranslationLocalizer.schedulePump} cancels the
+ * window and starts it immediately, so a burst's throughput is unchanged and
+ * only its grouping is.
+ */
+export const BATCH_COALESCE_MS = 25
 
 /** Retry delays per attempt; a key that exhausts them stops retrying. */
 const BACKOFF_MS = [2_000, 8_000, 30_000, 120_000] as const
@@ -69,9 +138,20 @@ const FLUSH_MS = 1_500
 /**
  * True when a text is worth sending to a provider.
  *
- * Anything carrying a CJK ideograph is already Chinese or already bilingual —
- * the client picks the Chinese half of a bilingual pair without a provider
- * call — so only prose with no Chinese in it needs translating.
+ * The question is which script a text is *written in*, not whether it happens
+ * to contain a Chinese character. Measured over the marketplace's own sources,
+ * English prose that names a Chinese term, quotes a Chinese message, or shares
+ * a table with a Chinese column header is common — thousands of 800-character
+ * document chunks carry a few Han characters among hundreds of Latin letters —
+ * and a presence test declined every one of them, so a document came out half
+ * translated while the panel reported that it had settled.
+ *
+ * So the test is dominance: a text is already in the target language when its
+ * Han characters outnumber its Latin letters, and anything else — Latin
+ * dominant, or an even split — is sent. Text that reaches a provider already
+ * Chinese comes back unchanged (measured against the Microsoft endpoint), so
+ * declining it is an economy rather than a semantic difference; what the
+ * document path may not do is decline English and call the result settled.
  * @param text - the upstream text.
  * @returns whether the chain should be asked to translate it.
  */
@@ -79,11 +159,11 @@ export function needsTranslation(text: string | undefined): text is string {
   if (text === undefined) return false
   const trimmed = text.trim()
   if (trimmed.length === 0) return false
-  return !/\p{Script=Han}/u.test(trimmed)
+  return scriptCount(trimmed, LATIN) >= scriptCount(trimmed, HAN)
 }
 
 /**
- * Owns the translation cache, the de-duplicating queue, and the retry policy.
+ * Owns the translation cache, the text-indexed queue, and the retry policy.
  *
  * One instance per plugin activation; {@link load} must run before the first
  * {@link localize} so cached translations are available synchronously.
@@ -94,20 +174,51 @@ export class TranslationLocalizer {
   private readonly providerIdentity: () => string
   private readonly now: () => number
   private entries: Record<string, TranslationRecord> = {}
+  /**
+   * Translations indexed by source text rather than by entity.
+   *
+   * The cache key names the entity, which is what makes the file the record of
+   * what was translated for whom — and it is also what made one text two
+   * provider calls when two entities carried it. This index is the other half:
+   * a text already answered for one entity answers for every other, and the
+   * answer is written under the second entity's own key so its durable record
+   * is complete as well.
+   *
+   * Derived state, never loaded from disk: entries are keyed by entity and
+   * carry no text, so the index warms as reads hit those entries and as batches
+   * land. Every entity read in one session is therefore served from the first
+   * read of its text, and the next session serves each entity from its own
+   * entry.
+   */
+  private readonly byText = new Map<string, TranslationRecord>()
+  /** The text each queued or running job owns, so a second entity carrying it waits for that answer. */
+  private readonly owners = new Map<string, string>()
   private readonly pending = new Map<string, TranslationJob>()
   /** Keys already running, so a second request for one key does not queue twice. */
   private readonly inflight = new Set<string>()
-  /** Per-key attempt count and the earliest retry time. */
+  /**
+   * Per-text attempt count and the earliest retry time.
+   *
+   * Keyed by text rather than by entity key: a text the provider cannot answer
+   * fails the same way wherever it is rendered, so one attempt budget belongs
+   * to it. Keyed per entity, a broken chain would burn that budget once per
+   * field — the spend this index exists to bound.
+   */
   private readonly retry = new Map<string, { attempts: number; notBefore: number }>()
   private active = 0
+  /** The armed coalescing window, or undefined when no pump is scheduled. */
+  private pumpTimer: ReturnType<typeof setTimeout> | undefined
   private dirty = false
   private flushTimer: ReturnType<typeof setTimeout> | undefined
   private disposed = false
+  /** Consulted per call: the settings switch may flip long after construction. */
+  private readonly enabled: () => boolean
 
   constructor(options: LocalizerOptions) {
     this.dataRoot = options.dataRoot
     this.providers = options.providers
     this.providerIdentity = options.providerIdentity
+    this.enabled = options.enabled ?? (() => true)
     this.now = options.now ?? Date.now
   }
 
@@ -124,12 +235,23 @@ export class TranslationLocalizer {
    *
    * The caller re-reads afterwards: the panel translates lazily, so the next
    * read is what repopulates the cache.
+   *
+   * A provider the chain retired after an earlier failure goes with it. Clearing
+   * is an explicit "translate this again", and without this half a single
+   * cut-off generation — or one endpoint that was down for a minute — leaves
+   * the model hop out of the chain for the rest of the process: every later
+   * batch skips it, every read reports nothing pending, and no control on screen
+   * can bring it back. The cost bound the chain exists for is one attempt per
+   * user request, not one for the process's lifetime.
    * @returns fulfillment once the file is gone and memory is empty.
    */
   async clear(): Promise<void> {
     this.entries = {}
+    this.byText.clear()
+    this.owners.clear()
     this.retry.clear()
     this.dirty = false
+    resetCircuitBreaker()
     await clearTranslationCache(this.dataRoot)
   }
 
@@ -144,54 +266,159 @@ export class TranslationLocalizer {
    * Never awaits and never throws. A cached translation wins; otherwise the
    * original text is returned and the unit is queued when the chain has an
    * available provider and the text actually needs translating.
+   *
+   * The preference is resolved to the language the interface actually renders
+   * before anything else reads it, and that target — not the preference tag —
+   * is what the cache key and the provider call carry. So `ja` and `zh-Hant`
+   * read the Chinese dictionary and are served the Chinese entry a `zh` reader
+   * already paid for, and an English interface answers the same way here as it
+   * does at every surface's own gate.
    * @param unit - the surface, entity id, role, and upstream text.
-   * @param locale - the locale the panel is rendering in.
+   * @param locale - the host interface preference the panel renders under.
    * @returns the text to render now and whether it may still improve.
    */
   localize(unit: TranslationUnit, locale: string): LocalizedText {
     const text = unit.text
     if (text.trim().length === 0) return { text, pending: false }
-    if (!this.providers.some(provider => provider.available())) return { text, pending: false }
-    const key = translationKey(unit, locale, this.providerIdentity())
+    const target = resolveTranslationTarget(locale)
+    if (target === undefined) return { text, pending: false }
+    // The switch is read live and it gates everything, the cache included: off
+    // means every surface renders the authored text, whether or not a
+    // translation happens to be sitting in the cache. Leaving cached text on
+    // screen while the control reads "off" is a contradiction the user cannot
+    // resolve, and the cache survives, so nothing is re-paid on re-enable.
+    if (!this.enabled()) return { text, pending: false }
+    const identity = this.providerIdentity()
+    const key = translationKey(unit, target, identity)
+    const textId = this.textIdentity(target, identity, text)
     const cached = this.entries[key]
-    if (cached !== undefined) return { text: cached.text, pending: false }
+    if (cached !== undefined) {
+      // Reading an entry teaches the index which text it answers, so the next
+      // entity carrying that text is served without a provider call.
+      this.byText.set(textId, cached)
+      return { text: cached.text, pending: false }
+    }
+    // One source text has one translation, and which entity carried it first
+    // says nothing about what it says: an answer another entity already paid
+    // for is served here. The entity still gets its own entry, so the cache
+    // keeps recording what was translated for whom and the next start serves
+    // this field from disk rather than from a fresh call.
+    const shared = this.byText.get(textId)
+    if (shared !== undefined) {
+      this.record(key, shared)
+      return { text: shared.text, pending: false }
+    }
+    // Availability is checked after the cache: a warm cache must still serve
+    // when every provider is down, or the panel would fall back to authored text.
+    if (!this.providers.some(provider => provider.available())) return { text, pending: false }
     if (!needsTranslation(text)) return { text, pending: false }
-    return { text, pending: this.enqueue({ key, unit, locale }) }
+    return { text, pending: this.enqueue({ key, unit, target, textId }) }
   }
 
   /**
-   * Queue one job unless it is already queued, running, or backing off.
+   * Identity of one source text under a target and a provider chain.
    *
-   * The return value is what the caller reports as pending, so a key that is
+   * The target and the chain are part of it for the reason the cache key
+   * carries them: a Chinese answer must never serve an English request, and one
+   * engine's output must never be handed over as another's. The role is absent
+   * on purpose — a description and a document chunk with the same text are one
+   * text to translate, and the translation of a string does not depend on which
+   * field it fills.
+   * @param target - the resolved target language tag.
+   * @param identity - the provider chain's identity for this call.
+   * @param text - the source text exactly as authored.
+   * @returns the index key shared by every entity carrying this text.
+   */
+  private textIdentity(target: string, identity: string, text: string): string {
+    return [target, identity, text].join('\u0000')
+  }
+
+  /** Write one shared answer under one entity's key and mark the cache for a flush. */
+  private record(key: string, answer: TranslationRecord): void {
+    this.entries[key] = { ...answer }
+    this.dirty = true
+    this.scheduleFlush()
+  }
+
+  /**
+   * Queue one job unless its text is already queued, running, or backing off.
+   *
+   * The return value is what the caller reports as pending, so a text that is
    * waiting out a backoff — or that has exhausted its attempts — answers
    * "nothing more is coming" and the panel stops re-reading. Reporting pending
-   * for work that will never start would poll the overview forever.
+   * for work that will never start would poll the overview forever. An entity
+   * whose text is in flight for another entity reports pending without queueing
+   * a call of its own: one call answers both, and the alias is served the
+   * moment it lands.
    * @param job - the unit to translate and the key it will be cached under.
-   * @returns whether this key now has work queued or running.
+   * @returns whether this text now has work queued or running.
    */
   private enqueue(job: TranslationJob): boolean {
     if (this.disposed) return false
     if (this.pending.has(job.key) || this.inflight.has(job.key)) return true
-    const backoff = this.retry.get(job.key)
+    if (this.owners.has(job.textId)) return true
+    const backoff = this.retry.get(job.textId)
     if (backoff !== undefined) {
       if (backoff.attempts >= BACKOFF_MS.length) return false
       if (backoff.notBefore > this.now()) return false
     }
     this.pending.set(job.key, job)
-    this.pump()
+    this.owners.set(job.textId, job.key)
+    this.schedulePump()
     return true
+  }
+
+  /**
+   * Arrange the next pump: now for a full batch, else after the coalescing
+   * window so the units a burst is still adding ride the same provider call.
+   */
+  private schedulePump(): void {
+    if (this.disposed) return
+    // A full batch never waits: an armed window is cancelled rather than sat
+    // out, so the unit that completed the batch starts it now. Its members can
+    // no longer improve by waiting, and a lone unit still gets the window.
+    if (this.pending.size >= MAX_BATCH_SIZE || this.pendingChars() >= MAX_BATCH_CHARS) {
+      this.pump()
+      return
+    }
+    if (this.pumpTimer !== undefined) return
+    if (this.pending.size === 0) return
+    this.pumpTimer = setTimeout(() => {
+      this.pumpTimer = undefined
+      this.pump()
+    }, BATCH_COALESCE_MS)
+    // A waiting batch must not hold the host process open.
+    this.pumpTimer.unref?.()
+  }
+
+  /** Source characters queued for the next calls; the other half of a full batch. */
+  private pendingChars(): number {
+    let total = 0
+    for (const job of this.pending.values()) total += job.unit.text.length
+    return total
   }
 
   /** Start as many queued batches as the concurrency cap allows. */
   private pump(): void {
+    if (this.pumpTimer !== undefined) {
+      clearTimeout(this.pumpTimer)
+      this.pumpTimer = undefined
+    }
     while (!this.disposed && this.active < MAX_CONCURRENT_BATCHES && this.pending.size > 0) {
       const batch: TranslationJob[] = []
+      let chars = 0
       for (const key of this.pending.keys()) {
         if (batch.length >= MAX_BATCH_SIZE) break
         const job = this.pending.get(key)
         if (job === undefined) continue
+        const size = job.unit.text.length
+        // A text that would push the call past its budget waits for the next
+        // one instead of being dropped: the loop always takes it when it opens
+        // a batch, so a chunk longer than the whole budget still runs — alone.
+        if (batch.length > 0 && chars + size > MAX_BATCH_CHARS) continue
         this.pending.delete(key)
         this.inflight.add(key)
+        chars += size
         batch.push(job)
       }
       if (batch.length === 0) return
@@ -202,46 +429,59 @@ export class TranslationLocalizer {
 
   /**
    * Run one batch. A batch-level failure backs off every member; a single empty
-   * result backs off only its own key, so one bad text cannot stall nineteen
-   * good ones. Every failure path is silent for the caller: the panel keeps the
+   * result backs off only that text, so one bad text cannot stall nineteen good
+   * ones. Every failure path is silent for the caller: the panel keeps the
    * original text either way.
    */
   private async run(batch: readonly TranslationJob[]): Promise<void> {
     const controller = new AbortController()
     try {
-      const locale = batch[0]?.locale ?? ''
+      const target = batch[0]?.target ?? ''
       const result = await runChain(
         this.providers,
         batch.map(job => job.unit.text),
-        locale,
+        target,
         controller.signal
       )
       const at = this.now()
       batch.forEach((job, index) => {
         const text = (result.texts[index] ?? '').trim()
         if (text.length === 0) {
-          this.fail(job.key)
+          this.fail(job.textId)
           return
         }
-        this.entries[job.key] = { text, provider: result.provider, at }
-        this.retry.delete(job.key)
+        const answer: TranslationRecord = { text, provider: result.provider, at }
+        this.entries[job.key] = answer
+        // The index learns the answer here, which is what lets every other
+        // entity carrying this text resolve without a call of its own.
+        this.byText.set(job.textId, answer)
+        this.retry.delete(job.textId)
         this.dirty = true
       })
       if (this.dirty) this.scheduleFlush()
     } catch {
-      for (const job of batch) this.fail(job.key)
+      for (const job of batch) this.fail(job.textId)
     } finally {
-      for (const job of batch) this.inflight.delete(job.key)
+      for (const job of batch) {
+        this.inflight.delete(job.key)
+        // The text is free again only once nothing owns it. A failed job leaves
+        // no answer behind, so the index holds nothing a later entity could be
+        // wrongly served, and that entity may queue the text on its own read.
+        if (this.owners.get(job.textId) === job.key) this.owners.delete(job.textId)
+      }
       this.active -= 1
-      this.pump()
+      // A completed batch hands its slot to the queue under the same
+      // coalescing rule: whatever accumulated meanwhile is grouped, and a
+      // queue that only ever sees single units is not pumped one at a time.
+      this.schedulePump()
     }
   }
 
-  /** Record one failed attempt and push the key's next try further out. */
-  private fail(key: string): void {
-    const attempts = (this.retry.get(key)?.attempts ?? 0) + 1
+  /** Record one failed attempt and push the text's next try further out. */
+  private fail(textId: string): void {
+    const attempts = (this.retry.get(textId)?.attempts ?? 0) + 1
     const delay = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)] ?? 0
-    this.retry.set(key, { attempts, notBefore: this.now() + delay })
+    this.retry.set(textId, { attempts, notBefore: this.now() + delay })
   }
 
   /**
@@ -295,13 +535,32 @@ export class TranslationLocalizer {
     return true
   }
 
-  /** Cancel timers; in-flight calls finish and are persisted by {@link flush}. */
+  /**
+   * Cancel timers and drop queued work; in-flight calls finish and are
+   * persisted by {@link flush}.
+   *
+   * A disposed instance cannot deliver its queue — {@link enqueue} refuses new
+   * work and the pump refuses to start — so leaving it populated would strand
+   * its units behind a {@link pendingCount} that never falls, and a
+   * {@link settle} waiting on them would run out its deadline instead of
+   * returning. Dropping them costs nothing durable: translation is lazy, the
+   * cache is the only state that has to survive, and the next activation's
+   * first read queues whatever is still missing.
+   */
   dispose(): void {
     this.disposed = true
+    if (this.pumpTimer !== undefined) {
+      clearTimeout(this.pumpTimer)
+      this.pumpTimer = undefined
+    }
     if (this.flushTimer !== undefined) {
       clearTimeout(this.flushTimer)
       this.flushTimer = undefined
     }
+    this.pending.clear()
+    // Ownership goes with the queue: no later read can be answered from a job
+    // this instance will never run. In-flight calls still land and are written.
+    this.owners.clear()
     void this.flush()
   }
 }

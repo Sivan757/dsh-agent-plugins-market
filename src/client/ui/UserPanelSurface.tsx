@@ -7,14 +7,17 @@
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { IconEditOutlineMedium, IconTrashOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanel, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
+import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanelEntry, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
+import { cachedUserPanel, loadUserPanel } from './user-panel-resource.js'
 import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ResourceCard.js'
 import { displayText } from './translated-text.js'
 import { hintProps, hoverHint } from './hover-hint.js'
+import { BilingualToggle } from './BilingualToggle.js'
 import { useWorkspaceView } from './workspace-view.js'
+import { pollUntilTranslated } from './translation-settle.js'
 import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
 import formCss from './form.module.css'
@@ -55,16 +58,51 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   const [showPreview, setShowPreview] = useState(false)
   const [confirm, setConfirm] = useState<PanelConfirmState | undefined>(undefined)
   const [detail, setDetail] = useState<UserPanelEntry | undefined>(undefined)
+  // One reading mode for the whole panel: the switch lifts to this surface so a
+  // single click re-reads every card and the detail dialog under it.
+  const [showOriginal, setShowOriginal] = useState(false)
   // Latest-wins guard: overlapping mutations re-read the list, and a slow
   // earlier response must never overwrite a newer one's result.
   const refreshSeq = useRef(0)
 
-  const refresh = useCallback(async (): Promise<void> => {
+  // One settle poll at a time: every read restarts it, and the effect's cleanup
+  // stops the previous one so an unmounted panel never keeps polling.
+  const settle = useRef<{ stop: () => void } | undefined>(undefined)
+
+  /**
+   * Re-read the panel.
+   *
+   * `force` is the Refresh button: an ordinary read may be answered from the
+   * host's row cache, and a user pressing Refresh is asking for the working
+   * tree as it stands. The settle poll below never forces — it runs every
+   * 1.5 s and the cache is what keeps it cheap.
+   *
+   * Rows the last visit cached are already on screen; this read replaces them
+   * when it lands, so a revisit never waits behind a spinner for its own paint.
+   */
+  const refresh = useCallback(async (force = false): Promise<void> => {
     const seq = ++refreshSeq.current
     setError(undefined)
+    settle.current?.stop()
+    settle.current = undefined
     try {
-      const data = await fetchUserPanel(kind)
-      if (refreshSeq.current === seq) setEntries(data)
+      const data = await loadUserPanel(kind, force)
+      if (refreshSeq.current === seq) setEntries(data.entries)
+      // The host translates off the read path, so the first read carries the
+      // authored text and a count. Polling until that count clears is what swaps
+      // the translated text in without the user pressing refresh.
+      if (data.translationPending > 0) {
+        settle.current = pollUntilTranslated({
+          read: async () => {
+            const next = await loadUserPanel(kind)
+            return { value: next.entries, pending: next.translationPending }
+          },
+          report: entriesNow => {
+            if (refreshSeq.current === seq) setEntries(entriesNow)
+          },
+          isStopped: () => refreshSeq.current !== seq
+        })
+      }
     } catch (reason) {
       if (refreshSeq.current === seq) setError(clientErrorMessage(t, reason))
     } finally {
@@ -73,8 +111,11 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   }, [kind])
 
   useEffect(() => {
-    setEntries([])
-    setLoading(true)
+    // A revisit paints the rows the last read cached and revalidates behind
+    // them; only a panel that has never read anything has nothing to show.
+    const cached = cachedUserPanel(kind)
+    setEntries(cached ?? [])
+    setLoading(cached === undefined)
     setSearch('')
     setFilter('all')
     setEditor(undefined)
@@ -83,6 +124,8 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     void refresh()
     return () => {
       refreshSeq.current++
+      settle.current?.stop()
+      settle.current = undefined
     }
   }, [refresh])
 
@@ -128,6 +171,13 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     setDetail(entry)
   }
 
+  /**
+   * Open one entry's editor.
+   *
+   * The list read carries no document, so the editor seeds from the entry route
+   * — the only read that ships the file's own text, which the save then diffs
+   * against. The panel shows its working state while that read is in flight.
+   */
   const openEdit = (entry: UserPanelEntry): void => {
     // Plugin documents are the suite's, except an agent persona's model
     // routing: the server accepts exactly that frontmatter diff, so this
@@ -136,24 +186,43 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     const routingEditable = entry.origin === 'plugin' && kind === 'agents'
     if (entry.origin !== 'user' && !routingEditable) return
     setError(undefined)
-    // The server's raw document preserves YAML metadata and Markdown exactly.
-    setShowPreview(false)
-    setEditor({
-      mode: 'edit',
-      id: entry.id ?? entry.name,
-      name: entry.name,
-      path: entry.path,
-      text: entry.rawText,
-      ...(routingEditable ? { routingOnly: true } : {})
-    })
+    setBusy(true)
+    void (async () => {
+      try {
+        // The server's raw document preserves YAML metadata and Markdown exactly.
+        const document = await fetchUserPanelEntry(kind, entry.id ?? entry.name)
+        setShowPreview(false)
+        setEditor({
+          mode: 'edit',
+          id: entry.id ?? entry.name,
+          name: entry.name,
+          path: entry.path,
+          text: document.rawText,
+          ...(routingEditable ? { routingOnly: true } : {})
+        })
+      } catch (reason) {
+        setError(clientErrorMessage(t, reason))
+      } finally {
+        setBusy(false)
+      }
+    })()
   }
 
+  /**
+   * Flip one entry's enable state.
+   *
+   * The rewrite is a frontmatter diff, so it needs the document: the list read
+   * omits it, and the toggle fetches the entry before it writes.
+   */
   const toggleDisabled = (entry: UserPanelEntry): void => {
-    // A skill is switched through the harness's invocation controls, which
-    // every reader of the file honors; commands and personas use the panel's
-    // own `disabled` key.
-    const text = kind === 'skills' ? setSkillInvocationEnabled(entry.rawText, entry.disabled) : updateFrontmatter(entry.rawText, 'disabled', !entry.disabled)
-    void mutate(() => updateUserPanelEntry(kind, entry.id ?? entry.name, text))
+    void mutate(async () => {
+      const document = await fetchUserPanelEntry(kind, entry.id ?? entry.name)
+      // A skill is switched through the harness's invocation controls, which
+      // every reader of the file honors; commands and personas use the panel's
+      // own `disabled` key.
+      const text = kind === 'skills' ? setSkillInvocationEnabled(document.rawText, entry.disabled) : updateFrontmatter(document.rawText, 'disabled', !entry.disabled)
+      await updateUserPanelEntry(kind, entry.id ?? entry.name, text)
+    })
   }
 
   const saveEditor = async (state: PanelEditorState): Promise<boolean> => {
@@ -194,7 +263,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     // says something the tab does not.
     h(PanelHeader, {
       subtitle: panelDescription,
-      actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: openCreate, refreshLabel: t('refresh'), onRefresh: () => { void refresh() }, busy })
+      // Refresh is the one read that forces: it is the user asking for the
+      // working tree as it stands, not a poll.
+      actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: openCreate, refreshLabel: t('refresh'), onRefresh: () => { void refresh(true) }, busy })
     }),
     error === undefined ? null : h('div', { className: css.editorError }, error),
     busy ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
@@ -221,6 +292,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
       onViewChange: nextView => setView(nextView),
+      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) })
     }),
     h(
       'div',
@@ -244,6 +316,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
                   t,
                   kind,
                   busy,
+                  showOriginal,
                   onOpen: () => openDetail(entry),
                   // The pencil on a plugin persona edits routing only; the document stays
       // the suite's, so plugin skills/commands carry no edit affordance.
@@ -300,7 +373,15 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       onClose: () => setEditor(undefined),
       onSave: saveEditor
     }),
-    detail === undefined ? null : h(UserEntryDetailModal, { t, kind, entry: detail, onClose: () => setDetail(undefined) }),
+    detail === undefined
+      ? null
+      : h(UserEntryDetailModal, {
+          t,
+          kind,
+          entry: detail,
+          showOriginal,
+          onClose: () => setDetail(undefined)
+        }),
     h(ConfirmModal, {
       state: confirm,
       confirmLabel: t('confirmDelete'),
@@ -321,17 +402,19 @@ function UserEntryRow(props: {
   t: Translate
   kind: UserPanelKind
   busy: boolean
+  /** Panel-wide text view: the authored text instead of the translation. */
+  showOriginal: boolean
   onOpen: () => void
   onEdit?: () => void
   onToggle: () => void
   onDelete?: () => void
 }): ReactNode {
   const { entry, t } = props
-  // A command registers under its flattened call name, and that name is what the
-  // user types, so it stays the card's identity untranslated. A skill and a
-  // persona are recognized by their name, which reads translated.
-  const title = props.kind === 'commands' ? commandCallName(entry.name) : (displayText(entry.translatedName, entry.name, t) ?? entry.name)
-  const description = displayText(entry.translatedDescription, entry.description, t)
+  // A command registers under its flattened call name and every other kind under
+  // its own name: a name is never translated — it is the identity the user types,
+  // searches and sorts by.
+  const title = props.kind === 'commands' ? commandCallName(entry.name) : entry.name
+  const description = displayText(entry.translatedDescription, entry.description, t, { original: props.showOriginal })
   const mono = props.kind === 'commands'
   // A rejected document cannot be switched on: its state is recomputed from the
   // document, so the fix is editing the document.
@@ -395,7 +478,6 @@ function UserEntryRow(props: {
         })
       )
     ),
-    // Two lines fit; anything longer stays readable through the hint.
     // Two lines fit; anything longer stays readable through the hint.
     description === undefined || description === '' ? null : hoverHint(description, h('p', hintProps({ className: `${rc.rowBody} ${rc.desc}` }), description)),
     h(

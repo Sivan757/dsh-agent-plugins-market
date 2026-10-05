@@ -10,8 +10,10 @@
  * know which collaborator owns a given invariant.
  */
 import { qualifiedSuiteId } from '../catalog/paths.js'
+import { stripFrontmatter } from '../catalog/skills-parse.js'
+import { interfaceLanguageTranslates } from '../contracts/settings.js'
 import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
-import type { OverviewPayload, ServerConfigPayload, SkillContent, SourceOverview, SourceProgress, SuiteDetail } from '../contracts/market.js'
+import type { MenuRowFaceWire, OverviewPayload, ServerConfigPayload, SourceOverview, SourceProgress, SuiteDetail, SuiteDocumentText, UserPanelKind } from '../contracts/market.js'
 import type { McpStatusPayload } from './mcp/mcp-status.js'
 import type { SourceRef, Suite, SuiteSurfaceKey } from '../model/types.js'
 import type { McpBackend } from '../contracts/mcp.js'
@@ -20,14 +22,16 @@ import type { McpMountDiagnostic } from '../contracts/mcp.js'
 import { loadSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from './mcp/mcp-overrides.js'
 import { loadUserHooksSuite } from './panels/user-hooks.js'
 import { applyLspOverrides } from './server-config.js'
-import { buildSuiteDetail, readSkillContent } from './details.js'
+import { buildSuiteDetail, readSuiteDocument } from './details.js'
 import { CatalogContext, type CatalogGitOptions, type CatalogOptions } from './catalog-context.js'
 import { TranslationLocalizer } from './translation/localizer.js'
+import { chunkDocument } from './translation/document.js'
 import { collectUnits } from './translation/unit.js'
-import type { TranslationFields, TranslationSurfaceKind } from '../contracts/translation.js'
+import type { DocumentTranslation, TranslationFields, TranslationRole, TranslationSurfaceKind } from '../contracts/translation.js'
 import { InstallStore } from './install-store.js'
 import { LspService } from './lsp-service.js'
 import { McpService } from './mcp-service.js'
+import { pluginResourceId } from './panel-resources.js'
 import { resolveCatalogPorts, type CatalogPorts, type LocalizeFields, type LspServerTable, type McpBackendInfo, type SourceInput, type SourcePatch } from './ports.js'
 import { SnapshotCache, type CatalogSnapshot } from './snapshot-cache.js'
 import { SourceStore, codeloadTarballUrl } from './source-store.js'
@@ -52,12 +56,13 @@ export class Catalog implements MarketService {
     // The status builders resolve translations through this callback rather
     // than reaching into the localizer, so the panel surfaces stay independent
     // of how the catalog stores them.
-    const localizeFields: LocalizeFields = (surface, id, fields) => this.translateFields(surface, id, fields).fields
+    const localizeFields: LocalizeFields = (surface, id, fields, locale) => this.translateFields(surface, id, fields, locale)
     this.mcp = new McpService(this.context, this.ports, this.sourceStore, localizeFields)
     this.lsp = new LspService(this.context, this.ports, localizeFields)
     this.localizer = new TranslationLocalizer({
       dataRoot: this.context.dataRoot,
       providers: this.ports.translationProviders ?? [],
+      ...(this.ports.translationEnabled === undefined ? {} : { enabled: this.ports.translationEnabled }),
       providerIdentity: this.ports.translationProviderIdentity ?? (() => 'none')
     })
   }
@@ -79,6 +84,30 @@ export class Catalog implements MarketService {
   /** The plugin storage root holding per-suite `${PLUGIN_DATA}` directories and overrides. */
   get dataRoot(): string {
     return this.context.dataRoot
+  }
+
+  /**
+   * The host locale preference the panels render in.
+   *
+   * A read that walks many rows resolves it once and passes the value to every
+   * {@link translateFields} call: the host answers the preference by projecting
+   * every profile entry's live configuration, so reading it per row made a
+   * panel's latency scale with its row count instead of its work.
+   */
+  get localePreference(): string {
+    return this.ports.localePreference()
+  }
+
+  /**
+   * The clock this catalog's caches age against.
+   *
+   * The panel row cache is derived from the same files the snapshot cache
+   * walks, so it measures its maximum age on the same timeline: a test that
+   * drives the catalog's injected clock drives both, and a deployment gets the
+   * one process clock.
+   */
+  now(): number {
+    return this.context.now()
   }
 
   get sources(): SourceRef[] {
@@ -103,9 +132,10 @@ export class Catalog implements MarketService {
     await this.localizer.load()
   }
 
-  /** Release the localizer's timers; in-flight translations still persist. */
+  /** Release the localizer's and the snapshot cache's timers; in-flight work still persists. */
   dispose(): void {
     this.localizer.dispose()
+    this.snapshots.dispose()
   }
 
   /**
@@ -190,9 +220,9 @@ export class Catalog implements MarketService {
   /**
    * The full market overview from one user snapshot.
    *
-   * Name and description are localized on the way out: a suite whose text is
-   * already Chinese (or already bilingual) is served as authored, and every
-   * other field is translated in the background. The read itself never waits on
+   * The description is localized on the way out: a suite whose text is already
+   * Chinese (or already bilingual) is served as authored, and every other
+   * description is translated in the background. The read itself never waits on
    * a provider call — a suite with no cached translation carries its original
    * text plus a translated field only once one lands, and the panel re-reads
    * while anything reports itself pending.
@@ -240,63 +270,220 @@ export class Catalog implements MarketService {
   }
 
   /**
-   * Translate one entity's name and description for a surface.
+   * Translate one entity's description for a surface.
    *
-   * The two fields are resolved independently, so a name whose translation is
-   * already cached renders translated while its description is still in
-   * flight. Nothing here waits on a provider: an uncached field answers with
-   * the upstream text and reports itself pending.
+   * Only the description is a translatable field: a name is an identity the user
+   * types, greps, and matches against upstream documentation, so the collector
+   * hands back no unit for one. Nothing here waits on a provider: an uncached
+   * field answers with the upstream text and reports itself pending.
    *
-   * Only a zh deployment translates. An English panel is already showing the
-   * authored text, so queueing provider calls for it would spend the user's
-   * quota to reproduce the input.
+   * Only an English interface is skipped. An English panel is already showing
+   * the authored text, so queueing provider calls for it would spend the user's
+   * quota to reproduce the input; every other language renders the market's
+   * Chinese dictionary, which is the same statement
+   * {@link interfaceLanguageTranslates} answers and the same one the
+   * translation switch defaults to.
+   *
+   * A description longer than one chunk travels in chunks, exactly as a
+   * document body does ({@link localizeText}), so the size of an upstream field
+   * is never a reason for a provider call to be cut off.
    *
    * Exposed for the panel and status surfaces that build their own rows; it is
    * not part of the HTTP route surface.
    * @param surface - the surface the entity belongs to.
    * @param id - the entity's stable identity inside that surface.
    * @param fields - the entity's upstream name and description.
-   * @param locale - the locale the caller is rendering in; defaults to the host preference.
+   * @param locale - the host locale this read resolved once; there is no
+   * default, because a default would re-read the host preference per entity and
+   * make a read's cost scale with its row count.
    * @returns the translated fields and how many of them are still pending.
    */
   translateFields(
     surface: TranslationSurfaceKind,
     id: string,
     fields: { name?: string | undefined; description?: string | undefined },
-    locale: string = this.ports.localePreference()
+    locale: string
   ): { fields: TranslationFields; pending: number } {
-    if (locale !== 'zh') return { fields: {}, pending: 0 }
+    if (!interfaceLanguageTranslates(locale)) return { fields: {}, pending: 0 }
     const translated: TranslationFields = {}
     let pending = 0
     for (const unit of collectUnits(surface, id, fields)) {
-      const result = this.localizer.localize(unit, locale)
-      if (result.pending) pending += 1
-      if (unit.role === 'name') {
-        if (result.text !== unit.text) translated.translatedName = result.text
-      } else if (result.text !== unit.text) translated.translatedDescription = result.text
+      const result = this.localizeText(unit.surface, unit.id, unit.role ?? 'description', unit.text, locale)
+      pending += result.pending
+      if (result.text !== unit.text) translated.translatedDescription = result.text
     }
     return { fields: translated, pending }
   }
 
+  /**
+   * Translate one authored text, chunk by chunk, and reassemble it exactly.
+   *
+   * Every text the layer sends travels the way a document does: split on blank
+   * lines into chunks one request may carry, fenced code passed through
+   * verbatim, and the authored text between chunks re-emitted rather than
+   * synthesized — so a text nothing was translated for comes back byte for
+   * byte, and a translated one keeps the author's own blank lines. A
+   * description is chunked for the same reason a document is: the model hop
+   * sizes one call's output from the source it carries, and a text that exceeds
+   * that budget is cut off mid-generation, which fails the batch and retires the
+   * provider for the rest of the session.
+   * @param surface - the surface the entity belongs to.
+   * @param id - the entity's stable identity inside that surface.
+   * @param role - which text of the entity this is; the cache key's role slot.
+   * @param text - the authored text.
+   * @param locale - the interface language this read resolved once.
+   * @returns the reassembled text and how many of its chunks are still in flight.
+   */
+  private localizeText(surface: TranslationSurfaceKind, id: string, role: TranslationRole, text: string, locale: string): { text: string; pending: number } {
+    const chunks = chunkDocument(text)
+    if (chunks.length === 0) return { text, pending: 0 }
+    let pending = 0
+    const parts: string[] = []
+    for (const chunk of chunks) {
+      if (!chunk.translatable) {
+        parts.push(chunk.text, chunk.separator)
+        continue
+      }
+      const result = this.localizer.localize({ surface, id, role, text: chunk.text }, locale)
+      if (result.pending) pending += 1
+      parts.push(result.text, chunk.separator)
+    }
+    return { text: parts.join(''), pending }
+  }
+
+  /**
+   * Translate one document body for a surface, chunk by chunk.
+   *
+   * The body is split first ({@link chunkDocument}): a whole file is more than
+   * any single provider request may carry, and a chunk already translated is
+   * answered from the cache, so opening the same document twice costs nothing
+   * the second time and an interrupted translation keeps what landed.
+   *
+   * Only an English interface is skipped, for the reason {@link translateFields}
+   * gives: an English panel is already showing the authored text. When it is
+   * skipped, the body comes back untouched and nothing is queued — the caller
+   * renders it exactly as it renders the authored document.
+   *
+   * A fenced block never leaves the process, so a document's examples are never
+   * translated and never billed for. A four-space indented block is prose under
+   * the chunker's rule ({@link chunkDocument}), so its text is sent like any
+   * paragraph's.
+   *
+   * The authored body is reproduced exactly when nothing was translated: each
+   * chunk carries the whitespace that followed it in the source, and assembly
+   * re-emits that rather than inventing a separator. See
+   * {@link localizeText}.
+   * @param surface - the surface the entity belongs to.
+   * @param id - the entity's stable identity inside that surface.
+   * @param text - the document body, frontmatter already removed by the caller.
+   * @param locale - the host locale this read resolved once.
+   * @returns the assembled body and how many chunks are still in flight.
+   */
+  translateDocument(surface: TranslationSurfaceKind, id: string, text: string, locale: string): DocumentTranslation {
+    if (!interfaceLanguageTranslates(locale)) return { text, pending: 0 }
+    return this.localizeText(surface, id, 'document', text, locale)
+  }
+
+  /**
+   * The localized face of every `/` menu row this plugin owns.
+   *
+   * The rows come from the runtime registries (through
+   * {@link CatalogPorts.menuRowIdentities}) because only they know the call name
+   * a command actually got; the text comes from this catalog's localizer,
+   * because the panel reads it through the same translation cache. Resolution
+   * is a cache read and never a provider call: a row whose text is not cached
+   * yet answers without a face, and the panel read that follows queues it.
+   *
+   * A field is emitted only when the translation differs from the authored
+   * text. The menu shows the call name beside the label, so a name that
+   * translated to itself would only duplicate the alias.
+   * @returns one wire row per owned menu row, without rows carrying no translation.
+   */
+  async menuRowFaces(): Promise<MenuRowFaceWire[]> {
+    // No chain, no translations: every cache key is folded with the chain's
+    // identity, so a deployment with no provider has nothing cached to serve.
+    // Skipping it also skips the panel reads behind the rows, which walk every
+    // suite's resources.
+    if ((this.ports.translationProviders ?? []).length === 0) return []
+    // The switch mirrors the client's: while it is off the `/` menu is not
+    // wrapped at all and renders the host's own rows, so walking the panels for
+    // faces nothing would display only spends the reads. The panels themselves
+    // still render what is already cached — the switch gates new work there.
+    if (this.ports.translationEnabled?.() === false) return []
+    // One preference read for the whole menu: the host answers it by projecting
+    // every profile entry's live configuration, so resolving it per row made
+    // opening the menu scale with the row count.
+    const locale = this.ports.localePreference()
+    const faces: MenuRowFaceWire[] = []
+    for (const row of await this.ports.menuRowIdentities()) {
+      const { fields } = this.translateFields(row.source, row.id, { description: row.authoredDescription }, locale)
+      const description = row.authoredDescription === undefined || fields.translatedDescription === row.authoredDescription ? undefined : fields.translatedDescription
+      if (description === undefined) continue
+      faces.push({ source: row.source, name: row.name, description })
+    }
+    return faces
+  }
+
   /** One suite's full detail for the market detail modal. */
   async suiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail> {
-    const snapshot = await this.readUserCatalog()
-    const suite = snapshot.suites.find(entry => entry.sourceId === sourceId && entry.id === suiteId)
-    if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
+    const suite = await this.suiteOf(sourceId, suiteId)
     const suiteKey = qualifiedSuiteId(sourceId, suiteId)
     const detail = await buildSuiteDetail(suite, this.context.installed(sourceId, suiteId), this.mcp.diagnostics, await loadSuiteOverrides(this.context.dataRoot, suiteKey))
     // The detail modal renders the same name and description as the card, so it
     // takes the same translations (and queues the same cache misses).
-    const localized = this.translateFields('market', suiteKey, { name: detail.name, description: detail.description ?? undefined })
+    const localized = this.translateFields('market', suiteKey, { name: detail.name, description: detail.description ?? undefined }, this.ports.localePreference())
     return { ...detail, ...localized.fields }
   }
 
-  /** One skill's full SKILL.md text for the market detail modal. */
-  async skillContent(sourceId: string, suiteId: string, skillName: string): Promise<SkillContent> {
+  /**
+   * One suite document's authored text for the market detail modal — a skill, a
+   * command, or an agent, all through the one reader.
+   *
+   * The suite comes from the same snapshot {@link suiteDetail} answers from, and
+   * the text is re-read from the checkout the scan found it in: the request
+   * names an identity, never a path, so this route cannot be spent on a file of
+   * a page's choosing.
+   */
+  async suiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<SuiteDocumentText> {
+    const suite = await this.suiteOf(sourceId, suiteId)
+    return { name, content: await readSuiteDocument(suite, kind, name) }
+  }
+
+  /** The normalized suite a source-qualified identity names, or a miss. */
+  private async suiteOf(sourceId: string, suiteId: string): Promise<Suite> {
     const snapshot = await this.readUserCatalog()
     const suite = snapshot.suites.find(entry => entry.sourceId === sourceId && entry.id === suiteId)
     if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
-    return readSkillContent(suite, skillName)
+    return suite
+  }
+
+  /**
+   * Translate one suite document for the market detail page.
+   *
+   * The suite comes from the same snapshot {@link suiteDetail} and
+   * {@link suiteDocument} answer from, and the document is re-read from the
+   * checkout the scan found it in: the request names an identity and never
+   * carries text, so this path cannot be spent on content of a page's choosing.
+   *
+   * The translation is keyed exactly as the user panel keys the same file
+   * ({@link pluginResourceId}, on the document's own surface), so one document
+   * is one cache entry however it was opened — whichever surface translated it
+   * first, the other reads it back without paying a provider again.
+   *
+   * Frontmatter is stripped for the reason the panel strips it: a provider
+   * asked to translate YAML answers with YAML that no longer parses. The reader
+   * still sees the authored block above the document, because the row renders
+   * the file and this section renders only its translation.
+   * @param sourceId - the source the suite belongs to.
+   * @param suiteId - the suite's id inside that source.
+   * @param kind - which document surface the name belongs to.
+   * @param name - the document's name inside that surface.
+   * @returns the assembled body and how many chunks are still in flight.
+   */
+  async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<DocumentTranslation> {
+    const suite = await this.suiteOf(sourceId, suiteId)
+    const text = await readSuiteDocument(suite, kind, name)
+    return this.translateDocument(kind, pluginResourceId(sourceId, suiteId, kind, name), stripFrontmatter(text), this.ports.localePreference())
   }
 
   // ---- Source acquisition and CRUD ----

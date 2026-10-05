@@ -9,6 +9,13 @@
  * resolved values off the settings snapshot it is handed. Changing a default is
  * therefore a one-line edit in this module.
  *
+ * One default is not a constant: `translationEnabled` follows the interface
+ * language, so its reader takes the language as an argument and
+ * {@link interfaceLanguageTranslates} answers it. That same function is the
+ * translation layer's own gate, so the switch and the work it describes cannot
+ * answer differently — and {@link resolveTranslationTarget} reads it once more
+ * to name the language that gate translates *into*.
+ *
  * @module contracts/settings
  */
 
@@ -30,7 +37,11 @@ export interface MarketSettings {
   feedbackEnabled: boolean
   /** ON = every configured source refreshes in the background. */
   autoUpdateSources: boolean
-  /** ON = suite, skill, command, agent, MCP and LSP text is localized for the host locale. */
+  /**
+   * ON = suite, skill, command, agent, MCP and LSP text is localized for the
+   * host locale. The stored value while the user has one, the interface
+   * language's default otherwise.
+   */
   translationEnabled: boolean
 }
 
@@ -39,6 +50,15 @@ export interface MarketSettings {
  *
  * These are user-visible behavior: a flip here is a behavior change that ships
  * with its documentation, not a private implementation detail.
+ *
+ * `translationEnabled` is the one exception: the interface language decides it
+ * (see {@link interfaceLanguageTranslates}), so this constant is not where its
+ * effective default lives. It is what the browser store holds before the host
+ * answers, and that pre-answer state deliberately withholds the translation
+ * control rather than flashing it. The namespace schema declares no default for
+ * the field at all, an absence that is load-bearing: a schema default would
+ * reach the live config reference and erase the difference between "the user
+ * never set this" and "the user turned it off".
  */
 export const MARKET_SETTINGS_DEFAULTS: MarketSettings = {
   mcpEnhanced: true,
@@ -46,7 +66,10 @@ export const MARKET_SETTINGS_DEFAULTS: MarketSettings = {
   downloadRegion: 'auto',
   feedbackEnabled: true,
   autoUpdateSources: false,
-  translationEnabled: true
+  // Experimental: off until the user opts in, so a fresh install never spends
+  // a provider request on a feature it did not ask for — and off for every
+  // language that is not Chinese, which is the opt-in this field defaults to.
+  translationEnabled: false
 }
 
 /** Every field name the market's settings section carries. */
@@ -68,18 +91,67 @@ function narrowBoolean(value: unknown, fallback: boolean): boolean {
 }
 
 /**
+ * Whether one interface language renders the market's Chinese dictionary.
+ *
+ * This is the host's own rule rather than a second reading of it:
+ * `bindHostLocale` (`runtime/host/host-locale.ts`) answers every preference
+ * that is not English with the Chinese dictionary, so as far as the interface is
+ * concerned everything that is not English is Chinese — an absent preference
+ * included, which the host reads as zh.
+ *
+ * The translation layer's gate is this same function, which is what makes "the
+ * switch reads on" and "the text is translated" one statement instead of two
+ * that can drift apart.
+ * @param localePreference - the host `locale.preference`, or undefined while nothing supplies one.
+ */
+export function interfaceLanguageTranslates(localePreference: string | undefined): boolean {
+  return localePreference === undefined || !localePreference.toLowerCase().startsWith('en')
+}
+
+/**
+ * The language the interface renders, as the translation chain names it.
+ *
+ * The target follows the dictionary, not the preference tag. The market ships
+ * exactly one non-English dictionary and {@link bindHostLocale}'s counterpart
+ * resolves every preference that is not English to it, so a `ja` or `zh-Hant`
+ * reader is surrounded by Simplified Chinese copy: translating upstream text
+ * into Japanese, or into Traditional, would put the one part of the page the
+ * layer owns into a language nothing around it is written in. `zh` is the tag
+ * both machine endpoints already map to Simplified Chinese
+ * (`runtime/host/machine-translator.ts`) and the one the model hop names
+ * "Simplified Chinese"; a second dictionary would add a case here rather than a
+ * second reading of the preference somewhere else.
+ *
+ * An undefined answer means there is nothing to translate: an English interface
+ * already shows the authored text. It is the same answer
+ * {@link interfaceLanguageTranslates} gives, which is the point — the switch,
+ * the gate every surface reads, and the target cannot drift apart.
+ * @param localePreference - the host `locale.preference`, or undefined while nothing supplies one.
+ * @returns the target language tag, or undefined for an English interface.
+ */
+export function resolveTranslationTarget(localePreference: string | undefined): string | undefined {
+  return interfaceLanguageTranslates(localePreference) ? 'zh' : undefined
+}
+
+/**
  * Resolve a stored settings section the way the host resolves it: each field
- * takes its stored value when it is one this field accepts, and its declared
- * default otherwise.
+ * takes its stored value when it is one this field accepts, and its default
+ * otherwise.
  *
  * The host hands the resolved section back on its own, but not every caller has
  * one — the plugin's own halves read a section they may not have received yet,
  * and a test hands in a bare literal. Funnelling all of them through this
  * function is what keeps a second reading of "what does missing mean" from
  * growing somewhere else.
+ *
+ * A stored boolean always wins: the user's own answer is never overridden by
+ * the language. Only a section that says nothing about the field takes the
+ * language's answer, which is what makes a language switch move the default for
+ * a user who never set the field and leave every other user alone.
  * @param section - the stored (or absent) namespace section, untrusted.
+ * @param localePreference - the host `locale.preference` the language-derived default follows.
  */
-export function resolveMarketSettings(section: unknown): MarketSettings {
+export function resolveMarketSettings(section: unknown, localePreference?: string): MarketSettings {
   const stored = (typeof section === 'object' && section !== null ? section : {}) as Record<string, unknown>
   return {
     mcpEnhanced: narrowBoolean(stored['mcpEnhanced'], MARKET_SETTINGS_DEFAULTS.mcpEnhanced),
@@ -87,6 +159,6 @@ export function resolveMarketSettings(section: unknown): MarketSettings {
     downloadRegion: narrowDownloadRegion(stored['downloadRegion']),
     feedbackEnabled: narrowBoolean(stored['feedbackEnabled'], MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
     autoUpdateSources: narrowBoolean(stored['autoUpdateSources'], MARKET_SETTINGS_DEFAULTS.autoUpdateSources),
-    translationEnabled: narrowBoolean(stored['translationEnabled'], MARKET_SETTINGS_DEFAULTS.translationEnabled)
+    translationEnabled: narrowBoolean(stored['translationEnabled'], interfaceLanguageTranslates(localePreference))
   }
 }

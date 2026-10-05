@@ -537,18 +537,20 @@
         <a href="#s7"><span class="n">07</span>渲染点</a>
         <a href="#s8"><span class="n">08</span>代码改动清单</a>
         <a href="#s9"><span class="n">09</span>风险与验收</a>
+        <a href="#s10"><span class="n">10</span>实施现状对照</a>
       </nav>
       <main>
         <header class="doc">
-          <div class="kicker">Technical Design · 待实现</div>
+          <div class="kicker">Technical Design · 已实现（2026-10-05 核对）</div>
           <h1>通用翻译层</h1>
           <p class="lede">
             把当前只覆盖市场套件描述的本地化，扩展为横跨六个面的通用层：市场、技能、快捷指令、专家、MCP、LSP 的
-            <b>名称与描述</b>，跟随宿主语言，开箱即用，翻译一次即缓存。
+            <b>描述</b>跟随宿主语言渲染，翻译一次即缓存；名称是调用标识，始终保留原文。
           </p>
           <div class="metaRow">
             <span>2026-10-04</span>
-            <span>状态 · proposed</span>
+            <span>状态 · implemented</span>
+            <span>核对 · 2026-10-05</span>
             <span>基线 · dsh 0.2.0-rc.2</span>
             <span>部分取代 · 2026-10-03 描述本地化</span>
           </div>
@@ -564,15 +566,17 @@
             </div>
             <div class="mini">
               <h4>目标</h4>
-              <p>六个面的名称与描述都跟随宿主 <code>locale.preference</code>；名称只翻展示，调用标识保持原名。</p>
+              <p>六个面的<b>描述</b>跟随宿主 <code>locale.preference</code>；名称是调用标识，始终渲染原名。</p>
             </div>
             <div class="mini">
               <h4>硬约束</h4>
-              <p>开箱即用（零注册零配置）、翻译只出现在 UI 层、注入模型上下文的那一份保持英文。</p>
+              <p>零注册零配置、翻译只出现在 UI 层、注入模型上下文的那一份保持英文；开关默认由宿主语言推导。</p>
             </div>
             <div class="mini">
               <h4>体量（本机实测）</h4>
-              <p>8,041 条 / 1.19M 字符；去重后 4,775 条唯一文本，省 28%。增量只来自新装或更新的 suite。</p>
+              <p>
+                描述字段 5,055 条 / 1.35M 字符，其中 4,892 条为唯一文本（重复占 3.2%）；4,161 份文档共 36,503 条分块中 34,729 条唯一（重复占 4.9%）。增量只来自新装或更新的 suite。
+              </p>
             </div>
           </div>
         </section>
@@ -693,7 +697,7 @@
             <div class="step">
               <div class="snum">3</div>
               <div class="stitle">批处理与去重</div>
-              <div class="sbody">跨面共享的文本只入队一次（省 28% 字符）；每批打包 N 条，一次请求。</div>
+              <div class="sbody">跨面共享的文本只入队一次（提供方工作按文本索引，缓存键仍按实体记账）；每批打包 N 条，一次请求。</div>
             </div>
             <div class="step">
               <div class="snum">4</div>
@@ -703,7 +707,7 @@
             <div class="step">
               <div class="snum">5</div>
               <div class="stitle">落盘</div>
-              <div class="sbody">按 <code>sourceId</code> 分片写入，带 TTL 与来源标记（哪个 provider 翻的）。</div>
+              <div class="sbody">整份写入 <code>data/translation-cache.json</code>（原子替换），带来源标记（哪个 provider 翻的）；条目不过期，由设置卡的重置整份清空。</div>
             </div>
             <div class="step">
               <div class="snum">6</div>
@@ -715,16 +719,15 @@
 
         <section id="s5">
           <h2><span class="num">05</span>缓存设计</h2>
-          <p class="sub">内容寻址，provider 进 key：换引擎自动 miss 重翻，不需要额外的「可升级」状态；旧条目由 TTL 回收。</p>
+          <p class="sub">内容寻址，provider 进 key：换引擎自动 miss 重翻，不需要额外的「可升级」状态；旧条目由设置卡的重置整份回收（落地形态：不设 TTL）。</p>
           <pre><span class="c">// key = sha256 的输入，用 NUL 连接避免 id 含分隔符时互相别名</span>
 <span class="k">targetLocale</span> <span class="c">\0</span> <span class="k">surfaceKind</span> <span class="c">\0</span> <span class="k">surfaceId</span> <span class="c">\0</span> <span class="k">role</span> <span class="c">\0</span> <span class="k">sourceText</span> <span class="c">\0</span> <span class="k">providerIdentity</span>
 
-<span class="c">// 落盘记录</span>
+<span class="c">// 落盘记录（整份文档：{ version: 1, entries }）</span>
 {
   <span class="s">"text"</span>: <span class="s">"…译文…"</span>,
   <span class="s">"provider"</span>: <span class="s">"google"</span> | <span class="s">"microsoft"</span> | <span class="s">"llm"</span>,   <span class="c">// 已进 key，此处仅供诊断</span>
-  <span class="s">"at"</span>: <span class="w">1759500000000</span>,
-  <span class="s">"expiresAt"</span>: <span class="w">1759500000000</span>            <span class="c">// TTL = 7 天</span>
+  <span class="s">"at"</span>: <span class="w">1759500000000</span>                       <span class="c">// 仅供诊断；条目不过期</span>
 }</pre>
           <table>
             <thead>
@@ -746,14 +749,20 @@
                 <td>同一实体的 name 与 description 是两条独立文本，共用 key 会互相覆盖。</td>
               </tr>
               <tr>
-                <td class="mono">TTL</td>
-                <td>7 天 + 24h 定时清理</td>
-                <td>内容寻址 key 只增不减；上游改一次描述就多一条永久垃圾。现状缺这一层。</td>
+                <td class="mono">回收</td>
+                <td>不设 TTL；设置卡整份清空</td>
+                <td>
+                  内容寻址 key 只增不减，上游改一次描述就多一条永不命中的条目；回收是用户显式动作（<code>src/application/state/translation-cache.ts:10-11</code>）。原计划的 7 天
+                  TTL + 24h 定时清理未实现。
+                </td>
               </tr>
               <tr>
-                <td class="mono">分片</td>
-                <td>按 <code>sourceId</code> 一个文件</td>
-                <td>现状整份原子重写已 243KB；全量约 3MB，单文件重写代价随目录增长。</td>
+                <td class="mono">落盘</td>
+                <td>落地：单文件整份原子替换</td>
+                <td>
+                  按 <code>sourceId</code> 分片的计划未实现：缓存是一个
+                  <code>data/translation-cache.json</code>（<code>src/application/state/translation-cache.ts:45-47</code>），写入走共享原子写。
+                </td>
               </tr>
               <tr>
                 <td class="mono">写入时机</td>
@@ -797,51 +806,51 @@ MCP / LSP / DSH →  <span class="s">⟦K1⟧</span>   <span class="c">// 术语
               <tr>
                 <td>市场</td>
                 <td class="mono">features/market/SuiteCard.tsx · SuiteDetail.tsx</td>
-                <td>新增</td>
+                <td>不翻（原名）</td>
                 <td>已有（沿用）</td>
               </tr>
               <tr>
                 <td>技能</td>
                 <td class="mono">ui/UserPanelSurface.tsx · kind=skills</td>
-                <td>新增</td>
+                <td>不翻（原名）</td>
                 <td>新增</td>
               </tr>
               <tr>
                 <td>快捷指令</td>
                 <td class="mono">ui/UserPanelSurface.tsx · kind=commands</td>
-                <td>新增</td>
+                <td>不翻（原名）</td>
                 <td>新增</td>
               </tr>
               <tr>
                 <td>专家</td>
                 <td class="mono">ui/UserPanelSurface.tsx · kind=agents</td>
-                <td>新增</td>
+                <td>不翻（原名）</td>
                 <td>新增</td>
               </tr>
               <tr>
                 <td>MCP</td>
                 <td class="mono">features/mcp/StatusPanel.tsx</td>
-                <td>新增</td>
+                <td>不翻（原名）</td>
                 <td>新增</td>
               </tr>
               <tr>
                 <td>LSP</td>
                 <td class="mono">features/lsp/LspStatusPanel.tsx</td>
-                <td>新增</td>
+                <td>不翻（原名）</td>
                 <td>新增</td>
               </tr>
             </tbody>
           </table>
           <div class="callout warn">
-            <b>名称是调用标识</b>
-            搜索、排序、复制、斜杠调用一律用原名；译文只出现在标题与卡片主行。卡片保留 <code>title</code> 属性指向原文，hover 可见。<code>UserPanelSurface</code> 一个组件覆盖技能 /
-            快捷指令 / 专家三面，三面一次改完。
+            <b>名称是调用标识（落地：名称不翻译）</b>
+            搜索、排序、复制、斜杠调用一律用原名，<b>名称本身也渲染原名</b>；译文只出现在描述位置。<code>UserPanelSurface</code>
+            一个组件覆盖技能 / 快捷指令 / 专家三面，三面一次改完。
           </div>
         </section>
 
         <section id="s8">
           <h2><span class="num">08</span>代码改动清单</h2>
-          <p class="sub">共 9 个新增源文件、16 个修改、4 个迁移；测试与文档另列。路径相对于仓库根。</p>
+          <p class="sub">本节是实现前的计划清单（共 9 个新增源文件、16 个修改、4 个迁移；测试与文档另列），实际落点与差异见第 10 节。</p>
 
           <h3>新增 · 源文件</h3>
           <table>
@@ -1109,7 +1118,7 @@ MCP / LSP / DSH →  <span class="s">⟦K1⟧</span>   <span class="c">// 术语
           </div>
           <h3>验收标准</h3>
           <ul class="plain">
-            <li><b>开箱即用</b>：全新安装、无代理、无模型配置时，六个面在首次打开后一次刷新内显示中文。</li>
+            <li><b>开箱即用</b>：中文宿主上全新安装、无代理、无模型配置时，六个面的描述在首次打开后一次刷新内显示中文；英文宿主不启用翻译。</li>
             <li><b>降级可见</b>：断开网络时面板与改动前完全一致，渲染原文，无错误提示、无卡顿。</li>
             <li><b>只翻一次</b>：重启进程后二次打开零请求；同一文本跨面只翻译一次。</li>
             <li><b>标识不变</b>：搜索、复制、斜杠调用全部命中原名。</li>
@@ -1117,8 +1126,81 @@ MCP / LSP / DSH →  <span class="s">⟦K1⟧</span>   <span class="c">// 术语
             <li><b>门禁</b>：<code>pnpm run check:refactor</code> 与全量 <code>pnpm run test</code> 绿。</li>
           </ul>
         </section>
+        <section id="s10">
+          <h2><span class="num">10</span>实施现状对照</h2>
+          <p class="sub">
+            本节是 2026-10-05 对落地代码的核对结果：第 01–09
+            节保持实现前的设计原貌，以下是计划与现状的差异。差异集中在「翻什么、默认值、控件形态、落盘与传输体积」；分层边界、回退链与超时、provider 进
+            key、遮蔽层与还原校验都按设计落地。
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>计划（第 01–09 节）</th>
+                <th>现状</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">翻译对象</td>
+                <td>六个面的<b>名称与描述</b></td>
+                <td>只有<b>描述</b>进翻译单元：<code>translatedName</code> 已从 wire 与全部渲染点移除，名称是调用标识，搜索、排序、复制与斜杠调用一律用原名。</td>
+              </tr>
+              <tr>
+                <td class="mono">默认值</td>
+                <td>开箱即用：装好即翻</td>
+                <td>
+                  按宿主语言推导：<code>translationDefaultEnabled</code>（<code>src/contracts/settings.ts:101-103</code>）与 <code>src/application/regions.ts:30</code> 的
+                  <code>resolveRegion</code> 同一谓词（<code>zh*</code> → 启用，其余 →
+                  不启用），完全拿不到语言时兜底不启用。用户显式设置过就不再被推导覆盖（<code>resolveMarketSettings</code>，<code>:123-131</code>）；因此该字段的 schema
+                  <b>不声明默认值</b>（<code>src/application/mcp/mcp-backend.ts:44</code>），否则「未设置」与「显式 false」会在实时配置引用里都读作
+                  <code>false</code>。设置卡在未设置时显示生效值。
+                </td>
+              </tr>
+              <tr>
+                <td class="mono">设置卡</td>
+                <td>翻译开关 + provider 优先级 + TTL</td>
+                <td>
+                  翻译开关（行上带「实验性」<code>Tag</code>）+ <b>文本</b>重置按钮（宿主 <code>Button</code>，ghost / sm，文案「重置缓存」，完成后短暂显示「翻译缓存已清空」）+
+                  <code>BilingualToggle</code> 的逐条「显示原文 / 显示译文」。provider 顺序不可配，也没有 TTL 设置。
+                </td>
+              </tr>
+              <tr>
+                <td class="mono">缓存回收</td>
+                <td>7 天 TTL + 24h 定时清理</td>
+                <td>
+                  条目<b>不过期</b>，由设置卡的重置按钮整份清空（<code>src/application/state/translation-cache.ts:10-11</code>）。内容寻址 key 只增不减，回收路径是用户显式动作。
+                </td>
+              </tr>
+              <tr>
+                <td class="mono">列表 wire</td>
+                <td>列表行返回译文（未提正文）</td>
+                <td>
+                  列表行<b>剥离</b> <code>rawText</code> 与
+                  <code>content</code
+                  >（<code>src/application/panel-resources.ts:201-204</code>）；客户端只对打开的那一条调单条读，单条读按同一修订返回全文（<code>src/contracts/market.ts:379-396</code>）。
+                </td>
+              </tr>
+              <tr>
+                <td class="mono">文件落点</td>
+                <td><code>ui/use-translations.ts</code>、<code>features/market/bilingual-description.ts</code>、<code>application/lsp/status.ts</code></td>
+                <td>
+                  落地为 <code>ui/translated-text.ts</code> + <code>ui/translation-settle.ts</code>（<code>TRANSLATION_POLL_MS = 1_500</code>）+
+                  <code>ui/translation-enabled.ts</code>；<code>bilingual-description.ts</code> 上移为 <code>ui/bilingual-text.ts</code>；LSP 状态在
+                  <code>application/lsp/lsp-status.ts</code>。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout ok">
+            <b>按设计落地的部分</b>
+            分层边界（<code>client</code> 只渲染、网络效应只在 <code>runtime/host/</code>）、四级回退链与 3s / 15s / 30s
+            超时（<code>src/application/translation/chain.ts:38-40</code>）、provider 身份进 key、遮蔽层与还原完整性校验，以及「注入模型上下文的那一份保持英文」。
+          </div>
+        </section>
       </main>
     </div>
-    <footer>通用翻译层 · 技术设计 · 2026-10-04 · 本文档为实现前的设计记录，非现状描述</footer>
+    <footer>通用翻译层 · 技术设计 · 2026-10-04 · 第 01–09 节为实现前的设计记录，第 10 节为 2026-10-05 的落地核对</footer>
   </body>
 </html>

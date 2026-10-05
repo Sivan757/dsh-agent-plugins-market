@@ -45,6 +45,8 @@ export interface SuiteCardProps {
   onToggle: () => void
   onRefresh: () => void
   onUninstall: () => void
+  /** Panel-wide text view, owned by the market section. */
+  showOriginal?: boolean
 }
 
 export function SuiteCard(props: SuiteCardProps): ReactNode {
@@ -61,7 +63,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
   // its own click from reaching the card.
   const toolbarStop = (event: { stopPropagation(): void }): void => event.stopPropagation()
   // Rendered twice: the visible two-line clamp and the hint that reveals the rest.
-  const description = displayText(suite.translatedDescription, suite.description, t) ?? ''
+  const description = displayText(suite.translatedDescription, suite.description, t, { original: props.showOriginal === true }) ?? ''
 
   const actions = suite.installed
     ? [
@@ -143,7 +145,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
     h(
       'div',
       { className: rc.rowId },
-      hoverHint(suite.name, h('span', hintProps({ className: rc.name }), displayText(suite.translatedName, suite.name, t) ?? suite.name)),
+      hoverHint(suite.name, h('span', hintProps({ className: rc.name }), suite.name)),
       suite.version === undefined ? null : h('span', { className: rc.version }, `v${suite.version}`),
       h(Tag, { tone: 'neutral' }, provenance)
     ),

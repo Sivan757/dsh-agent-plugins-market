@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, and implemented by the change that carries it. The layer replaces the single-provider localization [the 2026-10-03 note](../../../.agents/notes/implemented/feature/2026-10-03-description-localization.md) records: that note's decision stands for the split of an already-bilingual description, and its provider half is generalized here from one surface's description to every name and description on six surfaces. The [design document](../design/universal-translation-layer.html) is the pre-implementation record; this page is the decision.
+Accepted, and implemented by the change that carries it. The layer replaces the single-provider localization [the 2026-10-03 note](../../../.agents/notes/implemented/feature/2026-10-03-description-localization.md) records: that note's decision stands for the split of an already-bilingual description, and its provider half is generalized here from one surface's description to every description the six surfaces render. The [design document](../design/universal-translation-layer.html) is the pre-implementation record; this page is the decision.
 
 ## Context
 
@@ -28,7 +28,7 @@ The order is quality-and-cost order, and the measured numbers are what set it:
 - **Microsoft Translator** (`edge.microsoft.com/translate/translatetext`) needs no authentication, no key and no proxy, and answered in 0.38s directly on the same machine. This level is what makes the feature work out of the box, which is why it sits in the chain unconditionally rather than behind a setting.
 - **The user's default model** is the quality ceiling: it can be told how to render domain vocabulary, which a general MT engine cannot. It is reached only when the deployment configured a route, and it is given the longest deadline because a generation legitimately takes seconds.
 
-Batches are capped and de-duplicated before they leave. On the local catalog the six surfaces collect 8,041 fields totalling 1.19M characters; collapsing identical texts across surfaces leaves 4,775 unique strings, 28% fewer characters to send. Two texts that differ only in which surface they came from are still one provider call, because the translation of a string does not depend on where it is rendered.
+Batches are capped, and the provider work is indexed by the source text rather than by the entity. The cache key still names the entity — which is what makes the file the record of what was translated for whom — but a text one entity has already paid for answers for every other entity carrying it, so two texts that differ only in which surface they came from are still one provider call; the translation of a string does not depend on where it is rendered. Measured across this machine's catalog (911 suites), the suite, skill, command and persona descriptions the layer would send total 5,055 fields and 1.35M characters, of which 4,892 texts and 1.33M characters are distinct, and reading all 4,161 documents those suites carry adds 36,503 chunk texts of which 34,729 are distinct — 3.2% and 4.9% of the provider-bound texts are a repeat of a text already carried. A field answered once is served from its own entry on every later start; the text index is derived state rebuilt as a session reads, so a text appearing under a new entity for the first time in a session costs that session one call, and never more than one.
 
 ### 2. The provider identity is part of the cache key
 
@@ -40,7 +40,7 @@ Content-addressed keys only accumulate: an upstream description edited once leav
 
 ### 3. Only the UI layer is translated
 
-Translated text is display-only. Search, sorting, copying, slash invocation and `aria-label` values keep using the upstream name; the card's `title` attribute carries the original so a reader can still see what a string is called. A name is a callable identity, and a translated name that reached a filter or a slash command would break the surface it was meant to improve.
+Translated text is display-only. A name is never translated: it is the identity the user types, searches, sorts, copies and matches against upstream documentation, and a translated name that reached a filter or a slash command would break the surface it was meant to improve. Only a description renders translated, and the authored text stays on the wire beside it for the panel's own view switch.
 
 What a model reads is a different artifact from what a human reads, and the layer does not touch it. The system prompts and tool descriptions this plugin injects into a session stay in the language their author wrote them in — a translation there would change model behavior, spend tokens on every session, and be invisible to the user who would have to debug it.
 

@@ -27,10 +27,21 @@ export function pickBilingualDescription(description: string | undefined | null,
   if (split === undefined) return description
   const zhFirst = hasHan(split[0])
   if (!zhFirst && !hasHan(split[1])) return description
-  // The viewer's locale keys resolve per active language: probe a key whose
-  // zh and en values differ, then match the rendered text against a segment.
-  const probe = t('localeProbeLang')
-  return probe === '中文' ? (zhFirst ? split[0] : split[1]) : (zhFirst ? split[1] : split[0])
+  return localeIsChinese(t) ? (zhFirst ? split[0] : split[1]) : (zhFirst ? split[1] : split[0])
+}
+
+/**
+ * Whether the active locale reads Chinese.
+ *
+ * The locale keys resolve per active language, so a key whose zh and en values
+ * differ answers it directly. Every surface asks the same question the same way:
+ * picking a segment out of a bilingual string, and deciding whether a translation
+ * into the interface language would say anything the reader cannot already read.
+ * @param t - the active translator.
+ * @returns whether the interface language is Chinese.
+ */
+export function localeIsChinese(t: Translate): boolean {
+  return t('localeProbeLang') === '中文'
 }
 
 /**
