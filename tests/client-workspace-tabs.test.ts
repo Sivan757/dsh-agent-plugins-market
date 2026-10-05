@@ -63,22 +63,42 @@ describe('PluginWorkspace tab row', () => {
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
   })
 
-  it('writes the deep-link hash on click and follows a pasted #/agent-plugins/<tab> hash', async () => {
+  it('consumes a pasted deep-link hash and leaves the host URL alone on click', async () => {
     await mount()
     await act(async () => tab(5)!.click())
-    expect(window.location.hash).toBe('#/agent-plugins/lsp')
+    // Switching tabs is local state: the plugin never writes the host page's URL.
+    expect(window.location.hash).toBe('')
+    expect(activePanelTab()?.getAttribute('data-tab')).toBe('lsp')
 
     await act(async () => {
       window.location.hash = '#/agent-plugins/skills'
       window.dispatchEvent(new Event('hashchange'))
     })
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('skills')
+    // The instruction is spent, so a later mount cannot reselect it.
+    expect(window.location.hash).toBe('')
 
-    // An unknown hash leaves the active tab untouched.
+    // An unknown hash is not the plugin's to clear and leaves the tab untouched.
     await act(async () => {
       window.location.hash = '#/agent-plugins/nonsense'
       window.dispatchEvent(new Event('hashchange'))
     })
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('skills')
+    expect(window.location.hash).toBe('#/agent-plugins/nonsense')
+  })
+
+  it('opens on a deep-linked tab at mount, and on the market tab without one', async () => {
+    window.location.hash = '#/agent-plugins/mcp'
+    await mount()
+    expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
+    expect(window.location.hash).toBe('')
+
+    await act(async () => root!.unmount())
+    root = undefined
+    host?.remove()
+    host = undefined
+
+    await mount()
+    expect(activePanelTab()?.getAttribute('data-tab')).toBe('market')
   })
 })

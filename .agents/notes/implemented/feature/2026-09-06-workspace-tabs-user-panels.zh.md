@@ -21,7 +21,7 @@ MCP 详情移除启用控件，将重试与 OAuth 重置分开。后端能力决
 
 六个 Tab 使用 `ResourceCard`、`ResourceCollection` 统一状态边框与卡片/列表布局，使用 `PanelHeader`、`PanelActions` 将新增/刷新放到右上方，使用 `SearchFilterToolbar` 处理搜索和筛选。`useWorkspaceView` 通过 `dsh-agent-plugins-market:view` 保存统一视图偏好，并同步已挂载面板和浏览器标签页。不同资源的搜索词和筛选值保持独立。来源标签表达归属；卡片边框表达状态：启用为绿色，禁用为灰色，警告为黄色，失败为红色。
 
-- **一个工作区页、六个顶部 Tab**（`PluginWorkspace`）：`settings.section` 从三条注册收敛为一条，内部承载 Tab 行（市场 / 技能 / 命令 / 代理角色 / MCP / LSP）。Tab 状态为组件局部；深链走 `#/agent-plugins/<tab>`。每个 Tab 在自己的区域内滚动（从 workspace 链路到 market/mcp CSS 统一 `overflow-y: auto; scrollbar-gutter: stable`），宿主 `.options` 容器不再是滚动者，滚动条显隐不再移动布局。
+- **一个工作区页、六个顶部 Tab**（`PluginWorkspace`）：`settings.section` 从三条注册收敛为一条，内部承载 Tab 行（市场 / 技能 / 命令 / 代理角色 / MCP / LSP）。Tab 状态为组件局部；`#/agent-plugins/<tab>` 哈希只读取一次——资源窗口的「查看」动作用它把面交接过来——随后即消耗，插件不会在宿主页面 URL 上留下哈希。每个 Tab 在自己的区域内滚动（从 workspace 链路到 market/mcp CSS 统一 `overflow-y: auto; scrollbar-gutter: stable`），宿主 `.options` 容器不再是滚动者，滚动条显隐不再移动布局。
 - **套件详情 MCP 区域只读。** 凭据编辑器与覆盖表单移出 `SuiteDetailModal`；展开后仅展示校验过的配置 JSON 与停用徽标。`McpStatusPanel` 的详情弹窗仍是编辑凭据/覆盖的唯一入口。
 - **物理删除是可选的、逐次确认的。** `removeSource(id, deleteCheckout)` 仅在确认对话框勾选「同时删除市场目录」时删除 checkout（默认勾选）。`.sources/<id>` 下的目录属于管理器存储，即使来源是收编的也会被删除；只有 URL 指向 `.sources/` 之外的 `local` 源是仅取消登记、目录永不删除。删除 checkout 正是真正删除的市场不再出现在「未登记」提示里的原因。
 - **用户面板以 Markdown 持久化，而非 state JSON。** 技能 / 命令 / 代理角色是与套件同语法的 Markdown（`description`、`argument-hint`、invocation 开关）外加面板控制键 `disabled: true`。其目录已在[Agent 布局根目录决策](../architecture/2026-09-12-agent-layout-root-for-user-content.zh.md)中迁至共用的 `~/.agents/{skills,commands,agents}/`；下述存储、提供者与挂载机制不变，只是技能面板同时服务其它工具创作的 `<name>/SKILL.md` 形态（[技能目录形态](../feature/2026-09-14-user-skill-directory-spelling.zh.md)）。一个 `UserPanelStore` CRUD 类服务三个面板；第二个技能提供者（`UserPanelSkillProvider`，rank 440，来源 `user-panel`）仅把技能送进技能注册表；角色使用[持久化子代理目录](../architecture/2026-09-09-subagent-catalog.zh.md)，`UserCommandMountRegistry` 在同一条变更管线里把用户命令调和为斜杠命令。命令与角色由 `disabled` 键停用、发现阶段即跳过；技能改为改写宿主的 invocation 开关对，因此它的停用状态写在所有读取器都会解析的文件里（[技能面板对齐](../feature/2026-09-14-user-skill-directory-spelling.zh.md)）。
@@ -43,6 +43,7 @@ MCP 详情移除启用控件，将重试与 OAuth 重置分开。后端能力决
 - 通过翻转 invocation frontmatter 来禁用用户技能被否决：那会把作者的路由意图与面板的运行时控制混为一谈；独立的 `disabled` 键让两者都可逆。
 - 每次删除源都自动删 checkout 被否决：从对话框默认值静默 `rm -rf` 一棵目录树站错了取舍的另一边；勾选框让破坏性路径显式化，同时保持一步可达。
 - 保留详情弹窗内的覆盖编辑器（未安装时禁用）被否决：一份记录两个编辑器必然 UX 分叉；MCP 面板已经拥有凭据、重试与重新授权。
+- 每次点击 Tab 都回写哈希被否决：那样插件会成为宿主页面 URL 的唯一写入者（`dsh-app://app/` 本身不带哈希，宿主代码也没有任何 `pushState`/`replaceState` 调用），而留下的哈希既不可见也无法清除——设置界面按需挂载，下一次挂载就会重新选中它，看起来像「记住了上次的 Tab」。读取后即消耗，既保住深链与资源窗口的交接，又不产生这份状态。
 
 ## 风险
 
@@ -50,6 +51,7 @@ MCP 详情移除启用控件，将重试与 OAuth 重置分开。后端能力决
 - 仅当 HTTP 层拿到面板存储（`mountSuiteRoutes` 第三参数）时才挂载用户面板路由；不传的宿主看到的路由表与从前完全一致。
 - `scrollbar-gutter: stable` 在每个面板保留 gutter；不支持的浏览器退化为自动 gutter（抖动回归，但无破坏）。
 - 用户技能 rank 440，高于套件用户技能（450）但低于所有内建根：手写技能胜过已安装套件附带的同名技能，项目根与用户 `~/.dsh` 技能仍排在它前面。见 [Agent 布局根目录决策](../architecture/2026-09-12-agent-layout-root-for-user-content.zh.md)。
+- 复制 URL 不再能复现当前 Tab：插件读完自己的哈希后即清除。深链仍可消费——粘贴 `#/agent-plugins/mcp` 依然打开 MCP Tab——但地址栏不再是 Tab 状态的显示。
 
 ## 验证
 

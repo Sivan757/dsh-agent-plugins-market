@@ -35,31 +35,34 @@ export interface PluginWorkspaceProps {
 export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWorkspaceProps): ReactNode {
   const [active, setActive] = useState<WorkspaceTab>('market')
 
-  // Deep links: a `#/agent-plugins/<tab>` hash selects the tab directly, and
-  // a tab click writes the hash back (guarded — replaceState keeps the
-  // session history clean) so a copied URL reopens on the same tab.
+  // Deep links: a `#/agent-plugins/<tab>` hash selects the tab, and is then
+  // spent. The hash is a one-shot instruction carried in the URL — the resource
+  // window's "view" action hands a face over it — not tab state the plugin
+  // maintains: a click never writes it, so the plugin leaves the host page's
+  // URL as it found it and reopening always starts on the default tab. A hash
+  // left behind would be invisible and un-clearable, since nothing else in the
+  // host writes one.
   useEffect(() => {
     const applyHash = (): void => {
-      const match = /^#\/agent-plugins\/(\w+)$/.exec(typeof window === 'undefined' ? '' : window.location.hash)
+      if (typeof window === 'undefined') return
+      const match = /^#\/agent-plugins\/(\w+)$/.exec(window.location.hash)
       if (match === null) return
       const tab = match[1] as WorkspaceTab
-      if (TAB_ORDER.includes(tab)) setActive(tab)
+      if (!TAB_ORDER.includes(tab)) return
+      setActive(tab)
+      // Consume it so it cannot outlive the visit and reselect on a later mount.
+      // `replaceState` fires no `hashchange`, so this cannot loop.
+      try {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      } catch {
+        // Sandboxed contexts may refuse history writes; the tab still switches.
+      }
     }
     applyHash()
     if (typeof window === 'undefined') return
     window.addEventListener('hashchange', applyHash)
     return () => window.removeEventListener('hashchange', applyHash)
   }, [])
-
-  const select = (tab: WorkspaceTab): void => {
-    setActive(tab)
-    if (typeof window === 'undefined' || typeof window.history === 'undefined') return
-    try {
-      window.history.replaceState(null, '', `#/agent-plugins/${tab}`)
-    } catch {
-      // Sandboxed contexts may refuse history writes; the tab still switches.
-    }
-  }
 
   const labelKeys: Record<WorkspaceTab, string> = {
     market: t('workspaceTabMarket'),
@@ -80,7 +83,8 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
       className: css.tabRow,
       label: labelKeys.market,
       value: active,
-      onChange: select,
+      // Switching tabs is local state only; the URL stays the host's.
+      onChange: setActive,
       // Display order restated so the required first tab is a literal: the
       // host's items demand a non-empty tuple, and the tab set is fixed anyway.
       items: [
