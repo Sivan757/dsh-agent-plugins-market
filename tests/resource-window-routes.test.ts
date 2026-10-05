@@ -101,7 +101,10 @@ function panelDouble(names: string[], disabled = false): PanelResourceStore {
     get: async name => (await list()).find(entry => entry.name === name),
     create: async () => (await list())[0]!,
     update: async () => {},
-    remove: async () => {}
+    remove: async () => {},
+    // These stubs serve settled text, so the document read answers with an
+    // empty body and nothing left in flight.
+    translateDocument: async () => ({ text: '', pending: 0 })
   }
 }
 
