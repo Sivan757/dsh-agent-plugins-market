@@ -272,7 +272,7 @@ export class MarketplaceStrategy implements ScanFilter {
 // Rooted and flat-collection strategies
 // ---------------------------------------------------------------------------
 
-/** Read nested plugin roots up to four levels deep. */
+/** Read nested plugin roots. Undeclared skill roots form one checkout-level collection. */
 export class RootedStrategy implements ScanFilter {
   readonly name = 'rooted'
 
@@ -284,6 +284,40 @@ export class RootedStrategy implements ScanFilter {
     const found = await collectRoots(context.checkout, undefined, new Set())
     if (found.length === 0) return chain.next(context)
     const resolved = await readSuites(found, context)
+    const declared = await Promise.all(found.map(root => hasSuiteManifest(root.dir!)))
+    const first = resolved[0]
+    if (
+      first !== undefined &&
+      !declared.some(Boolean) &&
+      !found.some(root => root.dir === context.checkout) &&
+      resolved.every(suite => Object.entries(suite.surfaces).every(([surface, count]) => surface === 'skills' || count === 0))
+    ) {
+      // A reserved ID cannot inherit an individual skill's install state.
+      // Non-skill surfaces retain their original roots for relative commands.
+      const id = '@skills'
+      const seen = new Set<string>()
+      const skills = resolved
+        .flatMap(suite => suite.skills)
+        .filter(skill => {
+          if (seen.has(skill.name)) return false
+          seen.add(skill.name)
+          return true
+        })
+      return {
+        kind: 'resolved',
+        suites: [
+          {
+            ...first,
+            id,
+            root: context.checkout,
+            manifest: { layout: 'skill-collection', id, name: syntheticManifestName(context.checkout), path: '' },
+            skills,
+            surfaces: { ...first.surfaces, skills: skills.length },
+            errors: resolved.flatMap(suite => suite.errors)
+          }
+        ]
+      }
+    }
     return resolved.length === 0 ? chain.next(context) : { kind: 'resolved', suites: resolved }
   }
 }

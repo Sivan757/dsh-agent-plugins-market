@@ -25,6 +25,8 @@ The active contracts in `schemas/` describe ten layouts: eight client/convention
 
 `tests/component-declarations.test.ts` covers schema forms not present in every sample: file/directory/array paths, Cursor text extensions, MCP file/inline arrays, file LSP configs, Qoder inline commands, Kimi hooks/system prompts/catalog aliases, marketplace pluginRoot and entry-only declarations, Codex API catalogs, and containment/fail-closed cases. `tests/project-hooks.test.ts` covers the project dimension: settings-table and standalone hook files, the bare event table a `hooks.json` may carry, malformed-file fail-closed behavior, and the private runtime snapshot the bridge mounts.
 
+[Skill source aggregation tests](../../tests/skill-source-aggregation.test.ts) cover one-card grouping, installation, reload, resource paths, duplicate names, and invalid-skill diagnostics. Explicit marketplace and plugin declarations retain their identities. Undeclared roots with other runtime surfaces remain separate. The [skill collection contract](../../schemas/skill-collection/spec.md#source-grouping) defines installation behavior.
+
 ## Implementation
 
 `component-files.ts` resolves contained paths and normalized resources; `suite-components.ts` normalizes hook and LSP declarations. Catalog counts, command/agent providers, role routing and detail panels consume those same resources. Invalid explicit hooks cannot revive the default hook file. Inline manifest commands remain read-only in the resource editor.

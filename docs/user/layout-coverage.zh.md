@@ -25,6 +25,8 @@
 
 `tests/component-declarations.test.ts` 补充样本未必具备的 schema 形式：文件/目录/数组路径、Cursor 文本扩展名、MCP 文件/内联数组、文件式 LSP、Qoder 内联命令、Kimi hooks/系统提示/catalog 别名、marketplace pluginRoot 与仅条目声明的套件、Codex API catalog，以及路径隔离和失败关闭。`tests/project-hooks.test.ts` 覆盖项目维度：设置表与独立 hook 文件、`hooks.json` 可携带的裸事件表、文件损坏时的失败关闭，以及桥挂载的私有运行时快照。
 
+[技能源聚合测试](../../tests/skill-source-aggregation.test.ts)覆盖单卡片聚合、安装、重新加载、资源路径、同名去重和无效技能诊断。显式市场条目和插件声明保留各自身份。包含其它运行面的无清单目录仍保持独立。[技能集合契约](../../schemas/skill-collection/spec.md#source-grouping)定义安装行为。
+
 ## 实现
 
 `component-files.ts` 负责受限路径与归一化资源，`suite-components.ts` 归一化 hooks 和 LSP 声明。目录计数、命令/代理提供器、角色路由、详情面板使用同一组资源。显式 hooks 无效时不会回退执行默认文件。清单内联命令在资源编辑器中保持只读。

@@ -168,6 +168,8 @@ The table says per layout whether this plugin reads a given surface at all. **Ye
 - **agent-plugins** suites read the portable core (`skills/`, `mcp.json`) per the specification, plus this plugin's [`com.deepseek.harness`](schemas/com.deepseek.harness/spec.md) extension namespace for commands, agents, hooks, LSP and per-server MCP policy (OAuth, tool lists, timeouts). Root-level `commands/`, `agents/`, `hooks/` and `.mcp.json` files belong to other layouts and are reported as unread for this dialect; inline manifest component keys are reported and ignored per §5.2. Both recognized releases (1.0.0, 1.1.0) validate against their own vendored schemas.
 - **Universal** is a compatibility-layout label used by this plugin; the [OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins) documents the same `.plugin/plugin.json` location and a [Vercel repository](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json) uses it, but no cross-vendor specification exists.
 
+Sources such as [jeecgboot/skills](https://github.com/jeecgboot/skills) group undeclared, skill-only directories into one plugin card. Marketplace entries and roots with plugin manifests or other runtime surfaces retain their separate identities. The aggregate requires its own installation and does not inherit individual skill installs. See [skill collection rules](schemas/skill-collection/spec.md).
+
 Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped.
 
 ### Project layout switch

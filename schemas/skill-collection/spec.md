@@ -20,6 +20,14 @@ A source directory qualifies as a manifest-less skill collection only after skil
 
 `SKILL.md` frontmatter carries `name` and `description`; user-invocable skills surface as `/` entries in chat, and skills may restrict manual invocation.
 
+## Source grouping
+
+Without productive marketplace entries, discovered skill-only roots form one suite at the source checkout root. This includes `<root>/<name>/SKILL.md` and nested collections. Explicit plugin manifests and roots with other runtime surfaces keep their existing identities and relative paths. A source that already resolves at its checkout root keeps that suite identity.
+
+The aggregate uses the reserved ID `@skills`, qualified by the source ID, and the checkout basename as its display name. Individual skill IDs cannot grant installation permission to the aggregate. Install the aggregate separately to enable its skills. Existing install records remain unchanged.
+
+Skill names, documents, and resource directories remain attached to their original files. Duplicate names keep the first discovered skill. Invalid skills produce diagnostics and stay excluded. An entirely invalid collection produces no suite.
+
 ## Surfaces
 
 Because there is no manifest, component locations are the shared scanning conventions only: files directly under `agents/*.md` and `commands/*.md`, `hooks/hooks.json` or root `hooks.json` (Claude Code command-hook subset), and MCP files (`mcp.json`, `.mcp.json`, or inline manifest `mcpServers`, which does not exist here). LSP is preview-only because there is no manifest `lspServers` to validate.

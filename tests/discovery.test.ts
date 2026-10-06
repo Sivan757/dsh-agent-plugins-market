@@ -339,10 +339,10 @@ describe('validate: manifest and mcp.json', () => {
 })
 
 describe('discovery: manifest-less skill collection layout', () => {
-  it('treats flat SKILL.md directories as synthetic suites', async () => {
+  it('groups flat SKILL.md directories into one synthetic suite', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'flat-skills'), 'flat', 'user')
-    expect(suites.map(suite => suite.id)).toEqual(['order-crud'])
-    const suite = required(suites[0], 'order-crud as the only flat-skills suite')
+    expect(suites.map(suite => suite.id)).toEqual(['@skills'])
+    const suite = required(suites[0], 'flat-skills as the only collection suite')
     expect(suite.manifest.layout).toBe('skill-collection')
     const skill = required(suite.skills[0], 'order-crud to ship one skill')
     expect(skill.name).toBe('order-crud')

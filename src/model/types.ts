@@ -88,9 +88,9 @@ export interface SuiteManifest {
   systemPrompt?: string
   systemPromptPath?: string
   layout: SuiteLayoutKind
-  /** Absolute manifest file path. */
+  /** Absolute manifest file path, or empty for a metadata-only or aggregate suite. */
   path: string
-  /** Suite id derived from the manifest name or its root directory, sanitized to `[a-z0-9-]`. */
+  /** Sanitized manifest or directory name, or reserved `@skills` for an aggregate collection. */
   id: string
   name: string
   version?: string

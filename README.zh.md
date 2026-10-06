@@ -168,6 +168,8 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 - **agent-plugins** 套件按规范读取可移植核心（`skills/`、`mcp.json`），另通过本插件的 [`com.deepseek.harness`](schemas/com.deepseek.harness/spec.md) 扩展命名空间承载命令、代理、hooks、LSP 与逐服务器 MCP 策略（OAuth、工具清单、超时）。该布局下根目录的 `commands/`、`agents/`、`hooks/` 与 `.mcp.json` 属于其它布局，给出「未读取」诊断；清单内联组件键按 §5.2 报告后忽略。两个受支持的版本（1.0.0、1.1.0）各自按内置 schema 校验。
 - **Universal** 是本插件使用的兼容布局名称：[OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins)文档同样使用 `.plugin/plugin.json`，[Vercel 仓库](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json)也在使用，但不存在跨厂商规范。
 
+[jeecgboot/skills](https://github.com/jeecgboot/skills) 这类源中，未声明插件且只包含技能的目录会聚合为一张插件卡片。市场条目、自带插件清单或其它运行面的目录仍保留独立身份。聚合插件需要单独安装，不继承单个技能的安装状态。详见[技能集合规则](schemas/skill-collection/spec.md)。
+
 能读取一种布局，并不保证复现原平台的全部行为。无效声明会被诊断并跳过。
 
 ### 项目布局开关
