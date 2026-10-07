@@ -42,11 +42,8 @@ const GOOGLE_ENDPOINT = 'https://translate-pa.googleapis.com/v1/translateHtml'
 const GOOGLE_API_KEY = 'AIzaSyATBXajvzQLTDHEQbcpq0Ihe0vWDHmO520'
 /** Microsoft's consumer endpoint, the one Edge's translate feature calls. */
 const MICROSOFT_ENDPOINT = 'https://edge.microsoft.com/translate/translatetext'
-/**
- * Catalog text is authored in English, and the localizer never queues text that
- * already carries CJK, so the source side is a constant rather than a guess.
- */
-const SOURCE_LANGUAGE = 'en'
+/** Auto-detect each request item; user-authored text can be Chinese or English. */
+const SOURCE_LANGUAGE = 'auto'
 /** How much of an error body to quote before it stops being diagnostic. */
 const ERROR_BODY_LIMIT = 200
 
@@ -172,7 +169,6 @@ export async function googleTranslate(request: MachineTranslationRequest): Promi
 export async function microsoftTranslate(request: MachineTranslationRequest): Promise<MachineTranslationResult> {
   if (request.texts.length === 0) return { texts: [], provider: 'microsoft' }
   const query = new URLSearchParams({
-    from: SOURCE_LANGUAGE,
     to: microsoftTargetLanguage(request.locale),
     isEnterpriseClient: 'false'
   })

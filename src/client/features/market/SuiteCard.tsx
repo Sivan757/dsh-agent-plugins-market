@@ -4,7 +4,7 @@
  * description, and a source row carrying the counts.
  */
 import { createElement as h, type HTMLAttributes, type ReactElement, type ReactNode } from 'react'
-import { displayText } from '../../ui/translated-text.js'
+import { useDisplayText } from '../../ui/translated-text.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Switch, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
@@ -63,7 +63,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
   // its own click from reaching the card.
   const toolbarStop = (event: { stopPropagation(): void }): void => event.stopPropagation()
   // Rendered twice: the visible two-line clamp and the hint that reveals the rest.
-  const description = displayText(suite.translatedDescription, suite.description, t, { original: props.showOriginal === true }) ?? ''
+  const description = useDisplayText(suite.translatedDescription, suite.description, t, { original: props.showOriginal === true }) ?? ''
 
   const actions = suite.installed
     ? [

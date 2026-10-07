@@ -20,7 +20,7 @@ vi.mock('../src/client/api.js', () => ({
   postAction: vi.fn()
 }))
 
-import { invalidateOverview, startDescriptionRefresh } from '../src/client/features/market/market-resource.js'
+import { invalidateOverview, loadOverview, startDescriptionRefresh } from '../src/client/features/market/market-resource.js'
 
 const EMPTY = { sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '', data: '' } }
 
@@ -31,6 +31,26 @@ afterEach(() => {
 })
 
 describe('startDescriptionRefresh', () => {
+  it('starts a new generation after invalidation and never caches an older response', async () => {
+    let finishOld!: (value: unknown) => void
+    const old = new Promise(resolve => {
+      finishOld = resolve
+    })
+    const current = { ...EMPTY, translationPending: 0, roots: { ...EMPTY.roots, user: 'new-language' } }
+    payloads.queue.push(old, current)
+    const before = loadOverview().promise
+    invalidateOverview()
+    const after = loadOverview().promise
+    expect(after).not.toBe(before)
+    expect(await after).toEqual(current)
+    finishOld({ ...EMPTY, roots: { ...EMPTY.roots, user: 'old-language' } })
+    await before
+    payloads.queue.push(current)
+    const next = loadOverview()
+    expect(next.initial).toEqual(current)
+    await next.promise
+  })
+
   it('re-reads while translations are pending and stops when none are', async () => {
     vi.useFakeTimers()
     payloads.queue.push({ ...EMPTY, translationPending: 2 }, { ...EMPTY, translationPending: 1 }, { ...EMPTY })

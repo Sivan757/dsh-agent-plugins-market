@@ -113,7 +113,7 @@ describe('market detail documents are read on expand', () => {
     api.fetchSuiteDocument.mockResolvedValue({ name: 'big', content: BIG_COMMAND })
     await click('big')
     expect(api.fetchSuiteDocument).toHaveBeenCalledTimes(1)
-    expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', 'commands', 'big')
+    expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', 'commands', 'big', undefined)
     // The payload carried no body, so this text can only be the read's — and the
     // read is the whole document, tail included, with no cut marker in sight.
     expect(rowBody('big').textContent).toContain(BIG_TAIL)
@@ -133,20 +133,20 @@ describe('market detail documents are read on expand', () => {
     // A skill reads by its own kind and name, and shows its loading line until
     // the read lands.
     await click('greet')
-    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'skills', 'greet')
+    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'skills', 'greet', undefined)
     expect(rowBody('greet').textContent).toContain('loading')
     await act(async () => pending.shift()?.({ name: 'greet', content: '# Greet\n\nRun the script.' }))
     expect(rowBody('greet').textContent).toContain('Run the script.')
 
     // The other two take exactly that path, each naming its own document.
     await click('big')
-    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'commands', 'big')
+    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'commands', 'big', undefined)
     expect(rowBody('big').textContent).toContain('loading')
     await act(async () => pending.shift()?.({ name: 'big', content: BIG_COMMAND }))
     expect(rowBody('big').textContent).toContain(BIG_TAIL)
 
     await click('reviewer')
-    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'agents', 'reviewer')
+    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'agents', 'reviewer', undefined)
     await act(async () => pending.shift()?.({ name: 'reviewer', content: 'Review carefully.' }))
     expect(rowBody('reviewer').textContent).toContain('Review carefully.')
 
@@ -159,7 +159,7 @@ describe('market detail documents are read on expand', () => {
     // Reopening a row reads again rather than reusing whatever it showed before.
     await click('reviewer')
     await click('reviewer')
-    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'agents', 'reviewer')
+    expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'agents', 'reviewer', undefined)
     expect(api.fetchSuiteDocument).toHaveBeenCalledTimes(5)
   })
 })

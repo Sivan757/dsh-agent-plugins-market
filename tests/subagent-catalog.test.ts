@@ -170,12 +170,39 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(JSON.stringify(publish(agent, await step(agent))[0]?.content)).toContain('Delegate proactively')
   })
 
-  it('renders compact Team discovery without authorizing creation or exposing role bodies', () => {
+  it('uses the same visible subagent-catalog title in both modes and updates', () => {
+    for (const text of [renderCatalogText([reviewer], false), renderCatalogText([reviewer], true), renderTeamRoleCatalogText([reviewer]), renderTeamRoleCatalogText([])]) {
+      expect(text).toContain('\n## subagent-catalog\n')
+    }
+  })
+
+  it('separates Markdown blocks and keeps ordinary quotes readable', () => {
+    const role = { ...reviewer, name: 'reviewer', description: `Review "code" and user's changes` }
+    const text = renderTeamRoleCatalogText([role])
+    expect(text).toContain('<system-reminder>\n\n## subagent-catalog\n\n')
+    expect(text).toContain(`
+
+- "reviewer": Review "code" and user's changes
+
+A role`)
+    expect(text).not.toContain('&quot;')
+    expect(text).not.toContain('&apos;')
+    expect(text.endsWith('\n\n</system-reminder>')).toBe(true)
+  })
+
+  it('renders Team discovery only: the list, the routing rule and the coordination pointer', () => {
     const text = renderTeamRoleCatalogText([{ ...reviewer, description: '</system-reminder> review' }])
-    expect(text).toContain('does not authorize creating members')
-    expect(text).toContain('native Team messaging')
+    // Discovery: the replacement declaration, the role list and which entry takes which call.
+    expect(text).toContain('replaces every earlier subagent-catalog')
+    expect(text).toContain('spawn_teammate_role')
+    expect(text).toContain('spawn_teammate')
+    expect(text).toContain('Team coordination section')
     expect(text).toContain('&lt;/system-reminder&gt;')
+    // Authorization, briefing, management and model choice stay with the host and the coordination section.
+    expect(text).not.toContain('does not authorize creating members')
     expect(text).not.toContain('Delegate proactively')
+    expect(text).not.toContain('self-contained')
+    expect(text).not.toContain('model settings apply')
     expect(text).not.toContain('job_output')
     expect(text).not.toContain('provider/model')
   })
@@ -185,7 +212,8 @@ describe('durable subagent catalog on the real host session and tool registries'
     const { step } = await setup(async () => entries)
     const agent = newAgent('updates')
     const [initial] = publish(agent, await step(agent))
-    expect(initial?.source).toEqual({ kind: 'subagent-catalog', form: 'catalog', entries })
+    expect(initial?.source).toMatchObject({ kind: 'subagent-catalog', form: 'catalog', entries })
+    expect(initial?.source).toHaveProperty('guidanceHash', expect.any(String))
     expect(JSON.stringify(initial?.content)).toContain('subagent_role')
     expect(messages(await step(agent))).toEqual([])
     entries = [{ ...reviewer, provider: 'other', model: 'other-model', reasoningEffort: 'low' }]
@@ -264,9 +292,38 @@ describe('durable subagent catalog on the real host session and tool registries'
     const proposed = messages(await step(agent))
     expect(proposed[0]?.source).not.toHaveProperty('update')
     expect(messages(await step(agent, proposed))).toEqual(proposed)
-    const seeded = createUserMessage({ source: { kind: 'subagent-catalog', form: 'catalog', entries: [reviewer] }, content: [{ type: 'text', text: 'Different prose' }] })
+    const seeded = createUserMessage({
+      source: { ...proposed[0]!.source, kind: 'subagent-catalog', form: 'catalog', entries: [reviewer] },
+      content: [{ type: 'text', text: 'Different prose' }]
+    })
     agent.session.append('user/message', seeded, { surfaceOp: 'append' })
     expect(messages(await step(agent, proposed))).toEqual([])
+  })
+
+  it.each(['subagent_role', 'spawn_teammate_role'] as const)('refreshes legacy and outdated %s guidance once without changing roles or deleting history', async mode => {
+    const { ctx, tool, dispose, step } = await setup(async () => [reviewer])
+    dispose()
+    cleanups.push(mountSubagentCatalog(ctx, tool, async () => [reviewer], mode))
+    for (const guidanceHash of [undefined, 'old-guidance']) {
+      const agent = newAgent('legacy-' + guidanceHash)
+      const old = createUserMessage({
+        source: {
+          kind: 'subagent-catalog',
+          form: 'catalog',
+          entries: [reviewer],
+          ...(mode === 'spawn_teammate_role' ? { tool: mode } : {}),
+          ...(guidanceHash ? { guidanceHash } : {})
+        },
+        content: [{ type: 'text', text: 'Old catalog guidance' }]
+      })
+      agent.session.append('user/message', old, { surfaceOp: 'append' })
+      const [replacement] = publish(agent, await step(agent))
+      expect(replacement?.source).toMatchObject({ update: true, entries: [reviewer] })
+      expect(replacement?.source).toHaveProperty('guidanceHash', expect.any(String))
+      expect(JSON.stringify(replacement?.content)).toContain('## subagent-catalog')
+      expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.id === old.id)).toBe(true)
+      expect(messages(await step(agent))).toEqual([])
+    }
   })
 
   it('matches exact tool visibility, including restrictions and a same-name replacement', async () => {
@@ -333,8 +390,8 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(text).toContain('- `reviewer`: Review code')
     // The envelope is the host skill catalog's: a blank line sets the tag on
     // its own line, so the prose above and below never reads as part of it.
-    expect(text).toContain('\n\n<available_subagents>\n- `reviewer`: Review code\n</available_subagents>\n\n')
-    expect(renderCatalogText([], true)).toContain('\n\n<available_subagents>\n</available_subagents>\n\n')
+    expect(text).toContain('\n\n<available_subagents>\n\n- `reviewer`: Review code\n\n</available_subagents>\n\n')
+    expect(renderCatalogText([], true)).toContain('\n\n<available_subagents>\n\n\n</available_subagents>\n\n')
     // The title and the configured route are durable metadata that never reach the model.
     expect(text).not.toContain('Reviewer:')
     expect(text).not.toContain('workbuddy')

@@ -5,7 +5,7 @@
  * browser externals are React, ReactDOM, and the injected `dsh.client.inject`
  * module table, so it cannot reach packages the host does not serve.
  */
-import { createElement as h } from 'react'
+import { createElement as h, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BusyOverlay } from './ui/BusyOverlay.js'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
@@ -14,12 +14,16 @@ import { MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../contracts/set
 import { fetchMcpBackend, fetchMenuRowFaces } from './api.js'
 import { createMenuRowFaces, type MenuRowFaces } from './menu-row-faces.js'
 import { en, zh, type LocaleKey } from './locales.js'
-import { resourcesEn, resourcesZh, type ResourceLocaleKey } from './locales-resources.js'
+import { resourcesEn, resourcesZh } from './locales-resources.js'
 import { PluginWorkspace } from './workspace/PluginWorkspace.js'
 import { McpPluginCard } from './features/settings-card/McpPluginCard.js'
 import { bindMarketCardForm, type MarketCardFace } from './features/settings-card/market-card-form.js'
 import { bindInterfaceLanguage, bindTranslationEnabled, translationEnabled, LOCALE_SETTINGS_ENTRY } from './ui/translation-enabled.js'
-import { ComposerResourceEntry } from './features/resource-window/ComposerResourceEntry.js'
+import { bindAgentPresetsEnabled, useAgentPresetsEnabled } from './ui/agent-presets-enabled.js'
+import { createElement as slotH } from 'react'
+import { ExtensionDetailView } from './workspace/ExtensionResourceDetail.js'
+import { ExtensionPresetEntry, type ExtensionTranslate } from './features/extension-presets/ExtensionPresetEntry.js'
+import { extensionPresetsEn, extensionPresetsZh } from './locales-extension-presets.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './workspace/page-mode.js'
 
@@ -64,8 +68,18 @@ export const name = 'dsh-agent-plugins-market'
 export const inject = ['slots', 'locale', 'remote', 'remote.credentials']
 export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
 
-/** The composer toggle row needs nothing beyond React and the slots seat. */
+/** Published composer seat after Permissions; blank and ongoing sessions share one icon entry. */
 export const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
+
+/**
+ * The slot's payload, behind the experimental switch: nothing renders while
+ * the setting is off, and a flip shows the entry without a reload.
+ */
+function PresetEntrySlot(props: { sessionId?: string; t: ExtensionTranslate }): ReactNode {
+  const enabled = useAgentPresetsEnabled()
+  if (!enabled || !props.sessionId) return null
+  return h(ExtensionPresetEntry, { sessionId: props.sessionId, t: props.t, renderDetail: detail => h(ExtensionDetailView, detail) })
+}
 
 /** Detect host primitives that predate the exports this UI relies on. */
 export function missingPrimitives(module: Record<string, unknown>, required: readonly string[] = REQUIRED_PRIMITIVES): string[] {
@@ -73,23 +87,20 @@ export function missingPrimitives(module: Record<string, unknown>, required: rea
 }
 
 export function apply(ctx: SuiteClientContext): void {
-  // The per-workspace surface switches ride the composer's left tool row;
-  // inject re-runs the registration whenever the host remounts the bar.
+  // No additive top entry exists; this seat supplies the materialized session identity beside Permissions.
+  // The capability is experimental: the entry renders only while the setting is on, and a flip shows it without a reload.
   ctx.slots.inject(COMPOSER_TOGGLE_SLOT, () => {
     const dispose = ctx.slots.register(
-      { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-resources', order: 60, label: () => ctx.locale.bind(NS)('toggleSurfaceTitle') },
-      // The merged dictionary carries the resource keys too; the window's
-      // wider key union is a property of the merged dict, asserted once here
-      // instead of widening Translate for every existing call site.
-      () => h(ComposerResourceEntry, { t: ctx.locale.bind(NS) as unknown as (key: ResourceLocaleKey, params?: Record<string, unknown>) => string })
+      { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-resources', order: 60, label: () => (ctx.locale.bind(NS) as ExtensionTranslate)('epTitle') },
+      (props: { sessionId?: string }) => slotH(PresetEntrySlot, { sessionId: props.sessionId, t: ctx.locale.bind(NS) as ExtensionTranslate })
     )
     return () => dispose?.()
   })
   ctx.effect(
     () =>
       ctx.locale.register(NS, {
-        zh: { ...zh, ...resourcesZh },
-        en: { ...en, ...resourcesEn }
+        zh: { ...zh, ...resourcesZh, ...extensionPresetsZh },
+        en: { ...en, ...resourcesEn, ...extensionPresetsEn }
       }),
     'dsh-agent-plugins: dictionaries'
   )
@@ -127,14 +138,24 @@ export function apply(ctx: SuiteClientContext): void {
     if (service === undefined) return
     // One host form supplies both the read-only preference and the editable card.
     let card: MarketCardFace | undefined
-    return service.whileServed([NS], () => {
-      const form = service.get<MarketSettings>(NS)
-      // The translation default follows the interface language, so the
-      // read-only preference and the card both resolve it off the locale row's
-      // own form — the same `locale.preference` the node half reads.
-      const language = bindInterfaceLanguage(service.get<{ preference?: string }>(LOCALE_SETTINGS_ENTRY))
-      const unbindTranslation = bindTranslationEnabled(form, language)
-      if (slots === undefined) return unbindTranslation
+    // The translation preference is a global read of the namespace, not a seat
+    // on the settings page: every document surface asks whether a translation is
+    // shown, the composer entry's dialog included. It therefore follows the
+    // configForms service's lifetime, the way the host's own pages take
+    // `configForms.get(NS)` at apply time and leave only the slot registration
+    // inside whileServed — `get` has no served precondition. Binding it inside
+    // the watch would tie the preference to a surface-scoped lifetime that is
+    // not its own.
+    const form = service.get<MarketSettings>(NS)
+    // The translation default follows the interface language, so the read-only
+    // preference and the card both resolve it off the locale row's own form —
+    // the same `locale.preference` the node half reads.
+    const language = bindInterfaceLanguage(service.get<{ preference?: string }>(LOCALE_SETTINGS_ENTRY))
+    const unbindTranslation = bindTranslationEnabled(form, language)
+    // The preset manager is experimental: the same form drives its visibility.
+    const unbindPresets = bindAgentPresetsEnabled(form)
+    const stopServed = service.whileServed([NS], () => {
+      if (slots === undefined) return () => {}
       const bound = bindMarketCardForm(form, fetchMcpBackend, language)
       card = bound.face
       const dispose = slots.register({
@@ -144,19 +165,23 @@ export function apply(ctx: SuiteClientContext): void {
         inject: () => card!,
       }, McpPluginCard)
       return () => {
-        unbindTranslation()
         bound.dispose()
         card = undefined
         if (typeof dispose === 'function') dispose()
       }
     })
+    return () => {
+      unbindTranslation()
+      unbindPresets()
+      stopServed()
+    }
   })
 
   // The `/` menu's rows: our commands and skills carry the same translated
   // title and description the panels show. Wrapping is the whole feature, so it
   // follows the translation switch exactly — while the switch is off nothing is
   // wrapped and the menu renders the host's own text, as it does without us.
-  ctx.inject?.(['commandUi', 'inputTriggers'], (scoped: { commandUi?: unknown; inputTriggers?: unknown }) => {
+  ctx.inject?.(['commandUi', 'inputTriggers', 'sessions'], (scoped: { commandUi?: unknown; inputTriggers?: unknown; sessions?: unknown }) => {
     let faces: MenuRowFaces | undefined
     /** Bring the wrapper in line with the switch; installing is idempotent. */
     const sync = (): void => {
@@ -169,6 +194,7 @@ export function apply(ctx: SuiteClientContext): void {
       faces = createMenuRowFaces({
         commandUi: scoped.commandUi,
         inputTriggers: scoped.inputTriggers,
+        sessions: scoped.sessions,
         load: fetchMenuRowFaces,
         onError: error => console.warn('[dsh-agent-plugins-market] menu row faces unavailable:', error)
       })
@@ -178,7 +204,7 @@ export function apply(ctx: SuiteClientContext): void {
     // The label is the host's translation of our text, so a language switch
     // invalidates every face; a fresh read is the whole update.
     const unsubscribeLocale = ctx.locale.subscribe?.(() => {
-      void faces?.refresh()
+      void faces?.refresh(true)
     })
     sync()
     return () => {

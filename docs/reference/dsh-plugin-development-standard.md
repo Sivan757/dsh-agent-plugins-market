@@ -193,21 +193,14 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 
 ---
 
-## 附录 A：rc.2 已验证事实与已知缺口
+## 附录 A：rc.2 已验证事实
 
 **已验证：**
 
 - Client bundle 由 `window.__ModuleLoader__.load({ id, factory })` 装载；CSS 必须内联注入 head。
 - Client `dsh.client.inject` 表不含 `dsh-client-ui-primitives`，但可直接 `require('@deepseek-ai/dsh-client-ui-primitives')`；`dsh-client-store` 同理（`createSnapshotStore(init, { persist: { name } })` 即平台自带的 localStorage 持久化，勿自建浏览器 store）。两者都是 `PLATFORM_MODULES` 的 seed word，直接 require 即可。
 - host 侧可复用能力（rc.1/rc.2 均已发布且在标准 profile 中）：`dsh-timeout` 的 `deadline`/`MAX_TIMER_DELAY_MS`、`dsh-credentials` 的 `credentialKey`、`dsh-subprocess` 的 `scrubbedParentEnv`、`dsh-attachment` 的 `isImageAdmissionError`；定时器座位 `ctx.interval`/`ctx.timeout`/`ctx.debounce` 由 base bundle 挂载的 `cordis-plugin-timer` 提供，随 fiber 自动释放。
-- Host `ctx.sessions` / `ctx.workspaces` 的 `refresh` 在 rc.2 接口类型上不存在、运行时实例存在 → 守卫调用。
-- `settings.section` 槽位仅新版 Web 壳提供；legacy 壳需 page-mode 回退分支（探测后二选一，不重复渲染）。
-
-**已知缺口（截至 rc.2，遇到时先查有无新版本再走私有路径）：**
-
-- 客户端行菜单槽位 `sidebar.workspaces.session.actions` 不存在；行操作需经 session-context-menu extensions 桥，并自行创建共享 registry 对象防加载顺序问题。
-- 会话 unarchive 无官方 API，只能走私有 registry 路径（守卫 + 注释说明）。
-- 无 per-session 工具作用域：项目维度 MCP 无法挂载；命令注册进程级、非 session-cwd 级。
+- `settings.section` 由 rc.2 的 `dsh-client-ui-settings` 声明；没有该槽位的旧壳走 page-mode 回退分支（探测后二选一，不重复渲染）。
 
 ## 附录 B：API 调研入口
 

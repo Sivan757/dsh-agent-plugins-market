@@ -1,12 +1,9 @@
 /**
  * Which delegation surface a deployment runs.
  *
- * A deployment that activates Agent Teams replaces the host's delegation and
- * coordination tools with its own: the Team profile disables `tool-subagent`,
- * `tool-subagent-control` and their siblings, and registers `list_agents`,
- * `send_message`, `wait_agent` and `spawn_teammate` in each Agent scope. Those
- * tools answer in the Team identity namespace, where a role child started over
- * `ctx.subagents` has no name and no membership.
+ * Team messaging addresses Team members, not standalone children created through
+ * `ctx.subagents`. Deployments can expose both creation paths. Host tool
+ * activation belongs to the local DSH profile, not this plugin.
  *
  * Two delegation surfaces in one session therefore compete for the same work
  * and disagree about how to name a child. This module keeps one of them: the

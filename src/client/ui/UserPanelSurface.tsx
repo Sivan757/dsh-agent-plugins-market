@@ -13,9 +13,10 @@ import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { ResourceCard, ResourceCollection } from './ResourceCard.js'
-import { displayText } from './translated-text.js'
+import { useDisplayText } from './translated-text.js'
 import { hintProps, hoverHint } from './hover-hint.js'
 import { BilingualToggle } from './BilingualToggle.js'
+import { useTranslationRefresh } from './translation-enabled.js'
 import { useWorkspaceView } from './workspace-view.js'
 import { pollUntilTranslated } from './translation-settle.js'
 import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
@@ -61,6 +62,10 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   // One reading mode for the whole panel: the switch lifts to this surface so a
   // single click re-reads every card and the detail dialog under it.
   const [showOriginal, setShowOriginal] = useState(false)
+  const language = t('localeProbeLang')
+  const languageRef = useRef(language)
+  languageRef.current = language
+  const [entriesLanguage, setEntriesLanguage] = useState<string | undefined>()
   // Latest-wins guard: overlapping mutations re-read the list, and a slow
   // earlier response must never overwrite a newer one's result.
   const refreshSeq = useRef(0)
@@ -82,12 +87,16 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
    */
   const refresh = useCallback(async (force = false): Promise<void> => {
     const seq = ++refreshSeq.current
+    const requestedLanguage = languageRef.current
     setError(undefined)
     settle.current?.stop()
     settle.current = undefined
     try {
       const data = await loadUserPanel(kind, force)
-      if (refreshSeq.current === seq) setEntries(data.entries)
+      if (refreshSeq.current !== seq || languageRef.current !== requestedLanguage) return
+      setEntriesLanguage(requestedLanguage)
+      setEntries(data.entries)
+      setDetail(current => current === undefined ? undefined : data.entries.find(entry => (entry.id ?? entry.name) === (current.id ?? current.name)) ?? current)
       // The host translates off the read path, so the first read carries the
       // authored text and a count. Polling until that count clears is what swaps
       // the translated text in without the user pressing refresh.
@@ -98,9 +107,11 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
             return { value: next.entries, pending: next.translationPending }
           },
           report: entriesNow => {
-            if (refreshSeq.current === seq) setEntries(entriesNow)
+            if (refreshSeq.current !== seq || languageRef.current !== requestedLanguage) return
+            setEntries(entriesNow)
+            setDetail(current => current === undefined ? undefined : entriesNow.find(entry => (entry.id ?? entry.name) === (current.id ?? current.name)) ?? current)
           },
-          isStopped: () => refreshSeq.current !== seq
+          isStopped: () => refreshSeq.current !== seq || languageRef.current !== requestedLanguage
         })
       }
     } catch (reason) {
@@ -109,6 +120,8 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       if (refreshSeq.current === seq) setLoading(false)
     }
   }, [kind])
+
+  useTranslationRefresh(t, refresh)
 
   useEffect(() => {
     // A revisit paints the rows the last read cached and revalidates behind
@@ -316,7 +329,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
                   t,
                   kind,
                   busy,
-                  showOriginal,
+                  showOriginal: showOriginal || entriesLanguage !== language,
                   onOpen: () => openDetail(entry),
                   // The pencil on a plugin persona edits routing only; the document stays
       // the suite's, so plugin skills/commands carry no edit affordance.
@@ -379,7 +392,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
           t,
           kind,
           entry: detail,
-          showOriginal,
+          showOriginal: showOriginal || entriesLanguage !== language,
           onClose: () => setDetail(undefined)
         }),
     h(ConfirmModal, {
@@ -414,7 +427,7 @@ function UserEntryRow(props: {
   // its own name: a name is never translated — it is the identity the user types,
   // searches and sorts by.
   const title = props.kind === 'commands' ? commandCallName(entry.name) : entry.name
-  const description = displayText(entry.translatedDescription, entry.description, t, { original: props.showOriginal })
+  const description = useDisplayText(entry.translatedDescription, entry.description, t, { original: props.showOriginal })
   const mono = props.kind === 'commands'
   // A rejected document cannot be switched on: its state is recomputed from the
   // document, so the fix is editing the document.

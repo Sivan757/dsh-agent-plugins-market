@@ -1,11 +1,14 @@
 /**
  * Read-only translation preference shared by panels and menu integrations.
- * The host form owns persistence; this projection carries the effective boolean
+ * The host form owns persistence; this projection carries the resolved boolean
  * — the user's stored value while they have one, the interface language's
- * default otherwise — across late binding and namespace replacement.
+ * default otherwise — across late binding and namespace replacement. It is the
+ * display preference in both supported interface languages; target-language
+ * selection does not override an explicit on or off.
  * @module client/ui/translation-enabled
  */
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
+import type { Translate } from '../index.js'
 import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import { MARKET_SETTINGS_DEFAULTS, resolveMarketSettings } from '../../contracts/settings.js'
 
@@ -77,9 +80,15 @@ export function effectiveTranslationEnabled(section: unknown, language: string |
 }
 
 /**
- * Follow the served host form and the interface language without adding
- * persistence or polling. Replacing a binding disconnects its sources, not the
- * existing consumers.
+ * Follow the host form and the interface language without adding persistence or
+ * polling. Replacing a binding disconnects its sources, not the existing
+ * consumers.
+ *
+ * A form that has not answered yet keeps the pre-answer default rather than
+ * resolving the absent section: the language-derived default describes a
+ * section the host has answered and deliberately left open, and publishing it
+ * before the answer would flash a control the user may have turned off. Only a
+ * defined value is resolved through the contract.
  * @param next - the host form for this plugin's settings namespace.
  * @param language - the interface language the derived default follows; absent keeps the declared default.
  * @returns an idempotent disposer; an older disposer cannot clear a newer binding.
@@ -90,7 +99,15 @@ export function bindTranslationEnabled(next: TranslationEnabledSource, language?
   const current = {}
   binding = current
   const sync = (): void => {
-    if (binding === current) state.set(effectiveTranslationEnabled(next.getSnapshot().value, language?.current()))
+    if (binding !== current) return
+    const answered = next.getSnapshot().value
+    // No answer yet: hold the pre-answer default instead of reading the absent
+    // section as one the document deliberately left open.
+    if (answered === undefined) {
+      state.set(MARKET_SETTINGS_DEFAULTS.translationEnabled)
+      return
+    }
+    state.set(effectiveTranslationEnabled(answered, language?.current()))
   }
   unsubscribeSource = next.subscribe(sync)
   unsubscribeLanguage = language?.subscribe(sync)
@@ -104,6 +121,20 @@ export function bindTranslationEnabled(next: TranslationEnabledSource, language?
     unsubscribeLanguage = undefined
     state.set(MARKET_SETTINGS_DEFAULTS.translationEnabled)
   }
+}
+
+/** Revalidate mounted panel data once when its language or display preference changes. */
+export function useTranslationRefresh(t: Translate, refresh: () => void | Promise<void>): void {
+  const enabled = useTranslationEnabled()
+  const language = t('localeProbeLang')
+  const previous = useRef({ enabled, language })
+  const read = useRef(refresh)
+  read.current = refresh
+  useEffect(() => {
+    if (previous.current.enabled === enabled && previous.current.language === language) return
+    previous.current = { enabled, language }
+    void read.current()
+  }, [enabled, language])
 }
 
 /** Read the same preference the non-React menu integration subscribes to. */

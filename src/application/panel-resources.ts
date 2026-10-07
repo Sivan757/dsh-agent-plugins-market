@@ -160,13 +160,13 @@ function documentFields(rawText: string, skills: boolean): { rawText: string; me
  * resolved field set for one entry. Each panel binds its own kind, which is
  * also the translation surface its entries belong to.
  */
-export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelEntries>): Record<UserPanelKind, PanelResourceStore> {
+export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelEntries>, projectCwd?: string): Record<UserPanelKind, PanelResourceStore> {
   const localizeFields: LocalizeFields = (surface, id, fields, locale) => catalog.translateFields(surface, id, fields, locale)
   const localizeDocument: LocalizeDocument = (surface, id, text, locale) => catalog.translateDocument(surface, id, text, locale)
   return {
-    skills: new PanelResources(catalog, users.skills, 'skills', localizeFields, localizeDocument),
-    commands: new PanelResources(catalog, users.commands, 'commands', localizeFields, localizeDocument),
-    agents: new PanelResources(catalog, users.agents, 'agents', localizeFields, localizeDocument)
+    skills: new PanelResources(catalog, users.skills, 'skills', localizeFields, localizeDocument, projectCwd),
+    commands: new PanelResources(catalog, users.commands, 'commands', localizeFields, localizeDocument, projectCwd),
+    agents: new PanelResources(catalog, users.agents, 'agents', localizeFields, localizeDocument, projectCwd)
   }
 }
 
@@ -196,7 +196,8 @@ class PanelResources implements PanelResourceStore {
     private kind: UserPanelKind,
     private localizeFields: LocalizeFields,
     /** Same seam as {@link localizeFields}, for the document body rather than its fields. */
-    private localizeDocument: LocalizeDocument
+    private localizeDocument: LocalizeDocument,
+    private readonly projectCwd?: string
   ) {}
 
   async read(strict = false, force = false): Promise<PanelRead> {
@@ -228,7 +229,9 @@ class PanelResources implements PanelResourceStore {
 
   async get(id: string): Promise<UserPanelEntryWire | undefined> {
     const row = await this.detail(id)
-    return row === undefined ? undefined : this.present(row, this.catalog.localePreference).entry
+    if (row === undefined) return undefined
+    const shown = this.present(row, this.catalog.localePreference)
+    return { ...shown.entry, ...(shown.pending > 0 ? { translationPending: shown.pending } : {}) }
   }
 
   async translateDocument(id: string): Promise<DocumentTranslation> {
@@ -326,7 +329,7 @@ class PanelResources implements PanelResourceStore {
    * @param force - skip the reuse test and scan, replacing whatever is cached.
    */
   private async rows(strict: boolean, force = false): Promise<PanelRow[]> {
-    const snapshot = await this.catalog.readUserCatalog()
+    const snapshot = this.projectCwd === undefined ? await this.catalog.readUserCatalog() : await this.catalog.readProjectCatalog(this.projectCwd)
     const cached = this.cached
     const fresh = cached !== undefined && this.catalog.now() - cached.at <= ROW_CACHE_MAX_AGE_MS
     const reusable = !force && fresh && cached !== undefined && cached.snapshot === snapshot && cached.mutations === this.mutations && (cached.complete || !strict)
@@ -403,9 +406,9 @@ class PanelResources implements PanelResourceStore {
   /** Read every user and installed-suite document for one snapshot. */
   private async scan(strict: boolean, snapshot: CatalogSnapshot): Promise<PanelRow[]> {
     const rows: PanelRow[] = []
-    for (const entry of await this.users.list(strict)) rows.push({ entry, translationId: entry.id ?? entry.name })
+    if (this.projectCwd === undefined) for (const entry of await this.users.list(strict)) rows.push({ entry, translationId: entry.id ?? entry.name })
     for (const suite of snapshot.suites) {
-      if (!this.catalog.isInstalled(suite.sourceId, suite.id) || suite.remote !== undefined) continue
+      if ((this.projectCwd === undefined && !this.catalog.isInstalled(suite.sourceId, suite.id)) || suite.remote !== undefined) continue
       const files =
         this.kind === 'skills'
           ? suite.skills.map(skill => ({ name: skill.name, file: skill.file }))

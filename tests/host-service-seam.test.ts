@@ -16,21 +16,22 @@
  * hand-made seam, and `tests/timer-seat.test.ts` pins the same ancestor-walk
  * trap for the timer accessors.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, Service, type Fiber, type Plugin } from '@deepseek-ai/cordis'
-import type { SkillCandidate, SkillProvider, SkillProviderControl } from '@deepseek-ai/dsh-skill'
+import type { SkillProvider, SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import { scanSource } from '../src/catalog/suite-scanner.js'
 import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
 import { shellSeamOf, type ShellOutcome, type ShellSeam } from '../src/runtime/surfaces/dynamic-context.js'
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from '../src/runtime/host/feedback-tool.js'
 import { readLocalePreference } from '../src/runtime/host/host-locale.js'
-import { SUITE_USER_SOURCE } from '../src/runtime/surfaces/skills-provider.js'
 import { apply, inject, name } from '../src/index.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const roots: string[] = []
 const cleanups: Array<() => void | Promise<void>> = []
 
@@ -182,20 +183,6 @@ function emitSettingsUpdated(ctx: Context, ns: string): void {
   ;(ctx as unknown as { emit(name: string, ...args: unknown[]): void }).emit('settings/document-updated', ns, 1)
 }
 
-/** A suite skill candidate, shaped the way the provider's own listing shapes one. */ function candidate(file: string, directory: string, body: string): SkillCandidate {
-  return {
-    name: 'status',
-    description: 'Status',
-    invocation: { modelInvocable: true, userInvocable: false },
-    source: SUITE_USER_SOURCE,
-    provider: 'agent-plugin',
-    rank: 450,
-    locator: { content: `---\nname: status\ndescription: Status\n---\n${body}`, file, directory },
-    path: file,
-    resourceBase: { kind: 'directory', path: directory }
-  }
-}
-
 describe('host services on a real fiber tree', () => {
   it('resolves a sibling fiber service where the property read throws', async () => {
     const ctx = new Context()
@@ -266,6 +253,19 @@ describe('host services on a real fiber tree', () => {
     const home = await root()
     vi.stubEnv('DSH_HOME', home)
     vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
+    // A real installed suite, because the entry's provider now loads only a
+    // candidate that came out of its own listing: an ownerless hand-built one
+    // is denied by design rather than silently loaded.
+    const suite = join(home, 'agent-plugins', '.sources', 'demo', 'v1-suite')
+    await cp(join(fixtures, 'v1-suite'), suite, { recursive: true })
+    await put(home, 'agent-plugins/.sources/demo/v1-suite/skills/status/SKILL.md', '---\nname: status\ndescription: Status\n---\nBranch: !`git rev-parse --abbrev-ref HEAD`')
+    const [scanned] = (await scanSource(suite, 'demo', 'user')).suites
+    if (scanned === undefined) throw new Error('expected the fixture suite to scan')
+    await put(home, 'agent-plugins/state.json', {
+      version: 1,
+      sources: [{ id: 'demo', url: 'file:///demo' }],
+      installed: { [`demo/${scanned.id}`]: { enabled: true, installedAt: new Date(0).toISOString() } }
+    })
 
     const ctx = new Context()
     const shell = fakeShell('main\n')
@@ -279,17 +279,17 @@ describe('host services on a real fiber tree', () => {
     // list and apply, load-bearing because the missing `shell` entry in that
     // list is what the skill path used to trip over.
     mountEntry(ctx, { name, inject: [...inject], apply })
-    // The suite provider registers first; the user-panel provider follows it.
-    await vi.waitFor(() => expect(skills.providers).toHaveLength(2))
-
+    // Only the user-panel provider is registered at the root: the installed suite
+    // is an extension resource, so its skills are served from the session that
+    // selected it (tests/scoped-contributors.test.ts and the root scoped test)
+    // rather than to every session in the workspace.
+    await vi.waitFor(() => expect(skills.providers).toHaveLength(1))
     const provider = skills.providers[0]!({ signal: new AbortController().signal, invalidate: () => {} })
-    const directory = join(home, 'agent-plugins', '.sources', 'demo', 'v1-suite', 'skills', 'status')
-    await mkdir(directory, { recursive: true })
-    const file = join(directory, 'SKILL.md')
-    const definition = await provider.get(candidate(file, directory, 'Branch: !`git rev-parse --abbrev-ref HEAD`'), { cwd: home })
+    const discovered = await provider.list({ cwd: home })
+    const candidates = 'candidates' in discovered ? discovered.candidates : discovered
 
-    expect(definition?.content).toBe('Branch: main')
-    expect(shell.workdirs).toEqual([home])
+    expect(candidates.map(entry => entry.name)).not.toContain('status')
+    expect(shell.workdirs).toEqual([])
   })
 
   it('registers the feedback tool from a fiber that injects neither tools nor shell', async () => {
@@ -337,8 +337,9 @@ describe('host services on a real fiber tree', () => {
 
     const entry: EntryPlugin = { name, inject: [...inject], apply }
     const first = mountEntry(ctx, entry)
-    // The suite provider registers first; the user-panel provider follows it.
-    await vi.waitFor(() => expect(skills.providers).toHaveLength(2))
+    // Only the user-panel provider is registered at the root now: suite skills
+    // belong to a session, not to the workspace.
+    await vi.waitFor(() => expect(skills.providers).toHaveLength(1))
     await vi.waitFor(() => expect(readLocalePreference()).toBe('en'))
 
     // The loader reloads the entry in place: this fiber unloads, then the entry
@@ -356,7 +357,7 @@ describe('host services on a real fiber tree', () => {
     process.on('unhandledRejection', onRejection)
     try {
       const reloaded = mountEntry(ctx, entry)
-      await vi.waitFor(() => expect(skills.providers).toHaveLength(4))
+      await vi.waitFor(() => expect(skills.providers).toHaveLength(2))
       await settled()
       expect(rejections).toEqual([])
       expect(readLocalePreference()).toBe('en')
@@ -384,7 +385,7 @@ describe('host services on a real fiber tree', () => {
     mount(ctx, settings.Plugin)
     await settled()
     mountEntry(ctx, { name, inject: [...inject], apply })
-    await vi.waitFor(() => expect(skills.providers).toHaveLength(2))
+    await vi.waitFor(() => expect(skills.providers).toHaveLength(1))
     await vi.waitFor(() => expect(readLocalePreference()).toBe('en'))
 
     // A write to another entry's form is not this plugin's news.

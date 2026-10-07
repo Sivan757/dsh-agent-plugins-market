@@ -65,11 +65,13 @@ function reason(error: unknown): string {
  * provider out of the chain and moves on to the next. The caller's own
  * cancellation is not a provider failure: it rethrows immediately and leaves
  * the breaker untouched, so a panel that closed does not disable a provider for
- * the rest of the session.
+ * the rest of the session. Deadline and caller cancellation settle independently
+ * of provider cooperation. A late provider result cannot replace the chosen result.
  * @param providers - the ordered chain, best first.
  * @param texts - the batch, already masked.
  * @param locale - target locale id.
  * @param signal - caller cancellation, merged with the per-provider deadline.
+ * @param canContinue - live work gate checked before hops and after each result; false cancels without tripping a provider.
  * @returns the translated batch and the provider that produced it.
  * @throws when every provider is unavailable, tripped, or fails.
  */
@@ -77,12 +79,13 @@ export async function runChain(
   providers: readonly TranslationProvider[],
   texts: readonly string[],
   locale: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  canContinue?: () => boolean
 ): Promise<{ texts: string[]; provider: TranslationProviderId }> {
   if (texts.length === 0) throw new Error('translation chain: nothing to translate')
   // Read through a closure: a direct check narrows the property for the rest of
   // the function, and the abort state legitimately changes while a provider runs.
-  const cancelled = (): boolean => signal?.aborted === true
+  const cancelled = (): boolean => signal?.aborted === true || canContinue?.() === false
   const failures: string[] = []
   for (const provider of providers) {
     if (cancelled()) throw new Error('translation chain: cancelled by the caller')
@@ -95,12 +98,24 @@ export async function runChain(
       continue
     }
     const controller = new AbortController()
-    const onAbort = (): void => controller.abort()
+    let rejectStopped: (error: Error) => void = () => {}
+    const stopped = new Promise<never>((_resolve, reject) => {
+      rejectStopped = reject
+    })
+    const stop = (message: string): void => {
+      rejectStopped(new Error(message))
+      controller.abort()
+    }
+    const onAbort = (): void => stop('translation chain: cancelled by the caller')
     signal?.addEventListener('abort', onAbort, { once: true })
-    const timer = setTimeout(onAbort, PROVIDER_TIMEOUT_MS[provider.id])
+    const timer = setTimeout(() => stop(provider.id + ': translation deadline exceeded'), PROVIDER_TIMEOUT_MS[provider.id])
     timer.unref?.()
     try {
-      const result = await provider.translate({ texts, locale, signal: controller.signal })
+      // Abort requests cleanup, but only the race bounds a provider that ignores it.
+      // The async wrapper also captures synchronous throws before attaching the race.
+      const work = (async () => provider.translate({ texts, locale, signal: controller.signal }))()
+      const result = await Promise.race([work, stopped])
+      if (cancelled()) throw new Error('translation chain: cancelled by the caller')
       if (result.length !== texts.length) {
         throw new Error('returned ' + String(result.length) + ' of ' + String(texts.length) + ' results')
       }

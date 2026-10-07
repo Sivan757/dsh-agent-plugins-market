@@ -12,6 +12,7 @@ vi.mock('../src/client/features/market/MarketSection.js', () => ({
 }))
 vi.mock('../src/client/features/mcp/StatusPanel.js', () => ({ McpStatusPanel: () => h('output', { 'data-tab': 'mcp' }) }))
 vi.mock('../src/client/features/lsp/LspStatusPanel.js', () => ({ LspStatusPanel: () => h('output', { 'data-tab': 'lsp' }) }))
+vi.mock('../src/client/features/hooks/StatusPanel.js', () => ({ HooksStatusPanel: () => h('output', { 'data-tab': 'hooks' }) }))
 vi.mock('../src/client/ui/UserPanelSurface.js', () => ({ UserPanelSurface: (props: { kind: string }) => h('output', { 'data-tab': props.kind }) }))
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -39,7 +40,7 @@ async function mount(): Promise<void> {
   await act(async () => root!.render(h(PluginWorkspace, { t })))
 }
 
-/** The tab at its display position (market, skills, commands, personas, mcp, lsp). */
+/** The tab at its display position (market, skills, commands, personas, mcp, lsp, hooks). */
 const tab = (index: number): HTMLButtonElement | null => host?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index] ?? null
 const activePanelTab = (): Element | null => host?.querySelector('[role="tabpanel"] [data-tab]') ?? null
 
@@ -49,7 +50,7 @@ describe('PluginWorkspace tab row', () => {
     const tablist = host!.querySelector('[role="tablist"]')
     expect(tablist).not.toBeNull()
     expect(tablist!.getAttribute('aria-label')).toBe('workspaceTabMarket')
-    expect(host!.querySelectorAll('[role="tab"]').length).toBe(6)
+    expect(host!.querySelectorAll('[role="tab"]').length).toBe(7)
     // Exactly one tab stop: the selected tab only.
     expect(tab(0)?.getAttribute('aria-selected')).toBe('true')
     expect(host!.querySelectorAll('[role="tab"][tabindex="0"]').length).toBe(1)

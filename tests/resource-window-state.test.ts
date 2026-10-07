@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join, sep } from 'node:path'
 import { resolveFavoriteInput, RESOURCE_FACE_ORDER } from '../src/contracts/resource-window.js'
 import { allFiltersOn, loadResourceFilters, resolveOffEntries, saveResourceFilters } from '../src/application/state/resource-filters.js'
 import { loadSurfaceToggles, saveSurfaceToggles, surfaceTogglesPath } from '../src/application/state/surface-toggles.js'
@@ -73,6 +73,13 @@ function surfaceTogglesDocumentPath(dataRoot: string, workspace: string): string
 }
 
 describe('resource favorites storage', () => {
+  it('normalizes data-root separators in every persisted resource path', () => {
+    const dataRoot = join(tmpdir(), 'resource-paths') + sep
+    const togglePath = surfaceTogglesPath(dataRoot, '/workspace')
+    expect(resourceFavoritesPath(dataRoot)).toBe(join(dataRoot, 'resource-favorites.json'))
+    expect(togglePath).toBe(join(dataRoot, 'surface-toggles', basename(togglePath)))
+  })
+
   it('roundtrips a favorite in the global data-root file', async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'resource-favorites-'))
     const stored = await saveResourceFavorite(dataRoot, {

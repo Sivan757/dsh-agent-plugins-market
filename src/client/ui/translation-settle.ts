@@ -7,9 +7,9 @@
  * refreshing — the same shape the market overview has always used, shared here
  * so every surface behaves alike.
  *
- * Polling stops on the first error, on a read with nothing pending, and when the
- * caller stops it — a panel whose translations never resolve must not poll
- * forever.
+ * Polling stops on a read failure, on a read with nothing pending, or when the
+ * caller stops it. An active caller can receive the failure through onError
+ * without changing the last reported value or pretending that work settled.
  * @module client/ui/translation-settle
  */
 
@@ -30,13 +30,15 @@ export interface TranslationSettleOptions<T> {
   readonly read: () => Promise<PendingRead<T>>
   /** Receives every read that completes, the first poll included. */
   readonly report: (value: T) => void
+  /** Receives a terminal read failure while the caller is still active. */
+  readonly onError?: (error: unknown) => void
   /** Read before every tick, so an unmounted panel stops. */
   readonly isStopped?: () => boolean
 }
 
 /**
  * Poll one surface until nothing is pending.
- * @param options - the reader, the reporter, and the stop probe.
+ * @param options - the reader, value and error callbacks, and the stop probe.
  * @returns a handle that cancels the next tick.
  */
 export function pollUntilTranslated<T>(options: TranslationSettleOptions<T>): { stop: () => void } {
@@ -50,8 +52,10 @@ export function pollUntilTranslated<T>(options: TranslationSettleOptions<T>): { 
       if (stoppedNow()) return
       options.report(value)
       if (pending === 0) return
-    } catch {
-      // A failed re-read keeps the text already on screen; the panel stays usable.
+    } catch (error) {
+      if (stoppedNow()) return
+      stopped = true
+      options.onError?.(error)
       return
     }
     if (!stopped) {

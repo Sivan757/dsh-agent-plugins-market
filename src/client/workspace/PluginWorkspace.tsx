@@ -1,28 +1,30 @@
 /**
- * The plugin workspace: one page, six top tabs.
+ * The plugin workspace: one page, seven top tabs.
  *
- * The market, skills, commands, agent personas, MCP services, and LSP
- * servers panels all render inside this shell, so the settings sidebar keeps
- * a single "Agent Plugins" entry and users switch surfaces with the tab row.
- * Each tab's content scrolls inside its own region (never the settings
+ * The market, skills, commands, agent personas, MCP services, LSP servers,
+ * and hooks panels all render inside this shell, so the settings sidebar
+ * keeps a single "Agent Plugins" entry and users switch surfaces with the tab
+ * row. Each tab's content scrolls inside its own region (never the settings
  * column), which removes the scrollbar show/hide jitter when tabs with
  * different content heights swap.
  * @module client/PluginWorkspace
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import { SegmentedTabs } from '@deepseek-ai/dsh-client-ui-primitives'
+import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import type { Translate } from '../index.js'
 import type { CredentialApi } from '../credentials.js'
 import { MarketSection } from '../features/market/MarketSection.js'
 import { McpStatusPanel } from '../features/mcp/StatusPanel.js'
 import { LspStatusPanel } from '../features/lsp/LspStatusPanel.js'
+import { HooksStatusPanel } from '../features/hooks/StatusPanel.js'
 import { UserPanelSurface } from '../ui/UserPanelSurface.js'
 import css from './workspace.module.css'
 
-/** The six workspace tabs in display order. */
-export type WorkspaceTab = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp'
+/** The seven workspace tabs in display order. */
+export type WorkspaceTab = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'
 
-const TAB_ORDER: ReadonlyArray<WorkspaceTab> = ['market', 'skills', 'commands', 'personas', 'mcp', 'lsp']
+const TAB_ORDER: ReadonlyArray<WorkspaceTab> = ['market', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks']
 
 export interface PluginWorkspaceProps {
   t: Translate
@@ -70,7 +72,8 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
     commands: t('workspaceTabCommands'),
     personas: t('workspaceTabPersonas'),
     mcp: t('workspaceTabMcp'),
-    lsp: t('workspaceTabLsp')
+    lsp: t('workspaceTabLsp'),
+    hooks: t('workspaceTabHooks')
   }
 
   return h(
@@ -80,7 +83,10 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
     // Panels stay caller-owned: the workspace hands every tab one shared
     // panel id and renders the active section inside it below.
     h(SegmentedTabs<WorkspaceTab>, {
-      className: css.tabRow,
+      // Static, unlike the manager modal's scrolling row: the settings column
+      // is wide enough for all seven labels, and a settings tab row that
+      // scrolled sideways would hide tabs rather than fit them.
+      className: css.tabRowStatic,
       label: labelKeys.market,
       value: active,
       // Switching tabs is local state only; the URL stays the host's.
@@ -93,10 +99,17 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
         { value: 'commands', label: labelKeys.commands, id: 'agent-plugins-tab-commands', panelId: 'agent-plugins-panel' },
         { value: 'personas', label: labelKeys.personas, id: 'agent-plugins-tab-personas', panelId: 'agent-plugins-panel' },
         { value: 'mcp', label: labelKeys.mcp, id: 'agent-plugins-tab-mcp', panelId: 'agent-plugins-panel' },
-        { value: 'lsp', label: labelKeys.lsp, id: 'agent-plugins-tab-lsp', panelId: 'agent-plugins-panel' }
+        { value: 'lsp', label: labelKeys.lsp, id: 'agent-plugins-tab-lsp', panelId: 'agent-plugins-panel' },
+        { value: 'hooks', label: labelKeys.hooks, id: 'agent-plugins-tab-hooks', panelId: 'agent-plugins-panel' }
       ]
     }),
-    h('div', { className: css.tabPanel, role: 'tabpanel', id: 'agent-plugins-panel', 'aria-labelledby': `agent-plugins-tab-${active}` }, renderTab(active, t, credentials, mode))
+    // Every detail dialog these panels open inherits the fixed settings-sized
+    // frame, the same chrome the preset manager's details use.
+    h(
+      'div',
+      { className: css.tabPanel, role: 'tabpanel', id: 'agent-plugins-panel', 'aria-labelledby': `agent-plugins-tab-${active}` },
+      h(SettingsSizedDetails, null, renderTab(active, t, credentials, mode))
+    )
   )
 }
 
@@ -114,5 +127,7 @@ function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi |
       return h(McpStatusPanel, { t, credentials })
     case 'lsp':
       return h(LspStatusPanel, { t })
+    case 'hooks':
+      return h(HooksStatusPanel, { t })
   }
 }

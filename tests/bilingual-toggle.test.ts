@@ -323,6 +323,34 @@ describe('the panel text-view switch', () => {
 })
 
 describe('the switch follows the auto-translate setting', () => {
+  it.each(['skills', 'commands', 'agents', 'market', 'mcp'] as const)('hides already loaded %s translations on off and restores them on on', async surface => {
+    const releases: Array<() => void> = []
+    const set = async (enabled: boolean): Promise<void> => {
+      await act(async () => {
+        releases.push(bindTranslationEnabled(binding(enabled)))
+      })
+    }
+    try {
+      await set(true)
+      api.fetchUserPanel.mockResolvedValue([ENTRY])
+      api.fetchMcpStatus.mockResolvedValue(MCP_STATUS)
+      const translated = surface === 'market' ? '中文描述' : surface === 'mcp' ? '搜索上游' : '审查实现'
+      const original = surface === 'market' ? 'English description' : surface === 'mcp' ? 'Search upstream' : 'Review implementation'
+      await mount(surface === 'market' ? h(MarketSection, { t: zhT }) : surface === 'mcp' ? h(McpStatusPanel, { t: zhT }) : h(UserPanelSurface, { t: zhT, kind: surface }))
+      if (surface === 'mcp') await act(async () => host!.querySelector<HTMLElement>('[role="button"]')!.click())
+      expect(document.body.textContent).toContain(translated)
+      await set(false)
+      expect(document.body.textContent).not.toContain(translated)
+      expect(document.body.textContent).toContain(original)
+      await set(true)
+      expect(document.body.textContent).toContain(translated)
+    } finally {
+      await act(async () => {
+        for (const release of releases.reverse()) release()
+      })
+    }
+  })
+
   /** A settings binding stand-in: the value the host document would answer with. */
   function binding(enabled: boolean): {
     getSnapshot: () => { value: { translationEnabled: boolean } }
@@ -337,10 +365,10 @@ describe('the switch follows the auto-translate setting', () => {
     await mount(h(UserPanelSurface, { t: zhT, kind: 'skills' }))
     // querySelector answers null for an absent element.
     expect(toggle()).toBeNull()
-    // The panel itself still renders; only the switch is withheld.
     expect(host!.textContent).toContain('reviewer')
-    expect(host!.textContent).toContain('审查实现')
-    unbind()
+    expect(host!.textContent).toContain('Review implementation')
+    expect(host!.textContent).not.toContain('审查实现')
+    await act(async () => unbind())
   })
 
   it('shows the control once auto-translate is on', async () => {

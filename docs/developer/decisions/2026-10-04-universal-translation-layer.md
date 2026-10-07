@@ -1,69 +1,64 @@
-# The translation layer degrades through four levels, keys by provider, and stays out of model context
+# Translation uses an ordered provider chain and stays out of model context
 
 ## Status
 
-Accepted, and implemented by the change that carries it. The layer replaces the single-provider localization [the 2026-10-03 note](../../../.agents/notes/implemented/feature/2026-10-03-description-localization.md) records: that note's decision stands for the split of an already-bilingual description, and its provider half is generalized here from one surface's description to every description the six surfaces render. The [design document](../design/universal-translation-layer.html) is the pre-implementation record; this page is the decision.
+Accepted. This decision owns provider order, persistent cache identity and model isolation. [The reading and lifecycle decision](../../../.agents/notes/implemented/feature/2026-10-06-translation-reading-and-lifecycle.md) owns the language switch, document modes and cancellation. The [design document](../design/universal-translation-layer.html) summarizes the current design, not a runtime guarantee.
 
 ## Context
 
-The market renders an upstream catalog authored in English, and a `zh` deployment therefore shows a Chinese interface wrapped around English data. The 2026-10-03 change localized one field — a suite's description — through the user's default model. Every other rendered string stayed English: suite names, the names and descriptions of skills, commands and agent personas, MCP service names and their per-tool descriptions, and LSP server names.
+Upstream descriptions and documents can use a different language from the interface. A source is another repository, so translation cannot modify its files. Names remain identifiers for search, copying and invocation. Prose can have a separate translated view.
 
-Three facts about that deployment shape decide the design.
-
-**There is no configuration step to hang a feature on, and no provider readout to diagnose it with.** The plugin is installed once and must work; a user who never opened the settings page, never configured a proxy and never had a working model route still expects a Chinese panel.
-
-**Every failure is a rendering failure.** A missing translation is not an error a user can act on — it is English prose in a Chinese card, which is exactly the state before the change. A panel that reports a translation error is worse than one that quietly shows the original.
-
-**Upstream text is an identity, not just a label.** A suite name is what a search matches, what a slash command resolves, and what a copied reference contains. A skill's description is prose.
+Translation cannot block the original content. Public endpoints can fail, and the deployment can lack a model route. The plugin must retain the authored text in either case.
 
 ## Decision
 
-### 1. Four ordered levels, each one a silent downgrade
+### Ordered fallback
 
-Translation runs through an ordered chain: Google Translate, Microsoft Translator, the user's own default model, then the upstream text. The first provider that answers wins. A provider that throws, times out, or returns a batch of the wrong length is skipped, and the chain moves on. When every provider is unavailable or has failed, the caller renders the original text — there is no error path and no user-visible notification.
+The plugin tries Google Translate, Microsoft Translator and the configured default model, in that order. The original text is the final fallback, not a translation provider. The public endpoints require no user key. The model can consume the operator's quota, so the free endpoints come first.
 
-The order is quality-and-cost order, and the measured numbers are what set it:
+[The chain implementation](../../../src/application/translation/chain.ts) defines deadlines of 3 seconds, 15 seconds and 30 seconds. Failure, timeout or an invalid batch trips that provider. Later batches skip it until translation is re-enabled, the cache is reset, or the process restarts. Caller cancellation stops the chain without tripping a provider or starting another fallback. These deadlines are limits, not measured response times or availability promises.
 
-- **Google Translate** (`translate-pa.googleapis.com/v1/translateHtml`) answers in 0.26s through a proxy, but on a network without one it does not fail fast — it holds the connection past 4 seconds. It is therefore tried first with a 3-second deadline and taken out of the chain for the rest of the process on its first failure. Without that breaker every cold start would pay a timeout before the panel could fill in.
-- **Microsoft Translator** (`edge.microsoft.com/translate/translatetext`) needs no authentication, no key and no proxy, and answered in 0.38s directly on the same machine. This level is what makes the feature work out of the box, which is why it sits in the chain unconditionally rather than behind a setting.
-- **The user's default model** is the quality ceiling: it can be told how to render domain vocabulary, which a general MT engine cannot. It is reached only when the deployment configured a route, and it is given the longest deadline because a generation legitimately takes seconds.
+Batch text count, character count and concurrency are bounded. The English target uses a smaller source budget because Chinese-to-English output can expand. Output budgets are estimates, and the model adapter rejects truncated generations. No undocumented vendor payload limit is claimed.
 
-Batches are capped, and the provider work is indexed by the source text rather than by the entity. The cache key still names the entity — which is what makes the file the record of what was translated for whom — but a text one entity has already paid for answers for every other entity carrying it, so two texts that differ only in which surface they came from are still one provider call; the translation of a string does not depend on where it is rendered. Measured across this machine's catalog (911 suites), the suite, skill, command and persona descriptions the layer would send total 5,055 fields and 1.35M characters, of which 4,892 texts and 1.33M characters are distinct, and reading all 4,161 documents those suites carry adds 36,503 chunk texts of which 34,729 are distinct — 3.2% and 4.9% of the provider-bound texts are a repeat of a text already carried. A field answered once is served from its own entry on every later start; the text index is derived state rebuilt as a session reads, so a text appearing under a new entity for the first time in a session costs that session one call, and never more than one.
+### Persistent identity
 
-### 2. The provider identity is part of the cache key
+[The cache key](../../../src/application/state/translation-cache.ts) is a SHA-256 digest of target, surface, entity id, role, source text and provider-chain identity. A record separately identifies the provider that produced its text. Changing a chain produces a different key instead of serving output from the old chain.
 
-A cached translation is stored under a SHA-256 digest of the target locale, the unit's surface, id and role, the source text, and a stable identity of the provider chain. Entries do not expire; the settings card carries a reset that clears the whole cache.
+Entries do not expire. The same entity and text can reuse a persistent entry after restart. Editing text creates a new key, while the old entry remains until reset. A version change alone does not invalidate the text.
 
-Putting the provider in the key is what makes an engine switch self-correcting: a deployment that changes its chain misses every entry the old chain produced and re-translates, rather than serving text one engine wrote under another engine's name. The alternative — content-only keys plus a per-entry "upgradable" flag — is a second state machine whose only job is to reproduce the miss the key already produces, and it needs its own invalidation rules, its own migration and its own tests. The provider is still recorded on each entry, but as an operator-visible fact rather than as a decision input.
+The localizer also shares known answers through an in-memory text index. That index includes target and chain identity but omits entity and role. It is not a persistent global content index. The first read of a new entity can still require translation after restart.
 
-Content-addressed keys only accumulate: an upstream description edited once leaves its old key behind forever. The reset control is what zeroes that growth, so the decision to keep entries indefinitely is paired with giving the user a way to drop them.
+Reset clears the entries and invalidates queued and running work. Generation checks reject old responses, and serialized persistence orders old writes before deletion and new writes after it. Turning translation off cancels unfinished work but retains completed entries. [The lifecycle decision](../../../.agents/notes/implemented/feature/2026-10-06-translation-reading-and-lifecycle.md) records the rationale and cancellation limits.
 
-### 3. Only the UI layer is translated
+### Display only
 
-Translated text is display-only. A name is never translated: it is the identity the user types, searches, sorts, copies and matches against upstream documentation, and a translated name that reached a filter or a slash command would break the surface it was meant to improve. Only a description renders translated, and the authored text stays on the wire beside it for the panel's own view switch.
+Descriptions and expanded document prose can be translated. Names, keywords and source files remain unchanged. The interface dictionary selects the target, either `zh` or `en`. The stored switch independently controls whether translation runs and appears.
 
-What a model reads is a different artifact from what a human reads, and the layer does not touch it. The system prompts and tool descriptions this plugin injects into a session stay in the language their author wrote them in — a translation there would change model behavior, spend tokens on every session, and be invisible to the user who would have to debug it.
+Document translation uses a server-side Markdown abstract syntax tree, or AST, which represents document structure. Providers receive prose, not code, link destinations, math or raw HTML. The client renders one complete document through the host `MarkdownText` component. Structural details and known normalization limits belong to [the reading decision](../../../.agents/notes/implemented/feature/2026-10-06-translation-reading-and-lifecycle.md).
 
-## Consequences
-
-- **The panel is never worse than before the change.** With no network, no model route, a rate-limited endpoint or a corrupt cache file, every surface renders exactly the upstream text it rendered before. The failure mode of the whole feature is the pre-change state.
-- **One timeout per session is the price of the first level.** On a network where Google is blocked, the first translation pays 3 seconds and the breaker removes it; Microsoft answers in under half a second afterwards.
-- **Translation quality is the provider's, not ours.** A mediocre translation is cached as-is until the cache is cleared. The masking layer protects inline code, URLs, angle-bracket fragments, `${VAR}` references and a fixed glossary of terms from being rewritten, which is the part of quality this plugin can actually own.
-- **The cache file grows with the catalog until a user clears it.** It is written whole on each flush; sharding it by source is deferred until the write cost is measured rather than assumed.
-- **A stale translation outlives an upstream edit until the cache is cleared.** Content addressing catches an edited text immediately (a new key), but an entry whose upstream text was deleted simply stays until a reset.
-- **The layer's scope is a standing boundary.** Any future surface that injects text into a model's context must not route through this layer, and any new rendered field needs a deliberate decision about whether it is an identity or prose.
+The plugin does not translate prompts or tool descriptions that enter model context. They retain the language their author used. Translating them changes model behavior and token use without a corresponding user-visible document change.
 
 ## Alternatives considered
 
-- **Translate in the client — rejected.** `src/client/**` may not import `node:**` and holds no persistent cache. A browser-side translator would re-call a provider on every page load and could not remember a result across restarts.
-- **Ship the two free machine-translation endpoints only — rejected.** Terminology fidelity is a general MT engine's weak point: `skill`, `suite` and `surface` come back rendered inconsistently, and proper nouns drift between calls. The user's model stays in the chain as the level that can be told how to render the domain vocabulary.
-- **Leave the provider out of the cache key — rejected.** See decision 2: the key would be pure content, and a deployment that switched engines would keep serving the old engine's text indefinitely.
-- **Shard the cache by source — deferred, not rejected.** The design proposed one file per source because a single file is rewritten whole on each flush. At this catalog's size the whole document is a few megabytes and the reset control bounds growth without it; sharding adds a multi-file migration and a concurrent-write problem whose cost has not been measured.
-- **Gate the machine-translation levels behind an explicit opt-in — rejected.** The whole point of the two public endpoints is that a fresh install works with no configuration. A consent step would restore the English panel the feature exists to remove, and the switch that does exist turns the layer off rather than on.
+- Client-side translation was rejected because it duplicates provider access and cannot use the server's persistent cache.
+- Only free endpoints were rejected because the configured model provides another fallback and accepts domain-vocabulary instructions.
+- Omitting provider-chain identity from the key was rejected because a changed chain would continue serving output from its predecessor.
+- Per-entry upgrade flags were rejected because they add invalidation state to reproduce the cache miss that the key already expresses.
+- Cache sharding remains deferred until reproducible write-cost measurements justify migration and concurrent-write complexity.
+
+## Consequences
+
+Public endpoints have no availability guarantee. Translation quality depends on the provider, and the model does not guarantee better output. The original remains readable during work and after failure.
+
+The cache grows until reset and is written as one document. Reset prevents old requests from refilling it, but a later enabled read can start fresh work. Cancellation cannot guarantee that a remote provider stops computation it already received.
+
+## Verification ownership
+
+[Chain tests](../../../tests/translation-chain.test.ts), [localizer tests](../../../tests/translation-localizer.test.ts) and [cache tests](../../../tests/translation-cache.test.ts) cover fallback, cancellation, reuse and persistence. [Document tests](../../../tests/translation-document.test.ts) cover the shared catalog path. These references identify coverage and do not assert a test run by this documentation edit.
 
 ## Revisit when
 
-- Either public endpoint starts requiring a key, rate-limits the plugin's traffic, or disappears; the "works out of the box" premise rests entirely on those two levels and a replacement must be found before the next release.
-- The cache file's write cost becomes measurable — a catalog several times this size, or a flush that blocks a read — which is the condition the sharding deferral names.
-- A new surface is added that renders names or descriptions, or an existing one starts injecting text into a model's context; both change the scope argument in decision 3 and need the identity-versus-prose call made explicitly.
-- The user's model level becomes reachable in the deployments that matter (a configured route, available quota), which would make the MT levels a latency optimization rather than the primary path.
+- A public endpoint requires a key, changes its limits, or becomes unavailable.
+- Measured cache writes justify sharding.
+- A new interface dictionary changes supported translation targets.
+- A new surface needs translated prose or changes what enters model context.

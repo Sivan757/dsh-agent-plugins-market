@@ -39,9 +39,12 @@ export function DetailRows({
   children?: ReactNode
 }): ReactNode {
   const shown = open !== false
-  // Both bands clip to one line, so each carries its full text as a hint — the
-  // host tooltip, which shows on hover with no delay.
+  // Both bands clip to one line, so each carries its full text as a hint. The
+  // host tooltip shows on hover with no delay, where a native `title` waits
+  // on the platform's own timer.
   const head = (interactive: boolean): ReactNode => {
+    // `label` is required by the caller that renders this band, but the prop is
+    // optional on the component; an absent one renders the plain span.
     const name = label === undefined ? null : hoverHint(label, h('span', hintProps({ className: css.name }), label))
     const note = summary === undefined || summary === '' ? null : hoverHint(summary, h('span', hintProps({ className: css.summary }), summary))
     if (!interactive) return h('div', { className: css.row }, name, note, h('span', { className: css.chevron }))
@@ -106,5 +109,6 @@ export function DetailRow(props: {
 
 /** One label/value pair in a detail dialog's overview grid; `key` props a row built in a loop. */
 export function kvCell(label: string, value: string, mono = false, key?: string): ReactNode {
-  return h('div', key === undefined ? null : { key }, h('dt', { className: panelCss.kvKey }, label), hoverHint(value, h('dd', hintProps({ className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue }), value)))
+  const cell = h('dd', hintProps({ className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue }), value)
+  return h('div', key === undefined ? null : { key }, h('dt', { className: panelCss.kvKey }, label), hoverHint(value, cell))
 }

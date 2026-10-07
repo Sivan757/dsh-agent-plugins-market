@@ -117,6 +117,17 @@ export const MAX_BATCH_SIZE = 20
 export const MAX_BATCH_CHARS = 6_400
 
 /**
+ * English output can expand Chinese source; reserve a smaller raw-source batch
+ * for the model adapter's estimated 1.5 tokens per source character. Separators
+ * and masking can expand the payload further, so this is not a truncation guarantee.
+ */
+export const MAX_EN_BATCH_CHARS = 2_400
+
+function batchCharLimit(target: string): number {
+  return target === 'en' ? MAX_EN_BATCH_CHARS : MAX_BATCH_CHARS
+}
+
+/**
  * How long an enqueue waits for company before its batch starts.
  *
  * Callers enqueue as they discover text: the panel learns one description per
@@ -136,30 +147,19 @@ const BACKOFF_MS = [2_000, 8_000, 30_000, 120_000] as const
 const FLUSH_MS = 1_500
 
 /**
- * True when a text is worth sending to a provider.
- *
- * The question is which script a text is *written in*, not whether it happens
- * to contain a Chinese character. Measured over the marketplace's own sources,
- * English prose that names a Chinese term, quotes a Chinese message, or shares
- * a table with a Chinese column header is common — thousands of 800-character
- * document chunks carry a few Han characters among hundreds of Latin letters —
- * and a presence test declined every one of them, so a document came out half
- * translated while the panel reported that it had settled.
- *
- * So the test is dominance: a text is already in the target language when its
- * Han characters outnumber its Latin letters, and anything else — Latin
- * dominant, or an even split — is sent. Text that reaches a provider already
- * Chinese comes back unchanged (measured against the Microsoft endpoint), so
- * declining it is an economy rather than a semantic difference; what the
- * document path may not do is decline English and call the result settled.
- * @param text - the upstream text.
- * @returns whether the chain should be asked to translate it.
+ * Whether prose contains text to translate into the resolved interface language.
+ * Chinese targets retain the Latin-versus-Han heuristic; English targets accept
+ * any Han text, including Chinese embedded in predominantly English prose.
+ * @param text - upstream prose; blank and absent values never queue work.
+ * @param target - resolved target language, defaulting to Chinese for existing callers.
  */
-export function needsTranslation(text: string | undefined): text is string {
+export function needsTranslation(text: string | undefined, target = 'zh'): text is string {
   if (text === undefined) return false
   const trimmed = text.trim()
   if (trimmed.length === 0) return false
-  return scriptCount(trimmed, LATIN) >= scriptCount(trimmed, HAN)
+  const han = scriptCount(trimmed, HAN)
+  if (target === 'en') return han > 0
+  return scriptCount(trimmed, LATIN) >= han
 }
 
 /**
@@ -206,6 +206,12 @@ export class TranslationLocalizer {
    */
   private readonly retry = new Map<string, { attempts: number; notBefore: number }>()
   private active = 0
+  /** Invalidated work cannot mutate a later queue or cache. */
+  private generation = 0
+  private readonly controllers = new Set<AbortController>()
+  private lastEnabled: boolean | undefined
+  /** Serializes cache writes and deletion, including a write already in flight. */
+  private persistence: Promise<void> = Promise.resolve()
   /** The armed coalescing window, or undefined when no pump is scheduled. */
   private pumpTimer: ReturnType<typeof setTimeout> | undefined
   private dirty = false
@@ -243,16 +249,74 @@ export class TranslationLocalizer {
    * batch skips it, every read reports nothing pending, and no control on screen
    * can bring it back. The cost bound the chain exists for is one attempt per
    * user request, not one for the process's lifetime.
-   * @returns fulfillment once the file is gone and memory is empty.
+   * Invalidates queued and running work. Calls made after the reset starts may
+   * enqueue new work; their writes follow the deletion.
+   * @returns fulfillment after prior cache writes and the deletion finish.
    */
   async clear(): Promise<void> {
+    this.cancelWork()
     this.entries = {}
     this.byText.clear()
-    this.owners.clear()
     this.retry.clear()
     this.dirty = false
+    if (this.flushTimer !== undefined) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = undefined
+    }
     resetCircuitBreaker()
-    await clearTranslationCache(this.dataRoot)
+    this.persistence = this.persistence.then(() => clearTranslationCache(this.dataRoot))
+    await this.persistence
+  }
+
+  /**
+   * Forget why translation failed, keeping every translation already made.
+   *
+   * This is the settings switch's own "try again", and it is not the same as
+   * {@link clear}: clearing re-pays for the whole cache, while switching back on
+   * only asks for the failures to be forgotten. Both halves of a failure record
+   * go together — the per-text attempt budget, or a text that spent its four
+   * attempts never queues again, and the chain's process-wide breaker, or a
+   * retired provider is skipped for the rest of the process. Resetting one
+   * without the other is why switching off and on used to recover nothing that
+   * clearing the cache did not.
+   */
+  resetFailures(): void {
+    this.retry.clear()
+    resetCircuitBreaker()
+  }
+
+  /**
+   * Apply a live settings change. Off cancels unfinished work without deleting
+   * cached answers; on resets failures and waits for the next read to enqueue.
+   * Call from the settings subscription so cancellation needs no panel read.
+   */
+  onEnabledChanged(): void {
+    this.syncEnabled()
+  }
+
+  private syncEnabled(): boolean {
+    const enabled = this.enabled()
+    if (enabled !== this.lastEnabled) {
+      const previous = this.lastEnabled
+      this.lastEnabled = enabled
+      if (!enabled) this.cancelWork()
+      else if (previous === false) this.resetFailures()
+    }
+    return enabled
+  }
+
+  private cancelWork(): void {
+    this.generation += 1
+    if (this.pumpTimer !== undefined) {
+      clearTimeout(this.pumpTimer)
+      this.pumpTimer = undefined
+    }
+    this.pending.clear()
+    this.inflight.clear()
+    this.owners.clear()
+    this.active = 0
+    for (const controller of this.controllers) controller.abort()
+    this.controllers.clear()
   }
 
   /** Number of texts waiting for a provider call; drives the client's re-read. */
@@ -281,13 +345,12 @@ export class TranslationLocalizer {
     const text = unit.text
     if (text.trim().length === 0) return { text, pending: false }
     const target = resolveTranslationTarget(locale)
-    if (target === undefined) return { text, pending: false }
     // The switch is read live and it gates everything, the cache included: off
     // means every surface renders the authored text, whether or not a
     // translation happens to be sitting in the cache. Leaving cached text on
     // screen while the control reads "off" is a contradiction the user cannot
     // resolve, and the cache survives, so nothing is re-paid on re-enable.
-    if (!this.enabled()) return { text, pending: false }
+    if (!this.syncEnabled()) return { text, pending: false }
     const identity = this.providerIdentity()
     const key = translationKey(unit, target, identity)
     const textId = this.textIdentity(target, identity, text)
@@ -311,7 +374,7 @@ export class TranslationLocalizer {
     // Availability is checked after the cache: a warm cache must still serve
     // when every provider is down, or the panel would fall back to authored text.
     if (!this.providers.some(provider => provider.available())) return { text, pending: false }
-    if (!needsTranslation(text)) return { text, pending: false }
+    if (!needsTranslation(text, target)) return { text, pending: false }
     return { text, pending: this.enqueue({ key, unit, target, textId }) }
   }
 
@@ -373,11 +436,11 @@ export class TranslationLocalizer {
    * window so the units a burst is still adding ride the same provider call.
    */
   private schedulePump(): void {
-    if (this.disposed) return
+    if (this.disposed || !this.syncEnabled()) return
     // A full batch never waits: an armed window is cancelled rather than sat
     // out, so the unit that completed the batch starts it now. Its members can
     // no longer improve by waiting, and a lone unit still gets the window.
-    if (this.pending.size >= MAX_BATCH_SIZE || this.pendingChars() >= MAX_BATCH_CHARS) {
+    if (this.hasFullBatch()) {
       this.pump()
       return
     }
@@ -391,11 +454,17 @@ export class TranslationLocalizer {
     this.pumpTimer.unref?.()
   }
 
-  /** Source characters queued for the next calls; the other half of a full batch. */
-  private pendingChars(): number {
-    let total = 0
-    for (const job of this.pending.values()) total += job.unit.text.length
-    return total
+  /** Only work with the same target can fill a provider batch. */
+  private hasFullBatch(): boolean {
+    const totals = new Map<string, { count: number; chars: number }>()
+    for (const job of this.pending.values()) {
+      const total = totals.get(job.target) ?? { count: 0, chars: 0 }
+      total.count += 1
+      total.chars += job.unit.text.length
+      if (total.count >= MAX_BATCH_SIZE || total.chars >= batchCharLimit(job.target)) return true
+      totals.set(job.target, total)
+    }
+    return false
   }
 
   /** Start as many queued batches as the concurrency cap allows. */
@@ -404,18 +473,19 @@ export class TranslationLocalizer {
       clearTimeout(this.pumpTimer)
       this.pumpTimer = undefined
     }
-    while (!this.disposed && this.active < MAX_CONCURRENT_BATCHES && this.pending.size > 0) {
+    while (!this.disposed && this.syncEnabled() && this.active < MAX_CONCURRENT_BATCHES && this.pending.size > 0) {
       const batch: TranslationJob[] = []
       let chars = 0
       for (const key of this.pending.keys()) {
         if (batch.length >= MAX_BATCH_SIZE) break
         const job = this.pending.get(key)
         if (job === undefined) continue
+        if (batch.length > 0 && job.target !== batch[0]!.target) continue
         const size = job.unit.text.length
         // A text that would push the call past its budget waits for the next
         // one instead of being dropped: the loop always takes it when it opens
         // a batch, so a chunk longer than the whole budget still runs — alone.
-        if (batch.length > 0 && chars + size > MAX_BATCH_CHARS) continue
+        if (batch.length > 0 && chars + size > batchCharLimit(job.target)) continue
         this.pending.delete(key)
         this.inflight.add(key)
         chars += size
@@ -435,18 +505,22 @@ export class TranslationLocalizer {
    */
   private async run(batch: readonly TranslationJob[]): Promise<void> {
     const controller = new AbortController()
+    const generation = this.generation
+    this.controllers.add(controller)
     try {
       const target = batch[0]?.target ?? ''
       const result = await runChain(
         this.providers,
         batch.map(job => job.unit.text),
         target,
-        controller.signal
+        controller.signal,
+        () => this.syncEnabled() && generation === this.generation
       )
+      if (generation !== this.generation || controller.signal.aborted) return
       const at = this.now()
       batch.forEach((job, index) => {
-        const text = (result.texts[index] ?? '').trim()
-        if (text.length === 0) {
+        const text = result.texts[index] ?? ''
+        if (text.trim().length === 0) {
           this.fail(job.textId)
           return
         }
@@ -460,20 +534,19 @@ export class TranslationLocalizer {
       })
       if (this.dirty) this.scheduleFlush()
     } catch {
-      for (const job of batch) this.fail(job.textId)
-    } finally {
-      for (const job of batch) {
-        this.inflight.delete(job.key)
-        // The text is free again only once nothing owns it. A failed job leaves
-        // no answer behind, so the index holds nothing a later entity could be
-        // wrongly served, and that entity may queue the text on its own read.
-        if (this.owners.get(job.textId) === job.key) this.owners.delete(job.textId)
+      if (generation === this.generation && !controller.signal.aborted) {
+        for (const job of batch) this.fail(job.textId)
       }
-      this.active -= 1
-      // A completed batch hands its slot to the queue under the same
-      // coalescing rule: whatever accumulated meanwhile is grouped, and a
-      // queue that only ever sees single units is not pumped one at a time.
-      this.schedulePump()
+    } finally {
+      this.controllers.delete(controller)
+      if (generation === this.generation) {
+        for (const job of batch) {
+          this.inflight.delete(job.key)
+          if (this.owners.get(job.textId) === job.key) this.owners.delete(job.textId)
+        }
+        this.active -= 1
+        this.schedulePump()
+      }
     }
   }
 
@@ -507,14 +580,19 @@ export class TranslationLocalizer {
 
   /** Persist the cache when it changed. A failed write keeps the in-memory copy. */
   async flush(): Promise<void> {
-    if (!this.dirty) return
-    this.dirty = false
-    try {
-      await saveTranslationCache(this.dataRoot, this.entries)
-    } catch {
-      // The cache is an optimization: losing a write costs one more call.
-      this.dirty = true
+    if (this.dirty) {
+      this.dirty = false
+      const entries = this.entries
+      const snapshot = { ...entries }
+      this.persistence = this.persistence.then(async () => {
+        try {
+          await saveTranslationCache(this.dataRoot, snapshot)
+        } catch {
+          if (this.entries === entries) this.dirty = true
+        }
+      })
     }
+    await this.persistence
   }
 
   /**

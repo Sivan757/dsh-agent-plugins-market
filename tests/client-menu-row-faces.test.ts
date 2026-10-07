@@ -4,8 +4,8 @@
  * the two promises that matter — a failed read never breaks the menu, and a row
  * the host sent nothing for keeps the host's own text.
  */
-import { describe, expect, it, vi } from 'vitest'
-import { createMenuRowFaces } from '../src/client/menu-row-faces.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createMenuRowFaces, MENU_FACE_REVALIDATE_MS, MENU_FACE_MAX_READS } from '../src/client/menu-row-faces.js'
 import type { MenuRowFaceWire } from '../src/contracts/market.js'
 
 /** A `/` command service whose `candidates` answers the given rows. */
@@ -18,7 +18,148 @@ function commandService(rows: readonly unknown[]) {
   return Object.create(proto) as { candidates: () => Promise<readonly unknown[]> }
 }
 
+afterEach(() => vi.useRealTimers())
+
 describe('the menu row face source', () => {
+  it('refreshes a stationary open menu, bounds reads, and restores original text on off', async () => {
+    vi.useFakeTimers()
+    const host = { name: 'deploy', description: 'Deploy' }
+    let shown: readonly unknown[]
+    let open = true
+    const listeners = new Set<() => void>()
+    const service = { candidates: async (_session: { sessionId: string }): Promise<readonly unknown[]> => [host] }
+    const controller = {
+      menu: {
+        getSnapshot: () => ({ open }),
+        subscribe: (fn: () => void) => {
+          listeners.add(fn)
+          return () => {
+            listeners.delete(fn)
+          }
+        }
+      },
+      refreshOpenMenu: vi.fn(() => {
+        void service.candidates({ sessionId: 'test' }).then(rows => {
+          shown = rows
+        })
+      })
+    }
+    const scope = {}
+    const sessions = { scope: vi.fn(() => scope) }
+    const inputTriggers = { sessionOf: vi.fn(() => controller) }
+    let warm = false
+    const load = vi.fn(async (): Promise<MenuRowFaceWire[]> => (warm ? [{ source: 'commands', name: 'deploy', description: '部署' }] : []))
+    const source = createMenuRowFaces({ commandUi: service, inputTriggers, sessions, load })
+    await source.refresh()
+    shown = await service.candidates({ sessionId: 'test' })
+    expect(shown).toEqual([host])
+    await vi.advanceTimersByTimeAsync(25_000)
+    expect(shown).toEqual([host])
+    warm = true
+    await vi.advanceTimersByTimeAsync(MENU_FACE_REVALIDATE_MS)
+    expect(shown).toEqual([{ ...host, description: '部署' }])
+    expect(controller.refreshOpenMenu).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(load).toHaveBeenCalledTimes(1 + MENU_FACE_MAX_READS)
+    expect(controller.refreshOpenMenu).toHaveBeenCalledTimes(1)
+    source.dispose()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(shown).toEqual([host])
+    expect(listeners.size).toBe(0)
+    open = false
+    expect(sessions.scope).toHaveBeenCalledWith('test')
+    expect(inputTriggers.sessionOf).toHaveBeenCalledWith(scope)
+  })
+
+  it('stops open-menu polling immediately on close and ignores a missing retained scope', async () => {
+    vi.useFakeTimers()
+    let open = true
+    const listeners = new Set<() => void>()
+    const controller = {
+      menu: {
+        getSnapshot: () => ({ open }),
+        subscribe: (fn: () => void) => {
+          listeners.add(fn)
+          return () => {
+            listeners.delete(fn)
+          }
+        }
+      },
+      refreshOpenMenu: vi.fn()
+    }
+    const service = { candidates: async (_session: { sessionId: string }) => [{ name: 'deploy' }] }
+    const inputTriggers = { sessionOf: vi.fn(() => controller) }
+    const load = vi.fn(async () => [])
+    const source = createMenuRowFaces({ commandUi: service, inputTriggers, sessions: { scope: (id: string) => (id === 'live' ? {} : undefined) }, load })
+    await source.refresh()
+    await service.candidates({ sessionId: 'gone' })
+    expect(inputTriggers.sessionOf).not.toHaveBeenCalled()
+    await service.candidates({ sessionId: 'live' })
+    open = false
+    for (const listener of listeners) listener()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(controller.refreshOpenMenu).not.toHaveBeenCalled()
+    expect(listeners.size).toBe(0)
+    source.dispose()
+  })
+
+  it('revalidates a cold face on demand without blocking candidates or polling while idle', async () => {
+    vi.useFakeTimers()
+    const host = { name: 'deploy', description: 'Deploy' }
+    const service = commandService([host])
+    let answer!: (rows: MenuRowFaceWire[]) => void
+    const load = vi
+      .fn<() => Promise<MenuRowFaceWire[]>>()
+      .mockResolvedValueOnce([])
+      .mockImplementation(
+        () =>
+          new Promise(resolve => {
+            answer = resolve
+          })
+      )
+    const source = createMenuRowFaces({ commandUi: service, inputTriggers: undefined, load })
+    await source.refresh()
+    await vi.advanceTimersByTimeAsync(10 * MENU_FACE_REVALIDATE_MS)
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(await service.candidates()).toEqual([host])
+    expect(load).toHaveBeenCalledTimes(2)
+    for (let i = 0; i < 10; i++) expect(await service.candidates()).toEqual([host])
+    expect(load).toHaveBeenCalledTimes(2)
+    answer([{ source: 'commands', name: 'deploy', description: '部署' }])
+    await Promise.resolve()
+    expect(await service.candidates()).toEqual([{ ...host, description: '部署' }])
+    source.dispose()
+  })
+
+  it('keeps the newest locale response and clears the previous locale immediately', async () => {
+    const host = { name: 'deploy', description: 'Deploy' }
+    const service = commandService([host])
+    const answers: Array<(rows: MenuRowFaceWire[]) => void> = []
+    const source = createMenuRowFaces({
+      commandUi: service,
+      inputTriggers: undefined,
+      load: () =>
+        new Promise(resolve => {
+          answers.push(resolve)
+        })
+    })
+    const first = source.refresh()
+    answers[0]!([{ source: 'commands', name: 'deploy', description: '旧译文' }])
+    await first
+    expect(await service.candidates()).toEqual([{ ...host, description: '旧译文' }])
+    const stale = source.refresh()
+    const current = source.refresh(true)
+    expect(await service.candidates()).toEqual([host])
+    answers[2]!([{ source: 'commands', name: 'deploy', description: 'New translation' }])
+    await current
+    answers[1]!([{ source: 'commands', name: 'deploy', description: '过期译文' }])
+    await stale
+    expect(await service.candidates()).toEqual([{ ...host, description: 'New translation' }])
+    source.dispose()
+  })
+
   it('faces the rows the host translated', async () => {
     const host = { name: 'deploy', description: 'Deploy the fixture' }
     const service = commandService([host])

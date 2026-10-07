@@ -12,7 +12,7 @@ Team 部署中以 `spawn_teammate_role` 替代 `subagent_role`，原生 Team 工
 
 已验证角色快照保存在 `teammate-role-binding` 上下文消息的来源元数据中，通过宿主 inbox 注入，并在首次任务接受前刷盘。来源记录子代理 ID、角色身份、指令及有效路由。恢复通过 `sessionQuery` 观察成员自己拥有的日志；继承的角色绑定不能变成另一个成员的角色。专用外部事件被发布版持久化读取器拒绝，首个 system head 之前追加 user surface 也会破坏重放；inbox 同时保证已知事件封装与正确消息顺序。
 
-角色发现继续使用精简持久目录，不修改全局工具 schema。模式标记保证独立／Team 模式切换时即使条目不变也发布替换。Team 说明只在用户授权 Team 工作后帮助选择角色，不授权创建。非 Team 部署保留独立目录行为。动态观察服务存在性选择入口，因为 Team 工具稍后才按 Agent 作用域注册。
+角色发现继续使用精简持久目录，不修改全局工具 schema。模式标记保证独立／Team 模式切换时即使条目不变也发布替换。Team 说明只在用户授权 Team 工作后帮助选择角色，不授权创建。非 Team 部署保留独立目录行为。动态观察服务存在性选择入口，因为 Team 工具稍后才按 Agent 作用域注册。 协调规则的独立挂载与 Lead／成员分工见[Team 协调独立于角色发现](2026-10-05-team-coordination-separate-from-discovery.zh.md)。
 
 ## Installed reference evidence
 

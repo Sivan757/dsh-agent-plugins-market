@@ -1,6 +1,6 @@
 /**
  * Runtime LSP mounts: one live `dsh-lsp-stdio` child plugin per enabled
- * suite's inline `lspServers` table, mounted through `ctx.plugin`.
+ * provider in a suite's inline `lspServers` table, mounted through `ctx.plugin`.
  *
  * Mounts reconcile against the enabled-suite set exactly like the MCP mounts:
  * reconcile() unmounts rows whose suite was disabled or removed and mounts
@@ -28,6 +28,7 @@
  * user resolves it through per-suite surface toggles.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import type { ExtensionLspProvider } from '../host/extension-tool-gates.js'
 import { DIRECT_LSP_SUITE_ID } from '../../application/lsp/lsp-status.js'
 import { SerialPassQueue, RetryScheduler, type MountPluginHandle, type PluginMountContext } from '../core/mount-lifecycle.js'
 import { describeLegacySeam, findLegacyLspSeams, type LegacyLspSeam } from '../../application/lsp/profile-seam.js'
@@ -35,16 +36,23 @@ import { qualifiedSuiteId, suiteDataDir } from '../../catalog/paths.js'
 import { expandPluginPaths, pluginRootOf, type PluginPathContext } from '../../catalog/plugin-variables.js'
 import { causeMessages } from '../host/failure-detail.js'
 import { resolveDeclaredCommand } from '../host/shell-path.js'
-import { effectiveSurfaces, type Suite } from '../../model/types.js'
+import type { Suite } from '../../model/types.js'
 
 import type { LspMountDiagnostic } from '../../contracts/lsp.js'
 
 export type { LspMountDiagnostic }
 
+interface WantedMount {
+  config: Record<string, LspStdioServerConfig>
+  facts: string[]
+  pathExtensions: string[]
+}
+
 interface LiveMount {
   fingerprint: string
   suiteId: string
   serverKeys: string[]
+  providers: ExtensionLspProvider[]
   disposer: () => void | Promise<void>
 }
 
@@ -155,6 +163,7 @@ export class LspMountRegistry {
   private entryFilter: (() => { allows(face: 'lsp', entryId: string): boolean }) | undefined
   private disabledProvider: () => Promise<Set<string>> = async () => new Set()
   private disabledSnapshot = new Set<string>()
+  private demandedProviderIds: () => ReadonlySet<string> = () => new Set()
 
   constructor(
     private readonly ctx: Context,
@@ -182,9 +191,10 @@ export class LspMountRegistry {
   private async reconcileNow(enabledSuites: Suite[]): Promise<LspMountDiagnostic[]> {
     this.lastEnabled = [...enabledSuites]
     const active = enabledSuites.filter(suite => suite.activeSurfaces.lsp !== false)
-    const wanted = new Map<string, { suite: Suite; config: Record<string, LspStdioServerConfig>; facts: string[]; pathExtensions: string[] }>()
+    const wanted = new Map<string, WantedMount>()
     const diagnostics: LspMountDiagnostic[] = []
     const disabled = await this.disabledProvider()
+    const demanded = new Set(this.demandedProviderIds())
     this.disabledSnapshot = new Set(disabled)
     for (const suite of active) {
       const servers = Object.values(suite.lsp?.servers ?? {})
@@ -202,14 +212,14 @@ export class LspMountRegistry {
         ...(root === undefined || this.pluginDataRoot === undefined ? {} : { data: suiteDataDir(this.pluginDataRoot, suite.sourceId, suite.id) })
       }
       for (const spec of servers) {
-        if (disabled.has(`${key}/${spec.key}`)) continue
+        if (disabled.has(`${key}/${spec.key}`) && !demanded.has(`${key}/${spec.key}`)) continue
         // The per-workspace resource filter answers by the status-row id, so
         // the window and the mount agree on what one entry names.
         if (this.entryFilter?.().allows('lsp', `lsp:${key}/${spec.key}`) === false) continue
         const serverConfig = expandLspServerConfig(toLspServerConfig(spec), context)
         config[`${key}/${spec.key}`] = await this.resolveServerCommand(serverConfig, spec.key, facts, pathExtensions)
       }
-      if (Object.keys(config).length > 0) wanted.set(key, { suite, config, facts, pathExtensions })
+      if (Object.keys(config).length > 0) wanted.set(key, { config, facts, pathExtensions })
     }
     // Direct user-configured servers ride the same mount path under the
     // sentinel suite id, so their lifecycle (retries, diagnostics, disposal)
@@ -221,43 +231,35 @@ export class LspMountRegistry {
       const facts: string[] = []
       const pathExtensions: string[] = []
       for (const [key, spec] of Object.entries(direct)) {
-        if (disabled.has(`${DIRECT_LSP_SUITE_ID}/${key}`)) continue
+        if (disabled.has(`${DIRECT_LSP_SUITE_ID}/${key}`) && !demanded.has(`${DIRECT_LSP_SUITE_ID}/${key}`)) continue
         if (this.entryFilter?.().allows('lsp', `lsp:direct/${key}`) === false) continue
         config[`${DIRECT_LSP_SUITE_ID}/${key}`] = await this.resolveServerCommand(toLspServerConfig(spec), key, facts, pathExtensions)
       }
       if (Object.keys(config).length > 0)
         wanted.set(DIRECT_LSP_SUITE_ID, {
-          suite: {
-            sourceId: '',
-            id: DIRECT_LSP_SUITE_ID,
-            root: '',
-            manifest: { layout: 'claude-code', path: '', id: DIRECT_LSP_SUITE_ID, name: DIRECT_LSP_SUITE_ID },
-            skills: [],
-            surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: directKeys.length },
-            dimension: 'user',
-            enabled: true,
-            // Direct servers carry no install state and no per-surface
-            // overrides, so every surface keeps its enabled default.
-            activeSurfaces: effectiveSurfaces(undefined),
-            errors: []
-          },
           config,
           facts,
           pathExtensions
         })
     }
-    // The last remaining server releases the capability seam; the first one mounts it.
-    if (wanted.size === 0) await this.releaseCapability()
-    for (const [key, live] of [...this.live]) {
-      const target = wanted.get(key)
-      if (target === undefined || live.fingerprint !== JSON.stringify(target.config)) {
-        const reason = await this.unmount(key, live)
-        this.lastDiagnostics.delete(key)
-        if (reason !== undefined) diagnostics.push({ suiteId: key, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
+    // Each child owns one provider, so changing a sibling cannot restart its process pool.
+    const wantedProviders = new Map<string, { suiteId: string; entry: WantedMount }>()
+    for (const [suiteId, entry] of wanted) {
+      for (const [providerId, config] of Object.entries(entry.config)) {
+        wantedProviders.set(providerId, { suiteId, entry: { ...entry, config: { [providerId]: config } } })
       }
     }
-    const capabilityFailure = wanted.size > 0 ? await this.ensureCapability() : undefined
-    for (const [key, entry] of wanted) {
+    for (const [key, live] of [...this.live]) {
+      const target = wantedProviders.get(key)
+      if (target === undefined || live.fingerprint !== JSON.stringify(target.entry.config)) {
+        const reason = await this.unmount(key, live)
+        this.lastDiagnostics.delete(key)
+        if (reason !== undefined) diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
+      }
+    }
+    if (wantedProviders.size === 0 && this.live.size === 0) await this.releaseCapability()
+    const capabilityFailure = wantedProviders.size > 0 ? await this.ensureCapability() : undefined
+    for (const [key, { suiteId, entry }] of wantedProviders) {
       if (this.live.has(key)) {
         this.lastDiagnostics.delete(key)
         continue
@@ -265,9 +267,9 @@ export class LspMountRegistry {
       const causes = [...(capabilityFailure?.causes ?? []), ...entry.facts]
       const failure =
         capabilityFailure === undefined
-          ? await this.mountWith(key, entry.suite, entry.config, entry.facts, entry.pathExtensions)
+          ? await this.mountWith(key, suiteId, entry.config, entry.facts, entry.pathExtensions)
           : {
-              suiteId: key,
+              suiteId,
               serverKey: Object.keys(entry.config).join(','),
               reason: capabilityFailure.reason,
               code: capabilityFailure.code,
@@ -280,6 +282,9 @@ export class LspMountRegistry {
       } else {
         this.lastDiagnostics.delete(key)
       }
+    }
+    for (const key of this.lastDiagnostics.keys()) {
+      if (!wantedProviders.has(key)) this.lastDiagnostics.delete(key)
     }
     return diagnostics
   }
@@ -413,16 +418,40 @@ export class LspMountRegistry {
   setEntryFilter(filter: () => { allows(face: 'lsp', entryId: string): boolean }): void {
     this.entryFilter = filter
   }
+  /** Session demand overrides ordinary disabled-provider defaults only; validation and entry filters still apply. */
+  setDemandedProviderIdsProvider(provider: () => ReadonlySet<string>): void {
+    this.demandedProviderIds = provider
+  }
+
   setDisabledProvider(provider: () => Promise<Set<string>>): void {
     this.disabledProvider = provider
   }
+  /** Read current global disabled IDs without merging session demand. */
+  async globalDisabledProviderIds(): Promise<ReadonlySet<string>> {
+    return new Set(await this.disabledProvider())
+  }
+
   disabledServers(): Set<string> {
     return new Set(this.disabledSnapshot)
   }
 
   /** The latest mount diagnostic per suite, for the LSP status surface. */
   diagnosticsSnapshot(): Map<string, LspMountDiagnostic> {
-    return new Map(this.lastDiagnostics)
+    const suites = new Map<string, LspMountDiagnostic>()
+    for (const diagnostic of this.lastDiagnostics.values()) {
+      if (!suites.has(diagnostic.suiteId)) suites.set(diagnostic.suiteId, diagnostic)
+    }
+    return suites
+  }
+
+  /** Whether this registry owns the LSP tool, including its startup publication window. */
+  ownsTool(): boolean {
+    return this.capabilityReady && this.capabilityFailure === undefined
+  }
+
+  /** Routes from successfully mounted provider tables; conflicts and failed mounts publish none. */
+  providerOwnership(): ExtensionLspProvider[] {
+    return [...this.live.values()].flatMap(mount => mount.providers)
   }
 
   /** Whether at least one suite mount is live. */
@@ -430,10 +459,10 @@ export class LspMountRegistry {
     return this.live.size > 0
   }
 
-  /** Mount one suite's full server table as a single `dsh-lsp-stdio` instance. */
+  /** Mount one provider as an independently disposable `dsh-lsp-stdio` instance. */
   private async mountWith(
     key: string,
-    suite: Suite,
+    suiteId: string,
     servers: Record<string, LspStdioServerConfig>,
     facts: string[] = [],
     pathExtensions: string[] = []
@@ -441,12 +470,12 @@ export class LspMountRegistry {
     const hostKeys = Object.keys(servers).join(',')
     const module = await this.loadHost()
     if (module === undefined) {
-      return { suiteId: key, serverKey: hostKeys, reason: HOST_MISSING_REASON, code: 'host-missing' }
+      return { suiteId, serverKey: hostKeys, reason: HOST_MISSING_REASON, code: 'host-missing' }
     }
     const plugin = module.default ?? module
     const mountCtx = this.ctx as unknown as PluginMountContext
     if (typeof mountCtx.plugin !== 'function') {
-      return { suiteId: key, serverKey: hostKeys, reason: 'the host context does not support dynamic plugin mounting', code: 'host-missing' }
+      return { suiteId, serverKey: hostKeys, reason: 'the host context does not support dynamic plugin mounting', code: 'host-missing' }
     }
     let handle: MountPluginHandle | undefined
     try {
@@ -465,7 +494,7 @@ export class LspMountRegistry {
       const message = error instanceof Error ? error.message : String(error)
       const conflict = /already handled by another LSP provider|already registered/.test(message)
       return {
-        suiteId: key,
+        suiteId,
         serverKey: hostKeys,
         reason: `mount failed: ${message}`,
         code: conflict ? 'seam-conflict' : 'mount-failed',
@@ -475,7 +504,12 @@ export class LspMountRegistry {
     // The mount is live: only a genuine PATH extension is worth a trace, and
     // resolveServerCommand already marked those facts structurally.
     for (const fact of pathExtensions) this.ctx.logger?.info?.(`[dsh-agent-plugins-market] ${key}: ${fact}`)
-    this.live.set(key, { fingerprint: JSON.stringify(servers), suiteId: key, serverKeys: Object.keys(servers), disposer: () => handle.dispose() })
+    const providers = Object.entries(servers).map(([providerId, config]) => ({
+      resourceId: suiteId === DIRECT_LSP_SUITE_ID ? 'lsp:direct/' + providerId.slice(suiteId.length + 1) : 'lsp:' + providerId,
+      ...(suiteId === DIRECT_LSP_SUITE_ID ? {} : { suiteId }),
+      extensions: Object.keys(config.extensionToLanguage)
+    }))
+    this.live.set(key, { fingerprint: JSON.stringify(servers), suiteId, serverKeys: Object.keys(servers), providers, disposer: () => handle.dispose() })
     return undefined
   }
 

@@ -107,7 +107,7 @@ describe('dsh-agent-plugins-market host entry', () => {
     const pending = new Promise<void>(resolve => {
       release = resolve
     })
-    const reconcile = vi.spyOn(RuntimeReconciler.prototype, 'reconcile').mockImplementation(async () => {
+    const reconcile = vi.spyOn(RuntimeReconciler.prototype, 'refreshCatalog').mockImplementation(async () => {
       await pending
       return { mcp: [], commands: [], hooks: [], lsp: [], errors: [] }
     })

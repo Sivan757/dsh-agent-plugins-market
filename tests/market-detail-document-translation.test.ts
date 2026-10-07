@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
-/**
- * The market detail page's three document surfaces carry the same collapsible
- * translation section the user-panel detail page has: it reads nothing until a
- * reader opens it, it reads the document the row names, and it renders nothing
- * at all where no translation would be shown.
- */
+/** The expanded document defaults to bilingual reading and retains three explicit modes. */
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
@@ -21,7 +16,7 @@ vi.mock('../src/client/api.js', () => api)
 
 import { SuiteDetailModal } from '../src/client/features/market/SuiteDetail.js'
 
-/** Locale probes: the section's own rule reads the active language from this key. */
+/** Locale probes: the control's own rule reads the active language from this key. */
 const chinese: Translate = key => (key === 'localeProbeLang' ? '中文' : String(key))
 const english: Translate = key => (key === 'localeProbeLang' ? 'English' : String(key))
 
@@ -114,7 +109,7 @@ async function open(text: string): Promise<void> {
   })
 }
 
-/** The open row's body: the document, and under it whatever the row adds. */
+/** The open row's body: the authored document, and the control that swaps it. */
 function rowBody(text: string): HTMLElement {
   const body = button(text).parentElement?.children[1]
   if (!(body instanceof HTMLElement)) throw new Error(`the row carrying "${text}" is not open`)
@@ -122,93 +117,62 @@ function rowBody(text: string): HTMLElement {
 }
 
 describe('market detail document translation', () => {
-  it('reads nothing on mount, and only the opened document once its section is opened', async () => {
+  it('keeps the expanded document open across global off/on and a target change', async () => {
     translationEnabled(true)
+    api.fetchSuiteDocumentTranslation.mockResolvedValue({ text: '译文', bilingualText: '原文\n\n译文', pending: 0 })
     await mount(chinese)
-    // Nothing is read for a document nobody opened.
+    await open('deploy')
+    await act(async () => {
+      unbind?.()
+      translationEnabled(false)
+    })
+    expect(rowBody('deploy').textContent).toContain('Deploy the v1 fixture suite.')
+    await act(async () => {
+      unbind?.()
+      translationEnabled(true)
+    })
+    expect(rowBody('deploy').textContent).toContain('译文')
+    await act(async () => root!.render(h(SuiteDetailModal, { t: english, sourceId: 'active', suiteId: 'v1-suite', onClose: () => {}, showOriginal: false })))
+    expect(rowBody('deploy').querySelector('[role="tablist"]')).not.toBeNull()
+    expect(api.fetchSuiteDocument).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['greet', 'skills'],
+    ['deploy', 'commands'],
+    ['reviewer', 'agents']
+  ])('loads only the expanded %s document and translation', async (name, kind) => {
+    translationEnabled(true)
+    api.fetchSuiteDocumentTranslation.mockResolvedValue({ text: 'Translated document', bilingualText: 'Authored document\n\nTranslated document', pending: 0 })
+    await mount(chinese)
     expect(api.fetchSuiteDocument).not.toHaveBeenCalled()
     expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
-
-    // Opening a command row is what reads its document — and the section is
-    // still closed, so nothing behind it was fetched either.
-    await open('deploy')
-    expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', 'commands', 'deploy')
-    expect(document.body.textContent).toContain('Deploy the v1 fixture suite.')
-    expect(document.body.textContent).toContain('translationDocToggle')
-    expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
-
-    // The section is where the read happens, and it names the document only.
-    api.fetchSuiteDocumentTranslation.mockResolvedValue({ text: '# 译文\n\n命令正文。', pending: 0 })
-    await open('translationDocToggle')
+    await open(name)
+    expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', kind, name, undefined)
+    expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledWith('active', 'v1-suite', kind, name, undefined)
+    const body = rowBody(name)
+    expect(body.querySelectorAll('[role="tab"]')).toHaveLength(3)
+    expect(body.textContent).toContain('Authored document')
+    expect(body.textContent).toContain('Translated document')
+    const tab = [...body.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(item => item.textContent === 'translationViewOriginal')!
+    await act(async () => tab.click())
+    expect(body.textContent).not.toContain('Translated document')
     expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledTimes(1)
-    expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledWith('active', 'v1-suite', 'commands', 'deploy')
-    expect(document.body.textContent).toContain('命令正文。')
   })
-
-  it('gives skills, commands, and agents the same section, each naming its own document', async () => {
-    translationEnabled(true)
-    api.fetchSuiteDocumentTranslation.mockResolvedValue({ text: '# 问候', pending: 0 })
-    await mount(chinese)
-
-    // A skill's document arrives through the same read the other two take, so
-    // the section appears once that read lands — and the translation is still
-    // unread.
-    await open('greet')
-    expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', 'skills', 'greet')
-    expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
-    await open('translationDocToggle')
-    expect(api.fetchSuiteDocumentTranslation).toHaveBeenLastCalledWith('active', 'v1-suite', 'skills', 'greet')
-
-    // Commands and agents take the same path, and their translation re-reads
-    // the file rather than trusting anything the page already holds.
-    await open('deploy')
-    expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', 'commands', 'deploy')
-    await open('translationDocToggle')
-    expect(api.fetchSuiteDocumentTranslation).toHaveBeenLastCalledWith('active', 'v1-suite', 'commands', 'deploy')
-
-    await open('reviewer')
-    expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', 'agents', 'reviewer')
-    await open('translationDocToggle')
-    expect(api.fetchSuiteDocumentTranslation).toHaveBeenLastCalledWith('active', 'v1-suite', 'agents', 'reviewer')
-    expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledTimes(3)
-  })
-
-  it('renders no section and reads nothing while translation is off', async () => {
+  it('does not translate when globally disabled', async () => {
     translationEnabled(false)
     await mount(chinese)
     await open('deploy')
-    // The document itself is untouched; only the section is absent.
-    expect(document.body.textContent).toContain('Deploy the v1 fixture suite.')
-    expect(document.body.textContent).not.toContain('translationDocToggle')
+    expect(rowBody('deploy').textContent).toContain('Deploy the v1 fixture suite.')
+    expect(rowBody('deploy').querySelector('[role="tablist"]')).toBeNull()
     expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
   })
-
-  it('renders no section under the language the documents are already authored in', async () => {
+  it('supports an explicitly enabled English interface', async () => {
     translationEnabled(true)
+    api.fetchSuiteDocumentTranslation.mockResolvedValue({ text: 'Translated document', bilingualText: 'Translated document', pending: 0 })
     await mount(english)
     await open('deploy')
-    expect(document.body.textContent).toContain('Deploy the v1 fixture suite.')
-    expect(document.body.textContent).not.toContain('translationDocToggle')
-    expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
-  })
-
-  it('leaves the authored document exactly as it renders without the section', async () => {
-    // The same row body with the section switched off and on: the document is
-    // the same node either way, and the section only appends behind it.
-    translationEnabled(false)
-    await mount(chinese)
-    await open('deploy')
-    const off = rowBody('deploy')
-    expect(off.children).toHaveLength(1)
-    const documentHtml = off.children[0]?.outerHTML
-    await act(async () => root?.unmount())
-    root = undefined
-
-    translationEnabled(true)
-    await mount(chinese)
-    await open('deploy')
-    const on = rowBody('deploy')
-    expect(on.children).toHaveLength(2)
-    expect(on.children[0]?.outerHTML).toBe(documentHtml)
+    expect(rowBody('deploy').querySelector('[role="tablist"]')).not.toBeNull()
+    expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledTimes(1)
   })
 })

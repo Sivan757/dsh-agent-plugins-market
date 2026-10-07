@@ -64,8 +64,11 @@ export function translationKey(unit: TranslationUnit, locale: string, providerId
   // The role slot stays in the key: it is what every entry already on disk was
   // keyed with, and dropping it silently orphaned the whole cache on upgrade.
   // A unit that names no role reads as a description, which is the only role
-  // the layer had when those entries were written — so they keep their keys and
-  // a document chunk can never answer for the entity's description.
+  // the layer had when those entries were written, so those entries keep their
+  // keys. The slot is not a sharing boundary: the localizer indexes by source
+  // text and serves one answer across roles (see its textIdentity, which omits
+  // the role), because translating a string does not depend on which field
+  // carries it.
   const identity = [locale, unit.surface, unit.id, unit.role ?? 'description', unit.text, providerIdentity].join('\u0000')
   return createHash('sha256').update(identity, 'utf8').digest('hex')
 }

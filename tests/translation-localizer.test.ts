@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BATCH_COALESCE_MS, MAX_BATCH_CHARS, MAX_BATCH_SIZE, TranslationLocalizer, needsTranslation } from '../src/application/translation/localizer.js'
-import { isTripped, resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
+import { PROVIDER_TIMEOUT_MS, isTripped, resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
 import type { TranslationUnit } from '../src/application/translation/unit.js'
 import { translationKey } from '../src/application/state/translation-cache.js'
 
@@ -372,6 +372,41 @@ describe('TranslationLocalizer', () => {
     localizer.dispose()
   })
 
+  it('recovers an exhausted text when the switch forgets its failures', async () => {
+    // Flipping the settings switch off and on is the user asking for translation
+    // again, so it must clear the per-text budget as well as the chain's
+    // breaker. With only the breaker reset, this text never queues again and the
+    // only recovery left is clearing the whole cache — which the switch's own
+    // contract says is not required.
+    let offline = true
+    const provider: TranslationProvider = {
+      id: 'microsoft',
+      available: () => true,
+      translate: async ({ texts }) => {
+        if (offline) throw new Error('offline')
+        return texts.map(text => 'ZH:' + text)
+      }
+    }
+    const localizer = build([provider])
+    await localizer.load()
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      clock += 200_000
+      expect(localizer.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(true)
+      await localizer.settle(500)
+    }
+    clock += 200_000
+    expect(localizer.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(false)
+
+    offline = false
+    localizer.resetFailures()
+    // The budget is gone, so the next read queues the text instead of answering
+    // "nothing more is coming", and the provider now answers it.
+    expect(localizer.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(true)
+    await localizer.settle(1_000)
+    expect(localizer.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
+    localizer.dispose()
+  })
+
   it('reports no pending work when the chain is empty', async () => {
     const localizer = build([])
     await localizer.load()
@@ -449,8 +484,7 @@ describe('TranslationLocalizer', () => {
     // target, so two preferences that render the same dictionary pay once.
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh-Hant')).toEqual({ text: 'ZH:Read files', pending: false })
-    // An English interface has nothing to translate, exactly as the surfaces'
-    // own gate says.
+    // Already-English prose needs no English translation even with the switch on.
     expect(localizer.localize(unit('a/c', 'Write files'), 'en-US')).toEqual({ text: 'Write files', pending: false })
     await localizer.settle(200)
     expect(targets).toEqual(['zh'])
@@ -580,6 +614,25 @@ describe('shared source text', () => {
     second.dispose()
   })
 
+  it('shares one answer across two roles carrying the same text', async () => {
+    // The role slot stays in the persisted key, but the text index omits it: one
+    // string is one translation whichever field carries it, which is the
+    // behaviour translation-cache.ts documents beside the key's role slot.
+    const { provider, batches } = recorder()
+    const localizer = build([provider])
+    await localizer.load()
+    const description: TranslationUnit = { surface: 'market', id: 'source/suite', role: 'description', text: 'Read files' }
+    const document: TranslationUnit = { surface: 'market', id: 'source/suite', role: 'document', text: 'Read files' }
+    expect(localizer.localize(description, 'zh').pending).toBe(true)
+    await localizer.settle(1_000)
+    // The other role read a moment later is served from the shared index; the
+    // provider was asked once.
+    expect(localizer.localize(document, 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
+    await localizer.flush()
+    expect(batches).toHaveLength(1)
+    localizer.dispose()
+  })
+
   it('queues nothing for a text already in flight for another entity', async () => {
     vi.useFakeTimers()
     try {
@@ -657,5 +710,296 @@ describe('shared source text', () => {
     expect(reloaded.localize(suite, 'zh').pending).toBe(true)
     localizer.dispose()
     reloaded.dispose()
+  })
+})
+
+/** Manual completion keeps cancellation tests independent of network timing. */
+function controlledProvider(): { provider: TranslationProvider; requests: { signal: AbortSignal; resolve: (texts: string[]) => void; reject: (error: Error) => void }[] } {
+  const requests: { signal: AbortSignal; resolve: (texts: string[]) => void; reject: (error: Error) => void }[] = []
+  return {
+    requests,
+    provider: { id: 'google', available: () => true, translate: ({ signal }) => new Promise<string[]>((resolve, reject) => requests.push({ signal, resolve, reject })) }
+  }
+}
+
+describe('translation lifecycle', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('drops queued work when the live switch turns off before the batch starts', async () => {
+    vi.useFakeTimers()
+    let enabled = true
+    const { provider, batches } = recorder()
+    const localizer = build([provider], () => enabled)
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    enabled = false
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    expect(batches).toEqual([])
+    expect(localizer.pendingCount).toBe(0)
+    localizer.dispose()
+  })
+
+  it('does not start a fallback after the live switch turns off', async () => {
+    vi.useFakeTimers()
+    let enabled = true
+    const { provider, requests } = controlledProvider()
+    const fallback = vi.fn(async () => ['fallback'])
+    const localizer = build([provider, { id: 'llm', available: () => true, translate: fallback }], () => enabled)
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    enabled = false
+    requests[0]!.reject(new Error('offline'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fallback).not.toHaveBeenCalled()
+    expect(isTripped('google')).toBe(false)
+    expect(localizer.pendingCount).toBe(0)
+    localizer.dispose()
+  })
+
+  it('drops pending work on clear instead of translating without another read', async () => {
+    vi.useFakeTimers()
+    const { provider, batches } = recorder()
+    const localizer = build([provider])
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    await localizer.clear()
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    expect(batches).toEqual([])
+    expect(localizer.pendingCount).toBe(0)
+    localizer.dispose()
+  })
+
+  it('aborts pre-clear requests and ignores a provider that returns after cancellation', async () => {
+    vi.useFakeTimers()
+    const { provider, requests } = controlledProvider()
+    const localizer = build([provider])
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    await localizer.clear()
+    expect(requests[0]!.signal.aborted).toBe(true)
+    requests[0]!.resolve(['stale answer'])
+    await vi.advanceTimersByTimeAsync(0)
+    await localizer.flush()
+    const reloaded = build([])
+    await reloaded.load()
+    expect(reloaded.localize(unit('a', 'Read files'), 'zh')).toEqual({ text: 'Read files', pending: false })
+    expect(localizer.pendingCount).toBe(0)
+    localizer.dispose()
+    reloaded.dispose()
+  })
+
+  it('keeps new-generation ownership while an old request finishes', async () => {
+    vi.useFakeTimers()
+    const { provider, requests } = controlledProvider()
+    const localizer = build([provider])
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    await localizer.clear()
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    expect(requests).toHaveLength(2)
+    requests[0]!.reject(new Error('old failure'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(localizer.pendingCount).toBe(1)
+    expect(localizer.localize(unit('alias', 'Read files'), 'zh').pending).toBe(true)
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    expect(requests).toHaveLength(2)
+    expect(isTripped('google')).toBe(false)
+    requests[1]!.resolve(['fresh answer'])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(localizer.localize(unit('a', 'Read files'), 'zh').text).toBe('fresh answer')
+    localizer.dispose()
+    await localizer.flush()
+  })
+
+  it('preserves authored leading and trailing whitespace in cached answers', async () => {
+    const answer = '    const greeting = "hello";  '
+    const localizer = build([{ id: 'google', available: () => true, translate: async () => [answer] }])
+    localizer.localize(unit('a', answer), 'zh')
+    await localizer.settle(500)
+    expect(localizer.localize(unit('a', answer), 'zh').text).toBe(answer)
+    localizer.dispose()
+  })
+})
+
+describe('target language and live settings', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('translates Chinese and bilingual text into English but skips already-English text', () => {
+    expect(needsTranslation('读取文件', 'en')).toBe(true)
+    expect(needsTranslation('Read files beside 中文 labels', 'en')).toBe(true)
+    expect(needsTranslation('Read files', 'en')).toBe(false)
+    expect(needsTranslation('', 'en')).toBe(false)
+    expect(needsTranslation(undefined, 'en')).toBe(false)
+  })
+
+  it('caps English-target source batches at 2400 characters without dropping texts', async () => {
+    const { provider, batches } = recorder()
+    const localizer = build([provider])
+    for (let index = 0; index < 10; index += 1) {
+      localizer.localize(unit('en/' + String(index), '中'.repeat(800) + String(index)), 'en')
+    }
+    await localizer.settle(500)
+    expect(batches.flat()).toHaveLength(10)
+    expect(batches.every(batch => batch.reduce((sum, text) => sum + text.length, 0) <= 2400)).toBe(true)
+    localizer.dispose()
+  })
+
+  it('starts a full English-target batch without waiting for the coalescing timer', async () => {
+    vi.useFakeTimers()
+    const { provider, batches } = recorder()
+    const localizer = build([provider])
+    for (let index = 0; index < 3; index += 1) {
+      localizer.localize(unit('en/' + String(index), '中'.repeat(799) + String(index)), 'en')
+    }
+    expect(batches).toHaveLength(1)
+    expect(batches[0]).toHaveLength(3)
+    await vi.advanceTimersByTimeAsync(0)
+    localizer.dispose()
+    await localizer.flush()
+  })
+
+  it('separates coalesced work by resolved target language and persists both answers', async () => {
+    const calls: { texts: readonly string[]; locale: string }[] = []
+    const provider: TranslationProvider = {
+      id: 'google',
+      available: () => true,
+      translate: async ({ texts, locale }) => {
+        calls.push({ texts: [...texts], locale })
+        return texts.map(text => locale + ':' + text)
+      }
+    }
+    const localizer = build([provider])
+    const chinese = unit('chinese', '读取文件')
+    const english = unit('english', 'Read files')
+    const mixed = unit('mixed', 'Read files 中文')
+    localizer.localize(chinese, 'en-US')
+    localizer.localize(english, 'zh')
+    localizer.localize(mixed, 'en')
+    localizer.localize(mixed, 'zh')
+    await localizer.settle(500)
+    expect(calls).toEqual([
+      { locale: 'en', texts: ['读取文件', 'Read files 中文'] },
+      { locale: 'zh', texts: ['Read files', 'Read files 中文'] }
+    ])
+    const reloaded = build([provider])
+    await reloaded.load()
+    expect(reloaded.localize(mixed, 'en').text).toBe('en:Read files 中文')
+    expect(reloaded.localize(mixed, 'zh').text).toBe('zh:Read files 中文')
+    expect(calls).toHaveLength(2)
+    localizer.dispose()
+    reloaded.dispose()
+  })
+
+  it('cancels inflight work immediately on notification while preserving completed cache entries', async () => {
+    let enabled = true
+    const { provider, batches } = recorder()
+    const localizer = build([provider], () => enabled)
+    localizer.localize(unit('cached', 'Cached text'), 'zh')
+    await localizer.settle(500)
+    vi.useFakeTimers()
+    const { provider: controlled, requests } = controlledProvider()
+    const running = build([controlled], () => enabled)
+    await running.load()
+    running.localize(unit('new', 'New text'), 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    enabled = false
+    running.onEnabledChanged()
+    expect(requests[0]!.signal.aborted).toBe(true)
+    expect(running.pendingCount).toBe(0)
+    requests[0]!.resolve(['cancelled answer'])
+    await vi.advanceTimersByTimeAsync(0)
+    enabled = true
+    running.onEnabledChanged()
+    expect(running.localize(unit('cached', 'Cached text'), 'zh')).toEqual({ text: 'ZH:Cached text', pending: false })
+    expect(running.localize(unit('new', 'New text'), 'zh').pending).toBe(true)
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    expect(requests).toHaveLength(2)
+    requests[1]!.resolve(['new answer'])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(running.localize(unit('new', 'New text'), 'zh').text).toBe('new answer')
+    expect(batches).toHaveLength(1)
+    localizer.dispose()
+    running.dispose()
+    await running.flush()
+  })
+
+  it('forgets provider failures on re-enable without translating until a read', async () => {
+    let enabled = true
+    let offline = true
+    const translate = vi.fn(async () => {
+      if (offline) throw new Error('offline')
+      return ['recovered']
+    })
+    const localizer = build([{ id: 'google', available: () => true, translate }], () => enabled)
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    await localizer.settle(500)
+    expect(isTripped('google')).toBe(true)
+    enabled = false
+    localizer.onEnabledChanged()
+    offline = false
+    enabled = true
+    localizer.onEnabledChanged()
+    expect(isTripped('google')).toBe(false)
+    expect(translate).toHaveBeenCalledTimes(1)
+    expect(localizer.localize(unit('a', 'Read files'), 'zh').pending).toBe(true)
+    await localizer.settle(500)
+    expect(localizer.localize(unit('a', 'Read files'), 'zh').text).toBe('recovered')
+    localizer.dispose()
+  })
+
+  it('orders old flush, cache deletion and newly requested translations', async () => {
+    vi.useFakeTimers()
+    const { provider } = recorder()
+    const localizer = build([provider])
+    localizer.localize(unit('old', 'Old text'), 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    const oldFlush = localizer.flush()
+    const clearing = localizer.clear()
+    localizer.localize(unit('new', 'New text'), 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    const newFlush = localizer.flush()
+    await Promise.all([oldFlush, clearing, newFlush])
+    const reloaded = build([])
+    await reloaded.load()
+    expect(reloaded.localize(unit('old', 'Old text'), 'zh')).toEqual({ text: 'Old text', pending: false })
+    expect(reloaded.localize(unit('new', 'New text'), 'zh')).toEqual({ text: 'ZH:New text', pending: false })
+    localizer.dispose()
+    reloaded.dispose()
+  })
+
+  it('does not cache a whitespace-only response', async () => {
+    const localizer = build([{ id: 'google', available: () => true, translate: async () => ['   '] }])
+    localizer.localize(unit('a', 'Read files'), 'zh')
+    await localizer.settle(500)
+    expect(localizer.localize(unit('a', 'Read files'), 'zh')).toEqual({ text: 'Read files', pending: false })
+    localizer.dispose()
+  })
+})
+
+describe('cold queue deadlines', () => {
+  it('releases all three occupied slots and drains pending work when every provider ignores abort', async () => {
+    vi.useFakeTimers()
+    const calls = { google: 0, microsoft: 0, llm: 0 }
+    const providers: TranslationProvider[] = (['google', 'microsoft', 'llm'] as const).map(id => ({
+      id,
+      available: () => true,
+      translate: () => {
+        calls[id] += 1
+        return new Promise<string[]>(() => {})
+      }
+    }))
+    const localizer = build(providers)
+    try {
+      for (let index = 0; index < 61; index += 1) localizer.localize(unit(String(index), 'Cold text ' + String(index)), 'zh')
+      expect(calls.google).toBe(3)
+      expect(localizer.pendingCount).toBe(61)
+      const deadline = PROVIDER_TIMEOUT_MS.google + PROVIDER_TIMEOUT_MS.microsoft + PROVIDER_TIMEOUT_MS.llm
+      await vi.advanceTimersByTimeAsync(deadline + BATCH_COALESCE_MS + 1)
+      expect(calls).toEqual({ google: 3, microsoft: 3, llm: 3 })
+      expect(localizer.pendingCount).toBe(0)
+      expect(localizer.localize(unit('60', 'Cold text 60'), 'zh')).toEqual({ text: 'Cold text 60', pending: false })
+    } finally {
+      localizer.dispose()
+      vi.useRealTimers()
+    }
   })
 })

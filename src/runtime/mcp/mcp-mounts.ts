@@ -12,6 +12,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import * as mcpBridge from './bridge/bridge.js'
+import { bridgeToolRegistrations } from './bridge/tool-ownership.js'
+import type { ExtensionMcpTool } from '../host/extension-tool-gates.js'
 import type { McpBackend } from '../../contracts/mcp.js'
 import type { McpSuiteOverrides } from '../../application/mcp/mcp-overrides.js'
 import { toMcpMounts, type McpMountRequest } from '../../application/mcp/mcp-config.js'
@@ -25,6 +27,11 @@ import type { Suite } from '../../model/types.js'
 import type { McpMountDiagnostic } from '../../contracts/mcp.js'
 
 export type { McpMountDiagnostic }
+
+/** Host compatibility has no exact registration-ownership callback and remains globally managed. */
+export function supportsMcpSessionControl(backend: McpBackend): boolean {
+  return backend === 'builtin'
+}
 
 interface LiveMount {
   suiteId: string
@@ -130,6 +137,14 @@ export class McpMountRegistry {
     // slash (qualified ids), so the separator is the NUL byte, not '/'.
     const separator = owner.indexOf('\u0000')
     return { suiteId: owner.slice(0, separator), serverKey: owner.slice(separator + 1) }
+  }
+
+  /** Current exact definitions, including an initializing bridge, independent of Native/PTC presentation. */
+  toolOwnership(): ExtensionMcpTool[] {
+    return bridgeToolRegistrations(this.ctx).flatMap(({ definition, serverName, scope }) => {
+      const owner = this.serverOwner(serverName)
+      return owner === undefined ? [] : [{ name: definition.name, definition, resourceId: 'mcp:plugin:' + owner.suiteId + '/' + owner.serverKey, suiteId: owner.suiteId, scope }]
+    })
   }
 
   /** Queue one reconciliation behind any in-flight mount/unmount pass. */
@@ -302,6 +317,7 @@ export class McpMountRegistry {
       }
     }
     let handle: MountPluginHandle | undefined
+    this.names.set(request.config.serverName, mountKey(request.suiteId, request.serverKey))
     try {
       handle = mountCtx.plugin(pluginModule, request.config)
       await handle.await()
@@ -317,6 +333,8 @@ export class McpMountRegistry {
           // Ignore teardown errors: the startup failure is the real signal.
         }
       }
+      // Keep the reservation if rollback left an owned definition live.
+      if (!bridgeToolRegistrations(this.ctx).some(entry => entry.serverName === request.config.serverName)) this.names.delete(request.config.serverName)
       return { reason: `mount failed: ${redactErrorMessage(error instanceof Error ? error.message : String(error))}`, code: 'mount-failed', causes: causeMessages(error) }
     }
     this.live.set(mountKey(request.suiteId, request.serverKey), {

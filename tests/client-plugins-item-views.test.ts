@@ -11,6 +11,15 @@ import { apply, name as packageName } from '../src/client/index.js'
 import * as api from '../src/client/api.js'
 import { translationEnabled } from '../src/client/ui/translation-enabled.js'
 
+/**
+ * Live listeners the market expects on the host form: one per module that binds
+ * it for the configForms service's lifetime — the translation preference
+ * (ui/translation-enabled) and the agent-preset visibility switch
+ * (ui/agent-presets-enabled). The number is bindings, never consumers or page
+ * mounts, so a duplicated binding or a per-mount subscription moves it.
+ */
+const FORM_BINDINGS = 2
+
 /** The renderer-side props of the entry, written out so the test binds only what the host binds. */
 interface EntryProps {
   view: 'page'
@@ -116,7 +125,7 @@ describe('installed bundle configuration', () => {
       if (!menuFirst) mount('menu')
       // One market form is fetched and shared by the read-only preference and the card.
       expect(get.mock.calls.filter(([id]) => id === MARKET_SETTINGS_NAMESPACE)).toHaveLength(1)
-      expect(source.listeners.size).toBe(1)
+      expect(source.listeners.size).toBe(FORM_BINDINGS)
       expect(menu.candidates).toBe(candidates)
       expect(load).not.toHaveBeenCalled()
       const update = (enabled: boolean) => {
@@ -129,21 +138,26 @@ describe('installed bundle configuration', () => {
       expect(load).toHaveBeenCalledOnce()
       update(true)
       expect(load).toHaveBeenCalledOnce()
+      // The settings page stops being served. The preference does not: surfaces
+      // outside it — the composer entry opens the same detail dialog — ask
+      // whether a translation is shown, so the switch keeps its value and the
+      // menu rows stay wrapped.
       stopNamespace!()
-      expect(menu.candidates).toBe(candidates)
-      expect(translationEnabled.getSnapshot()).toBe(false)
-      expect(source.listeners.size).toBe(0)
+      expect(menu.candidates).not.toBe(candidates)
+      expect(translationEnabled.getSnapshot()).toBe(true)
+      expect(source.listeners.size).toBe(FORM_BINDINGS)
       stopSettings()
       expect(unwatch).toHaveBeenCalledOnce()
+      // A settings remount rebinds the card without disturbing the preference.
       mount('settings')
       expect(menu.candidates).not.toBe(candidates)
-      expect(source.listeners.size).toBe(1)
+      expect(source.listeners.size).toBe(FORM_BINDINGS)
       for (const stop of childReleases.splice(0).reverse()) stop()
       expect(source.listeners.size).toBe(0)
       expect(menu.candidates).toBe(candidates)
       mount('menu')
       mount('settings')
-      expect(source.listeners.size).toBe(1)
+      expect(source.listeners.size).toBe(FORM_BINDINGS)
       expect(load).toHaveBeenCalledTimes(3)
       await Promise.resolve()
     } finally {
@@ -203,13 +217,16 @@ describe('installed bundle configuration', () => {
     first.edit('autoUpdateSources', 'true')
     stop()
     expect(active.has(entry.meta)).toBe(false)
-    expect(scope.listeners.size).toBe(0)
+    // Stopping the page's registration releases the card, not the preference
+    // binding: that one follows the configForms service, so surfaces outside
+    // the settings page can still read the effective switch.
+    expect(scope.listeners.size).toBe(FORM_BINDINGS)
     stop = serve()
     const second = (entries.at(-1)!.meta.inject as () => MarketCardFace)()
     expect(second).not.toBe(first)
     expect(second.hooks.marketCard.getSnapshot().dirty).toBe(false)
     stop()
-    expect(scope.listeners.size).toBe(0)
+    expect(scope.listeners.size).toBe(FORM_BINDINGS)
     const originalSection = entries.find(item => item.meta.name === 'settings.section')!
     const firstLabel = typeof originalSection.meta.label === 'function' ? (originalSection.meta.label as () => string)() : originalSection.meta.label
     expect(firstLabel).toBe('zh:nav')

@@ -62,9 +62,8 @@ export const USER_PANEL_SKILL_SOURCE = 'user-panel' satisfies SkillSource
  * (450), so a skill the user wrote by hand wins over one an installed suite
  * ships under the same name.
  *
- * Switching a skill off is not this provider's job: the panel writes the
- * harness's own invocation pair into the document, which every reader of that
- * file honors.
+ * Global panel switches write the invocation pair into the document. A scoped
+ * selection policy overrides only that session and never writes the document.
  */
 const USER_PANEL_RANK = 440
 
@@ -282,6 +281,11 @@ interface UserSkillLocator {
   name: string
 }
 
+export interface UserPanelSkillProviderOptions {
+  /** Session-local choice. Valid unselected entries remain non-invocable shadows; absent preserves global switches. */
+  enabled?: (entry: UserPanelEntry) => boolean
+}
+
 /**
  * Skill provider over user skills only. Agent definitions belong to the
  * subagent catalog and never become skill candidates or slash entries.
@@ -289,13 +293,29 @@ interface UserSkillLocator {
 export class UserPanelSkillProvider implements SkillProvider {
   readonly name = 'user-panel'
 
-  constructor(private readonly skills: UserPanelStore) {}
+  constructor(
+    private readonly skills: UserPanelStore,
+    private readonly options: UserPanelSkillProviderOptions = {}
+  ) {}
+
+  private invocation(entry: UserPanelEntry): SkillCandidate['invocation'] | undefined {
+    if (!isUserSkillEntryName(entry.name) || entry.metadata['validationError'] !== undefined) return undefined
+    if (!this.options.enabled && entry.disabled) return undefined
+    const authored = {
+      modelInvocable: entry.metadata['disable-model-invocation'] !== true,
+      userInvocable: entry.metadata['user-invocable'] !== false
+    }
+    if (!this.options.enabled) return authored
+    if (!this.options.enabled(entry)) return { modelInvocable: false, userInvocable: false }
+    return !authored.modelInvocable && !authored.userInvocable ? { modelInvocable: true, userInvocable: true } : authored
+  }
 
   async list(_options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const candidates: SkillCandidate[] = []
     const skills = await this.skills.list()
     for (const entry of skills) {
-      if (entry.disabled || !isUserSkillEntryName(entry.name)) continue
+      const invocation = this.invocation(entry)
+      if (!invocation) continue
       candidates.push({
         // The entry's name is the one its document declares, which is also the
         // name the harness's own reader derives from the same file.
@@ -305,10 +325,7 @@ export class UserPanelSkillProvider implements SkillProvider {
         // catalog a suite skill does.
         description: entry.description === '' ? entry.name : entry.description,
         ...(typeof entry.metadata['whenToUse'] === 'string' && entry.metadata['whenToUse'] !== '' ? { whenToUse: entry.metadata['whenToUse'] } : {}),
-        invocation: {
-          modelInvocable: entry.metadata['disable-model-invocation'] !== true,
-          userInvocable: entry.metadata['user-invocable'] !== false
-        },
+        invocation,
         source: USER_PANEL_SKILL_SOURCE,
         provider: this.name,
         rank: USER_PANEL_RANK,
@@ -321,15 +338,18 @@ export class UserPanelSkillProvider implements SkillProvider {
   }
 
   async get(candidate: SkillCandidate, _options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
-    const locator = candidate.locator as UserSkillLocator
-    const store = this.skills
-    const entry = await store.get(locator.name)
-    if (entry === undefined || entry.disabled) return undefined
+    const locator = candidate.locator as Partial<UserSkillLocator> | null
+    if (typeof locator?.name !== 'string' || !isUserSkillEntryName(locator.name)) return undefined
+    if (this.options.enabled && (candidate.provider !== this.name || candidate.source !== USER_PANEL_SKILL_SOURCE || candidate.name !== locator.name)) return undefined
+    const entry = await this.skills.get(locator.name)
+    if (entry === undefined || (this.options.enabled && (entry.name !== candidate.name || entry.path !== candidate.path))) return undefined
+    const invocation = this.invocation(entry)
+    if (!invocation || (!invocation.modelInvocable && !invocation.userInvocable)) return undefined
     return {
       name: candidate.name,
       description: candidate.description,
       ...(typeof entry.metadata['whenToUse'] === 'string' && entry.metadata['whenToUse'] !== '' ? { whenToUse: entry.metadata['whenToUse'] } : {}),
-      invocation: candidate.invocation,
+      invocation: this.options.enabled ? invocation : candidate.invocation,
       source: candidate.source,
       provider: this.name,
       resourceBase: { kind: 'directory', path: this.resourceDirectory(entry) },

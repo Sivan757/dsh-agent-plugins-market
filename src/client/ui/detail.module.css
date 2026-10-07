@@ -17,6 +17,13 @@
 .dialog[role='dialog'].sizeLg {
   width: min(880px, calc(100vw - 48px));
 }
+/* Only preset-owned details inherit the settings frame; ordinary detail callers retain their sizing. */
+.dialog[role='dialog'].settingsFrame {
+  width: 800px;
+  height: 800px;
+  max-width: 100%;
+  max-height: 100%;
+}
 .body {
   min-width: 0;
   min-height: 0;

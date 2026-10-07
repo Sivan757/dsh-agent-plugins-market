@@ -45,6 +45,8 @@ export interface MenuRowFaceOptions {
   readonly commandUi: unknown
   /** `ctx.inputTriggers`, the roster owning the skill source. Probed structurally. */
   readonly inputTriggers: unknown
+  /** Observe a real candidate request without delaying its result. */
+  readonly onCandidates?: ((session: unknown) => void) | undefined
   /**
    * Resolve one row's localized face.
    * @param source - the menu group the row belongs to.
@@ -146,7 +148,7 @@ function faceRows(rows: unknown, source: MenuRowSource, faceOf: MenuRowFaceOptio
  * @param faceOf - the owner's face resolver.
  * @returns the disposer, or undefined when the seam is absent or already faced.
  */
-function wrapCandidates(holder: unknown, source: MenuRowSource, faceOf: MenuRowFaceOptions['faceOf']): (() => void) | undefined {
+function wrapCandidates(holder: unknown, source: MenuRowSource, faceOf: MenuRowFaceOptions['faceOf'], onCandidates?: MenuRowFaceOptions['onCandidates']): (() => void) | undefined {
   if (holder === null || holder === undefined) return undefined
   if (typeof holder !== 'object' && typeof holder !== 'function') return undefined
   const target = holder as Record<string, unknown>
@@ -162,6 +164,7 @@ function wrapCandidates(holder: unknown, source: MenuRowSource, faceOf: MenuRowF
     // loud failure for a silently empty group.
     const rows = await call.apply(this, args)
     try {
+      onCandidates?.(args[0])
       return faceRows(rows, source, faceOf)
     } catch (error) {
       reportFailure(error)
@@ -207,7 +210,7 @@ function registeredSkillSources(roster: unknown): unknown[] {
  * @param collect - receives the disposer of every source faced while watching.
  * @returns the disposer, or undefined when the roster exposes no registration seam.
  */
-function watchSkillRegistrations(roster: unknown, faceOf: MenuRowFaceOptions['faceOf'], collect: (dispose: () => void) => void): (() => void) | undefined {
+function watchSkillRegistrations(roster: unknown, faceOf: MenuRowFaceOptions['faceOf'], collect: (dispose: () => void) => void, onCandidates?: MenuRowFaceOptions['onCandidates']): (() => void) | undefined {
   if (roster === null || roster === undefined) return undefined
   if (typeof roster !== 'object' && typeof roster !== 'function') return undefined
   const target = roster as Record<string, unknown>
@@ -221,7 +224,7 @@ function watchSkillRegistrations(roster: unknown, faceOf: MenuRowFaceOptions['fa
     const source = args[0]
     if (isSkillSource(source)) {
       try {
-        const dispose = wrapCandidates(source, 'skills', faceOf)
+        const dispose = wrapCandidates(source, 'skills', faceOf, onCandidates)
         if (dispose !== undefined) collect(dispose)
       } catch (error) {
         reportFailure(error)
@@ -247,10 +250,10 @@ function watchSkillRegistrations(roster: unknown, faceOf: MenuRowFaceOptions['fa
 /** Face every `skill` source the roster can reach, now and on later registration. */
 function faceSkillSources(options: MenuRowFaceOptions, collect: (dispose: () => void) => void): void {
   for (const source of registeredSkillSources(options.inputTriggers)) {
-    const dispose = wrapCandidates(source, 'skills', options.faceOf)
+    const dispose = wrapCandidates(source, 'skills', options.faceOf, options.onCandidates)
     if (dispose !== undefined) collect(dispose)
   }
-  const watching = watchSkillRegistrations(options.inputTriggers, options.faceOf, collect)
+  const watching = watchSkillRegistrations(options.inputTriggers, options.faceOf, collect, options.onCandidates)
   if (watching !== undefined) collect(watching)
 }
 
@@ -270,7 +273,7 @@ export function installMenuRowFace(options: MenuRowFaceOptions): () => void {
     disposers.push(dispose)
   }
   try {
-    const commands = wrapCandidates(options.commandUi, 'commands', options.faceOf)
+    const commands = wrapCandidates(options.commandUi, 'commands', options.faceOf, options.onCandidates)
     if (commands !== undefined) collect(commands)
   } catch (error) {
     reportFailure(error)

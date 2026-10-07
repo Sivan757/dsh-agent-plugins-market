@@ -39,10 +39,12 @@ interface MaskRule {
  * fragment first keeps the whole span intact.
  */
 const MASK_RULES: readonly MaskRule[] = [
+  { letter: 'D', pattern: /⟪d\d+⟫/g },
   { letter: 'C', pattern: /`[^`]*`/g },
   { letter: 'T', pattern: /<[^>]{0,200}>/g },
   { letter: 'U', pattern: /https?:\/\/\S+/g },
   { letter: 'V', pattern: /\$\{[A-Z_][A-Z0-9_]*\}/g },
+  { letter: 'H', pattern: /[<>&]/g },
   { letter: 'K', pattern: /\b(?:MCP|LSP|DSH|CLI|API|JSON|HTTP|URL|SDK)\b/g }
 ]
 
@@ -64,12 +66,18 @@ export function maskText(input: string): MaskedText {
   let text = input
   for (const rule of MASK_RULES) {
     let index = 0
-    text = text.replace(rule.pattern, match => {
-      index += 1
-      const placeholder = `⟦${rule.letter}${index}⟧`
-      placeholders.set(placeholder, match)
-      return placeholder
-    })
+    text = text
+      .split(/(⟦[A-Z]\d+⟧)/g)
+      .map(part => {
+        if (/^⟦[A-Z]\d+⟧$/.test(part)) return part
+        return part.replace(rule.pattern, match => {
+          index += 1
+          const placeholder = `⟦${rule.letter}${index}⟧`
+          placeholders.set(placeholder, match)
+          return placeholder
+        })
+      })
+      .join('')
   }
   return { text, placeholders }
 }

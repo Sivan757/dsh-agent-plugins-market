@@ -1,0 +1,40 @@
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ❯ tests/resource-window-state.test.ts (12 tests | 1 failed) 21ms
+     ✓ keeps string arrays on known faces and drops everything else 1ms
+     ✓ persists per workspace beside the surface toggles and loads both together 3ms
+     ✓ reads all-on defaults for a workspace with no document 1ms
+     ✓ keeps the entries section when a single surface toggle flips 3ms
+     ✓ degrades a hand-edited malformed entries record to the known faces 2ms
+     × normalizes data-root separators in every persisted resource path 4ms
+     ✓ roundtrips a favorite in the global data-root file 3ms
+     ✓ shares favorites across workspaces and deletes by id 3ms
+     ✓ drops malformed rows from a hand-edited file 1ms
+     ✓ accepts a well-formed snapshot and normalizes unknown surface keys to on 0ms
+     ✓ rejects a missing or blank name 0ms
+     ✓ covers the six window faces in contract order 0ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  20:48:17
+   Duration  193ms (transform 47ms, setup 0ms, import 64ms, tests 21ms, environment 0ms)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/resource-window-state.test.ts > resource favorites storage > normalizes data-root separators in every persisted resource path
+AssertionError: expected '/var/folders/1r/7gjbtzw51yd558twn60ht…' to be '/var/folders/1r/7gjbtzw51yd558twn60ht…' // Object.is equality
+
+Expected: "/var/folders/1r/7gjbtzw51yd558twn60hty340000gn/T/resource-paths/resource-favorites.json"
+Received: "/var/folders/1r/7gjbtzw51yd558twn60hty340000gn/T/resource-paths//resource-favorites.json"
+
+ ❯ tests/resource-window-state.test.ts:79:45
+     77|     const dataRoot = join(tmpdir(), 'resource-paths') + sep
+     78|     const togglePath = surfaceTogglesPath(dataRoot, '/workspace')
+     79|     expect(resourceFavoritesPath(dataRoot)).toBe(join(dataRoot, 'resou…
+       |                                             ^
+     80|     expect(togglePath).toBe(join(dataRoot, 'surface-toggles', basename…
+     81|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

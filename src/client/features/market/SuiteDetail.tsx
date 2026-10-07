@@ -13,11 +13,13 @@
  * overrides are configured on the MCP services panel (their own detail
  * dialog), not inside the suite detail preview.
  */
-import { createElement as h, Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
-import { displayText } from '../../ui/translated-text.js'
+import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useDisplayText } from '../../ui/translated-text.js'
+import { localeIsChinese } from '../../ui/bilingual-text.js'
+import { useTranslationEnabled } from '../../ui/translation-enabled.js'
+import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { Button, JsonTree, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
-import { MarkdownDocument } from '../../ui/MarkdownDocument.js'
 import { DocumentTranslationView } from '../../ui/DocumentTranslation.js'
 import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import { lastChangeLabel } from '../../ui/last-change.js'
@@ -34,6 +36,7 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 
 export interface SuiteDetailModalProps {
   t: Translate
+  sessionId?: string
   sourceId: string
   suiteId: string
   onClose: () => void
@@ -43,10 +46,22 @@ export interface SuiteDetailModalProps {
   onUninstall?: (() => void) | undefined
   /** The panel's text view, and the switch that drives it. */
   showOriginal: boolean
+  /**
+   * Presentation overrides for a configuration row whose identity is a wire
+   * id, not display text: the presets detail passes the localized title and
+   * description here so the dialog shows the same name the list row does.
+   */
+  displayName?: string | undefined
+  displayDescription?: string | undefined
+  /** Shown as a note when the detail carries no usable capability, e.g. the user hooks configuration with no valid hook event. */
+  emptyNote?: string | undefined
 }
 
-export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onUninstall, showOriginal }: SuiteDetailModalProps): ReactNode {
+export function SuiteDetailModal({ t, sourceId, suiteId, sessionId, onClose, onInstall, onUninstall, showOriginal, displayName, displayDescription, emptyNote }: SuiteDetailModalProps): ReactNode {
   const [detail, setDetail] = useState<SuiteDetail | undefined>(undefined)
+  const target = localeIsChinese(t) ? 'zh' : 'en'
+  const enabled = useTranslationEnabled()
+  const [detailTarget, setDetailTarget] = useState(target)
   const [error, setError] = useState<string | undefined>(undefined)
   const [openRow, setOpenRow] = useState<string | undefined>(undefined)
   // One slot for whichever document row is open: a row's body renders only while
@@ -56,27 +71,39 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
   const documentRequestGuard = useRef(createLatestRequestGuard())
   // The dialog renders the panel's view and flips that same state, so the two
   // switches are one control seen from two places rather than two states.
-  const view = { original: showOriginal }
+  const description = useDisplayText(detailTarget === target ? detail?.translatedDescription : undefined, detail?.description ?? undefined, t, { original: showOriginal })
 
   useEffect(() => {
-    let cancelled = false
     documentRequestGuard.current.invalidate()
     setDetail(undefined)
     setError(undefined)
     setOpenRow(undefined)
     setDocumentText(undefined)
-    fetchSuiteDetail(sourceId, suiteId)
-      .then(value => {
-        if (!cancelled) setDetail(value)
+    return () => { documentRequestGuard.current.invalidate() }
+  }, [sourceId, suiteId, sessionId])
+
+  useEffect(() => {
+    let cancelled = false
+    let poll: { stop: () => void } | undefined
+    const report = (value: SuiteDetail): void => { if (!cancelled) { setDetail(value); setDetailTarget(target) } }
+    const read = async (): Promise<{ value: SuiteDetail; pending: number }> => {
+      const value = await fetchSuiteDetail(sourceId, suiteId, sessionId)
+      return { value, pending: enabled ? value.translationPending ?? 0 : 0 }
+    }
+    read()
+      .then(first => {
+        if (cancelled) return
+        report(first.value)
+        if (first.pending > 0) poll = pollUntilTranslated({ read, report, isStopped: () => cancelled })
       })
       .catch(reason => {
         if (!cancelled) setError(clientErrorMessage(t, reason))
       })
     return () => {
       cancelled = true
-      documentRequestGuard.current.invalidate()
+      poll?.stop()
     }
-  }, [sourceId, suiteId])
+  }, [sourceId, suiteId, sessionId, target, enabled])
 
   const toggleRow = async (id: string, load?: () => Promise<string>): Promise<void> => {
     if (openRow === id) {
@@ -111,10 +138,10 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
       id,
       name,
       description,
-      () => void toggleRow(id, async () => (await fetchSuiteDocument(sourceId, suiteId, kind, name)).content),
+      () => void toggleRow(id, async () => (await fetchSuiteDocument(sourceId, suiteId, kind, name, sessionId)).content),
       openRow === id && documentLoading
         ? h('div', { className: css.empty }, t('loading'))
-        : documentBody(t, h(MarkdownDocument, { text: documentText ?? '', t }), () => fetchSuiteDocumentTranslation(sourceId, suiteId, kind, name))
+        : documentBody(t, documentText ?? '', () => fetchSuiteDocumentTranslation(sourceId, suiteId, kind, name, sessionId))
     )
 
   const layoutLabel = detail === undefined ? '' : suiteLayoutLabel(detail.layout, t)
@@ -127,10 +154,11 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
         : t('disabledLabel')
       : t('notInstalledLabel')
 
+  const shownName = displayName ?? detail?.name
   return h(DetailModal, {
     open: true,
     onClose,
-    title: detail === undefined ? t('detailTitle') : detail.name,
+    title: shownName === undefined ? t('detailTitle') : shownName,
     // No subtitle: the kind and the source are already tags on the identity row,
     // and the source repeats the overview grid's own `来源套件` cell.
     closeLabel: t('cancel'),
@@ -175,13 +203,13 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                     updated === null ? null : kvCell(t('updatedLabel'), updated)
                   )
                 ),
-                detail.description === null
+                (displayDescription ?? (detail.description === null ? undefined : description)) === undefined
                   ? null
                   : h(
                       'div',
                       { className: panelCss.block },
                       h('h4', { className: panelCss.blockHead }, t('detailDescriptionLabel')),
-                      h('p', { className: panelCss.detailProse }, displayText(detail.translatedDescription, detail.description, t, view))
+                      h('p', { className: panelCss.detailProse }, displayDescription ?? description)
                     ),
                 block(
                   t('skillsSection'),
@@ -221,6 +249,7 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
                     row(openRow, `h:${index}`, hook.event, hook.command, () => void toggleRow(`h:${index}`), h(JsonTree, { data: hook, label: hook.event, copyable: true, labels: jsonTreeLabels(t) }))
                   )
                 ),
+                emptyNote === undefined || detail.hooks.count > 0 ? null : h('p', { className: panelCss.detailProse }, emptyNote),
                 block(
                   t('lspSection'),
                   detail.lsp.servers.length + detail.lsp.raw.length,
@@ -256,8 +285,8 @@ export function SuiteDetailModal({ t, sourceId, suiteId, onClose, onInstall, onU
  * this document, and the server re-reads the file rather than trusting the
  * detail payload that put the authored text on screen.
  */
-function documentBody(t: Translate, document: ReactNode, load: () => Promise<DocumentTranslation>): ReactNode {
-  return h(Fragment, null, document, h(DocumentTranslationView, { t, load }))
+function documentBody(t: Translate, original: string, load: () => Promise<DocumentTranslation>): ReactNode {
+  return h(DocumentTranslationView, { t, original, load })
 }
 
 /** One surface group. A surface the suite does not carry is left out entirely. */

@@ -4,7 +4,7 @@ import css from './resource-card.module.css'
 export type ResourceState = 'active' | 'disabled' | 'warning' | 'error'
 
 /** The surface a card belongs to; a few narrow-container rules key off it. */
-export type ResourceSurface = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp'
+export type ResourceSurface = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'
 
 /** State chrome shared by every resource, independent of the source and the content layout. */
 export function ResourceCard({

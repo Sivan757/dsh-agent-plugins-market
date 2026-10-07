@@ -11,6 +11,7 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
 import { kvCell } from '../../ui/DetailRows.js'
 import { displayText } from '../../ui/translated-text.js'
+import { useTranslationEnabled } from '../../ui/translation-enabled.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { mcpCardState, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
@@ -23,6 +24,7 @@ export function McpDetailModal({
   t,
   backend,
   showOriginal = false,
+  readOnly = false,
   onClose,
   onRetry,
   onReauthorize,
@@ -34,6 +36,8 @@ export function McpDetailModal({
   backend: 'builtin' | 'host'
   /** The panel's text view, and the switch that drives it. */
   showOriginal?: boolean
+  /** Prevent global tool-filter and authentication changes in preset details. */
+  readOnly?: boolean
   onClose: () => void
   onRetry: (entryId: string) => Promise<McpStatusEntry>
   onReauthorize: (id: string, serverName: string) => Promise<McpStatusEntry>
@@ -48,7 +52,8 @@ export function McpDetailModal({
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
   // The dialog renders the panel's view and flips that same state, so the two
   // switches are one control seen from two places rather than two states.
-  const view = { original: showOriginal === true }
+  const translationEnabled = useTranslationEnabled()
+  const view = { original: !translationEnabled || showOriginal === true }
   const actions = mcpDetailActions(entry)
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
   const tools = mcpToolRows(entry)
@@ -60,11 +65,11 @@ export function McpDetailModal({
   // declaration here, so both stay read-only; a declared server is this
   // plugin's to edit, probe, and pick tools for.
   const editableServer = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
-  const toolsEditable = editableServer
+  const toolsEditable = editableServer && !readOnly
   const toggleTool = (tool: string, enabled: boolean): void => {
     const suiteId = entry.suiteId
     const serverKey = entry.serverKey
-    if (suiteId === undefined || serverKey === undefined) return
+    if (!toolsEditable || backend === 'host' || suiteId === undefined || serverKey === undefined) return
     setToolBusy(true)
     setFeedback(undefined)
     void setMcpServerTool(suiteId, serverKey, tool, enabled)
@@ -73,6 +78,7 @@ export function McpDetailModal({
       .finally(() => setToolBusy(false))
   }
   const run = async (authorize: boolean): Promise<void> => {
+    if (readOnly) return
     setConfirmAuth(false)
     setPending(true)
     setFeedback(undefined)
@@ -89,7 +95,7 @@ export function McpDetailModal({
     }
   }
   const recovery: ReactNode[] = []
-  if (actions.retry) {
+  if (!readOnly && actions.retry) {
     recovery.push(
       h(
         Button,
@@ -109,7 +115,7 @@ export function McpDetailModal({
       )
     )
   }
-  if (actions.reauthorize) {
+  if (!readOnly && actions.reauthorize) {
     recovery.push(
       h(
         Button,
@@ -164,7 +170,7 @@ export function McpDetailModal({
       // The one destructive confirmation sits directly under the band it
       // belongs to, and keeps its in-line shape rather than becoming a panel
       // or the host's risk dialog.
-      confirmAuth
+      confirmAuth && !readOnly
         ? h(
             'div',
             { className: css.reauthConfirm, role: 'alert' },

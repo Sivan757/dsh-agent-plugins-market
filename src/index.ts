@@ -13,6 +13,7 @@
  * self-contained: suites' MCP servers mount through the market's own bridge
  * plugin on the host `tools` registry.
  */
+import { isAbsolute } from 'node:path'
 import { type Context, type Volatile } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cosmokit'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
@@ -31,21 +32,31 @@ import { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
 import { inspectToolRegistry, toolsServiceOf } from './runtime/host/tool-registry-observer.js'
 import { createLlmTranslator } from './runtime/host/llm-translator.js'
 import { createTranslationProviders } from './runtime/host/translation-providers.js'
-import { resetCircuitBreaker } from './application/translation/chain.js'
 import { migratePluginStorage } from './application/state/storage-migration.js'
 import { mountAgentRoleTool } from './runtime/agents/agent-role-router.js'
 import { mountUnlessAgentTeams } from './runtime/agents/agent-teams-seat.js'
 import { mountTeammateRoleTool } from './runtime/agents/teammate-role-tool.js'
+import { mountTeamCoordination } from './runtime/agents/team-coordination.js'
 import { projectAgentRoles } from './application/project-agent-roles.js'
-import { mountProjectCommands, mountProjectMcp, mountProjectHooks, mountSuiteInstructions } from './runtime/surfaces/project-runtime.js'
+import { ExtensionRuntime, extensionWorkspace } from './runtime/host/extension-runtime.js'
+import { attachExtensionToolGates, type ExtensionToolGates } from './runtime/host/extension-tool-gates.js'
+import { ScopedExtensionContributors } from './runtime/host/scoped-contributors.js'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import { readExtensionInventory } from './application/extension-inventory.js'
+import { readExtensionSuiteDeclarations } from './application/extension-suite-declarations.js'
+import { projectExtensionSuites, type ExtensionSuiteCandidate } from './application/extension-suite-selection.js'
+import { loadUserMcpSuite } from './application/mcp/mcp-direct-config.js'
+import { loadUserHooksSuite } from './application/panels/user-hooks.js'
+import type { ExtensionSelection } from './contracts/extension-presets.js'
+import { createProjectExtensionResources } from './application/extension-project.js'
+import { mountExtensionPresetRoutes } from './routes-extension-presets.js'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createPanelResources } from './application/panel-resources.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from './catalog/paths.js'
 import { mountSuiteRoutes } from './routes.js'
 import { mountResourceRoutes } from './routes-resources.js'
 import { ResourceFilterService } from './runtime/host/resource-filter-service.js'
-import { EntryFilteredSkillProvider } from './runtime/surfaces/skills-provider.js'
-import { SuiteSkillProvider, ToggledSkillProvider } from './runtime/surfaces/skills-provider.js'
-import { shellSeamOf, type ShellSeam } from './runtime/surfaces/dynamic-context.js'
+import { shellSeamOf } from './runtime/surfaces/dynamic-context.js'
 import { loadLspServers } from './application/lsp/lsp-direct-config.js'
 import { loadDisabledLspServers } from './application/lsp/lsp-server-state.js'
 import {
@@ -60,7 +71,6 @@ import {
 import { createUserPanelStores } from './runtime/panels/user-panels.js'
 import { SourceAutoUpdater } from './runtime/core/source-auto-update.js'
 import { UserPanelSkillProvider } from './runtime/panels/user-panels.js'
-import { UserCommandMountRegistry } from './runtime/panels/user-commands.js'
 import { collectMenuRowIdentities } from './runtime/host/menu-row-identities.js'
 import type { SourceRef } from './model/types.js'
 import { presetSourceRef } from './model/preset-source.js'
@@ -104,10 +114,12 @@ export interface Config {
   autoUpdateSources: Volatile<boolean | undefined>
   /** UI translation switch; updated live through the host settings service. */
   translationEnabled: Volatile<boolean | undefined>
+  /** Agent preset manager switch (experimental); updated live through the host settings service. */
+  agentPresetsEnabled: Volatile<boolean | undefined>
 }
 
 /**
- * Schemastery projection the host loader reads: the six volatile fields become
+ * Schemastery projection the host loader reads: the seven volatile fields become
  * the `dsh-agent-plugins-market` settings namespace (the Plugins panel's
  * configuration page reads it), while the startup fields stay plain.
  */
@@ -130,6 +142,7 @@ export interface ConfigInput {
   feedbackEnabled?: boolean | null
   autoUpdateSources?: boolean | null
   translationEnabled?: boolean | null
+  agentPresetsEnabled?: boolean | null
 }
 
 export const Config = z.object({
@@ -149,7 +162,8 @@ export const Config = z.object({
   downloadRegion: MarketSettingsFields.downloadRegion.volatile(),
   feedbackEnabled: MarketSettingsFields.feedbackEnabled.volatile(),
   autoUpdateSources: MarketSettingsFields.autoUpdateSources.volatile(),
-  translationEnabled: MarketSettingsFields.translationEnabled.volatile()
+  translationEnabled: MarketSettingsFields.translationEnabled.volatile(),
+  agentPresetsEnabled: MarketSettingsFields.agentPresetsEnabled.volatile()
 })
 
 const undefinedRef = { get: () => undefined as never }
@@ -162,7 +176,8 @@ export async function apply(
     downloadRegion: undefinedRef,
     feedbackEnabled: undefinedRef,
     autoUpdateSources: undefinedRef,
-    translationEnabled: undefinedRef
+    translationEnabled: undefinedRef,
+    agentPresetsEnabled: undefinedRef
   }
 ): Promise<void> {
   const userRoot = resolveUserRoot(config.userRoot)
@@ -171,7 +186,6 @@ export async function apply(
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
 
-  let providerControl: SkillProviderControl | undefined
   let userPanelControl: SkillProviderControl | undefined
   // Host runtime copy resolves from the harness `locale.preference` setting.
   const hostLocale: { t: HostTranslate } = { t: bindHostLocale(undefined) }
@@ -193,7 +207,6 @@ export async function apply(
     const preference = readLocalePreference()
     hostLocale.t = bindHostLocale(preference)
     localePreference = preference ?? 'zh'
-    providerControl?.invalidate()
     userPanelControl?.invalidate()
   }
   // The preference is the `locale` entry's live configuration, projected by the
@@ -220,17 +233,18 @@ export async function apply(
   )
 
   const runtime = new RuntimeReconciler(ctx, dataRoot, key => hostLocale.t(key))
+  /** Set once the agents-scoped extension runtime mounts; read by the change pipeline. */
+  let extensionPresets: ExtensionRuntime | undefined
+  /** Live-session address for the market's project-detail routes; set with the runtime. */
+  let suiteSession: { agent(sessionId: string): Agent | undefined; project(agent: Agent): ReturnType<typeof createProjectExtensionResources> } | undefined
 
   // User panel stores (skills / commands / agent personas) and their runtime
   // contributions: one extra skill provider plus one command mount registry.
   const panels = createUserPanelStores(agentsRoot)
-  const userCommands = new UserCommandMountRegistry(ctx, panels.commands, key => hostLocale.t(key))
 
   let disposed = false
-  let projectCommands: ReturnType<typeof mountProjectCommands> | undefined
-  let projectMcp: ReturnType<typeof mountProjectMcp> | undefined
-  let projectHooks: ReturnType<typeof mountProjectHooks> | undefined
-  let suitePrompts: ReturnType<typeof mountSuiteInstructions> | undefined
+  let scopedContributors: ScopedExtensionContributors | undefined
+  let selectedRoleSuites: ((agent: Agent) => Promise<import('./model/types.js').Suite[]>) | undefined
 
   const scheduler = new ReconcileScheduler(ctx, runtime, {
     // Always the full enabled set. A switched-off surface is gated inside the
@@ -240,31 +254,13 @@ export async function apply(
     // filter is the one deliberate exception: its row IS the suite, so denying
     // it in this workspace means the suite mounts nothing here — the same
     // semantics as the global enable switch, one workspace deep.
-    enabledSuites: async () => {
-      const suites = await catalog.enabledUserSuites()
-      return suites.filter(suite => resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id))
-    },
+    enabledSuites: () => catalog.enabledUserSuites(),
+    declarations: () => readUserDeclarations(),
     publishMcpDiagnostics: diagnostics => {
       catalog.mcpDiagnostics = diagnostics
     }
   })
-  // Entry filters reach each contributor at its own wanted-row computation —
-  // the same per-branch shape the surface switches use, so an entry off in one
-  // face never touches the same suite's mounts in another.
-  runtime.setMcpEntryFilter(() => resourceFilters)
-  runtime.lsp.setEntryFilter(() => resourceFilters)
-  runtime.setCommandsEntryFilter(() => resourceFilters)
-  userCommands.setEntryFilter(() => resourceFilters)
-
-  /** Reconcile the user command mounts and report each failure once. */
-  const reconcileUserCommands = async (): Promise<void> => {
-    // The switch is answered inside reconcile, not by skipping the pass: an
-    // early return would leave the previous registrations mounted.
-    const diagnostics = await userCommands.reconcile(surfaceToggles.allows('commands')).catch(() => [] as string[])
-    for (const reason of diagnostics) {
-      ctx.logger?.warn(`[dsh-agent-plugins-market] user commands: ${reason}`)
-    }
-  }
+  runtime.setAgentScopedContributors()
 
   /**
    * How long the change pipeline holds the queue on one stage. A mount that
@@ -293,13 +289,14 @@ export async function apply(
    */
   const onChanged = async (): Promise<void> => {
     if (disposed) return
-    providerControl?.invalidate()
+    // A catalog change can revoke a globally managed resource, so every agent's
+    // cached inventory is dropped before the mounts below reconcile: the next
+    // authorization call denies until the new catalog has been read.
+    extensionPresets?.invalidate()
     userPanelControl?.invalidate()
-    await runStage('project commands', () => projectCommands?.refresh())
-    await runStage('suite instructions', () => suitePrompts?.refresh())
-    await runStage('project MCP and hooks', () => Promise.all([projectMcp?.refresh(), projectHooks?.refresh()]))
-    await runStage('user commands', () => reconcileUserCommands())
+    scopedContributors?.invalidateAll()
     await runStage('runtime mounts', () => scheduler.request())
+    await runStage('extension contributors', () => extensionPresets?.refreshAll())
   }
 
   // Background source updates: off until the settings switch says otherwise.
@@ -313,14 +310,12 @@ export async function apply(
     {
       setScanProjectLayouts: enabled => catalog.setScanProjectLayouts(enabled),
       refreshMcpMounts: () => {
-        void Promise.all([scheduler.request(), projectMcp?.refresh()]).catch(() => {})
+        void onChanged().catch(() => {})
       },
       setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled),
-      // Switched back on is the user asking for translation again: the chain's
-      // breaker is process-wide and otherwise permanent, and one retired
-      // provider used to mean a process restart before anything was translated
-      // again. Switching off and on, or clearing the cache below, is the retry.
-      resetTranslationProviders: () => resetCircuitBreaker()
+      syncTranslationEnabled: () => {
+        catalog.syncTranslationEnabled()
+      }
     },
     // The cached preference above, not a fresh host read: the translation default
     // follows the language, and this reader is called on every settings read.
@@ -347,7 +342,6 @@ export async function apply(
   // six switches stay orthogonal: turning MCP off reconciles the MCP mounts to
   // zero servers while the same suites keep their language servers, and the
   // reverse for LSP.
-  runtime.setSurfaceGates({ allows: surface => surfaceToggles.allows(surface) })
 
   // The credentials store powers the MCP re-authorize action (dropping a grant
   // record forces the next mount through a fresh browser authorization). Every
@@ -382,7 +376,7 @@ export async function apply(
     menuRowIdentities: () =>
       collectMenuRowIdentities({
         panels: resources,
-        commands: [...userCommands.registrations(), ...runtime.commandRegistrations()]
+        commands: scopedContributors?.registrations() ?? []
       }),
     // Built unconditionally: every provider reads its host services per call,
     // and the settings switch is read live by the localizer. Capturing the
@@ -398,6 +392,10 @@ export async function apply(
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
+  const readUserDeclarations = async (): Promise<ExtensionSuiteCandidate[]> => {
+    const [installed, direct] = await Promise.all([catalog.installedSuiteDeclarations(), Promise.all([loadUserMcpSuite(agentsRoot), loadUserHooksSuite(agentsRoot)])])
+    return [...installed, ...(await readExtensionSuiteDeclarations(direct))]
+  }
   // Translation is lazy by design: nothing is translated until a panel read
   // asks for it, so a deployment that never opens the market pays nothing. The
   // model-backed provider needs the host model services, and those provision
@@ -408,13 +406,230 @@ export async function apply(
   // refresh path clones it. Registration performs no network access.
   await catalog.mergeSources([...(config.sources ?? []), presetSourceRef()])
   const resources = createPanelResources(catalog, panels)
-  runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides(await catalog.enabledUserSuites()))
+
+  // Session extension presets. One runtime owns the session selection, the
+  // route surface and the per-agent tool gates; every inventory read comes
+  // from the live catalog, and a catalog change re-reads it for every agent,
+  // so a global disable or uninstall denies the next call instead of waiting
+  // for a panel poll. A gate is attached per agent and only ever released for
+  // that agent: shared MCP/LSP servers are not torn down by one session.
+  // The runtime reads the agents service, so it is constructed inside the fiber
+  // that has it: a profile without the service never loads presets at all,
+  // rather than half-loading and failing every session. The routes mount from a
+  // scope nested in that one, so the service exists before the first request.
+  ctx.inject(['agents', 'sessions', 'sessionQuery', 'tools'], hostCtx => {
+    const eligible = (agent: Agent): boolean => {
+      const cwd = agent.session.header.cwd
+      return typeof cwd === 'string' && isAbsolute(cwd)
+    }
+    const gates = new Map<Agent, ExtensionToolGates>()
+    const attachGate = (agent: Agent): ExtensionToolGates | undefined => {
+      // An ineligible agent is never gated: the service does not own an agent
+      // whose workspace it cannot even read.
+      if (!eligible(agent)) return undefined
+      const mounted = gates.get(agent)
+      if (mounted) return mounted
+      const gate = attachExtensionToolGates(
+        agent,
+        {
+          mcpTools: () => [...runtime.mcpToolOwnership(), ...(scopedContributors?.toolOwnership(agent) ?? [])],
+          lspProviders: () => runtime.lsp.providerOwnership(),
+          ownsLspTool: () => runtime.lsp.ownsTool()
+        },
+        {
+          ready: candidate => extensionRuntime.ready(candidate),
+          allows: (candidate, resourceId, suiteId) => extensionRuntime.allows(candidate, resourceId, suiteId)
+        }
+      )
+      gates.set(agent, gate)
+      return gate
+    }
+    const projectReaders = new Map<Agent, ReturnType<typeof createProjectExtensionResources>>()
+    const getProjectReader = (agent: Agent): ReturnType<typeof createProjectExtensionResources> => {
+      const existing = projectReaders.get(agent)
+      if (existing !== undefined) return existing
+      const created = createProjectExtensionResources(catalog, panels, extensionWorkspace(agent))
+      projectReaders.set(agent, created)
+      return created
+    }
+    const pendingSelections = new Map<Agent, ExtensionSelection>()
+    const readCandidates = async (agent: Agent): Promise<ExtensionSuiteCandidate[]> => {
+      const [user, project] = await Promise.all([readUserDeclarations(), catalog.readProjectCatalog(extensionWorkspace(agent))])
+      return [...user, ...(await readExtensionSuiteDeclarations(project.enabledSuites))]
+    }
+    const selectedSuites = async (agent: Agent, selection?: ExtensionSelection) => {
+      const chosen = selection ?? pendingSelections.get(agent) ?? extensionRuntime.state.read(agent)?.selection
+      if (!chosen) return []
+      const enabledIds = [...chosen.enabledIds]
+      if (enabledIds.some(id => id.startsWith('mcp:plugin:@user-mcp/user-mcp/'))) enabledIds.push('market:@user-mcp/user-mcp')
+      return projectExtensionSuites(await readCandidates(agent), { ...chosen, enabledIds }).map(row => row.suite)
+    }
+    const extensionRuntime = new ExtensionRuntime(hostCtx, {
+      dataRoot,
+      // Only an agent with a real absolute workspace is governed. Every other
+      // agent keeps the host's own lifecycle: no selection, no gate, no delay.
+      eligible,
+      // One reader per agent: it owns panel stores whose row caches must survive
+      // across reads, so every caller shares the same instance.
+      inventory: async agent => {
+        const project = getProjectReader(agent)
+        const [projectSuites, candidates, backend, lspDisabledIds] = await Promise.all([
+          project.suites(),
+          readCandidates(agent),
+          catalog.mcpBackend(),
+          loadDisabledLspServers(dataRoot)
+        ])
+        const listedSuites = [...projectSuites, ...candidates.map(row => row.suite).filter(suite => suite.sourceId === '@user-hooks')]
+        const mcpOverrides = await catalog.allMcpOverrides(candidates.map(row => row.suite))
+        return readExtensionInventory(
+          {
+            catalog: {
+              overview: () => catalog.overview(),
+              mcpStatus: async () => {
+                const [global, local] = await Promise.all([catalog.mcpStatus(), project.mcpStatus()])
+                return { ...global, entries: [...global.entries, ...local.entries] }
+              },
+              lspStatus: async () => {
+                const [global, local] = await Promise.all([catalog.lspStatus(), project.lspStatus()])
+                return { ...global, entries: [...global.entries, ...local.entries] }
+              }
+            },
+            panels: Object.fromEntries(
+              (['skills', 'commands', 'agents'] as const).map(kind => [
+                kind,
+                { list: async () => [...(await resources[kind].list(true)), ...(await project.panels[kind].list(true))] }
+              ])
+            ) as Parameters<typeof readExtensionInventory>[0]['panels']
+          },
+          { projectSuites: listedSuites, candidates, mcpOverrides, lspDisabledIds, sessionId: agent.id, mcpSessionControl: backend === 'builtin' }
+        )
+      },
+      // The settings Hooks tab: hook declarations belong to the user Agent
+      // layout root. Installed suites' declared hooks join them: the page
+      // shows both sources, provenance on every row. The same
+      // readExtensionInventory fan-out produces the rows the manager's Hooks
+      // tab renders, so both surfaces agree on identity and support verdicts.
+      hooksOverview: async () => {
+        const suites = [...(await catalog.enabledUserSuites()), await loadUserHooksSuite(agentsRoot)]
+        const rows = await readExtensionInventory(
+          {
+            catalog: { overview: () => catalog.overview(), mcpStatus: async () => catalog.mcpStatus(), lspStatus: async () => catalog.lspStatus() },
+            panels: { skills: { list: async () => [] }, commands: { list: async () => [] }, agents: { list: async () => [] } }
+          },
+          { projectSuites: suites }
+        )
+        return { rows: rows.filter(row => row.face === 'hooks') }
+      },
+      // A session change touches that session only: its own contributions and its
+      // own gate. The global pipeline belongs to catalog changes, which the change
+      // hook drives for every agent.
+      applySelection: async (agent, selection) => {
+        pendingSelections.set(agent, selection)
+        let receipt: Awaited<ReturnType<typeof runtime.stageSessionDemand>> | undefined
+        try {
+          const [candidates, globalSuites, suites, backend] = await Promise.all([
+            readUserDeclarations(),
+            catalog.enabledUserSuites(),
+            selectedSuites(agent, selection),
+            catalog.mcpBackend()
+          ])
+          runtime.setCatalogAuthority(candidates, globalSuites)
+          const shared = suites
+            .filter(suite => suite.dimension === 'user')
+            .map(suite => (backend === 'builtin' ? suite : { ...suite, mcp: undefined, activeSurfaces: { ...suite.activeSurfaces, mcp: false } }))
+          receipt = await runtime.stageSessionDemand(
+            agent,
+            shared,
+            selection.enabledIds.filter(id => id.startsWith('lsp:direct/')).map(id => id.slice(4))
+          )
+          attachGate(agent)?.refresh()
+          await contributors.reconcile(agent, selection)
+          return receipt
+        } catch (error) {
+          try {
+            await receipt?.rollback()
+          } catch (cleanupError) {
+            ctx.logger.warn(String(cleanupError))
+          }
+          throw error
+        } finally {
+          pendingSelections.delete(agent)
+        }
+      },
+      committed: agent => {
+        contributors.committed(agent)
+        attachGate(agent)?.refresh()
+      },
+      ready: async (agent, source) => {
+        if (!eligible(agent)) return
+        attachGate(agent)?.refresh()
+        if (!extensionRuntime.ready(agent)) return
+        await contributors.ready(agent, source)
+      }
+    })
+    const contributors = new ScopedExtensionContributors({
+      dataRoot,
+      catalog,
+      // Resolved lazily: the seam reader below is declared later in this scope,
+      // and the agents fiber can activate before that declaration runs.
+      shell: () => shellSeamOf(ctx),
+      allows: (agent, resourceId, suiteId) => extensionRuntime.allows(agent, resourceId, suiteId),
+      registrationAllows: (agent, resourceId) => extensionRuntime.registrationAllows(agent, resourceId),
+      panels,
+      suites: agent => selectedSuites(agent),
+      hostContext: hostCtx,
+      t: key => hostLocale.t(key)
+    })
+    scopedContributors = contributors
+    selectedRoleSuites = agent => selectedSuites(agent)
+    hostCtx.on('agent/disposed', ({ agent }) => {
+      gates.get(agent)?.dispose()
+      gates.delete(agent)
+      projectReaders.delete(agent)
+      pendingSelections.delete(agent)
+      void runtime.releaseSessionDemand(agent).catch(error => ctx.logger.warn(String(error)))
+      void contributors.dispose(agent).catch(error => ctx.logger.warn('extension disposal: ' + String(error)))
+    })
+    // The route resolver shares the very same per-agent reader as the inventory,
+    // so a detail read and an inventory read never build two panel caches.
+    suiteSession = {
+      agent: sessionId => hostCtx.agents.get(SessionId(sessionId)),
+      project: getProjectReader
+    }
+    hostCtx.effect(
+      () => () => {
+        projectReaders.clear()
+      },
+      'dsh-agent-plugins-market: project readers'
+    )
+    hostCtx.inject(['webServer', 'loader'], webCtx => {
+      webCtx.effect(
+        () => mountExtensionPresetRoutes(webCtx as unknown as Parameters<typeof mountExtensionPresetRoutes>[0], extensionRuntime),
+        'dsh-agent-plugins-market: extension preset routes'
+      )
+    })
+    hostCtx.effect(() => {
+      extensionPresets = extensionRuntime
+      for (const agent of hostCtx.agents.list()) attachGate(agent)
+      void extensionRuntime.start().catch(error => {
+        ctx.logger?.warn?.('[dsh-agent-plugins-market] extension presets: ' + (error instanceof Error ? error.message : String(error)))
+      })
+      return async () => {
+        if (extensionPresets === extensionRuntime) extensionPresets = undefined
+        if (scopedContributors === contributors) scopedContributors = undefined
+        await extensionRuntime.dispose()
+        await contributors.disposeAll()
+        for (const gate of gates.values()) gate.dispose()
+        gates.clear()
+      }
+    }, 'dsh-agent-plugins-market: extension presets')
+  })
+  runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides((await readUserDeclarations()).map(candidate => candidate.suite)))
   runtime.lsp.setDirectProvider(async () => {
     // An empty table is the lsp-off state: the seam stays mounted (the plugin
     // owns it unconditionally) but serves no servers.
-    if (!surfaceToggles.allows('lsp')) return {}
     const { servers } = await loadLspServers(agentsRoot)
-    return Object.fromEntries(Object.entries(servers).filter(([key]) => resourceFilters.allowsEntry('lsp', 'lsp:direct/' + key)))
+    return servers
   })
   runtime.lsp.setDisabledProvider(() => loadDisabledLspServers(dataRoot))
   runtime.setMcpBackendProvider(() => catalog.mcpBackend())
@@ -434,82 +649,41 @@ export async function apply(
 
   void Promise.resolve()
     .then(async () => {
-      await reconcileUserCommands()
       await scheduler.request()
     })
     .catch(() => {})
 
-  // The shell seam resolves lazily: the service may land after this plugin, and
-  // a profile without one keeps dynamic-context placeholders literal.
-  const shellSeam = (): ShellSeam | undefined => shellSeamOf(ctx)
-  ctx.skills.registerProvider(control => {
-    providerControl = control
-    return new ToggledSkillProvider(
-      new EntryFilteredSkillProvider(
-        new SuiteSkillProvider(catalog, {
-          dataRoot,
-          shell: shellSeam,
-          suiteAllowed: suite => resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id)
-        }),
-        entryId => resourceFilters.allowsEntry('skills', entryId)
-      ),
-      () => surfaceToggles.allows('skills')
-    )
-  })
-
-  // User panel skills ride a second provider so a panel
-  // edit invalidates only its own catalog contribution. It answers the same
-  // skills switch as the suite provider: the seat stays registered and only the
-  // entries it serves collapse to none.
+  // The global provider supplies defaults; agent-scoped providers enforce saved preset choices.
   ctx.skills.registerProvider(control => {
     userPanelControl = control
-    return new ToggledSkillProvider(new EntryFilteredSkillProvider(new UserPanelSkillProvider(panels.skills), entryId => resourceFilters.allowsEntry('skills', entryId)), () =>
-      surfaceToggles.allows('skills')
-    )
+    return new UserPanelSkillProvider(panels.skills)
   })
 
   // Both entry points read the same live user/project role set. Team owns the
   // enhanced entry's member identities and all subsequent collaboration.
   const listRoles = async (parent?: unknown) => {
-    if (!surfaceToggles.allows('agents')) return []
+    const agent = parent as Agent | undefined
+    if (!agent || !extensionPresets?.ready(agent)) return []
     const user = (await resources.agents.list(true))
-      .filter(entry => resourceFilters.allowsEntry('agents', 'agents:' + (entry.origin === 'plugin' ? (entry.id ?? entry.name) : entry.name)))
-      .map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name }))
-    const project = (await projectAgentRoles(catalog, parent)).filter(role => resourceFilters.allowsEntry('agents', 'agents:' + role.name))
+      .filter(entry => entry.origin === 'user' && extensionPresets?.allows(agent, 'agents:' + (entry.id ?? entry.name)))
+      .map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name, selectionEnabled: true }))
+    const project = await projectAgentRoles(catalog, parent, {
+      suites: () => selectedRoleSuites?.(agent) ?? Promise.resolve([]),
+      selected: role => extensionPresets?.allows(agent, 'agents:' + role.name) === true
+    })
     return [...user, ...project]
   }
   ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
     hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
   })
 
-  ctx.inject(['tools', 'llm', 'subagents', 'agents', 'agentTeams', 'sessions', 'sessionQuery', 'systemPrompt'], teamCtx => {
-    teamCtx.effect(() => mountTeammateRoleTool(teamCtx, listRoles), 'dsh-agent-plugins-market: role teammates')
+  // Coordination also serves native teammates and does not depend on role discovery.
+  ctx.inject(['agents', 'agentTeams', 'systemPrompt'], teamCtx => {
+    teamCtx.effect(() => mountTeamCoordination(teamCtx), 'dsh-agent-plugins-market: Team coordination')
   })
 
-  ctx.inject(['agents'], hostCtx => {
-    hostCtx.effect(() => {
-      const mounted = mountProjectCommands(
-        hostCtx,
-        catalog,
-        key => hostLocale.t(key),
-        dataRoot,
-        () => surfaceToggles.allows('commands')
-      )
-      const mcp = mountProjectMcp(hostCtx, catalog, dataRoot, () => surfaceToggles.allows('mcp'))
-      const hooks = mountProjectHooks(hostCtx, catalog)
-      const prompts = mountSuiteInstructions(hostCtx, catalog, dataRoot, suite => resourceFilters.allowsEntry('market', 'market:' + suite.sourceId + '/' + suite.id))
-      projectCommands = mounted
-      projectMcp = mcp
-      projectHooks = hooks
-      suitePrompts = prompts
-      return async () => {
-        if (projectCommands === mounted) projectCommands = undefined
-        if (projectMcp === mcp) projectMcp = undefined
-        if (projectHooks === hooks) projectHooks = undefined
-        if (suitePrompts === prompts) suitePrompts = undefined
-        await Promise.all([mounted.dispose(), mcp.dispose(), hooks.dispose(), prompts.dispose()])
-      }
-    }, 'dsh-agent-plugins-market: project command lifecycle')
+  ctx.inject(['tools', 'llm', 'subagents', 'agents', 'agentTeams', 'sessions', 'sessionQuery', 'systemPrompt'], teamCtx => {
+    teamCtx.effect(() => mountTeammateRoleTool(teamCtx, listRoles), 'dsh-agent-plugins-market: role teammates')
   })
 
   ctx.inject(['webServer', 'loader'], hostCtx => {
@@ -519,7 +693,7 @@ export async function apply(
     // either way: the window is the meta-surface that owns all six switches,
     // and taking it down with one of them would strand the user.
     hostCtx.effect(() => {
-      const disposeSuite = surfaceToggles.allows('market') ? mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles) : undefined
+      const disposeSuite = mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles, suiteSession)
       const disposeResources = mountResourceRoutes(hostCtx, {
         catalog,
         panels: resources,
@@ -563,7 +737,6 @@ export async function apply(
       scheduler.dispose()
       autoUpdate.dispose()
       settings.dispose()
-      userCommands.disposeAll()
       catalog.dispose()
       void runtime.dispose()
     },

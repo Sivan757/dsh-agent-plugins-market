@@ -11,6 +11,40 @@ afterEach(() => {
 })
 
 describe('pollUntilTranslated', () => {
+  it('reports a failed read once without inventing a settled value', async () => {
+    vi.useFakeTimers()
+    const error = new Error('poll read failed')
+    const onError = vi.fn()
+    const report = vi.fn()
+    const read = vi.fn(async () => {
+      throw error
+    })
+    pollUntilTranslated({ read, report, onError })
+    await tick()
+    expect(onError).toHaveBeenCalledExactlyOnceWith(error)
+    expect(report).not.toHaveBeenCalled()
+    await tick()
+    expect(read).toHaveBeenCalledTimes(1)
+  })
+  it('does not publish a late error after its caller stops', async () => {
+    vi.useFakeTimers()
+    let reject!: (reason: unknown) => void
+    const onError = vi.fn()
+    const handle = pollUntilTranslated({
+      read: () =>
+        new Promise<{ value: string; pending: number }>((_resolve, fail) => {
+          reject = fail
+        }),
+      report: () => {},
+      onError
+    })
+    await tick()
+    handle.stop()
+    reject(new Error('late request failure'))
+    await Promise.resolve()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
   it('re-reads until nothing is pending, reporting every read', async () => {
     vi.useFakeTimers()
     // The first read hands back authored text with work queued; the second is

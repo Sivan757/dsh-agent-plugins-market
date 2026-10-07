@@ -138,12 +138,23 @@ describe('market card form binding', () => {
     expect(en.state().translationEnabled).toMatchObject({ text: 'false', overridden: false })
   })
 
-  it('keeps the stored translation switch whatever the interface language says', () => {
-    // The user's own answer outranks the derivation in both directions.
+  it('keeps an explicit translation preference in either interface language', () => {
+    const english = cardFor(scopeDouble({ translationEnabled: true }), true, languageSource('en'))
+    expect(english.state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+    const on = cardFor(scopeDouble({ translationEnabled: true }), true, languageSource('zh'))
+    expect(on.state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+    // A stored "off" always wins, whichever way the interface language points.
     const off = cardFor(scopeDouble({ translationEnabled: false }), true, languageSource('zh'))
     expect(off.state().translationEnabled).toMatchObject({ text: 'false', overridden: true })
-    const on = cardFor(scopeDouble({ translationEnabled: true }), true, languageSource('en'))
-    expect(on.state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+  })
+
+  it('lets an English reader stage translation on', () => {
+    const language = languageSource('en')
+    const { face, state } = cardFor(scopeDouble(), true, language)
+    expect(state().translationEnabled).toMatchObject({ text: 'false', overridden: false })
+    face.edit('translationEnabled', 'true')
+    expect(state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+    expect(state().dirty).toBe(true)
   })
 
   it('moves an unset translation row with the language and shows the language again after a clear', () => {

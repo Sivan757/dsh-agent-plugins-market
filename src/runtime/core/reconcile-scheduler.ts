@@ -11,6 +11,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Suite } from '../../model/types.js'
+import type { ExtensionSuiteCandidate } from '../../application/extension-suite-selection.js'
 import type { McpMountDiagnostic } from '../mcp/mcp-mounts.js'
 import type { RuntimeReconciler } from './reconciler.js'
 import { coalesce, type CoalescedTrigger } from './timer-seat.js'
@@ -19,6 +20,8 @@ import { coalesce, type CoalescedTrigger } from './timer-seat.js'
 export interface ReconcileHost {
   /** Enabled user-dimension suites to reconcile. */
   enabledSuites(): Promise<Suite[]>
+  /** Full validated installed declarations, including ordinary disabled resources. */
+  declarations?(): Promise<ExtensionSuiteCandidate[]>
   /** Publish the pass's MCP mount diagnostics for the status surface. */
   publishMcpDiagnostics(diagnostics: McpMountDiagnostic[]): void
 }
@@ -77,9 +80,9 @@ export class ReconcileScheduler {
 
   private async reconcileOnce(): Promise<void> {
     try {
-      const suites = await this.host.enabledSuites()
+      const [suites, declarations] = await Promise.all([this.host.enabledSuites(), this.host.declarations?.()])
       if (this.disposed) return
-      const diagnostics = await this.runtime.reconcile(suites)
+      const diagnostics = declarations === undefined ? await this.runtime.reconcile(suites) : await this.runtime.refreshCatalog(declarations, suites)
       this.host.publishMcpDiagnostics(diagnostics.mcp)
       for (const diagnostic of diagnostics.mcp) {
         this.ctx.logger?.warn(`[dsh-agent-plugins-market] suite "${diagnostic.suiteId}" mcp server "${diagnostic.serverKey}": ${diagnostic.reason}`)

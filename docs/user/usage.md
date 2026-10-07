@@ -4,20 +4,32 @@ English | [简体中文](usage.zh.md) | [README](../../README.md)
 
 ## Host requirements
 
-Open **Plugins → Installed → Agent Plugins** to configure this extension. Its display name, description, and settings follow the DSH interface language. The configuration page carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), the **experience feedback tool**, and **Translation** (`translationEnabled`, on unless the interface is English until you set it yourself; see [translation](#translation)). The card stages what you pick and applies it when you press Save, so what is on screen is what saving writes; a setting marked **customized** also offers **Use default**, which hands that one setting back to the plugin. **Download region** starts on **Follow interface language**, and choosing it again clears your explicit choice.
+Open **Plugins → Installed → Agent Plugins** to configure this extension. Its display name, description, and settings follow the DSH interface language. The configuration page carries this plugin's switches: **Scan project Agent layouts** (`scanProjectLayouts`, default off; see [project layouts](#project-layouts)), **MCP enhancement**, **Download region**, **Background source updates** (`autoUpdateSources`, default off; refreshes every configured source every 6 hours), the **experience feedback tool**, and **Translation** (`translationEnabled`, Chinese on and English off by default, with your saved choice taking priority; see [translation](#translation)). The card stages what you pick and applies it when you press Save, so what is on screen is what saving writes; a setting marked **customized** also offers **Use default**, which hands that one setting back to the plugin. **Download region** starts on **Follow interface language**, and choosing it again clears your explicit choice.
 
 Codex project MCP is read from `.codex/config.toml`. Its enabled flags, environment references, tool allow/deny lists and timeouts are preserved; unsupported fields are diagnosed. Project LSP is not mounted because the host registry is global; this plugin does not modify host APIs.
 
 - Node.js 22 or later, a DSH Web profile and the host skill service (`ctx.skills`). Git sources require Git.
-- The current package declares the DSH host packages it needs in the `^0.2.0-rc.1` range. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
+- The current package declares the DSH host packages it needs in the `^0.2.0-rc.2` range. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
 - Slash commands require the host command service. Role delegation requires agents, tools, LLM, subagents and persistence. Without Agent Teams, `subagent_role` returns a durable child by default (omitted/true); false waits for a foreground report. With Agent Teams, `spawn_teammate_role` and a compact role catalog replace that entry and guidance. It creates a fresh Team member using role instructions and model settings; native Team tools own messaging and tasks. Team mode additionally needs session query and system-prompt services and explicit user intent to use Teams.
-- MCP uses the built-in bridge by default. Host-client compatibility mode additionally needs `@deepseek-ai/dsh-mcp-client`; hooks need `@deepseek-ai/dsh-hooks-claude-code`.
+- MCP uses the built-in bridge by default. Host-client compatibility mode additionally needs `@deepseek-ai/dsh-mcp-client`. Session-scoped hooks use the published hook protocol and require the host shell and session-projection services.
 - LSP support installs and mounts its own `@deepseek-ai/dsh-lsp`, `dsh-lsp-stdio` and `dsh-tool-lsp` packages as soon as an enabled suite declares language servers, so no profile step is needed. The language-server executables themselves must be available on the machine.
 - Host credentials are optional. Without that service, environment references resolve from the launch environment, and changes require a restart.
 
+## Session extension presets
+
+Enable the experimental Agent preset manager in plugin settings. It is off by default and controls only entry visibility, not session authorization or existing selections. The composer then has an Agent extension icon button to the right of Permissions in both blank and ongoing sessions. Hover or focus it to read the selected preset name. Its menu lets you select a saved preset or manage this workspace’s preset library. This choice does not replace the host’s base Agent preset.
+
+- Market lists installed market suites. Project resources appear in their respective surface tabs. Hooks has event-specific groups. Existing presets retain their selections. User and project command hooks have individual switches. Installed market suite hooks follow their suite selection.
+- A workspace default seeds new sessions only. Editing, deleting, or changing the default preset leaves existing session choices unchanged.
+- Select a saved preset while the agent is idle. In the manager, click a resource card or its switch to enable or disable it in the preset. If saving fails, keep the draft and retry or discard it.
+- Copy and paste a preset between workspace panels to create an independent copy. Transfer includes names and resource identifiers, not credentials or server configuration.
+- A preset can explicitly enable valid installed extensions that are disabled globally, without changing global settings or source files. Native skills and suite resources remain isolated between sessions; shared services stay mounted while another session needs them. Uninstalled, invalid or unsupported resources remain unavailable. MCP tools supplied by the host compatibility backend or another plugin remain globally managed.
+- The switch in preset details changes only the resource selection in the preset. Documents and service configuration remain read-only. Configure credentials, authentication and global tools from the corresponding settings page.
+- If a selection update fails, the entry reports that the session is not ready. Explicit recovery restores its last committed choice, or retries its original initial choice; it does not silently switch to today’s workspace default. Pending and committed records stay in the durable inbox log, but new transaction placeholders are excluded from model input. Existing placeholder messages in older conversation history are retained.
+
 ## Translation
 
-The six workspace tabs render upstream text authored in English. With the host language set to Chinese, descriptions follow it: suite descriptions in **Market**, skill / command / agent-persona descriptions, and MCP per-tool descriptions. Names and keywords are never translated — a name is an identifier you type, search and sort by, and a keyword drives search and matching rather than display.
+Turn **Translation** on in the plugin configuration card to read descriptions and document prose in the interface language: Simplified Chinese or English. Chinese defaults to on and English to off; your saved choice takes priority until **Use default** restores the language-derived default. An English interface can translate Chinese text when you enable it. Names and keywords remain unchanged for searching, sorting, copying and invocation.
 
 | Tab            | Description                        |
 | -------------- | ---------------------------------- |
@@ -28,18 +40,22 @@ The six workspace tabs render upstream text authored in English. With the host l
 | MCP services   | One line per tool                  |
 | LSP servers    | The entry has no description field |
 
-Translation runs through four levels, in order, and the first one that answers wins:
+Translation tries these levels in order, keeping the original readable while work is pending:
 
-1. **Google Translate** — a public endpoint, no key required. It is given 3 seconds; a network where it is blocked makes it hang rather than fail, so it is dropped for the rest of the session after one failure.
-2. **Microsoft Translator** — a public endpoint with no authentication, and the level that makes this work on a fresh install with nothing configured.
-3. **Your default model** — used when the deployment has a model route configured. Highest quality, and the only level that can be told how to render domain vocabulary.
-4. **The upstream text** — when no level answers, every surface renders the original English, with no error, no spinner and no blocked first paint.
+1. **Google Translate** — a keyless public endpoint, with a 3-second deadline.
+2. **Microsoft Translator** — a keyless public endpoint, with a 15-second deadline.
+3. **Your default model** — used when a model route is available, with a 30-second deadline. This can consume your model quota.
+4. **The upstream text** — shown when no provider answers. Public endpoints offer no availability guarantee; a failed provider is skipped until translation is re-enabled, the cache is reset, or the process restarts.
 
-Only a Chinese interface translates: an English panel already shows the authored text. Translation is lazy — text is translated when a panel opens, never at startup — and a result is cached under a key that includes the provider that produced it, so changing engines re-translates instead of serving the old engine's output. Cached text never expires; the **Reset cache** button beside the **Auto-translate** switch clears it, and the next panel open translates again.
+Descriptions are requested as their panels or menu candidates are read, not by a startup translation sweep. The slash menu serves current descriptions immediately. While it stays open, it performs up to 40 follow-up reads, at least 1.5 seconds apart, and refreshes changed descriptions without another keystroke. Closing the menu or disabling translation stops those reads. After that limit, later candidate requests can revalidate again. Hosts without the public menu controller update only on subsequent candidate requests.
 
-On a detail page, a document carries a collapsed **Show translation** region — in the user panels for a skill, command, or agent persona, and in a suite's detail preview on the Market tab for the same three surfaces. It is read when you expand it and never when the page opens, so browsing documents costs no provider work; with translation off, or under an interface language that already shows the authored text, the region is absent and nothing is requested. Translations are cached locally and shared between the two surfaces, so a document translated in one place reads back translated in the other; **Reset cache** clears them.
+Expand a skill, command or agent-persona document in its user panel or Market suite detail to start translation. Compact icon tabs at the upper-right select Original, Translation or Bilingual. Hover over an icon to read its label. Bilingual is selected by default: each translated paragraph follows its original. Unexpanded documents are not pretranslated. **Original** stops that reader's translation reads, while already-submitted work may finish. Code, inline code, link destinations, math and raw HTML are excluded from prose translation. Bilingual tables show the complete original table above the translated table, not paired text inside each cell.
 
-Turn the layer off with the **Translation** switch (`translationEnabled`) in the plugin configuration card. Until you set it yourself the switch follows the interface language — off only under an English interface — and a choice you make then stands until **Use default** hands the field back to the language. Nothing is translated while it is off, and every surface renders the upstream text.
+If a document translation read fails or exceeds 15 seconds, the reader replaces loading with an error and a Retry translation button. The deadline includes reading the response body, not just receiving headers. The original or partial translation stays visible. Select Retry translation to read again without clearing completed cache entries. This limits each read, not the time needed to translate the whole document.
+
+Translations are cached locally without expiry. The user panel and Market detail share cached document segments. Reopening after restart reuses entries with the same document identity, text, target and provider chain. Editing or inserting a paragraph does not invalidate unchanged neighboring paragraphs. Changing the target or provider chain uses a different cache key. Markdown rendering can normalize whitespace and markers; translation does not rewrite the source file.
+
+Turning **Translation** off shows the original on every surface, drops queued work and prevents later fallback calls, while keeping completed cache entries. The plugin requests cancellation of active calls, but a remote provider may still finish work it already received. **Reset cache** clears completed entries and invalidates old requests so they cannot refill it; a subsequent enabled read may start fresh work. Re-enabling translation also retries providers that had failed.
 
 The prompts and tool descriptions this plugin injects into a session are not translated: they stay in the language their author wrote them in.
 

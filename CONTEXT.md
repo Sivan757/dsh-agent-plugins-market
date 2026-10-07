@@ -30,8 +30,8 @@ The shared `~/.agents` directory (or `$DSH_AGENTS_HOME`) holding the resources t
 
 ## Translation unit
 
-One translatable field of one entity: the surface it belongs to, the entity's stable id inside that surface, the role (`name` or `description`), and the upstream text exactly as authored. A unit is what the translation cache keys on and what the provider chain answers for.
+One translatable description or bounded document-prose segment of one entity: its surface, stable entity id, role (`description` or `document`), and source text. Names are identifiers and are never translation units. The cache key also includes the resolved target (`zh` or `en`) and provider-chain identity. Document segments are keyed by text, not paragraph position.
 
 ## Translation provider
 
-One level of the ordered fallback chain that answers a translation unit: Google Translate, Microsoft Translator, the user's default model, or the upstream text when none of them answers. A provider's identity is part of the cache key, so changing the chain re-translates instead of serving text another level produced.
+One backend in the ordered translation chain: Google Translate, Microsoft Translator, or the user's default model. Authored text is the fallback when no provider answers, not a provider. The chain's identity is part of the cache key, so changing the chain produces a cache miss. The record separately identifies the backend that answered.

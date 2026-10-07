@@ -11,7 +11,6 @@
  */
 import { qualifiedSuiteId } from '../catalog/paths.js'
 import { stripFrontmatter } from '../catalog/skills-parse.js'
-import { interfaceLanguageTranslates } from '../contracts/settings.js'
 import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
 import type { MenuRowFaceWire, OverviewPayload, ServerConfigPayload, SourceOverview, SourceProgress, SuiteDetail, SuiteDocumentText, UserPanelKind } from '../contracts/market.js'
 import type { McpStatusPayload } from './mcp/mcp-status.js'
@@ -25,7 +24,7 @@ import { applyLspOverrides } from './server-config.js'
 import { buildSuiteDetail, readSuiteDocument } from './details.js'
 import { CatalogContext, type CatalogGitOptions, type CatalogOptions } from './catalog-context.js'
 import { TranslationLocalizer } from './translation/localizer.js'
-import { chunkDocument } from './translation/document.js'
+import { chunkDocument, translateMarkdownDocument } from './translation/document.js'
 import { collectUnits } from './translation/unit.js'
 import type { DocumentTranslation, TranslationFields, TranslationRole, TranslationSurfaceKind } from '../contracts/translation.js'
 import { InstallStore } from './install-store.js'
@@ -36,6 +35,8 @@ import { resolveCatalogPorts, type CatalogPorts, type LocalizeFields, type LspSe
 import { SnapshotCache, type CatalogSnapshot } from './snapshot-cache.js'
 import { SourceStore, codeloadTarballUrl } from './source-store.js'
 import type { MarketService } from './queries.js'
+import { readExtensionSuiteDeclarations } from './extension-suite-declarations.js'
+import type { ExtensionSuiteCandidate } from './extension-suite-selection.js'
 
 export class Catalog implements MarketService {
   private readonly context: CatalogContext
@@ -84,6 +85,11 @@ export class Catalog implements MarketService {
   /** The plugin storage root holding per-suite `${PLUGIN_DATA}` directories and overrides. */
   get dataRoot(): string {
     return this.context.dataRoot
+  }
+
+  /** The shared Agent layout root the direct user declarations (hooks, MCP) are read from. */
+  get agentsRoot(): string {
+    return this.context.agentsRoot
   }
 
   /**
@@ -151,6 +157,11 @@ export class Catalog implements MarketService {
     await this.localizer.clear()
   }
 
+  /** Apply the current display preference to pending translation work. */
+  syncTranslationEnabled(): void {
+    this.localizer.onEnabledChanged()
+  }
+
   /**
    * Wait for queued translations to finish.
    *
@@ -190,6 +201,12 @@ export class Catalog implements MarketService {
   /** Read one coherent user-dimension snapshot, reusing in-flight discovery. */
   async readUserCatalog(): Promise<CatalogSnapshot> {
     return this.snapshots.readUserCatalog()
+  }
+
+  /** Installed local user declarations, including globally disabled suites; never changes global runtime discovery. */
+  async installedSuiteDeclarations(): Promise<ExtensionSuiteCandidate[]> {
+    const snapshot = await this.readUserCatalog()
+    return readExtensionSuiteDeclarations(snapshot.suites.filter(suite => this.context.installed(suite.sourceId, suite.id) !== undefined))
   }
 
   /** Read one coherent project-dimension snapshot for a workspace cwd. */
@@ -277,13 +294,6 @@ export class Catalog implements MarketService {
    * hands back no unit for one. Nothing here waits on a provider: an uncached
    * field answers with the upstream text and reports itself pending.
    *
-   * Only an English interface is skipped. An English panel is already showing
-   * the authored text, so queueing provider calls for it would spend the user's
-   * quota to reproduce the input; every other language renders the market's
-   * Chinese dictionary, which is the same statement
-   * {@link interfaceLanguageTranslates} answers and the same one the
-   * translation switch defaults to.
-   *
    * A description longer than one chunk travels in chunks, exactly as a
    * document body does ({@link localizeText}), so the size of an upstream field
    * is never a reason for a provider call to be cut off.
@@ -304,7 +314,6 @@ export class Catalog implements MarketService {
     fields: { name?: string | undefined; description?: string | undefined },
     locale: string
   ): { fields: TranslationFields; pending: number } {
-    if (!interfaceLanguageTranslates(locale)) return { fields: {}, pending: 0 }
     const translated: TranslationFields = {}
     let pending = 0
     for (const unit of collectUnits(surface, id, fields)) {
@@ -352,36 +361,14 @@ export class Catalog implements MarketService {
   }
 
   /**
-   * Translate one document body for a surface, chunk by chunk.
-   *
-   * The body is split first ({@link chunkDocument}): a whole file is more than
-   * any single provider request may carry, and a chunk already translated is
-   * answered from the cache, so opening the same document twice costs nothing
-   * the second time and an interrupted translation keeps what landed.
-   *
-   * Only an English interface is skipped, for the reason {@link translateFields}
-   * gives: an English panel is already showing the authored text. When it is
-   * skipped, the body comes back untouched and nothing is queued — the caller
-   * renders it exactly as it renders the authored document.
-   *
-   * A fenced block never leaves the process, so a document's examples are never
-   * translated and never billed for. A four-space indented block is prose under
-   * the chunker's rule ({@link chunkDocument}), so its text is sent like any
-   * paragraph's.
-   *
-   * The authored body is reproduced exactly when nothing was translated: each
-   * chunk carries the whitespace that followed it in the source, and assembly
-   * re-emits that rather than inventing a separator. See
-   * {@link localizeText}.
-   * @param surface - the surface the entity belongs to.
-   * @param id - the entity's stable identity inside that surface.
-   * @param text - the document body, frontmatter already removed by the caller.
-   * @param locale - the host locale this read resolved once.
-   * @returns the assembled body and how many chunks are still in flight.
+   * Translate paragraphs in one complete Markdown tree. The provider receives
+   * prose only. Links, code, math, references and nested containers remain local.
+   * The result includes a translated document and paragraph-paired Markdown.
+   * Unchanged output preserves the source bytes. Changed output preserves the
+   * parsed structure and uses canonical Markdown formatting.
    */
   translateDocument(surface: TranslationSurfaceKind, id: string, text: string, locale: string): DocumentTranslation {
-    if (!interfaceLanguageTranslates(locale)) return { text, pending: 0 }
-    return this.localizeText(surface, id, 'document', text, locale)
+    return translateMarkdownDocument(text, part => this.localizer.localize({ surface, id, role: 'document', text: part }, locale))
   }
 
   /**
@@ -425,14 +412,14 @@ export class Catalog implements MarketService {
   }
 
   /** One suite's full detail for the market detail modal. */
-  async suiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail> {
-    const suite = await this.suiteOf(sourceId, suiteId)
+  async suiteDetail(sourceId: string, suiteId: string, projectCwd?: string): Promise<SuiteDetail> {
+    const suite = await this.suiteOf(sourceId, suiteId, projectCwd)
     const suiteKey = qualifiedSuiteId(sourceId, suiteId)
     const detail = await buildSuiteDetail(suite, this.context.installed(sourceId, suiteId), this.mcp.diagnostics, await loadSuiteOverrides(this.context.dataRoot, suiteKey))
     // The detail modal renders the same name and description as the card, so it
     // takes the same translations (and queues the same cache misses).
     const localized = this.translateFields('market', suiteKey, { name: detail.name, description: detail.description ?? undefined }, this.ports.localePreference())
-    return { ...detail, ...localized.fields }
+    return { ...detail, ...localized.fields, ...(localized.pending > 0 ? { translationPending: localized.pending } : {}) }
   }
 
   /**
@@ -444,14 +431,14 @@ export class Catalog implements MarketService {
    * names an identity, never a path, so this route cannot be spent on a file of
    * a page's choosing.
    */
-  async suiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<SuiteDocumentText> {
-    const suite = await this.suiteOf(sourceId, suiteId)
+  async suiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, projectCwd?: string): Promise<SuiteDocumentText> {
+    const suite = await this.suiteOf(sourceId, suiteId, projectCwd)
     return { name, content: await readSuiteDocument(suite, kind, name) }
   }
 
   /** The normalized suite a source-qualified identity names, or a miss. */
-  private async suiteOf(sourceId: string, suiteId: string): Promise<Suite> {
-    const snapshot = await this.readUserCatalog()
+  private async suiteOf(sourceId: string, suiteId: string, projectCwd?: string): Promise<Suite> {
+    const snapshot = projectCwd === undefined ? await this.readUserCatalog() : await this.readProjectCatalog(projectCwd)
     const suite = snapshot.suites.find(entry => entry.sourceId === sourceId && entry.id === suiteId)
     if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
     return suite
@@ -480,8 +467,8 @@ export class Catalog implements MarketService {
    * @param name - the document's name inside that surface.
    * @returns the assembled body and how many chunks are still in flight.
    */
-  async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<DocumentTranslation> {
-    const suite = await this.suiteOf(sourceId, suiteId)
+  async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, projectCwd?: string): Promise<DocumentTranslation> {
+    const suite = await this.suiteOf(sourceId, suiteId, projectCwd)
     const text = await readSuiteDocument(suite, kind, name)
     return this.translateDocument(kind, pluginResourceId(sourceId, suiteId, kind, name), stripFrontmatter(text), this.ports.localePreference())
   }

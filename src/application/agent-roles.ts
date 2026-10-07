@@ -14,6 +14,8 @@ export interface AgentRoleEntry {
   path: string
   description: string
   disabled: boolean
+  /** Server-owned grant from the current parent's selected-role reader, never accepted from tool input. Revalidated before spawn. */
+  selectionEnabled?: boolean
   title?: string
   rawText?: string
   /** Suite checkout root the card's `${PLUGIN_ROOT}` variables resolve to; absent for project-native files. */

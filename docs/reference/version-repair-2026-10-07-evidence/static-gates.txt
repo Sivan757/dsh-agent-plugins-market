@@ -1,0 +1,36 @@
+=== lint ===
+[gate-exit: 0] lint
+=== check:architecture ===
+
+  error client-feature-cannot-import-sibling-feature: src/client/features/extension-presets/ResourceList.tsx → src/client/features/hooks/event-grouping.ts
+
+x 1 dependency violations (1 errors, 0 warnings). 238 modules, 920 dependencies cruised.
+
+[ELIFECYCLE] Command failed with exit code 1.
+[gate-exit: 1] check:architecture
+=== check:reuse ===
+check-reuse: 60 ledger rows, 1 surface dir(s), 344 published export names
+check-reuse: ok
+[gate-exit: 0] check:reuse
+=== check:host-alignment ===
+host baseline: 0.2.0-rc.2 (channel next) — 36 package(s) checked
+  ✓ every declared and dynamically imported host package matches the baseline
+[gate-exit: 0] check:host-alignment
+=== format:check ===
+Checking formatting...
+[ELIFECYCLE] Command failed with exit code 1.
+[gate-exit: 1] format:check
+[stderr]
+$ eslint src tests
+$ depcruise --validate .dependency-cruiser.cjs src
+$ node scripts/check-reuse.mjs
+$ node scripts/check-host-alignment.mjs
+$ prettier --check .
+[warn] README.md
+[warn] README.zh.md
+[warn] src/routes-extension-presets.ts
+[warn] src/runtime/host/scoped-contributors.ts
+[warn] tests/client-hooks-status-panel.test.ts
+[warn] tests/extension-hooks.test.ts
+[warn] tests/translation-provider-partial.test.ts
+[warn] Code style issues found in 7 files. Run Prettier with --write to fix.

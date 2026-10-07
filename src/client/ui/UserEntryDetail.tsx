@@ -4,21 +4,24 @@
  * place through the host disclosure row.
  * @module client/ui/UserEntryDetail
  */
-import { createElement as h, Fragment, useEffect, useState, type ReactNode } from 'react'
+import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
 import { StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './DetailModal.js'
-import { MarkdownDocument } from './MarkdownDocument.js'
 import { DocumentTranslationView } from './DocumentTranslation.js'
 import { DetailRow, DetailRows, kvCell } from './DetailRows.js'
 import { lastChangeLabel } from './last-change.js'
 import { commandCallName } from '../../model/command-names.js'
 import type { Translate } from '../index.js'
 import { fetchDocumentTranslation, fetchUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
-import { displayText } from './translated-text.js'
+import { useDisplayText } from './translated-text.js'
+import { localeIsChinese } from './bilingual-text.js'
+import { useTranslationEnabled } from './translation-enabled.js'
+import { pollUntilTranslated } from './translation-settle.js'
 import { clientErrorMessage } from './error-message.js'
 import css from './panel.module.css'
 
 export interface UserEntryDetailProps {
+  sessionId?: string
   t: Translate
   kind: UserPanelKind
   entry: UserPanelEntry
@@ -29,19 +32,46 @@ export interface UserEntryDetailProps {
 
 /** The entry's document, its overview, and its metadata. */
 export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
-  const { t, kind, entry } = props
+  const { t, kind, entry, sessionId } = props
   const [open, setOpen] = useState(false)
   // The document arrives with the entry read, not with the list the dialog was
   // opened from, so the row shows a loading line until it lands.
   const [document, setDocument] = useState<string | undefined>(undefined)
   const [documentError, setDocumentError] = useState<string | undefined>(undefined)
   const entryId = entry.id ?? entry.name
+  const target = localeIsChinese(t) ? 'zh' : 'en'
+  const enabled = useTranslationEnabled()
+  const initialTarget = useRef(target)
+  const [localized, setLocalized] = useState<{ target: string; id: string; entry: UserPanelEntry }>()
+  const previousEnabled = useRef(enabled)
+  useEffect(() => {
+    const reenabled = enabled && !previousEnabled.current
+    previousEnabled.current = enabled
+    if (!enabled || (initialTarget.current === target && !reenabled && (entry.translationPending ?? 0) === 0)) return
+    let current = true
+    let poll: { stop: () => void } | undefined
+    const read = async (): Promise<{ value: UserPanelEntry; pending: number }> => {
+      const value = await fetchUserPanelEntry(kind, entryId, sessionId)
+      return { value, pending: value.translationPending ?? 0 }
+    }
+    const report = (value: UserPanelEntry): void => { if (current) setLocalized({ target, id: entryId, entry: value }) }
+    void read().then(first => {
+      if (!current) return
+      report(first.value)
+      if (first.pending > 0) poll = pollUntilTranslated({ read, report, isStopped: () => !current })
+    }).catch(() => {})
+    return () => { current = false; poll?.stop() }
+  }, [target, enabled, entryId, kind, sessionId, entry.translationPending])
+  const translatedDescription = localized?.target === target && localized.id === entryId
+    ? localized.entry.translatedDescription : initialTarget.current === target ? entry.translatedDescription : undefined
   useEffect(() => {
     if (!open) return
     let current = true
     setDocument(undefined)
     setDocumentError(undefined)
-    void fetchUserPanelEntry(kind, entryId)
+    // The session address is appended only when the caller has one: a plain panel
+    // read stays the two-argument call it has always been.
+    void (sessionId === undefined ? fetchUserPanelEntry(kind, entryId) : fetchUserPanelEntry(kind, entryId, sessionId))
       .then(loaded => {
         if (current) setDocument(loaded.rawText)
       })
@@ -51,7 +81,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
     return () => {
       current = false
     }
-  }, [open, kind, entryId])
+  }, [open, kind, entryId, sessionId])
   const updated = entry.updatedAt === undefined || entry.updatedAt === null ? null : lastChangeLabel(t, entry.updatedAt)
   const provenance = entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
   // A command registers under its flattened call name and every other kind under
@@ -60,7 +90,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   const view = { original: props.showOriginal === true }
   // Only the description flips with the view.
   const title = kind === 'commands' ? commandCallName(entry.name) : entry.name
-  const description = displayText(entry.translatedDescription, entry.description, t, view)
+  const description = useDisplayText(translatedDescription, entry.description, t, view)
   const docName = kind === 'skills' ? 'SKILL.md' : `${entry.name}.md`
   return h(
     DetailModal,
@@ -125,16 +155,14 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
             documentError ??
             (document === undefined
               ? t('loading')
-              : h(
-                  Fragment,
-                  null,
-                  h(MarkdownDocument, { text: document, t }),
-                  // The translation is its own section under the document rather
-                  // than a second view of it: a reader who wants the Chinese
-                  // reads the whole file in one place, and one who does not never
-                  // pays for it.
-                  h(DocumentTranslationView, { t, load: () => fetchDocumentTranslation(kind, entryId) })
-                ))
+              : h(DocumentTranslationView, {
+                  t,
+                  // The authored body is what renders until the reader flips the
+                  // control; the component swaps the body rather than stacking a
+                  // second copy of the document under the first.
+                  original: document,
+                  load: () => fetchDocumentTranslation(kind, entryId, sessionId)
+                }))
         })
       )
     )

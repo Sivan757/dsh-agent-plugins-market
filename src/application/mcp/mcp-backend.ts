@@ -41,7 +41,8 @@ export const MarketSettingsFields = {
   downloadRegion: z.union([z.const('auto'), z.const('global'), z.const('china')]).default(MARKET_SETTINGS_DEFAULTS.downloadRegion),
   feedbackEnabled: z.boolean().default(MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
   autoUpdateSources: z.boolean().default(MARKET_SETTINGS_DEFAULTS.autoUpdateSources),
-  translationEnabled: z.boolean()
+  translationEnabled: z.boolean(),
+  agentPresetsEnabled: z.boolean().default(MARKET_SETTINGS_DEFAULTS.agentPresetsEnabled)
 } as const
 
 export const MarketSettingsSchema = z.object(MarketSettingsFields)

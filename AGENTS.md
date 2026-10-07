@@ -7,24 +7,29 @@
 ```
 src/
   application/  use cases: Catalog facade + ports + queries at the root; domain folders mcp/ and lsp/
-                (config, overrides, redaction, status, backend), state/ (stores, migrations),
-                panels/ (document stores) — imports no runtime module (gated)
+                (config, overrides, redaction, status, backend), state/ (stores, migrations,
+                resource filters/favorites, translation cache), panels/ (document stores),
+                translation/ (unit, chain, localizer) — imports no runtime module (gated)
   catalog/      pure source scanning: manifests, dialects, scan pipeline, fs probes, lsp-spec validation
   client/       Web market page: entry, transport (api.ts), bilingual locales.ts at the root; features/
-                (mcp, lsp, market, settings-card), workspace/, shared ui/
+                (mcp, lsp, market, resource-window, settings-card), workspace/, shared ui/
   contracts/    API request/response types shared by routes and client (imports nothing); mcp.ts and
                 lsp.ts hold the backend selector and mount-diagnostic wire shapes
   model/        domain records only (suite, source, surfaces) — no Node APIs
   runtime/      harness-facing effects in domain folders: core/ (reconciler, scheduling, mount lifecycle),
                 mcp/ (mounts + bridge/, the self-built MCP client), lsp/ (mounts), surfaces/ (skills,
                 commands, hooks, dynamic context), panels/, agents/ (role routing, subagent catalog),
-                host/ (locale, settings namespace, tool observation, feedback)
+                host/ (locale, settings namespace, tool observation, feedback, translation providers
+                and translators, resource filters, surface toggles)
   index.ts      plugin entry (composition root); routes.ts  API surface
-schemas/        versioned mcp.schema.json and friends (strict validation contracts)
+schemas/        the layout specification library: vendored 1.0.0/ and 1.1.0/ agent-plugins schemas, one
+                reference contract directory per dialect (plugin/marketplace schema + spec.md), and this
+                manager's own com.deepseek.harness/ namespace — see schemas/README.md
 tests/          vitest suites mirroring src/; fixtures under tests/fixtures
 docs/           user/, reference/, developer/{decisions,design,discussion,release,upstream-proposal}/, scratch/ — see docs/AGENTS.md
 docs-site/      Astro docs site
-scripts/        build helpers (client banner, lifecycle verification)
+scripts/        build and verification helpers: client banner, lifecycle verification, host-alignment
+                and reuse gates, compatibility report, fixture updates, git-hook setup
 ```
 
 ## Commands
@@ -37,13 +42,14 @@ pnpm run format:check        # prettier — tracked text except the paths in .pr
 pnpm run test                # vitest run (full suite)
 pnpm run test:contract       # routes + market contracts only
 pnpm run check:architecture  # dependency-cruiser over src/
-pnpm run check:refactor      # check:quick + format:check + test:contract + architecture
+pnpm run check:reuse         # reuse ledger vs published host exports
+pnpm run check:refactor      # check:quick + format:check + test:contract + architecture + reuse
 pnpm run build               # tsc emits lib/, tsdown bundles client/
 ```
 
 `check:quick` is the cheap half of the gate and runs on its own: `pretest` and `prebuild` invoke it, so a type or lint error surfaces the moment someone tests or builds rather than at review. The pre-commit hook runs it plus `format:check` and the host-alignment check — `git commit --no-verify` bypasses all three deliberately.
 
-`check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not, except the paths in `.prettierignore` (`docs-site/`, `lib/`, `client/`, `tests/fixtures/`, `CHANGELOG.md`, `docs/reference/compat-report.*`) — run `format:check` after writing docs or HTML before claiming a green tree.
+`check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not, except the paths in [.prettierignore](.prettierignore) — run `format:check` after writing docs or HTML before claiming a green tree.
 
 ## Conventions
 
@@ -59,7 +65,9 @@ pnpm run build               # tsc emits lib/, tsdown bundles client/
 
 ## Editing these instructions
 
-`AGENTS.md` is this repository's only instruction entry point; edit it here. Keep each rule self-contained and link rationale instead of restating it.
+Repository instructions live in the `AGENTS.md` files this tree ships ([docs/](docs/AGENTS.md), [.agents/notes/](.agents/notes/AGENTS.md)) plus the gitignored `AGENTS.local.md`; edit each rule in the file that owns it rather than duplicating it here. Keep each rule self-contained and link rationale instead of restating it.
+
+The `dsh-workflow:begin`/`end` block below is generated by the `dsh-workflow` plugin (its `init-routing` command); re-running it rewrites the block in place and leaves the rest of this file untouched. Do not hand-edit inside the markers — the skills it routes to live in the plugin repositories (`agent-plugins`, `zealwon-plugins`), and the local `.agents/skills/market-*` skills are the repository-specific counterparts.
 
 <!-- dsh-workflow:begin -->
 

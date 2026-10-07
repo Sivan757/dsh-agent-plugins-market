@@ -97,6 +97,22 @@ describe('createLlmTranslator availability', () => {
 })
 
 describe('createLlmTranslator translate', () => {
+  it('requests English for Chinese source without rewriting the source message', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const provider = createLlmTranslator(
+      hostWith({
+        selection: { provider: 'local', model: 'm' },
+        stream: options => {
+          seen.push(options as Record<string, unknown>)
+          return streamOf([textDelta('Read files'), finish()])()
+        }
+      })
+    )
+    expect(await provider.translate({ texts: ['读取文件'], locale: 'en', signal: new AbortController().signal })).toEqual(['Read files'])
+    expect(String(seen[0]?.system)).toContain('into English.')
+    expect(JSON.stringify(seen[0]?.messages)).toContain('读取文件')
+  })
+
   it('sends the selected route, the locale instruction, and the description', async () => {
     const seen: Array<Record<string, unknown>> = []
     const host = hostWith({
@@ -139,6 +155,23 @@ describe('createLlmTranslator translate', () => {
       await translator.translate({ texts: ['t'], locale, signal: new AbortController().signal })
       expect(String(seen.at(-1)?.system)).toContain('into ' + expected + '.')
     }
+  })
+
+  it('allows more output for Chinese-to-English batches while keeping the absolute cap', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const provider = createLlmTranslator(
+      hostWith({
+        selection: { provider: 'local', model: 'm' },
+        stream: options => {
+          seen.push(options as Record<string, unknown>)
+          return streamOf([textDelta('Read files'), finish()])()
+        }
+      })
+    )
+    await provider.translate({ texts: ['文'.repeat(2_400)], locale: 'en', signal: new AbortController().signal })
+    expect(seen[0]?.maxTokens).toBe(3_600)
+    expect(outputTokenBudget(2_400, 'en')).toBeGreaterThan(outputTokenBudget(2_400, 'zh'))
+    expect(outputTokenBudget(99_999, 'en')).toBe(MAX_OUTPUT_TOKENS_CAP)
   })
 
   it('sizes the output ceiling from the source the call carries', async () => {

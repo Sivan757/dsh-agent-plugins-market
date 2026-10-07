@@ -2,6 +2,7 @@
 import { withBusyOperation } from './ui/busy-operation.js'
 import { RequestTimeoutError } from './request-error.js'
 import { MARKET_ROUTES, userPanelMutationRoute, userPanelRoute, userPanelTranslationRoute, type UserPanelEntryWire, type UserPanelKind } from '../contracts/market.js'
+import { EXTENSION_ROUTES, type ExtensionHooksOverview } from '../contracts/extension-presets.js'
 import { documentRoute, MARKET_API_PREFIX, suiteRoute } from '../contracts/market.js'
 import type {
   McpBackendInfo,
@@ -63,30 +64,41 @@ export const MUTATION_TIMEOUT_MS = 600_000
  * operation actually stands, which is more useful than a spinner that never
  * ends.
  */
-async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function boundedRequest<T>(url: string, init: RequestInit, timeoutMs: number, consume: (response: Response) => Promise<T>): Promise<T> {
   const controller = new AbortController()
   const external = init.signal ?? undefined
-  const forward = (): void => controller.abort()
-  // An already-aborted caller signal never fires another event, so it has to be
-  // honoured here or the request would outlive the read it belongs to.
-  if (external?.aborted === true) controller.abort()
+  external?.throwIfAborted()
+  let rejectStopped: (error: unknown) => void = () => {}
+  const stopped = new Promise<never>((_resolve, reject) => { rejectStopped = reject })
+  const forward = (): void => {
+    controller.abort(external?.reason)
+    rejectStopped(controller.signal.reason)
+  }
+  if (external?.aborted === true) forward()
   else external?.addEventListener('abort', forward, { once: true })
-  let timedOut = false
   const timer = setTimeout(() => {
-    timedOut = true
-    controller.abort()
+    const error = new RequestTimeoutError(timeoutMs)
+    rejectStopped(error)
+    controller.abort(error)
   }, timeoutMs)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
-  } catch (error) {
-    // A caller-driven abort keeps its own error: the editor that cancelled the
-    // read owns that outcome.
-    if (timedOut) throw new RequestTimeoutError(timeoutMs)
-    throw error
+    const work = (async () => {
+      const response = await fetch(url, { ...init, signal: controller.signal })
+      if (controller.signal.aborted) {
+        void response.body?.cancel().catch(() => {})
+        controller.signal.throwIfAborted()
+      }
+      return consume(response)
+    })()
+    return await Promise.race([work, stopped])
   } finally {
     clearTimeout(timer)
     external?.removeEventListener('abort', forward)
   }
+}
+
+async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  return boundedRequest(url, init, timeoutMs, async response => response)
 }
 
 /**
@@ -96,30 +108,23 @@ async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): 
  * same in every panel that shares this helper.
  */
 async function getJson<T>(url: string, label: string, init?: RequestInit): Promise<T> {
-  const response = await boundedFetch(url, { credentials: 'same-origin', ...init }, READ_TIMEOUT_MS)
-  if (!response.ok) throw new Error(`${label}: ${response.status}`)
-  return response.json() as Promise<T>
+  return boundedRequest(url, { credentials: 'same-origin', ...init }, READ_TIMEOUT_MS, async response => {
+    if (!response.ok) throw new Error(`${label}: ${response.status}`)
+    return response.json() as Promise<T>
+  })
 }
 
 /** One POST carrying the market API's `{ ok, error }` result envelope. */
-async function postOkJson<T>(url: string, body: Record<string, unknown>, label: string): Promise<T & { ok?: boolean; error?: string }> {
-  const response = await boundedFetch(
-    url,
-    {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
-    },
-    MUTATION_TIMEOUT_MS
-  )
-  const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[] }
-  if (!response.ok || payload.ok !== true) {
-    // A rejection that names its fields carries them on the error, so a form can
-    // place each reason beside the input it belongs to.
-    throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields })
-  }
-  return payload
+async function postOkJson<T>(url: string, body: Record<string, unknown>, label: string, timeoutMs = MUTATION_TIMEOUT_MS): Promise<T & { ok?: boolean; error?: string }> {
+  return boundedRequest(url, {
+    method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+  }, timeoutMs, async response => {
+    const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[] }
+    if (!response.ok || payload.ok !== true) {
+      throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields })
+    }
+    return payload
+  })
 }
 
 export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promise<ServerConfigPayload> {
@@ -172,16 +177,25 @@ export async function fetchMenuRowFaces(): Promise<MenuRowFaceWire[]> {
   return getJson<MenuRowFaceWire[]>(MARKET_ROUTES.menuRowFaces, 'menu row faces failed')
 }
 
-export async function fetchSuiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail> {
-  return withBusyOperation(() => getJson<SuiteDetail>(suiteRoute(sourceId, suiteId), 'suite detail failed'), { blocking: false })
+function sessionRoute(route: string, sessionId?: string): string {
+  return sessionId ? route + (route.includes('?') ? '&' : '?') + new URLSearchParams({ sessionId }).toString() : route
 }
 
-export async function fetchMcpStatus(): Promise<McpStatusPayload> {
-  return withBusyOperation(() => getJson<McpStatusPayload>(MARKET_ROUTES.mcpStatus, 'MCP status failed'), { blocking: false })
+export async function fetchSuiteDetail(sourceId: string, suiteId: string, sessionId?: string): Promise<SuiteDetail> {
+  return withBusyOperation(() => getJson<SuiteDetail>(sessionRoute(suiteRoute(sourceId, suiteId), sessionId), 'suite detail failed'), { blocking: false })
 }
 
-export async function fetchLspStatus(background = false): Promise<LspStatusPayload> {
-  const load = (): Promise<LspStatusPayload> => getJson<LspStatusPayload>(MARKET_ROUTES.lspStatus, 'LSP status failed')
+export async function fetchMcpStatus(sessionId?: string): Promise<McpStatusPayload> {
+  return withBusyOperation(() => getJson<McpStatusPayload>(sessionRoute(MARKET_ROUTES.mcpStatus, sessionId), 'MCP status failed'), { blocking: false })
+}
+
+/** The settings Hooks tab: the configured hook declarations, sessionless. */
+export async function fetchHooksOverview(): Promise<ExtensionHooksOverview> {
+  return withBusyOperation(() => getJson<ExtensionHooksOverview>(EXTENSION_ROUTES.hooksOverview, 'hooks overview failed'), { blocking: false })
+}
+
+export async function fetchLspStatus(background = false, sessionId?: string): Promise<LspStatusPayload> {
+  const load = (): Promise<LspStatusPayload> => getJson<LspStatusPayload>(sessionRoute(MARKET_ROUTES.lspStatus, sessionId), 'LSP status failed')
   return background ? load() : withBusyOperation(load, { blocking: false })
 }
 
@@ -215,8 +229,8 @@ export async function migrateLspSeam(profile: string): Promise<import('../contra
  * @param name - the document's name inside that surface.
  * @returns the document's text exactly as authored.
  */
-export async function fetchSuiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<SuiteDocumentText> {
-  return withBusyOperation(() => getJson<SuiteDocumentText>(documentRoute(sourceId, suiteId, kind, name), 'document content failed'), { blocking: false })
+export async function fetchSuiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, sessionId?: string): Promise<SuiteDocumentText> {
+  return withBusyOperation(() => getJson<SuiteDocumentText>(sessionRoute(documentRoute(sourceId, suiteId, kind, name), sessionId), 'document content failed'), { blocking: false })
 }
 
 /**
@@ -233,10 +247,12 @@ export async function fetchSuiteDocument(sourceId: string, suiteId: string, kind
  * @param name - the document's name inside that surface.
  * @returns the body in the target language, and how many chunks are still in flight.
  */
-export async function fetchSuiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<DocumentTranslation> {
+export async function fetchSuiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, sessionId?: string): Promise<DocumentTranslation> {
   return withBusyOperation(async () => {
-    const body = await postOkJson<{ text?: string; pending?: number }>(MARKET_ROUTES.suiteDocumentTranslation, { sourceId, suiteId, kind, name }, 'document translation failed')
-    return { text: body.text ?? '', pending: body.pending ?? 0 }
+    // The session rides the query on every read, POST included: the route validates it
+    // with the same reader the GET routes use, never from the body.
+    const body = await postOkJson<{ text?: string; bilingualText?: string; pending?: number }>(sessionRoute(MARKET_ROUTES.suiteDocumentTranslation, sessionId), { sourceId, suiteId, kind, name }, 'document translation failed', READ_TIMEOUT_MS)
+    return { text: body.text ?? '', pending: body.pending ?? 0, ...(typeof body.bilingualText === 'string' ? { bilingualText: body.bilingualText } : {}) }
   }, { blocking: false })
 }
 
@@ -347,9 +363,9 @@ export interface UserPanelEntryDetail extends UserPanelEntry {
  * @param name - the entry's id (suite-owned entries) or its name (user entries).
  * @returns the entry; rejects when it no longer exists.
  */
-export async function fetchUserPanelEntry(kind: UserPanelKind, name: string): Promise<UserPanelEntryDetail> {
+export async function fetchUserPanelEntry(kind: UserPanelKind, name: string, sessionId?: string): Promise<UserPanelEntryDetail> {
   return withBusyOperation(async () => {
-    const body = await getJson<{ entry?: UserPanelEntry }>(`${userPanelRoute(kind)}/entry?${new URLSearchParams({ name })}`, 'user panel entry failed')
+    const body = await getJson<{ entry?: UserPanelEntry }>(sessionRoute(`${userPanelRoute(kind)}/entry?${new URLSearchParams({ name })}`, sessionId), 'user panel entry failed')
     const entry = body.entry
     if (entry?.rawText === undefined) throw new Error('user panel entry carried no document')
     return { ...entry, rawText: entry.rawText }
@@ -367,10 +383,10 @@ export async function fetchUserPanelEntry(kind: UserPanelKind, name: string): Pr
  * @param name - the entry's id (suite-owned entries) or its name (user entries).
  * @returns the body in the target language, and how many chunks are still in flight.
  */
-export async function fetchDocumentTranslation(kind: UserPanelKind, name: string): Promise<DocumentTranslation> {
+export async function fetchDocumentTranslation(kind: UserPanelKind, name: string, sessionId?: string): Promise<DocumentTranslation> {
   return withBusyOperation(async () => {
-    const body = await postOkJson<{ text?: string; pending?: number }>(userPanelTranslationRoute(kind), { name }, 'document translation failed')
-    return { text: body.text ?? '', pending: body.pending ?? 0 }
+    const body = await postOkJson<{ text?: string; bilingualText?: string; pending?: number }>(sessionRoute(userPanelTranslationRoute(kind), sessionId), { name }, 'document translation failed', READ_TIMEOUT_MS)
+    return { text: body.text ?? '', pending: body.pending ?? 0, ...(typeof body.bilingualText === 'string' ? { bilingualText: body.bilingualText } : {}) }
   }, { blocking: false })
 }
 

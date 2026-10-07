@@ -11,12 +11,13 @@
  * @module application/state/resource-favorites
  */
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 import { readJsonFile, writeJsonDocument } from '../json-file.js'
 import { resolveFavoriteInput, type ResourceFavoriteInput, type ResourceFavoriteWire } from '../../contracts/resource-window.js'
 
 /** The favorites file lives at the data root, beside the surface-toggles directory. */
 export function resourceFavoritesPath(dataRoot: string): string {
-  return `${dataRoot}/resource-favorites.json`
+  return join(dataRoot, 'resource-favorites.json')
 }
 
 interface FavoritesDocument {

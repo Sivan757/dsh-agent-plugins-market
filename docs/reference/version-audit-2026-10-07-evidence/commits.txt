@@ -1,0 +1,79 @@
+20a83e0 fix(catalog): aggregate manifest-free skill sources into one plugin
+c19f08a fix(test): stub the document read the panel double was missing
+26583fc fix(workspace): spend the deep-link hash so it cannot reselect a tab
+db8b339 feat(commands): unique command names and translated menu rows
+c9e6e7b perf(panels): bound the panel read path and resolve the locale once
+8887d8e feat(translation): translate descriptions and document bodies, never names
+7b6b0d2 refactor(resources): favorites become presets, follow global becomes a reset
+86f4460 fix(copy): control every tab description to 20-25 characters
+5895901 fix(resources): match the row-layout modifier class to its rule
+2bb00f5 fix(resources): lay the favorites strip out on one horizontal line
+4f16536 feat(detail): show the route an expert runs on
+6c8a593 fix(mcp): drop the server key row from the detail overview
+78eb344 fix(resources): horizontal favorites and explicit favorite following
+8ad94ff fix(detail): drop the suite root path and the capability switches
+13dec5b fix(resources): mirror the global state in the window rows
+e4ec6de refactor(resources): give the window the settings page full anatomy
+d9c3852 fix(busy): drop the corner fringe and the duplicate read overlay
+111227e fix(panels): drop the repeated headings and tighten the header band
+34f26f9 fix(market): drop the repeated page title and keep the section menu name
+446cb8e fix(market): halve the section spacing the panel was carrying
+3581de0 refactor(resources): reuse the market source strip for favorites
+b4f6cdc fix(detail): place hover hints below the text after a short pause
+e7a494c fix(detail): show clipped text on hover without the platform delay
+e069af9 fix(detail): drop the metadata row and hint every clipped line
+eac18b5 fix(detail): drop the remaining detail subtitles
+b0767b8 fix(detail): drop the repeated subtitle, the command slash, and the boxed view switch
+103059b fix(mcp-form): drop the OAuth note and the timeout inheritance hints
+066f1ea fix(resources): cancel the modal body's dead gap under the title
+0c2818f fix(settings): order the section between presets and the IM section
+71d9846 fix(resources): compact the window header and move save to the favorites row
+3b81155 fix(settings): seat the section right below Agent presets
+58e00af fix(market): keep the selected chip plate hover-only
+b2469a3 refactor(resources): rebuild the window from the panels' shared blocks
+f819c99 fix(market): reveal the selected source chip edit controls on hover
+ac8ef37 fix(branding): show the component row identity exactly once
+7ff09f6 fix(settings-card): drop the discard button and keep the host action row
+09df844 feat(translation): translate lazily, keep the cache, and add a reset
+a32eef3 fix(resources): tighten the window header and merge the view toggle
+292ef7d fix(test): mock the create-form defaults route the dialog now reads
+d0dbbb1 docs(translation): record the decision and document the layer
+afc09b9 feat(translation): translate every surface's names and descriptions
+a6ffba5 fix(resources): align the resource window with the finalized prototype
+978f6a7 fix(branding): localize Agent Plugins identity and settings
+7a2c9ef fix(ui): unify service creation and editing forms
+2c73012 fix(ui): reduce loading friction and clarify resource controls
+2a44ce9 chore: clear formatting and lint blockers
+0d49c2e fix(resources): live-round entry icon and route gating fixes
+549b6bc docs(scratch): sync the prototype with the live-round fixes
+47f6e1c docs(resources): mention the project resource window in the readmes
+e361362 feat(client): the project resource window on host primitives
+cd1d397 fix(scratch): close the prototype window tree and format the plan
+503f1e7 feat(resources): per-workspace resource filters, favorites, and window routes
+2b0f839 docs(scratch): add card and list view toggle to the filter window
+0baa97e docs(scratch): drop the per-face master switch from the filter window
+ee6aaf2 docs(scratch): drop the footer bar and rename collections to favorites
+6219700 docs(scratch): v3 filter entry reusing the market panel shape
+ebe6b5e docs(scratch): rework the filter entry prototype on dsw tokens
+d59b2f7 docs(scratch): three entry prototypes for per-project resource filtering
+dd617ec docs(plan): record the Agent Teams acceptance outcome and backlog
+3482682 docs(notes): correct the surface toggle note to the shipped gates
+88529e4 fix(surfaces): keep the six surface switches orthogonal
+efc2b85 fix(surfaces): use a border token the platform defines
+1c4e0b1 style(tests): satisfy eslint and prettier on the toggle route test
+ed08cb8 test(surfaces): cover the toggle routes over a recorded web-server double
+83efdfd feat(surfaces): per-workspace switches for the six plugin surfaces
+cb8e67d test(market): cover the client-side description refresh loop
+b49c0fa test(market): pin layer 1 on the real dsh-btw description
+02a11cb fix(market): persist a translation that lands after the plugin unloads
+b443fcb test(market): check the translator against the real LLM runtime surface
+2eebf2d fix(market): stop spending reasoning tokens on every translation
+066a36c feat(market): warm description translations before the first panel read
+56f61f0 test(market): pin description-translator resolution on a real Cordis tree
+622be58 feat(market): translate upstream suite descriptions for the zh locale
+cf9311a style(docs): satisfy prettier in scratch notes and the plan
+508fd3b feat(market): show the active-locale segment of bilingual descriptions
+5454ccc docs(scratch): add cross-session messaging design spike
+caf1652 docs(scratch): archive cross-session research base for T2
+d6d6051 feat(agents): land role-aware Team entry and teammate role routing
+9742754 docs(release): record the 0.9.0 release outcome

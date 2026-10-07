@@ -15,7 +15,10 @@ function settings(read: () => boolean | undefined, options: { missing?: boolean;
     downloadRegion: { get: () => undefined },
     feedbackEnabled: { get: () => undefined },
     autoUpdateSources: { get: () => undefined },
-    translationEnabled: { get: read }
+    translationEnabled: { get: read },
+    // The preset switch joins this namespace's ref set; absent reads as its
+    // declared default off (settings-namespace.ts).
+    agentPresetsEnabled: { get: () => undefined }
   }
   if (options.missing) Reflect.deleteProperty(refs, 'translationEnabled')
   const locale = options.locale ?? 'en'
@@ -28,7 +31,7 @@ function settings(read: () => boolean | undefined, options: { missing?: boolean;
       setScanProjectLayouts: async () => {},
       refreshMcpMounts: () => {},
       setAutoUpdateSources: () => {},
-      resetTranslationProviders: () => {}
+      syncTranslationEnabled: () => {}
     },
     typeof locale === 'function' ? locale : () => locale
   )
@@ -77,7 +80,7 @@ describe('MarketSettingsNamespace.translationEnabled', () => {
     expect(namespace.translationEnabled()).toBe(false)
   })
 
-  it('gives the provider chain a clean slate only when translation is switched back on', () => {
+  it('notifies translation on both preference edges and releases both watchers', () => {
     let value: boolean | undefined = false
     const resets: number[] = []
     const ctx = new Context()
@@ -87,7 +90,8 @@ describe('MarketSettingsNamespace.translationEnabled', () => {
       downloadRegion: { get: () => undefined },
       feedbackEnabled: { get: () => undefined },
       autoUpdateSources: { get: () => undefined },
-      translationEnabled: { get: () => value }
+      translationEnabled: { get: () => value },
+      agentPresetsEnabled: { get: () => undefined }
     }
     const namespace = new MarketSettingsNamespace(
       ctx,
@@ -98,7 +102,7 @@ describe('MarketSettingsNamespace.translationEnabled', () => {
         setScanProjectLayouts: async () => {},
         refreshMcpMounts: () => {},
         setAutoUpdateSources: () => {},
-        resetTranslationProviders: () => {
+        syncTranslationEnabled: () => {
           resets.push(1)
         }
       },
@@ -123,12 +127,62 @@ describe('MarketSettingsNamespace.translationEnabled', () => {
 
     value = false
     write()
-    expect(resets).toHaveLength(1)
+    expect(resets).toHaveLength(2)
 
     value = true
     write()
-    expect(resets).toHaveLength(2)
+    expect(resets).toHaveLength(3)
     namespace.dispose()
+    value = false
+    write()
+    ctx.emit('settings/document-updated' as Parameters<Context['on']>[0])
+    expect(resets).toHaveLength(3)
+  })
+
+  it('notifies language-derived preference changes through settings document updates', () => {
+    let locale = 'en'
+    let calls = 0
+    const ctx = new Context()
+    const refs: MarketSettingRefs = {
+      mcpEnhanced: { get: () => undefined },
+      scanProjectLayouts: { get: () => undefined },
+      downloadRegion: { get: () => undefined },
+      feedbackEnabled: { get: () => false },
+      autoUpdateSources: { get: () => undefined },
+      translationEnabled: { get: () => undefined },
+      agentPresetsEnabled: { get: () => undefined }
+    }
+    const namespace = new MarketSettingsNamespace(
+      ctx,
+      refs,
+      '/unused',
+      { t: key => key },
+      {
+        setScanProjectLayouts: async () => {},
+        refreshMcpMounts: () => {},
+        setAutoUpdateSources: () => {},
+        syncTranslationEnabled: () => {
+          calls++
+        }
+      },
+      () => locale
+    )
+    namespace.mount()
+    const updated = (): void => {
+      ctx.emit('settings/document-updated' as Parameters<Context['on']>[0])
+    }
+    try {
+      locale = 'zh'
+      updated()
+      expect(calls).toBe(1)
+      updated()
+      expect(calls).toBe(1)
+      locale = 'en'
+      updated()
+      expect(calls).toBe(2)
+    } finally {
+      namespace.dispose()
+    }
   })
 
   it('moves an unset field with the language and leaves a set one alone', () => {

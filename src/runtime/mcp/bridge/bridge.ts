@@ -21,6 +21,8 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { scopeOf } from '@deepseek-ai/dsh-scope'
+import { registerOwnedBridgeTool } from './tool-ownership.js'
 import { resolveReconnectPolicy, startConnection } from './connection.js'
 import { validateConfig } from '../../../application/mcp/mcp-bridge-config.js'
 import type { Config } from '../../../application/mcp/mcp-bridge-config.js'
@@ -35,16 +37,16 @@ export const name = 'market-mcp-client'
 export const inject = ['tools']
 
 /**
- * Live `serverName` reservations per app, keyed off `ctx.root` (multiple apps
- * in one process — tests — must not see each other's names). A duplicate
+ * Live `serverName` reservations per registration scope, or per app for global mounts.
+ * Agents may mount the same server namespace independently. A duplicate
  * namespace is a configuration error surfaced at plugin load, never silent
  * shadowing. The mount registry deduplicates too; this is the last line of
  * defense for direct programmatic loads.
  */
-const activeServerNames = new WeakMap<Context, Set<string>>()
+const activeServerNames = new WeakMap<object, Set<string>>()
 
 /** Adapt the cordis context onto the structural host the bridge modules use. */
-function toToolHost(ctx: Context): ToolHost {
+function toToolHost(ctx: Context, serverName: string): ToolHost {
   const logger = {
     error: (message: string): void => {
       ctx.logger?.error?.(message)
@@ -65,7 +67,7 @@ function toToolHost(ctx: Context): ToolHost {
         if (typeof register !== 'function') {
           throw new Error('the host context does not expose a tool registry — the "tools" service is required')
         }
-        return register.call(registry.tools, definition)
+        return registerOwnedBridgeTool(ctx, serverName, definition, () => register.call(registry.tools, definition))
       }
     },
     getService: serviceName => optionalService(ctx, serviceName)
@@ -117,10 +119,11 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // Reserve the namespace next: a duplicate `serverName` fails THIS instance
   // at load with an actionable error and leaves the earlier instance intact.
   ctx.effect(() => {
-    let names = activeServerNames.get(ctx.root)
+    const owner = scopeOf(ctx) ?? ctx.root
+    let names = activeServerNames.get(owner)
     if (!names) {
       names = new Set()
-      activeServerNames.set(ctx.root, names)
+      activeServerNames.set(owner, names)
     }
     if (names.has(resolvedConfig.serverName)) {
       throw new Error(`market-mcp-client: serverName "${resolvedConfig.serverName}" is already in use by another bridge instance — pick a unique serverName`)
@@ -135,7 +138,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // Optional service: the credential store receives OAuth tokens when
   // mounted; absence (no credentials plugin) is the supported
   // no-persistence configuration.
-  const host = toToolHost(ctx)
+  const host = toToolHost(ctx, resolvedConfig.serverName)
   const credentials = optionalService(ctx, 'credentials')
   const connection = startConnection(host, resolvedConfig, reconnect, credentials)
 

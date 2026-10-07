@@ -29,6 +29,8 @@ const PROJECT_RANK = 250
 const USER_RANK = 450
 
 interface SkillLocator {
+  /** Original ownership for live policy checks on cached candidates. */
+  owner?: { suite: Suite; skill: SuiteSkill }
   content?: string
   skillInstructions?: string
   file: string
@@ -45,8 +47,14 @@ export interface SuiteSkillProviderOptions {
   dataRoot?: string
   /** Resolves the live shell seam; absent keeps dynamic-context placeholders literal. */
   shell?: () => ShellSeam | undefined
-  /** Whether one user-dimension suite may contribute skills here; absent allows all. */
+  /** Validated session-selected clones; supplied readers replace global discovery rather than augmenting it. */
+  suites?: (cwd?: string) => Promise<Suite[]>
+  /** Explicit live session grant for an ordinary disabled entry; validation and both selection guards still apply. */
+  overrideDisabled?: (suite: Suite, skill: SuiteSkill) => boolean
+  /** Whether a user or project suite may contribute skills; checked live on list and get. */
   suiteAllowed?: (suite: Suite) => boolean
+  /** Per-entry policy, applied before name deduplication and checked live on get; absent allows all. */
+  entryAllowed?: (suite: Suite, skill: SuiteSkill) => boolean
 }
 
 interface LocatedSkill {
@@ -74,15 +82,17 @@ export class SuiteSkillProvider implements SkillProvider {
     const seen = new Set<string>()
     const unique: LocatedSkill[] = []
     for (const entry of located) {
-      if (seen.has(entry.skill.name)) continue
+      if (!this.entryAllowed(entry.suite, entry.skill) || seen.has(entry.skill.name)) continue
       seen.add(entry.skill.name)
       unique.push(entry)
     }
     return unique.map(entry => this.candidateFor(entry))
   }
 
+  /** With policy callbacks, only owned candidates from list are loadable; denied or ownerless candidates return undefined. */
   async get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
     const locator = candidate.locator as SkillLocator
+    if (!this.locatorAllowed(locator)) return undefined
     let text: string
     try {
       text = locator.content ?? (await readFile(locator.file, 'utf8'))
@@ -90,7 +100,7 @@ export class SuiteSkillProvider implements SkillProvider {
       return undefined
     }
     try {
-      if (parseFrontmatterRecord(text).disabled === true) return undefined
+      if (parseFrontmatterRecord(text).disabled === true && (!locator.owner || !this.canOverrideDisabled(locator.owner.suite, locator.owner.skill))) return undefined
     } catch {
       return undefined
     }
@@ -103,6 +113,7 @@ export class SuiteSkillProvider implements SkillProvider {
       skillDir: locator.directory,
       ...(options.cwd === undefined ? {} : { projectDir: options.cwd })
     })
+    if (!this.locatorAllowed(locator)) return undefined
     const shell = this.options.shell?.()
     const content =
       shell === undefined
@@ -112,11 +123,13 @@ export class SuiteSkillProvider implements SkillProvider {
             ...(options.cwd === undefined ? {} : { workdir: options.cwd }),
             ...(options.signal === undefined ? {} : { signal: options.signal })
           })
+    if (!this.locatorAllowed(locator)) return undefined
+    const override = locator.owner && this.canOverrideDisabled(locator.owner.suite, locator.owner.skill)
     return {
       name: parsed.name,
       description: candidate.description,
       ...(parsed.whenToUse === undefined ? {} : { whenToUse: parsed.whenToUse }),
-      invocation: parsed.invocation,
+      invocation: override && !parsed.invocation.modelInvocable && !parsed.invocation.userInvocable ? { modelInvocable: true, userInvocable: true } : parsed.invocation,
       source: candidate.source,
       provider: this.name,
       resourceBase: { kind: 'directory', path: locator.directory },
@@ -137,6 +150,7 @@ export class SuiteSkillProvider implements SkillProvider {
       provider: this.name,
       rank: entry.rank,
       locator: {
+        ...(this.hasPolicy() ? { owner: { suite: entry.suite, skill: entry.skill } } : {}),
         ...(entry.content === undefined ? {} : { content: entry.content }),
         ...(entry.suite.manifest.skillInstructions === undefined ? {} : { skillInstructions: entry.suite.manifest.skillInstructions }),
         file: entry.skill.file,
@@ -153,37 +167,52 @@ export class SuiteSkillProvider implements SkillProvider {
     }
   }
 
-  private async locate(cwd: string | undefined): Promise<LocatedSkill[]> {
-    const located: LocatedSkill[] = []
-    const userSuites = await this.manager.enabledUserSuites()
-    for (const suite of userSuites) {
-      if (this.options.suiteAllowed?.(suite) === false) continue
-      for (const skill of suite.activeSurfaces.skills === false ? [] : suite.skills) {
-        try {
-          if (parseFrontmatterRecord(await readFile(skill.file, 'utf8')).disabled === true) continue
-        } catch {
-          continue
-        }
-        located.push({ rank: USER_RANK, source: SUITE_USER_SOURCE, suite, skill })
-      }
-    }
-    if (cwd !== undefined) {
-      located.push(...(await this.locateProject(cwd)))
-    }
-    return located
+  private hasPolicy(): boolean {
+    return this.options.suiteAllowed !== undefined || this.options.entryAllowed !== undefined || this.options.suites !== undefined || this.options.overrideDisabled !== undefined
   }
 
-  private async locateProject(cwd: string): Promise<LocatedSkill[]> {
-    const snapshot = await this.manager.readProjectCatalog(cwd)
+  private entryAllowed(suite: Suite, skill: SuiteSkill): boolean {
+    return this.options.suiteAllowed?.(suite) !== false && this.options.entryAllowed?.(suite, skill) !== false
+  }
+
+  private locatorAllowed(locator: SkillLocator): boolean {
+    if (!this.hasPolicy()) return true
+    const owner = locator.owner
+    return owner !== undefined && owner.skill.file === locator.file && this.entryAllowed(owner.suite, owner.skill)
+  }
+
+  private canOverrideDisabled(suite: Suite, skill: SuiteSkill): boolean {
+    return this.options.overrideDisabled?.(suite, skill) === true && this.options.suiteAllowed?.(suite) === true && this.options.entryAllowed?.(suite, skill) === true
+  }
+
+  private async locate(cwd: string | undefined): Promise<LocatedSkill[]> {
+    const suites = this.options.suites
+      ? await this.options.suites(cwd)
+      : [...(await this.manager.enabledUserSuites()), ...(cwd === undefined ? [] : (await this.manager.readProjectCatalog(cwd)).enabledSuites)]
     const located: LocatedSkill[] = []
-    for (const suite of snapshot.enabledSuites) {
+    for (const suite of suites) {
+      if (this.options.suiteAllowed?.(suite) === false) continue
       for (const skill of suite.activeSurfaces.skills === false ? [] : suite.skills) {
+        if (!this.entryAllowed(suite, skill)) continue
+        let parsed: ReturnType<typeof parseSkillFrontmatter>
         try {
-          if (parseFrontmatterRecord(await readFile(skill.file, 'utf8')).disabled === true) continue
+          const text = await readFile(skill.file, 'utf8')
+          if (parseFrontmatterRecord(text).disabled === true && !this.canOverrideDisabled(suite, skill)) continue
+          parsed = parseSkillFrontmatter(text, skill.name)
         } catch {
           continue
         }
-        located.push({ rank: PROJECT_RANK, source: SUITE_PROJECT_SOURCE, suite, skill })
+        if (typeof parsed === 'string' || !this.entryAllowed(suite, skill)) continue
+        const invocation =
+          this.canOverrideDisabled(suite, skill) && !parsed.invocation.modelInvocable && !parsed.invocation.userInvocable
+            ? { modelInvocable: true, userInvocable: true }
+            : parsed.invocation
+        located.push({
+          rank: suite.dimension === 'project' ? PROJECT_RANK : USER_RANK,
+          source: suite.dimension === 'project' ? SUITE_PROJECT_SOURCE : SUITE_USER_SOURCE,
+          suite,
+          skill: { ...skill, ...parsed, invocation }
+        })
       }
     }
     return located
@@ -225,9 +254,8 @@ export class ToggledSkillProvider implements SkillProvider {
  *
  * The filter answers by the resource-window entry id (`skills:${name}`), which
  * is the candidate name the harness would surface, so window and provider
- * agree on what one row names. `get` stays unfiltered: a candidate the list
- * never offered is never asked for, and keeping one code path for an explicit
- * name lookup preserves direct reads the window cannot influence.
+ * agree on what one row names. Both list and get check the live filter, so a
+ * cached candidate cannot bypass a later denial.
  */
 export class EntryFilteredSkillProvider implements SkillProvider {
   constructor(
@@ -248,6 +276,6 @@ export class EntryFilteredSkillProvider implements SkillProvider {
   }
 
   get(...args: Parameters<SkillProvider['get']>): ReturnType<SkillProvider['get']> {
-    return this.inner.get(...args)
+    return this.allowsEntry(`skills:${args[0].name}`) ? this.inner.get(...args) : Promise.resolve(undefined)
   }
 }

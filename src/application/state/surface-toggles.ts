@@ -10,6 +10,7 @@
  * @module application/state/surface-toggles
  */
 import { createHash } from 'node:crypto'
+import { join } from 'node:path'
 import { readJsonFile, writeJsonDocument } from '../json-file.js'
 import { ALL_SURFACES_ON, resolveSurfaceToggles, type SurfaceToggles } from '../../contracts/surface-toggles.js'
 
@@ -21,13 +22,13 @@ interface SurfaceTogglesDocument {
 
 /** The toggles directory inside the plugin data root. */
 function togglesRoot(dataRoot: string): string {
-  return `${dataRoot}/surface-toggles`
+  return join(dataRoot, 'surface-toggles')
 }
 
 /** One workspace's cache file path inside the plugin data root. */
 export function surfaceTogglesPath(dataRoot: string, workspace: string): string {
   const key = createHash('sha256').update(workspace).digest('hex').slice(0, 24)
-  return `${togglesRoot(dataRoot)}/${key}.json`
+  return join(togglesRoot(dataRoot), `${key}.json`)
 }
 
 /** Read one workspace's toggles; an absent or malformed file means all-on. */

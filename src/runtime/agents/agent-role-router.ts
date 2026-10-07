@@ -10,6 +10,9 @@ import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../..
 export { parseAgentRole }
 export type { AgentRoleEntry, AgentRolePolicy }
 
+/** A declaration that has been through the call-name pass, so it answers exactly one callable name. */
+export type NamedAgentRole = AgentRoleEntry & { callName: string }
+
 export const AGENT_ROLE_TOOL_NAME = 'subagent_role'
 
 /**
@@ -166,7 +169,7 @@ export async function agentRoleCatalog(
   for (const entry of entries) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1)
   for (const entry of namedAgentRoles(entries)) {
     signal.throwIfAborted()
-    if (entry.disabled) continue
+    if (entry.disabled && entry.selectionEnabled !== true) continue
     if (counts.get(entry.name) !== 1) {
       diagnose(`ambiguous subagent role: ${entry.name}`)
       continue
@@ -185,7 +188,7 @@ export async function agentRoleCatalog(
       diagnose(`${entry.path}: ${String(error)}`)
       continue
     }
-    if (policy.disabled) continue
+    if (policy.disabled && entry.selectionEnabled !== true) continue
     const description = (policy.description ?? entry.description).replaceAll(/\s+/g, ' ').trim()
     // Advertise a route only when the executor would apply it.
     const exact = policy.provider !== undefined && policy.model !== undefined
@@ -234,13 +237,36 @@ export async function resolveRolePolicy(
   listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>,
   agentName: string,
   parent: unknown
-): Promise<{ entry: AgentRoleEntry; policy: AgentRolePolicy }> {
+): Promise<{ entry: NamedAgentRole; policy: AgentRolePolicy }> {
   const [entry, ...duplicates] = namedAgentRoles(await listRoles(parent)).filter(candidate => candidate.callName === agentName)
   if (entry === undefined || duplicates.length > 0) throw new Error(`agent "${agentName}" is unavailable or ambiguous`)
-  if (entry.disabled) throw new Error(`agent "${agentName}" is disabled`)
+  if (entry.disabled && entry.selectionEnabled !== true) throw new Error(`agent "${agentName}" is disabled`)
   const policy = await readAgentRole(entry, sessionCwd(parent))
-  if (policy.disabled) throw new Error(`agent "${agentName}" is disabled`)
+  if (policy.disabled && entry.selectionEnabled !== true) throw new Error(`agent "${agentName}" is disabled`)
   return { entry, policy }
+}
+
+/**
+ * Prove the role this call resolved is still a current, enabled role.
+ *
+ * Route validation awaits the live LLM runtime, and a global disable or a
+ * session selection change can land while that await is in flight. A child
+ * created from a role the current catalog no longer authorizes would run
+ * instructions that were already revoked, so the catalog is re-read
+ * immediately before the spawn and compared by the stable role id parsed from
+ * the declaration, never by the display or call name: a role renamed underneath
+ * this call cannot be mistaken for the one it resolved.
+ * @param listRoles - the same parent-scoped catalog reader the call resolved from.
+ * @param resolved - the entry this call resolved before its asynchronous work began.
+ * @param parent - the calling agent, so a session-scoped catalog is re-read for that same session.
+ * @throws when the role is gone, disabled, ambiguous, or no longer answers its call name.
+ */
+export async function requireCurrentRole(listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>, resolved: NamedAgentRole, parent: unknown): Promise<void> {
+  const matches = namedAgentRoles(await listRoles(parent)).filter(candidate => candidate.name === resolved.name)
+  if (matches.length !== 1 || matches[0]!.callName !== resolved.callName) throw new Error('agent "' + resolved.callName + '" is unavailable')
+  const current = matches[0]!
+  const policy = await readAgentRole(current, sessionCwd(parent))
+  if ((current.disabled || policy.disabled) && current.selectionEnabled !== true) throw new Error('agent "' + resolved.callName + '" is disabled')
 }
 
 /**
@@ -273,8 +299,12 @@ export async function executeAgentRole(
   if (parent === undefined) throw new Error(`${AGENT_ROLE_TOOL_NAME} requires a calling agent`)
   if (prompt.trim() === '') throw new Error(`${AGENT_ROLE_TOOL_NAME} requires a non-empty prompt`)
   signal.throwIfAborted()
-  const { policy } = await resolveRolePolicy(listRoles, agentName, parent)
+  const { entry, policy } = await resolveRolePolicy(listRoles, agentName, parent)
   const agentOptions = await resolveAgentOptions(policy, requestedRoute, parent, host.llm, signal, agentName, diagnose)
+  signal.throwIfAborted()
+  // The route lookup awaited the live LLM runtime; prove the role still stands
+  // before either channel creates a child.
+  await requireCurrentRole(listRoles, entry, parent)
   signal.throwIfAborted()
   const request: AgentRoleDelegation = {
     prompt: [{ type: 'text', text: prompt }],
@@ -315,13 +345,13 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
   const tool = defineTool({
     name: AGENT_ROLE_TOOL_NAME,
     description:
-      "Delegate a task to a named role child from the session's role catalog: the role's own instructions and its configured model apply, and the child starts without this conversation. Use it proactively for self-contained work — codebase exploration whose raw reads would fill this context, a scoped implementation, a review, or an analysis you can brief in one prompt — and start independent children together in one message. The child runs in " +
+      "Delegate a task to a named role child from the session's subagent-catalog: the role's own instructions and its configured model apply, and the child starts without this conversation. Use it proactively for self-contained work — codebase exploration whose raw reads would fill this context, a scoped implementation, a review, or an analysis you can brief in one prompt — and start independent children together in one message. The child runs in " +
       'the background by default and returns a durable subagent id at once, keeping the child available for later turns; when the run settles, the runtime sends the parent a notice carrying its outcome and ' +
       'final reply. A child usually runs for minutes, so continue with independent work instead of waiting. `prompt` must stand alone, since the child cannot see this conversation and a question it asks while it runs goes unanswered. When the notice arrives, verify its ' +
-      "assertions against the files and relay the result to the user; the child's output is not visible to them. The current catalog lists the available roles and the full usage guidance; when no listed " +
+      "assertions against the files and relay the result to the user; the child's output is not visible to them. The current subagent-catalog lists the available roles and the full usage guidance; when no listed " +
       "role matches, use the host's own `subagent` tools instead.",
     parameters: {
-      agent: { type: 'string', required: true, description: 'Exact callable role name from the current subagent catalog.' },
+      agent: { type: 'string', required: true, description: 'Exact callable role name listed in the current "subagent-catalog" message.' },
       prompt: {
         type: 'string',
         required: true,

@@ -222,7 +222,7 @@ describe('market suite document translations', () => {
     expect(await catalog.settleDescriptions(5_000)).toBe(true)
     const [skill, command, agent] = await Promise.all([ask('skills', 'greet'), ask('commands', 'deploy'), ask('agents', 'reviewer')])
     expect(skill.pending).toBe(0)
-    expect(skill.text).toContain('ZH:# Greet')
+    expect(skill.text).toContain('# ZH:Greet')
     // Frontmatter is metadata: the provider never sees it, so it is never
     // translated into YAML the file could no longer parse.
     expect(skill.text).not.toContain('description:')
@@ -242,7 +242,7 @@ describe('market suite document translations', () => {
     expect(first.text).toBe('Rewritten command body')
     expect(first.pending).toBe(1)
     expect(await catalog.settleDescriptions(5_000)).toBe(true)
-    expect(await catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', 'deploy')).toEqual({ text: 'ZH:Rewritten command body', pending: 0 })
+    expect(await catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', 'deploy')).toMatchObject({ text: 'ZH:Rewritten command body', pending: 0 })
   })
 
   it('shares one cache entry with the user panel for the same document', async () => {
@@ -264,7 +264,7 @@ describe('market suite document translations', () => {
     expect(calls).toBe(1)
     // The market detail page asks for the same file through the suite identity:
     // one document is one cache entry, so no provider is paid twice.
-    expect(await catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', 'deploy')).toEqual({ text: 'ZH:Deploy the v1 fixture suite.\n', pending: 0 })
+    expect(await catalog.suiteDocumentTranslation('active', 'v1-suite', 'commands', 'deploy')).toMatchObject({ text: 'ZH:Deploy the v1 fixture suite.\n', pending: 0 })
     expect(calls).toBe(1)
   })
 

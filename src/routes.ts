@@ -16,6 +16,10 @@ import type { SourcePatch } from './application/ports.js'
 import type { SourceKind, SuiteSurfaceKey } from './model/types.js'
 import type { PanelResourceStore } from './application/panel-resources.js'
 import { readModelCatalog } from './runtime/host/model-catalog.js'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { ProjectExtensionReader } from './application/extension-project.js'
+import type { McpStatusPayload } from './application/mcp/mcp-status.js'
+import type { LspStatusPayload } from './contracts/lsp-status.js'
 
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -28,6 +32,47 @@ interface RouteHost {
   get?(name: string): unknown
 }
 
+/** Recount a merged MCP view so its totals describe the entries actually returned. */
+function mcpTotals(entries: McpStatusPayload['entries']): McpStatusPayload['totals'] {
+  const count = (state: string): number => entries.filter(entry => entry.state === state).length
+  return {
+    all: entries.length,
+    connected: count('connected'),
+    degraded: count('degraded'),
+    failed: count('failed'),
+    needsCredentials: count('needs-credentials'),
+    orphaned: count('orphaned'),
+    disabled: count('disabled'),
+    foreign: count('foreign')
+  }
+}
+
+/** Recount a merged LSP view the way the status builder counts its own rows. */
+function lspTotals(entries: LspStatusPayload['entries']): LspStatusPayload['totals'] {
+  const count = (state: string): number => entries.filter(entry => entry.state === state).length
+  return {
+    all: entries.length,
+    mounted: count('mounted'),
+    failed: count('failed'),
+    blocked: count('host-missing') + count('conflict'),
+    disabled: count('disabled')
+  }
+}
+
+/** The live-session lookup a read route uses to answer for one session's workspace. */
+export interface SuiteRouteSessionResolver {
+  /** The live agent for one session id; undefined when no such live session exists. */
+  agent(sessionId: string): Agent | undefined
+  /**
+   * That agent's project reader. The transport cannot build one itself: it holds
+   * the panel stores but not the panel sources or the full catalog they are read
+   * over. Omitted means session-scoped reads stay unavailable, never global.
+   */
+  project?(agent: Agent): ProjectExtensionReader
+}
+/** Where one read answers from: the global user catalog, or one live session's workspace. */
+type ReadSource = { reader?: ProjectExtensionReader } | { error: string }
+
 /** Mount every route; returns the disposer releasing them all. */
 export function mountSuiteRoutes(
   hostCtx: unknown,
@@ -36,7 +81,8 @@ export function mountSuiteRoutes(
   surfaceToggles?: {
     currentToggles(): import('./contracts/surface-toggles.js').SurfaceToggles
     set(key: import('./contracts/surface-toggles.js').SurfaceToggleKey, enabled: boolean): Promise<unknown>
-  }
+  },
+  session?: SuiteRouteSessionResolver
 ): () => void {
   const host = hostCtx as RouteHost
   const disposers: Array<() => void> = []
@@ -78,6 +124,50 @@ export function mountSuiteRoutes(
     )
   }
 
+  /**
+   * A read naming a session answers for that session's workspace; a read without
+   * one keeps answering from the global user catalog. Resolution failures are
+   * diagnosable rather than silent: an unknown session, a workspace-less agent,
+   * or an unwired project reader never falls back to a request path or to the
+   * process working directory.
+   */
+  const readSource = (request: IncomingMessage): ReadSource => {
+    const sessionId = queryOf(request).get('sessionId')
+    if (sessionId === null || sessionId === '') return {}
+    const agent = session?.agent(sessionId)
+    if (agent === undefined) return { error: 'no live session "' + sessionId + '"' }
+    const cwd = agent.session.header.cwd
+    if (typeof cwd !== 'string' || !isAbsolute(cwd)) return { error: 'session "' + sessionId + '" has no absolute workspace' }
+    const reader = session?.project?.(agent)
+    return reader === undefined ? { error: 'session-scoped project reads are unavailable' } : { reader }
+  }
+  /**
+   * Read one resource from whichever source owns it. A source-qualified id can
+   * name a user-dimension suite that merely rode along with a session, so a
+   * session-scoped request asks that workspace's project reader first and falls
+   * back to the user catalog. The session itself is validated before either, so
+   * an unknown session can never become a global read.
+   */
+  const readOwned = async <T>(source: ReadSource, fromProject: (reader: ProjectExtensionReader) => Promise<T>, fromCatalog: () => Promise<T>): Promise<T> => {
+    if ('error' in source) throw new Error(source.error)
+    if (source.reader === undefined) return fromCatalog()
+    try {
+      return await fromProject(source.reader)
+    } catch {
+      // The id is not this workspace's project resource; the catalog that owns it answers.
+      return fromCatalog()
+    }
+  }
+  /**
+   * One status view for a session: the user catalog stays visible and that
+   * workspace's own declarations join it. Replacing the catalog outright would
+   * hide every user server behind a session id.
+   */
+  const mergeById = <T extends { id: string }>(base: readonly T[], extra: readonly T[]): T[] => {
+    const seen = new Set(base.map(entry => entry.id))
+    return [...base, ...extra.filter(entry => !seen.has(entry.id))]
+  }
+
   get(MARKET_ROUTES.overview, async (_request, response) => {
     sendJson(response, 200, await manager.overview())
   })
@@ -106,8 +196,20 @@ export function mountSuiteRoutes(
     }
   })
 
-  get(MARKET_ROUTES.mcpStatus, async (_request, response) => {
-    sendJson(response, 200, await manager.mcpStatus())
+  get(MARKET_ROUTES.mcpStatus, async (request, response) => {
+    const source = readSource(request)
+    if ('error' in source) {
+      sendJson(response, 404, { ok: false, error: source.error })
+      return
+    }
+    const global = await manager.mcpStatus()
+    if (source.reader === undefined) {
+      sendJson(response, 200, global)
+      return
+    }
+    const project = await source.reader.mcpStatus()
+    const entries = mergeById(global.entries, project.entries)
+    sendJson(response, 200, { ...global, entries, totals: mcpTotals(entries) })
   })
 
   get(MARKET_ROUTES.serverConfig, async (request, response) => {
@@ -133,8 +235,20 @@ export function mountSuiteRoutes(
     return {}
   })
 
-  get(MARKET_ROUTES.lspStatus, async (_request, response) => {
-    sendJson(response, 200, await manager.lspStatus())
+  get(MARKET_ROUTES.lspStatus, async (request, response) => {
+    const source = readSource(request)
+    if ('error' in source) {
+      sendJson(response, 404, { ok: false, error: source.error })
+      return
+    }
+    const global = await manager.lspStatus()
+    if (source.reader === undefined) {
+      sendJson(response, 200, global)
+      return
+    }
+    const project = await source.reader.lspStatus()
+    const entries = mergeById(global.entries, project.entries)
+    sendJson(response, 200, { ...global, entries, totals: lspTotals(entries), hostMissing: entries.length > 0 && entries.every(entry => entry.state === 'host-missing') })
   })
 
   get(MARKET_ROUTES.lspServers, async (_request, response) => {
@@ -173,7 +287,19 @@ export function mountSuiteRoutes(
       return
     }
     try {
-      sendJson(response, 200, await manager.suiteDetail(sourceId, suiteId))
+      const source = readSource(request)
+      if ('error' in source) throw new Error(source.error)
+      // The project reader resolves source and suite inside this session's own
+      // workspace, so an id invented for another workspace simply is not found.
+      sendJson(
+        response,
+        200,
+        await readOwned(
+          source,
+          reader => reader.suiteDetail(sourceId, suiteId),
+          () => manager.suiteDetail(sourceId, suiteId)
+        )
+      )
     } catch (error) {
       sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }
@@ -194,7 +320,16 @@ export function mountSuiteRoutes(
       return
     }
     try {
-      sendJson(response, 200, await manager.suiteDocument(sourceId, suiteId, kind, name))
+      const source = readSource(request)
+      sendJson(
+        response,
+        200,
+        await readOwned(
+          source,
+          reader => reader.suiteDocument(sourceId, suiteId, kind, name),
+          () => manager.suiteDocument(sourceId, suiteId, kind, name)
+        )
+      )
     } catch (error) {
       sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }
@@ -207,14 +342,21 @@ export function mountSuiteRoutes(
   // its own choosing — the same contract the user-panel route keeps. The
   // document the reader sees arrives through the document route above, and this
   // route re-reads the same file rather than trusting the page.
-  post(MARKET_ROUTES.suiteDocumentTranslation, async body => {
+  post(MARKET_ROUTES.suiteDocumentTranslation, async (body, request) => {
     const { sourceId, suiteId } = parseTarget(body)
     const kind = body['kind']
     if (kind !== 'skills' && kind !== 'commands' && kind !== 'agents') throw new Error('invalid document kind')
     const name = textField(body['name'] ?? '', 'document name')
     if (name === '') throw new Error('missing document name')
-    const { text, pending } = await manager.suiteDocumentTranslation(sourceId, suiteId, kind, name)
-    return { text, pending }
+    // The same reader the document GET uses: the session is taken from the query,
+    // validated once, and an unknown or workspace-less session is a diagnostic.
+    const source = readSource(request)
+    const translated = await readOwned(
+      source,
+      reader => reader.suiteDocumentTranslation(sourceId, suiteId, kind, name),
+      () => manager.suiteDocumentTranslation(sourceId, suiteId, kind, name)
+    )
+    return { ...translated }
   })
 
   post(MARKET_ROUTES.addSource, async body => {
@@ -431,10 +573,22 @@ export function mountSuiteRoutes(
   // each mutation notifies the change pipeline so skills/commands remount.
   if (panels !== undefined) {
     const kinds: ReadonlyArray<UserPanelKind> = ['skills', 'commands', 'agents']
-    const storeOf = (kind: UserPanelKind): PanelResourceStore => panels[kind]
+    // Reads answer for the requesting session's own panels when one is named;
+    // the mutations below stay global, so a project query can never edit the
+    // user's own panel documents.
+    const storeOf = (kind: UserPanelKind, reader?: ProjectExtensionReader): PanelResourceStore => (reader?.panels ?? panels)[kind]
+    const readStore = (kind: UserPanelKind, request: IncomingMessage): { store: PanelResourceStore } | { error: string } => {
+      const source = readSource(request)
+      return 'error' in source ? { error: source.error } : { store: storeOf(kind, source.reader) }
+    }
 
     for (const kind of kinds) {
       get(userPanelRoute(kind), async (request, response) => {
+        const source = readStore(kind, request)
+        if ('error' in source) {
+          sendJson(response, 404, { ok: false, error: source.error })
+          return
+        }
         // `refresh=1` is the panel's Refresh button: a user asking for the
         // working tree as it stands must never be answered from the row cache,
         // so the route carries an explicit force path instead of relying on how
@@ -442,7 +596,7 @@ export function mountSuiteRoutes(
         const force = queryOf(request).get('refresh') === '1'
         // The pending count rides the same read: a panel re-reads while it is
         // non-zero, so translated text arrives without a manual refresh.
-        const read = await storeOf(kind).read(false, force)
+        const read = await source.store.read(false, force)
         sendJson(response, 200, {
           entries: read.entries,
           ...(read.translationPending === 0 ? {} : { translationPending: read.translationPending })
@@ -450,8 +604,13 @@ export function mountSuiteRoutes(
       })
 
       get(`${userPanelRoute(kind)}/entry`, async (request, response) => {
+        const source = readStore(kind, request)
+        if ('error' in source) {
+          sendJson(response, 404, { ok: false, error: source.error })
+          return
+        }
         const name = queryOf(request).get('name') ?? ''
-        const entry = await storeOf(kind).get(name)
+        const entry = await source.store.get(name)
         if (entry === undefined) {
           sendJson(response, 404, { ok: false, error: `no entry named "${name}"` })
           return
@@ -463,11 +622,12 @@ export function mountSuiteRoutes(
       // entry and nothing else: the store re-reads that entry itself, so a
       // script on the page cannot spend the operator's translation quota on
       // text of its own choosing.
-      post(`${userPanelRoute(kind)}/entry/translation`, async body => {
+      post(`${userPanelRoute(kind)}/entry/translation`, async (body, request) => {
+        const source = readStore(kind, request)
+        if ('error' in source) throw new Error(source.error)
         const name = textField(body['name'] ?? '', 'entry name')
         if (name === '') throw new Error('missing entry name')
-        const { text, pending } = await storeOf(kind).translateDocument(name)
-        return { text, pending }
+        return { ...(await source.store.translateDocument(name)) }
       })
 
       post(`${userPanelRoute(kind)}/create`, async body => {

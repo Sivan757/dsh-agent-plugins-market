@@ -11,10 +11,9 @@
  *
  * One default is not a constant: `translationEnabled` follows the interface
  * language, so its reader takes the language as an argument and
- * {@link interfaceLanguageTranslates} answers it. That same function is the
- * translation layer's own gate, so the switch and the work it describes cannot
- * answer differently — and {@link resolveTranslationTarget} reads it once more
- * to name the language that gate translates *into*.
+ * {@link interfaceLanguageTranslates} answers that default only. An explicit
+ * preference is independent of language. {@link resolveTranslationTarget}
+ * selects the language of displayed translations, including English.
  *
  * @module contracts/settings
  */
@@ -43,6 +42,8 @@ export interface MarketSettings {
    * language's default otherwise.
    */
   translationEnabled: boolean
+  /** ON = the composer carries the Agent preset manager entry (experimental). */
+  agentPresetsEnabled: boolean
 }
 
 /**
@@ -66,10 +67,13 @@ export const MARKET_SETTINGS_DEFAULTS: MarketSettings = {
   downloadRegion: 'auto',
   feedbackEnabled: true,
   autoUpdateSources: false,
-  // Experimental: off until the user opts in, so a fresh install never spends
-  // a provider request on a feature it did not ask for — and off for every
-  // language that is not Chinese, which is the opt-in this field defaults to.
-  translationEnabled: false
+  // The browser-side value before the effective one is known — not the
+  // effective default, which interfaceLanguageTranslates derives from the
+  // interface language. Off here keeps a fresh install from spending a provider
+  // request before the host has answered.
+  translationEnabled: false,
+  // Experimental capability: the manager stays hidden until the user opts in.
+  agentPresetsEnabled: false
 }
 
 /** Every field name the market's settings section carries. */
@@ -99,9 +103,8 @@ function narrowBoolean(value: unknown, fallback: boolean): boolean {
  * concerned everything that is not English is Chinese — an absent preference
  * included, which the host reads as zh.
  *
- * The translation layer's gate is this same function, which is what makes "the
- * switch reads on" and "the text is translated" one statement instead of two
- * that can drift apart.
+ * This determines only the default display preference: Chinese starts on and
+ * English starts off. It must not gate an explicitly enabled translation.
  * @param localePreference - the host `locale.preference`, or undefined while nothing supplies one.
  */
 export function interfaceLanguageTranslates(localePreference: string | undefined): boolean {
@@ -122,15 +125,12 @@ export function interfaceLanguageTranslates(localePreference: string | undefined
  * "Simplified Chinese"; a second dictionary would add a case here rather than a
  * second reading of the preference somewhere else.
  *
- * An undefined answer means there is nothing to translate: an English interface
- * already shows the authored text. It is the same answer
- * {@link interfaceLanguageTranslates} gives, which is the point — the switch,
- * the gate every surface reads, and the target cannot drift apart.
+ * Target selection is independent of whether translations are displayed.
  * @param localePreference - the host `locale.preference`, or undefined while nothing supplies one.
- * @returns the target language tag, or undefined for an English interface.
+ * @returns the language rendered by the interface.
  */
-export function resolveTranslationTarget(localePreference: string | undefined): string | undefined {
-  return interfaceLanguageTranslates(localePreference) ? 'zh' : undefined
+export function resolveTranslationTarget(localePreference: string | undefined): 'zh' | 'en' {
+  return localePreference?.toLowerCase().startsWith('en') ? 'en' : 'zh'
 }
 
 /**
@@ -159,6 +159,7 @@ export function resolveMarketSettings(section: unknown, localePreference?: strin
     downloadRegion: narrowDownloadRegion(stored['downloadRegion']),
     feedbackEnabled: narrowBoolean(stored['feedbackEnabled'], MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
     autoUpdateSources: narrowBoolean(stored['autoUpdateSources'], MARKET_SETTINGS_DEFAULTS.autoUpdateSources),
-    translationEnabled: narrowBoolean(stored['translationEnabled'], interfaceLanguageTranslates(localePreference))
+    translationEnabled: narrowBoolean(stored['translationEnabled'], interfaceLanguageTranslates(localePreference)),
+    agentPresetsEnabled: narrowBoolean(stored['agentPresetsEnabled'], MARKET_SETTINGS_DEFAULTS.agentPresetsEnabled)
   }
 }

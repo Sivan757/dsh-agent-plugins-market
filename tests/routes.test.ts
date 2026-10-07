@@ -264,7 +264,7 @@ describe('market HTTP routes', () => {
       remove: async () => {},
       translateDocument: async (name: string) => {
         translated.push({ kind, name })
-        return { text: `translated ${name}`, pending: 1 }
+        return { text: `translated ${name}`, bilingualText: `original ${name}\ntranslated ${name}`, pending: 1 }
       }
     })
     const panels = {
@@ -328,7 +328,7 @@ describe('market HTTP routes', () => {
     const translationResponse = response()
     await routes.get(translationPath)?.(postRequest(translationPath, { name: 'demo' }), translationResponse)
     await settle()
-    expect(translationResponse.value()).toMatchObject({ ok: true, text: 'translated demo', pending: 1 })
+    expect(translationResponse.value()).toMatchObject({ ok: true, text: 'translated demo', bilingualText: 'original demo\ntranslated demo', pending: 1 })
     expect(translated).toEqual([{ kind: 'skills', name: 'demo' }])
 
     // A body with no entry to name is rejected before the store is asked.
@@ -385,7 +385,7 @@ describe('market HTTP routes', () => {
       ...service(),
       suiteDocumentTranslation: async (sourceId: string, suiteId: string, kind: string, name: string) => {
         calls.push([sourceId, suiteId, kind, name])
-        return { text: `translated ${name}`, pending: 2 }
+        return { text: `translated ${name}`, bilingualText: `original ${name}\ntranslated ${name}`, pending: 2 }
       }
     }
     const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, manager)
@@ -394,7 +394,7 @@ describe('market HTTP routes', () => {
       const translatedResponse = response()
       await routes.get(path)?.(postRequest(path, { sourceId: 'active', suiteId: 'v1-suite', kind: 'commands', name: 'deploy' }), translatedResponse)
       await settle()
-      expect(translatedResponse.value()).toMatchObject({ ok: true, text: 'translated deploy', pending: 2 })
+      expect(translatedResponse.value()).toMatchObject({ ok: true, text: 'translated deploy', bilingualText: 'original deploy\ntranslated deploy', pending: 2 })
       expect(calls).toEqual([['active', 'v1-suite', 'commands', 'deploy']])
 
       // The document the reader sees arrives through the document route above

@@ -5,7 +5,8 @@
 import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTranslationProviders } from '../src/runtime/host/translation-providers.js'
 import { Catalog } from '../src/application/catalog.js'
 import { createPanelResources } from '../src/application/panel-resources.js'
 import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
@@ -16,6 +17,7 @@ const roots: string[] = []
 
 afterEach(async () => {
   resetCircuitBreaker()
+  vi.unstubAllGlobals()
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
@@ -70,6 +72,41 @@ function longBody(): string {
 }
 
 describe('Catalog.translateDocument', () => {
+  it('accepts the Microsoft article-omission response through masking cache and AST reconstruction', async () => {
+    const sent: string[][] = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      if (typeof init.body !== 'string') throw new Error('expected a JSON request body')
+      sent.push(JSON.parse(init.body) as string[])
+      return new Response(JSON.stringify([{ translations: [{ text: '⟦D1⟧flow⟦D2⟧是技能的路径。' }] }]), { status: 200 })
+    })
+    const provider = createTranslationProviders({ host: {} })[1]!
+    const { catalog } = await seededCatalog({ provider })
+    const body = 'A **flow** is a path through the skill.'
+    expect(catalog.translateDocument('skills', 'article-omission', body, 'zh').pending).toBe(1)
+    expect(await catalog.settleDescriptions(5000)).toBe(true)
+    const translated = catalog.translateDocument('skills', 'article-omission', body, 'zh')
+    expect(translated.pending).toBe(0)
+    expect(translated.text).toBe('**flow**是技能的路径。')
+    expect(translated.bilingualText).toContain(body)
+    expect(translated.bilingualText).toContain('**flow**是技能的路径。')
+    expect(sent).toEqual([['A ⟦D1⟧flow⟦D2⟧ is a path through the skill.']])
+    await catalog.settleDescriptions(5000)
+    expect(sent).toHaveLength(1)
+    catalog.dispose()
+  })
+
+  it('reuses unchanged paragraphs after another paragraph is inserted before them', async () => {
+    const { provider, batches } = recorder()
+    const { catalog } = await seededCatalog({ provider })
+    const paragraphs = Array.from({ length: 8 }, (_, index) => 'Paragraph ' + index + ' ' + 'word '.repeat(72))
+    const body = paragraphs.join('\n\n')
+    catalog.translateDocument('skills', 'stable', body, 'zh')
+    await catalog.settleDescriptions(5000)
+    batches.length = 0
+    catalog.translateDocument('skills', 'stable', 'New note.\n\n' + body, 'zh')
+    await catalog.settleDescriptions(5000)
+    expect(batches.flat()).toEqual(['New note.'])
+  })
   it('answers with the authored body and reports every chunk it queued', async () => {
     const { provider } = recorder()
     const { catalog } = await seededCatalog({ provider })
@@ -121,7 +158,7 @@ describe('Catalog.translateDocument', () => {
     expect(settled.pending).toBe(0)
     // Translated chunks in place, authored structure untouched.
     expect(settled.text.replace(/ZH:/g, '')).toBe(body)
-    expect(settled.text).toContain('1. Clone the repository:\n   ```bash')
+    expect(settled.text).toContain('1. ZH:Clone the repository:\n   ```bash')
   })
 
   it('keeps a trailing newline the authored body carries', async () => {
@@ -155,7 +192,7 @@ describe('Catalog.translateDocument', () => {
     // The honest half of the same rule: this text is written in the language the
     // reader asked for, so declining it is not a hidden gap.
     const body = '读取文件，然后按回车键继续。'
-    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'zh')).toEqual({ text: body, pending: 0 })
+    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'zh')).toEqual({ text: body, bilingualText: body, pending: 0 })
     await catalog.settleDescriptions(200)
     expect(batches).toEqual([])
   })
@@ -163,7 +200,7 @@ describe('Catalog.translateDocument', () => {
   it('answers a body with no text at all with the body itself', async () => {
     const { provider } = recorder()
     const { catalog } = await seededCatalog({ provider })
-    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', '\n\n', 'zh')).toEqual({ text: '\n\n', pending: 0 })
+    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', '\n\n', 'zh')).toEqual({ text: '\n\n', bilingualText: '\n\n', pending: 0 })
   })
 
   it('pays for a chunk once: a second read is answered from the cache', async () => {
@@ -200,7 +237,7 @@ describe('Catalog.translateDocument', () => {
     const { provider, batches } = recorder()
     const { catalog } = await seededCatalog({ provider, locale: 'en' })
     const body = longBody()
-    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'en')).toEqual({ text: body, pending: 0 })
+    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'en')).toEqual({ text: body, bilingualText: body, pending: 0 })
     await catalog.settleDescriptions(5_000)
     expect(batches).toEqual([])
   })
@@ -208,11 +245,24 @@ describe('Catalog.translateDocument', () => {
   it('queues nothing at all when the deployment has no provider chain', async () => {
     const { catalog } = await seededCatalog()
     const body = longBody()
-    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'zh')).toEqual({ text: body, pending: 0 })
+    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'zh')).toEqual({ text: body, bilingualText: body, pending: 0 })
   })
 })
 
 describe('PanelResourceStore.translateDocument', () => {
+  it('propagates actual description pending status on both detail read paths', async () => {
+    const { provider } = recorder()
+    const { catalog, root } = await seededCatalog({ provider })
+    const users = createUserPanelStores(root)
+    await users.skills.create('pending', '---\nname: pending\ndescription: Pending description\n---\nBody')
+    const panels = createPanelResources(catalog, users)
+    expect((await panels.skills.get('pending'))?.translationPending).toBe(1)
+    expect((await catalog.suiteDetail('active', 'v1-suite')).translationPending).toBeGreaterThan(0)
+    await catalog.settleDescriptions(5000)
+    expect((await panels.skills.get('pending'))?.translationPending ?? 0).toBe(0)
+    expect((await catalog.suiteDetail('active', 'v1-suite')).translationPending ?? 0).toBe(0)
+  })
+
   it('reads the named entry itself and translates its body without the frontmatter', async () => {
     const { provider, batches } = recorder()
     const { catalog, root } = await seededCatalog({ provider })
@@ -221,11 +271,11 @@ describe('PanelResourceStore.translateDocument', () => {
     if (entry === undefined) throw new Error('expected the fixture skill row')
     const id = entry.id ?? entry.name
     const first = await panels.skills.translateDocument(id)
-    expect(first.pending).toBe(1)
+    expect(first.pending).toBe(2)
     await catalog.settleDescriptions(5_000)
     const settled = await panels.skills.translateDocument(id)
     expect(settled.pending).toBe(0)
-    expect(settled.text.startsWith('ZH:# Greet')).toBe(true)
+    expect(settled.text.startsWith('# ZH:Greet')).toBe(true)
     // Frontmatter is metadata the overview block already shows, and a provider
     // asked to translate YAML answers with YAML that no longer parses.
     expect(settled.text).not.toContain('name: greet')

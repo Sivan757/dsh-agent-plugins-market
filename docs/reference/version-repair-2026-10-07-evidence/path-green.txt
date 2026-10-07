@@ -1,0 +1,10 @@
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ✓ tests/resource-window-state.test.ts (12 tests) 13ms
+ ✓ tests/surface-toggles.test.ts (5 tests) 8ms
+
+ Test Files  2 passed (2)
+      Tests  17 passed (17)
+   Start at  20:49:11
+   Duration  312ms (transform 45ms, setup 0ms, import 73ms, tests 22ms, environment 0ms)

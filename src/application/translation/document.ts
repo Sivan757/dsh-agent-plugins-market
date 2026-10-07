@@ -1,53 +1,128 @@
-/**
- * Cut a document body into the pieces one translation request can carry.
- *
- * A skill or command document is a whole file, and the provider chain cannot
- * take one in a single call: the model hop caps a call's output, and both public
- * endpoints cap how much text one request may hold. So the body is split at
- * blank lines and each piece travels as its own translation unit, which also
- * makes the work resumable — a chunk already in the cache is never paid for
- * again, and a document whose translation is interrupted keeps every chunk that
- * landed.
- *
- * Two rules shape the split beyond the size budget:
- *
- * - **Fenced code is never translated.** A provider asked to translate a code
- *   fence translates the code, and a translated `SKILL.md` whose examples no
- *   longer run is worse than an untranslated one. Fences pass through verbatim
- *   and cost nothing.
- * - **Chunks break at blank lines, so paragraphs stay whole.** Translation
- *   quality depends on seeing a sentence in its context, and a chunk boundary
- *   in the middle of a paragraph buys nothing: the budget below is far larger
- *   than a paragraph, so a full one fits.
- *
- * The split is lossless. Every chunk carries the authored text that follows it
- * ({@link DocumentChunk.separator}), so concatenating each chunk's text with its
- * own separator reproduces the body byte for byte. A body nothing was translated
- * for therefore reassembles exactly as authored — blank lines, indentation and
- * line endings included — which also means a chunk boundary can never introduce
- * or remove structure the author did not write.
- * @module application/translation/document
- */
+/** Server-only Markdown translation; descriptions retain their legacy byte-preserving splitter. */
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import { toMarkdown } from 'mdast-util-to-markdown'
+import { gfm } from 'micromark-extension-gfm'
+import { gfmFromMarkdown, gfmToMarkdown } from 'mdast-util-gfm'
+import { math } from 'micromark-extension-math'
+import { mathFromMarkdown, mathToMarkdown } from 'mdast-util-math'
+import type { Nodes, Root, Text, PhrasingContent } from 'mdast'
+import type { DocumentTranslation } from '../../contracts/translation.js'
+
+/** Per-request source bound; transport batches may contain several stable units. */
+export const MAX_DOCUMENT_CHUNK_CHARS = 800
+
+const markdownOptions = { extensions: [gfmToMarkdown(), mathToMarkdown()], fences: true }
+const MARKER = /⟪d\d+⟫/g
+
+/** A paragraph is one cache identity; bounded pieces only split that paragraph. */
+function boundedText(text: string): string[] {
+  const parts: string[] = []
+  let start = 0
+  for (let end = Math.min(MAX_DOCUMENT_CHUNK_CHARS, text.length); start < text.length; end = Math.min(start + MAX_DOCUMENT_CHUNK_CHARS, text.length)) {
+    if (end < text.length) {
+      const opening = text.lastIndexOf('⟪', end - 1)
+      const marker = /^⟪d\d+⟫/.exec(text.slice(opening))?.[0]
+      if (opening > start && marker !== undefined && opening + marker.length > end) end = opening
+      const code = text.charCodeAt(end - 1)
+      if (code >= 0xd800 && code <= 0xdbff) end--
+    }
+    parts.push(text.slice(start, end))
+    start = end
+  }
+  return parts
+}
 
 /**
- * Characters one chunk may carry.
- *
- * Derived from the tightest hop in the chain rather than guessed. The model hop
- * sizes one call's output from the source it carries (see
- * `runtime/host/llm-translator.ts`), and a batch is bounded by
- * {@link MAX_BATCH_CHARS} on the way in, so the two budgets are two views of one
- * number: 6,400 source characters is what one call may carry, and this is the
- * slice of it one text may be.
- *
- * The expansion this covers is measured over this repository's own bilingual
- * documents: across the 90 English/Chinese pairs it ships, the Chinese side runs
- * at 0.461 of the English character count at the median and 0.617 in the worst
- * case. What that costs in *tokens* is an estimate rather than a measurement —
- * nothing in this tree tokenizes — and the estimate (roughly 0.7 tokens per
- * Chinese character) puts the worst case near 0.43 tokens per source character,
- * which is the headroom the translator's own budget constant is chosen for.
+ * Transform prose in a single GFM/math tree. All non-text inline nodes and block
+ * structures stay local; providers see paragraph text with ordered boundaries.
+ * A malformed boundary sequence leaves that paragraph authored, never rewrites
+ * link destinations, code, or the surrounding list/reference structure.
  */
-export const MAX_DOCUMENT_CHUNK_CHARS = 800
+export function translateMarkdownDocument(source: string, localize: (text: string) => { text: string; pending: boolean }): DocumentTranslation {
+  const root = fromMarkdown(source, { extensions: [gfm(), math()], mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()] })
+  let pending = 0
+  let changed = false
+  const pairs = new Map<Nodes, Nodes>()
+  const translateInline = (node: Nodes): void => {
+    if (!('children' in node)) return
+    const leaves: Text[] = []
+    const collect = (child: Nodes): void => {
+      if (child.type === 'text') leaves.push(child)
+      else if (child.type === 'link' && child.children.length === 1 && child.children[0]?.type === 'text' && child.children[0].value === child.url) return
+      else if ('children' in child) child.children.forEach(collect)
+    }
+    node.children.forEach(collect)
+    if (leaves.length === 0) return
+    // Literal marker text is not accepted as structure supplied by a provider.
+    if (leaves.some(leaf => /⟪d\d+⟫/.test(leaf.value))) return
+    const original = structuredClone(node)
+    const payload = leaves.map((leaf, index) => (index === 0 ? '' : '⟪d' + index + '⟫') + leaf.value).join('')
+    const values = boundedText(payload).map(part => {
+      const value = localize(part)
+      if (value.pending) pending++
+      return value.text
+    })
+    const result = values.join('')
+    if (result === payload) return
+    const expected = payload.match(MARKER) ?? []
+    const received = result.match(MARKER) ?? []
+    if (expected.length !== received.length || expected.some((token, i) => token !== received[i])) return
+    const translatedLeaves = result.split(MARKER)
+    if (translatedLeaves.length !== leaves.length || translatedLeaves.join('').trim() === '') return
+    leaves.forEach((leaf, i) => {
+      leaf.value = translatedLeaves[i]!
+    })
+    // An omitted formatted fragment must not serialize into orphan delimiters.
+    const prune = (entry: Nodes): boolean => {
+      if (entry.type === 'text') return entry.value !== ''
+      if ('children' in entry) entry.children = entry.children.filter(prune)
+      return !(['strong', 'emphasis', 'delete', 'link', 'linkReference'].includes(entry.type) && 'children' in entry && entry.children.length === 0)
+    }
+    prune(node)
+    pairs.set(node, original)
+    changed = true
+  }
+  const visit = (node: Nodes): void => {
+    if (node.type === 'paragraph' || node.type === 'heading' || node.type === 'tableCell') {
+      translateInline(node)
+      return
+    }
+    if ('children' in node) node.children.forEach(visit)
+  }
+  visit(root)
+  if (!changed) return { text: source, bilingualText: source, pending }
+  const serialize = (tree: Root): string => {
+    const rendered = toMarkdown(tree, markdownOptions)
+    return source.endsWith('\n') ? rendered : rendered.replace(/\n$/, '')
+  }
+  const translated = serialize(root)
+  const bilingual = (node: Nodes): Nodes => {
+    const original = pairs.get(node)
+    if (original?.type === 'paragraph' && node.type === 'paragraph') {
+      return { ...node, children: [...original.children, { type: 'break' }, ...node.children] as PhrasingContent[] }
+    }
+    if ('children' in node) {
+      const children: Nodes[] = []
+      for (const child of node.children) {
+        if (child.type === 'table') {
+          const originalTable = structuredClone(child)
+          const restore = (current: Nodes, old: Nodes): void => {
+            const prior = pairs.get(current)
+            if (prior && 'children' in old && 'children' in prior) old.children = structuredClone(prior.children)
+            else if ('children' in current && 'children' in old) current.children.forEach((entry, i) => restore(entry, old.children[i]!))
+          }
+          restore(child, originalTable)
+          children.push(originalTable, child)
+        } else if (child.type === 'heading' && pairs.has(child)) {
+          children.push(pairs.get(child)!, child)
+        } else children.push(bilingual(child))
+      }
+      return { ...node, children } as Nodes
+    }
+    return node
+  }
+  return { text: translated, bilingualText: serialize(bilingual(root) as Root), pending }
+}
 
 /** One piece of a document: the text to send, and whether it is worth sending at all. */
 export interface DocumentChunk {
@@ -144,7 +219,19 @@ function splitPiece(piece: AuthoredPiece): PiecePart[] {
     slices.forEach((slice, index) => {
       const sliceGap = index === slices.length - 1 ? terminator : ''
       if (text === '') {
-        text = slice
+        // The accumulated gap is the text between the previous slice and this
+        // one — or, before the first slice, the whitespace the author led the
+        // piece with, which {@link authoredPieces} folded into the piece's text
+        // because it has nowhere else to live. Either way it travels with this
+        // slice. When the two together would break the budget the whitespace
+        // becomes a part of its own rather than being dropped, which is what
+        // silently lost a document's leading newline.
+        if (gap.length + slice.length > MAX_DOCUMENT_CHUNK_CHARS) {
+          for (const whitespace of splitLongLine(gap)) parts.push({ text: whitespace, gap: '' })
+          text = slice
+        } else {
+          text = gap + slice
+        }
       } else if (text.length + gap.length + slice.length > MAX_DOCUMENT_CHUNK_CHARS) {
         parts.push({ text, gap })
         text = slice

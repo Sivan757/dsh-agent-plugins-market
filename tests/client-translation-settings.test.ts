@@ -2,8 +2,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MARKET_SETTINGS_DEFAULTS } from '../src/contracts/settings.js'
-import { bindInterfaceLanguage, bindTranslationEnabled, translationEnabled, useTranslationEnabled } from '../src/client/ui/translation-enabled.js'
+import { MARKET_SETTINGS_DEFAULTS, resolveTranslationTarget } from '../src/contracts/settings.js'
+import { bindInterfaceLanguage, bindTranslationEnabled, translationEnabled, useTranslationEnabled, useTranslationRefresh } from '../src/client/ui/translation-enabled.js'
+
+import { useDisplayText } from '../src/client/ui/translated-text.js'
+import type { Translate } from '../src/client/index.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -59,16 +62,65 @@ afterEach(async () => {
 })
 
 describe('shared translation setting', () => {
-  it('holds the declared default before the host answers and resolves the section after', () => {
+  it.each([
+    ['en', 'en'],
+    ['en-US', 'en'],
+    ['zh', 'zh'],
+    ['ja', 'zh'],
+    [undefined, 'zh']
+  ])('resolves the target independently for %s', (preference, target) => {
+    expect(resolveTranslationTarget(preference)).toBe(target)
+  })
+
+  it('hides cached descriptions immediately on off and restores them on on', async () => {
+    const source = form({ translationEnabled: true })
+    releases.push(bindTranslationEnabled(source))
+    const t: Translate = key => (key === 'localeProbeLang' ? '中文' : key)
+    const Probe = () => h('output', null, useDisplayText('读取文件', 'Read files', t))
+    container = document.createElement('div')
+    document.body.append(container)
+    root = createRoot(container)
+    await act(async () => root!.render(h(Probe)))
+    expect(container.textContent).toBe('读取文件')
+    await act(async () => source.update({ translationEnabled: false }))
+    expect(container.textContent).toBe('Read files')
+    await act(async () => source.update({ translationEnabled: true }))
+    expect(container.textContent).toBe('读取文件')
+  })
+
+  it('revalidates a mounted panel on preference and language changes, not unrelated renders', async () => {
+    const source = form({ translationEnabled: false })
+    releases.push(bindTranslationEnabled(source))
+    const refresh = vi.fn()
+    const Probe = ({ language }: { language: string }) => {
+      useTranslationRefresh(key => (key === 'localeProbeLang' ? language : key), refresh)
+      return null
+    }
+    container = document.createElement('div')
+    root = createRoot(container)
+    await act(async () => root!.render(h(Probe, { language: 'English' })))
+    expect(refresh).not.toHaveBeenCalled()
+    await act(async () => source.update({ translationEnabled: true }))
+    expect(refresh).toHaveBeenCalledTimes(1)
+    await act(async () => root!.render(h(Probe, { language: '中文' })))
+    expect(refresh).toHaveBeenCalledTimes(2)
+    await act(async () => root!.render(h(Probe, { language: '中文' })))
+    expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it('holds the declared default until the host answers and resolves the section after', () => {
     // No binding at all is the pre-answer state: the declared default withholds
     // the control rather than flashing it.
     expect(translationEnabled.getSnapshot()).toBe(MARKET_SETTINGS_DEFAULTS.translationEnabled)
     const source = form()
     releases.push(bindTranslationEnabled(source))
-    // A binding resolves what it is handed. A section that says nothing about
-    // the field takes the interface language, and a binding wired without one
-    // takes the host's own absence rule, which reads as zh.
-    expect(translationEnabled.getSnapshot()).toBe(true)
+    // The binding is in place, but the form has not answered: an absent value is
+    // not yet a section the document deliberately left open, so the switch holds
+    // the declared default instead of taking the language's answer.
+    expect(translationEnabled.getSnapshot()).toBe(false)
+    // The host answers with a section that says nothing about the field, so the
+    // interface language decides it — and a binding wired without one takes the
+    // host's own absence rule, which reads as zh.
     source.update({})
     expect(translationEnabled.getSnapshot()).toBe(true)
     source.update({ translationEnabled: true })
@@ -120,28 +172,33 @@ describe('shared translation setting', () => {
     expect(translationEnabled.getSnapshot()).toBe(false)
   })
 
-  it('turns translation on for a Chinese interface the document leaves open', () => {
+  it('holds the declared default until the host answers, then takes the Chinese default', () => {
+    // The locale row already answers zh, but the market form has not: the
+    // pre-answer state holds the declared default rather than flashing the
+    // language's answer, which would read "on" for a user who stored off.
     const source = form()
     releases.push(bindTranslationEnabled(source, bindInterfaceLanguage(localeRow('zh'))))
-    expect(translationEnabled.getSnapshot()).toBe(true)
+    expect(translationEnabled.getSnapshot()).toBe(MARKET_SETTINGS_DEFAULTS.translationEnabled)
+    // The host answers an empty section, so the field is open and the language
+    // default takes over.
     source.update({})
     expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
   it.each(['en', 'en-US'])('leaves translation off for the %s interface', preference => {
-    releases.push(bindTranslationEnabled(form(), bindInterfaceLanguage(localeRow(preference))))
+    releases.push(bindTranslationEnabled(form({}), bindInterfaceLanguage(localeRow(preference))))
     expect(translationEnabled.getSnapshot()).toBe(false)
   })
 
   it('turns translation on for a language the host renders with its Chinese dictionary', () => {
     // `bindHostLocale` answers every non-English preference with Chinese, so the
     // switch and the text it describes agree on `ja` as well as on `zh`.
-    releases.push(bindTranslationEnabled(form(), bindInterfaceLanguage(localeRow('ja'))))
+    releases.push(bindTranslationEnabled(form({}), bindInterfaceLanguage(localeRow('ja'))))
     expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
   it('reads a language row holding nothing as zh, the rule every host-facing read gives it', () => {
-    releases.push(bindTranslationEnabled(form(), bindInterfaceLanguage(localeRow())))
+    releases.push(bindTranslationEnabled(form({}), bindInterfaceLanguage(localeRow())))
     expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
@@ -149,7 +206,7 @@ describe('shared translation setting', () => {
     // `bindHostLocale` answers an absent preference with the Chinese dictionary,
     // so a composition that wires no language source follows that reading rather
     // than silently disabling what the host would call a Chinese interface.
-    releases.push(bindTranslationEnabled(form()))
+    releases.push(bindTranslationEnabled(form({})))
     expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
@@ -167,7 +224,7 @@ describe('shared translation setting', () => {
 
   it('moves a field the document says nothing about with the language', () => {
     const row = localeRow('en')
-    const source = form()
+    const source = form({})
     releases.push(bindTranslationEnabled(source, bindInterfaceLanguage(row)))
     expect(translationEnabled.getSnapshot()).toBe(false)
     row.update('zh')

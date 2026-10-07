@@ -270,6 +270,7 @@ describe('agent role metadata and runtime routing', () => {
     const [definition] = call
     expect(definition).toHaveProperty('name', 'subagent_role')
     expect(definition).toHaveProperty('parameters.required', ['agent', 'prompt'])
+    expect(definition).toHaveProperty('parameters.properties.agent.description', 'Exact callable role name listed in the current "subagent-catalog" message.')
     // The role name is the first parameter; every other name matches `subagent`.
     for (const key of ['agent', 'prompt', 'provider', 'model', 'reasoning_effort', 'run_in_background']) {
       expect(definition).toHaveProperty(`parameters.properties.${key}`, expect.anything())

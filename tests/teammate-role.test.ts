@@ -26,6 +26,7 @@ import { TeammateRoleRuntime, TEAM_ROLE_SOURCE } from '../src/runtime/agents/tea
 import { mountUnlessAgentTeams } from '../src/runtime/agents/agent-teams-seat.js'
 import { mountAgentRoleTool } from '../src/runtime/agents/agent-role-router.js'
 import { mountTeammateRoleTool } from '../src/runtime/agents/teammate-role-tool.js'
+import { mountTeamCoordination } from '../src/runtime/agents/team-coordination.js'
 import * as TeamTools from '@deepseek-ai/dsh-experimental-tool-agent-team'
 
 class RecordingAdapter extends LlmAdapter {
@@ -115,6 +116,25 @@ async function setup(withTeam = true, savedRoot?: string) {
   const runtime = withTeam ? new TeammateRoleRuntime(ctx) : undefined
   cleanups.push(() => runtime?.dispose())
   return { ctx, lead, runtime: runtime!, adapter, teamFiber, root }
+}
+/** Model-visible text of every plugin-owned role snapshot recorded in one session. */
+function bindingText(events: readonly unknown[]): string {
+  return events
+    .filter((event): event is { type: string; data: unknown } => typeof event === 'object' && event !== null && (event as { type?: unknown }).type === 'user/message')
+    .map(event => event.data as { source?: { kind?: string }; content?: unknown })
+    .filter(message => message.source?.kind === TEAM_ROLE_SOURCE)
+    .map(message =>
+      (Array.isArray(message.content) ? message.content : [])
+        .map(block => (typeof block === 'object' && block !== null && typeof (block as { text?: unknown }).text === 'string' ? (block as { text: string }).text : ''))
+        .join('\n')
+    )
+    .join('\n')
+}
+/** Tool-schema names one recorded request actually carried to the model. */
+function requestToolNames(adapter: RecordingAdapter, sessionId: SessionId): string[] {
+  const request = adapter.requests.find(candidate => candidate.sessionId === sessionId)
+  if (request === undefined) throw new Error(`no recorded request for ${sessionId}`)
+  return (request.tools ?? []).map(tool => tool.name)
 }
 describe('role teammates on published Agent Teams', () => {
   it('rejects a malformed owned role binding before a resumed member makes a request', async () => {
@@ -243,7 +263,10 @@ describe('role teammates on published Agent Teams', () => {
     const team = await ctx.plugin(TeamService)
     await injected
     expect(ctx.tools.get('subagent_role', lead)).toBeUndefined()
-    expect(ctx.tools.get('spawn_teammate_role', lead)).toBeDefined()
+    expect(ctx.tools.get('spawn_teammate_role', lead)).toHaveProperty(
+      'parameters.properties.agent.description',
+      'Exact role name listed in the current "subagent-catalog" message.'
+    )
     await team.dispose()
     expect(ctx.tools.get('spawn_teammate_role', lead)).toBeUndefined()
     expect(ctx.tools.get('subagent_role', lead)).toBeDefined()
@@ -538,5 +561,142 @@ describe('role teammates on published Agent Teams', () => {
     const memberRequests = adapter.requests.filter(request => request.sessionId === row!.id)
     expect(memberRequests.at(-1)?.model).toBe('review-model')
     expect(JSON.stringify(memberRequests.at(-1)?.messages.filter(message => message.role === 'system'))).toContain('ROLE_PERSONA literal {{braces}}')
+  })
+
+  it('introduces the member identity and the readable role name to the created teammate', async () => {
+    const { ctx, lead, runtime, adapter } = await setup()
+    cleanups.push(mountTeamCoordination(ctx))
+    const done = Promise.withResolvers<void>()
+    ctx.once('subagent/end', () => done.resolve())
+    const opaqueRoleId = JSON.stringify(['source', 'suite', 'agents', 'reviewer'])
+    const result = await runtime.spawn(
+      lead,
+      { name: 'identity-member', description: 'Identity', prompt: 'Review the diff.', agent: 'suite/reviewer' },
+      { roleId: opaqueRoleId, persona: 'IDENTITY_PERSONA', route: { provider: 'mock', model: 'identity-model' } },
+      new AbortController().signal
+    )
+    await done.promise
+    const row = ctx.agentTeams.listMembers(lead).find(member => member.name === result.target)
+    expect(row).toBeDefined()
+    const stored = await ctx.sessionQuery.readSession(row!.id)
+    const identity = bindingText(stored.events)
+    expect(identity).toContain('You are teammate "identity-member"')
+    expect(identity).toContain('Your Team Lead is addressed as "lead".')
+    expect(identity).toContain('send_message({ target: "lead"')
+    expect(identity).toContain('Your role is suite/reviewer')
+    expect(identity).not.toContain(opaqueRoleId)
+    const systemForMember = () =>
+      JSON.stringify(
+        adapter.requests
+          .filter(request => request.sessionId === row!.id)
+          .at(-1)
+          ?.messages.filter(message => message.role === 'system')
+      )
+    expect(systemForMember()).toContain('Team coordination')
+    expect(systemForMember()).toContain('IDENTITY_PERSONA')
+    expect(systemForMember()).toContain('identity-member')
+    expect(systemForMember()).not.toContain('You are the Team Lead')
+    const resumed = Promise.withResolvers<void>()
+    ctx.once('subagent/end', () => resumed.resolve())
+    expect((await ctx.agentTeams.sendMessage(lead, { target: result.target, content: [{ type: 'text', text: 'Again.' }], signal: new AbortController().signal })).status).toBe(
+      'accepted'
+    )
+    await resumed.promise
+    const restored = await ctx.sessionQuery.readSession(row!.id)
+    expect(bindingText(restored.events)).toBe(identity)
+    expect(systemForMember()).toContain('Team coordination')
+    expect(systemForMember()).toContain('identity-member')
+    expect(systemForMember()).not.toContain('You are the Team Lead')
+  })
+
+  it('never renders the encoded role id when the creating call supplies no catalog name', async () => {
+    const { ctx, lead, runtime } = await setup()
+    const done = Promise.withResolvers<void>()
+    ctx.once('subagent/end', () => done.resolve())
+    const opaqueRoleId = JSON.stringify(['source', 'suite', 'agents', 'reviewer'])
+    const result = await runtime.spawn(
+      lead,
+      { name: 'derived-member', description: 'Derived', prompt: 'Review the diff.' },
+      { roleId: opaqueRoleId, persona: 'DERIVED_PERSONA', route: { provider: 'mock', model: 'derived-model' } },
+      new AbortController().signal
+    )
+    await done.promise
+    const row = ctx.agentTeams.listMembers(lead).find(member => member.name === result.target)
+    expect(row).toBeDefined()
+    const stored = await ctx.sessionQuery.readSession(row!.id)
+    const identity = bindingText(stored.events)
+    expect(identity).toContain('You are teammate "derived-member"')
+    expect(identity).not.toContain('Your role is')
+    expect(identity).not.toContain(opaqueRoleId)
+  })
+
+  it('shows the enhanced creation tool only to the Team Lead in the model schema', async () => {
+    const { ctx, lead, runtime, adapter } = await setup()
+    await runtime.dispose()
+    const dispose = await mountTeammateRoleTool(ctx, async () => [
+      { name: 'reviewer', path: '/unused', description: 'Review', disabled: false, rawText: '---\nprovider: mock\nmodel: card-model\n---\nCARD_PERSONA' }
+    ])
+    cleanups.push(dispose)
+    const NAME = 'spawn_teammate_role'
+    // Registered after the mount, so each creation has already been scoped by the visibility rule.
+    const createdSchemas = new Map<string, string[]>()
+    ctx.on('agent/created', ({ agent }) => {
+      createdSchemas.set(
+        agent.id,
+        ctx.tools.schemas(agent).map(schema => schema.name)
+      )
+      return undefined
+    })
+    expect(ctx.tools.schemas(lead).map(schema => schema.name)).toContain(NAME)
+
+    // A native member is a child scope of the Lead, so an inherited registration would leak here.
+    const nativeEnded = Promise.withResolvers<void>()
+    ctx.once('subagent/end', () => nativeEnded.resolve())
+    const native = await ctx.agentTeams.spawnTeammate(lead, {
+      name: 'native-mate',
+      description: 'native',
+      prompt: [{ type: 'text', text: 'Work.' }],
+      context: 'fresh',
+      provider: 'spawn',
+      signal: new AbortController().signal
+    })
+    await nativeEnded.promise
+    expect(createdSchemas.get(native.member.id)).toBeDefined()
+    expect(createdSchemas.get(native.member.id)).not.toContain(NAME)
+    expect(requestToolNames(adapter, native.member.id)).not.toContain(NAME)
+
+    const roleEnded = Promise.withResolvers<void>()
+    ctx.once('subagent/end', () => roleEnded.resolve())
+    const created = await ctx.tools.execute({
+      name: NAME,
+      arguments: { agent: 'reviewer', name: 'role-mate', description: 'role', prompt: 'Work.' },
+      agent: lead,
+      callId: ToolCallId(NAME),
+      signal: new AbortController().signal
+    })
+    expect(created.isError).toBe(false)
+    if (created.isError) throw new Error(created.error.message)
+    await roleEnded.promise
+    const createdTarget = (created.value as unknown as { target: string }).target
+    const roleMember = ctx.agentTeams.listMembers(lead).find(row => row.name === createdTarget)!
+    expect(createdSchemas.get(roleMember.id)).toBeDefined()
+    expect(createdSchemas.get(roleMember.id)).not.toContain(NAME)
+    expect(requestToolNames(adapter, roleMember.id)).not.toContain(NAME)
+
+    const plainEnded = Promise.withResolvers<void>()
+    ctx.once('subagent/end', () => plainEnded.resolve())
+    const plain = await ctx.subagents.startContinuable({
+      provider: 'spawn',
+      label: 'plain',
+      request: { parent: lead, prompt: [{ type: 'text', text: 'Outside the Team.' }] },
+      signal: new AbortController().signal
+    })
+    await plainEnded.promise
+    expect(createdSchemas.get(plain.childId)).toBeDefined()
+    expect(createdSchemas.get(plain.childId)).not.toContain(NAME)
+    expect(requestToolNames(adapter, plain.childId)).not.toContain(NAME)
+
+    await dispose()
+    expect(ctx.tools.schemas(lead).map(schema => schema.name)).not.toContain(NAME)
   })
 })

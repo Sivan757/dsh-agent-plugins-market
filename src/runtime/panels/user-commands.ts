@@ -15,7 +15,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { commandCallName } from '../../model/command-names.js'
 import type { HostTranslate } from '../host/host-locale.js'
-import { USER_ENTRY_PATH } from '../../application/panels/user-store.js'
+import { USER_ENTRY_PATH, parseFrontmatterRecord } from '../../application/panels/user-store.js'
 import type { UserPanelStore } from './user-panels.js'
 import { pluginMarketSource } from '../host/plugin-message-source.js'
 import { CommandNameRegistry, registerWithAllocatedName } from '../host/command-name-allocator.js'
@@ -33,10 +33,12 @@ interface CommandsHost {
       name: string
       description: string
       input?: { hint: string }
-      handler(invocation: { agent: unknown; rawInput: string }): { kind: 'success'; text: string } | { kind: 'error'; text: string }
+      handler(invocation: { agent: unknown; rawInput: string }): CommandOutcome | Promise<CommandOutcome>
     }): () => void
   }
 }
+
+type CommandOutcome = { kind: 'success'; text: string } | { kind: 'error'; text: string }
 
 interface InboxAgent {
   followup(message: UserMessage): void
@@ -67,6 +69,9 @@ export class UserCommandMountRegistry {
   private readonly registered = new Map<string, MenuRowRegistration>()
   /** Per-workspace entry filter; an absent provider registers everything wanted. */
   private entryFilter: (() => { allows(face: 'commands', entryId: string): boolean }) | undefined
+  private selectionPolicy: ((name: string) => boolean) | undefined
+  private registrationPolicy: ((name: string) => boolean) | undefined
+  private allowDisabled = false
 
   constructor(
     private readonly ctx: Context,
@@ -80,6 +85,13 @@ export class UserCommandMountRegistry {
    */
   setEntryFilter(filter: () => { allows(face: 'commands', entryId: string): boolean }): void {
     this.entryFilter = filter
+  }
+
+  /** Gate reconcile and execution by the original panel path name; unset allows all. */
+  setSelectionPolicy(callback: (name: string) => boolean, registration: (name: string) => boolean = callback, options: { allowDisabled?: boolean } = {}): void {
+    this.selectionPolicy = callback
+    this.registrationPolicy = registration
+    this.allowDisabled = options.allowDisabled === true
   }
 
   /**
@@ -98,8 +110,15 @@ export class UserCommandMountRegistry {
     // one call name are two commands, and the second gets a suffixed call name
     // rather than replacing the first in the wanted map.
     for (const entry of entries) {
-      if (entry.disabled) continue
+      if (entry.metadata['validationError'] !== undefined) continue
+      try {
+        parseFrontmatterRecord(entry.rawText)
+      } catch {
+        continue
+      }
+      if (entry.disabled && !(this.allowDisabled && this.registrationPolicy?.(entry.name) === true)) continue
       if (this.entryFilter?.().allows('commands', `commands:${entry.name}`) === false) continue
+      if (this.registrationPolicy?.(entry.name) === false) continue
       if (!USER_ENTRY_PATH.test(entry.name)) continue
       wanted.set(entry.name, {
         name: commandCallName(entry.name),
@@ -137,14 +156,30 @@ export class UserCommandMountRegistry {
           ...(spec.hint === undefined ? {} : { input: { hint: spec.hint } }),
           handler: invocation => {
             const agent = invocation.agent as InboxAgent
-            const text = spec.body.replaceAll('$ARGUMENTS', invocation.rawInput.trim())
-            agent.followup(
-              createUserMessage({
-                content: [{ type: 'text', text }],
-                source: pluginMarketSource()
-              })
-            )
-            return { kind: 'success', text: this.t('commandAcknowledged', { command: name }) }
+            const send = (body: string): CommandOutcome => {
+              if (this.selectionPolicy?.(key) === false) return { kind: 'error', text: this.t('commandNotSelected', { command: name }) }
+              agent.followup(
+                createUserMessage({
+                  content: [{ type: 'text', text: body.replaceAll('$ARGUMENTS', invocation.rawInput.trim()) }],
+                  source: pluginMarketSource()
+                })
+              )
+              return { kind: 'success', text: this.t('commandAcknowledged', { command: name }) }
+            }
+            if (!this.selectionPolicy) return send(spec.body)
+            return (async (): Promise<CommandOutcome> => {
+              const denied = (): CommandOutcome => ({ kind: 'error', text: this.t('commandNotSelected', { command: name }) })
+              if (this.selectionPolicy?.(key) !== true) return denied()
+              try {
+                const entry = await this.store.get(key)
+                if (!entry || entry.metadata['validationError'] !== undefined || (entry.disabled && !this.allowDisabled)) return denied()
+                parseFrontmatterRecord(entry.rawText)
+                if (this.selectionPolicy?.(key) !== true) return denied()
+                return send(entry.content)
+              } catch {
+                return denied()
+              }
+            })()
           }
         })
       )

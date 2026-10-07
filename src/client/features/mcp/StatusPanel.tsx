@@ -14,6 +14,7 @@ import { mcpCardState, mcpDisplayName } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
+import { useTranslationRefresh } from '../../ui/translation-enabled.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { McpDetailModal } from './McpDetailModal.js'
 import { McpConfigModal } from './McpConfigModal.js'
@@ -51,6 +52,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   // single click re-reads every card and the detail dialog under it.
   const [showOriginal, setShowOriginal] = useState(false)
   const flipOriginal = (): void => setShowOriginal(current => !current)
+  const language = t('localeProbeLang')
+  const languageRef = useRef(language)
+  languageRef.current = language
+  const [payloadLanguage, setPayloadLanguage] = useState<string | undefined>()
 
   const observe = async (id: string): Promise<McpStatusEntry> => {
     const refreshed = await fetchMcpStatus()
@@ -74,15 +79,24 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   // One settle poll at a time: every refresh restarts it, and the effect's
   // cleanup stops the previous one so an unmounted panel never keeps polling.
   const settle = useRef<{ stop: () => void } | undefined>(undefined)
+  const refreshSequence = useRef(0)
+  const acceptPayload = (next: McpStatusPayload): void => {
+    setPayload(next)
+    setSelected(current => current === undefined ? undefined : next.entries.find(entry => entry.id === current.id) ?? current)
+  }
 
   const refresh = (): void => {
+    const sequence = ++refreshSequence.current
+    const requestedLanguage = languageRef.current
     setLoading(true)
     setError(undefined)
     settle.current?.stop()
     settle.current = undefined
     fetchMcpStatus()
       .then(next => {
-        setPayload(next)
+        if (refreshSequence.current !== sequence || languageRef.current !== requestedLanguage) return
+        setPayloadLanguage(requestedLanguage)
+        acceptPayload(next)
         // Tool descriptions are translated off the read path, so the first read
         // carries authored text and a count. Polling until the count clears is
         // what swaps the translated text in without a manual refresh.
@@ -92,16 +106,18 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
               const polled = await fetchMcpStatus()
               return { value: polled, pending: polled.translationPending ?? 0 }
             },
-            report: setPayload,
-            isStopped: () => settle.current === undefined
+            report: acceptPayload,
+            isStopped: () => refreshSequence.current !== sequence || languageRef.current !== requestedLanguage
           })
         }
       })
       .catch(caught => {
-        setError(clientErrorMessage(t, caught))
+        if (refreshSequence.current === sequence) setError(clientErrorMessage(t, caught))
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (refreshSequence.current === sequence) setLoading(false) })
   }
+
+  useTranslationRefresh(t, refresh)
 
   // Written through the suite's override record, so the suite's own `mcp.json`
   // stays source-owned. Disabled servers are not mounted at all.
@@ -121,6 +137,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   useEffect(() => {
     refresh()
     return () => {
+      refreshSequence.current += 1
       settle.current?.stop()
       settle.current = undefined
     }
@@ -205,7 +222,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           entry: selected,
           t,
           backend: payload.backend ?? 'builtin',
-          showOriginal,
+          showOriginal: showOriginal || payloadLanguage !== language,
           onClose: () => {
             setSelected(undefined)
             refresh()

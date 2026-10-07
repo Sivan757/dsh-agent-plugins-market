@@ -6,7 +6,7 @@
  * status tabs, and the card grid. Colors ride the dsh --dsw-alias-* tokens
  * with light-mode fallbacks so the page follows the active theme.
  */
-import { createElement as h, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from '../../api.js'
 import { loadOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from '../../features/market/market-resource.js'
@@ -20,6 +20,7 @@ import { ErrorBoundary } from '../../ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
+import { useTranslationRefresh } from '../../ui/translation-enabled.js'
 import { BusyIndicator } from '../../ui/panel.js'
 import css from './market.module.css'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
@@ -83,20 +84,31 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   // One reading mode for the whole market page: the switch lives here, so the
   // cards, the detail dialog, and both header rows flip together.
   const [showOriginal, setShowOriginal] = useState(false)
+  const language = t('localeProbeLang')
+  const languageRef = useRef(language)
+  languageRef.current = language
+  const [overviewLanguage, setOverviewLanguage] = useState<string | undefined>()
+  const refreshSequence = useRef(0)
   // The irreversible uninstall is gated behind the host's risk acknowledgement.
   const [uninstallAck, setUninstallAck] = useState(false)
 
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current
+    const requestedLanguage = languageRef.current
     invalidateOverview()
     try {
       const data = await loadOverview().promise
+      if (refreshSequence.current !== sequence || languageRef.current !== requestedLanguage) return
       setOverview(data)
+      setOverviewLanguage(requestedLanguage)
     } catch {
-      setToast({ key: Date.now(), message: t('loadFail') })
+      if (refreshSequence.current === sequence) setToast({ key: Date.now(), message: t('loadFail') })
     } finally {
-      setLoading(false)
+      if (refreshSequence.current === sequence) setLoading(false)
     }
   }, [t])
+
+  useTranslationRefresh(t, refresh)
 
   useEffect(() => {
     void refresh()
@@ -108,11 +120,13 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const pendingTranslations = overview.translationPending ?? 0
   useEffect(() => {
     if (pendingTranslations === 0) return
-    const handle = startDescriptionRefresh(setOverview)
+    if (overviewLanguage !== language) return
+    const sequence = refreshSequence.current
+    const handle = startDescriptionRefresh(setOverview, () => refreshSequence.current !== sequence || languageRef.current !== language)
     return () => {
       handle.stop()
     }
-  }, [pendingTranslations])
+  }, [pendingTranslations, language, overviewLanguage])
 
   const action = useCallback(
     async (key: string, path: string, body: Record<string, unknown>): Promise<boolean> => {
@@ -297,7 +311,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   t,
                   suite,
                   busy: busy !== undefined,
-                  showOriginal,
+                  showOriginal: showOriginal || overviewLanguage !== language,
                   onOpen: () => setDetail(suite),
                   onInstall: () => {
                     const source = overview.sources.find(entry => entry.id === suite.sourceId)

@@ -14,16 +14,18 @@
  */
 
 /** Host runtime dictionary keys (mirrored for zh and en). */
-export type HostLocaleKey = 'commandAcknowledged' | 'userCommandSourceLabel' | 'feedbackToolCardTitle'
+export type HostLocaleKey = 'commandAcknowledged' | 'commandNotSelected' | 'userCommandSourceLabel' | 'feedbackToolCardTitle'
 
 const zh: Record<HostLocaleKey, string> = {
   commandAcknowledged: '/{command} 已转交模型执行',
+  commandNotSelected: '/{command} 未在当前会话启用',
   userCommandSourceLabel: '用户命令',
   feedbackToolCardTitle: '提交市场体验反馈'
 }
 
 const en: Record<HostLocaleKey, string> = {
   commandAcknowledged: '/{command} forwarded to the model for execution',
+  commandNotSelected: '/{command} is not enabled in this session',
   userCommandSourceLabel: 'user command',
   feedbackToolCardTitle: 'File market feedback'
 }

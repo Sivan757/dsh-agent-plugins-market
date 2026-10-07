@@ -26,6 +26,8 @@ declare module '@deepseek-ai/dsh-llm' {
 interface PendingRole {
   parent: Agent
   name: string
+  /** Exact catalog name the creating call used; display only, never a durable binding field. */
+  role: string
   snapshot: TeammateRoleSnapshot
   childId?: SessionId
   initialized: boolean
@@ -34,6 +36,8 @@ export interface RoleTeammateRequest {
   name: string
   description: string
   prompt: string
+  /** Model-facing role name from the catalog, so the member reads a role rather than its encoded id. */
+  agent?: string
 }
 export interface RoleTeammateResult {
   target: string
@@ -43,6 +47,21 @@ export interface RoleTeammateResult {
   reasoningEffort?: string
 }
 
+/** The teammate's own orientation, mirroring the host's native teammate wrapper. */
+function memberIdentity(member: string, role: string): string {
+  return [
+    '<system-reminder>',
+    '',
+    `You are teammate ${JSON.stringify(member)}.`,
+    'Your Team Lead is addressed as "lead".',
+    'Use list_agents({}) to find your teammates and their names.',
+    'To message your Team Lead, use send_message({ target: "lead", message: "..." }).',
+    'To message another teammate, use send_message({ target: "<teammate name>", message: "..." }).',
+    ...(role === '' ? [] : [`Your role is ${role}. The role instructions are applied to your system prompt.`]),
+    '',
+    '</system-reminder>'
+  ].join('\n')
+}
 /** Creation and replay keep role data out of task text and never mutate the Lead's route. */
 export class TeammateRoleRuntime {
   private readonly teams: TeamService
@@ -98,7 +117,13 @@ export class TeammateRoleRuntime {
     if (!request.prompt.trim()) return Promise.reject(new Error('spawn_teammate_role requires a non-empty prompt'))
     const membership = this.teams.membership(parent)
     if (membership.role !== 'lead') return Promise.reject(new Error('only the Team Lead can create role teammates'))
-    const pending: PendingRole = { parent, name: request.name, snapshot: snapshotSchema.parse(snapshot), initialized: false }
+    const pending: PendingRole = {
+      parent,
+      name: request.name,
+      role: request.agent?.trim() ?? '',
+      snapshot: snapshotSchema.parse(snapshot),
+      initialized: false
+    }
     const operation = this.pending.run(pending, async () => {
       const result = await this.teams.spawnTeammate(parent, {
         name: request.name,
@@ -157,12 +182,7 @@ export class TeammateRoleRuntime {
       agent.inject(
         createUserMessage({
           source: { kind: TEAM_ROLE_SOURCE, form: 'context', binding },
-          content: [
-            {
-              type: 'text',
-              text: `Your role is ${binding.roleId}. The role instructions are applied to your system prompt. Team identity and collaboration follow the host Team tools.`
-            }
-          ]
+          content: [{ type: 'text', text: memberIdentity(membership.name, pending.role) }]
         })
       )
       if (!(await this.ctx.sessions.flush(agent.session))) throw new Error('role teammate requires session persistence')

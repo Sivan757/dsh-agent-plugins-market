@@ -1,0 +1,43 @@
+ℹ tsdown v0.22.14 powered by rolldown v1.2.11
+ℹ config file: /private/tmp/market-version-audit-Ljr5F4/snapshot/tsdown.config.ts
+ℹ entry: src/client/index.ts
+ℹ target: node22.0.0
+ℹ tsconfig: tsconfig.json
+ℹ Build start
+ℹ Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+Detected dependencies in bundle:
+- yaml
+- @marijn/find-cluster-break
+- @codemirror/state
+- style-mod
+- w3c-keyname
+- @codemirror/view
+- @lezer/common
+- @lezer/highlight
+- @codemirror/language
+- @codemirror/commands
+- @lezer/lr
+- @lezer/json
+- @codemirror/lang-json
+- @codemirror/autocomplete
+- @lezer/markdown
+- @lezer/html
+- @lezer/css
+- @codemirror/lang-css
+- @lezer/javascript
+- @codemirror/lang-javascript
+- @codemirror/lang-html
+- @codemirror/lang-markdown
+ℹ client/client.js       1.60 MB
+ℹ client/client.js.map   3.30 MB
+ℹ client/style.css      56.49 kB │ gzip: 8.12 kB
+ℹ 3 files, total: 4.95 MB
+✔ Build complete in 174ms
+[dsh-agent-plugins] wrapped client bundle for dsh-agent-plugins-market
+[stderr]
+$ pnpm run typecheck
+$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.test.client.json --noEmit
+$ pnpm run clean && tsc -p tsconfig.json && pnpm run build:client
+$ node -e "require('node:fs').rmSync('lib',{recursive:true,force:true})"
+$ tsdown && node scripts/normalize-client-banner.mjs

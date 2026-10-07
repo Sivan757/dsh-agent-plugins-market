@@ -23,12 +23,12 @@ import {
   type SettingsFormShell
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { DownloadRegionSetting, MarketSettings } from '../../../contracts/settings.js'
+import { type DownloadRegionSetting, type MarketSettings } from '../../../contracts/settings.js'
 import type { McpBackendInfo } from '../../api.js'
 import { effectiveTranslationEnabled, type InterfaceLanguage } from '../../ui/translation-enabled.js'
 
 /** The boolean switches this card renders, in display order. */
-export const MARKET_SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled', 'translationEnabled'] as const
+export const MARKET_SWITCH_FIELDS = ['mcpEnhanced', 'scanProjectLayouts', 'autoUpdateSources', 'feedbackEnabled', 'translationEnabled', 'agentPresetsEnabled'] as const
 
 /** One boolean switch the card renders. */
 export type MarketSwitchField = (typeof MARKET_SWITCH_FIELDS)[number]
@@ -90,6 +90,7 @@ export interface MarketCardState extends SettingsFormShell {
   autoUpdateSources: SettingsFieldState
   feedbackEnabled: SettingsFieldState
   translationEnabled: SettingsFieldState
+  agentPresetsEnabled: SettingsFieldState
   downloadRegion: SettingsFieldState
   /** Live host-client probe driving the compat-mode guard and the region hint. */
   probe: McpBackendInfo | undefined
@@ -133,6 +134,7 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
     settingsBooleanField('autoUpdateSources'),
     settingsBooleanField('feedbackEnabled'),
     settingsBooleanField('translationEnabled'),
+    settingsBooleanField('agentPresetsEnabled'),
     settingsRegionField('downloadRegion')
   ])
   // The staged actions refuse edits while a save is on the wire, so nothing
@@ -171,18 +173,14 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
   // guard permissive: it cannot learn anything more.
   const compatBlocked = (): boolean =>
     model.field('mcpEnhanced').text !== 'true' && (probeStatus === 'loading' || hostClientMissing())
-  /**
-   * The translation row reads the effective switch. While the document carries
-   * no value the interface language decides it, so a control left empty would
-   * render "off" beside text the market is translating — a switch that lies
-   * about the state it reports. A staged draft answers for itself, so only an
-   * empty one takes the derived value.
-   * @returns the row's state, with the derived value standing in for the absent one.
-   */
+  /** Resolve the stored or staged display preference; language only supplies its default. */
   const translationField = (): SettingsFieldState => {
     const field = model.field('translationEnabled')
-    if (field.text !== '') return field
-    return { ...field, text: String(effectiveTranslationEnabled(scope.getSnapshot().value, language?.current())) }
+    if (field.invalid) return field
+    const section = field.text === '' ? scope.getSnapshot().value : { translationEnabled: field.text === 'true' }
+    const current = language?.current()
+    const enabled = effectiveTranslationEnabled(section, current)
+    return { ...field, text: String(enabled) }
   }
   const project = (): MarketCardState => {
     const shell = model.shell()
@@ -194,6 +192,7 @@ export function bindMarketCardForm(scope: SettingsFormScope<MarketSettings>, pro
       autoUpdateSources: model.field('autoUpdateSources'),
       feedbackEnabled: model.field('feedbackEnabled'),
       translationEnabled: translationField(),
+      agentPresetsEnabled: model.field('agentPresetsEnabled'),
       downloadRegion: model.field('downloadRegion'),
       probe,
       hostClientMissing: hostClientMissing()

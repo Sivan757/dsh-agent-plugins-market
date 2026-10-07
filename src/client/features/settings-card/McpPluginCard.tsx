@@ -30,7 +30,8 @@ const SWITCH_COPY: Record<MarketSwitchField, { label: MarketCopyKey; description
   scanProjectLayouts: { label: 'projectLayoutsLabel', description: 'projectLayoutsDesc' },
   autoUpdateSources: { label: 'autoUpdateLabel', description: 'autoUpdateDesc' },
   feedbackEnabled: { label: 'feedbackToggleLabel', description: 'feedbackToggleDesc' },
-  translationEnabled: { label: 'translationToggleLabel', description: 'translationToggleDesc' }
+  translationEnabled: { label: 'translationToggleLabel', description: 'translationToggleDesc' },
+  agentPresetsEnabled: { label: 'agentPresetsToggleLabel', description: 'agentPresetsToggleDesc' }
 }
 
 /** The plugin's locale keys this entry renders. */
@@ -38,6 +39,7 @@ type MarketCopyKey =
   | 'mcpCardTitle' | 'mcpCardDesc' | 'projectLayoutsLabel' | 'projectLayoutsDesc'
   | 'autoUpdateLabel' | 'autoUpdateDesc' | 'feedbackToggleLabel' | 'feedbackToggleDesc'
   | 'translationToggleLabel' | 'translationToggleDesc' | 'translationToggleExperimental'
+  | 'agentPresetsToggleLabel' | 'agentPresetsToggleDesc' | 'agentPresetsToggleExperimental'
   | 'translationReset' | 'translationResetDone'
   | 'mcpCardReadonly' | 'mcpBackendHostMissing' | 'regionLabel' | 'regionHint'
   | 'regionAuto' | 'regionGlobal' | 'regionChina' | 'regionResolved'
@@ -135,11 +137,13 @@ function SwitchRow(props: {
       h(FieldHead, {
         label,
         overridden: props.state.overridden,
-        // The translation chain reaches third-party providers, so the row says
-        // so before a user turns it on.
+        // The translation chain reaches third-party providers, and the preset
+        // manager is experimental: both rows say so before a user turns them on.
         ...(props.field === 'translationEnabled'
           ? { tag: h(Tag, { tone: 'neutral' }, props.t('translationToggleExperimental')) }
-          : {}),
+          : props.field === 'agentPresetsEnabled'
+            ? { tag: h(Tag, { tone: 'neutral' }, props.t('agentPresetsToggleExperimental')) }
+            : {}),
         badge: h(OverrideBadge, { t: props.t, disabled: props.disabled, onReset: () => { props.onReset(props.field) } })
       }),
       h('div', { className: css.pluginCardDesc }, props.t(copy.description))

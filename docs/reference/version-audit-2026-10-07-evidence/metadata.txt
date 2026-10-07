@@ -1,0 +1,24 @@
+Audit date: 2026-10-07 Asia/Shanghai
+Repository: /Users/sivan/workspace/dsh-agent-plugins-market
+Baseline: dsh-agent-plugins-market-v0.9.0, 88643afc49ae510409c3124915b651329aafb11b
+Current HEAD: 20a83e05c379b942f1dac5f6cef30f3f6a32bf08, branch dev
+Remote dev: c19f08a2cf8eb725fed338d07fc2ed2abe267366
+Remote main: 88643afc49ae510409c3124915b651329aafb11b
+Remote refs queried with git ls-remote at start and end. No remote changes observed.
+79 commits since baseline. Local dev is one commit ahead of remote dev.
+Committed delta: 257 tracked paths, 25840 insertions, 1821 deletions.
+Current tracked delta vs baseline: 272 paths, 28899 insertions, 2249 deletions.
+Working-tree delta vs HEAD: 112 modified tracked paths plus 91 untracked paths.
+Untracked text scope: 18160 split-line records, including src 4404 and tests 9562. Binary files excluded from line count.
+Node: v24.21.0. Host dependency gate resolves next to 0.2.0-rc.2.
+Full local tests: 192 files, 1845 passed, zero failed. Duration 86.19 seconds.
+Static gates: typecheck, lint, architecture, reuse, host-alignment passed. format:check failed on two files.
+Build: pnpm run build passed in isolated snapshot with existing node_modules symlink.
+GUI HTTP probe: http://127.0.0.1:19387/ returned 401.
+Isolated browser snapshot: dsh web authentication required; reopen the URL printed by dsh web.
+No dev:web watcher appeared in the process probe. No replacement server started.
+Latest remote Windows run: https://github.com/Sivan757/dsh-agent-plugins-market/actions/runs/37288684706
+Remote Windows SHA: c19f08a2cf8eb725fed338d07fc2ed2abe267366. Result: failure, two failed tests.
+Source fingerprints: 932 files captured. Mid-audit comparison found zero changed files.
+No product-source, host-source, profile, commit, tag, push, publish, or installation changes by this audit.
+Audit-only tests and build outputs live under /tmp/market-version-audit-Ljr5F4.

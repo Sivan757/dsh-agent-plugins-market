@@ -51,7 +51,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 ## What you can do
 
-- Open the project resources window from the four-square button beside the composer: it lists what this project has installed — suites, skills, commands, agents, MCP and LSP services — and filters any single entry for this project only. Save the complete switch setup as a cross-project favorite and apply it anywhere; the state lives globally, keyed by workspace, never inside the project.
+- Enable the experimental Agent preset manager in plugin settings to show its composer entry. It is off by default and does not disable the session runtime. Session extension presets select skills, commands, roles, MCP and LSP capabilities through the Agent extension icon button to the right of Permissions. Each workspace owns a preset library and a default for new sessions. Existing sessions retain independent copies when presets change. Copy and paste a preset to another workspace to create an independent copy. Globally managed resources show their actual state without a session switch. Preset details do not change shared credentials or configuration.
 
 - **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
 - **Sources.** Add a Git repository, a local directory or an archive (`.zip` / `.tar.gz` / `.tgz` / `.tar`); adopt a checkout you cloned yourself; refresh on demand; delete a managed checkout when you remove its source.
@@ -64,9 +64,9 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 - **Project dimension.** Skills, agents, commands, MCP servers and hooks are read from the project's own directories with no install step.
 - **Your own resources.** Author skills, commands and agent personas as Markdown under `~/.agents/`, then edit them or disable them without deleting the files.
 - **Background source updates.** Optionally refresh every configured source on a timer; off by default.
-- **Web workspace.** Six tabs — Market, Skills, Commands, Agent personas, MCP services and LSP servers — each with search, filters and a grid/list toggle, plus status panels with diagnostics, credential editing, and an install confirmation that warns before executable third-party content is enabled.
+- **Web workspace.** Seven tabs: Market, Skills, Commands, Agent personas, MCP services, LSP servers and Hooks, each with search, filters and a grid/list toggle, plus status panels with diagnostics, credential editing, and an install confirmation that warns before executable third-party content is enabled.
 - **Bilingual interface and feedback.** Workspace strings and injected prompts follow the host language. With feedback enabled, the model can file a `report_market_issue` report through the `gh` CLI or a GitHub token; with neither, it opens a prefilled GitHub issue page and hands you the complete issue text.
-- **Translation.** Descriptions across the workspace follow the host language, names never do: Google Translate first, then Microsoft Translator, then your own default model, and the upstream text when none of them answers. Translation happens when a panel opens, results are cached locally until you clear them, and the whole layer can be switched off — or its cache cleared — in the plugin settings; until you set that switch yourself it follows the interface language, on unless the interface is English.
+- **Translation.** Descriptions and expanded documents can follow the Chinese or English interface. Names stay unchanged. Chinese defaults to on and English to off, but your saved choice takes priority. Documents offer original, translated, and paragraph-by-paragraph bilingual views, with bilingual selected by default. Translation starts on demand, tries Google Translate, Microsoft Translator, then your default model, and keeps the original when none answers. Results stay cached locally until cleared. Turning translation off keeps that cache. See [translation](docs/user/usage.md#translation).
 
 ## Quick start
 
@@ -85,7 +85,7 @@ Requirements, profile configuration and alternative installs: [usage guide](docs
 
 ## Everyday use
 
-The workspace has six tabs:
+The workspace has seven tabs:
 
 | Tab            | Use it to                                                                                                                                 |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -95,12 +95,13 @@ The workspace has six tabs:
 | Agent personas | Save role instructions and model settings; delegate through `subagent_role` or create role-aware Team members with `spawn_teammate_role`. |
 | MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                        |
 | LSP servers    | Add and configure language servers and inspect their runtime status.                                                                      |
+| Hooks          | Inspect configured command hooks and their supported events.                                                                              |
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
 
 Everything you author yourself lives in the shared Agent layout root: skills, commands and personas as Markdown under `~/.agents/`, command hooks in `~/.agents/hooks.json` (or `~/.agents/hooks/hooks.json`), and the MCP and LSP services you add in the workspace in `~/.agents/mcp.json` and `~/.agents/lsp.json`. Commands and personas are read at any subdirectory depth, so a file another tool wrote at `~/.agents/commands/git/commit.md` is callable as `/git-commit`. Project-native resources stay in the project. See [storage and discovery](docs/user/usage.md#storage-and-discovery) for paths and precedence.
 
-All six tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active.
+All seven tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active.
 
 ## Compatibility and boundaries
 
@@ -117,7 +118,7 @@ Supported **runtime surfaces** describe what DSH can use:
 | Hooks | The command-hook subset mapped by `dsh-hooks-claude-code`. |
 | LSP | Self-provisioned: installing the plugin is the whole setup, and `lsp` mounts only while a language server is wanted; the server executable must be on `PATH`. |
 
-Role discovery remains available in either mode. `spawn_teammate_role(agent, name, description, prompt)` applies role instructions and model settings from the first request, returns a native Team `target`, and retains the creation snapshot for resume. Only the Lead creates members, after the user explicitly requests Team work. Native `spawn_teammate` stays available; roles do not add a second management API. `tools` and `disallowedTools` are preserved but not enforced. See [agent roles](docs/user/agent-roles.md) for routing, prerequisites and limits.
+Role discovery remains available in either mode. `spawn_teammate_role(agent, name, description, prompt)` applies role instructions and model settings from the first request, returns a native Team `target`, and retains the creation snapshot for resume. Only the Lead creates members, after the user explicitly requests Team work. Native `spawn_teammate` stays available; roles do not add a second management API. A separate Team coordination briefing keeps the Lead on user intent and integration while guiding members through scoped execution and reporting, even without a role catalog. `tools` and `disallowedTools` are preserved but not enforced. See [agent roles](docs/user/agent-roles.md) for routing, prerequisites and limits.
 
 ### Layout detection precedence
 

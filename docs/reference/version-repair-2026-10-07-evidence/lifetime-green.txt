@@ -1,0 +1,10 @@
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ✓ tests/extension-runtime-maintenance.test.ts (7 tests) 477ms
+ ✓ tests/extension-session-recovery.test.ts (9 tests) 763ms
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  20:58:34
+   Duration  1.87s (transform 167ms, setup 0ms, import 428ms, tests 1.24s, environment 0ms)

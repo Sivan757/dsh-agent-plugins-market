@@ -11,18 +11,20 @@ const EMPTY_OVERVIEW: OverviewData = { sources: [], suites: [], totals: { all: 0
 
 let cachedOverview: OverviewData | undefined
 let inflightOverview: Promise<OverviewData> | undefined
+let overviewGeneration = 0
 
 /** Load the last overview immediately and revalidate one shared request. */
 export function loadOverview(): { initial: OverviewData; revalidating: boolean; promise: Promise<OverviewData> } {
   const initial = cachedOverview ?? EMPTY_OVERVIEW
   if (inflightOverview === undefined) {
+    const generation = overviewGeneration
     inflightOverview = fetchOverview()
       .then(data => {
-        cachedOverview = data
+        if (overviewGeneration === generation) cachedOverview = data
         return data
       })
       .finally(() => {
-        inflightOverview = undefined
+        if (overviewGeneration === generation) inflightOverview = undefined
       })
   }
   return { initial, revalidating: cachedOverview === undefined, promise: inflightOverview }
@@ -30,6 +32,8 @@ export function loadOverview(): { initial: OverviewData; revalidating: boolean; 
 
 /** Invalidate the shared overview after a mutating action. */
 export function invalidateOverview(): void {
+  overviewGeneration += 1
+  inflightOverview = undefined
   cachedOverview = undefined
 }
 

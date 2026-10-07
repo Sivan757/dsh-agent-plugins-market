@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
-/**
- * The document translation section: absent where it can say nothing, read only
- * when the reader asks for it, and filled in as its chunks land.
- */
+/** The expanded document defaults to bilingual reading and retains three explicit modes. */
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { translateMarkdownDocument } from '../src/application/translation/document.js'
 import { DocumentTranslationView } from '../src/client/ui/DocumentTranslation.js'
+import { RequestTimeoutError } from '../src/client/request-error.js'
 import { TRANSLATION_POLL_MS } from '../src/client/ui/translation-settle.js'
 import { bindTranslationEnabled } from '../src/client/ui/translation-enabled.js'
 import type { Translate } from '../src/client/index.js'
@@ -16,6 +15,9 @@ import type { DocumentTranslation } from '../src/contracts/translation.js'
 /** The active-locale probe answers Chinese; every other key surfaces as itself. */
 const chinese: Translate = key => (key === 'localeProbeLang' ? '中文' : key)
 const english: Translate = key => (key === 'localeProbeLang' ? 'English' : key)
+
+/** The authored document, which is the body until the reader asks otherwise. */
+const AUTHORED = '# Title\n\nAuthored paragraph.'
 
 let root: Root | undefined
 let host: HTMLDivElement | undefined
@@ -36,86 +38,275 @@ function translationEnabled(value: boolean): void {
   unbind = bindTranslationEnabled({ getSnapshot: () => ({ value: { translationEnabled: value } }), subscribe: () => () => {} })
 }
 
-async function mount(t: Translate, load: () => Promise<DocumentTranslation>): Promise<void> {
+async function mount(t: Translate, load: () => Promise<DocumentTranslation>, original = AUTHORED): Promise<void> {
   const element = document.createElement('div')
   document.body.append(element)
   host = element
   const created = createRoot(element)
   root = created
-  await act(async () => created.render(h(DocumentTranslationView, { t, load })))
+  await act(async () => created.render(h(DocumentTranslationView, { t, original, load })))
 }
 
-/** Open the section the way a reader does. */
-async function expand(): Promise<void> {
-  const button = host?.querySelector('button')
-  if (button === null || button === undefined) throw new Error('the section rendered no disclosure row')
-  await act(async () => {
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-  })
+/** Select the host-owned reading-mode tab. */
+async function choose(mode: string): Promise<void> {
+  const tab = [...host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(item => item.textContent === mode)!
+  await act(async () => tab.click())
 }
 
 describe('DocumentTranslationView', () => {
-  it('renders nothing, and reads nothing, while translation is off', async () => {
-    translationEnabled(false)
-    const load = vi.fn(async () => ({ text: 'translated', pending: 0 }))
-    await mount(chinese, load)
-    expect(host?.textContent).toBe('')
-    expect(load).not.toHaveBeenCalled()
-  })
-
-  it('renders nothing under the language the documents are already authored in', async () => {
-    translationEnabled(true)
-    const load = vi.fn(async () => ({ text: 'translated', pending: 0 }))
-    await mount(english, load)
-    // Offering an English reader an English "translation" of an English
-    // document is a control that cannot do anything.
-    expect(host?.textContent).toBe('')
-    expect(load).not.toHaveBeenCalled()
-  })
-
-  it('reads the document only once the reader opens the section', async () => {
-    translationEnabled(true)
-    const load = vi.fn(async () => ({ text: '# Title', pending: 0 }))
-    await mount(chinese, load)
-    // The section is there to be opened; the document behind it is not read
-    // until someone asks, because a document is the largest thing this plugin
-    // ever sends a provider.
-    expect(host?.textContent).toContain('translationDocToggle')
-    expect(load).not.toHaveBeenCalled()
-    await expand()
-    expect(load).toHaveBeenCalledTimes(1)
-    // The markdown is rendered, not echoed: the heading arrives as its text.
-    expect(host?.textContent).toContain('Title')
-  })
-
-  it('shows the authored text as pending until the last chunk lands', async () => {
+  it('does not publish a late failed poll after the document unmounts', async () => {
     vi.useFakeTimers()
     translationEnabled(true)
-    const answers: DocumentTranslation[] = [
-      { text: '# Title\n\nAuthored paragraph.', pending: 1 },
-      { text: '# Title\n\nTranslated paragraph.', pending: 0 }
-    ]
-    const load = vi.fn(async () => answers.shift() ?? { text: '# Title\n\nTranslated paragraph.', pending: 0 })
+    let reject!: (reason: unknown) => void
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({ text: AUTHORED, pending: 1 })
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, fail) => {
+            reject = fail
+          })
+      )
     await mount(chinese, load)
-    await expand()
-    expect(host?.textContent).toContain('translationDocPending')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS)
+    })
+    await act(async () => root?.unmount())
+    root = undefined
+    await act(async () => reject(new Error('unmounted poll failed')))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS * 3)
+    })
+    expect(host?.textContent).toBe('')
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a failed cold poll without hiding authored content or clearing completed chunks', async () => {
+    vi.useFakeTimers()
+    translationEnabled(true)
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({ text: 'Partly translated', bilingualText: 'Authored paragraph.\n\nPartly translated', pending: 1 })
+      .mockRejectedValueOnce(new Error('poll failed'))
+      .mockResolvedValueOnce({ text: 'Translation complete', bilingualText: 'Authored paragraph.\n\nTranslation complete', pending: 0 })
+    await mount(chinese, load)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS)
+    })
+    expect(host?.textContent).toContain('poll failed')
+    expect(host?.textContent).toContain('Partly translated')
     expect(host?.textContent).toContain('Authored paragraph.')
+    expect(host?.querySelectorAll('[role="tab"]')).toHaveLength(3)
+    const retry = [...host!.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'translationRetry')!
+    await act(async () => retry.click())
+    expect(load).toHaveBeenCalledTimes(3)
+    expect(host?.textContent).toContain('Translation complete')
+    expect(host?.textContent).not.toContain('poll failed')
+    expect(host?.textContent).not.toContain('loading')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS * 4)
+    })
+    expect(load).toHaveBeenCalledTimes(3)
+  })
+  it('shows the localized read timeout and retry after the first cold request fails', async () => {
+    translationEnabled(true)
+    await mount(chinese, async () => {
+      throw new RequestTimeoutError(15_000)
+    })
+    expect(host?.textContent).toContain('requestTimeout')
+    expect(host?.textContent).toContain('translationRetry')
+    expect(host?.textContent).not.toContain('loading')
+    expect(host?.textContent).toContain('Authored paragraph.')
+  })
+  it('ignores a pending-poll failure after returning to original mode', async () => {
+    vi.useFakeTimers()
+    translationEnabled(true)
+    let reject!: (reason: unknown) => void
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({ text: AUTHORED, pending: 1 })
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, fail) => {
+            reject = fail
+          })
+      )
+    await mount(chinese, load)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS)
+    })
+    await choose('translationViewOriginal')
+    await act(async () => reject(new Error('late poll error')))
+    expect(host?.textContent).not.toContain('late poll error')
+    expect(host?.textContent).not.toContain('loading')
+    expect(host?.textContent).toContain('Authored paragraph.')
+  })
+
+  it('reports a failed pending poll instead of leaving a permanent loading label', async () => {
+    vi.useFakeTimers()
+    translationEnabled(true)
+    const load = vi.fn().mockResolvedValueOnce({ text: AUTHORED, bilingualText: AUTHORED, pending: 1 }).mockRejectedValue(new Error('poll request failed'))
+    await mount(chinese, load)
+    expect(host?.textContent).toContain('loading')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS)
     })
     expect(load).toHaveBeenCalledTimes(2)
-    expect(host?.textContent).toContain('Translated paragraph.')
-    expect(host?.textContent).not.toContain('translationDocPending')
+    expect(host?.textContent).toContain('poll request failed')
+    expect(host?.textContent).not.toContain('loading')
+    expect(host?.textContent).toContain('Authored paragraph.')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS * 5)
+    })
+    expect(load).toHaveBeenCalledTimes(2)
   })
 
-  it('reports a failed read instead of a document', async () => {
+  it('uses compact icon tabs with accessible labels and a linked current panel', async () => {
     translationEnabled(true)
-    const load = vi.fn(async () => {
+    await mount(chinese, async () => ({ text: '译文', bilingualText: '原文\n\n译文', pending: 0 }))
+    const tabs = [...host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    expect(tabs.map(tab => tab.textContent)).toEqual(['translationViewOriginal', 'translationViewTranslated', 'translationViewBilingual'])
+    expect(tabs.every(tab => tab.querySelector('svg') !== null)).toBe(true)
+    expect(tabs.every(tab => tab.querySelector('[title]')?.getAttribute('title') === tab.textContent)).toBe(true)
+    const selected = tabs.find(tab => tab.getAttribute('aria-selected') === 'true')!
+    expect(selected.textContent).toBe('translationViewBilingual')
+    expect(document.getElementById(selected.getAttribute('aria-controls')!)?.getAttribute('aria-labelledby')).toBe(selected.id)
+    expect(host?.querySelector('[data-document-translation-controls]')?.nextElementSibling?.getAttribute('role')).toBe('tabpanel')
+  })
+  it('keeps the host arrow and Home/End keyboard navigation for icon-only tabs', async () => {
+    translationEnabled(true)
+    await mount(chinese, async () => ({ text: '译文', bilingualText: '原文\n\n译文', pending: 0 }))
+    const tabs = [...host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    tabs[2]!.focus()
+    for (const [key, index] of [
+      ['ArrowLeft', 1],
+      ['Home', 0],
+      ['End', 2],
+      ['ArrowRight', 0]
+    ] as const) {
+      await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })))
+      expect(document.activeElement).toBe(tabs[index])
+      expect(tabs[index]!.getAttribute('aria-selected')).toBe('true')
+      expect(tabs.filter(tab => tab.tabIndex === 0)).toHaveLength(1)
+    }
+  })
+
+  it('renders whole-tree bilingual Markdown through the real host component', async () => {
+    translationEnabled(true)
+    const source = [
+      '# Read heading',
+      '',
+      '1. Read **important** [guide][ref].',
+      '   - Read nested.',
+      '',
+      '> Read quote.',
+      '',
+      'Read footnote[^n].',
+      '',
+      '[ref]: https://example.test/docs',
+      '',
+      '[^n]: Read note.',
+      '',
+      '| Read header | Value |',
+      '| --- | --- |',
+      '| Read cell | 1 |',
+      '',
+      '\x60\x60\x60js',
+      'const exact = 1;',
+      '\x60\x60\x60'
+    ].join('\n')
+    const value = translateMarkdownDocument(source, text => ({ text: text.replaceAll('Read', '读取'), pending: false }))
+    await mount(chinese, async () => value, source)
+    expect(host?.querySelectorAll('h1')).toHaveLength(2)
+    expect(host?.querySelector('ol')?.children).toHaveLength(1)
+    expect(host?.querySelector('ol > li ul li')?.textContent).toContain('读取 nested')
+    expect(host?.querySelector('blockquote')?.textContent).toContain('Read quote.')
+    expect(host?.querySelector('blockquote')?.textContent).toContain('读取 quote.')
+    expect(host?.querySelector('strong')?.textContent).toBe('important')
+    expect(host?.querySelector('a[href="https://example.test/docs"]')).not.toBeNull()
+    expect(host?.querySelector('sup')?.textContent).toBe('1')
+    expect(host?.querySelector('[data-footnotes]')?.textContent).toContain('读取 note.')
+    expect(host?.querySelectorAll('table')).toHaveLength(2)
+    expect(host?.querySelectorAll('pre code')).toHaveLength(1)
+    expect(host?.querySelector('pre code')?.textContent).toContain('const exact = 1;')
+  })
+
+  it('keeps original readable with zero requests while disabled', async () => {
+    translationEnabled(false)
+    const load = vi.fn(async () => ({ text: 'translated', pending: 0 }))
+    await mount(chinese, load)
+    expect(host?.textContent).toContain('Authored paragraph.')
+    expect(host?.querySelector('[role="tablist"]')).toBeNull()
+    expect(load).not.toHaveBeenCalled()
+  })
+  it('loads on expansion and defaults to paired bilingual paragraphs with three modes', async () => {
+    translationEnabled(true)
+    const load = vi.fn(async () => ({ text: 'Translated paragraph.', bilingualText: 'Authored paragraph.\n\nTranslated paragraph.', pending: 0 }))
+    await mount(chinese, load)
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(host?.querySelectorAll('[role="tab"]')).toHaveLength(3)
+    expect(host?.querySelector('[aria-selected="true"]')?.textContent).toBe('translationViewBilingual')
+    expect(host?.textContent).toContain('Authored paragraph.')
+    expect(host?.textContent).toContain('Translated paragraph.')
+    await choose('translationViewTranslated')
+    expect(host?.textContent).not.toContain('Authored paragraph.')
+    expect(host?.textContent).toContain('Translated paragraph.')
+    await choose('translationViewOriginal')
+    expect(host?.textContent).toContain('Authored paragraph.')
+    expect(host?.textContent).not.toContain('Translated paragraph.')
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+  it('supports English when explicitly enabled', async () => {
+    translationEnabled(true)
+    const load = vi.fn(async () => ({ text: 'Read files', bilingualText: '读取文件\n\nRead files', pending: 0 }))
+    await mount(english, load, '读取文件')
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(host?.textContent).toContain('Read files')
+  })
+  it('revalidates the target and never displays an old-language answer', async () => {
+    translationEnabled(true)
+    const load = vi.fn(async () => ({ text: '旧译文', bilingualText: 'Old source\n\n旧译文', pending: 0 }))
+    await mount(chinese, load)
+    let finish!: (value: DocumentTranslation) => void
+    const next = vi.fn(
+      () =>
+        new Promise<DocumentTranslation>(resolve => {
+          finish = resolve
+        })
+    )
+    await act(async () => root!.render(h(DocumentTranslationView, { t: english, original: AUTHORED, load: next })))
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(host?.textContent).not.toContain('旧译文')
+    await act(async () => finish({ text: 'New translation', bilingualText: 'New translation', pending: 0 }))
+    expect(host?.textContent).toContain('New translation')
+  })
+  it('polls pending chunks and stops after settlement', async () => {
+    vi.useFakeTimers()
+    translationEnabled(true)
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({ text: AUTHORED, bilingualText: AUTHORED, pending: 1 })
+      .mockResolvedValue({ text: 'Translated paragraph.', bilingualText: 'Translated paragraph.', pending: 0 })
+    await mount(chinese, load)
+    expect(host?.textContent).toContain('loading')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS)
+    })
+    expect(host?.textContent).toContain('Translated paragraph.')
+    expect(host?.textContent).not.toContain('loading')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSLATION_POLL_MS * 2)
+    })
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+  it('keeps authored content readable on a failed request', async () => {
+    translationEnabled(true)
+    await mount(chinese, async () => {
       throw new Error('translation endpoint unavailable')
     })
-    await mount(chinese, load)
-    await expand()
-    expect(host?.textContent).toContain('translationDocFailed')
     expect(host?.textContent).toContain('translation endpoint unavailable')
+    expect(host?.textContent).toContain('Authored paragraph.')
+    await choose('translationViewOriginal')
+    expect(host?.textContent).not.toContain('translation endpoint unavailable')
   })
 })

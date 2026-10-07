@@ -6,7 +6,7 @@
  * the results back to every surface that renders them. Kept free of imports so
  * both the server layers and the client bundle can depend on it.
  *
- * Only descriptions are translated. A name is an identifier the user types,
+ * Descriptions and document prose are translated. A name is an identifier the user types,
  * greps, and matches against upstream documentation, and machine translation
  * turned them into text that was harder to recognize than the original — so
  * the layer never touches one.
@@ -22,8 +22,8 @@ export type TranslationSurfaceKind = 'market' | 'skills' | 'commands' | 'agents'
  * Which text of one entity a cached translation belongs to.
  *
  * The role is a cache-key slot rather than a rendering concern: a description
- * and a document body that share one entity id must never answer for each
- * other, however alike two of their chunks happen to read.
+ * and a document body retain distinct historical keys. The localizer can reuse
+ * one translation when their source text and target are identical.
  */
 export type TranslationRole = 'description' | 'document'
 
@@ -49,6 +49,8 @@ export interface TranslationFields {
 export interface DocumentTranslation {
   /** The body in the target language, with authored text standing in for every chunk still in flight. */
   text: string
+  /** Complete Markdown with each translated paragraph directly after its original. */
+  bilingualText?: string
   /** Chunks queued or running; the client re-reads while this is non-zero. */
   pending: number
 }

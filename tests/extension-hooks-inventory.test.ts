@@ -1,0 +1,119 @@
+/**
+ * The user's own hook declarations become Hooks-tab rows, one per command,
+ * grouped by event and carrying the host's support verdict.
+ *
+ * The read runs against the real inventory function; catalog status payloads
+ * and panel rows are fixtures, the same pattern extension-suite-inventory
+ * uses. What these cases pin: a supported event's rows select like any other
+ * resource; a partial or registered-only event's rows stay read-only with the
+ * reason; a declaration the validator rejected (which exists only as a suite
+ * diagnostic) still surfaces as one read-only row, so the Hooks tab registers
+ * it instead of dropping it into the suite detail's error list.
+ */
+import { describe, expect, it } from 'vitest'
+import { readExtensionInventory } from '../src/application/extension-inventory.js'
+import { effectiveSurfaces, type ProjectHooks, type Suite } from '../src/model/types.js'
+
+/** The user-hooks synthetic suite, the shape loadUserHooksSuite always builds. */
+const userHooksSuite = (overrides: { events?: ProjectHooks['events']; errors?: string[] }): Suite => ({
+  sourceId: '@user-hooks',
+  id: 'user-hooks',
+  root: '/agents-root',
+  manifest: { layout: 'agent-plugin-v1', path: '/agents-root/hooks/hooks.json', id: 'user-hooks', name: 'user-hooks' },
+  skills: [],
+  surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: 0 },
+  dimension: 'user',
+  enabled: true,
+  activeSurfaces: effectiveSurfaces({ skills: false, mcp: false, commands: false, agents: false, lsp: false }),
+  installedAt: 'user',
+  ...(overrides.events === undefined ? {} : { hooks: { events: overrides.events } }),
+  errors: overrides.errors ?? []
+})
+
+const command = (text: string) => ({ type: 'command' as const, command: text })
+const eventGroup = (...hooks: ReturnType<typeof command>[]) => [{ hooks }]
+const eventGroupWithMatcher = (matcher: string, ...hooks: ReturnType<typeof command>[]) => [{ matcher, hooks }]
+
+const ports = {
+  catalog: {
+    overview: async () => ({ sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '/tmp', data: '/tmp' } }),
+    mcpStatus: async () => ({
+      entries: [],
+      observedAt: '',
+      totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
+      directObservationOnly: false
+    }),
+    lspStatus: async () => ({ entries: [], totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 }, hostMissing: false })
+  },
+  panels: {
+    skills: { list: async () => [] },
+    commands: { list: async () => [] },
+    agents: { list: async () => [] }
+  }
+} as unknown as Parameters<typeof readExtensionInventory>[0]
+
+describe('user hook declarations as Hooks tab rows', () => {
+  it('emits one selectable row per command hook of a supported event, grouped by event', async () => {
+    const rows = await readExtensionInventory(ports, {
+      projectSuites: [
+        userHooksSuite({
+          events: { PreToolUse: [...eventGroupWithMatcher('Edit', command('echo edit')), ...eventGroup(command('echo plain'))], SessionStart: eventGroup(command('echo start')) }
+        })
+      ]
+    })
+    const hookRows = rows.filter(row => row.face === 'hooks')
+    expect(hookRows).toHaveLength(3)
+    // The event name rides row.description, the field the Hooks tab groups its secondary tabs by.
+    expect(hookRows.map(row => row.description)).toEqual(['PreToolUse', 'PreToolUse', 'SessionStart'])
+    expect(hookRows.map(row => row.name)).toEqual(['echo edit', 'echo plain', 'echo start'])
+    // A matcher other than the catch-all joins the provenance: source carries the configuration id plus the matcher.
+    expect(hookRows.map(row => row.source)).toEqual(['user-hooks · Edit', 'user-hooks', 'user-hooks'])
+    // Supported events select like any other resource and are globally on by default.
+    for (const row of hookRows) expect(row).toMatchObject({ available: true, globalEnabled: true })
+    expect(hookRows.some(row => row.control !== undefined)).toBe(false)
+    // Every hook row still addresses the read-only suite detail behind the configuration.
+    expect(hookRows.every(row => row.detail.kind === 'suite' && row.detail.sourceId === '@user-hooks' && row.detail.suiteId === 'user-hooks')).toBe(true)
+  })
+
+  it('keeps partial and registered-only events read-only with their reason', async () => {
+    const rows = await readExtensionInventory(ports, {
+      projectSuites: [userHooksSuite({ events: { Notification: eventGroup(command('notify-me')), SessionEnd: eventGroup(command('on-end')) } })]
+    })
+    const notification = rows.find(row => row.id.endsWith('/Notification/0'))!
+    expect(notification).toMatchObject({ available: false, control: 'global-only', unavailableReason: 'hook-event-partial' })
+    const sessionEnd = rows.find(row => row.id.endsWith('/SessionEnd/0'))!
+    expect(sessionEnd).toMatchObject({ available: false, control: 'global-only', unavailableReason: 'hook-event-unsupported' })
+  })
+
+  it('surfaces each rejected-event diagnostic as one read-only declared row', async () => {
+    const rows = await readExtensionInventory(ports, {
+      projectSuites: [
+        userHooksSuite({
+          events: { PreToolUse: eventGroup(command('echo ok')) },
+          errors: ['hooks.json: unsupported hook event SessionEnd', 'hooks.json: unsupported hook event PreCompact']
+        })
+      ]
+    })
+    const declared = rows.filter(row => row.id.endsWith('/declared'))
+    expect(declared.map(row => row.name)).toEqual(['SessionEnd', 'PreCompact'])
+    for (const row of declared) {
+      expect(row).toMatchObject({ face: 'hooks', description: row.name, available: false, control: 'global-only' })
+      // SessionEnd and PreCompact are both registered-only in the host support map.
+      expect(row.unavailableReason).toBe('hook-event-unsupported')
+    }
+    // The selectable row for the admitted event stays untouched beside the declared ones.
+    expect(rows.find(row => row.id.endsWith('/PreToolUse/0'))).toMatchObject({ available: true })
+  })
+
+  it('contributes no Hooks rows when the configuration declares no events and carries no diagnostics', async () => {
+    const rows = await readExtensionInventory(ports, { projectSuites: [userHooksSuite({})] })
+    expect(rows.filter(row => row.face === 'hooks')).toHaveLength(0)
+  })
+
+  it('names no session on the detail address unless the read carries one', async () => {
+    const withSession = await readExtensionInventory(ports, { projectSuites: [userHooksSuite({ events: { Stop: eventGroup(command('echo stop')) } })], sessionId: 'session-9' })
+    expect(withSession.find(row => row.face === 'hooks')!.detail).toMatchObject({ kind: 'suite', sessionId: 'session-9' })
+    const withoutSession = await readExtensionInventory(ports, { projectSuites: [userHooksSuite({ events: { Stop: eventGroup(command('echo stop')) } })] })
+    expect(withoutSession.find(row => row.face === 'hooks')!.detail.sessionId).toBeUndefined()
+  })
+})

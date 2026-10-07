@@ -49,24 +49,12 @@ interface TranslationRoute {
 const TRANSLATE_TIMEOUT_MS = 30_000
 
 /**
- * Output tokens one source character is expected to need.
- *
- * An estimate, and labelled as one: nothing in this tree tokenizes. It covers
- * the measured expansion of this repository's own bilingual documents — across
- * the 90 English/Chinese pairs it ships, the Chinese side runs at 0.461 of the
- * English character count at the median and 0.617 in the worst case — at an
- * assumed 0.7 tokens per Chinese character, which puts the worst case near 0.43
- * tokens per source character. 0.6 leaves about 40% headroom over that estimate
- * and still lets one call carry a whole `MAX_BATCH_CHARS` batch (6,400 source
- * characters) inside {@link MAX_OUTPUT_TOKENS_CAP}.
- *
- * The budget used to be per text (512 × the number of texts), which sized a
- * batch of twenty short descriptions at the 4,096 ceiling while sizing one long
- * text at 512: any single text past ~1,100 characters was cut off
- * mid-generation, and a cut-off generation fails the batch *and* takes that
- * provider out of the chain for the rest of the session.
+ * Conservative output allowances, not tokenizer measurements. English output
+ * can expand Chinese source substantially; its 1.5 allowance is paired with
+ * the localizer's smaller English-target batches. Chinese retains the 0.6
+ * estimate. Both remain bounded by MAX_OUTPUT_TOKENS_CAP.
  */
-const OUTPUT_TOKENS_PER_SOURCE_CHAR = 0.6
+const OUTPUT_TOKENS_PER_SOURCE_CHAR = { zh: 0.6, en: 1.5 } as const
 
 /** Floor for one call, so a short text still has room for its own output. */
 const MIN_OUTPUT_TOKENS = 512
@@ -81,10 +69,12 @@ export const MAX_OUTPUT_TOKENS_CAP = 4_096
  * answer is the expansion of the text it was handed, so a batch of one long
  * text and a batch of twenty short ones are budgeted by the same rule.
  * @param sourceChars - characters in the user turn this call will send.
+ * @param locale - target language; English uses the larger expansion allowance.
  * @returns the output token ceiling to ask the route for.
  */
-export function outputTokenBudget(sourceChars: number): number {
-  return Math.min(Math.max(Math.ceil(sourceChars * OUTPUT_TOKENS_PER_SOURCE_CHAR), MIN_OUTPUT_TOKENS), MAX_OUTPUT_TOKENS_CAP)
+export function outputTokenBudget(sourceChars: number, locale = 'zh'): number {
+  const ratio = locale.toLowerCase().startsWith('en') ? OUTPUT_TOKENS_PER_SOURCE_CHAR.en : OUTPUT_TOKENS_PER_SOURCE_CHAR.zh
+  return Math.min(Math.max(Math.ceil(sourceChars * ratio), MIN_OUTPUT_TOKENS), MAX_OUTPUT_TOKENS_CAP)
 }
 
 /**
@@ -274,6 +264,7 @@ export function createLlmTranslator(host: TranslatorHost): TranslationProvider {
     id: 'llm',
     available: () => readRoute(host) !== undefined && host.get?.('llm') !== undefined,
     async translate(request): Promise<string[]> {
+      request.signal.throwIfAborted()
       const llm = host.get?.('llm') as LlmService | undefined
       const route = readRoute(host)
       if (llm === undefined || route === undefined) throw new Error('the DSH model service is unavailable')
@@ -289,6 +280,7 @@ export function createLlmTranslator(host: TranslatorHost): TranslationProvider {
       timeout.unref?.()
       try {
         const effort = await chooseEffort(llm, route, controller.signal)
+        controller.signal.throwIfAborted()
         // The budget is sized from what this call actually carries: the batch
         // separator is part of the turn, and a text longer than any earlier
         // batch is what the response has to cover.
@@ -298,7 +290,7 @@ export function createLlmTranslator(host: TranslatorHost): TranslationProvider {
           model: route.model,
           system: systemPrompt(request.locale, batched),
           messages: [userMessage(source)],
-          maxTokens: outputTokenBudget(source.length),
+          maxTokens: outputTokenBudget(source.length, request.locale),
           temperature: 0,
           ...(effort === undefined ? {} : { reasoningEffort: effort as GenerateOptions['reasoningEffort'] }),
           signal: controller.signal

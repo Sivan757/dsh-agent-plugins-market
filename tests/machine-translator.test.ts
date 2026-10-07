@@ -56,6 +56,12 @@ afterEach(() => {
 })
 
 describe('googleTranslate', () => {
+  it('auto-detects Chinese source while targeting English', async () => {
+    const calls = recordFetch(() => jsonResponse([['Read files']]))
+    expect(await googleTranslate(request(['读取文件'], 'en'))).toEqual({ texts: ['Read files'], provider: 'google' })
+    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['读取文件'], 'auto', 'en'], 'wt_lib'])
+  })
+
   it('posts the protobuf envelope and returns the inner batch', async () => {
     const calls = recordFetch(() => jsonResponse([['你好', '世界']]))
     const result = await googleTranslate(request(['Hello', 'World']))
@@ -64,7 +70,7 @@ describe('googleTranslate', () => {
     expect(calls[0]?.url).toBe('https://translate-pa.googleapis.com/v1/translateHtml')
     expect(calls[0]?.init?.method).toBe('POST')
     // The endpoint's envelope: [texts, from, to] tagged `wt_lib`.
-    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello', 'World'], 'en', 'zh'], 'wt_lib'])
+    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello', 'World'], 'auto', 'zh'], 'wt_lib'])
   })
 
   it('sends the protobuf content type and the public API key header', async () => {
@@ -85,20 +91,20 @@ describe('googleTranslate', () => {
   it('keeps a plain zh target rather than a region-qualified tag', async () => {
     const calls = recordFetch(() => jsonResponse([['你好']]))
     await googleTranslate(request(['Hello']))
-    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello'], 'en', 'zh'], 'wt_lib'])
+    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello'], 'auto', 'zh'], 'wt_lib'])
   })
 
   it('passes a non-Chinese locale through unchanged', async () => {
     const calls = recordFetch(() => jsonResponse([['こんにちは']]))
     await googleTranslate(request(['Hello'], 'ja'))
-    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello'], 'en', 'ja'], 'wt_lib'])
+    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello'], 'auto', 'ja'], 'wt_lib'])
   })
 
   it('forwards a script-qualified tag rather than flattening it to zh', async () => {
     // Flattening `zh-Hant` to `zh` would silently answer in Simplified.
     const calls = recordFetch(() => jsonResponse([['你好']]))
     await googleTranslate(request(['Hello'], 'zh-Hant'))
-    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello'], 'en', 'zh-Hant'], 'wt_lib'])
+    expect(JSON.parse(bodyOf(calls[0]))).toEqual([[['Hello'], 'auto', 'zh-Hant'], 'wt_lib'])
   })
 
   it('returns an empty batch without touching the network', async () => {
@@ -133,11 +139,19 @@ describe('googleTranslate', () => {
 })
 
 describe('microsoftTranslate', () => {
+  it('omits the source language so Chinese can translate into English', async () => {
+    const calls = recordFetch(() => jsonResponse([{ translations: [{ text: 'Read files' }] }]))
+    expect(await microsoftTranslate(request(['读取文件'], 'en'))).toEqual({ texts: ['Read files'], provider: 'microsoft' })
+    const url = new URL(calls[0]!.url)
+    expect(url.searchParams.has('from')).toBe(false)
+    expect(url.searchParams.get('to')).toBe('en')
+  })
+
   it('posts the bare array and reads the translations back in order', async () => {
     const calls = recordFetch(() => jsonResponse([{ translations: [{ text: '你好' }] }, { translations: [{ text: '世界' }] }]))
     const result = await microsoftTranslate(request(['Hello', 'World']))
     expect(result).toEqual({ texts: ['你好', '世界'], provider: 'microsoft' })
-    expect(calls[0]?.url).toBe('https://edge.microsoft.com/translate/translatetext?from=en&to=zh-Hans&isEnterpriseClient=false')
+    expect(calls[0]?.url).toBe('https://edge.microsoft.com/translate/translatetext?to=zh-Hans&isEnterpriseClient=false')
     expect(calls[0]?.init?.method).toBe('POST')
     expect(calls[0]?.init?.body).toBe(JSON.stringify(['Hello', 'World']))
   })

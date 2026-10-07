@@ -349,6 +349,8 @@ export interface McpServerDetail {
 
 /** Full suite detail response served by the detail modal. */
 export interface SuiteDetail {
+  /** Description units still pending; absent means settled. */
+  translationPending?: number
   sourceId: string
   suiteId: string
   name: string
@@ -387,6 +389,8 @@ export interface SuiteDocumentText {
 
 /** A user panel entry (skills / commands / agent personas) over HTTP. */
 export interface UserPanelEntryWire {
+  /** Description units still pending on an entry read; absent means settled. */
+  translationPending?: number
   /**
    * Entry name: the name its document declares, else its document name — the
    * file's base name, or, on a panel that reads subdirectories, the document's

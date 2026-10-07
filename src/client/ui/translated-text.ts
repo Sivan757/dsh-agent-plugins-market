@@ -10,6 +10,7 @@
  */
 import type { Translate } from '../index.js'
 import { pickBilingualDescription } from './bilingual-text.js'
+import { useTranslationEnabled } from './translation-enabled.js'
 
 /** How a surface wants the text resolved. */
 export interface DisplayTextOptions {
@@ -42,4 +43,15 @@ export function displayText(
 ): string | undefined {
   const chosen = options.original === true ? original : (translated ?? original)
   return pickBilingualDescription(chosen, t)
+}
+
+/** Resolve a mounted description against the shared display preference. */
+export function useDisplayText(
+  translated: string | undefined,
+  original: string | undefined,
+  t: Translate,
+  options: DisplayTextOptions = {}
+): string | undefined {
+  const enabled = useTranslationEnabled()
+  return displayText(translated, original, t, { original: !enabled || options.original === true })
 }
