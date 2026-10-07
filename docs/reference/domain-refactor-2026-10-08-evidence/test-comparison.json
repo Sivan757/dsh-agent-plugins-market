@@ -1,0 +1,10 @@
+{
+  "baseline": 1860,
+  "final": 1863,
+  "missing": [],
+  "added": [
+    "domain-workspaces.test.ts :: private domain workspace delivery declares cross-domain imports and forbids bare private runtime specifiers",
+    "domain-workspaces.test.ts :: private domain workspace delivery keeps one public package and eight private entry owners",
+    "domain-workspaces.test.ts :: private domain workspace delivery keeps package graph acyclic and records every workspace dependency"
+  ]
+}

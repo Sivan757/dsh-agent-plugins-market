@@ -13,11 +13,11 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { maskText, unmaskText } from '../src/runtime/host/text-masking.js'
-import { createTranslationProviders } from '../src/runtime/host/translation-providers.js'
-import { MAX_DOCUMENT_CHUNK_CHARS, chunkDocument, translateMarkdownDocument, type DocumentChunk } from '../src/application/translation/document.js'
-import { MAX_OUTPUT_TOKENS_CAP, outputTokenBudget } from '../src/runtime/host/llm-translator.js'
-import { MAX_BATCH_CHARS } from '../src/application/translation/localizer.js'
+import { maskText, unmaskText } from '../packages/market-translation/src/runtime/host/text-masking.js'
+import { createTranslationProviders } from '../packages/market-translation/src/runtime/host/translation-providers.js'
+import { MAX_DOCUMENT_CHUNK_CHARS, chunkDocument, translateMarkdownDocument, type DocumentChunk } from '../packages/market-translation/src/application/translation/document.js'
+import { MAX_OUTPUT_TOKENS_CAP, outputTokenBudget } from '../packages/market-translation/src/runtime/host/llm-translator.js'
+import { MAX_BATCH_CHARS } from '../packages/market-translation/src/application/translation/localizer.js'
 
 /** The text of every chunk a provider would be asked to translate, in order. */
 function prose(text: string): string[] {
@@ -104,7 +104,7 @@ describe('bounded structural repair', () => {
   it('repairs a damaged D3 only from original leaves and retains the good batch slot', async () => {
     const signal = new AbortController().signal
     const calls: { texts: readonly string[]; signal: AbortSignal }[] = []
-    const base: import('../src/application/translation/chain.js').TranslationProvider = {
+    const base: import('../packages/market-translation/src/application/translation/chain.js').TranslationProvider = {
       id: 'llm',
       available: () => true,
       translate: async request => {

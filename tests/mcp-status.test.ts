@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { buildMcpStatus, declaresAuthHeader } from '../src/application/mcp/mcp-status.js'
-import { inspectToolRegistry } from '../src/runtime/host/tool-registry-observer.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { buildMcpStatus, declaresAuthHeader } from '../packages/market-mcp/src/application/mcp/mcp-status.js'
+import { inspectToolRegistry } from '../packages/market-runtime/src/runtime/host/tool-registry-observer.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {

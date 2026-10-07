@@ -55,30 +55,30 @@
 
 ### 阶段 1 — 源注册
 
-- 根目录约定：用户维度 `~/.dsh/agent-plugins`（或 `$DSH_HOME`），项目维度 `<project-git-root>/.dsh/agent-plugins`；源 checkout 在 `.sources/<sourceId>/`（`src/catalog/paths.ts`）。
-- sources 由 cordis config 种子化并在每次 boot 补齐缺失 id，持久化于 `state.json.sources[]`（`src/catalog/source-catalog.ts`、`src/model/state.ts`）；`local: true` 源直接读工作树（含未提交变更）。
+- 根目录约定：用户维度 `~/.dsh/agent-plugins`（或 `$DSH_HOME`），项目维度 `<project-git-root>/.dsh/agent-plugins`；源 checkout 在 `.sources/<sourceId>/`（`packages/market-catalog/src/scanning/paths.ts`）。
+- sources 由 cordis config 种子化并在每次 boot 补齐缺失 id，持久化于 `state.json.sources[]`（`packages/market-catalog/src/scanning/source-catalog.ts`、`src/model/state.ts`）；`local: true` 源直接读工作树（含未提交变更）。
 
 ### 阶段 2 — 扫描发现
 
-- `src/catalog/suite-scanner.ts` 递归 ≤4 层，识别 `plugins/`、`external_plugins/`、`skills/` 容器、根套件、平铺 `<name>/SKILL.md` 收集。
+- `packages/market-catalog/src/scanning/suite-scanner.ts` 递归 ≤4 层，识别 `plugins/`、`external_plugins/`、`skills/` 容器、根套件、平铺 `<name>/SKILL.md` 收集。
 
 ### 阶段 3 — manifest 身份判定（六方言 + 合成）
 
-优先级：根 `plugin.json`(agent-plugins.org v1) > `.plugin/plugin.json` > `.claude-plugin/plugin.json` > `.cursor-plugin/plugin.json` > `.kimi-plugin/plugin.json` > `.codex-plugin/plugin.json`；无 manifest 但有 SKILL.md 则生成 synthetic skill-collection（`src/catalog/manifests.ts`）。一仓多方言并存时身份取最高优先级 manifest，surface 仍全目录扫描。
+优先级：根 `plugin.json`(agent-plugins.org v1) > `.plugin/plugin.json` > `.claude-plugin/plugin.json` > `.cursor-plugin/plugin.json` > `.kimi-plugin/plugin.json` > `.codex-plugin/plugin.json`；无 manifest 但有 SKILL.md 则生成 synthetic skill-collection（`packages/market-catalog/src/scanning/manifests.ts`）。一仓多方言并存时身份取最高优先级 manifest，surface 仍全目录扫描。
 
 ### 阶段 4 — 校验（fail-closed / lenient 分级）
 
-- v1 `plugin.json`：内置 AJV schema（vendored `schemas/1.0.0/plugin.schema.json`）严格校验：`$schema` 必须精确 v1 URL、`name` 必填、禁止额外字段（`src/catalog/validate.ts`）。
+- v1 `plugin.json`：内置 AJV schema（vendored `schemas/1.0.0/plugin.schema.json`）严格校验：`$schema` 必须精确 v1 URL、`name` 必填、禁止额外字段（`packages/market-catalog/src/scanning/validate.ts`）。
 - v1 `mcp.json`：必须 `$schema`+`mcpServers`；server 仅 stdio/streamable-http/sse 三种形态，额外字段拒绝；另有路径 containment（必须 `./` 开头、解析后不得逃逸 plugin root、symlink 逃逸拒绝）与 `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` 语义校验。
 - 非 v1 方言仅轻解析不 schema 校验；`.mcp.json` 宽容解析（server-map 简写、type 归一化、`${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`/`${NAME:-default}` 占位符）。
 
 ### 阶段 5 — surface 盘点
 
-`src/catalog/surfaces.ts` 扫 skills/mcp/hooks/commands/agents/LSP 六类能力面。
+`packages/market-catalog/src/scanning/surfaces.ts` 扫 skills/mcp/hooks/commands/agents/LSP 六类能力面。
 
 ### 阶段 6 — 安装状态机
 
-- `Catalog.install` 写 `state.installed[<sourceId>/<suiteId>] = { enabled: true, lockCommit, installedAt, surface overrides }`（**安装即启用**），原子写（temp+rename）；uninstall 删条目、disable 仅翻 enabled（`src/application/catalog.ts`、`src/model/state.ts`）。
+- `Catalog.install` 写 `state.installed[<sourceId>/<suiteId>] = { enabled: true, lockCommit, installedAt, surface overrides }`（**安装即启用**），原子写（temp+rename）；uninstall 删条目、disable 仅翻 enabled（`packages/market-bundle/src/application/catalog.ts`、`src/model/state.ts`）。
 - 每次 install/uninstall/disable/set-surface 都 `notifyChanged` 触发运行时 reconcile。
 - 项目 native（`.claude/`、`.agents/`）免安装直接启用，无 state 条目；同名技能 project 优先遮蔽 suite 技能。
 
@@ -93,7 +93,7 @@
 
 ### 阶段 8 — Web 呈现与 API
 
-- `./client` bundle 是纯市场 UI：fetch `/api/agent-plugins/*` 路由（GET overview/config/suite/suite/document/mcp-status/mcp-overrides/progress；POST sources/add·update·remove·refresh·install·uninstall·set-enabled·set-surface·set-mcp-override），same-origin POST、body ≤64KiB（`src/routes.ts`、`src/contracts/market.ts`）。`suite/document` 是唯一取文档正文的读路径：套件详情负载只带名字与描述，技能、命令、代理在展开时才取全文。UI 不参与运行时注入。
+- `./client` bundle 是纯市场 UI：fetch `/api/agent-plugins/*` 路由（GET overview/config/suite/suite/document/mcp-status/mcp-overrides/progress；POST sources/add·update·remove·refresh·install·uninstall·set-enabled·set-surface·set-mcp-override），same-origin POST、body ≤64KiB（`packages/market-bundle/src/routes.ts`、`packages/market-contracts/src/contracts/market.ts`）。`suite/document` 是唯一取文档正文的读路径：套件详情负载只带名字与描述，技能、命令、代理在展开时才取全文。UI 不参与运行时注入。
 - 元数据层与运行层的边界：本包已在 `f0e9fdf` 移除冗余的 `agent_plugins` 上下文工具，模型侧能力完全由 skills catalog + MCP 工具自然暴露，套件库存只在 Web 市场页呈现。
 
 ---

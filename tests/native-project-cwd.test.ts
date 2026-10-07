@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { resolveProjectRoot } from '../src/catalog/paths.js'
+import { resolveProjectRoot } from '../packages/market-catalog/src/scanning/paths.js'
 
 describe('cwd resolution edges', () => {
   it('resolves a monorepo subdirectory cwd to the repo root dimension', async () => {
@@ -16,7 +16,7 @@ describe('cwd resolution edges', () => {
   })
 
   it('reads a home cwd as no project rather than as a second view of the user dimension', async () => {
-    const { Catalog } = await import('../src/application/catalog.js')
+    const { Catalog } = await import('../packages/market-bundle/src/application/catalog.js')
     // A session started in the harness home has no `.git` ancestor, so its cwd
     // resolves to itself as the project root and its dimension root lands on the
     // user dimension root. Reading that as a project would hand the session every
@@ -49,8 +49,8 @@ describe('cwd resolution edges', () => {
 
 describe('live-like native discovery through a real project tree', () => {
   it('finds .claude skills from a deeply nested session cwd via the provider', async () => {
-    const { Catalog } = await import('../src/application/catalog.js')
-    const { SuiteSkillProvider } = await import('../src/runtime/surfaces/skills-provider.js')
+    const { Catalog } = await import('../packages/market-bundle/src/application/catalog.js')
+    const { SuiteSkillProvider } = await import('../packages/market-runtime/src/runtime/surfaces/skills-provider.js')
     const repo = await mkdtemp(join(tmpdir(), 'dsh-live-'))
     await mkdir(join(repo, '.git'), { recursive: true })
     await mkdir(join(repo, '.claude', 'skills', 'deploy'), { recursive: true })

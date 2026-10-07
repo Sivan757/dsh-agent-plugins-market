@@ -4,12 +4,12 @@ import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { MARKET_SETTINGS_DEFAULTS, MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../src/contracts/settings.js'
-import { bindMarketCardForm, type MarketCardFace, type MarketCardState } from '../src/client/features/settings-card/market-card-form.js'
-import { McpPluginCard } from '../src/client/features/settings-card/McpPluginCard.js'
-import { apply, name as packageName } from '../src/client/index.js'
-import * as api from '../src/client/api.js'
-import { translationEnabled } from '../src/client/ui/translation-enabled.js'
+import { MARKET_SETTINGS_DEFAULTS, MARKET_SETTINGS_NAMESPACE, type MarketSettings } from '../packages/market-contracts/src/contracts/settings.js'
+import { bindMarketCardForm, type MarketCardFace, type MarketCardState } from '../packages/market-ui/src/features/settings-card/market-card-form.js'
+import { McpPluginCard } from '../packages/market-ui/src/features/settings-card/McpPluginCard.js'
+import { apply, name as packageName } from '../packages/market-ui/src/index.js'
+import * as api from '../packages/market-ui/src/api.js'
+import { translationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
 
 /**
  * Live listeners the market expects on the host form: one per module that binds

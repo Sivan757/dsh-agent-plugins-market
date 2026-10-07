@@ -2,9 +2,9 @@
 
 Reference contract for repositories that ship skills without any plugin manifest.
 
-- **Schema:** none, because there is no manifest to validate. The unit of validation is the `SKILL.md` frontmatter, which is parsed by `src/catalog/skills-parse.ts`.
+- **Schema:** none, because there is no manifest to validate. The unit of validation is the `SKILL.md` frontmatter, which is parsed by `packages/market-catalog/src/scanning/skills-parse.ts`.
 - **Status:** this is a discovery convention of this plugin and of the Agent Skills ecosystem, not a vendor-published plugin format.
-- **Evidence:** the shared scanning rules in `src/catalog/scan-resolvers.ts`; upstream Agent Skills documentation at https://code.claude.com/docs/en/skills and https://developers.openai.com/codex/skills.
+- **Evidence:** the shared scanning rules in `packages/market-catalog/src/scanning/scan-resolvers.ts`; upstream Agent Skills documentation at https://code.claude.com/docs/en/skills and https://developers.openai.com/codex/skills.
 
 ## Qualification
 

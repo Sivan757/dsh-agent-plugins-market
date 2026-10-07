@@ -38,7 +38,7 @@ const overviewPayload = vi.hoisted(() => ({
   totals: { all: 1, installed: 0 }
 }))
 
-vi.mock('../src/client/api.js', () => ({
+vi.mock('../packages/market-ui/src/api.js', () => ({
   fetchOverview: vi.fn().mockResolvedValue(overviewPayload),
   fetchSourceProgress: vi.fn().mockResolvedValue({ step: undefined, error: undefined }),
   fetchSuiteDetail: vi.fn(),
@@ -47,7 +47,7 @@ vi.mock('../src/client/api.js', () => ({
   postAction: vi.fn().mockResolvedValue({})
 }))
 
-vi.mock('../src/client/features/market/market-resource.js', () => ({
+vi.mock('../packages/market-ui/src/features/market/market-resource.js', () => ({
   loadOverview: vi.fn(() => ({
     initial: overviewPayload,
     revalidating: false,
@@ -57,8 +57,8 @@ vi.mock('../src/client/features/market/market-resource.js', () => ({
   startSourceProgressPolling: vi.fn(() => ({ stop: () => {} }))
 }))
 
-import { MarketSection } from '../src/client/features/market/MarketSection.js'
-import type { Translate } from '../src/client/index.js'
+import { MarketSection } from '../packages/market-ui/src/features/market/MarketSection.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 // A permissive translate that returns the key — enough to render labels.
 const t: Translate = (key, params) => {
@@ -91,7 +91,7 @@ async function mountSection(): Promise<HTMLDivElement> {
 
 /** Point the mocked overview resource at a payload before the section mounts. */
 async function stubOverview(payload: unknown): Promise<void> {
-  const resource = await import('../src/client/features/market/market-resource.js')
+  const resource = await import('../packages/market-ui/src/features/market/market-resource.js')
   vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
 }
 
@@ -159,7 +159,7 @@ describe('MarketSection rendering', () => {
     act(() => {
       cancelButton!.click()
     })
-    const postAction = (await import('../src/client/api.js')).postAction as ReturnType<typeof vi.fn>
+    const postAction = (await import('../packages/market-ui/src/api.js')).postAction as ReturnType<typeof vi.fn>
     expect(postAction).not.toHaveBeenCalledWith('install', expect.anything())
   })
 

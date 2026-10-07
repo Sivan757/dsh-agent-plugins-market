@@ -1,0 +1,79 @@
+/**
+ * Select source checkouts for a catalog dimension.
+ *
+ * User catalogs include only configured sources. Project catalogs additionally
+ * retain unmanaged checkout ids because project install state can authorize
+ * them without duplicating source configuration, and discover the project's
+ * native agent directories (`.claude/`, `.agents/`) in place so repositories
+ * migrating from other coding agents need no file copying.
+ */
+import { readdir } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { expandHome, sourcesDir } from './paths.js'
+import { isDirectory } from './fs-probes.js'
+import type { DiscoveredSuite, SourceRef, SuiteDimension } from '../../../market-contracts/src/model/types.js'
+import { scanSource as scanSourceWithNotes } from './suite-scanner.js'
+import { discoverNativeProjectSuites } from './native-project.js'
+
+/**
+ * Discover suites plus per-source scan diagnostics for one dimension.
+ * @param scanProjectLayouts - whether the project's own native Agent directories
+ *   join the scan. Required on purpose: the switch has one owner (the host
+ *   settings document), so a default here would be a second copy of it.
+ */
+export async function discoverSourceListWithNotes(
+  sources: SourceRef[],
+  dimension: SuiteDimension,
+  dimensionRoot: string,
+  scanProjectLayouts: boolean
+): Promise<{ suites: DiscoveredSuite[]; scanNotes: Record<string, string[]> }> {
+  const checkoutRoot = sourcesDir(dimensionRoot)
+  const listed = new Set(sources.map(source => source.id))
+  const checkouts: Array<{ sourceId: string; checkout: string; sourceUrl?: string }> = sources.map(source => ({
+    sourceId: source.id,
+    checkout: source.local === true ? expandHome(source.url) : join(checkoutRoot, source.id),
+    // The configured URL drives marketplace-entry self-reference resolution:
+    // an entry pointing back at this very source (Claude Code ships
+    // `{ source: 'github', repo: <own repo> }`) scans the local checkout.
+    sourceUrl: source.url
+  }))
+  if (dimension === 'project') {
+    try {
+      for (const entry of await readdir(checkoutRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name.startsWith('.') || listed.has(entry.name)) continue
+        checkouts.push({ sourceId: entry.name, checkout: join(checkoutRoot, entry.name), sourceUrl: undefined })
+      }
+    } catch {
+      // A missing project checkout root has no unmanaged project sources.
+    }
+  }
+  const discovered = await Promise.all(
+    checkouts.map(async ({ sourceId, checkout, sourceUrl }) => {
+      if (!(await isDirectory(checkout))) return { sourceId, suites: [] as DiscoveredSuite[], notes: [] as string[] }
+      const result = await scanSourceWithNotes(checkout, sourceId, dimension, sourceUrl)
+      return { sourceId, suites: result.suites, notes: result.notes }
+    })
+  )
+  const suites = discovered.flatMap(entry => entry.suites)
+  const scanNotes: Record<string, string[]> = {}
+  for (const entry of discovered) {
+    if (entry.notes.length > 0) scanNotes[entry.sourceId] = entry.notes
+  }
+  if (dimension === 'project' && scanProjectLayouts) {
+    // Native project directories live two levels above the dimension root
+    // (`<projectRoot>/.dsh/agent-plugins`); read them in place.
+    const native = await discoverNativeProjectSuites(dirname(dirname(dimensionRoot)), dimension)
+    suites.push(...native)
+    const errors = [...new Set(native.flatMap(suite => suite.errors))]
+    if (errors.length > 0) scanNotes.native = errors
+  }
+  if (dimension === 'project') {
+    for (const suite of suites) {
+      if (suite.lsp === undefined) continue
+      const note = `suite ${suite.id}: project LSP declarations are not mounted; the host LSP registry does not isolate projects`
+      suite.errors.push(note)
+      ;(scanNotes[suite.sourceId] ??= []).push(note)
+    }
+  }
+  return { suites, scanNotes }
+}

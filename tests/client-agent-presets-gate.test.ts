@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { bindAgentPresetsEnabled, agentPresetsEnabled, useAgentPresetsEnabled } from '../src/client/ui/agent-presets-enabled.js'
+import { bindAgentPresetsEnabled, agentPresetsEnabled, useAgentPresetsEnabled } from '../packages/market-ui/src/ui/agent-presets-enabled.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 

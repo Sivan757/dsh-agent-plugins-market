@@ -8,7 +8,7 @@ The scan strategy chain already separates marketplace, rooted and flat collectio
 
 ## Decision
 
-`src/model/layouts.ts` owns pure layout declarations. `manifests.ts` consumes the ordered plugin declarations; `native-project.ts` consumes explicit project directory and portable surface declarations. `SuiteLayoutKind` derives its manifest variants from the registry. Source identity, layout dialect and runtime surface remain separate concepts.
+`packages/market-contracts/src/model/layouts.ts` owns pure layout declarations. `manifests.ts` consumes the ordered plugin declarations; `native-project.ts` consumes explicit project directory and portable surface declarations. `SuiteLayoutKind` derives its manifest variants from the registry. Source identity, layout dialect and runtime surface remain separate concepts.
 
 Marketplace paths derive directly from the same ordered plugin declarations: Universal, Claude Code, Cursor, Kimi Code, Codex (standard then API alias), Qoder CLI and Copilot. Layouts without dedicated catalogs contribute no path; shared root `marketplace.json` remains last. The first productive catalog wins, with invalid or empty catalogs allowing later candidates. This replaces the separate Claude/Codex-first marketplace order; suite manifest precedence stays unchanged. See the [precedence decision](../../../.agents/notes/implemented/architecture/2026-09-09-unified-layout-precedence.md).
 

@@ -11,7 +11,7 @@ claude-plugins-official 提供 10 个 LSP 插件（typescript-lsp、pyright-lsp�
 **Claude Code 的 LSP 声明是 marketplace/manifest 内联字段，而 market 的发现器只认目录文件。**
 
 - CC 侧：条目在 `.claude-plugin/marketplace.json` 内联 `lspServers` 键（或插件 `.claude-plugin/plugin.json` 顶层同名键）；插件目录本身只有 README/LICENSE。
-- market 侧：`src/catalog/surfaces.ts` 的 `discoverLspEntries()` 只扫描 `.claude-plugin/lsp/*.json` 与反域 `<reverse.dns>/lsp/` 目录；`manifests.ts` 的 manifest 解析不读取 `lspServers` 键。
+- market 侧：`packages/market-catalog/src/scanning/surfaces.ts` 的 `discoverLspEntries()` 只扫描 `.claude-plugin/lsp/*.json` 与反域 `<reverse.dns>/lsp/` 目录；`manifests.ts` 的 manifest 解析不读取 `lspServers` 键。
 - 因此 typescript-lsp 在扫描阶段 `surfaces.lsp === 0`，详情页 LSP 区为空，卡片不显 LSP 标签。
 
 同时，DSH rc.2 的宿主侧现状必须在设计中如实对待：
@@ -134,7 +134,7 @@ export interface LspEntry {
 
 内联条目合成虚拟名 `lsp-servers`（或直接展开为逐 server 条目，见 §3.3 UI 取舍）。计数语义：`surfaces.lsp` = 目录条目数 + 内联 server 数（typescript-lsp 计 1）。
 
-### 3.2 规范化层：`LspServerSpec` + 校验（新增 `src/catalog/lsp-spec.ts`）
+### 3.2 规范化层：`LspServerSpec` + 校验（新增 `packages/market-catalog/src/scanning/lsp-spec.ts`）
 
 ```ts
 /** 一个规范化的语言服务器声明（CC lspServers 条目的市场侧投影）。 */

@@ -14,9 +14,9 @@ Status: implemented
 
 **一个事实只有一个归属，宿主已经拥有的就归宿主。**
 
-设置。`src/contracts/settings.ts` 持有默认值与缺失值解析规则。入口 Config schema 通过 `MarketSettingsFields` 声明这些默认值——只有 `translationEnabled` 例外：它的「不声明」是承重的，因为它的默认值跟随界面语言，而声明一个默认值会抹掉「未触碰过的字段」与「存了 false」之间的区别（[翻译开关的默认值](../feature/2026-10-05-translation-default-follows-language.zh.md)）。`MarketSettingsNamespace` 通过 `resolveMarketSettings` 读取实时引用，翻译开关也走同一读口。浏览器卡片消费宿主已解析的表单。
+设置。`packages/market-contracts/src/contracts/settings.ts` 持有默认值与缺失值解析规则。入口 Config schema 通过 `MarketSettingsFields` 声明这些默认值——只有 `translationEnabled` 例外：它的「不声明」是承重的，因为它的默认值跟随界面语言，而声明一个默认值会抹掉「未触碰过的字段」与「存了 false」之间的区别（[翻译开关的默认值](../feature/2026-10-05-translation-default-follows-language.zh.md)）。`MarketSettingsNamespace` 通过 `resolveMarketSettings` 读取实时引用，翻译开关也走同一读口。浏览器卡片消费宿主已解析的表单。
 
-翻译读取方。`src/client/ui/translation-enabled.ts` 使用已发布的快照 store，将共享宿主表单投影为一个只读布尔可订阅对象，不启用持久化或帧调度。面板 hook 和菜单集成读取同一个对象。替换绑定会退订旧表单、保留消费者订阅，并防止旧 disposer 清除新绑定。解除绑定时恢复契约默认值。设置与菜单的注入回调直接返回清理函数，服务替换时即可释放订阅，不必等到根插件卸载。
+翻译读取方。`packages/market-ui/src/ui/translation-enabled.ts` 使用已发布的快照 store，将共享宿主表单投影为一个只读布尔可订阅对象，不启用持久化或帧调度。面板 hook 和菜单集成读取同一个对象。替换绑定会退订旧表单、保留消费者订阅，并防止旧 disposer 清除新绑定。解除绑定时恢复契约默认值。设置与菜单的注入回调直接返回清理函数，服务替换时即可释放订阅，不必等到根插件卸载。
 
 卡片表单。`src/client/plugin-card-controller.ts` 暂存编辑、保存时提交，与 `settings.plugin.item` 槽位里每个卡片遵循的契约一致。控制器把状态投影成 `@deepseek-ai/dsh-client-store` 快照，经槽位的 `hooks` 座位发布，由宿主渲染器合成卡片的选择器 hook，`src/client/McpPluginCard.tsx` 因此只是一个渲染器。命名空间未送达时卡片不渲染任何内容；只有用户层确实带着该字段时才标记为已自定义；重置走 `scope.unset`，让字段重新跟随插件，而不是把当前值钉死。
 

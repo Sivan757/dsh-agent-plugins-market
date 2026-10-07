@@ -1,16 +1,16 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 // @vitest-environment jsdom
-import { en as settingsEn } from '../src/client/locales.js'
+import { en as settingsEn } from '../packages/market-ui/src/locales.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { createWriteQueue, resourceSelected, toggleResource, uniquePresetName } from '../src/client/features/extension-presets/resource.js'
-import { apply, COMPOSER_TOGGLE_SLOT } from '../src/client/index.js'
-import { bindAgentPresetsEnabled } from '../src/client/ui/agent-presets-enabled.js'
-import { ExtensionPresetEntry } from '../src/client/features/extension-presets/ExtensionPresetEntry.js'
-import { extensionPresetsEn, extensionPresetsZh } from '../src/client/locales-extension-presets.js'
-import type { ExtensionResource, ExtensionWindowPayload } from '../src/contracts/extension-presets.js'
+import { createWriteQueue, resourceSelected, toggleResource, uniquePresetName } from '../packages/market-ui/src/features/extension-presets/resource.js'
+import { apply, COMPOSER_TOGGLE_SLOT } from '../packages/market-ui/src/index.js'
+import { bindAgentPresetsEnabled } from '../packages/market-ui/src/ui/agent-presets-enabled.js'
+import { ExtensionPresetEntry } from '../packages/market-ui/src/features/extension-presets/ExtensionPresetEntry.js'
+import { extensionPresetsEn, extensionPresetsZh } from '../packages/market-ui/src/locales-extension-presets.js'
+import type { ExtensionResource, ExtensionWindowPayload } from '../packages/market-contracts/src/contracts/extension-presets.js'
 const renderDetail = vi.fn(() => null)
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 const row: ExtensionResource = {

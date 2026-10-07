@@ -16,7 +16,7 @@ Claude Code 的契约（Plugins reference 的 "Environment variables" 表与 Ski
 
 作者写在套件文本里的占位符，全部由注入层解析。
 
-`src/catalog/plugin-variables.ts` 是唯一的实现：`expandPluginPaths(text, context)` 按四组变量分别解析——`PLUGIN_ROOT_VARIABLES`（`PLUGIN_ROOT` 与各方言拼写）、`PLUGIN_DATA_VARIABLES`、`PROJECT_DIR_VARIABLES`、`SKILL_DIR_VARIABLE`，调用方只传自己手里的值，没有值的变量原样保留（`${NAME:-default}` 之类的作者意图不会被清空）；`pluginRootOf(suite)` 对 `project-native` 布局返回 `undefined`，因为那些文件是仓库自己的原生目录，没有插件根（Claude Code 同样只在插件技能里替换插件根变量）。数据目录由 `suiteDataDir(dataRoot, sourceId, suiteId)` 统一定义，MCP 走的是同一个函数。
+`packages/market-catalog/src/scanning/plugin-variables.ts` 是唯一的实现：`expandPluginPaths(text, context)` 按四组变量分别解析——`PLUGIN_ROOT_VARIABLES`（`PLUGIN_ROOT` 与各方言拼写）、`PLUGIN_DATA_VARIABLES`、`PROJECT_DIR_VARIABLES`、`SKILL_DIR_VARIABLE`，调用方只传自己手里的值，没有值的变量原样保留（`${NAME:-default}` 之类的作者意图不会被清空）；`pluginRootOf(suite)` 对 `project-native` 布局返回 `undefined`，因为那些文件是仓库自己的原生目录，没有插件根（Claude Code 同样只在插件技能里替换插件根变量）。数据目录由 `suiteDataDir(dataRoot, sourceId, suiteId)` 统一定义，MCP 走的是同一个函数。
 
 各面的取用时机按「谁在什么时候知道值」选择：
 

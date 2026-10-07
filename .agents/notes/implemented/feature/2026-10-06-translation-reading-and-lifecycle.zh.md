@@ -12,13 +12,13 @@ Status: implemented
 
 ### 语言与显示互相独立
 
-[配置协议](../../../../src/contracts/settings.ts)把界面字典解析为 `zh` 或 `en`。中文默认开启，英文默认关闭。存下的布尔值优先，直到用户恢复默认。默认值谓词不是执行门禁。本地化器允许把中文翻成英文，包括以英文为主但夹有中文的文本。
+[配置协议](../../../../packages/market-contracts/src/contracts/settings.ts)把界面字典解析为 `zh` 或 `en`。中文默认开启，英文默认关闭。存下的布尔值优先，直到用户恢复默认。默认值谓词不是执行门禁。本地化器允许把中文翻成英文，包括以英文为主但夹有中文的文本。
 
 名称与关键词仍是标识。翻译后的描述与正文只用于显示。进入模型上下文的提示词与工具描述保持作者语言。
 
 ### 已展开文档默认双语阅读
 
-[共享阅读器](../../../../src/client/ui/DocumentTranslation.tsx)挂载在已展开的文档中，并在此时发起翻译读取。右上角的紧凑图标标签切换原文、译文和双语。宿主 `SegmentedTabs` 保留键盘导航，默认选择双语。本地化标签供辅助技术读取，并在悬停时显示。
+[共享阅读器](../../../../packages/market-ui/src/ui/DocumentTranslation.tsx)挂载在已展开的文档中，并在此时发起翻译读取。右上角的紧凑图标标签切换原文、译文和双语。宿主 `SegmentedTabs` 保留键盘导航，默认选择双语。本地化标签供辅助技术读取，并在悬停时显示。
 
 未展开文档不启动翻译。原文模式停止阅读器重验证，显示作者文本。关闭阅读器不等于取消该文档的全部服务端工作。
 
@@ -28,13 +28,13 @@ Status: implemented
 
 ### 读取失败时停止加载并允许重试
 
-[文档轮询](../../../../src/client/ui/translation-settle.ts)经 `onError` 报告读取失败，然后停止，不把待处理工作当作已完成。阅读器隐藏加载提示，保留原文或部分译文，并提供「重试翻译」。重试按同一文档和目标语言发起新读取。关闭阅读器或选择原文模式后，不显示迟到的错误。
+[文档轮询](../../../../packages/market-ui/src/ui/translation-settle.ts)经 `onError` 报告读取失败，然后停止，不把待处理工作当作已完成。阅读器隐藏加载提示，保留原文或部分译文，并提供「重试翻译」。重试按同一文档和目标语言发起新读取。关闭阅读器或选择原文模式后，不显示迟到的错误。
 
-[翻译 POST 读取](../../../../src/client/api.ts)使用 15 秒读取时限，不使用 600 秒修改操作时限。请求通过竞速机制将时限覆盖到响应体读取结束，仅收到响应头不会停止计时。这只约束每次 HTTP 读取，不约束翻译工作的总时长。
+[翻译 POST 读取](../../../../packages/market-ui/src/api.ts)使用 15 秒读取时限，不使用 600 秒修改操作时限。请求通过竞速机制将时限覆盖到响应体读取结束，仅收到响应头不会停止计时。这只约束每次 HTTP 读取，不约束翻译工作的总时长。
 
 ### 在服务端变换文档结构
 
-[文档变换](../../../../src/application/translation/document.ts)使用带 GFM 和 math 扩展的 mdast。抽象语法树（AST）表示文档结构。变换按段落、标题或表格单元格收集 text 叶节点，用有序占位符保留行内节点位置。代码块、行内代码、链接目标、数学内容与原始 HTML 不进入 provider 输入。占位符缺失、重复或乱序的答案不能直接采用。Provider 适配器可以先尝试[有界修复](2026-10-04-universal-translation-layer.zh.md#遮蔽)，再返回有效译文，或保留原段落。允许单个行内 text 叶节点为空，但整段去掉占位符后必须仍含非空白文本。
+[文档变换](../../../../packages/market-translation/src/application/translation/document.ts)使用带 GFM 和 math 扩展的 mdast。抽象语法树（AST）表示文档结构。变换按段落、标题或表格单元格收集 text 叶节点，用有序占位符保留行内节点位置。代码块、行内代码、链接目标、数学内容与原始 HTML 不进入 provider 输入。占位符缺失、重复或乱序的答案不能直接采用。Provider 适配器可以先尝试[有界修复](2026-10-04-universal-translation-layer.zh.md#遮蔽)，再返回有效译文，或保留原段落。允许单个行内 text 叶节点为空，但整段去掉占位符后必须仍含非空白文本。
 
 文档正文不会为填满请求而将一段与相邻段落合并。只有超长段落才切成有上限的片段。缓存身份包含片段文本，不包含段落位置。插入一段正文不会改变无关片段的键。描述保留旧分块器，包括跨段组块和作者分隔符，以保持历史描述缓存键。
 
@@ -42,11 +42,11 @@ Status: implemented
 
 ### 关闭保留已完成缓存
 
-[本地化器](../../../../src/application/translation/localizer.ts)经 `onEnabledChanged()` 接收配置变化。关闭会递增 generation、丢弃排队工作并取消活动批次。[Provider 链](../../../../src/application/translation/chain.ts)在每次回退前与每次响应后判断是否取消。调用方取消不使 provider 熔断。已完成缓存保留，供之后开启状态下的读取使用。
+[本地化器](../../../../packages/market-translation/src/application/translation/localizer.ts)经 `onEnabledChanged()` 接收配置变化。关闭会递增 generation、丢弃排队工作并取消活动批次。[Provider 链](../../../../packages/market-translation/src/application/translation/chain.ts)在每次回退前与每次响应后判断是否取消。调用方取消不使 provider 熔断。已完成缓存保留，供之后开启状态下的读取使用。
 
 Provider 可以忽略取消信号并完成远端计算。链将 provider 工作与时限、调用方取消进行竞速，因此停止等待不依赖 provider 配合。超时允许回退，调用方取消则停止整条链。Generation 判断拒绝旧响应。重新开启会重置失败状态，但不扫描或预翻译文档。新的读取才请求缺失的工作。
 
-[模型适配器](../../../../src/runtime/host/llm-translator.ts)向能力查询传入取消信号，并在启动流之前再次判断。能力查询在取消后才完成时，不能发起新的模型生成。
+[模型适配器](../../../../packages/market-translation/src/runtime/host/llm-translator.ts)向能力查询传入取消信号，并在启动流之前再次判断。能力查询在取消后才完成时，不能发起新的模型生成。
 
 ### 重置有序持久化并拒绝旧工作
 
@@ -58,7 +58,7 @@ Provider 可以忽略取消信号并完成远端计算。链将 provider 工作�
 
 ### 打开的菜单有限重验证
 
-[菜单描述数据源](../../../../src/client/menu-row-faces.ts)立即返回当前描述。真实候选请求的 `sessionId` 经 `sessions.scope` 借用既有作用域，再用公开的 `inputTriggers.sessionOf` 获取控制器。菜单保持打开时最多追加 40 次读取，间隔至少 1.5 秒。只有描述映射变化才调用 `refreshOpenMenu()`，避免刷新递归。关闭菜单或停用翻译即停止定时读取，不存在永久后台轮询。
+[菜单描述数据源](../../../../packages/market-ui/src/menu-row-faces.ts)立即返回当前描述。真实候选请求的 `sessionId` 经 `sessions.scope` 借用既有作用域，再用公开的 `inputTriggers.sessionOf` 获取控制器。菜单保持打开时最多追加 40 次读取，间隔至少 1.5 秒。只有描述映射变化才调用 `refreshOpenMenu()`，避免刷新递归。关闭菜单或停用翻译即停止定时读取，不存在永久后台轮询。
 
 40 次节拍约为 60 秒，实际窗口还包含读取耗时。预算耗尽后才完成的译文，需要后续候选请求再次重验证。缺少公开控制器时退回候选请求触发的读取。新目标清空旧描述，旧响应不能覆盖较新的读取。
 

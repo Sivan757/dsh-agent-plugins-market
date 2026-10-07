@@ -11,8 +11,8 @@
  * it instead of dropping it into the suite detail's error list.
  */
 import { describe, expect, it } from 'vitest'
-import { readExtensionInventory } from '../src/application/extension-inventory.js'
-import { effectiveSurfaces, type ProjectHooks, type Suite } from '../src/model/types.js'
+import { readExtensionInventory } from '../packages/market-bundle/src/application/extension-inventory.js'
+import { effectiveSurfaces, type ProjectHooks, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 /** The user-hooks synthetic suite, the shape loadUserHooksSuite always builds. */
 const userHooksSuite = (overrides: { events?: ProjectHooks['events']; errors?: string[] }): Suite => ({

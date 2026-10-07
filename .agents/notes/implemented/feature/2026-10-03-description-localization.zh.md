@@ -42,12 +42,12 @@ catalog 不归我们编辑。一个 source 是别人仓库的 checkout，每次�
 
 ### 落点
 
-| 关注点           | 模块                                                  |
-| ---------------- | ----------------------------------------------------- |
-| 缓存文件与键     | `src/application/state/description-translations.ts`   |
-| 队列、退避、降级 | `src/application/description-localizer.ts`            |
-| 模型调用         | `src/runtime/host/description-translator.ts`          |
-| 接缝             | `src/application/ports.ts` 的 `descriptionTranslator` |
+| 关注点           | 模块                                                                      |
+| ---------------- | ------------------------------------------------------------------------- |
+| 缓存文件与键     | `src/application/state/description-translations.ts`                       |
+| 队列、退避、降级 | `src/application/description-localizer.ts`                                |
+| 模型调用         | `src/runtime/host/description-translator.ts`                              |
+| 接缝             | `packages/market-contracts/src/ports/ports.ts` 的 `descriptionTranslator` |
 
 ### 模型调用
 

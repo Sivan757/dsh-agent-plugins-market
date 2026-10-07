@@ -1,0 +1,755 @@
+/**
+ * HTTP routes bridging the market page to the application market service.
+ *
+ * This layer only parses requests, delegates to the application service, and serializes
+ * responses. Mutating routes accept same-origin POSTs exclusively: a
+ * cross-site form or fetch cannot trigger a clone, an uninstall, or an
+ * enable/disable against a local profile.
+ */
+import { isAbsolute } from 'node:path'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from '../../market-contracts/src/contracts/market.js'
+import { expandHome } from '../../market-catalog/src/index.js'
+import { sanitizeOverridePatch } from '../../market-mcp/src/index.js'
+import type { MarketService } from '../../market-contracts/src/ports/queries.js'
+import type { SourcePatch } from '../../market-contracts/src/ports/ports.js'
+import type { SourceKind, SuiteSurfaceKey } from '../../market-contracts/src/model/types.js'
+import type { PanelResourceStore } from '../../market-runtime/src/index.js'
+import { readModelCatalog } from '../../market-runtime/src/index.js'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { ProjectExtensionReader } from './application/extension-project.js'
+import type { McpStatusPayload } from '../../market-mcp/src/index.js'
+import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
+
+const MAX_BODY_BYTES = 64 * 1024
+
+export interface WebServerService {
+  register(route: { kind: 'exact' | 'prefix'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void
+}
+
+interface RouteHost {
+  webServer: WebServerService
+  get?(name: string): unknown
+}
+
+/** Recount a merged MCP view so its totals describe the entries actually returned. */
+function mcpTotals(entries: McpStatusPayload['entries']): McpStatusPayload['totals'] {
+  const count = (state: string): number => entries.filter(entry => entry.state === state).length
+  return {
+    all: entries.length,
+    connected: count('connected'),
+    degraded: count('degraded'),
+    failed: count('failed'),
+    needsCredentials: count('needs-credentials'),
+    orphaned: count('orphaned'),
+    disabled: count('disabled'),
+    foreign: count('foreign')
+  }
+}
+
+/** Recount a merged LSP view the way the status builder counts its own rows. */
+function lspTotals(entries: LspStatusPayload['entries']): LspStatusPayload['totals'] {
+  const count = (state: string): number => entries.filter(entry => entry.state === state).length
+  return {
+    all: entries.length,
+    mounted: count('mounted'),
+    failed: count('failed'),
+    blocked: count('host-missing') + count('conflict'),
+    disabled: count('disabled')
+  }
+}
+
+/** The live-session lookup a read route uses to answer for one session's workspace. */
+export interface SuiteRouteSessionResolver {
+  /** The live agent for one session id; undefined when no such live session exists. */
+  agent(sessionId: string): Agent | undefined
+  /**
+   * That agent's project reader. The transport cannot build one itself: it holds
+   * the panel stores but not the panel sources or the full catalog they are read
+   * over. Omitted means session-scoped reads stay unavailable, never global.
+   */
+  project?(agent: Agent): ProjectExtensionReader
+}
+/** Where one read answers from: the global user catalog, or one live session's workspace. */
+type ReadSource = { reader?: ProjectExtensionReader } | { error: string }
+
+/** Mount every route; returns the disposer releasing them all. */
+export function mountSuiteRoutes(
+  hostCtx: unknown,
+  manager: MarketService,
+  panels?: { skills: PanelResourceStore; commands: PanelResourceStore; agents: PanelResourceStore },
+  surfaceToggles?: {
+    currentToggles(): import('../../market-contracts/src/contracts/surface-toggles.js').SurfaceToggles
+    set(key: import('../../market-contracts/src/contracts/surface-toggles.js').SurfaceToggleKey, enabled: boolean): Promise<unknown>
+  },
+  session?: SuiteRouteSessionResolver
+): () => void {
+  const host = hostCtx as RouteHost
+  const disposers: Array<() => void> = []
+  const get = (path: string, handler: RouteHandler) => {
+    disposers.push(host.webServer.register({ kind: 'exact', path, handler }))
+  }
+  const post = (path: string, handler: JsonAction) => {
+    disposers.push(
+      host.webServer.register({
+        kind: 'exact',
+        path,
+        handler: (request, response) => {
+          if (!sameOrigin(request)) {
+            sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
+            return
+          }
+          void (async () => {
+            const body = await readJsonBody(request)
+            if (body === undefined) {
+              sendJson(response, 400, { ok: false, error: 'invalid JSON body' })
+              return
+            }
+            try {
+              const value = await handler(body as Record<string, unknown>, request)
+              sendJson(response, 200, { ok: true, ...value })
+            } catch (error) {
+              // A rejection that names its fields travels with them, so the editor
+              // can place each reason beside the input it belongs to.
+              const fields = (error as { fields?: unknown }).fields
+              sendJson(response, 400, {
+                ok: false,
+                error: error instanceof Error ? error.message : String(error),
+                ...(Array.isArray(fields) ? { fields } : {})
+              })
+            }
+          })()
+        }
+      })
+    )
+  }
+
+  /**
+   * A read naming a session answers for that session's workspace; a read without
+   * one keeps answering from the global user catalog. Resolution failures are
+   * diagnosable rather than silent: an unknown session, a workspace-less agent,
+   * or an unwired project reader never falls back to a request path or to the
+   * process working directory.
+   */
+  const readSource = (request: IncomingMessage): ReadSource => {
+    const sessionId = queryOf(request).get('sessionId')
+    if (sessionId === null || sessionId === '') return {}
+    const agent = session?.agent(sessionId)
+    if (agent === undefined) return { error: 'no live session "' + sessionId + '"' }
+    const cwd = agent.session.header.cwd
+    if (typeof cwd !== 'string' || !isAbsolute(cwd)) return { error: 'session "' + sessionId + '" has no absolute workspace' }
+    const reader = session?.project?.(agent)
+    return reader === undefined ? { error: 'session-scoped project reads are unavailable' } : { reader }
+  }
+  /**
+   * Read one resource from whichever source owns it. A source-qualified id can
+   * name a user-dimension suite that merely rode along with a session, so a
+   * session-scoped request asks that workspace's project reader first and falls
+   * back to the user catalog. The session itself is validated before either, so
+   * an unknown session can never become a global read.
+   */
+  const readOwned = async <T>(source: ReadSource, fromProject: (reader: ProjectExtensionReader) => Promise<T>, fromCatalog: () => Promise<T>): Promise<T> => {
+    if ('error' in source) throw new Error(source.error)
+    if (source.reader === undefined) return fromCatalog()
+    try {
+      return await fromProject(source.reader)
+    } catch {
+      // The id is not this workspace's project resource; the catalog that owns it answers.
+      return fromCatalog()
+    }
+  }
+  /**
+   * One status view for a session: the user catalog stays visible and that
+   * workspace's own declarations join it. Replacing the catalog outright would
+   * hide every user server behind a session id.
+   */
+  const mergeById = <T extends { id: string }>(base: readonly T[], extra: readonly T[]): T[] => {
+    const seen = new Set(base.map(entry => entry.id))
+    return [...base, ...extra.filter(entry => !seen.has(entry.id))]
+  }
+
+  get(MARKET_ROUTES.overview, async (_request, response) => {
+    sendJson(response, 200, await manager.overview())
+  })
+
+  // The slash menu's row faces. The menu asks on mount and on a locale change;
+  // translation stays lazy, so this reads the cache the panels filled and never
+  // starts a provider round of its own.
+  get(MARKET_ROUTES.menuRowFaces, async (_request, response) => {
+    sendJson(response, 200, await manager.menuRowFaces())
+  })
+
+  // The reset control in the plugin's configuration card. Dropping the cache is
+  // the whole operation: translation is lazy, so the next overview read
+  // repopulates it and the panel shows the authored text until it lands.
+  post(MARKET_ROUTES.clearTranslations, async () => {
+    await manager.clearTranslations()
+    return {}
+  })
+
+  get(MARKET_ROUTES.modelCatalog, async (request, response) => {
+    try {
+      const query = queryOf(request)
+      sendJson(response, 200, await readModelCatalog(host, query.get('provider') || undefined, query.get('model') || undefined))
+    } catch (error) {
+      sendJson(response, 503, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  get(MARKET_ROUTES.mcpStatus, async (request, response) => {
+    const source = readSource(request)
+    if ('error' in source) {
+      sendJson(response, 404, { ok: false, error: source.error })
+      return
+    }
+    const global = await manager.mcpStatus()
+    if (source.reader === undefined) {
+      sendJson(response, 200, global)
+      return
+    }
+    const project = await source.reader.mcpStatus()
+    const entries = mergeById(global.entries, project.entries)
+    sendJson(response, 200, { ...global, entries, totals: mcpTotals(entries) })
+  })
+
+  get(MARKET_ROUTES.serverConfig, async (request, response) => {
+    try {
+      const query = queryOf(request)
+      const kind = query.get('kind')
+      if (kind !== 'mcp' && kind !== 'lsp') throw new Error('invalid service kind')
+      sendJson(response, 200, await manager.serverConfig(kind, query.get('id') ?? '', query.get('create') === 'true'))
+    } catch (error) {
+      sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+  post(MARKET_ROUTES.saveServerConfig, async body => {
+    if (body.kind !== 'mcp' && body.kind !== 'lsp') throw new Error('invalid service kind')
+    if (typeof body.id !== 'string' || body.id === '') throw new Error('missing service id')
+    await manager.saveServerConfig(body.kind, body.id, body.config, body.policy)
+    return {}
+  })
+
+  post(MARKET_ROUTES.addMcpServer, async body => {
+    if (typeof body.name !== 'string') throw new Error('MCP server name is required')
+    await manager.addMcpServer(body.name, body.config, body.policy)
+    return {}
+  })
+
+  get(MARKET_ROUTES.lspStatus, async (request, response) => {
+    const source = readSource(request)
+    if ('error' in source) {
+      sendJson(response, 404, { ok: false, error: source.error })
+      return
+    }
+    const global = await manager.lspStatus()
+    if (source.reader === undefined) {
+      sendJson(response, 200, global)
+      return
+    }
+    const project = await source.reader.lspStatus()
+    const entries = mergeById(global.entries, project.entries)
+    sendJson(response, 200, { ...global, entries, totals: lspTotals(entries), hostMissing: entries.length > 0 && entries.every(entry => entry.state === 'host-missing') })
+  })
+
+  get(MARKET_ROUTES.lspServers, async (_request, response) => {
+    sendJson(response, 200, { lspServers: await manager.lspServers() })
+  })
+
+  get(MARKET_ROUTES.surfaceToggles, async (_request, response) => {
+    sendJson(response, 200, surfaceToggles?.currentToggles() ?? {})
+  })
+
+  post(MARKET_ROUTES.setSurfaceToggle, async body => {
+    if (surfaceToggles === undefined) throw new Error('surface toggles are not available')
+    const key = body.key
+    if (typeof key !== 'string' || !['market', 'skills', 'commands', 'agents', 'mcp', 'lsp'].includes(key)) {
+      throw new Error('invalid surface key')
+    }
+    if (typeof body.enabled !== 'boolean') throw new Error('enabled must be a boolean')
+    await surfaceToggles.set(key as import('../../market-contracts/src/contracts/surface-toggles.js').SurfaceToggleKey, body.enabled)
+    return { toggles: surfaceToggles.currentToggles() }
+  })
+
+  get(MARKET_ROUTES.progress, async (_request, response) => {
+    sendJson(response, 200, manager.sourceProgress())
+  })
+
+  get(MARKET_ROUTES.config, async (_request, response) => {
+    sendJson(response, 200, { sources: manager.sources })
+  })
+
+  get(MARKET_ROUTES.suite, async (request, response) => {
+    const query = queryOf(request)
+    const sourceId = query.get('sourceId')
+    const suiteId = query.get('suiteId')
+    if (sourceId === null || suiteId === null) {
+      sendJson(response, 400, { ok: false, error: 'missing sourceId or suiteId' })
+      return
+    }
+    try {
+      const source = readSource(request)
+      if ('error' in source) throw new Error(source.error)
+      // The project reader resolves source and suite inside this session's own
+      // workspace, so an id invented for another workspace simply is not found.
+      sendJson(
+        response,
+        200,
+        await readOwned(
+          source,
+          reader => reader.suiteDetail(sourceId, suiteId),
+          () => manager.suiteDetail(sourceId, suiteId)
+        )
+      )
+    } catch (error) {
+      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  // One suite document's authored text, whole. This is the market detail page's
+  // only document read — skills, commands, and agents all arrive through it when
+  // a reader opens the row — and it names the suite and the document rather than
+  // a path, so the catalog re-reads the file the scan found.
+  get(MARKET_ROUTES.suiteDocument, async (request, response) => {
+    const query = queryOf(request)
+    const sourceId = query.get('sourceId')
+    const suiteId = query.get('suiteId')
+    const kind = query.get('kind')
+    const name = query.get('name')
+    if (sourceId === null || suiteId === null || name === null || (kind !== 'skills' && kind !== 'commands' && kind !== 'agents')) {
+      sendJson(response, 400, { ok: false, error: 'missing sourceId, suiteId, kind, or name' })
+      return
+    }
+    try {
+      const source = readSource(request)
+      sendJson(
+        response,
+        200,
+        await readOwned(
+          source,
+          reader => reader.suiteDocument(sourceId, suiteId, kind, name),
+          () => manager.suiteDocument(sourceId, suiteId, kind, name)
+        )
+      )
+    } catch (error) {
+      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  // One suite document's translation, for the market detail page's skills,
+  // commands, and agents. The body names the suite and the document and nothing
+  // else: the catalog re-reads that file from the suite's own checkout, so a
+  // script on the page cannot spend the operator's translation quota on text of
+  // its own choosing — the same contract the user-panel route keeps. The
+  // document the reader sees arrives through the document route above, and this
+  // route re-reads the same file rather than trusting the page.
+  post(MARKET_ROUTES.suiteDocumentTranslation, async (body, request) => {
+    const { sourceId, suiteId } = parseTarget(body)
+    const kind = body['kind']
+    if (kind !== 'skills' && kind !== 'commands' && kind !== 'agents') throw new Error('invalid document kind')
+    const name = textField(body['name'] ?? '', 'document name')
+    if (name === '') throw new Error('missing document name')
+    // The same reader the document GET uses: the session is taken from the query,
+    // validated once, and an unknown or workspace-less session is a diagnostic.
+    const source = readSource(request)
+    const translated = await readOwned(
+      source,
+      reader => reader.suiteDocumentTranslation(sourceId, suiteId, kind, name),
+      () => manager.suiteDocumentTranslation(sourceId, suiteId, kind, name)
+    )
+    return { ...translated }
+  })
+
+  post(MARKET_ROUTES.addSource, async body => {
+    const url = textField(body['url'] ?? '', 'source url').trim()
+    if (url === '') throw new Error('missing source url')
+    const local = body['local'] === true
+    if (local) {
+      const expanded = expandHome(url)
+      if (!url.startsWith('~/') && url !== '~' && !isAbsolute(expanded)) throw new Error('local source url must be an absolute path or start with ~/')
+    }
+    const kind = parseSourceKind(body['kind'])
+    if (kind === 'local' && !local) {
+      const expanded = expandHome(url)
+      if (!url.startsWith('~/') && url !== '~' && !isAbsolute(expanded)) throw new Error('local source url must be an absolute path or start with ~/')
+    }
+    const branch = body['branch'] === undefined ? undefined : textField(body['branch'], 'branch')
+    const sha256 = parseSha256(body['sha256'])
+    const source = await manager.addSource({
+      url: local || kind === 'local' ? expandHome(url) : url,
+      ...(branch !== undefined && branch.trim() !== '' ? { branch: branch.trim() } : {}),
+      ...(local ? { local: true } : {}),
+      ...(kind === undefined ? {} : { kind }),
+      ...(sha256 === undefined ? {} : { sha256 })
+    })
+    return { source }
+  })
+
+  post(MARKET_ROUTES.updateSource, async body => {
+    const id = body['id']
+    if (typeof id !== 'string' || id === '') throw new Error('missing source id')
+    const patch: SourcePatch = {}
+    if (body['url'] !== undefined) {
+      const url = textField(body['url'], 'source url').trim()
+      if (url === '') throw new Error('missing source url')
+      patch.url = url
+    }
+    if (body['branch'] !== undefined) patch.branch = textField(body['branch'], 'branch').trim()
+    if (body['local'] !== undefined) patch.local = body['local'] === true
+    const kind = parseSourceKind(body['kind'])
+    if (kind !== undefined) patch.kind = kind
+    const sha256 = parseSha256(body['sha256'])
+    if (sha256 !== undefined) patch.sha256 = sha256
+    await manager.updateSource(id, patch)
+    return {}
+  })
+
+  // Register one unmanaged `.sources/` checkout in place — the manual-clone
+  // repair path. Nothing is cloned, moved, or deleted.
+  post(MARKET_ROUTES.adoptSource, async body => {
+    const id = body['id']
+    if (typeof id !== 'string' || id === '') throw new Error('missing checkout id')
+    const source = await manager.adoptSource(id)
+    return { source }
+  })
+
+  post(MARKET_ROUTES.removeSource, async body => {
+    const id = body['id']
+    if (typeof id !== 'string' || id === '') throw new Error('missing source id')
+    await manager.removeSource(id, body['deleteCheckout'] === true)
+    return {}
+  })
+
+  post(MARKET_ROUTES.refreshSource, async body => {
+    const id = body['id'] === undefined ? undefined : textField(body['id'], 'source id')
+    await manager.refreshSource(id === '' ? undefined : id)
+    return {}
+  })
+
+  post(MARKET_ROUTES.install, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    await manager.install(sourceId, suiteId)
+    return {}
+  })
+
+  post(MARKET_ROUTES.uninstall, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    await manager.uninstall(sourceId, suiteId)
+    return {}
+  })
+
+  post(MARKET_ROUTES.setEnabled, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    const enabled = body['enabled']
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setEnabled(sourceId, suiteId, enabled)
+    return {}
+  })
+
+  post(MARKET_ROUTES.setSurface, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    const surface = body['surface']
+    const enabled = body['enabled']
+    if (typeof surface !== 'string' || surface === '') throw new Error('missing surface')
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setSurface(sourceId, suiteId, surface as SuiteSurfaceKey, enabled)
+    return {}
+  })
+
+  get(MARKET_ROUTES.mcpOverrides, async (request, response) => {
+    const query = queryOf(request)
+    const sourceId = query.get('sourceId')
+    const suiteId = query.get('suiteId')
+    if (sourceId === null || suiteId === null) {
+      sendJson(response, 400, { ok: false, error: 'missing sourceId or suiteId' })
+      return
+    }
+    try {
+      sendJson(response, 200, { ok: true, overrides: await manager.mcpOverrides(sourceId, suiteId) })
+    } catch (error) {
+      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  post(MARKET_ROUTES.setMcpOverride, async body => {
+    const { sourceId, suiteId } = parseTarget(body)
+    const serverKey = body['serverKey']
+    if (typeof serverKey !== 'string' || serverKey === '') throw new Error('missing serverKey')
+    const override = body['override']
+    const sanitized = sanitizeOverridePatch(override)
+    if (override !== null && sanitized === undefined) throw new Error('invalid override payload')
+    await manager.setMcpOverride(sourceId, suiteId, serverKey, sanitized ?? null)
+    return {}
+  })
+
+  // Enable or disable one declared MCP server. Addressed by the same
+  // source-qualified suite id the status rows carry, so the card can toggle a
+  // server without holding the source and suite ids apart.
+  post(MARKET_ROUTES.setMcpServerEnabled, async body => {
+    const suiteKey = textField(body['suiteId'] ?? '', 'MCP suite id')
+    const serverKey = textField(body['serverKey'] ?? '', 'MCP server key')
+    const enabled = body['enabled']
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setMcpServerEnabled(suiteKey, serverKey, enabled)
+    return {}
+  })
+
+  // Allow or deny one tool of a declared MCP server. Addressed by the same
+  // source-qualified suite id the status rows carry; the denial lands in the
+  // override record, so the suite's own mcp.json stays source-owned.
+  post(MARKET_ROUTES.setMcpServerTool, async body => {
+    const suiteKey = textField(body['suiteId'] ?? '', 'MCP suite id')
+    const serverKey = textField(body['serverKey'] ?? '', 'MCP server key')
+    const tool = textField(body['tool'] ?? '', 'MCP tool name')
+    const enabled = body['enabled']
+    if (tool === '') throw new Error('missing MCP tool name')
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setMcpServerToolEnabled(suiteKey, serverKey, tool, enabled)
+    return {}
+  })
+
+  // Manual MCP reconcile: retries failed mounts and clears residual tools
+  // without touching any catalog state.
+  post(MARKET_ROUTES.mcpRetry, async () => {
+    await manager.retryMounts()
+    return {}
+  })
+
+  // Drop one server's OAuth grant record: the next mount re-runs the browser
+  // authorization, which is how a user widens a too-narrow scope.
+  post(MARKET_ROUTES.mcpReauthorize, async body => {
+    const serverName = body['serverName']
+    if (typeof serverName !== 'string' || serverName === '') throw new Error('serverName is required')
+    await manager.reauthorizeMcpServer(serverName)
+    return {}
+  })
+
+  // The MCP backend block: which client mounts suite servers, and whether the
+  // host's dsh-mcp-client is resolvable as the compatibility option.
+  get(MARKET_ROUTES.mcpBackend, async (_request, response) => {
+    sendJson(response, 200, await manager.mcpBackendInfo())
+  })
+
+  post(MARKET_ROUTES.setMcpBackend, async body => {
+    const backend = body['backend']
+    if (backend !== 'builtin' && backend !== 'host') throw new Error('backend must be "builtin" or "host"')
+    await manager.setMcpBackend(backend)
+    return await manager.mcpBackendInfo()
+  })
+
+  // Validate and persist the user's direct LSP server table; the reconcile
+  // pass picks it up and mounts it alongside the suite declarations. The
+  // mutation path is distinct from the read path: the webserver's exact table
+  // is keyed by pathname only, so a same-path GET/POST pair cannot coexist.
+  post(`${MARKET_ROUTES.lspServers}/save`, async body => {
+    const servers = await manager.setLspServers(body['lspServers'])
+    return { lspServers: servers }
+  })
+  post(MARKET_ROUTES.addLspServer, async body => {
+    if (typeof body.name !== 'string') throw new Error('missing LSP server name')
+    await manager.addLspServer(body.name.trim(), body.config)
+    return {}
+  })
+  post(`${MARKET_ROUTES.lspServers}/enabled`, async body => {
+    const id = textField(body['id'] ?? '', 'LSP server id')
+    if (id === '') throw new Error('missing LSP server id')
+    const enabled = body['enabled']
+    if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
+    await manager.setLspServerEnabled(id, enabled)
+    return {}
+  })
+  // Upgrade repair: drop the hand-written profile layer an older release told
+  // the user to add for LSP. It edits a file the user owns, so the profile
+  // name is matched against what is on disk and nothing else is touched.
+  post(MARKET_ROUTES.migrateLspSeam, async body => {
+    const profile = textField(body['profile'] ?? '', 'profile name').trim()
+    if (profile === '') throw new Error('missing profile name')
+    return { migration: await manager.migrateLegacyLspSeam(profile) }
+  })
+
+  // User panel CRUD (skills / commands / agent personas). The host web
+  // server matches exact pathnames, so the entry name rides the `name` query
+  // parameter (GET read, POST replace, POST .../delete remove). The routes
+  // only parse and delegate; the stores own validation and persistence, and
+  // each mutation notifies the change pipeline so skills/commands remount.
+  if (panels !== undefined) {
+    const kinds: ReadonlyArray<UserPanelKind> = ['skills', 'commands', 'agents']
+    // Reads answer for the requesting session's own panels when one is named;
+    // the mutations below stay global, so a project query can never edit the
+    // user's own panel documents.
+    const storeOf = (kind: UserPanelKind, reader?: ProjectExtensionReader): PanelResourceStore => (reader?.panels ?? panels)[kind]
+    const readStore = (kind: UserPanelKind, request: IncomingMessage): { store: PanelResourceStore } | { error: string } => {
+      const source = readSource(request)
+      return 'error' in source ? { error: source.error } : { store: storeOf(kind, source.reader) }
+    }
+
+    for (const kind of kinds) {
+      get(userPanelRoute(kind), async (request, response) => {
+        const source = readStore(kind, request)
+        if ('error' in source) {
+          sendJson(response, 404, { ok: false, error: source.error })
+          return
+        }
+        // `refresh=1` is the panel's Refresh button: a user asking for the
+        // working tree as it stands must never be answered from the row cache,
+        // so the route carries an explicit force path instead of relying on how
+        // old the cached rows happen to be.
+        const force = queryOf(request).get('refresh') === '1'
+        // The pending count rides the same read: a panel re-reads while it is
+        // non-zero, so translated text arrives without a manual refresh.
+        const read = await source.store.read(false, force)
+        sendJson(response, 200, {
+          entries: read.entries,
+          ...(read.translationPending === 0 ? {} : { translationPending: read.translationPending })
+        })
+      })
+
+      get(`${userPanelRoute(kind)}/entry`, async (request, response) => {
+        const source = readStore(kind, request)
+        if ('error' in source) {
+          sendJson(response, 404, { ok: false, error: source.error })
+          return
+        }
+        const name = queryOf(request).get('name') ?? ''
+        const entry = await source.store.get(name)
+        if (entry === undefined) {
+          sendJson(response, 404, { ok: false, error: `no entry named "${name}"` })
+          return
+        }
+        sendJson(response, 200, { entry })
+      })
+
+      // One entry's document, translated chunk by chunk. The body names the
+      // entry and nothing else: the store re-reads that entry itself, so a
+      // script on the page cannot spend the operator's translation quota on
+      // text of its own choosing.
+      post(`${userPanelRoute(kind)}/entry/translation`, async (body, request) => {
+        const source = readStore(kind, request)
+        if ('error' in source) throw new Error(source.error)
+        const name = textField(body['name'] ?? '', 'entry name')
+        if (name === '') throw new Error('missing entry name')
+        return { ...(await source.store.translateDocument(name)) }
+      })
+
+      post(`${userPanelRoute(kind)}/create`, async body => {
+        const name = textField(body['name'] ?? '', 'entry name').trim()
+        const text = textField(body['text'] ?? '', 'entry text')
+        if (name === '') throw new Error('missing entry name')
+        const entry = await storeOf(kind).create(name, text)
+        await manager.notifyPanelsChanged()
+        return { entry }
+      })
+
+      post(`${userPanelRoute(kind)}/update`, async (body, request) => {
+        const name = queryOf(request).get('name') ?? ''
+        const text = textField(body['text'] ?? '', 'entry text')
+        if (name === '') throw new Error('missing entry name')
+        await storeOf(kind).update(name, text)
+        await manager.notifyPanelsChanged()
+        return {}
+      })
+
+      post(`${userPanelRoute(kind)}/delete`, async body => {
+        const name = textField(body['name'] ?? '', 'entry name')
+        if (name === '') throw new Error('missing entry name')
+        await storeOf(kind).remove(name)
+        await manager.notifyPanelsChanged()
+        return {}
+      })
+    }
+  }
+
+  return () => {
+    for (const dispose of disposers) dispose()
+  }
+}
+
+/**
+ * Read a request field this route documents as a string. Bodies are arbitrary
+ * JSON, so the field may arrive as any value; anything but a string is
+ * rejected rather than coerced, because `String({})` is `"[object Object]"` —
+ * a non-empty value that every check downstream would accept and store as a
+ * source url, a branch name, or an entry name. Empty stays empty so each
+ * caller keeps owning whether that means "missing".
+ */
+function textField(value: unknown, label: string): string {
+  if (typeof value !== 'string') throw new Error(`${label} must be a string`)
+  return value
+}
+
+/** Render an untrusted field for a diagnostic message. Never a value reader — see `textField`. */
+function describe(value: unknown): string {
+  return String(value)
+}
+
+type RouteHandler = (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
+type JsonAction = (body: Record<string, unknown>, request: IncomingMessage) => Promise<Record<string, unknown>>
+
+function parseTarget(body: Record<string, unknown>): { sourceId: string; suiteId: string } {
+  const sourceId = body['sourceId']
+  const suiteId = body['suiteId']
+  if (typeof sourceId !== 'string' || sourceId === '') throw new Error('missing sourceId')
+  if (typeof suiteId !== 'string' || suiteId === '') throw new Error('missing suiteId')
+  return { sourceId, suiteId }
+}
+
+/** Parse an optional acquisition-kind field; rejects unknown values. */
+function parseSourceKind(raw: unknown): SourceKind | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  if (raw === 'git' || raw === 'local' || raw === 'archive') return raw
+  throw new Error(`invalid source kind "${describe(raw)}"`)
+}
+
+/** Parse an optional SHA-256 hex digest; rejects malformed values. */
+function parseSha256(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  const value = textField(raw, 'sha256').trim().toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(value)) throw new Error('sha256 must be a 64-character hex digest')
+  return value
+}
+
+function sameOrigin(request: IncomingMessage): boolean {
+  const origin = request.headers['origin']
+  if (origin === undefined) return true
+  try {
+    return new URL(origin).host === request.headers['host']
+  } catch {
+    return false
+  }
+}
+
+/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
+function readJsonBody(request: IncomingMessage): Promise<unknown> {
+  return new Promise(resolve => {
+    let size = 0
+    const chunks: Buffer[] = []
+    request.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > MAX_BODY_BYTES) {
+        resolve(undefined)
+        request.destroy()
+        return
+      }
+      chunks.push(chunk)
+    })
+    request.on('end', () => {
+      if (size > MAX_BODY_BYTES) return
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      } catch {
+        resolve(undefined)
+      }
+    })
+    request.on('error', () => resolve(undefined))
+  })
+}
+
+/** Parse the query string of one request into a URLSearchParams. */
+function queryOf(request: IncomingMessage): URLSearchParams {
+  return new URL(request.url ?? '/', 'http://dsh.local').searchParams
+}
+
+function sendJson(response: ServerResponse, status: number, payload: unknown): void {
+  const body = JSON.stringify(payload)
+  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) })
+  response.end(body)
+}

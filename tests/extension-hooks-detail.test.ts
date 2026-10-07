@@ -4,12 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { Catalog } from '../src/application/catalog.js'
-import { createProjectExtensionResources } from '../src/application/extension-project.js'
-import { loadUserHooksSuite, USER_HOOKS_SOURCE, USER_HOOKS_SUITE } from '../src/application/panels/user-hooks.js'
-import { MARKET_ROUTES, type SuiteDetail } from '../src/contracts/market.js'
-import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
-import type { MarketService } from '../src/application/queries.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { createProjectExtensionResources } from '../packages/market-bundle/src/application/extension-project.js'
+import { loadUserHooksSuite, USER_HOOKS_SOURCE, USER_HOOKS_SUITE } from '../packages/market-runtime/src/application/panels/user-hooks.js'
+import { MARKET_ROUTES, type SuiteDetail } from '../packages/market-contracts/src/contracts/market.js'
+import { mountSuiteRoutes, type WebServerService } from '../packages/market-bundle/src/routes.js'
+import type { MarketService } from '../packages/market-contracts/src/ports/queries.js'
 
 const roots: string[] = []
 afterEach(async () => {

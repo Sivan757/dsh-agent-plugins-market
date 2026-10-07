@@ -47,6 +47,6 @@ Values inside the namespace seats expand `${PLUGIN_ROOT}`, `${PLUGIN_DATA}`, and
 
 ## Provenance
 
-- Sources: [Agent Plugins specification](https://agent-plugins.org/specification) §8 (client extensions), §9.2 (placeholder expansion), and the runtime behavior of `src/catalog/manifests.ts` (manifest seat) and `src/catalog/scan-resolvers.ts` (directory seat).
+- Sources: [Agent Plugins specification](https://agent-plugins.org/specification) §8 (client extensions), §9.2 (placeholder expansion), and the runtime behavior of `packages/market-catalog/src/scanning/manifests.ts` (manifest seat) and `packages/market-catalog/src/scanning/scan-resolvers.ts` (directory seat).
 - Verified: 2026-09-17 against `agentplugins/agent-plugins-spec` `ff8ab5e` (1.0.0 published, 1.1.0 working draft).
 - Unresolved: none. The specification assigns no semantics to namespace contents, so every rule above is this client's own contract and can evolve by bumping `schemaVersion`.

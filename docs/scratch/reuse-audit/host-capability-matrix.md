@@ -65,7 +65,7 @@
 
 | 我们的实现 | 宿主对应 | 判定 | 建议 |
 | --- | --- | --- | --- |
-| SourceEditorModal 本地源路径 = **纯文本 input**（src/client/features/market/SourceEditorModal.tsx，120 行，无任何 chooser/browse 代码） | `dsh-host-directory-picker`（native/browse 双后端 + auto 装配）+ `dsh-client-ui-directory-picker-{native,browse}`（填 `ui-workspace` 声明的两个 directory-flow 槽） | **无重复**（我们根本没自建目录选择器）；**前瞻机会** | local 源路径接宿主 picker 可改善体验，但槽位归属 `ui-workspace` 工作区流程，是否适用于 modal 内字段需单独验证 → 弱 backlog |
+| SourceEditorModal 本地源路径 = **纯文本 input**（packages/market-ui/src/features/market/SourceEditorModal.tsx，120 行，无任何 chooser/browse 代码） | `dsh-host-directory-picker`（native/browse 双后端 + auto 装配）+ `dsh-client-ui-directory-picker-{native,browse}`（填 `ui-workspace` 声明的两个 directory-flow 槽） | **无重复**（我们根本没自建目录选择器）；**前瞻机会** | local 源路径接宿主 picker 可改善体验，但槽位归属 `ui-workspace` 工作区流程，是否适用于 modal 内字段需单独验证 → 弱 backlog |
 
 ### 4. jobs / deliverables / document / guard / preset / schedule
 

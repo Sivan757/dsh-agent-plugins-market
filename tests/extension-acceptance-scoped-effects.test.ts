@@ -28,8 +28,8 @@ import { pathToFileURL } from 'node:url'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-import { EXTENSION_ROUTES, type ExtensionWindowPayload } from '../src/contracts/extension-presets.js'
-import { apply, inject, name } from '../src/index.js'
+import { EXTENSION_ROUTES, type ExtensionWindowPayload } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { apply, inject, name } from '../packages/market-bundle/src/index.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const cleanups: Array<() => void | Promise<void>> = []

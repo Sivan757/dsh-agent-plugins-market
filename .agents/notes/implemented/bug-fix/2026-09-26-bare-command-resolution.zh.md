@@ -12,7 +12,7 @@ Status: implemented
 
 ## Decision
 
-- **`src/runtime/host/shell-path.ts` 只问用户的登录 shell 一次。** `/bin/zsh -ilc` 先打印一行标记、再打印 `$PATH`；模块只解析标记之后的内容，按顺序保留绝对路径并去重。探针仅 `darwin` 生效、惰性启动、缓存的是一整个 promise（并发首调共享同一次探测）、上限三秒。`-i` 是必需的：Homebrew 的 `shellenv` 写在 `.zshrc` 里，登录但非交互的 `zsh -lc` 读不到。
+- **`packages/market-runtime/src/runtime/host/shell-path.ts` 只问用户的登录 shell 一次。** `/bin/zsh -ilc` 先打印一行标记、再打印 `$PATH`；模块只解析标记之后的内容，按顺序保留绝对路径并去重。探针仅 `darwin` 生效、惰性启动、缓存的是一整个 promise（并发首调共享同一次探测）、上限三秒。`-i` 是必需的：Homebrew 的 `shellenv` 写在 `.zshrc` 里，登录但非交互的 `zsh -lc` 读不到。
 - **解析是外科式的。** `resolveDeclaredCommand` 先用宿主自己的 `ctx.subprocess.resolveExecutable`，拿 spawn 将要继承的环境解析一次；只有真正的 `SubprocessExecutableNotFoundError` 才走额外一步——把登录 shell 的目录**追加**到当前 `PATH` 之后（绝不前插，因此不改变任何既有优先级）——再解析一次。
 - **绝不改写声明。** 裸名仍是命令，只有子进程的 `PATH` 变长。套件或用户显式声明的 `env.PATH` 原样保留，连探针都不会触发。
 - **每种结果都留下事实。** 发生扩展时报告 `PATH extended from the login shell: <目录>`；追加后仍找不到时报告命令名与最终搜索的 `PATH`；探针给不出可用 `PATH` 时如实说明。不会静默失败，失败一律回落到今天的环境。

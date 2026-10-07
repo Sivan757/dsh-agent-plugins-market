@@ -2,10 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { loadLspServers, saveLspServers } from '../src/application/lsp/lsp-direct-config.js'
-import { buildLspStatus, DIRECT_LSP_SUITE_ID } from '../src/application/lsp/lsp-status.js'
-import type { LspMountDiagnostic } from '../src/runtime/lsp/lsp-mounts.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { loadLspServers, saveLspServers } from '../packages/market-lsp/src/application/lsp/lsp-direct-config.js'
+import { buildLspStatus, DIRECT_LSP_SUITE_ID } from '../packages/market-lsp/src/application/lsp/lsp-status.js'
+import type { LspMountDiagnostic } from '../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 const tempRoots: string[] = []
 async function tempRoot(): Promise<string> {

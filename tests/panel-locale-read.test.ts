@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { createPanelResources } from '../src/application/panel-resources.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { createPanelResources } from '../packages/market-runtime/src/application/panel-resources.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
 
 describe('panel read locale resolution', () => {
   it('resolves the host locale once per read, not once per row', async () => {

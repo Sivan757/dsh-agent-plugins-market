@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { discoverSourceListWithNotes } from '../src/catalog/source-catalog.js'
-import { Catalog } from '../src/application/catalog.js'
+import { discoverSourceListWithNotes } from '../packages/market-catalog/src/scanning/source-catalog.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixture = join(here, 'fixtures', 'v1-suite')

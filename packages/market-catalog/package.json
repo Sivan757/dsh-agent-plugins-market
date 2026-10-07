@@ -1,0 +1,13 @@
+{
+  "name": "@dsh-market/catalog",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "description": "Private catalog source boundary for dsh-agent-plugins-market",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@dsh-market/contracts": "workspace:*"
+  }
+}

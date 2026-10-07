@@ -2,9 +2,9 @@ import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import * as discovery from '../src/catalog/source-catalog.js'
-import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import * as discovery from '../packages/market-catalog/src/scanning/source-catalog.js'
+import { SuiteSkillProvider } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 
 const roots: string[] = []
 

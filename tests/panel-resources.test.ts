@@ -32,12 +32,12 @@ vi.mock('node:fs/promises', async importOriginal => {
     }
   }
 })
-import { Catalog } from '../src/application/catalog.js'
-import { ROW_CACHE_MAX_AGE_MS, createPanelResources } from '../src/application/panel-resources.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
-import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
-import { readCommands } from '../src/runtime/surfaces/commands-mounts.js'
-import { agentRoleCatalog } from '../src/runtime/agents/agent-role-router.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { ROW_CACHE_MAX_AGE_MS, createPanelResources } from '../packages/market-runtime/src/application/panel-resources.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { SuiteSkillProvider } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
+import { readCommands } from '../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
+import { agentRoleCatalog } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 
 afterEach(() => {
   fsCounts.unreadable.clear()

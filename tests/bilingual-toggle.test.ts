@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement as h } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { displayText } from '../src/client/ui/translated-text.js'
-import { bindTranslationEnabled } from '../src/client/ui/translation-enabled.js'
-import type { Translate } from '../src/client/index.js'
-import { en, zh } from '../src/client/locales.js'
+import { displayText } from '../packages/market-ui/src/ui/translated-text.js'
+import { bindTranslationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
+import { en, zh } from '../packages/market-ui/src/locales.js'
 
 /** Locale probes: the panel's own rule reads the active language from this key. */
 const zhT: Translate = key => (key === 'localeProbeLang' ? '中文' : String(key))
@@ -38,8 +38,8 @@ const api = vi.hoisted(() => {
     fetchSuiteDetail: vi.fn()
   }
 })
-vi.mock('../src/client/api.js', () => api)
-vi.mock('../src/client/features/market/market-resource.js', () => ({
+vi.mock('../packages/market-ui/src/api.js', () => api)
+vi.mock('../packages/market-ui/src/features/market/market-resource.js', () => ({
   loadOverview: () => ({ initial: overview, revalidating: false, promise: Promise.resolve(overview) }),
   invalidateOverview: vi.fn(),
   startDescriptionRefresh: vi.fn(() => ({ stop: () => {} })),
@@ -71,10 +71,10 @@ const overview = {
   unmanaged: []
 }
 
-import { UserPanelSurface } from '../src/client/ui/UserPanelSurface.js'
-import { McpStatusPanel } from '../src/client/features/mcp/StatusPanel.js'
-import { LspStatusPanel } from '../src/client/features/lsp/LspStatusPanel.js'
-import { MarketSection } from '../src/client/features/market/MarketSection.js'
+import { UserPanelSurface } from '../packages/market-ui/src/ui/UserPanelSurface.js'
+import { McpStatusPanel } from '../packages/market-ui/src/features/mcp/StatusPanel.js'
+import { LspStatusPanel } from '../packages/market-ui/src/features/lsp/LspStatusPanel.js'
+import { MarketSection } from '../packages/market-ui/src/features/market/MarketSection.js'
 
 const ENTRY = {
   id: 'plugin:demo/reviewer',

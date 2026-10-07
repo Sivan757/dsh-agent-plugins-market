@@ -8,11 +8,11 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { canonicalGitUrl, resolveMarketplaceEntry, scanSource } from '../src/catalog/suite-scanner.js'
-import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
-import { runScanChain, type ScanContext, type ScanFilter } from '../src/catalog/scan-pipeline.js'
-import type { MarketplaceEntry } from '../src/catalog/manifests.js'
-import { Catalog } from '../src/application/catalog.js'
+import { canonicalGitUrl, resolveMarketplaceEntry, scanSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { discoverSuitesInSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { runScanChain, type ScanContext, type ScanFilter } from '../packages/market-catalog/src/scanning/scan-pipeline.js'
+import type { MarketplaceEntry } from '../packages/market-catalog/src/scanning/manifests.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = join(here, 'fixtures')

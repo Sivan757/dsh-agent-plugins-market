@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { maskText, unmaskText } from '../src/runtime/host/text-masking.js'
+import { maskText, unmaskText } from '../packages/market-translation/src/runtime/host/text-masking.js'
 
 /** Mask, then restore, asserting the restore succeeded. */
 function roundTrip(input: string): string {

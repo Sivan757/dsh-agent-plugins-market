@@ -5,10 +5,11 @@
  * selected but unusable (package missing, legacy SSE transport).
  */
 import { describe, expect, it, vi } from 'vitest'
-import { MARKET_SETTINGS_NAMESPACE } from '../src/contracts/settings.js'
-import { MarketSettingsSchema, probeHostMcpClient } from '../src/application/mcp/mcp-backend.js'
-import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { MARKET_SETTINGS_NAMESPACE } from '../packages/market-contracts/src/contracts/settings.js'
+import { probeHostMcpClient } from '../packages/market-mcp/src/application/mcp/mcp-backend.js'
+import { MarketSettingsSchema } from '../packages/market-bundle/src/platform/settings-schema.js'
+import { McpMountRegistry } from '../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 // The hoisted switch lets one mock serve both the available and the missing
 // host-client scenarios.

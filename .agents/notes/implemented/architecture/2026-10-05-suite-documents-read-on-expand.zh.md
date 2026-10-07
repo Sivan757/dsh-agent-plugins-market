@@ -4,21 +4,21 @@ Status: implemented
 
 ## Problem
 
-市场详情弹窗为三种文档面各渲染一行——技能的 `SKILL.md`、快捷指令、专家人设。三行看起来一样，背后却是两套取数：技能正文由技能路由按需读取，而快捷指令与专家的正文随 `suiteDetail` 载荷内联到达，被切成 `64 * 1024` 个字符（`markdownPreviews`，改动前的 `src/application/details.ts:122-127`），界面上却只字未提。
+市场详情弹窗为三种文档面各渲染一行——技能的 `SKILL.md`、快捷指令、专家人设。三行看起来一样，背后却是两套取数：技能正文由技能路由按需读取，而快捷指令与专家的正文随 `suiteDetail` 载荷内联到达，被切成 `64 * 1024` 个字符（`markdownPreviews`，改动前的 `packages/market-bundle/src/application/details.ts:122-127`），界面上却只字未提。
 
 这个切分有它真实的理由：弹窗整份取回载荷，一篇文档又多又大的套件会把兆字节压进一次响应。它付出的代价是读者的信任——一条长快捷指令展开后停在一句话中间，没有标记、没有计数、没有任何状态说明它被截断了。同一个模块本来就知道区别：`readPreview` 会给仍然内联的 LSP 定义文件追加 `… (truncated)`，于是一份代码对同一个想法带着两种行为。
 
 ## Decision
 
-`suiteDetail` 载荷只带文档的身份，永远不带它的字节。`commands` 与 `agents` 投影为 `SuiteDocumentMeta`——行上渲染的名字，加上它旁边的 frontmatter `description`（`documentMetas`，`src/application/details.ts:141-152`）——64 KiB 的切分随它封顶的那些正文一起消失。目录式 LSP 定义文件保留 `readPreview` 与它可见的上限（`:130-133`）：那是另一个面，仍然内联，不属于这个缺陷。
+`suiteDetail` 载荷只带文档的身份，永远不带它的字节。`commands` 与 `agents` 投影为 `SuiteDocumentMeta`——行上渲染的名字，加上它旁边的 frontmatter `description`（`documentMetas`，`packages/market-bundle/src/application/details.ts:141-152`）——64 KiB 的切分随它封顶的那些正文一起消失。目录式 LSP 定义文件保留 `readPreview` 与它可见的上限（`:130-133`）：那是另一个面，仍然内联，不属于这个缺陷。
 
-三种文档面都经同一条路由、同一个读取器取正文：`GET /api/agent-plugins/suite/document?sourceId=…&suiteId=…&kind=…&name=…`（`MARKET_ROUTES.suiteDocument`，`src/contracts/market.ts:29`；处理于 `src/routes.ts:186-200`），由 `Catalog.suiteDocument`（`src/application/catalog.ts:447`）经 `readSuiteDocument`（`src/application/details.ts:116`）作答。这个读取器本来就服务三种面——快捷指令与专家的那一半是给翻译路由写的——所以本次没有新写读取器；缺的是那条读取路由与客户端调用，而它取代的技能专用路由（`MARKET_ROUTES.skill`、`SkillContent`）一并删除。
+三种文档面都经同一条路由、同一个读取器取正文：`GET /api/agent-plugins/suite/document?sourceId=…&suiteId=…&kind=…&name=…`（`MARKET_ROUTES.suiteDocument`，`packages/market-contracts/src/contracts/market.ts:29`；处理于 `packages/market-bundle/src/routes.ts:186-200`），由 `Catalog.suiteDocument`（`packages/market-bundle/src/application/catalog.ts:447`）经 `readSuiteDocument`（`packages/market-bundle/src/application/details.ts:116`）作答。这个读取器本来就服务三种面——快捷指令与专家的那一半是给翻译路由写的——所以本次没有新写读取器；缺的是那条读取路由与客户端调用，而它取代的技能专用路由（`MARKET_ROUTES.skill`、`SkillContent`）一并删除。
 
 ### The client has one document row, not three
 
-`SuiteDetailModal` 的每一行文档都经同一个 `documentRow(kind, id, name, description)` 助手构建（`src/client/features/market/SuiteDetail.tsx:108-118`）：同一个惰性触发（打开该行才开始读取）、同一个加载槽（`documentText`/`documentLoading`，`:54-56`）、同一条失败路径（`toggleRow` 写下的 `⚠ …` 文本，`:95`），以及正文下方同一个折叠的翻译区。三个面现在只在传入的 `kind` 上不同。
+`SuiteDetailModal` 的每一行文档都经同一个 `documentRow(kind, id, name, description)` 助手构建（`packages/market-ui/src/features/market/SuiteDetail.tsx:108-118`）：同一个惰性触发（打开该行才开始读取）、同一个加载槽（`documentText`/`documentLoading`，`:54-56`）、同一条失败路径（`toggleRow` 写下的 `⚠ …` 文本，`:95`），以及正文下方同一个折叠的翻译区。三个面现在只在传入的 `kind` 上不同。
 
-翻译区本来就在服务端，契约未被动过：`POST …/suite/document/translation` 经同一个 `readSuiteDocument` 重读文件（`src/application/catalog.ts:483`），从不信任页面；该区在读者展开它之前不读取任何东西。
+翻译区本来就在服务端，契约未被动过：`POST …/suite/document/translation` 经同一个 `readSuiteDocument` 重读文件（`packages/market-bundle/src/application/catalog.ts:483`），从不信任页面；该区在读者展开它之前不读取任何东西。
 
 ## Alternatives considered
 

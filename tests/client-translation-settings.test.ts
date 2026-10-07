@@ -2,11 +2,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MARKET_SETTINGS_DEFAULTS, resolveTranslationTarget } from '../src/contracts/settings.js'
-import { bindInterfaceLanguage, bindTranslationEnabled, translationEnabled, useTranslationEnabled, useTranslationRefresh } from '../src/client/ui/translation-enabled.js'
+import { MARKET_SETTINGS_DEFAULTS, resolveTranslationTarget } from '../packages/market-contracts/src/contracts/settings.js'
+import {
+  bindInterfaceLanguage,
+  bindTranslationEnabled,
+  translationEnabled,
+  useTranslationEnabled,
+  useTranslationRefresh
+} from '../packages/market-ui/src/ui/translation-enabled.js'
 
-import { useDisplayText } from '../src/client/ui/translated-text.js'
-import type { Translate } from '../src/client/index.js'
+import { useDisplayText } from '../packages/market-ui/src/ui/translated-text.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 

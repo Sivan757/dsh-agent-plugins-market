@@ -5,9 +5,9 @@
  * chain rather than the behaviour of a real endpoint.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PROVIDER_TIMEOUT_MS, isTripped, resetCircuitBreaker, runChain, type TranslationProvider } from '../src/application/translation/chain.js'
-import type { TranslationProviderId } from '../src/contracts/translation.js'
-import { createLlmTranslator } from '../src/runtime/host/llm-translator.js'
+import { PROVIDER_TIMEOUT_MS, isTripped, resetCircuitBreaker, runChain, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
+import type { TranslationProviderId } from '../packages/market-contracts/src/contracts/translation.js'
+import { createLlmTranslator } from '../packages/market-translation/src/runtime/host/llm-translator.js'
 
 afterEach(() => {
   resetCircuitBreaker()

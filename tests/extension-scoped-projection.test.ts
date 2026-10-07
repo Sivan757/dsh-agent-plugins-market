@@ -3,25 +3,26 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { Catalog } from '../src/application/catalog.js'
-import type { Suite } from '../src/model/types.js'
-import { effectiveSurfaces } from '../src/model/types.js'
-import type { McpSuiteOverrides } from '../src/application/mcp/mcp-overrides.js'
-import { captureExtensionSelection } from '../src/contracts/extension-presets.js'
-import { ScopedExtensionContributors } from '../src/runtime/host/scoped-contributors.js'
-import type { UserPanelStore } from '../src/runtime/panels/user-panels.js'
-import type { SuiteSkillProviderOptions } from '../src/runtime/surfaces/skills-provider.js'
+import type { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import type { Suite } from '../packages/market-contracts/src/model/types.js'
+import { effectiveSurfaces } from '../packages/market-contracts/src/model/types.js'
+import type { McpSuiteOverrides } from '../packages/market-mcp/src/application/mcp/mcp-overrides.js'
+import { captureExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { ScopedExtensionContributors } from '../packages/market-runtime/src/runtime/host/scoped-contributors.js'
+import type { UserPanelStore } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import type { SuiteSkillProviderOptions } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
+import { createMcpMount } from '../packages/market-bundle/src/runtime-adapters.js'
 
 const observed = vi.hoisted(() => ({ skills: [] as unknown[], commandPolicies: [] as unknown[][], commands: [] as unknown[], mcp: [] as unknown[], overrides: [] as unknown[] }))
-vi.mock('../src/runtime/surfaces/skills-provider.js', () => ({
+vi.mock('../packages/market-runtime/src/runtime/surfaces/skills-provider.js', () => ({
   SuiteSkillProvider: class {
     constructor(_catalog: unknown, options: unknown) {
       observed.skills.push(options)
     }
   }
 }))
-vi.mock('../src/runtime/panels/user-panels.js', () => ({ UserPanelSkillProvider: class {} }))
-vi.mock('../src/runtime/surfaces/commands-mounts.js', () => ({
+vi.mock('../packages/market-runtime/src/runtime/panels/user-panels.js', () => ({ UserPanelSkillProvider: class {} }))
+vi.mock('../packages/market-runtime/src/runtime/surfaces/commands-mounts.js', () => ({
   CommandMountRegistry: class {
     setSelectionPolicy(...args: unknown[]) {
       observed.commandPolicies.push(args)
@@ -33,7 +34,7 @@ vi.mock('../src/runtime/surfaces/commands-mounts.js', () => ({
     disposeAll() {}
   }
 }))
-vi.mock('../src/runtime/panels/user-commands.js', () => ({
+vi.mock('../packages/market-runtime/src/runtime/panels/user-commands.js', () => ({
   UserCommandMountRegistry: class {
     setSelectionPolicy(...args: unknown[]) {
       observed.commandPolicies.push(args)
@@ -44,8 +45,8 @@ vi.mock('../src/runtime/panels/user-commands.js', () => ({
     disposeAll() {}
   }
 }))
-vi.mock('../src/runtime/surfaces/project-runtime.js', () => ({ suiteInstructions: async () => ({ text: '' }) }))
-vi.mock('../src/runtime/surfaces/extension-hooks.js', () => ({
+vi.mock('../packages/market-runtime/src/runtime/surfaces/project-runtime.js', () => ({ suiteInstructions: async () => ({ text: '' }) }))
+vi.mock('../packages/market-runtime/src/runtime/surfaces/extension-hooks.js', () => ({
   ExtensionHooks: class {
     async reconcile() {
       return []
@@ -53,7 +54,7 @@ vi.mock('../src/runtime/surfaces/extension-hooks.js', () => ({
     async dispose() {}
   }
 }))
-vi.mock('../src/runtime/mcp/mcp-mounts.js', () => ({
+vi.mock('../packages/market-mcp/src/runtime/mcp/mcp-mounts.js', () => ({
   McpMountRegistry: class {
     overrides?: () => Promise<unknown>
     setBackendProvider() {}
@@ -127,6 +128,7 @@ it('uses pending projections for preparation while execution callbacks consult o
   let projected = [user, project]
   const suites = vi.fn(async () => projected)
   const contributors = new ScopedExtensionContributors({
+    mcpMounts: createMcpMount,
     dataRoot: '/unused',
     catalog,
     shell: () => undefined,
@@ -173,10 +175,19 @@ it('loads a disabled skill through the actual provider using projected suites an
   projected.skills = [{ name: 'foo', description: 'Test skill', file, directory: root, invocation: { modelInvocable: false, userInvocable: false } }]
   const catalog = { enabledUserSuites: async () => [], readProjectCatalog: async () => ({ enabledSuites: [] }) } as unknown as Catalog
   let allowed = true
-  const contributors = new ScopedExtensionContributors({ dataRoot: root, catalog, shell: () => undefined, suites: async () => [projected], allows: () => allowed })
+  const contributors = new ScopedExtensionContributors({
+    mcpMounts: createMcpMount,
+    dataRoot: root,
+    catalog,
+    shell: () => undefined,
+    suites: async () => [projected],
+    allows: () => allowed
+  })
   try {
     await contributors.reconcile(agent, captureExtensionSelection(null, ['market:source/user']))
-    const { SuiteSkillProvider } = await vi.importActual<typeof import('../src/runtime/surfaces/skills-provider.js')>('../src/runtime/surfaces/skills-provider.js')
+    const { SuiteSkillProvider } = await vi.importActual<typeof import('../packages/market-runtime/src/runtime/surfaces/skills-provider.js')>(
+      '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
+    )
     const provider = new SuiteSkillProvider(catalog, observed.skills[0] as SuiteSkillProviderOptions)
     const candidates = await provider.list({})
     expect(candidates).toHaveLength(1)

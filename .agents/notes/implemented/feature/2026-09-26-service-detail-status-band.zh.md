@@ -16,7 +16,7 @@ Status: implemented
 
 ## Decision
 
-- **一个弹窗一个容器。** `src/client/ui/StatusBand.tsx` 把状态带做成详情弹窗唯一的状态面，顺序固定：状态点 + 标签 + 该状态唯一的恢复动作（右端）、上次操作的回执、分类后的原因句、收在 host `DisclosureRow` 里的记录诊断、以及 mono 的端点或命令。`FailureReport.tsx` 与其样式模块已删除，MCP 与 LSP 详情都渲染 `StatusBand`。
+- **一个弹窗一个容器。** `packages/market-ui/src/ui/StatusBand.tsx` 把状态带做成详情弹窗唯一的状态面，顺序固定：状态点 + 标签 + 该状态唯一的恢复动作（右端）、上次操作的回执、分类后的原因句、收在 host `DisclosureRow` 里的记录诊断、以及 mono 的端点或命令。`FailureReport.tsx` 与其样式模块已删除，MCP 与 LSP 详情都渲染 `StatusBand`。
 - **状态由边条表达，正文与底色不承担。** `bandTone(ResourceState)` 把卡片的状态词汇映射成边条色（active→success、warning→warn、error→error、其余 neutral），底色保持平台的软中性色。`mcpCardState` / `lspCardState` 是状态的唯一来源，卡片与详情带因此不可能各说各话。弹窗正文不用错误色，弹窗内也不再出现第二块错误色实底面板。
 - **动作放在状态所在处。** 重试与重新授权从被删掉的底栏移进状态带右端；重新授权的确认紧贴状态带下方，是无底色的内联两按钮块。MCP 详情不再有底栏，也没有启用开关——卡片的开关写同一份覆盖记录，详情是只读视图（依据 [详情弹窗修正](2026-09-25-detail-dialog-fixes.zh.md)）。
 - **回执只报告这次操作。** 它只说操作有没有重新连上；下面的原因来自刷新后的那一行，因此不再复述记录诊断。只有重连成功才用成功色。

@@ -8,14 +8,14 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { LlmAdapter, ToolCallId, createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { registerOwnedBridgeTool } from '../src/runtime/mcp/bridge/tool-ownership.js'
-import { attachExtensionToolGates } from '../src/runtime/host/extension-tool-gates.js'
+import { registerOwnedBridgeTool } from '../packages/market-mcp/src/runtime/mcp/bridge/tool-ownership.js'
+import { attachExtensionToolGates } from '../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
-import { ExtensionRuntime } from '../src/runtime/host/extension-runtime.js'
-import { ExtensionPresetStore, extensionPresetLibraryPath } from '../src/application/state/extension-presets.js'
-import { allFiltersOn, saveResourceFilters } from '../src/application/state/resource-filters.js'
-import type { ExtensionResource } from '../src/contracts/extension-presets.js'
+import { ExtensionRuntime } from '../packages/market-runtime/src/runtime/host/extension-runtime.js'
+import { ExtensionPresetStore, extensionPresetLibraryPath } from '../packages/market-runtime/src/application/state/extension-presets.js'
+import { allFiltersOn, saveResourceFilters } from '../packages/market-runtime/src/application/state/resource-filters.js'
+import type { ExtensionResource } from '../packages/market-contracts/src/contracts/extension-presets.js'
 
 let presetSequence = 0
 /**

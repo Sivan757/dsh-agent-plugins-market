@@ -34,7 +34,7 @@ import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
-import { mountTeamCoordination } from '../src/runtime/agents/team-coordination.js'
+import { mountTeamCoordination } from '../packages/market-runtime/src/runtime/agents/team-coordination.js'
 
 /** The section this plugin owns; a second one would mean a duplicate contribution. */
 const SECTION = 'market:team-coordination'

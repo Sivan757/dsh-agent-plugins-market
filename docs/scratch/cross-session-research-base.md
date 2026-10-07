@@ -41,7 +41,7 @@ grep crossSession/inbox-socket/peer-message/idle/notify 全仓:**无任何宿主
 
 ## 6. 插件侧可挂载的 seam(src/runtime/ 模式)
 
-- 能注册:工具(`ctx.tools.register`,src/runtime/agents/teammate-role-tool.ts:88)、技能/命令/面板/路由(src/index.ts:25-55);能读宿主服务:`ctx.get('agentTeams'|'subagents'|'sessionQuery'|'sessions'|'sessionPersistence')`(src/runtime/agents/teammate-role-runtime.ts:59-60,:130);能订阅全局事件 `ctx.on('agent/created'|'internal/service', {global:true})`(teammate-role-runtime.ts:77;agent-teams-seat.ts:67-73)。
+- 能注册:工具(`ctx.tools.register`,packages/market-runtime/src/runtime/agents/teammate-role-tool.ts:88)、技能/命令/面板/路由(packages/market-bundle/src/index.ts:25-55);能读宿主服务:`ctx.get('agentTeams'|'subagents'|'sessionQuery'|'sessions'|'sessionPersistence')`(packages/market-runtime/src/runtime/agents/teammate-role-runtime.ts:59-60,:130);能订阅全局事件 `ctx.on('agent/created'|'internal/service', {global:true})`(teammate-role-runtime.ts:77;agent-teams-seat.ts:67-73)。
 - **能否触达另一个会话**:同进程(GUI 宿主下的会话)——可以,经 ctx.sessions/steer 或 sessionQuery;**另一进程的 CLI/独立会话——无任何 seam**,只能读盘上的持久化 session(sessionPersistence/sessionQuery 均只读),写 ~/.dsh 共享文件或自建 socket 属于绕过宿主(与 maximize-host-reuse 规则冲突)。Web/Desktop 宿主是否单进程承载全部 GUI 会话:由 SessionStore 进程内 Map 推断为是,未直接验证(未证实)。
 
 **结论**:DSH 的消息基建(durable inbox、message source 去重、step-boundary steer)已在会话内 Team 验证成熟,跨会话缺的是三件事:本机会话发现(进程外 live 索引)、投递通道(UDS/管道或宿主 IPC)、空闲通知订阅;任务看板证明宿主已有"Host-authoritative ledger + 调度"的跨会话编排先例可复用。

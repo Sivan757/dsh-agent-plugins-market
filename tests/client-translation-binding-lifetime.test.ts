@@ -18,11 +18,11 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { apply, type Translate } from '../src/client/index.js'
-import { DocumentTranslationView } from '../src/client/ui/DocumentTranslation.js'
-import { translationEnabled } from '../src/client/ui/translation-enabled.js'
-import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import type { DocumentTranslation } from '../src/contracts/translation.js'
+import { apply, type Translate } from '../packages/market-ui/src/index.js'
+import { DocumentTranslationView } from '../packages/market-ui/src/ui/DocumentTranslation.js'
+import { translationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
+import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../packages/market-contracts/src/contracts/settings.js'
+import type { DocumentTranslation } from '../packages/market-contracts/src/contracts/translation.js'
 
 /**
  * Live listeners the market installs on the host form: one per module that binds

@@ -2,14 +2,14 @@
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { typeInto } from './helpers/dom-events.js'
-import { en as settingsEn, zh as settingsZh } from '../src/client/locales.js'
+import { en as settingsEn, zh as settingsZh } from '../packages/market-ui/src/locales.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { ResourceList } from '../src/client/features/extension-presets/ResourceList.js'
-import { ExtensionPresetEntry } from '../src/client/features/extension-presets/ExtensionPresetEntry.js'
-import { extensionPresetsEn as en, extensionPresetsZh } from '../src/client/locales-extension-presets.js'
-import type { ExtensionDetailProps } from '../src/client/features/extension-presets/details.js'
-import type { ExtensionResource, ExtensionWindowPayload } from '../src/contracts/extension-presets.js'
+import { ResourceList } from '../packages/market-ui/src/features/extension-presets/ResourceList.js'
+import { ExtensionPresetEntry } from '../packages/market-ui/src/features/extension-presets/ExtensionPresetEntry.js'
+import { extensionPresetsEn as en, extensionPresetsZh } from '../packages/market-ui/src/locales-extension-presets.js'
+import type { ExtensionDetailProps } from '../packages/market-ui/src/features/extension-presets/details.js'
+import type { ExtensionResource, ExtensionWindowPayload } from '../packages/market-contracts/src/contracts/extension-presets.js'
 const suite: ExtensionResource = {
   id: 'suite',
   face: 'market',
@@ -266,8 +266,8 @@ it('ignores repeated Enter while a named draft save is pending', async () => {
 it('uses the same source, count and name classes as current settings cards', async () => {
   await mount()
   await open()
-  const rc = await import('../src/client/ui/resource-card.module.css')
-  const source = await import('../src/client/ui/source-strip.module.css')
+  const rc = await import('../packages/market-ui/src/ui/resource-card.module.css')
+  const source = await import('../packages/market-ui/src/ui/source-strip.module.css')
   const card = document.querySelector('article')!
   const name = card.querySelector('.' + rc.default.name)!
   expect(name.classList.contains(rc.default.nameMono!)).toBe(false)
@@ -342,7 +342,7 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
   }
 })
 it('keeps frame geometry but delegates card layout and typography to shared styles', () => {
-  const css = readFileSync('src/client/features/extension-presets/presets.module.css', 'utf8')
+  const css = readFileSync('packages/market-ui/src/features/extension-presets/presets.module.css', 'utf8')
   expect(css).toContain('width: 800px')
   expect(css).toContain('height: 800px')
   expect(css).toContain('max-width: 100%')
@@ -377,7 +377,7 @@ describe('user hooks configuration row', () => {
     await mount()
     await act(async () => root!.render(h(ResourceList, { resources: [suite, hooksRow], ids: [], disabled: false, t: tZh, onToggle: toggle, onView: view })))
     // The workspace module owns the row policy: it scrolls sideways and never shows a scrollbar.
-    const workspaceCss = readFileSync('src/client/workspace/workspace.module.css', 'utf8')
+    const workspaceCss = readFileSync('packages/market-ui/src/workspace/workspace.module.css', 'utf8')
     const tabRowRule = /\.tabRow\s*\{[^}]*/.exec(workspaceCss)?.[0] ?? ''
     expect(tabRowRule, '.tabRow rule must exist with overflow-x scroll policy').toMatch(/overflow-x:\s*auto/)
     expect(tabRowRule).toMatch(/scrollbar-width:\s*none/)
@@ -386,7 +386,7 @@ describe('user hooks configuration row', () => {
     expect(workspaceCss).toMatch(/\.tabRow > \[role='tablist'\]\s*\{[^}]*width:\s*max-content/)
     expect(workspaceCss).toMatch(/\.tabRow > \[role='tablist'\] > \[role='tab'\]\s*\{[^}]*white-space:\s*nowrap/)
     // The rendered row actually carries the module class the policy rides on.
-    const tabRow = document.querySelector('.' + (await import('../src/client/workspace/workspace.module.css')).default.tabRow)
+    const tabRow = document.querySelector('.' + (await import('../packages/market-ui/src/workspace/workspace.module.css')).default.tabRow)
     expect(tabRow).not.toBeNull()
     expect(tabRow!.querySelector('[role="tablist"]')).not.toBeNull()
   })
@@ -423,7 +423,7 @@ describe('user hooks configuration row', () => {
     await mount()
     // The window fetch double now answers the suite detail GET the dialog issues.
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, json: async () => hooksDetailPayload }) as Response)
-    const { ExtensionDetailView } = await import('../src/client/workspace/ExtensionResourceDetail.js')
+    const { ExtensionDetailView } = await import('../packages/market-ui/src/workspace/ExtensionResourceDetail.js')
     await act(async () => root!.render(h(ExtensionDetailView, { resource: hooksRow, t: tZh, onClose: vi.fn(), checked: false, disabled: true, onToggle: vi.fn() })))
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -675,7 +675,7 @@ describe('hooks tab', () => {
       )
     )
     // Seven primary faces plus at least one secondary event tab: every tab row the surface owns scrolls.
-    const rows = [...document.querySelectorAll('.' + (await import('../src/client/workspace/workspace.module.css')).default.tabRow)]
+    const rows = [...document.querySelectorAll('.' + (await import('../packages/market-ui/src/workspace/workspace.module.css')).default.tabRow)]
     expect(rows.length).toBeGreaterThanOrEqual(1)
     const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
     expect(faceTablist.querySelectorAll('[role="tab"]')).toHaveLength(7)
@@ -683,7 +683,7 @@ describe('hooks tab', () => {
     const eventTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-PreToolUse-panel"]'))!
     expect(eventTablist.querySelectorAll('[role="tab"]')).toHaveLength(1)
     // Both rows carry the policy class: the stylesheet rule applies to each.
-    const afterSwitch = [...document.querySelectorAll('.' + (await import('../src/client/workspace/workspace.module.css')).default.tabRow)]
+    const afterSwitch = [...document.querySelectorAll('.' + (await import('../packages/market-ui/src/workspace/workspace.module.css')).default.tabRow)]
     expect(afterSwitch.length).toBeGreaterThanOrEqual(2)
   })
 })

@@ -1,9 +1,9 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { deriveServerName, effectiveMcpServers, resolveMcpPolicy, toMcpMounts } from '../src/application/mcp/mcp-config.js'
+import { deriveServerName, effectiveMcpServers, resolveMcpPolicy, toMcpMounts } from '../packages/market-mcp/src/application/mcp/mcp-config.js'
 import { expectTransport } from './helpers/bridge-config.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
-import type { McpServerOverride } from '../src/application/mcp/mcp-overrides.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
+import type { McpServerOverride } from '../packages/market-mcp/src/application/mcp/mcp-overrides.js'
 
 function suite(overrides: Partial<Suite> = {}): Suite {
   return {

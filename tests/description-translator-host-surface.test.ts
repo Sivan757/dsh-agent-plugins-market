@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { LlmRuntime, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { createLlmTranslator } from '../src/runtime/host/llm-translator.js'
+import { createLlmTranslator } from '../packages/market-translation/src/runtime/host/llm-translator.js'
 
 describe('the LLM surface the translator calls', () => {
   it('exists on the real runtime', () => {

@@ -3,11 +3,11 @@ import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { en as settingsEn, zh as settingsZh } from '../src/client/locales.js'
-import { extensionPresetsEn as presetEn, extensionPresetsZh as presetZh } from '../src/client/locales-extension-presets.js'
-import { HooksStatusPanel } from '../src/client/features/hooks/StatusPanel.js'
-import { PluginWorkspace } from '../src/client/workspace/PluginWorkspace.js'
-import type { ExtensionHooksOverview } from '../src/contracts/extension-presets.js'
+import { en as settingsEn, zh as settingsZh } from '../packages/market-ui/src/locales.js'
+import { extensionPresetsEn as presetEn, extensionPresetsZh as presetZh } from '../packages/market-ui/src/locales-extension-presets.js'
+import { HooksStatusPanel } from '../packages/market-ui/src/features/hooks/StatusPanel.js'
+import { PluginWorkspace } from '../packages/market-ui/src/workspace/PluginWorkspace.js'
+import type { ExtensionHooksOverview } from '../packages/market-contracts/src/contracts/extension-presets.js'
 
 const en = { ...settingsEn, ...presetEn } as Record<string, string>
 const zh = { ...settingsZh, ...presetZh } as Record<string, string>
@@ -144,7 +144,7 @@ it('gives the settings workspace a seventh Hooks tab on a static, non-scrolling 
   ])
   // The settings row carries the static class, not the scrolling one, and the
   // stylesheet keeps it free of any overflow rule.
-  const workspaceCss = readFileSync('src/client/workspace/workspace.module.css', 'utf8')
+  const workspaceCss = readFileSync('packages/market-ui/src/workspace/workspace.module.css', 'utf8')
   const staticRule = /\.tabRowStatic\s*\{[^}]*/.exec(workspaceCss)?.[0] ?? ''
   expect(staticRule).toMatch(/flex:\s*none/)
   expect(staticRule).not.toMatch(/overflow/)

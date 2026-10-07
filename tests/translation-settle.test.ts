@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { pollUntilTranslated, TRANSLATION_POLL_MS } from '../src/client/ui/translation-settle.js'
+import { pollUntilTranslated, TRANSLATION_POLL_MS } from '../packages/market-ui/src/ui/translation-settle.js'
 
 /** Advance one poll interval and let the read settle. */
 async function tick(): Promise<void> {

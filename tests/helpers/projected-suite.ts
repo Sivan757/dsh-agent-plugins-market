@@ -1,4 +1,4 @@
-import { effectiveSurfaces, type DiscoveredSuite, type Suite } from '../../src/model/types.js'
+import { effectiveSurfaces, type DiscoveredSuite, type Suite } from '../../packages/market-contracts/src/model/types.js'
 
 /**
  * Scan output in the shape a runtime consumer takes.

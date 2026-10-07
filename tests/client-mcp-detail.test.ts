@@ -2,22 +2,22 @@
 import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
-import type { Translate } from '../src/client/index.js'
-import { zh } from '../src/client/locales.js'
+import type { McpStatusEntry } from '../packages/market-contracts/src/contracts/mcp-status.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
+import { zh } from '../packages/market-ui/src/locales.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
 const apiMock = vi.hoisted(() => ({ setMcpServerTool: vi.fn(async () => {}), setMcpServerEnabled: vi.fn(async () => {}) }))
-vi.mock('../src/client/api.js', async importOriginal => ({
-  ...(await importOriginal<typeof import('../src/client/api.js')>()),
+vi.mock('../packages/market-ui/src/api.js', async importOriginal => ({
+  ...(await importOriginal<typeof import('../packages/market-ui/src/api.js')>()),
   setMcpServerTool: apiMock.setMcpServerTool,
   setMcpServerEnabled: apiMock.setMcpServerEnabled
 }))
 
-vi.mock('../src/client/ui/ServerConfigDetail.js', () => ({
+vi.mock('../packages/market-ui/src/ui/ServerConfigDetail.js', () => ({
   ServerConfigDetail: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => h('button', { onClick: () => onDirtyChange(true) }, 'edit-config')
 }))
-import { McpDetailModal } from '../src/client/features/mcp/McpDetailModal.js'
+import { McpDetailModal } from '../packages/market-ui/src/features/mcp/McpDetailModal.js'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: ReturnType<typeof createRoot>
 afterEach(async () => {

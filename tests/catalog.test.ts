@@ -2,7 +2,7 @@ import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
 
 const fixture = join(process.cwd(), 'tests', 'fixtures', 'v1-suite')
 

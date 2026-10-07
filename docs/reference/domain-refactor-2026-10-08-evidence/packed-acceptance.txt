@@ -1,0 +1,15 @@
+Date: 2026-10-08 Asia/Shanghai
+Public artifact: dsh-agent-plugins-market-0.9.0.tgz
+Private validation root: /tmp/market-domain-artifact-7sDocl
+Build: pnpm pack completed with host alignment and build hooks, exit 0.
+Tarball: 359 files, no source packages directory, no private workspace dependencies, no bare @dsh-market imports, no symlinks.
+Public exports: lib/index.js, lib/types/index.d.ts, client/client.js all exist.
+Server import: name dsh-agent-plugins-market, inject skills/commands, apply function, MCP identity version 0.9.0.
+DSH: installed 0.2.0-rc.2, separate home/profile/Agent layout/workspace, loopback port 65158, launch-token authentication.
+Installed code: extracted public tarball only. External dependency installation reused through links; private workspace links excluded. This is not a fresh registry dependency installation.
+Session: session-39f92e3b-f301-4ea1-bb6a-be27cfd64674, ready true, one user Hook, default selected parent and Hook id.
+Prompt: accepted through real session RPC, completed with local mock response, actual shell appended package-hook once.
+Browser: experimental preset entry absent by default. Plugin settings show one installed product and one running component.
+Browser: enable Agent preset management and save. Existing session shows Default preset button without reload. Preset menu and manager open successfully.
+Browser console: no warning or error messages in final query.
+Live profile and GUI 19387 unchanged. No host source changes or remote publication.

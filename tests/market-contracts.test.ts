@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { documentRoute, MARKET_API_PREFIX, MARKET_ROUTES, suiteRoute, type OverviewPayload } from '../src/contracts/market.js'
-import type { McpStatusPayload } from '../src/contracts/mcp-status.js'
+import { documentRoute, MARKET_API_PREFIX, MARKET_ROUTES, suiteRoute, type OverviewPayload } from '../packages/market-contracts/src/contracts/market.js'
+import type { McpStatusPayload } from '../packages/market-contracts/src/contracts/mcp-status.js'
 
 describe('market transport contracts', () => {
   it('keeps the host and client route paths in one declaration', () => {

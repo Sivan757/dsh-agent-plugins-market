@@ -11,10 +11,10 @@
     "declaration": true,
     "outDir": "lib",
     "declarationDir": "lib/types",
-    "rootDir": "src",
+    "rootDir": ".",
     "skipLibCheck": true,
     "sourceMap": false
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/client/**", "src/**/*.test.ts"]
+  "include": ["index.ts", "packages/*/src/**/*.ts"],
+  "exclude": ["packages/market-ui/**", "packages/**/*.test.ts"]
 }

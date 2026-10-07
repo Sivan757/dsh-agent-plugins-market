@@ -8,8 +8,8 @@
  * @module tests/translation-provider-partial
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { createTranslationProviders } from '../src/runtime/host/translation-providers.js'
-import { isTripped, resetCircuitBreaker, runChain, type TranslationProvider } from '../src/application/translation/chain.js'
+import { createTranslationProviders } from '../packages/market-translation/src/runtime/host/translation-providers.js'
+import { isTripped, resetCircuitBreaker, runChain, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
 
 /** The model hop, wrapped by the production masking hop. */
 function modelHop(translate: TranslationProvider['translate']): TranslationProvider {

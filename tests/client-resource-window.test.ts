@@ -7,10 +7,10 @@ import { act } from 'react'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-import { ResourceWindow } from '../src/client/features/resource-window/ResourceWindow.js'
-import type { ResourceTranslate } from '../src/client/features/resource-window/ResourceWindow.js'
-import { ComposerResourceEntry } from '../src/client/features/resource-window/ComposerResourceEntry.js'
-import type { ResourceWindowPayload } from '../src/contracts/resource-window.js'
+import { ResourceWindow } from '../packages/market-ui/src/features/resource-window/ResourceWindow.js'
+import type { ResourceTranslate } from '../packages/market-ui/src/features/resource-window/ResourceWindow.js'
+import { ComposerResourceEntry } from '../packages/market-ui/src/features/resource-window/ComposerResourceEntry.js'
+import type { ResourceWindowPayload } from '../packages/market-contracts/src/contracts/resource-window.js'
 import { typeInto } from './helpers/dom-events.js'
 
 const t: ResourceTranslate = (key, params) => {

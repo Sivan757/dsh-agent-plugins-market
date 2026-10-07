@@ -6,7 +6,7 @@ import {
   selectionAllows,
   type ExtensionPreset,
   type ExtensionSelection
-} from '../src/contracts/extension-presets.js'
+} from '../packages/market-contracts/src/contracts/extension-presets.js'
 
 const preset = (): ExtensionPreset => ({ id: 'front', name: '前端开发', revision: 1, enabledIds: ['skills:react', 'mcp:browser', 'market:source/frontend'] })
 

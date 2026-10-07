@@ -8,10 +8,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
-import { MARKET_ROUTES } from '../src/contracts/market.js'
-import { Catalog } from '../src/application/catalog.js'
-import type { CatalogPortsOverride } from '../src/application/ports.js'
-import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
+import { MARKET_ROUTES } from '../packages/market-contracts/src/contracts/market.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import type { CatalogPortsOverride } from '../packages/market-contracts/src/ports/ports.js'
+import { mountSuiteRoutes, type WebServerService } from '../packages/market-bundle/src/routes.js'
 
 const roots: string[] = []
 afterEach(async () => {

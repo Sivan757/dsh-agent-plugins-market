@@ -1,0 +1,16 @@
+{
+  "name": "@dsh-market/contracts",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "description": "Private contracts source boundary for dsh-agent-plugins-market",
+  "exports": {
+    "./contracts/*": "./src/contracts/*.ts",
+    "./model/*": "./src/model/*.ts",
+    "./ports/*": "./src/ports/*.ts",
+    "./host/*": "./src/host/*.ts",
+    "./redaction": "./src/redaction.ts",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {}
+}

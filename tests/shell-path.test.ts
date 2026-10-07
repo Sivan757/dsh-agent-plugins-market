@@ -42,9 +42,9 @@ function withPlatform<T>(platform: NodeJS.Platform, run: () => Promise<T>): Prom
 }
 
 /** A fresh module graph, so the process-wide probe memo starts empty. */
-async function load(): Promise<typeof import('../src/runtime/host/shell-path.js')> {
+async function load(): Promise<typeof import('../packages/market-runtime/src/runtime/host/shell-path.js')> {
   vi.resetModules()
-  return import('../src/runtime/host/shell-path.js')
+  return import('../packages/market-runtime/src/runtime/host/shell-path.js')
 }
 
 /** A ctx exposing only the host lookup seam. */

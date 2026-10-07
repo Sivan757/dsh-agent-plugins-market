@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectUnits } from '../src/application/translation/unit.js'
+import { collectUnits } from '../packages/market-translation/src/application/translation/unit.js'
 
 describe('collectUnits', () => {
   it('collects the description and nothing else', () => {

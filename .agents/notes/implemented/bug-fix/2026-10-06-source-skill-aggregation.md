@@ -8,7 +8,7 @@ Repositories such as [jeecgboot/skills](https://github.com/jeecgboot/skills) con
 
 ## Decision
 
-[Rooted discovery](../../../../src/catalog/scan-resolvers.ts) groups validated, undeclared skill-only roots into one source-level suite. Marketplace entries, declared plugin roots, and roots with other runtime surfaces retain their identities. Existing checkout-root suites remain unchanged.
+[Rooted discovery](../../../../packages/market-catalog/src/scanning/scan-resolvers.ts) groups validated, undeclared skill-only roots into one source-level suite. Marketplace entries, declared plugin roots, and roots with other runtime surfaces retain their identities. Existing checkout-root suites remain unchanged.
 
 The aggregate uses the source-qualified reserved ID `@skills`. Sanitized child IDs cannot collide with it, so a single-skill install cannot silently enable its siblings. The display name comes from the checkout basename.
 

@@ -20,11 +20,12 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
-import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
-import { ScopedExtensionContributors, type ScopedContributorPorts } from '../src/runtime/host/scoped-contributors.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
-import type { DiscoveredSuite } from '../src/model/types.js'
+import { toMcpMounts } from '../packages/market-mcp/src/application/mcp/mcp-config.js'
+import { ScopedExtensionContributors, type ScopedContributorPorts } from '../packages/market-runtime/src/runtime/host/scoped-contributors.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import type { DiscoveredSuite } from '../packages/market-contracts/src/model/types.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { createMcpMount } from '../packages/market-bundle/src/runtime-adapters.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -142,6 +143,7 @@ async function setup(options: { command?: string } = {}) {
     mcpBackend: async () => 'host'
   } as unknown as ScopedContributorPorts['catalog']
   const contributors = new ScopedExtensionContributors({
+    mcpMounts: createMcpMount,
     dataRoot: root,
     catalog: catalogReads,
     shell: () => undefined,

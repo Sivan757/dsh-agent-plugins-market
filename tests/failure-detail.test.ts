@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { causeMessages } from '../src/runtime/host/failure-detail.js'
+import { causeMessages } from '../packages/market-runtime/src/runtime/host/failure-detail.js'
 
 describe('failure detail', () => {
   it('collects the messages under the outermost error, outermost first', () => {

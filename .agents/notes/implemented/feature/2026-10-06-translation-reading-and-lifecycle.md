@@ -12,13 +12,13 @@ Translation work outlives a client read. A closed display switch must stop queue
 
 ### Language and display are independent
 
-[The configuration contract](../../../../src/contracts/settings.ts) resolves the interface dictionary to `zh` or `en`. Chinese defaults to on and English to off. A stored boolean wins until the user restores the default. The default predicate is not an execution gate. The localizer accepts Chinese prose for an English target, including Chinese within mostly English text.
+[The configuration contract](../../../../packages/market-contracts/src/contracts/settings.ts) resolves the interface dictionary to `zh` or `en`. Chinese defaults to on and English to off. A stored boolean wins until the user restores the default. The default predicate is not an execution gate. The localizer accepts Chinese prose for an English target, including Chinese within mostly English text.
 
 Names and keywords remain identifiers. Translated descriptions and document prose are display-only. Prompts and tool descriptions that enter model context keep their authored language.
 
 ### Expanded documents start in bilingual mode
 
-[The shared reader](../../../../src/client/ui/DocumentTranslation.tsx) mounts inside an expanded document and starts the translation read there. Compact icon tabs at the upper-right select original, translated or bilingual text. The host `SegmentedTabs` retains keyboard navigation, with bilingual selected by default. Localized labels remain available to assistive technology and on hover.
+[The shared reader](../../../../packages/market-ui/src/ui/DocumentTranslation.tsx) mounts inside an expanded document and starts the translation read there. Compact icon tabs at the upper-right select original, translated or bilingual text. The host `SegmentedTabs` retains keyboard navigation, with bilingual selected by default. Localized labels remain available to assistive technology and on hover.
 
 Unexpanded documents do not start translation. Original mode stops reader revalidation and renders authored text. Closing a reader does not cancel all server work for that document.
 
@@ -28,13 +28,13 @@ Direct suite and user-entry details also return optional `translationPending` fo
 
 ### Failed reads stop loading and offer retry
 
-[Document polling](../../../../src/client/ui/translation-settle.ts) reports a read failure through `onError` and stops without treating pending work as complete. The reader hides loading, retains the original or partial translation, and offers Retry translation. Retry starts a fresh read with the same document and target. Closing the reader or selecting original mode suppresses late errors.
+[Document polling](../../../../packages/market-ui/src/ui/translation-settle.ts) reports a read failure through `onError` and stops without treating pending work as complete. The reader hides loading, retains the original or partial translation, and offers Retry translation. Retry starts a fresh read with the same document and target. Closing the reader or selecting original mode suppresses late errors.
 
-[Translation POST reads](../../../../src/client/api.ts) use the 15-second read deadline, not the 600-second mutation deadline. The request races that deadline through response-body consumption, so received headers alone do not end the timer. This bounds each HTTP read, not total translation work.
+[Translation POST reads](../../../../packages/market-ui/src/api.ts) use the 15-second read deadline, not the 600-second mutation deadline. The request races that deadline through response-body consumption, so received headers alone do not end the timer. This bounds each HTTP read, not total translation work.
 
 ### Transform document structure on the server
 
-[The document transform](../../../../src/application/translation/document.ts) uses mdast with GFM and math extensions. An abstract syntax tree, or AST, represents document structure. The transform collects text leaves inside each paragraph, heading or table cell. Ordered placeholders preserve the positions of inline nodes. Code, inline code, link destinations, math and raw HTML do not enter provider input. Missing, duplicated or reordered placeholders are not accepted directly. The provider adapter can attempt [bounded repair](2026-10-04-universal-translation-layer.md#masking) before returning a valid translation or leaving the original paragraph. An empty inline text leaf is allowed, but the paragraph must contain non-whitespace text after placeholders are removed.
+[The document transform](../../../../packages/market-translation/src/application/translation/document.ts) uses mdast with GFM and math extensions. An abstract syntax tree, or AST, represents document structure. The transform collects text leaves inside each paragraph, heading or table cell. Ordered placeholders preserve the positions of inline nodes. Code, inline code, link destinations, math and raw HTML do not enter provider input. Missing, duplicated or reordered placeholders are not accepted directly. The provider adapter can attempt [bounded repair](2026-10-04-universal-translation-layer.md#masking) before returning a valid translation or leaving the original paragraph. An empty inline text leaf is allowed, but the paragraph must contain non-whitespace text after placeholders are removed.
 
 A document paragraph is not combined with its neighbors to fill a request. Only an oversized paragraph splits into bounded segments. Cache identity includes segment text, not paragraph position. Inserting a document paragraph leaves unrelated segment keys unchanged. Descriptions retain the legacy splitter, including cross-paragraph packing and authored separators, to preserve historical description cache keys.
 
@@ -42,11 +42,11 @@ Bilingual paragraphs place translated text after the original with a line break.
 
 ### Disable keeps completed cache entries
 
-[The localizer](../../../../src/application/translation/localizer.ts) receives configuration changes through `onEnabledChanged()`. Disable increments the generation, drops queued work and aborts active batches. [The provider chain](../../../../src/application/translation/chain.ts) tests cancellation before each fallback and after each response. Caller cancellation does not trip a provider. Completed cache entries remain available for a later enabled read.
+[The localizer](../../../../packages/market-translation/src/application/translation/localizer.ts) receives configuration changes through `onEnabledChanged()`. Disable increments the generation, drops queued work and aborts active batches. [The provider chain](../../../../packages/market-translation/src/application/translation/chain.ts) tests cancellation before each fallback and after each response. Caller cancellation does not trip a provider. Completed cache entries remain available for a later enabled read.
 
 A provider can ignore an abort signal and finish remote computation. The chain races provider work against its deadline and caller cancellation, so neither waits for provider cooperation. Deadline expiry permits fallback, but caller cancellation stops the chain. The generation test rejects stale responses. Re-enable resets failure state but does not scan or pretranslate documents. New reads request missing work.
 
-[The model adapter](../../../../src/runtime/host/llm-translator.ts) passes cancellation into capability lookup and tests it again before starting a stream. A capability lookup that completes after cancellation cannot start new model generation.
+[The model adapter](../../../../packages/market-translation/src/runtime/host/llm-translator.ts) passes cancellation into capability lookup and tests it again before starting a stream. A capability lookup that completes after cancellation cannot start new model generation.
 
 ### Reset orders persistence and rejects old work
 
@@ -58,7 +58,7 @@ Persistent keys retain the target, surface, entity id, role, text and chain iden
 
 ### Open menus revalidate with a limit
 
-[The menu description source](../../../../src/client/menu-row-faces.ts) returns current descriptions immediately. A real candidate request supplies `sessionId`, and `sessions.scope` borrows its existing scope. Public `inputTriggers.sessionOf` provides the controller. An open menu performs at most 40 follow-up reads, at least 1.5 seconds apart. Only changed description maps trigger `refreshOpenMenu()`, which prevents refresh recursion. Closing the menu or disabling translation stops timed reads. There is no permanent background poll.
+[The menu description source](../../../../packages/market-ui/src/menu-row-faces.ts) returns current descriptions immediately. A real candidate request supplies `sessionId`, and `sessions.scope` borrows its existing scope. Public `inputTriggers.sessionOf` provides the controller. An open menu performs at most 40 follow-up reads, at least 1.5 seconds apart. Only changed description maps trigger `refreshOpenMenu()`, which prevents refresh recursion. Closing the menu or disabling translation stops timed reads. There is no permanent background poll.
 
 The 40 ticks span about 60 seconds, plus read time. Translations that finish after this window need a later candidate request. A missing public controller falls back to candidate-triggered reads. New targets clear old descriptions, and stale responses cannot overwrite newer reads.
 

@@ -7,18 +7,18 @@ import { act } from 'react'
 
 // Each tab's surface is heavy; the tab-row contract under test needs only a
 // marker naming which tab is mounted.
-vi.mock('../src/client/features/market/MarketSection.js', () => ({
+vi.mock('../packages/market-ui/src/features/market/MarketSection.js', () => ({
   MarketSection: (props: { mode?: string }) => h('output', { 'data-tab': 'market', 'data-mode': props.mode ?? 'settings' })
 }))
-vi.mock('../src/client/features/mcp/StatusPanel.js', () => ({ McpStatusPanel: () => h('output', { 'data-tab': 'mcp' }) }))
-vi.mock('../src/client/features/lsp/LspStatusPanel.js', () => ({ LspStatusPanel: () => h('output', { 'data-tab': 'lsp' }) }))
-vi.mock('../src/client/features/hooks/StatusPanel.js', () => ({ HooksStatusPanel: () => h('output', { 'data-tab': 'hooks' }) }))
-vi.mock('../src/client/ui/UserPanelSurface.js', () => ({ UserPanelSurface: (props: { kind: string }) => h('output', { 'data-tab': props.kind }) }))
+vi.mock('../packages/market-ui/src/features/mcp/StatusPanel.js', () => ({ McpStatusPanel: () => h('output', { 'data-tab': 'mcp' }) }))
+vi.mock('../packages/market-ui/src/features/lsp/LspStatusPanel.js', () => ({ LspStatusPanel: () => h('output', { 'data-tab': 'lsp' }) }))
+vi.mock('../packages/market-ui/src/features/hooks/StatusPanel.js', () => ({ HooksStatusPanel: () => h('output', { 'data-tab': 'hooks' }) }))
+vi.mock('../packages/market-ui/src/ui/UserPanelSurface.js', () => ({ UserPanelSurface: (props: { kind: string }) => h('output', { 'data-tab': props.kind }) }))
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-import { PluginWorkspace } from '../src/client/workspace/PluginWorkspace.js'
-import type { Translate } from '../src/client/index.js'
+import { PluginWorkspace } from '../packages/market-ui/src/workspace/PluginWorkspace.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 const t: Translate = key => String(key)
 

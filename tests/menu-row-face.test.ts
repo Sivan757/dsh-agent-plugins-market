@@ -3,7 +3,7 @@
  * falls back to, and what it refuses to disturb.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { installMenuRowFace, type MenuRowFace, type MenuRowSource } from '../src/client/ui/menu-row-face.js'
+import { installMenuRowFace, type MenuRowFace, type MenuRowSource } from '../packages/market-ui/src/ui/menu-row-face.js'
 
 /** Read one row without narrowing it: the rows under test include junk entries. */
 function rowAt(rows: unknown, index: number): unknown {
@@ -317,7 +317,7 @@ describe('a failure inside this layer', () => {
   /** A fresh module instance per test: the once-only report flag is module state. */
   async function freshInstall() {
     vi.resetModules()
-    const module = await import('../src/client/ui/menu-row-face.js')
+    const module = await import('../packages/market-ui/src/ui/menu-row-face.js')
     return module.installMenuRowFace
   }
 

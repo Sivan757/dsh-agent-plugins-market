@@ -9,8 +9,8 @@ import { SessionId, SessionLogOffset, buildForkSeed } from '@deepseek-ai/dsh-ses
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
-import { captureExtensionSelection } from '../src/contracts/extension-presets.js'
-import { ExtensionSessionState, EXTENSION_SESSION_SOURCE } from '../src/runtime/host/extension-session-state.js'
+import { captureExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { ExtensionSessionState, EXTENSION_SESSION_SOURCE } from '../packages/market-runtime/src/runtime/host/extension-session-state.js'
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
     return Promise.reject(new Error('unused'))

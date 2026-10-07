@@ -8,7 +8,7 @@ User panels and Market suite detail both display skill, command and agent-person
 
 ## Decision
 
-The Market translation route accepts `{sourceId, suiteId, kind, name}`; the user-panel route accepts an entry name and resolves it through its own store. Both read files from supported resource lists, never caller-submitted prose or arbitrary paths. [The market contract](../../../../src/contracts/market.ts) owns route names; [the route implementation](../../../../src/routes.ts) owns request validation.
+The Market translation route accepts `{sourceId, suiteId, kind, name}`; the user-panel route accepts an entry name and resolves it through its own store. Both read files from supported resource lists, never caller-submitted prose or arbitrary paths. [The market contract](../../../../packages/market-contracts/src/contracts/market.ts) owns route names; [the route implementation](../../../../packages/market-bundle/src/routes.ts) owns request validation.
 
 ### Different lookup eligibility, shared identity
 

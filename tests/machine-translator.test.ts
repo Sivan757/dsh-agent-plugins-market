@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runChain, resetCircuitBreaker } from '../src/application/translation/chain.js'
-import { googleTranslate, microsoftTranslate } from '../src/runtime/host/machine-translator.js'
-import { createTranslationProviders } from '../src/runtime/host/translation-providers.js'
+import { runChain, resetCircuitBreaker } from '../packages/market-translation/src/application/translation/chain.js'
+import { googleTranslate, microsoftTranslate } from '../packages/market-translation/src/runtime/host/machine-translator.js'
+import { createTranslationProviders } from '../packages/market-translation/src/runtime/host/translation-providers.js'
 
 /** One recorded fetch call, with the request the adapter built. */
 interface RecordedCall {

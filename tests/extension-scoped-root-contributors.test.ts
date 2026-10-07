@@ -25,11 +25,12 @@ import SkillRegistry from '@deepseek-ai/dsh-skill'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
-import { Catalog } from '../src/application/catalog.js'
-import { EXTENSION_ROUTES, captureExtensionSelection, type ExtensionSelection, type ExtensionWindowPayload } from '../src/contracts/extension-presets.js'
-import { apply, inject, name } from '../src/index.js'
-import { ScopedExtensionContributors } from '../src/runtime/host/scoped-contributors.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { EXTENSION_ROUTES, captureExtensionSelection, type ExtensionSelection, type ExtensionWindowPayload } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { apply, inject, name } from '../packages/market-bundle/src/index.js'
+import { ScopedExtensionContributors } from '../packages/market-runtime/src/runtime/host/scoped-contributors.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { createMcpMount } from '../packages/market-bundle/src/runtime-adapters.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const cleanups: Array<() => void | Promise<void>> = []
@@ -173,6 +174,7 @@ describe('suite skills are served per session, never from the root layer', () =>
     const cwd = catalog.userRoot
     const selections = new Map<Agent, ExtensionSelection>()
     const contributors = new ScopedExtensionContributors({
+      mcpMounts: createMcpMount,
       dataRoot: root,
       catalog,
       shell: () => undefined,

@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
-import { Catalog } from '../src/application/catalog.js'
-import { mountProjectCommands } from '../src/runtime/surfaces/project-runtime.js'
-import { bindHostLocale } from '../src/runtime/host/host-locale.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { mountProjectCommands } from '../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
+import { bindHostLocale } from '../packages/market-runtime/src/runtime/host/host-locale.js'
 import { required } from './helpers/fixture.js'
 
 const roots: string[] = []

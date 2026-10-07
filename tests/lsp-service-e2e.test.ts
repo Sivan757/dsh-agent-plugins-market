@@ -10,10 +10,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MARKET_ROUTES } from '../src/contracts/market.js'
-import { Catalog } from '../src/application/catalog.js'
-import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
-import { loadDisabledLspServers } from '../src/application/lsp/lsp-server-state.js'
+import { MARKET_ROUTES } from '../packages/market-contracts/src/contracts/market.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { mountSuiteRoutes, type WebServerService } from '../packages/market-bundle/src/routes.js'
+import { loadDisabledLspServers } from '../packages/market-lsp/src/application/lsp/lsp-server-state.js'
 
 const roots: string[] = []
 afterEach(async () => {

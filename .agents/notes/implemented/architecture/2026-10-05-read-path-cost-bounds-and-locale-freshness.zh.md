@@ -12,21 +12,21 @@ Status: implemented
 
 ### locale 每次操作只解析一次，缺参数就编译不过
 
-`Catalog.localePreference` 只读一次端口（`src/application/catalog.ts:93`），`translateFields(surface, id, fields, locale)` 把 locale 作为必填参数、没有默认值（`:290-295`）。参数处的 JSDoc 写明了规则（`:285-287`）：不设默认值，因为默认值会让每次实体级调用都重读宿主偏好，使一次读的代价随行数而不是随工作量增长。每条遍历都解析一次并把值往下传——市场总览（`:229`）、MCP 状态清单（`:336`）、单套件详情（`:356`）——面板读把同一个值交给每一行（`src/application/panel-resources.ts:192`）。
+`Catalog.localePreference` 只读一次端口（`packages/market-bundle/src/application/catalog.ts:93`），`translateFields(surface, id, fields, locale)` 把 locale 作为必填参数、没有默认值（`:290-295`）。参数处的 JSDoc 写明了规则（`:285-287`）：不设默认值，因为默认值会让每次实体级调用都重读宿主偏好，使一次读的代价随行数而不是随工作量增长。每条遍历都解析一次并把值往下传——市场总览（`:229`）、MCP 状态清单（`:336`）、单套件详情（`:356`）——面板读把同一个值交给每一行（`packages/market-runtime/src/application/panel-resources.ts:192`）。
 
 ### 缓存的 locale 没有 TTL；它与宿主副本共享同一份新鲜度
 
-`src/index.ts:190` 把该偏好放在一个普通的 `let` 里，`:362` 从它回答端口。刷新它的恰好是三个时点，也正是刷新 `hostLocale.t`（插件渲染自己面向宿主的文案所用的那份副本）的时点：激活（`:207`）、settings 服务落地（`:208-210`）、以及 `locale` 条目自身的 `settings/document-updated`（`:213-219`）。没有定时器，也没有年龄上界。
+`packages/market-bundle/src/index.ts:190` 把该偏好放在一个普通的 `let` 里，`:362` 从它回答端口。刷新它的恰好是三个时点，也正是刷新 `hostLocale.t`（插件渲染自己面向宿主的文案所用的那份副本）的时点：激活（`:207`）、settings 服务落地（`:208-210`）、以及 `locale` 条目自身的 `settings/document-updated`（`:213-219`）。没有定时器，也没有年龄上界。
 
 这就是契约：只有当一次语言变更没有触发 settings 文档事件时，缓存值才可能陈旧，而那时 `hostLocale.t` 陈旧的程度完全相同。插件不可能对同一个偏好显示两种语言；它可能显示一个宿主已不再持有的偏好。代价是：由不触发文档事件的路径写入的偏好，要到三个时点中的下一个才会被观察到，本插件内没有任何东西会更早发现它。
 
 ### 行缓存上界 2000 ms，Refresh 无条件绕过
 
-`ROW_CACHE_MAX_AGE_MS` 为 2_000（`src/application/panel-resources.ts:122`）。只有在三个输入同时成立时才复用行：catalog 快照对象、本存储自己的变更计数器、以及年龄在上界之内（`:302-307`）。这个上界是一个客户端轮询周期——`TRANSLATION_POLL_MS` 为 1_500（`src/client/ui/translation-settle.ts:17`）——加上一次慢读所需的余量，因此缓存能吸收一次交互产生的多次读，却永远不会成为手改内容在下一个轮询之后仍不可见的原因。客户端的 Refresh 传 `force`，跳过复用判定并重新推导每一行（`:300`、`:302`）。
+`ROW_CACHE_MAX_AGE_MS` 为 2_000（`packages/market-runtime/src/application/panel-resources.ts:122`）。只有在三个输入同时成立时才复用行：catalog 快照对象、本存储自己的变更计数器、以及年龄在上界之内（`:302-307`）。这个上界是一个客户端轮询周期——`TRANSLATION_POLL_MS` 为 1_500（`packages/market-ui/src/ui/translation-settle.ts:17`）——加上一次慢读所需的余量，因此缓存能吸收一次交互产生的多次读，却永远不会成为手改内容在下一个轮询之后仍不可见的原因。客户端的 Refresh 传 `force`，跳过复用判定并重新推导每一行（`:300`、`:302`）。
 
 ### 列表不携带文档正文
 
-`PanelResources.read` 构造每个 wire 行时删除 `rawText` 与 `content`（`src/application/panel-resources.ts:201-204`）；文档留在 `PanelEntryRecord` 的内存里（`:29`），只有单条 `get`（`:213`）会返回它。wire 类型写明了契约：列表读省略 `rawText`，因为它曾占响应的绝大部分，而客户端只取它打开的那一个条目（`src/contracts/market.ts:379-384`）；省略 `content`，因为客户端渲染的是 `rawText`，两者都发等于把同一份文档寄了两遍（`:391-396`）。
+`PanelResources.read` 构造每个 wire 行时删除 `rawText` 与 `content`（`packages/market-runtime/src/application/panel-resources.ts:201-204`）；文档留在 `PanelEntryRecord` 的内存里（`:29`），只有单条 `get`（`:213`）会返回它。wire 类型写明了契约：列表读省略 `rawText`，因为它曾占响应的绝大部分，而客户端只取它打开的那一个条目（`packages/market-contracts/src/contracts/market.ts:379-384`）；省略 `content`，因为客户端渲染的是 `rawText`，两者都发等于把同一份文档寄了两遍（`:391-396`）。
 
 ## Alternatives considered
 
@@ -36,7 +36,7 @@ Status: implemented
 
 **给缓存的 locale 加 TTL 或刷新定时器。** 被否决：定时器给一个已在三个时点跟随宿主副本的值加上一次唤醒和第二条新鲜度规则，而且会让面板比插件面向宿主渲染的那份副本更新——两者随后可能互相不一致，而这正是共用刷新时点要防的失效。
 
-**行缓存改用快照 TTL 计时，而不是行内自己的上界。** 被否决：用户快照存活 30 秒（`SCAN_CACHE_TTL_MS`，`src/application/snapshot-cache.ts:18`），并在其 0.8 处被替换（`USER_REFRESH_LEAD_RATIO`，`:28`），按它计时的行会让手改内容数十秒不可见；行缓存读的是文件内容，它的上界属于客户端的轮询周期，不属于快照。
+**行缓存改用快照 TTL 计时，而不是行内自己的上界。** 被否决：用户快照存活 30 秒（`SCAN_CACHE_TTL_MS`，`packages/market-catalog/src/application/snapshot-cache.ts:18`），并在其 0.8 处被替换（`USER_REFRESH_LEAD_RATIO`，`:28`），按它计时的行会让手改内容数十秒不可见；行缓存读的是文件内容，它的上界属于客户端的轮询周期，不属于快照。
 
 **列表继续携带 `rawText` 与 `content`，由客户端自己留着。** 被否决：列表正是面板每次轮询都要重读的东西，寄文档让被轮询的响应比它所描述的行大出数倍；打开一个条目只多一次请求，而那次条目读也是唯一按同一修订返回文档的读。
 

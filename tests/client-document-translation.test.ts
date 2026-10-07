@@ -4,13 +4,13 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { translateMarkdownDocument } from '../src/application/translation/document.js'
-import { DocumentTranslationView } from '../src/client/ui/DocumentTranslation.js'
-import { RequestTimeoutError } from '../src/client/request-error.js'
-import { TRANSLATION_POLL_MS } from '../src/client/ui/translation-settle.js'
-import { bindTranslationEnabled } from '../src/client/ui/translation-enabled.js'
-import type { Translate } from '../src/client/index.js'
-import type { DocumentTranslation } from '../src/contracts/translation.js'
+import { translateMarkdownDocument } from '../packages/market-translation/src/application/translation/document.js'
+import { DocumentTranslationView } from '../packages/market-ui/src/ui/DocumentTranslation.js'
+import { RequestTimeoutError } from '../packages/market-ui/src/request-error.js'
+import { TRANSLATION_POLL_MS } from '../packages/market-ui/src/ui/translation-settle.js'
+import { bindTranslationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
+import type { DocumentTranslation } from '../packages/market-contracts/src/contracts/translation.js'
 
 /** The active-locale probe answers Chinese; every other key surfaces as itself. */
 const chinese: Translate = key => (key === 'localeProbeLang' ? '中文' : key)

@@ -8,14 +8,14 @@ Status: implemented
 
 MCP 服务详情直接把挂载流程记下的诊断原文印在弹窗里。那句话由失败的层写出，包着桥接层的内部服务名——`mount failed: mcp-client(chrome-devtools__chrome-devtools): initial connection or tool synchronization failed`——而且同一句话在一个弹窗里出现两次：一次拼在顶部的重试回执里，一次在「原因」下面。原因区块整块铺上错误色，连根本不算失败的状态（被覆写停用的服务、被别的 MCP 客户端挂载的服务）也一样。
 
-包在那句话背后的真实原因从来没到过面板。桥接层只抛出固定的一句话，把真正的失败放在 `cause` 里（`src/runtime/mcp/bridge/bridge.ts`），而挂载流程只读 `error.message`，于是子进程启动失败、连接被拒绝、握手超时到面板时都是同一句话。客户端分类器正是拿这句话去匹配正则，所以面对最常见的那类失败，弹窗给不出任何下一步该查什么。LSP 详情弹窗渲染的是同一个区块，问题一样，只是原因换成它自己的英文。
+包在那句话背后的真实原因从来没到过面板。桥接层只抛出固定的一句话，把真正的失败放在 `cause` 里（`packages/market-mcp/src/runtime/mcp/bridge/bridge.ts`），而挂载流程只读 `error.message`，于是子进程启动失败、连接被拒绝、握手超时到面板时都是同一句话。客户端分类器正是拿这句话去匹配正则，所以面对最常见的那类失败，弹窗给不出任何下一步该查什么。LSP 详情弹窗渲染的是同一个区块，问题一样，只是原因换成它自己的英文。
 
 ## Decision
 
 - **运行时记录原因链。** `src/runtime/failure-detail.ts` 从挂载错误出发沿 `cause` 向下走，抹掉 URL 里的凭据、去重、遇到指回自身的链条就停下，最多保留四条消息。两条挂载流程都把它们作为 `causes` 记在诊断上，两个状态构建器把记录的 `code` 与 `causes` 一起送到接口：`src/contracts/` 里的 `McpStatusEntry` 与 `LspStatusEntry` 都增加该字段，`LspStatusEntry` 同时补上它从未报告过的 `code`。
 - **状态构建器自己写的原因也有了代码。** `disabled by override`、`modified by override` 与 `MCP tools remain after this plugin surface was disabled` 分别带上 `disabled-override`、`modified-override`、`orphaned-tools`，面板据此本地化，不再在中文控件旁边印一句英文。
-- **失败报告只有一个实现。** `src/client/ui/StatusBand.tsx`——本记录当时交付的 `FailureReport.tsx` 已并入详情弹窗的状态容器——渲染一条 3px 状态边条（只有卡片同样标为错误的状态才用错误色）、按失败类型选出的那一句话、该状态唯一的恢复操作，以及收在 `aria-expanded` 折叠项里的诊断原文，折叠项标题是「诊断详情」/ `Diagnostic details`。MCP 与 LSP 详情弹窗都用它，连信息性的状态也走同一条路径，因此只有一份区块、一套 token。
-- **分类先看记录的代码，再看措辞。** `src/client/ui/failure-guidance.ts` 取代 `src/client/features/mcp-status/diagnostic-guidance.ts`：有代码就由代码决定；走措辞的那条路把摘要行与它下面的消息合在一起匹配；`mount-failed` 里认不出的形状退到那句适用于所有启动失败的话，而不是什么都不给。
+- **失败报告只有一个实现。** `packages/market-ui/src/ui/StatusBand.tsx`——本记录当时交付的 `FailureReport.tsx` 已并入详情弹窗的状态容器——渲染一条 3px 状态边条（只有卡片同样标为错误的状态才用错误色）、按失败类型选出的那一句话、该状态唯一的恢复操作，以及收在 `aria-expanded` 折叠项里的诊断原文，折叠项标题是「诊断详情」/ `Diagnostic details`。MCP 与 LSP 详情弹窗都用它，连信息性的状态也走同一条路径，因此只有一份区块、一套 token。
+- **分类先看记录的代码，再看措辞。** `packages/market-ui/src/ui/failure-guidance.ts` 取代 `src/client/features/mcp-status/diagnostic-guidance.ts`：有代码就由代码决定；走措辞的那条路把摘要行与它下面的消息合在一起匹配；`mount-failed` 里认不出的形状退到那句适用于所有启动失败的话，而不是什么都不给。
 - **重试回执不再复述原因。** 它只回答这次操作有没有重新连上；原因由下面的报告给出，内容来自操作后重新读取的那一行。
 
 ## Alternatives considered

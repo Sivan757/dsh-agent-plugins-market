@@ -13,8 +13,8 @@
     "types": ["node", "react"]
   },
   "include": [
-    "src/client/**/*.ts",
-    "src/client/**/*.tsx",
+    "packages/market-ui/src/**/*.ts",
+    "packages/market-ui/src/**/*.tsx",
     "tests/globals.d.ts",
     "tests/jsdom.d.ts",
     "tests/bilingual-description.test.ts",

@@ -22,9 +22,9 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { SessionId } from '@deepseek-ai/dsh-session'
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
-import { readExtensionInventory } from '../src/application/extension-inventory.js'
-import { ExtensionRuntime } from '../src/runtime/host/extension-runtime.js'
-import type { UserPanelEntryWire } from '../src/contracts/market.js'
+import { readExtensionInventory } from '../packages/market-bundle/src/application/extension-inventory.js'
+import { ExtensionRuntime } from '../packages/market-runtime/src/runtime/host/extension-runtime.js'
+import type { UserPanelEntryWire } from '../packages/market-contracts/src/contracts/market.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {

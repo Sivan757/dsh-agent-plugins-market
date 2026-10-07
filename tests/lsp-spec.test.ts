@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseLspServers } from '../src/catalog/lsp-spec.js'
+import { parseLspServers } from '../packages/market-catalog/src/scanning/lsp-spec.js'
 
 describe('parseLspServers', () => {
   it('parses a valid Claude Code declaration', () => {

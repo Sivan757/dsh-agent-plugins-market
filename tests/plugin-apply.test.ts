@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply } from '../src/index.js'
-import { presetSourceRef } from '../src/model/preset-source.js'
-import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
+import { apply } from '../packages/market-bundle/src/index.js'
+import { presetSourceRef } from '../packages/market-contracts/src/model/preset-source.js'
+import { RuntimeReconciler } from '../packages/market-runtime/src/runtime/core/reconciler.js'
 
 interface RegisteredTool {
   name: string

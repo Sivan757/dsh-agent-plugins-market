@@ -18,7 +18,7 @@
 
 ## 1. 现状基线（能力矩阵）
 
-已有：六方言市场源识别（`agent-plugin-v1 / universal / claude-code / codex / cursor / kimi`，`src/catalog/manifests.ts:35-42`）＋合成方言（`skill-collection / remote / project-native`）；六个运行时面（`skills / mcp / hooks / commands / agents / lsp`，`src/model/types.ts:182`）；市场源内 `.mcp.json`/`.claude-plugin/` 的 MCP 已宽容接受 Codex 形态（`validate.ts:149-151`）；hooks 桥已映射 CC 事件模型（`hooks-mounts.ts`）；唯一用户开关 `dsh-agent-plugins-market.mcpEnhanced`（`runtime/mcp-backend.ts:28-34`）。
+已有：六方言市场源识别（`agent-plugin-v1 / universal / claude-code / codex / cursor / kimi`，`packages/market-catalog/src/scanning/manifests.ts:35-42`）＋合成方言（`skill-collection / remote / project-native`）；六个运行时面（`skills / mcp / hooks / commands / agents / lsp`，`packages/market-contracts/src/model/types.ts:182`）；市场源内 `.mcp.json`/`.claude-plugin/` 的 MCP 已宽容接受 Codex 形态（`validate.ts:149-151`）；hooks 桥已映射 CC 事件模型（`hooks-mounts.ts`）；唯一用户开关 `dsh-agent-plugins-market.mcpEnhanced`（`runtime/mcp-backend.ts:28-34`）。
 
 | 原生来源                                | skills                                                        | commands | agents | MCP | hooks | 指令文件 |
 | --------------------------------------- | ------------------------------------------------------------- | -------- | ------ | --- | ----- | -------- |
@@ -49,7 +49,7 @@
 ### 方案 A：原生布局兼容框架（Native Layout Provider 注册表）——地基
 
 - **内容**：把 `native-project.ts:22-25` 硬编码的 `NATIVE_PROJECT_DIRS` 泛化为数据驱动的注册表。每个布局声明：目录名（项目级）、全局根（用户级）、各 surface 子目录映射、方言标签、默认开关。Claude Code（`.claude` + `~/.claude`）、agents 通用（`.agents` + `~/.agents/skills`）、Codex（`.codex` + `~/.codex/skills`）、Cursor（`.cursor/rules` 之外的 skills 面）、Kimi（`~/.kimi`）逐个填入。
-- **接缝**：`src/catalog/native-project.ts` 重构为注册表 + 发现器；新增 `SuiteLayoutKind` 成员或复用 `project-native` 合成方言＋`manifest.label` 细分（推荐后者，wire 契约零破坏）；每个携带内容的目录仍是只读合成套件，走既有安装/启用/面开关链。
+- **接缝**：`packages/market-catalog/src/scanning/native-project.ts` 重构为注册表 + 发现器；新增 `SuiteLayoutKind` 成员或复用 `project-native` 合成方言＋`manifest.label` 细分（推荐后者，wire 契约零破坏）；每个携带内容的目录仍是只读合成套件，走既有安装/启用/面开关链。
 - **开关**：随 `compat.enabled` 主开关（§4）；无 per-layout 设置——用户对单个布局的启停通过该布局套件的既有启用开关完成。
 - **量级**：小-中。**风险**：低——纯只读发现，沿用 fail-closed 与 `scanNotes` 诊断；永不写用户目录（延续 native 承诺，注释与文档明示）。
 
@@ -108,7 +108,7 @@ dsh-agent-plugins-market.compat = {
 
 - **粒度从哪来**：per-layout/per-suite 的启停**不新建设置**——每个原生布局落地为合成套件后，天然携带既有 `set-enabled` / per-surface 开关链（`state.json` `InstalledEntry`），用户在套件卡片上关掉任何一个布局即可。
 - **默认值**（2026-09-02 评审）：只读发现面与 MCP 随主开关默认**开**；hooks 默认**关**，开启是显式动作。
-- **生效链**：翻转 → `Catalog` 的 ports 绑定（`src/index.ts` 里 `CatalogPorts` 的 `mcpBackend` / `setMcpBackend` 闭包）→ 重扫快照 + reconciler 重挂载；诊断进 `RuntimeDiagnostics`，绝不静默半挂载。
+- **生效链**：翻转 → `Catalog` 的 ports 绑定（`packages/market-bundle/src/index.ts` 里 `CatalogPorts` 的 `mcpBackend` / `setMcpBackend` 闭包）→ 重扫快照 + reconciler 重挂载；诊断进 `RuntimeDiagnostics`，绝不静默半挂载。
 - **降级策略**：settings 读取失败 → 全部按默认值运行（mcpEnhanced 同款 fail-closed）。
 
 ### 4.2 兼容性表格（只读，主开关 + hooks 开关所在卡片内）

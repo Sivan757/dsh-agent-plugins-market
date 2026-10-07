@@ -16,7 +16,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
-import { createLlmTranslator } from '../src/runtime/host/llm-translator.js'
+import { createLlmTranslator } from '../packages/market-translation/src/runtime/host/llm-translator.js'
 
 /** A minimal stand-in for the host LLM service. */
 class FakeLlm extends Service {

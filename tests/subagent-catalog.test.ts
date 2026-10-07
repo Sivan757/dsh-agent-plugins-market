@@ -15,12 +15,12 @@ import {
   type CatalogStepDecision,
   type SubagentCatalogEntry,
   type SubagentCatalogSource
-} from '../src/runtime/agents/subagent-catalog.js'
-import { agentRoleCatalog } from '../src/runtime/agents/agent-role-router.js'
-import { Catalog } from '../src/application/catalog.js'
-import { projectAgentRoles } from '../src/application/project-agent-roles.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
-import { createPanelResources } from '../src/application/panel-resources.js'
+} from '../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
+import { agentRoleCatalog } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { projectAgentRoles } from '../packages/market-runtime/src/application/project-agent-roles.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { createPanelResources } from '../packages/market-runtime/src/application/panel-resources.js'
 
 // Resolve the actual session/prompt runtime already installed with dsh-tools. Those host packages
 // live inside dsh-tools' own dependency tree, so this project reaches them at runtime but cannot

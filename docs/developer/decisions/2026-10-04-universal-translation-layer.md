@@ -16,13 +16,13 @@ Translation cannot block the original content. Public endpoints can fail, and th
 
 The plugin tries Google Translate, Microsoft Translator and the configured default model, in that order. The original text is the final fallback, not a translation provider. The public endpoints require no user key. The model can consume the operator's quota, so the free endpoints come first.
 
-[The chain implementation](../../../src/application/translation/chain.ts) defines deadlines of 3 seconds, 15 seconds and 30 seconds. Failure, timeout or an invalid batch trips that provider. Later batches skip it until translation is re-enabled, the cache is reset, or the process restarts. Caller cancellation stops the chain without tripping a provider or starting another fallback. These deadlines are limits, not measured response times or availability promises.
+[The chain implementation](../../../packages/market-translation/src/application/translation/chain.ts) defines deadlines of 3 seconds, 15 seconds and 30 seconds. Failure, timeout or an invalid batch trips that provider. Later batches skip it until translation is re-enabled, the cache is reset, or the process restarts. Caller cancellation stops the chain without tripping a provider or starting another fallback. These deadlines are limits, not measured response times or availability promises.
 
 Batch text count, character count and concurrency are bounded. The English target uses a smaller source budget because Chinese-to-English output can expand. Output budgets are estimates, and the model adapter rejects truncated generations. No undocumented vendor payload limit is claimed.
 
 ### Persistent identity
 
-[The cache key](../../../src/application/state/translation-cache.ts) is a SHA-256 digest of target, surface, entity id, role, source text and provider-chain identity. A record separately identifies the provider that produced its text. Changing a chain produces a different key instead of serving output from the old chain.
+[The cache key](../../../packages/market-translation/src/application/state/translation-cache.ts) is a SHA-256 digest of target, surface, entity id, role, source text and provider-chain identity. A record separately identifies the provider that produced its text. Changing a chain produces a different key instead of serving output from the old chain.
 
 Entries do not expire. The same entity and text can reuse a persistent entry after restart. Editing text creates a new key, while the old entry remains until reset. A version change alone does not invalidate the text.
 

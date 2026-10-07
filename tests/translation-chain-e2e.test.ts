@@ -4,8 +4,8 @@
  * promises rather than trusting each unit in isolation.
  */
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { runChain, resetCircuitBreaker } from '../src/application/translation/chain.js'
-import { createTranslationProviders } from '../src/runtime/host/translation-providers.js'
+import { runChain, resetCircuitBreaker } from '../packages/market-translation/src/application/translation/chain.js'
+import { createTranslationProviders } from '../packages/market-translation/src/runtime/host/translation-providers.js'
 
 afterEach(() => {
   resetCircuitBreaker()

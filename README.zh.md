@@ -141,7 +141,7 @@ dsh plugin --profile <name> add dsh-agent-plugins-market
 - **组件补充：** 根 `plugin.json` 未声明受识别的 agent-plugins `$schema` 时，缺失的组件声明可以从 `.claude-plugin/plugin.json` 补齐；根清单中的显式声明优先，marketplace 条目声明补充剩余缺项。
 - Marketplace 索引遵循同一顺序：第一个能产出套件的索引胜出，无效或空索引允许继续尝试后续候选。
 
-顺序定义见 [`src/model/layouts.ts`](src/model/layouts.ts)，选择与根清单补充逻辑见 [`src/catalog/manifests.ts`](src/catalog/manifests.ts)。
+顺序定义见 [`packages/market-contracts/src/model/layouts.ts`](packages/market-contracts/src/model/layouts.ts)，选择与根清单补充逻辑见 [`packages/market-catalog/src/scanning/manifests.ts`](packages/market-catalog/src/scanning/manifests.ts)。
 
 ### 布局支持矩阵
 
@@ -218,6 +218,10 @@ README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layo
 **删除来源会删除文件吗？**
 
 只有勾选确认框里的「同时删除市场目录」才会删除。它删除该源在 `~/.dsh/agent-plugins/.sources/<id>` 下的目录——包括你手动克隆后被收编的目录。指向 `.sources/` 之外的本地目录源永不删除。
+
+## 仓库结构
+
+发布包仍为 `dsh-agent-plugins-market`，只产出一个构件。代码位于 `packages/` 下的八个私有工作区包：`market-bundle`（组合根与 HTTP 接口）、`market-catalog`（来源扫描与目录用例）、`market-contracts`（无状态共享记录）、`market-runtime`（会话选择与宿主副作用）、`market-mcp`、`market-lsp`、`market-translation` 与 `market-ui`（浏览器 bundle）。归属、依赖方向与迁移门禁记录在[领域工作区重构](docs/developer/design/domain-workspace-refactor.md)；维护者维护的布局图见 [AGENTS.md](AGENTS.md)。
 
 ## 更多文档
 

@@ -1,0 +1,12 @@
+/** Explicit cross-domain entry surface. Internal modules are not import targets for siblings. */
+export { McpConfigError, restoreRedactedConfig, validateServerMcp, type McpFieldError } from './application/mcp/validation.js'
+export type { McpStatusPayload } from './application/mcp/mcp-status.js'
+export { USER_MCP_SOURCE, USER_MCP_SUITE, loadUserMcpSuite } from './application/mcp/mcp-direct-config.js'
+export { applyOverride, loadSuiteOverrides, sanitizeOverridePatch } from './application/mcp/mcp-overrides.js'
+export type { McpServerOverride, McpSuiteOverrides } from './application/mcp/mcp-overrides.js'
+export { McpService } from './application/mcp-service.js'
+export { credentialRefsInServer, deriveServerName } from './application/mcp/mcp-config.js'
+export { buildMcpStatus } from './application/mcp/mcp-status.js'
+export { deleteMcpAuthGrant } from './runtime/mcp/mcp-auth-record.js'
+export { platformBrowserOpener } from './runtime/mcp/bridge/oauth.js'
+export { McpMountRegistry } from './runtime/mcp/mcp-mounts.js'

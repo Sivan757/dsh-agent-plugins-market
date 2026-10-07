@@ -2,15 +2,15 @@
 import { act, createElement as h, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { McpAddModal } from '../src/client/features/mcp/McpAddModal.js'
-import { ServerConfigModal } from '../src/client/ui/ServerConfigModal.js'
-import { composeServerDocument } from '../src/client/ui/server-form.js'
-import type { ServerConfigPayload } from '../src/contracts/market.js'
+import { McpAddModal } from '../packages/market-ui/src/features/mcp/McpAddModal.js'
+import { ServerConfigModal } from '../packages/market-ui/src/ui/ServerConfigModal.js'
+import { composeServerDocument } from '../packages/market-ui/src/ui/server-form.js'
+import type { ServerConfigPayload } from '../packages/market-contracts/src/contracts/market.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
-vi.mock('../src/client/api.js', async importOriginal => ({
-  ...(await importOriginal<typeof import('../src/client/api.js')>()),
+vi.mock('../packages/market-ui/src/api.js', async importOriginal => ({
+  ...(await importOriginal<typeof import('../packages/market-ui/src/api.js')>()),
   fetchServerConfigDefaults: vi.fn(async () => DEFAULTS),
   fetchServerConfig: vi.fn(async () => ({ ...DEFAULTS, id: 'direct:service', key: 'service', config: { type: 'stdio', command: 'node' } })),
   addLspServer: vi.fn(async () => {}),
@@ -18,7 +18,7 @@ vi.mock('../src/client/api.js', async importOriginal => ({
   saveServerConfig: vi.fn(async () => {})
 }))
 
-import * as api from '../src/client/api.js'
+import * as api from '../packages/market-ui/src/api.js'
 
 const DEFAULTS: ServerConfigPayload = {
   kind: 'mcp',

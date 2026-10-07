@@ -8,14 +8,15 @@
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { createMcpMount } from '../packages/market-bundle/src/runtime-adapters.js'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { Catalog } from '../src/application/catalog.js'
-import { mountProjectCommands, mountProjectMcp } from '../src/runtime/surfaces/project-runtime.js'
-import { bindHostLocale } from '../src/runtime/host/host-locale.js'
-import { ToggledSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
-import { UserPanelSkillProvider, createUserPanelStores } from '../src/runtime/panels/user-panels.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { mountProjectCommands, mountProjectMcp } from '../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
+import { bindHostLocale } from '../packages/market-runtime/src/runtime/host/host-locale.js'
+import { ToggledSkillProvider } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
+import { UserPanelSkillProvider, createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -120,7 +121,7 @@ describe('project MCP answers the mcp switch', () => {
     const userRoot = await project()
     const current = agent(root)
     let mcpOn = true
-    const live = mountProjectMcp(host(current), await projectCatalog(userRoot, async () => live.refresh()), join(userRoot, 'data'), () => mcpOn)
+    const live = mountProjectMcp(host(current), await projectCatalog(userRoot, async () => live.refresh()), join(userRoot, 'data'), createMcpMount, () => mcpOn)
     try {
       await live.refresh()
       // The mount key is suite-qualified: the project suite's own name prefixes

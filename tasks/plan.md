@@ -23,7 +23,7 @@
 问题：应用处于中文模式时，插件相关 UI 仍渲染英文（见图一截图）。验收：
 
 - 截图中每个非专有名词的英文串在 zh 模式下显示中文；专有名词（Claude Code、MCP、LSP、技能/来源名等）不翻译
-- 所有新增文案走 src/client/locales.ts 成对 zh/en key（AGENTS.md 双语规范）
+- 所有新增文案走 packages/market-ui/src/locales.ts 成对 zh/en key（AGENTS.md 双语规范）
 - check:quick + test:contract 通过；client 变更后 pnpm run build 成功验证：typecheck / lint / test:contract / build + Lead 对照截图复核。
 
 ### T2 会话间通信设计 spike

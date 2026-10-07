@@ -3,10 +3,10 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { interfaceLanguageTranslates, resolveMarketSettings, resolveTranslationTarget } from '../src/contracts/settings.js'
-import { bindHostLocale } from '../src/runtime/host/host-locale.js'
-import { resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { interfaceLanguageTranslates, resolveMarketSettings, resolveTranslationTarget } from '../packages/market-contracts/src/contracts/settings.js'
+import { bindHostLocale } from '../packages/market-runtime/src/runtime/host/host-locale.js'
+import { resetCircuitBreaker, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
 
 const locales = ['zh', 'zh-CN', 'zh-Hant', 'ja', 'en', 'en-US'] as const
 const roots: string[] = []

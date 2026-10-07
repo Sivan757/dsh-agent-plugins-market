@@ -8,7 +8,7 @@ import { defineConfig } from 'tsdown'
  * with no companion asset.
  */
 export default defineConfig({
-  entry: { client: 'src/client/index.ts' },
+  entry: { client: 'packages/market-ui/src/index.ts' },
   format: ['cjs'],
   outDir: 'client',
   platform: 'browser',

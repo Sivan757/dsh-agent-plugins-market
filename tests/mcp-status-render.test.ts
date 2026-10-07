@@ -96,7 +96,7 @@ const disabledPayload = vi.hoisted(() => ({
   directObservationOnly: true
 }))
 
-vi.mock('../src/client/api.js', () => ({
+vi.mock('../packages/market-ui/src/api.js', () => ({
   fetchMcpStatus: vi.fn().mockResolvedValue(statusPayload),
   fetchServerConfig: vi.fn().mockResolvedValue({ kind: 'mcp', id: 'direct-observation', editable: false, config: {} }),
   // The create form reads its template from this route; without it the mock
@@ -109,9 +109,9 @@ vi.mock('../src/client/api.js', () => ({
   retryMcpMounts: vi.fn()
 }))
 
-import { McpStatusPanel } from '../src/client/features/mcp/StatusPanel.js'
-import type { CredentialApi } from '../src/client/credentials.js'
-import type { Translate } from '../src/client/index.js'
+import { McpStatusPanel } from '../packages/market-ui/src/features/mcp/StatusPanel.js'
+import type { CredentialApi } from '../packages/market-ui/src/credentials.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 const t: Translate = key => String(key)
 
@@ -167,7 +167,7 @@ describe('MCP status actions', () => {
 
     // The editor is where a secret is read and written: it mounts the block for
     // the references the document spends.
-    const api = await import('../src/client/api.js')
+    const api = await import('../packages/market-ui/src/api.js')
     vi.mocked(api.fetchServerConfig).mockResolvedValue({
       kind: 'mcp',
       id: 'service',
@@ -187,7 +187,7 @@ describe('MCP status actions', () => {
   })
 
   it('offers retry in the status band and echoes the outcome in place', async () => {
-    const api = await import('../src/client/api.js')
+    const api = await import('../packages/market-ui/src/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
     const el = await mountPanel()
 
@@ -250,7 +250,7 @@ describe('MCP status actions', () => {
   })
 
   it('reads the same state colour on the card edge and in the detail band', async () => {
-    const api = await import('../src/client/api.js')
+    const api = await import('../packages/market-ui/src/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
     const failed = await mountPanel()
     const failedCard = failed.querySelector('[data-resource-surface="mcp"]')

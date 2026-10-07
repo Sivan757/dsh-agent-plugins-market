@@ -2,10 +2,19 @@
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { beginBusyOperation, busySnapshot, withBusyOperation } from '../src/client/ui/busy-operation.js'
-import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_LONG_RUNNING_MS } from '../src/client/ui/BusyOverlay.js'
+import { beginBusyOperation, busySnapshot, withBusyOperation } from '../packages/market-ui/src/ui/busy-operation.js'
+import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_LONG_RUNNING_MS } from '../packages/market-ui/src/ui/BusyOverlay.js'
 import { stubTranslate as t } from './helpers/translate.js'
-import { fetchLspStatus, fetchMcpStatus, fetchOverview, fetchServerConfig, fetchSuiteDetail, fetchSuiteDocument, fetchUserPanel, postAction } from '../src/client/api.js'
+import {
+  fetchLspStatus,
+  fetchMcpStatus,
+  fetchOverview,
+  fetchServerConfig,
+  fetchSuiteDetail,
+  fetchSuiteDocument,
+  fetchUserPanel,
+  postAction
+} from '../packages/market-ui/src/api.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: Root | undefined

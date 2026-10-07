@@ -4,17 +4,17 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { bindTranslationEnabled } from '../src/client/ui/translation-enabled.js'
-import type { Translate } from '../src/client/index.js'
+import { bindTranslationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 const api = vi.hoisted(() => ({
   fetchSuiteDetail: vi.fn(),
   fetchSuiteDocument: vi.fn(),
   fetchSuiteDocumentTranslation: vi.fn()
 }))
-vi.mock('../src/client/api.js', () => api)
+vi.mock('../packages/market-ui/src/api.js', () => api)
 
-import { SuiteDetailModal } from '../src/client/features/market/SuiteDetail.js'
+import { SuiteDetailModal } from '../packages/market-ui/src/features/market/SuiteDetail.js'
 
 /** Locale probes: the control's own rule reads the active language from this key. */
 const chinese: Translate = key => (key === 'localeProbeLang' ? '中文' : String(key))

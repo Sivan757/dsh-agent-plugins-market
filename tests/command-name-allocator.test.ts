@@ -5,7 +5,7 @@ import {
   createCommandNameAllocator,
   isDuplicateCommandName,
   registerWithAllocatedName
-} from '../src/runtime/host/command-name-allocator.js'
+} from '../packages/market-runtime/src/runtime/host/command-name-allocator.js'
 
 describe('command name allocation', () => {
   it('answers the preferred name while it is free', () => {

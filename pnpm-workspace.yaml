@@ -59,3 +59,4 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/schemastery@3.18.4'
 packages:
   - docs-site
+  - packages/*

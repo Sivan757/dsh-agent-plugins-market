@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
-import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
-import { LspMountRegistry } from '../src/runtime/lsp/lsp-mounts.js'
-import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
-import { HooksMountRegistry } from '../src/runtime/surfaces/hooks-mounts.js'
-import { deriveServerName } from '../src/application/mcp/mcp-config.js'
-import * as projection from '../src/application/extension-suite-selection.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
-import type { McpSuiteOverrides } from '../src/application/mcp/mcp-overrides.js'
+import { RuntimeReconciler } from '../packages/market-runtime/src/runtime/core/reconciler.js'
+import { McpMountRegistry } from '../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
+import { LspMountRegistry } from '../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
+import { CommandMountRegistry } from '../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
+import { HooksMountRegistry } from '../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js'
+import { deriveServerName } from '../packages/market-mcp/src/application/mcp/mcp-config.js'
+import * as projection from '../packages/market-runtime/src/application/extension-suite-selection.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
+import type { McpSuiteOverrides } from '../packages/market-mcp/src/application/mcp/mcp-overrides.js'
+import { createRuntimeMounts } from '../packages/market-bundle/src/runtime-adapters.js'
 
 afterEach(() => vi.restoreAllMocks())
 function suite(command = 'current'): Suite {
@@ -65,7 +66,7 @@ function setup() {
   vi.spyOn(CommandMountRegistry.prototype, 'disposeAll').mockImplementation(() => {})
   vi.spyOn(HooksMountRegistry.prototype, 'disposeAll').mockResolvedValue()
   const warn = vi.fn()
-  const reconciler = new RuntimeReconciler({ logger: { warn } } as never, '/data')
+  const reconciler = new RuntimeReconciler({ logger: { warn } } as never, '/data', createRuntimeMounts({ logger: { warn } } as never, '/data'))
   return { reconciler, mcp, lsp, owner, commands, warn, mounted: () => mounted, overrides: () => overrides(), demanded: () => demanded() }
 }
 const candidates = (row: Suite) => [{ suite: row, validSurfaces: effectiveSurfaces(undefined) }]

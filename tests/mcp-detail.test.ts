@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildSuiteDetail } from '../src/application/details.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { buildSuiteDetail } from '../packages/market-bundle/src/application/details.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 function suite(): Suite {
   return {

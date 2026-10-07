@@ -39,7 +39,7 @@ const api = vi.hoisted(() => {
     deleteUserPanelEntry: vi.fn()
   }
 })
-vi.mock('../src/client/api.js', () => api)
+vi.mock('../packages/market-ui/src/api.js', () => api)
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async importOriginal => ({
   ...(await importOriginal<typeof import('@deepseek-ai/dsh-client-ui-primitives')>()),
   Button: (props: Record<string, unknown>) => h('button', props),
@@ -47,7 +47,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async importOriginal => ({
   Modal: ({ children, footer, title }: { children: React.ReactNode; footer: React.ReactNode; title: string }) =>
     h('section', { role: 'dialog' }, h('h2', null, title), children, footer)
 }))
-import { UserPanelSurface } from '../src/client/ui/UserPanelSurface.js'
+import { UserPanelSurface } from '../packages/market-ui/src/ui/UserPanelSurface.js'
 let root: Root
 let host: HTMLDivElement
 const plugin = {

@@ -12,17 +12,17 @@ The stored field distinguishes on, off and absent. Only absence takes the langua
 
 The translation switch is a stored boolean whose default follows the host's `locale.preference`. A stored boolean always wins; only a section that says nothing about the field takes the language's answer.
 
-`interfaceLanguageTranslates(localePreference)` (`src/contracts/settings.ts`) answers only the default: like `bindHostLocale`, preferences starting with `en` use English and all others, including absence, use Chinese. `resolveMarketSettings` takes the stored boolean first and this default second. [Three-mode reading and translation lifecycle](2026-10-06-translation-reading-and-lifecycle.md) partially supersedes this note's language-as-gate decision: `resolveTranslationTarget` selects the target independently, and the effective switch controls work.
+`interfaceLanguageTranslates(localePreference)` (`packages/market-contracts/src/contracts/settings.ts`) answers only the default: like `bindHostLocale`, preferences starting with `en` use English and all others, including absence, use Chinese. `resolveMarketSettings` takes the stored boolean first and this default second. [Three-mode reading and translation lifecycle](2026-10-06-translation-reading-and-lifecycle.md) partially supersedes this note's language-as-gate decision: `resolveTranslationTarget` selects the target independently, and the effective switch controls work.
 
 ### The absence signal is the schema's
 
-`MarketSettingsFields.translationEnabled` declares no default (`src/application/mcp/mcp-backend.ts`). An untouched document therefore leaves the field out of the resolved section, the volatile reference answers `undefined`, and `narrowBoolean` hands the field to the language. This is the one field in the namespace without a declared default, and the absence is load-bearing rather than an omission: a declared default would erase the distinction the derivation rests on.
+`MarketSettingsFields.translationEnabled` declares no default (`packages/market-mcp/src/application/mcp/mcp-backend.ts`). An untouched document therefore leaves the field out of the resolved section, the volatile reference answers `undefined`, and `narrowBoolean` hands the field to the language. This is the one field in the namespace without a declared default, and the absence is load-bearing rather than an omission: a declared default would erase the distinction the derivation rests on.
 
 The host's own language row is shaped the same way: `locale.preference` is declared `.required(false)`, and its absence means "follow the browser".
 
 ### Both halves read the same language
 
-The node half passes the cached `locale.preference` it already holds for its own copy (`src/index.ts`, refreshed on activation, on the settings service landing, and on the locale entry's own document update) into `MarketSettingsNamespace`.
+The node half passes the cached `locale.preference` it already holds for its own copy (`packages/market-bundle/src/index.ts`, refreshed on activation, on the settings service landing, and on the locale entry's own document update) into `MarketSettingsNamespace`.
 
 The browser reads the locale preference through the configuration transport, not the locale service active id derived from the browser. The node process renders Chinese when the preference is absent. Following an English browser alone can show off while the server translates into Chinese. Both halves resolve an absent preference to `zh`.
 
@@ -48,7 +48,7 @@ Cache reset uses the host's `Button`, labelled 重置缓存 / `translationReset`
 
 **Align the default with the download-region predicate (`startsWith('zh')`).** Rejected: the region selects a download route, while the translation default follows the dictionary the interface uses. Both `ja` and `zh-Hant` use Simplified Chinese in this plugin; reading their tags directly would disagree with the interface copy and target. That does not authorize overriding an explicit preference.
 
-**Change the node half's "an absent preference means zh" convention to follow the browser language.** Rejected: it is a repository-wide convention (`src/runtime/host/host-locale.ts`) the market's own copy already relies on, and the node process has no browser language to read. Changing it for one setting would put the market's copy and its translation default in disagreement.
+**Change the node half's "an absent preference means zh" convention to follow the browser language.** Rejected: it is a repository-wide convention (`packages/market-runtime/src/runtime/host/host-locale.ts`) the market's own copy already relies on, and the node process has no browser language to read. Changing it for one setting would put the market's copy and its translation default in disagreement.
 
 ## Consequences
 

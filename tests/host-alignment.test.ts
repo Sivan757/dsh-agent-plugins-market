@@ -15,7 +15,7 @@ it('keeps exact test-only host dependencies in dev while rejecting source import
   const root = await mkdtemp(join(tmpdir(), 'market-alignment-'))
   roots.push(root)
   await mkdir(join(root, 'scripts'))
-  await mkdir(join(root, 'src'))
+  await mkdir(join(root, 'packages'))
   await writeFile(join(root, 'scripts/check-host-alignment.mjs'), await readFile(new URL('../scripts/check-host-alignment.mjs', import.meta.url), 'utf8'))
   await writeFile(join(root, 'package.json'), JSON.stringify({ devDependencies: { '@deepseek-ai/dsh-agent-loop-testkit': '0.2.0-rc.2' } }))
   await writeFile(join(root, 'pnpm-workspace.yaml'), "minimumReleaseAgeExclude:\n  - '@deepseek-ai/dsh-agent-loop-testkit@0.2.0-rc.2'\n")
@@ -23,14 +23,14 @@ it('keeps exact test-only host dependencies in dev while rejecting source import
   expect(report((await run()).stdout).violations).toEqual([])
   await run('--fix')
   expect((JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { peerDependencies: unknown }).peerDependencies).toEqual({})
-  await writeFile(join(root, 'src/index.ts'), "import '@deepseek-ai/dsh-agent-loop-testkit'\n")
+  await writeFile(join(root, 'packages/index.ts'), "import '@deepseek-ai/dsh-agent-loop-testkit'\n")
   try {
     await run()
     throw new Error('expected undeclared runtime import rejection')
   } catch (error) {
     expect(report((error as { stdout: string }).stdout).violations).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'undeclared' })]))
   }
-  await writeFile(join(root, 'src/index.ts'), '')
+  await writeFile(join(root, 'packages/index.ts'), '')
   await writeFile(join(root, 'package.json'), JSON.stringify({ devDependencies: { '@deepseek-ai/dsh-agent-loop-testkit': '0.1.0' } }))
   try {
     await run()

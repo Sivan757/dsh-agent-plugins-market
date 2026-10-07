@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { discoverProjectHooks } from '../src/catalog/project-hooks.js'
-import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
-import { HooksMountRegistry } from '../src/runtime/surfaces/hooks-mounts.js'
+import { discoverProjectHooks } from '../packages/market-catalog/src/scanning/project-hooks.js'
+import { discoverNativeProjectSuites } from '../packages/market-catalog/src/scanning/native-project.js'
+import { HooksMountRegistry } from '../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []

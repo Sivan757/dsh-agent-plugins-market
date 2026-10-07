@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchDocumentTranslation, fetchSuiteDocumentTranslation, fetchModelCatalog, fetchOverview, READ_TIMEOUT_MS } from '../src/client/api.js'
-import { RequestTimeoutError } from '../src/client/request-error.js'
-import { clientErrorMessage } from '../src/client/ui/error-message.js'
+import { fetchDocumentTranslation, fetchSuiteDocumentTranslation, fetchModelCatalog, fetchOverview, READ_TIMEOUT_MS } from '../packages/market-ui/src/api.js'
+import { RequestTimeoutError } from '../packages/market-ui/src/request-error.js'
+import { clientErrorMessage } from '../packages/market-ui/src/ui/error-message.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()

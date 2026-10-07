@@ -1,16 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
-import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
-import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
-import { HooksMountRegistry } from '../src/runtime/surfaces/hooks-mounts.js'
-import { LspMountRegistry } from '../src/runtime/lsp/lsp-mounts.js'
+import { RuntimeReconciler } from '../packages/market-runtime/src/runtime/core/reconciler.js'
+import { McpMountRegistry } from '../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
+import { CommandMountRegistry } from '../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
+import { HooksMountRegistry } from '../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js'
+import { LspMountRegistry } from '../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
+import { createRuntimeMounts } from '../packages/market-bundle/src/runtime-adapters.js'
+
+const DATA_ROOT = '/tmp/dsh-agent-plugins-runtime-data'
+/** The composition root's adapters, built over whatever context the case hands in. */
+const mounts = (ctx: unknown) => createRuntimeMounts(ctx as never, DATA_ROOT)
 
 afterEach(() => vi.restoreAllMocks())
 
 describe('RuntimeReconciler', () => {
   it('fans an empty enabled snapshot through all surfaces and disposes cleanly', async () => {
     const context = { logger: { warn: () => {} } }
-    const reconciler = new RuntimeReconciler(context as never, '/tmp/dsh-agent-plugins-runtime-data')
+    const reconciler = new RuntimeReconciler(context as never, DATA_ROOT, mounts(context))
 
     await expect(reconciler.reconcile([])).resolves.toEqual({ mcp: [], commands: [], hooks: [], lsp: [], errors: [] })
     await expect(reconciler.dispose()).resolves.toBeUndefined()
@@ -28,7 +33,7 @@ describe('RuntimeReconciler', () => {
     const commands = vi.spyOn(CommandMountRegistry.prototype, 'reconcile').mockResolvedValue([])
     const hooks = vi.spyOn(HooksMountRegistry.prototype, 'reconcile').mockResolvedValue([])
     const lsp = vi.spyOn(LspMountRegistry.prototype, 'reconcile').mockResolvedValue([])
-    const reconciler = new RuntimeReconciler({} as never, '/tmp/dsh-agent-plugins-runtime-data')
+    const reconciler = new RuntimeReconciler({} as never, DATA_ROOT, mounts({}))
     const first = reconciler.reconcile([])
     await vi.waitFor(() => expect(commands).toHaveBeenCalledTimes(1))
     expect(hooks).toHaveBeenCalledTimes(1)
@@ -56,7 +61,7 @@ describe('RuntimeReconciler', () => {
     vi.spyOn(McpMountRegistry.prototype, 'reconcile').mockRejectedValue(new Error('offline'))
     vi.spyOn(HooksMountRegistry.prototype, 'reconcile').mockResolvedValue([])
     vi.spyOn(LspMountRegistry.prototype, 'reconcile').mockResolvedValue([])
-    const reconciler = new RuntimeReconciler({} as never, '/tmp/dsh-agent-plugins-runtime-data')
+    const reconciler = new RuntimeReconciler({} as never, DATA_ROOT, mounts({}))
     const first = reconciler.reconcile([])
     await vi.waitFor(() => expect(commands).toHaveBeenCalledTimes(1))
     const queued = reconciler.reconcile([])

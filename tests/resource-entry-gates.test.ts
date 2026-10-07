@@ -9,8 +9,9 @@
  * state, not on the arguments the branches happened to receive.
  */
 import { describe, expect, it } from 'vitest'
-import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { RuntimeReconciler } from '../packages/market-runtime/src/runtime/core/reconciler.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
+import { createRuntimeMounts } from '../packages/market-bundle/src/runtime-adapters.js'
 
 /** A suite declaring one MCP server and one LSP server. */
 function dualSuite(id: string): Suite {
@@ -68,7 +69,7 @@ function recordingCtx(): Recording {
 describe('per-entry filters keep the surfaces orthogonal', () => {
   it('mounts everything when no filter denies an entry', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates', createRuntimeMounts(recording.ctx as never, '/tmp/entry-gates'))
     await reconciler.reconcile([dualSuite('alpha')])
     expect(recording.live()).toEqual(['lsp:demo/alpha/typescript', 'mcp:alpha__db'])
     await reconciler.dispose()
@@ -76,7 +77,7 @@ describe('per-entry filters keep the surfaces orthogonal', () => {
 
   it('denying one MCP server unmounts only that server', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates', createRuntimeMounts(recording.ctx as never, '/tmp/entry-gates'))
     reconciler.setMcpEntryFilter(() => ({ allows: (face, entryId) => !(face === 'mcp' && entryId === 'mcp:alpha__db') }))
     await reconciler.reconcile([dualSuite('alpha')])
     expect(recording.live()).toEqual(['lsp:demo/alpha/typescript'])
@@ -85,7 +86,7 @@ describe('per-entry filters keep the surfaces orthogonal', () => {
 
   it('denying one LSP server keeps the same suite MCP server mounted', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates', createRuntimeMounts(recording.ctx as never, '/tmp/entry-gates'))
     reconciler.lsp.setEntryFilter(() => ({ allows: (face, entryId) => !(face === 'lsp' && entryId === 'lsp:demo/alpha/typescript') }))
     await reconciler.reconcile([dualSuite('alpha')])
     expect(recording.live()).toEqual(['mcp:alpha__db'])
@@ -94,7 +95,7 @@ describe('per-entry filters keep the surfaces orthogonal', () => {
 
   it('a deny landing later releases the live mount through the ordinary reconcile', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/entry-gates', createRuntimeMounts(recording.ctx as never, '/tmp/entry-gates'))
     let denyDb = false
     reconciler.setMcpEntryFilter(() => ({ allows: (face, entryId) => !(face === 'mcp' && entryId === 'mcp:alpha__db' && denyDb) }))
     await reconciler.reconcile([dualSuite('alpha')])

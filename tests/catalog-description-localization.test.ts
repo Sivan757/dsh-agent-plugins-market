@@ -7,9 +7,9 @@ import { cp, mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { MAX_DOCUMENT_CHUNK_CHARS } from '../src/application/translation/document.js'
-import { resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { MAX_DOCUMENT_CHUNK_CHARS } from '../packages/market-translation/src/application/translation/document.js'
+import { resetCircuitBreaker, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
 
 const fixture = join(process.cwd(), 'tests', 'fixtures', 'v1-suite')
 const roots: string[] = []

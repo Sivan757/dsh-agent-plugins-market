@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const payloads = vi.hoisted(() => ({ queue: [] as unknown[] }))
 
-vi.mock('../src/client/api.js', () => ({
+vi.mock('../packages/market-ui/src/api.js', () => ({
   // A real failed read rejects: getJson throws on a non-ok response and
   // boundedFetch throws on a network error. Never resolves undefined.
   fetchOverview: vi.fn(async () => {
@@ -20,7 +20,7 @@ vi.mock('../src/client/api.js', () => ({
   postAction: vi.fn()
 }))
 
-import { invalidateOverview, loadOverview, startDescriptionRefresh } from '../src/client/features/market/market-resource.js'
+import { invalidateOverview, loadOverview, startDescriptionRefresh } from '../packages/market-ui/src/features/market/market-resource.js'
 
 const EMPTY = { sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '', data: '' } }
 

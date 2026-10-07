@@ -2,7 +2,7 @@
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it } from 'vitest'
-import { AgentExtensionIcon } from '../src/client/ui/AgentExtensionIcon.js'
+import { AgentExtensionIcon } from '../packages/market-ui/src/ui/AgentExtensionIcon.js'
 
 it('renders the ring with one filled and one hollow node in one inherited color', () => {
   const wrapper = document.createElement('div')

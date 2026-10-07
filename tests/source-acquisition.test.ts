@@ -7,12 +7,12 @@ import { promisify } from 'node:util'
 import { crc32 } from 'node:zlib'
 import { zipSync } from 'fflate'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { codeloadTarballUrl } from '../src/application/catalog.js'
-import { archiveFormatOf, archiveInstall, downloadArchive } from '../src/catalog/archive.js'
-import { deriveSourceIdCandidates } from '../src/catalog/paths.js'
-import { loadState, saveState } from '../src/application/state/state-store.js'
-import { resolveSourceKind } from '../src/model/types.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { codeloadTarballUrl } from '../packages/market-bundle/src/application/catalog.js'
+import { archiveFormatOf, archiveInstall, downloadArchive } from '../packages/market-catalog/src/scanning/archive.js'
+import { deriveSourceIdCandidates } from '../packages/market-catalog/src/scanning/paths.js'
+import { loadState, saveState } from '../packages/market-catalog/src/application/state/state-store.js'
+import { resolveSourceKind } from '../packages/market-contracts/src/model/types.js'
 
 const run = promisify(execFile)
 
@@ -209,7 +209,7 @@ describe('archive acquisition', () => {
   })
 
   it('pins the extraction bomb limits to sane ratios', async () => {
-    const limits = await import('../src/catalog/archive.js')
+    const limits = await import('../packages/market-catalog/src/scanning/archive.js')
     expect(limits.ARCHIVE_MAX_ENTRY_BYTES).toBeLessThan(limits.ARCHIVE_MAX_EXTRACTED_BYTES)
     expect(limits.ARCHIVE_MAX_EXTRACTED_BYTES).toBeGreaterThan(limits.ARCHIVE_MAX_BYTES)
     expect(limits.ARCHIVE_MAX_ENTRIES).toBeGreaterThan(0)

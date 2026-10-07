@@ -13,13 +13,13 @@
  * panel rows are fixtures.
  */
 import { describe, expect, it } from 'vitest'
-import { extensionResourceEnabled, readExtensionInventory } from '../src/application/extension-inventory.js'
-import { effectiveSurfaces, type Suite, type SuiteSurfaceKey } from '../src/model/types.js'
-import type { ExtensionSuiteCandidate } from '../src/application/extension-suite-selection.js'
-import type { McpSuiteOverrides } from '../src/application/mcp/mcp-overrides.js'
-import type { ExtensionResource } from '../src/contracts/extension-presets.js'
-import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
-import type { LspStatusEntry } from '../src/contracts/lsp-status.js'
+import { extensionResourceEnabled, readExtensionInventory } from '../packages/market-bundle/src/application/extension-inventory.js'
+import { effectiveSurfaces, type Suite, type SuiteSurfaceKey } from '../packages/market-contracts/src/model/types.js'
+import type { ExtensionSuiteCandidate } from '../packages/market-runtime/src/application/extension-suite-selection.js'
+import type { McpSuiteOverrides } from '../packages/market-mcp/src/application/mcp/mcp-overrides.js'
+import type { ExtensionResource } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import type { McpStatusEntry } from '../packages/market-contracts/src/contracts/mcp-status.js'
+import type { LspStatusEntry } from '../packages/market-contracts/src/contracts/lsp-status.js'
 
 const suite = (overrides: Partial<Suite> = {}): Suite =>
   ({

@@ -2,7 +2,14 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { agentRoleCatalog, executeAgentRole, mountAgentRoleTool, parseAgentRole, resolveAgentOptions, type AgentRoleHost } from '../src/runtime/agents/agent-role-router.js'
+import {
+  agentRoleCatalog,
+  executeAgentRole,
+  mountAgentRoleTool,
+  parseAgentRole,
+  resolveAgentOptions,
+  type AgentRoleHost
+} from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const roots: string[] = []

@@ -6,11 +6,11 @@ import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTranslationProviders } from '../src/runtime/host/translation-providers.js'
-import { Catalog } from '../src/application/catalog.js'
-import { createPanelResources } from '../src/application/panel-resources.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
-import { resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
+import { createTranslationProviders } from '../packages/market-translation/src/runtime/host/translation-providers.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { createPanelResources } from '../packages/market-runtime/src/application/panel-resources.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { resetCircuitBreaker, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
 
 const fixture = join(process.cwd(), 'tests', 'fixtures', 'v1-suite')
 const roots: string[] = []

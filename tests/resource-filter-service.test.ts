@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ResourceFilterService } from '../src/runtime/host/resource-filter-service.js'
-import { ALL_SURFACES_ON } from '../src/contracts/surface-toggles.js'
+import { ResourceFilterService } from '../packages/market-runtime/src/runtime/host/resource-filter-service.js'
+import { ALL_SURFACES_ON } from '../packages/market-contracts/src/contracts/surface-toggles.js'
 
 async function makeService(workspace: string): Promise<ResourceFilterService> {
   const dataRoot = await mkdtemp(join(tmpdir(), 'resource-filter-service-'))

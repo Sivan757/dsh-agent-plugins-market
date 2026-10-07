@@ -20,8 +20,8 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Catalog, type CatalogOptions } from '../src/application/catalog.js'
-import type { CatalogSnapshot } from '../src/application/snapshot-cache.js'
+import { Catalog, type CatalogOptions } from '../packages/market-bundle/src/application/catalog.js'
+import type { CatalogSnapshot } from '../packages/market-catalog/src/application/snapshot-cache.js'
 
 /**
  * Scan volume by filesystem call: a discovery scan opens with stat on the

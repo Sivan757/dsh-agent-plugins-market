@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { en, zh } from '../src/client/locales.js'
+import { en, zh } from '../packages/market-ui/src/locales.js'
 
 const labels = (language: 'zh' | 'en'): typeof zh | typeof en => (language === 'zh' ? zh : en)
 

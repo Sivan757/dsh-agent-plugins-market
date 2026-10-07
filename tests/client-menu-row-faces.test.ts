@@ -5,8 +5,8 @@
  * the host sent nothing for keeps the host's own text.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMenuRowFaces, MENU_FACE_REVALIDATE_MS, MENU_FACE_MAX_READS } from '../src/client/menu-row-faces.js'
-import type { MenuRowFaceWire } from '../src/contracts/market.js'
+import { createMenuRowFaces, MENU_FACE_REVALIDATE_MS, MENU_FACE_MAX_READS } from '../packages/market-ui/src/menu-row-faces.js'
+import type { MenuRowFaceWire } from '../packages/market-contracts/src/contracts/market.js'
 
 /** A `/` command service whose `candidates` answers the given rows. */
 function commandService(rows: readonly unknown[]) {

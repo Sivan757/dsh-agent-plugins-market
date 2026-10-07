@@ -12,17 +12,17 @@ Status: implemented
 
 翻译开关是一个存储布尔值，其默认值跟随宿主的 `locale.preference`。存下的布尔值永远优先；只有对字段只字未提的设置段才采用语言的答案。
 
-`interfaceLanguageTranslates(localePreference)`（`src/contracts/settings.ts`）只回答默认值：与 `bindHostLocale` 相同，以 `en` 开头的偏好使用英文，其余使用中文，缺席也算中文。`resolveMarketSettings` 先采用存下的布尔值，再用此默认值。[三态阅读与翻译生命周期](2026-10-06-translation-reading-and-lifecycle.zh.md)部分取代本记录把语言当作硬门禁的决定：目标由独立的 `resolveTranslationTarget` 解析，实际工作由生效开关控制。
+`interfaceLanguageTranslates(localePreference)`（`packages/market-contracts/src/contracts/settings.ts`）只回答默认值：与 `bindHostLocale` 相同，以 `en` 开头的偏好使用英文，其余使用中文，缺席也算中文。`resolveMarketSettings` 先采用存下的布尔值，再用此默认值。[三态阅读与翻译生命周期](2026-10-06-translation-reading-and-lifecycle.zh.md)部分取代本记录把语言当作硬门禁的决定：目标由独立的 `resolveTranslationTarget` 解析，实际工作由生效开关控制。
 
 ### 缺席信号由 schema 给出
 
-`MarketSettingsFields.translationEnabled` 不声明默认值（`src/application/mcp/mcp-backend.ts`）。未被触碰的文档因此不会把该字段放进解析后的设置段，volatile 引用回答 `undefined`，`narrowBoolean` 把它交给语言。这是本命名空间里唯一没有声明默认值的字段，而这份缺席是承重的，不是遗漏：声明的默认值会抹掉推导所依赖的那个区别。
+`MarketSettingsFields.translationEnabled` 不声明默认值（`packages/market-mcp/src/application/mcp/mcp-backend.ts`）。未被触碰的文档因此不会把该字段放进解析后的设置段，volatile 引用回答 `undefined`，`narrowBoolean` 把它交给语言。这是本命名空间里唯一没有声明默认值的字段，而这份缺席是承重的，不是遗漏：声明的默认值会抹掉推导所依赖的那个区别。
 
 宿主自己的语言行也是同一形状：`locale.preference` 声明为 `.required(false)`，其缺席意为「跟随浏览器」。
 
 ### 两半读同一种语言
 
-node 半把它本就为自身文案持有的那份缓存 `locale.preference`（`src/index.ts`，在激活、设置服务落地、以及 locale 条目自身的文档更新这三个时点刷新）传进 `MarketSettingsNamespace`。
+node 半把它本就为自身文案持有的那份缓存 `locale.preference`（`packages/market-bundle/src/index.ts`，在激活、设置服务落地、以及 locale 条目自身的文档更新这三个时点刷新）传进 `MarketSettingsNamespace`。
 
 浏览器经配置传输读取 locale 插件表单中的偏好，而不是 locale 服务按浏览器推导的 active id。Node 半在偏好缺席时渲染中文。若客户端只跟随英文浏览器，就会在服务端翻成中文时显示关闭。两半都将偏好缺席解析为 `zh`，保持一致。
 
@@ -48,7 +48,7 @@ node 半把它本就为自身文案持有的那份缓存 `locale.preference`（`
 
 **把默认值对齐下载线路的谓词（`startsWith('zh')`）。** 否决：线路回答下载通道，翻译默认值跟随界面实际采用的字典。`ja` 与 `zh-Hant` 在本插件中都使用简体中文；用偏好标签直接判断会让界面文案、默认开关与目标语言不一致。这并不允许默认值覆盖手动选择。
 
-**改掉 node 半「preference 缺席即 zh」的约定，让它跟随浏览器语言。** 否决：那是仓库级约定（`src/runtime/host/host-locale.ts`），市场自身的文案已经依赖它，而 node 进程没有浏览器语言可读。为一个设置项改它，会让市场的文案与它的翻译默认值互相矛盾。
+**改掉 node 半「preference 缺席即 zh」的约定，让它跟随浏览器语言。** 否决：那是仓库级约定（`packages/market-runtime/src/runtime/host/host-locale.ts`），市场自身的文案已经依赖它，而 node 进程没有浏览器语言可读。为一个设置项改它，会让市场的文案与它的翻译默认值互相矛盾。
 
 ## Consequences
 

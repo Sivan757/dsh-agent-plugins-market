@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-`Suite` in `src/model/types.ts` described two different things at once.
+`Suite` in `packages/market-contracts/src/model/types.ts` described two different things at once.
 
 **Scanned**: what walking a checkout produces (`source-catalog.ts`, `scan-resolvers.ts`, `suite-scanner.ts`, `native-project.ts`). No install state, and no effective surface set — except for `project-native`, whose layout describes the set itself because the machine has no install entry for it.
 

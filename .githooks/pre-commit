@@ -22,5 +22,5 @@ node scripts/check-host-alignment.mjs
 ./node_modules/.bin/tsc -p tsconfig.client.json --noEmit
 ./node_modules/.bin/tsc -p tsconfig.test.json --noEmit
 ./node_modules/.bin/tsc -p tsconfig.test.client.json --noEmit
-./node_modules/.bin/eslint src tests
+./node_modules/.bin/eslint index.ts packages tests
 ./node_modules/.bin/prettier --check .

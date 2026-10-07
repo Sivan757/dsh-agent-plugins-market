@@ -42,12 +42,12 @@ Concurrency is capped at three calls globally — stronger than the per-source c
 
 ### Where it lives
 
-| Concern                     | Module                                                |
-| --------------------------- | ----------------------------------------------------- |
-| Cache file and key          | `src/application/state/description-translations.ts`   |
-| Queue, backoff, degradation | `src/application/description-localizer.ts`            |
-| Model call                  | `src/runtime/host/description-translator.ts`          |
-| Seam                        | `descriptionTranslator` in `src/application/ports.ts` |
+| Concern                     | Module                                                                    |
+| --------------------------- | ------------------------------------------------------------------------- |
+| Cache file and key          | `src/application/state/description-translations.ts`                       |
+| Queue, backoff, degradation | `src/application/description-localizer.ts`                                |
+| Model call                  | `src/runtime/host/description-translator.ts`                              |
+| Seam                        | `descriptionTranslator` in `packages/market-contracts/src/ports/ports.ts` |
 
 ### The model call
 

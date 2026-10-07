@@ -38,7 +38,7 @@ The boundary that is supposed to compensate — `no-restricted-imports` banning 
 
 ## What stays as it is
 
-The five-layer skeleton — `model` → `contracts` → `catalog` → `application` → `runtime`, with `client` beside it and the composition root at `src/index.ts` + `src/routes.ts` — is correct, gated, and the product of [ADR 0001](../decisions/0001-catalog-centered-modular-refactor.md). Vertical feature slices remain rejected for the reason that plan records: discovery, install-state enrichment, cache invalidation, and enabled-suite calculation are shared by every surface, so slicing by feature would recreate the catalog read model implicitly and spread its ownership. This plan therefore groups **domains inside layers**, not layers inside domains.
+The five-layer skeleton — `model` → `contracts` → `catalog` → `application` → `runtime`, with `client` beside it and the composition root at `packages/market-bundle/src/index.ts` + `packages/market-bundle/src/routes.ts` — is correct, gated, and the product of [ADR 0001](../decisions/0001-catalog-centered-modular-refactor.md). Vertical feature slices remain rejected for the reason that plan records: discovery, install-state enrichment, cache invalidation, and enabled-suite calculation are shared by every surface, so slicing by feature would recreate the catalog read model implicitly and spread its ownership. This plan therefore groups **domains inside layers**, not layers inside domains.
 
 Also unchanged: `catalog/`'s MCP and LSP validation stays in `catalog/` (it is dialect validation — the [vocabulary](../../../CONTEXT.md) separates the layout dialect from the runtime surface); the cordis plugin name, `Config` schema, route paths, `state.json` format, and the two package exports stay byte-identical; no new npm packages, no generic mount registry (the shared-primitives note already rejected it), no merge of the `commands` / `user-commands` wanted-diff tables (judged below the bar there).
 
@@ -169,7 +169,7 @@ Move the six MCP/LSP root files and the market/workspace files into their featur
 | C3    | ~55 runtime/application files + up to 58 test files (import lines) | Low — mechanical, fully covered by `check:quick` + suite                     |
 | C4    | ~20 client files                                                   | Medium — the panel decomposition is the one stage with UI regression surface |
 
-The whole sequence preserves the published package surface: `tsconfig.json` includes `src/**/*.ts`, `tsdown` enters at `src/client/index.ts`, and consumers import only `.` and `./client`.
+The whole sequence preserves the published package surface: `tsconfig.json` includes `src/**/*.ts`, `tsdown` enters at `packages/market-ui/src/index.ts`, and consumers import only `.` and `./client`.
 
 ## Rejected alternatives
 

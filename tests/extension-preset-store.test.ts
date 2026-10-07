@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ExtensionPresetStore, extensionPresetLibraryPath } from '../src/application/state/extension-presets.js'
-import { captureExtensionSelection } from '../src/contracts/extension-presets.js'
+import { ExtensionPresetStore, extensionPresetLibraryPath } from '../packages/market-runtime/src/application/state/extension-presets.js'
+import { captureExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
 
 const roots: string[] = []
 afterEach(async () => {

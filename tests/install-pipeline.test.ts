@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
 
 /**
  * Full install-pipeline integration test.

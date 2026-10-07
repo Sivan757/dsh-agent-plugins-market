@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
-import { MarketSettingsNamespace, type MarketSettingRefs } from '../src/runtime/host/settings-namespace.js'
+import { MarketSettingsNamespace, type MarketSettingRefs } from '../packages/market-bundle/src/platform/settings-namespace.js'
 
 /**
  * One namespace over hand-built references.

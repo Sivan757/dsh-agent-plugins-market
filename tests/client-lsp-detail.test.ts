@@ -2,19 +2,19 @@
 import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { LspStatusEntry } from '../src/contracts/lsp-status.js'
-import type { Translate } from '../src/client/index.js'
-import { zh } from '../src/client/locales.js'
+import type { LspStatusEntry } from '../packages/market-contracts/src/contracts/lsp-status.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
+import { zh } from '../packages/market-ui/src/locales.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
-vi.mock('../src/client/api.js', () => ({
+vi.mock('../packages/market-ui/src/api.js', () => ({
   fetchLspStatus: vi.fn(),
   addLspServer: vi.fn(),
   migrateLspSeam: vi.fn(),
   fetchServerConfig: vi.fn(),
   saveServerConfig: vi.fn()
 }))
-import { LspDetailModal } from '../src/client/features/lsp/LspStatusPanel.js'
+import { LspDetailModal } from '../packages/market-ui/src/features/lsp/LspStatusPanel.js'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 let root: ReturnType<typeof createRoot>

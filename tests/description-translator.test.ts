@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FinishReason, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { MAX_OUTPUT_TOKENS_CAP, createLlmTranslator, outputTokenBudget } from '../src/runtime/host/llm-translator.js'
-import { isTripped, resetCircuitBreaker, runChain } from '../src/application/translation/chain.js'
+import { MAX_OUTPUT_TOKENS_CAP, createLlmTranslator, outputTokenBudget } from '../packages/market-translation/src/runtime/host/llm-translator.js'
+import { isTripped, resetCircuitBreaker, runChain } from '../packages/market-translation/src/application/translation/chain.js'
 
 /** A text delta for one assistant block, in the host's own chunk vocabulary. */
 function textDelta(text: string, index = 0): StreamChunk {

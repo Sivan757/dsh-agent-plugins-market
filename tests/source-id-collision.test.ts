@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { deriveSourceIdCandidates } from '../src/catalog/paths.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { deriveSourceIdCandidates } from '../packages/market-catalog/src/scanning/paths.js'
 
 const run = promisify(execFile)
 

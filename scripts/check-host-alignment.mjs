@@ -58,7 +58,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const MANIFEST_PATH = join(ROOT, 'package.json')
 const WORKSPACE_PATH = join(ROOT, 'pnpm-workspace.yaml')
-const SRC_DIR = join(ROOT, 'src')
+const SRC_DIR = join(ROOT, 'packages')
 const CACHE_PATH = join(ROOT, 'node_modules', '.cache', 'host-alignment', 'dist-tags.json')
 
 /** Host capability packages share this scope prefix and one release version. */

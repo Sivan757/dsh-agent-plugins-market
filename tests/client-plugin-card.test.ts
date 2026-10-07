@@ -6,9 +6,9 @@
  * looking saved, and that the compat-mode guard blocks the save.
  */
 import { describe, expect, it } from 'vitest'
-import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import { bindMarketCardForm, regionChoice } from '../src/client/features/settings-card/market-card-form.js'
-import type { InterfaceLanguage } from '../src/client/ui/translation-enabled.js'
+import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../packages/market-contracts/src/contracts/settings.js'
+import { bindMarketCardForm, regionChoice } from '../packages/market-ui/src/features/settings-card/market-card-form.js'
+import type { InterfaceLanguage } from '../packages/market-ui/src/ui/translation-enabled.js'
 
 /** The probe answer a test's card reads: host client present or missing. */
 const probeAnswer = (hostClientAvailable: boolean) => async () => ({

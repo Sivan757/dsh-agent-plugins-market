@@ -2,14 +2,14 @@
 import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import { ExtensionDetailView } from '../src/client/workspace/ExtensionResourceDetail.js'
-import { McpDetailModal } from '../src/client/features/mcp/McpDetailModal.js'
-import type { ExtensionResource } from '../src/contracts/extension-presets.js'
-import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
-import type { LspStatusEntry } from '../src/contracts/lsp-status.js'
-import * as api from '../src/client/api.js'
-vi.mock('../src/client/api.js', async original => ({
-  ...(await original<typeof import('../src/client/api.js')>()),
+import { ExtensionDetailView } from '../packages/market-ui/src/workspace/ExtensionResourceDetail.js'
+import { McpDetailModal } from '../packages/market-ui/src/features/mcp/McpDetailModal.js'
+import type { ExtensionResource } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import type { McpStatusEntry } from '../packages/market-contracts/src/contracts/mcp-status.js'
+import type { LspStatusEntry } from '../packages/market-contracts/src/contracts/lsp-status.js'
+import * as api from '../packages/market-ui/src/api.js'
+vi.mock('../packages/market-ui/src/api.js', async original => ({
+  ...(await original<typeof import('../packages/market-ui/src/api.js')>()),
   fetchMcpStatus: vi.fn(),
   fetchLspStatus: vi.fn(),
   setMcpServerTool: vi.fn(),

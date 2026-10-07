@@ -25,7 +25,7 @@
 | `undici`     | 8.10.0        | 8.10.2   | **8.11.2** | WebSocket permessage-deflate 解压未处理错误导致拒绝服务 |
 | `ip-address` | 10.5.0        | 10.5.1   | **10.7.2** | NAT64 本地用途段未被识别，可绕过信任边界（SSRF）        |
 
-**issue #69 保留未处理**：报告者在项目根目录放 `.agents/commands` 但未被识别。代码层面项目目录扫描是存在的（`src/catalog/source-catalog.ts` 的 project 维度），只是受插件设置 `scanProjectLayouts` 门控，默认 `false`（`src/contracts/settings.ts`）。是否改默认值属于产品决定，不属于本次发版范围。
+**issue #69 保留未处理**：报告者在项目根目录放 `.agents/commands` 但未被识别。代码层面项目目录扫描是存在的（`packages/market-catalog/src/scanning/source-catalog.ts` 的 project 维度），只是受插件设置 `scanProjectLayouts` 门控，默认 `false`（`packages/market-contracts/src/contracts/settings.ts`）。是否改默认值属于产品决定，不属于本次发版范围。
 
 ## 二、发布内容
 

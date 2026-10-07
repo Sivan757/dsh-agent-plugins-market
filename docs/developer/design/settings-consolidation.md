@@ -26,7 +26,7 @@ The workspace currently has two memory copies and two serializers for one docume
 
 ### Shared contract and schema
 
-[contracts/settings.ts](../../../src/contracts/settings.ts) remains dependency-free and owns field types, default values, allowed region values, key lists and resolveMarketSettings. Defaults do not change. Derive mechanical key/type views from this contract rather than introducing a general schema-definition language.
+[contracts/settings.ts](../../../packages/market-contracts/src/contracts/settings.ts) remains dependency-free and owns field types, default values, allowed region values, key lists and resolveMarketSettings. Defaults do not change. Derive mechanical key/type views from this contract rather than introducing a general schema-definition language.
 
 Move MarketSettingsFields and MarketSettingsSchema from the MCP domain to a new application/settings-schema.ts. The module owns schema projection only. Config and ConfigInput derive their six live-setting members from mapped types; the root retains startup-only fields. Keep schema defaults tied to the contract. The existing schema test moves its import, not its expectations.
 
@@ -87,13 +87,13 @@ After approval, split the delivery slices into these bounded write units. New pa
 
 | Unit | Write scope | Required handoff |
 | --- | --- | --- |
-| Profile declarations | `src/contracts/settings.ts`, new `src/application/settings-schema.ts`, `src/application/mcp/mcp-backend.ts`, `tests/mcp-backend.test.ts`, new `tests/settings-contract.test.ts` | Export names, key lists and mapped input types frozen before consumers migrate |
-| Profile runtime | `src/runtime/host/settings-namespace.ts`, `src/index.ts`, `src/application/ports.ts`, `tests/settings-namespace.test.ts` | All-six-key reads and one-snapshot reaction tests; release root entry write scope |
-| Client adapter | new `src/client/settings.ts`, retired `src/client/ui/translation-enabled.ts`, `src/client/ui/BilingualToggle.tsx`, `tests/client-translation-settings.test.ts`, `tests/bilingual-toggle.test.ts` | Stable read-only snapshot, selected-key notification and replacement tests |
-| Client wiring | `src/client/index.ts`, `src/client/features/settings-card/market-card-form.ts`, `tests/client-plugins-item-views.test.ts`, `tests/client-plugin-card.test.ts` | One served form; saved-value versus draft tests; no remaining retired imports |
-| Workspace persistence | `src/application/state/surface-toggles.ts`, `src/application/state/resource-filters.ts`, `src/contracts/resource-window.ts`, `tests/surface-toggles.test.ts`, `tests/resource-window-state.test.ts` | v1 read / v2 write compatibility, one serializer, no import cycle |
-| Workspace runtime | `src/runtime/host/resource-filter-service.ts`, `src/runtime/host/surface-toggle-service.ts`, `tests/resource-filter-service.test.ts`, `tests/surface-toggle-routes.test.ts` | One owner, queued writes, persistence/reconciliation failure and isolation tests |
-| Root integration | `src/index.ts`, `tests/resource-window-routes.test.ts`, `tests/surface-toggle-gates.test.ts`, `tests/resource-entry-gates.test.ts` | Runs after profile runtime releases the root; routes and gates share the same owner |
+| Profile declarations | `packages/market-contracts/src/contracts/settings.ts`, new `src/application/settings-schema.ts`, `packages/market-mcp/src/application/mcp/mcp-backend.ts`, `tests/mcp-backend.test.ts`, new `tests/settings-contract.test.ts` | Export names, key lists and mapped input types frozen before consumers migrate |
+| Profile runtime | `packages/market-bundle/src/platform/settings-namespace.ts`, `packages/market-bundle/src/index.ts`, `packages/market-contracts/src/ports/ports.ts`, `tests/settings-namespace.test.ts` | All-six-key reads and one-snapshot reaction tests; release root entry write scope |
+| Client adapter | new `src/client/settings.ts`, retired `packages/market-ui/src/ui/translation-enabled.ts`, `packages/market-ui/src/ui/BilingualToggle.tsx`, `tests/client-translation-settings.test.ts`, `tests/bilingual-toggle.test.ts` | Stable read-only snapshot, selected-key notification and replacement tests |
+| Client wiring | `packages/market-ui/src/index.ts`, `packages/market-ui/src/features/settings-card/market-card-form.ts`, `tests/client-plugins-item-views.test.ts`, `tests/client-plugin-card.test.ts` | One served form; saved-value versus draft tests; no remaining retired imports |
+| Workspace persistence | `packages/market-runtime/src/application/state/surface-toggles.ts`, `packages/market-runtime/src/application/state/resource-filters.ts`, `packages/market-contracts/src/contracts/resource-window.ts`, `tests/surface-toggles.test.ts`, `tests/resource-window-state.test.ts` | v1 read / v2 write compatibility, one serializer, no import cycle |
+| Workspace runtime | `packages/market-runtime/src/runtime/host/resource-filter-service.ts`, `packages/market-runtime/src/runtime/host/surface-toggle-service.ts`, `tests/resource-filter-service.test.ts`, `tests/surface-toggle-routes.test.ts` | One owner, queued writes, persistence/reconciliation failure and isolation tests |
+| Root integration | `packages/market-bundle/src/index.ts`, `tests/resource-window-routes.test.ts`, `tests/surface-toggle-gates.test.ts`, `tests/resource-entry-gates.test.ts` | Runs after profile runtime releases the root; routes and gates share the same owner |
 | Final guard and documentation | New ownership guard test, test project includes if needed, this design and the existing owning Agent Note pair | Lead checks the final union; no assertions weakened to accommodate unrelated dirty work |
 
 ## Acceptance criteria

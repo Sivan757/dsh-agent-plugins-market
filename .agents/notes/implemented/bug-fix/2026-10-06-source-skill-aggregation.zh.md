@@ -8,7 +8,7 @@ Status: implemented
 
 ## 决策
 
-[根目录发现](../../../../src/catalog/scan-resolvers.ts)将通过校验、未声明插件的纯技能目录聚合为一个源级套件。市场条目、显式插件根目录和带有其它运行面的目录保留各自身份。已经以 checkout 根目录解析的套件保持不变。
+[根目录发现](../../../../packages/market-catalog/src/scanning/scan-resolvers.ts)将通过校验、未声明插件的纯技能目录聚合为一个源级套件。市场条目、显式插件根目录和带有其它运行面的目录保留各自身份。已经以 checkout 根目录解析的套件保持不变。
 
 聚合套件使用按源限定的保留 ID `@skills`。经过清理的子目录 ID 不会与其冲突，因此单个技能的安装不会静默启用其它技能。显示名称来自 checkout 目录名。
 

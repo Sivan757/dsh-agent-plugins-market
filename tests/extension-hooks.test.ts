@@ -4,8 +4,8 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
-import { ExtensionHooks } from '../src/runtime/surfaces/extension-hooks.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
+import { ExtensionHooks } from '../packages/market-runtime/src/runtime/surfaces/extension-hooks.js'
 
 const disposers: Array<() => Promise<void>> = []
 afterEach(async () => {

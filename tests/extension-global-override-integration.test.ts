@@ -29,8 +29,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { EXTENSION_ROUTES, type ExtensionWindowPayload } from '../src/contracts/extension-presets.js'
-import { apply, inject, name } from '../src/index.js'
+import { EXTENSION_ROUTES, type ExtensionWindowPayload } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { apply, inject, name } from '../packages/market-bundle/src/index.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const cleanups: Array<() => void | Promise<void>> = []

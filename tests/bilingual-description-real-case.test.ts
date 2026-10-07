@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { pickBilingualDescription } from '../src/client/ui/bilingual-text.js'
-import type { Translate } from '../src/client/index.js'
+import { pickBilingualDescription } from '../packages/market-ui/src/ui/bilingual-text.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 const zhT: Translate = key => (key === 'localeProbeLang' ? '中文' : '')
 const enT: Translate = key => (key === 'localeProbeLang' ? 'English' : '')

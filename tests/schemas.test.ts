@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 // CJS namespace, the runtime default export is the class itself.
 import Ajv2020Default from 'ajv/dist/2020.js'
 import { describe, expect, it } from 'vitest'
-import { MCP_SCHEMA_ID, PLUGIN_SCHEMA_ID } from '../src/catalog/validate.js'
+import { MCP_SCHEMA_ID, PLUGIN_SCHEMA_ID } from '../packages/market-catalog/src/scanning/validate.js'
 
 const SCHEMAS_DIR = fileURLToPath(new URL('../schemas/', import.meta.url))
 

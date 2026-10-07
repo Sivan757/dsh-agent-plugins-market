@@ -9,9 +9,9 @@ import { mkdtemp, mkdir, writeFile, rm, cp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
-import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { discoverSuitesInSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { toMcpMounts } from '../packages/market-mcp/src/application/mcp/mcp-config.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 import { required } from './helpers/fixture.js'
 
 const here = dirname(fileURLToPath(import.meta.url))

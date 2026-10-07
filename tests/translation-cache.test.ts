@@ -9,8 +9,8 @@ import {
   translationCachePath,
   translationKey,
   type TranslationRecord
-} from '../src/application/state/translation-cache.js'
-import type { TranslationUnit } from '../src/application/translation/unit.js'
+} from '../packages/market-translation/src/application/state/translation-cache.js'
+import type { TranslationUnit } from '../packages/market-translation/src/application/translation/unit.js'
 
 const roots: string[] = []
 

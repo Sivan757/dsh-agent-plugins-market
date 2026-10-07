@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ALL_SURFACES_ON, resolveSurfaceToggles, SURFACE_TOGGLE_KEYS } from '../src/contracts/surface-toggles.js'
-import { loadSurfaceToggles, saveSurfaceToggles, surfaceTogglesPath } from '../src/application/state/surface-toggles.js'
+import { ALL_SURFACES_ON, resolveSurfaceToggles, SURFACE_TOGGLE_KEYS } from '../packages/market-contracts/src/contracts/surface-toggles.js'
+import { loadSurfaceToggles, saveSurfaceToggles, surfaceTogglesPath } from '../packages/market-runtime/src/application/state/surface-toggles.js'
 
 describe('resolveSurfaceToggles', () => {
   it('defaults every surface to on for absent or malformed input', () => {

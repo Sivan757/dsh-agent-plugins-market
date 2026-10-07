@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { scanSource } from '../src/catalog/suite-scanner.js'
-import { Catalog } from '../src/application/catalog.js'
-import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
+import { scanSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { SuiteSkillProvider } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 
 const roots: string[] = []
 

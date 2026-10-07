@@ -8,11 +8,12 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import SkillRegistry, { isModelInvocable, isUserInvocable } from '@deepseek-ai/dsh-skill'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { captureExtensionSelection } from '../src/contracts/extension-presets.js'
-import { ScopedExtensionContributors, type ScopedContributorPorts } from '../src/runtime/host/scoped-contributors.js'
-import { createUserPanelStores, UserPanelSkillProvider } from '../src/runtime/panels/user-panels.js'
-import { scanSource } from '../src/catalog/suite-scanner.js'
+import { captureExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { ScopedExtensionContributors, type ScopedContributorPorts } from '../packages/market-runtime/src/runtime/host/scoped-contributors.js'
+import { createUserPanelStores, UserPanelSkillProvider } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { scanSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { createMcpMount } from '../packages/market-bundle/src/runtime-adapters.js'
 
 const cleanups: Array<() => void | Promise<void>> = []
 afterEach(async () => {
@@ -49,6 +50,7 @@ async function setup() {
     mcpBackend: async () => 'bridge'
   } as unknown as ScopedContributorPorts['catalog']
   const contributors = new ScopedExtensionContributors({
+    mcpMounts: createMcpMount,
     dataRoot: root,
     catalog,
     panels: stores,

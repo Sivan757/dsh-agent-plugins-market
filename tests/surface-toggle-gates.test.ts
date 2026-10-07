@@ -12,9 +12,10 @@
  * the branches happened to receive.
  */
 import { describe, expect, it } from 'vitest'
-import { RuntimeReconciler } from '../src/runtime/core/reconciler.js'
-import type { RuntimeSurfaceGates } from '../src/runtime/core/reconciler.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { RuntimeReconciler } from '../packages/market-runtime/src/runtime/core/reconciler.js'
+import type { RuntimeSurfaceGates } from '../packages/market-runtime/src/runtime/core/reconciler.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
+import { createRuntimeMounts } from '../packages/market-bundle/src/runtime-adapters.js'
 
 /** A suite declaring one MCP server and one LSP server. */
 function dualSuite(id: string): Suite {
@@ -84,7 +85,7 @@ function gates(overrides: Partial<Record<'commands' | 'mcp' | 'lsp', boolean>> =
 describe('per-surface gates keep MCP and LSP orthogonal', () => {
   it('mounts both surfaces when every switch is on', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data', createRuntimeMounts(recording.ctx as never, '/tmp/gates-data'))
     reconciler.setSurfaceGates(gates())
     await reconciler.reconcile([dualSuite('alpha')])
     expect(recording.live()).toEqual(['lsp:demo/alpha/typescript', 'mcp:alpha__db'])
@@ -93,7 +94,7 @@ describe('per-surface gates keep MCP and LSP orthogonal', () => {
 
   it('zeroes the MCP mounts while the same suites keep their language servers', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data', createRuntimeMounts(recording.ctx as never, '/tmp/gates-data'))
     reconciler.setSurfaceGates(gates({ mcp: false }))
     await reconciler.reconcile([dualSuite('alpha')])
     // The suite list is unchanged; only the MCP branch reconciled to nothing.
@@ -103,7 +104,7 @@ describe('per-surface gates keep MCP and LSP orthogonal', () => {
 
   it('zeroes the suite LSP mounts while MCP keeps mounting', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data', createRuntimeMounts(recording.ctx as never, '/tmp/gates-data'))
     reconciler.setSurfaceGates(gates({ lsp: false }))
     await reconciler.reconcile([dualSuite('alpha')])
     expect(recording.live()).toEqual(['mcp:alpha__db'])
@@ -113,7 +114,7 @@ describe('per-surface gates keep MCP and LSP orthogonal', () => {
   it('releases the switched-off surface on a flip while the sibling stays live', async () => {
     const recording = recordingCtx()
     let mcpOn = true
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data', createRuntimeMounts(recording.ctx as never, '/tmp/gates-data'))
     reconciler.setSurfaceGates({ allows: surface => (surface === 'mcp' ? mcpOn : true) })
     await reconciler.reconcile([dualSuite('alpha')])
     expect(recording.live()).toEqual(['lsp:demo/alpha/typescript', 'mcp:alpha__db'])
@@ -129,7 +130,7 @@ describe('per-surface gates keep MCP and LSP orthogonal', () => {
 
   it('mounts every surface when no gates were installed', async () => {
     const recording = recordingCtx()
-    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data')
+    const reconciler = new RuntimeReconciler(recording.ctx as never, '/tmp/gates-data', createRuntimeMounts(recording.ctx as never, '/tmp/gates-data'))
     await reconciler.reconcile([dualSuite('alpha')])
     expect(recording.live()).toEqual(['lsp:demo/alpha/typescript', 'mcp:alpha__db'])
     await reconciler.dispose()

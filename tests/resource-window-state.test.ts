@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join, sep } from 'node:path'
-import { resolveFavoriteInput, RESOURCE_FACE_ORDER } from '../src/contracts/resource-window.js'
-import { allFiltersOn, loadResourceFilters, resolveOffEntries, saveResourceFilters } from '../src/application/state/resource-filters.js'
-import { loadSurfaceToggles, saveSurfaceToggles, surfaceTogglesPath } from '../src/application/state/surface-toggles.js'
-import { ALL_SURFACES_ON } from '../src/contracts/surface-toggles.js'
-import { deleteResourceFavorite, loadResourceFavorites, resourceFavoritesPath, saveResourceFavorite } from '../src/application/state/resource-favorites.js'
+import { resolveFavoriteInput, RESOURCE_FACE_ORDER } from '../packages/market-contracts/src/contracts/resource-window.js'
+import { allFiltersOn, loadResourceFilters, resolveOffEntries, saveResourceFilters } from '../packages/market-runtime/src/application/state/resource-filters.js'
+import { loadSurfaceToggles, saveSurfaceToggles, surfaceTogglesPath } from '../packages/market-runtime/src/application/state/surface-toggles.js'
+import { ALL_SURFACES_ON } from '../packages/market-contracts/src/contracts/surface-toggles.js'
+import { deleteResourceFavorite, loadResourceFavorites, resourceFavoritesPath, saveResourceFavorite } from '../packages/market-runtime/src/application/state/resource-favorites.js'
 
 describe('resolveOffEntries', () => {
   it('keeps string arrays on known faces and drops everything else', () => {

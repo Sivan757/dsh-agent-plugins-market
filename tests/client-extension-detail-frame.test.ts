@@ -2,8 +2,8 @@
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it } from 'vitest'
-import { DetailModal, SettingsSizedDetails } from '../src/client/ui/DetailModal.js'
-import css from '../src/client/ui/detail.module.css'
+import { DetailModal, SettingsSizedDetails } from '../packages/market-ui/src/ui/DetailModal.js'
+import css from '../packages/market-ui/src/ui/detail.module.css'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: Root | undefined

@@ -22,11 +22,11 @@ class TestQuery extends SessionQueryEngine {
 }
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
-import { TeammateRoleRuntime, TEAM_ROLE_SOURCE } from '../src/runtime/agents/teammate-role-runtime.js'
-import { mountUnlessAgentTeams } from '../src/runtime/agents/agent-teams-seat.js'
-import { mountAgentRoleTool } from '../src/runtime/agents/agent-role-router.js'
-import { mountTeammateRoleTool } from '../src/runtime/agents/teammate-role-tool.js'
-import { mountTeamCoordination } from '../src/runtime/agents/team-coordination.js'
+import { TeammateRoleRuntime, TEAM_ROLE_SOURCE } from '../packages/market-runtime/src/runtime/agents/teammate-role-runtime.js'
+import { mountUnlessAgentTeams } from '../packages/market-runtime/src/runtime/agents/agent-teams-seat.js'
+import { mountAgentRoleTool } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
+import { mountTeammateRoleTool } from '../packages/market-runtime/src/runtime/agents/teammate-role-tool.js'
+import { mountTeamCoordination } from '../packages/market-runtime/src/runtime/agents/team-coordination.js'
 import * as TeamTools from '@deepseek-ai/dsh-experimental-tool-agent-team'
 
 class RecordingAdapter extends LlmAdapter {

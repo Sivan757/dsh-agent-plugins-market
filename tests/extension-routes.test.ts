@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mountExtensionPresetRoutes, type ExtensionRouteService } from '../src/routes-extension-presets.js'
-import { captureExtensionSelection, EXTENSION_ROUTES, type ExtensionWindowPayload } from '../src/contracts/extension-presets.js'
+import { mountExtensionPresetRoutes, type ExtensionRouteService } from '../packages/market-bundle/src/routes-extension-presets.js'
+import { captureExtensionSelection, EXTENSION_ROUTES, type ExtensionWindowPayload } from '../packages/market-contracts/src/contracts/extension-presets.js'
 
 /**
  * The retired adjustment path, spelled out rather than read from EXTENSION_ROUTES:

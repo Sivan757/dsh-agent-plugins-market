@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { en, zh } from '../src/client/locales.js'
-import { shouldUseLegacyPageMode } from '../src/client/workspace/page-mode-selection.js'
+import { en, zh } from '../packages/market-ui/src/locales.js'
+import { shouldUseLegacyPageMode } from '../packages/market-ui/src/workspace/page-mode-selection.js'
 
 describe('Agent Plugins Market client compatibility', () => {
   it('keeps Chinese and English dictionaries in lockstep', () => {

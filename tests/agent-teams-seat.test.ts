@@ -14,7 +14,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, Service, type Fiber, type Plugin } from '@deepseek-ai/cordis'
-import { agentTeamsActive, mountUnlessAgentTeams } from '../src/runtime/agents/agent-teams-seat.js'
+import { agentTeamsActive, mountUnlessAgentTeams } from '../packages/market-runtime/src/runtime/agents/agent-teams-seat.js'
 
 const cleanups: Array<() => void | Promise<void>> = []
 

@@ -7,8 +7,8 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { PRESET_SOURCE_ID, PRESET_SOURCE_URL, presetSourceRef } from '../src/model/preset-source.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { PRESET_SOURCE_ID, PRESET_SOURCE_URL, presetSourceRef } from '../packages/market-contracts/src/model/preset-source.js'
 
 /** A loaded catalog over a fresh user root, seeded the way activation seeds it. */
 async function catalogWithPresetSource(): Promise<Catalog> {

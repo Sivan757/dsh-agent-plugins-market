@@ -4,17 +4,17 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { bindTranslationEnabled } from '../src/client/ui/translation-enabled.js'
-import type { Translate } from '../src/client/index.js'
-import type { UserPanelEntry } from '../src/client/api.js'
+import { bindTranslationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
+import type { UserPanelEntry } from '../packages/market-ui/src/api.js'
 
 const api = vi.hoisted(() => ({
   fetchUserPanelEntry: vi.fn(),
   fetchDocumentTranslation: vi.fn()
 }))
-vi.mock('../src/client/api.js', () => api)
+vi.mock('../packages/market-ui/src/api.js', () => api)
 
-import { UserEntryDetailModal } from '../src/client/ui/UserEntryDetail.js'
+import { UserEntryDetailModal } from '../packages/market-ui/src/ui/UserEntryDetail.js'
 
 /** The active-locale probe answers Chinese; every other key surfaces as itself. */
 const chinese: Translate = key => (key === 'localeProbeLang' ? '中文' : key)

@@ -1,13 +1,20 @@
 /** Project full details must answer for one session's workspace without hiding the user catalog. */
 import { describe, expect, it } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { MARKET_ROUTES, userPanelRoute, userPanelTranslationRoute, type SuiteDetail, type UserPanelEntryWire, type UserPanelKind } from '../src/contracts/market.js'
-import type { McpStatusPayload } from '../src/application/mcp/mcp-status.js'
-import type { LspStatusPayload } from '../src/contracts/lsp-status.js'
-import type { MarketService } from '../src/application/queries.js'
-import type { PanelRead, PanelResourceStore } from '../src/application/panel-resources.js'
-import type { ProjectExtensionReader } from '../src/application/extension-project.js'
-import { mountSuiteRoutes, type SuiteRouteSessionResolver, type WebServerService } from '../src/routes.js'
+import {
+  MARKET_ROUTES,
+  userPanelRoute,
+  userPanelTranslationRoute,
+  type SuiteDetail,
+  type UserPanelEntryWire,
+  type UserPanelKind
+} from '../packages/market-contracts/src/contracts/market.js'
+import type { McpStatusPayload } from '../packages/market-mcp/src/application/mcp/mcp-status.js'
+import type { LspStatusPayload } from '../packages/market-contracts/src/contracts/lsp-status.js'
+import type { MarketService } from '../packages/market-contracts/src/ports/queries.js'
+import type { PanelRead, PanelResourceStore } from '../packages/market-runtime/src/application/panel-resources.js'
+import type { ProjectExtensionReader } from '../packages/market-bundle/src/application/extension-project.js'
+import { mountSuiteRoutes, type SuiteRouteSessionResolver, type WebServerService } from '../packages/market-bundle/src/routes.js'
 
 type RouteTable = Map<string, (request: unknown, response: unknown) => void | Promise<void>>
 

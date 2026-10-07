@@ -6,10 +6,10 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BATCH_COALESCE_MS, MAX_BATCH_CHARS, MAX_BATCH_SIZE, TranslationLocalizer, needsTranslation } from '../src/application/translation/localizer.js'
-import { PROVIDER_TIMEOUT_MS, isTripped, resetCircuitBreaker, type TranslationProvider } from '../src/application/translation/chain.js'
-import type { TranslationUnit } from '../src/application/translation/unit.js'
-import { translationKey } from '../src/application/state/translation-cache.js'
+import { BATCH_COALESCE_MS, MAX_BATCH_CHARS, MAX_BATCH_SIZE, TranslationLocalizer, needsTranslation } from '../packages/market-translation/src/application/translation/localizer.js'
+import { PROVIDER_TIMEOUT_MS, isTripped, resetCircuitBreaker, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
+import type { TranslationUnit } from '../packages/market-translation/src/application/translation/unit.js'
+import { translationKey } from '../packages/market-translation/src/application/state/translation-cache.js'
 
 let dataRoot: string
 let clock: number

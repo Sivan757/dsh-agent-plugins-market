@@ -22,8 +22,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
-import { captureExtensionSelection, type ExtensionSelection } from '../src/contracts/extension-presets.js'
-import { ExtensionSessionState, type ExtensionApplyReceipt, type ExtensionSessionStatePorts } from '../src/runtime/host/extension-session-state.js'
+import { captureExtensionSelection, type ExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { ExtensionSessionState, type ExtensionApplyReceipt, type ExtensionSessionStatePorts } from '../packages/market-runtime/src/runtime/host/extension-session-state.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {

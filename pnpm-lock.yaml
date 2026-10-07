@@ -289,6 +289,83 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
+  packages/market-bundle:
+    dependencies:
+      '@dsh-market/catalog':
+        specifier: workspace:*
+        version: link:../market-catalog
+      '@dsh-market/contracts':
+        specifier: workspace:*
+        version: link:../market-contracts
+      '@dsh-market/lsp':
+        specifier: workspace:*
+        version: link:../market-lsp
+      '@dsh-market/mcp':
+        specifier: workspace:*
+        version: link:../market-mcp
+      '@dsh-market/runtime':
+        specifier: workspace:*
+        version: link:../market-runtime
+      '@dsh-market/translation':
+        specifier: workspace:*
+        version: link:../market-translation
+
+  packages/market-catalog:
+    dependencies:
+      '@dsh-market/contracts':
+        specifier: workspace:*
+        version: link:../market-contracts
+
+  packages/market-contracts: {}
+
+  packages/market-lsp:
+    dependencies:
+      '@dsh-market/catalog':
+        specifier: workspace:*
+        version: link:../market-catalog
+      '@dsh-market/contracts':
+        specifier: workspace:*
+        version: link:../market-contracts
+      '@dsh-market/runtime':
+        specifier: workspace:*
+        version: link:../market-runtime
+
+  packages/market-mcp:
+    dependencies:
+      '@dsh-market/catalog':
+        specifier: workspace:*
+        version: link:../market-catalog
+      '@dsh-market/contracts':
+        specifier: workspace:*
+        version: link:../market-contracts
+      '@dsh-market/runtime':
+        specifier: workspace:*
+        version: link:../market-runtime
+
+  packages/market-runtime:
+    dependencies:
+      '@dsh-market/catalog':
+        specifier: workspace:*
+        version: link:../market-catalog
+      '@dsh-market/contracts':
+        specifier: workspace:*
+        version: link:../market-contracts
+
+  packages/market-translation:
+    dependencies:
+      '@dsh-market/catalog':
+        specifier: workspace:*
+        version: link:../market-catalog
+      '@dsh-market/contracts':
+        specifier: workspace:*
+        version: link:../market-contracts
+
+  packages/market-ui:
+    dependencies:
+      '@dsh-market/contracts':
+        specifier: workspace:*
+        version: link:../market-contracts
+
 packages:
 
   '@asamuzakjp/css-color@7.1.2':

@@ -141,7 +141,7 @@ When multiple manifests exist in the **same suite directory**, the first existin
 - **Component fallback:** for a root `plugin.json` that does not declare a recognized agent-plugins `$schema`, missing component declarations can come from `.claude-plugin/plugin.json`; explicit root declarations win, and marketplace entry declarations fill remaining gaps.
 - Marketplace catalogs follow the same order: the first catalog that produces suites wins, and invalid or empty catalogs allow the next candidate to be tried.
 
-The order is defined in [`src/model/layouts.ts`](src/model/layouts.ts); selection and root-manifest fallback are implemented in [`src/catalog/manifests.ts`](src/catalog/manifests.ts).
+The order is defined in [`packages/market-contracts/src/model/layouts.ts`](packages/market-contracts/src/model/layouts.ts); selection and root-manifest fallback are implemented in [`packages/market-catalog/src/scanning/manifests.ts`](packages/market-catalog/src/scanning/manifests.ts).
 
 ### Layout support matrix
 
@@ -218,6 +218,10 @@ There is no file watcher. Local-source discovery caches results for up to 30 sec
 **Does removing a source delete its files?**
 
 Only when you tick **also delete the managed market directory** in the confirmation. That removes the source's checkout under `~/.dsh/agent-plugins/.sources/<id>` — including one you cloned yourself and adopted. A local-directory source pointing outside `.sources/` is never deleted.
+
+## Repository layout
+
+The published package stays `dsh-agent-plugins-market` and ships one artifact. The code lives in eight private workspace packages under `packages/`: `market-bundle` (composition root and HTTP surface), `market-catalog` (source scanning and catalog use cases), `market-contracts` (stateless shared records), `market-runtime` (session selection and harness effects), `market-mcp`, `market-lsp`, `market-translation`, and `market-ui` (the browser bundle). Ownership, dependency direction and the migration gates are recorded in [the domain workspace refactor](docs/developer/design/domain-workspace-refactor.md); [AGENTS.md](AGENTS.md) holds the layout map maintainers edit.
 
 ## More documentation
 

@@ -11,9 +11,9 @@ import { LlmAdapter, ToolCallId, createUserMessage, type GenerateOptions, type S
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { ExtensionRuntime } from '../src/runtime/host/extension-runtime.js'
-import { attachExtensionToolGates, type ExtensionToolGates } from '../src/runtime/host/extension-tool-gates.js'
-import type { ExtensionResource } from '../src/contracts/extension-presets.js'
+import { ExtensionRuntime } from '../packages/market-runtime/src/runtime/host/extension-runtime.js'
+import { attachExtensionToolGates, type ExtensionToolGates } from '../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
+import type { ExtensionResource } from '../packages/market-contracts/src/contracts/extension-presets.js'
 class Query extends SessionQueryEngine {
   searchSessions(): Promise<never> {
     return Promise.reject(new Error('unused'))

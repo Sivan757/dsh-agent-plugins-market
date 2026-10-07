@@ -2,7 +2,7 @@
  * Verification: scan the dsh-agent-plugins checkout with the market's own
  * compiled scan pipeline and print discovered suites with their surfaces.
  */
-import { discoverSuitesInSource } from '../lib/catalog/suite-scanner.js'
+import { discoverSuitesInSource } from '../lib/packages/market-catalog/src/scanning/suite-scanner.js'
 
 const checkout = process.argv[2] ?? '/Users/sivan/workspace/dsh-agent-plugins'
 const suites = await discoverSuitesInSource(checkout, 'dsh-agent-plugins', 'user')

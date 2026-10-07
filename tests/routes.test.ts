@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { MARKET_ROUTES, userPanelTranslationRoute } from '../src/contracts/market.js'
-import { mountSuiteRoutes, type WebServerService } from '../src/routes.js'
-import type { MarketService } from '../src/application/queries.js'
+import { MARKET_ROUTES, userPanelTranslationRoute } from '../packages/market-contracts/src/contracts/market.js'
+import { mountSuiteRoutes, type WebServerService } from '../packages/market-bundle/src/routes.js'
+import type { MarketService } from '../packages/market-contracts/src/ports/queries.js'
 
 type RouteTable = Map<string, (request: unknown, response: unknown) => void | Promise<void>>
 

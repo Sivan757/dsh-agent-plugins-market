@@ -1,10 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Lsp, { LspProviderId } from '@deepseek-ai/dsh-lsp'
-import { LspMountRegistry, type LspStdioServerConfig } from '../src/runtime/lsp/lsp-mounts.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { LspMountRegistry, type LspStdioServerConfig } from '../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
-vi.mock('../src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: async () => undefined }))
+vi.mock('../packages/market-runtime/src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: async () => undefined }))
 const cleanups: Array<() => Promise<void>> = []
 afterEach(async () => {
   for (const dispose of cleanups.splice(0).reverse()) await dispose()

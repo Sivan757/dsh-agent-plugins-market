@@ -2,11 +2,11 @@
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import { EntryEditorModal } from '../src/client/ui/panel.js'
-import formCss from '../src/client/ui/form.module.css'
+import { EntryEditorModal } from '../packages/market-ui/src/ui/panel.js'
+import formCss from '../packages/market-ui/src/ui/form.module.css'
 import { stubTranslate as t } from './helpers/translate.js'
 
-vi.mock('../src/client/ui/CodeEditor.js', () => ({ CodeEditor: () => h('div', { 'data-editor': true }) }))
+vi.mock('../packages/market-ui/src/ui/CodeEditor.js', () => ({ CodeEditor: () => h('div', { 'data-editor': true }) }))
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: Root | undefined
 let host: HTMLDivElement

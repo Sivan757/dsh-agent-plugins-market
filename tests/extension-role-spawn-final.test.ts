@@ -14,9 +14,9 @@ import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
-import { executeAgentRole, type AgentRoleHost, type AgentRoleParent } from '../src/runtime/agents/agent-role-router.js'
-import { mountTeammateRoleTool } from '../src/runtime/agents/teammate-role-tool.js'
-import type { AgentRoleEntry } from '../src/application/agent-roles.js'
+import { executeAgentRole, type AgentRoleHost, type AgentRoleParent } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
+import { mountTeammateRoleTool } from '../packages/market-runtime/src/runtime/agents/teammate-role-tool.js'
+import type { AgentRoleEntry } from '../packages/market-runtime/src/application/agent-roles.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {

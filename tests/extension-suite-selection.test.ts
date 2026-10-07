@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { projectExtensionSuites } from '../src/application/extension-suite-selection.js'
-import { pluginResourceId } from '../src/application/panel-resources.js'
-import { captureExtensionSelection } from '../src/contracts/extension-presets.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { projectExtensionSuites } from '../packages/market-runtime/src/application/extension-suite-selection.js'
+import { pluginResourceId } from '../packages/market-runtime/src/application/panel-resources.js'
+import { captureExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 const parent = 'market:source/suite'
 const entry = (kind: 'skills' | 'commands' | 'agents', name: string) => kind + ':' + pluginResourceId('source', 'suite', kind, name)

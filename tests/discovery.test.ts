@@ -3,9 +3,9 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
-import { Catalog } from '../src/application/catalog.js'
-import { validateMcpJson, validatePluginManifest, pathContainmentError, remoteUrlError, headersError } from '../src/catalog/validate.js'
+import { discoverSuitesInSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { validateMcpJson, validatePluginManifest, pathContainmentError, remoteUrlError, headersError } from '../packages/market-catalog/src/scanning/validate.js'
 import { required } from './helpers/fixture.js'
 
 const here = dirname(fileURLToPath(import.meta.url))

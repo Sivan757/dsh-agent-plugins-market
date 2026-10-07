@@ -12,11 +12,12 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { scanSource } from '../src/catalog/suite-scanner.js'
-import { captureExtensionSelection } from '../src/contracts/extension-presets.js'
-import { ScopedExtensionContributors } from '../src/runtime/host/scoped-contributors.js'
-import type { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
+import { scanSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { captureExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
+import { ScopedExtensionContributors } from '../packages/market-runtime/src/runtime/host/scoped-contributors.js'
+import type { SuiteSkillProvider } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { createMcpMount } from '../packages/market-bundle/src/runtime-adapters.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const roots: string[] = []
@@ -65,6 +66,7 @@ describe('agent-scoped extension contributions', () => {
     const catalog = { enabledUserSuites: async () => [await fixtureSuite()] } as never
     const granted = new Set<string>([SUITE, SKILL])
     const contributors = new ScopedExtensionContributors({
+      mcpMounts: createMcpMount,
       dataRoot: root,
       catalog,
       shell: () => undefined,
@@ -98,6 +100,7 @@ describe('agent-scoped extension contributions', () => {
     // one agent, never to the process.
     const grants = new Map<Agent, Set<string>>()
     const contributors = new ScopedExtensionContributors({
+      mcpMounts: createMcpMount,
       dataRoot: root,
       catalog,
       shell: () => undefined,

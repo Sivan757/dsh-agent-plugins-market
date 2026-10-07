@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-市场翻译路由接受 `{sourceId, suiteId, kind, name}`，用户面板路由接受条目名称并经自己的 store 解析。两条路由都从受支持的资源列表读取文件，不接受调用方提交的正文或任意路径。路由定义归[市场协议](../../../../src/contracts/market.ts)，请求校验归[路由实现](../../../../src/routes.ts)。
+市场翻译路由接受 `{sourceId, suiteId, kind, name}`，用户面板路由接受条目名称并经自己的 store 解析。两条路由都从受支持的资源列表读取文件，不接受调用方提交的正文或任意路径。路由定义归[市场协议](../../../../packages/market-contracts/src/contracts/market.ts)，请求校验归[路由实现](../../../../packages/market-bundle/src/routes.ts)。
 
 ### 不同的读取资格，共享的身份
 

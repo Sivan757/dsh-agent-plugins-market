@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { mountSuiteRoutes } from '../src/routes.js'
-import { SurfaceToggleService } from '../src/runtime/host/surface-toggle-service.js'
-import { ALL_SURFACES_ON } from '../src/contracts/surface-toggles.js'
+import { mountSuiteRoutes } from '../packages/market-bundle/src/routes.js'
+import { SurfaceToggleService } from '../packages/market-runtime/src/runtime/host/surface-toggle-service.js'
+import { ALL_SURFACES_ON } from '../packages/market-contracts/src/contracts/surface-toggles.js'
 
 type Handler = (req: unknown, res: unknown) => void
 type RecordedRoutes = Map<string, { handler: Handler }>

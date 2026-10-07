@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeCredential, setCredential, unsetCredential } from '../src/client/credentials.js'
+import { describeCredential, setCredential, unsetCredential } from '../packages/market-ui/src/credentials.js'
 
 describe('client credentials adapter', () => {
   it('projects only the value-free credential view', async () => {

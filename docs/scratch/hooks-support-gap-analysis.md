@@ -96,7 +96,7 @@ The bridge README lists 23 unsupported events, including SessionEnd, PreCompact,
 
 ### Our runtime surface
 
-`src/runtime/surfaces/extension-hooks.ts:37-45` records the same gaps for the market bridge: "input rewrites, systemMessage and run-level halt are not applied; SubagentStop is observation-only." The class runs the same seven points (`src/runtime/surfaces/extension-hooks.ts:27`) with the same decision mapping (`src/runtime/surfaces/extension-hooks.ts:63-148`) and the same warn on unapplied fields (`src/runtime/surfaces/extension-hooks.ts:285-286`). `src/catalog/project-hooks.ts:6` validates the same seven events and merges settings documents additively with deduplication (`src/catalog/project-hooks.ts:34`). The mount creates one `ExtensionHooks` per agent inside a `shell` plus `sessionProjections` scope and disposes it on teardown (`src/runtime/host/scoped-contributors.ts:116-118`).
+`packages/market-runtime/src/runtime/surfaces/extension-hooks.ts:37-45` records the same gaps for the market bridge: "input rewrites, systemMessage and run-level halt are not applied; SubagentStop is observation-only." The class runs the same seven points (`packages/market-runtime/src/runtime/surfaces/extension-hooks.ts:27`) with the same decision mapping (`packages/market-runtime/src/runtime/surfaces/extension-hooks.ts:63-148`) and the same warn on unapplied fields (`packages/market-runtime/src/runtime/surfaces/extension-hooks.ts:285-286`). `packages/market-catalog/src/scanning/project-hooks.ts:6` validates the same seven events and merges settings documents additively with deduplication (`packages/market-catalog/src/scanning/project-hooks.ts:34`). The mount creates one `ExtensionHooks` per agent inside a `shell` plus `sessionProjections` scope and disposes it on teardown (`packages/market-runtime/src/runtime/host/scoped-contributors.ts:116-118`).
 
 ## Gap matrix
 
@@ -137,7 +137,7 @@ Status legend: **host-supported** means the host seam exists and the semantics m
 | Cross-cutting: `transcript_path` | needs-host-change | The persistence seam exposes no artifact path (`packages/hooks/hooks-claude-code/src/index.ts:327-336`) |
 | Cross-cutting: parallel hook execution, handler dedup | plugin-extendable-today | Serial execution is a bridge choice documented as deliberate. Our bridge owns its own scheduling |
 | Cross-cutting: `http` and `mcp_tool` handler types | plugin-extendable-today | We can POST ourselves, and we already ship an MCP client (`src/runtime/mcp/bridge/`) |
-| Cross-cutting: layered settings discovery and merge | plugin-extendable-today | Our catalog already merges documents additively and deduplicates (`src/catalog/project-hooks.ts:34`) |
+| Cross-cutting: layered settings discovery and merge | plugin-extendable-today | Our catalog already merges documents additively and deduplicates (`packages/market-catalog/src/scanning/project-hooks.ts:34`) |
 
 ## Recommendation
 
@@ -145,7 +145,7 @@ Status legend: **host-supported** means the host seam exists and the semantics m
 
 All items below stay inside the market plugin. None touches the host.
 
-1. SessionEnd bridge, effort S. Register listeners on a plugin-level scope filtered by agent, because the per-agent hook fiber tears down at teardown and the ordering against `agent/disposed` is not guaranteed (`src/runtime/host/scoped-contributors.ts:116-118`). Run hooks detached through the existing drain machinery. Skip the `hook/invoked` and `hook/result` pair because disposal happens outside any open turn and the protocol requires turn enclosure (`packages/hooks/hook-protocol/src/events.ts:1-7`). Log outcomes instead. Extend the event set in `src/catalog/project-hooks.ts:6` and the point union in `src/runtime/surfaces/extension-hooks.ts:27`. State the partial reason vocabulary in the suite scan notes.
+1. SessionEnd bridge, effort S. Register listeners on a plugin-level scope filtered by agent, because the per-agent hook fiber tears down at teardown and the ordering against `agent/disposed` is not guaranteed (`packages/market-runtime/src/runtime/host/scoped-contributors.ts:116-118`). Run hooks detached through the existing drain machinery. Skip the `hook/invoked` and `hook/result` pair because disposal happens outside any open turn and the protocol requires turn enclosure (`packages/hooks/hook-protocol/src/events.ts:1-7`). Log outcomes instead. Extend the event set in `packages/market-catalog/src/scanning/project-hooks.ts:6` and the point union in `packages/market-runtime/src/runtime/surfaces/extension-hooks.ts:27`. State the partial reason vocabulary in the suite scan notes.
 2. PreCompact observation bridge, effort S. Listen for `compaction/start` on `session/event`, derive the trigger from `sourceCommandId` presence and `turn`, run hooks detached, and discard block decisions with a diagnostic that names the host limitation. Do not claim blocking in any user-facing text.
 3. Notification bridge for `permission_prompt` and `idle_prompt`, effort M. Use the `approval/request` waterfall for permission prompts and an idle timer on `agent/status` for idle prompts. Document the timing divergence from the six-second idle gate. Leave the other matcher types unsupported with a scan note.
 4. PostToolUse `updatedToolOutput` mapping, effort S. Map onto `PostToolDecision` accept with `content` after shape validation, and fall back to plain accept on mismatch, mirroring the spec rule.
@@ -175,9 +175,9 @@ Follow the convention of `docs/developer/upstream-proposal/desktop-host-child-pa
 
 ## Essential files
 
-- `src/runtime/surfaces/extension-hooks.ts` — the market hooks bridge and its documented gaps.
-- `src/catalog/project-hooks.ts` — event validation, settings merge, and deduplication.
-- `src/runtime/host/scoped-contributors.ts` — the per-agent mount lifecycle.
+- `packages/market-runtime/src/runtime/surfaces/extension-hooks.ts` — the market hooks bridge and its documented gaps.
+- `packages/market-catalog/src/scanning/project-hooks.ts` — event validation, settings merge, and deduplication.
+- `packages/market-runtime/src/runtime/host/scoped-contributors.ts` — the per-agent mount lifecycle.
 - `packages/hooks/hooks-claude-code/src/index.ts` in the harness checkout — the host bridge reference implementation.
 - `packages/hooks/hooks-claude-code/src/config.ts` in the harness checkout — the supported event list.
 - `packages/hooks/hook-protocol/src/matcher.ts`, `codec.ts`, `merge.ts`, `runner.ts`, `events.ts`, `types.ts` in the harness checkout — the shared protocol.
