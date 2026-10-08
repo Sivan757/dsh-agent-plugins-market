@@ -478,9 +478,15 @@ export class RuntimeReconciler {
     this.disposal = (async () => {
       await this.sharedQueue
       await Promise.all(this.queues.values())
-      this.commands.disposeAll()
-      await Promise.all([this.mcp.disposeAll(), this.hooks.disposeAll(), this.lspRegistry.disposeAll()])
+      const outcomes = await Promise.allSettled([
+        Promise.resolve().then(() => this.commands.disposeAll()),
+        Promise.resolve().then(() => this.mcp.disposeAll()),
+        Promise.resolve().then(() => this.hooks.disposeAll()),
+        Promise.resolve().then(() => this.lspRegistry.disposeAll())
+      ])
       this.queues.clear()
+      const failures = outcomes.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map(result => result.reason as unknown)
+      if (failures.length > 0) throw new AggregateError(failures, 'runtime disposal failed: ' + failures.map(messageOf).join('; '))
     })()
     return this.disposal
   }

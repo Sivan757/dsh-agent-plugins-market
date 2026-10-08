@@ -1,0 +1,15 @@
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ✓ tests/extension-session-recovery.test.ts (11 tests) 810ms
+ ✓ tests/extension-session-state.test.ts (13 tests) 739ms
+ ✓ tests/resource-favorites-concurrency.test.ts (5 tests) 212ms
+ ✓ tests/resource-window-routes.test.ts (8 tests) 87ms
+ ✓ tests/workspace-policy-consistency.test.ts (9 tests) 59ms
+ ✓ tests/surface-toggle-routes.test.ts (5 tests) 44ms
+ ✓ tests/resource-window-state.test.ts (12 tests) 22ms
+
+ Test Files  7 passed (7)
+      Tests  63 passed (63)
+   Start at  12:12:57
+   Duration  4.19s (transform 604ms, setup 0ms, import 1.55s, tests 1.97s, environment 0ms)

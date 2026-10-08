@@ -30,10 +30,17 @@ const bindingSchema = z
   })
   .strict()
 type Binding = z.infer<typeof bindingSchema>
+/** The metadata marker that wakes a driver after a recovery; it never enters a request. */
+export const EXTENSION_SESSION_WAKE_SOURCE = 'market-extension-wake'
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'market-extension-selection': { kind: 'market-extension-selection'; form: 'context'; binding: Binding }
+    'market-extension-wake': { kind: 'market-extension-wake'; form: 'context' }
   }
+}
+/** Whether one message kind is this service's own metadata rather than user input. */
+function isPluginMetadata(kind: string): boolean {
+  return kind === EXTENSION_SESSION_SOURCE || kind === EXTENSION_SESSION_WAKE_SOURCE
 }
 export interface ExtensionSessionSnapshot {
   revision: number
@@ -105,6 +112,8 @@ export class ExtensionSessionState {
   private readonly errors = new Map<Agent, string>()
   private readonly lifetime = new AbortController()
   private readonly unavailable = new Set<Agent>()
+  /** The capture classification each attempt used, so an explicit recovery replays it exactly. */
+  private readonly captureSources = new Map<Agent, string | undefined>()
   private readonly operations = new Set<Promise<unknown>>()
   private readonly off: Array<() => void> = []
   private disposed = false
@@ -129,7 +138,9 @@ export class ExtensionSessionState {
           // filtered out before it can enter a request as placeholder user text.
           const decision = await next()
           if (decision.kind !== 'enter') return decision
-          return { ...decision, messages: decision.messages.filter(message => message.source.kind !== EXTENSION_SESSION_SOURCE) }
+          // The durable envelope and the recovery wake marker are plugin metadata:
+          // neither may enter a request as placeholder user text.
+          return { ...decision, messages: decision.messages.filter(message => !isPluginMetadata(message.source.kind)) }
         }
         // The host claims input before this hook; reject alone would discard it.
         const { agent } = event
@@ -149,6 +160,7 @@ export class ExtensionSessionState {
         this.errors.delete(agent)
         this.unavailable.delete(agent)
         this.initializing.delete(agent)
+        this.captureSources.delete(agent)
       })
     )
   }
@@ -190,6 +202,9 @@ export class ExtensionSessionState {
         if (this.disposed || this.ctx.agents.get(agent.id) !== agent) return
         this.errors.delete(agent)
         await this.attach(agent)
+        // A failed retry leaves the session unavailable, and wake() refuses that
+        // state itself; this call only offers the retry's outcome to that guard.
+        this.wake(agent)
       })
       // initialize() already recorded this failure; the handler only detaches the rejection.
       void this.track(retry).catch(() => {})
@@ -204,10 +219,16 @@ export class ExtensionSessionState {
     const checkpoint = this.checkpoints.get(agent)
     const error = this.errors.get(agent)
     const selection = ready ? this.states.get(agent)?.selection : (checkpoint?.committed?.selection ?? checkpoint?.initial)
+    // A capture that failed before recording anything leaves no recovery target.
+    // That is the one case where an explicit recovery re-runs the capture itself;
+    // every other failure keeps the durable-record rule.
+    // Only an attempt that actually ran can be retried: a busy attach records an
+    // error without ever reaching the capture, and its own retry owns that state.
+    const captureOnly = selection === undefined && error !== undefined && this.captureSources.has(agent)
     return {
       ready,
       revision: checkpoint?.latest?.revision ?? 0,
-      recoverable: !ready && !this.disposed && !this.initializing.has(agent) && !!selection && error !== 'extension-session-corrupt',
+      recoverable: !ready && !this.disposed && !this.initializing.has(agent) && (selection !== undefined || captureOnly) && error !== 'extension-session-corrupt',
       ...(error ? { error } : {}),
       ...(selection ? { selection: structuredClone(selection) } : {})
     }
@@ -290,6 +311,13 @@ export class ExtensionSessionState {
       observation[Symbol.dispose]()
     }
   }
+  /** Run one capture through the adapter and commit it as revision 1. */
+  private async capture(agent: Agent, source: string | undefined, signal?: AbortSignal): Promise<void> {
+    const selection = selectionSchema.parse(await this.ports.initialSelection(agent, source))
+    const checkpoint = this.checkpoints.get(agent)!
+    checkpoint.initial ??= selection
+    await this.commit(agent, { revision: 1, selection }, signal)
+  }
   private async initializeOnce(agent: Agent, source?: string, signal?: AbortSignal): Promise<void> {
     const { checkpoint, nonempty } = await this.replay(agent)
     this.checkpoints.set(agent, checkpoint)
@@ -322,12 +350,27 @@ export class ExtensionSessionState {
       }
       return
     }
+    if (latest?.selection !== undefined) {
+      const replayed = selectionSchema.parse(latest.selection)
+      checkpoint.initial ??= replayed
+      await this.commit(agent, { revision: 1, selection: replayed }, signal)
+      return
+    }
+    // Remember which classification this attempt used: input parked while the
+    // attempt runs makes the log nonempty, and a later explicit recovery must not
+    // read that as pre-existing history and capture legacy defaults instead.
     const legacy = nonempty || source === 'resume' || source === 'legacy'
-    const selection = selectionSchema.parse(latest?.selection ?? (await this.ports.initialSelection(agent, legacy ? 'legacy' : source)))
-    checkpoint.initial ??= selection
-    await this.commit(agent, { revision: 1, selection }, signal)
+    const captureSource = legacy ? 'legacy' : source
+    this.captureSources.set(agent, captureSource)
+    await this.capture(agent, captureSource, signal)
   }
-  /** Recover only the validated last committed choice, or the original initial attempt. Never recapture defaults. */
+  /**
+   * Recover only the validated last committed choice, or the original initial attempt.
+   *
+   * Never recapture defaults, with one exception: a capture that failed before it
+   * recorded anything has no record to protect, so an explicit recovery re-runs that
+   * capture with the classification the original attempt used.
+   */
   recover(agent: Agent, expectedRevision: number): Promise<ExtensionSessionSnapshot> {
     return this.maintenance(agent, async signal => {
       const status = this.status(agent)
@@ -338,13 +381,28 @@ export class ExtensionSessionState {
         const latest = checkpoint.latest
         if ((latest?.revision ?? 0) !== expectedRevision) throw failure('extension-session-conflict')
         const selection = checkpoint.committed?.selection ?? checkpoint.initial ?? this.checkpoints.get(agent)?.initial
-        if (!selection) throw failure('extension-session-not-ready')
+        if (!selection) {
+          // Nothing durable records the failed attempt, so retrying the capture
+          // itself loses nothing. Only an explicit recovery reaches this branch, a
+          // repeated failure records again, and the next attempt waits for the next
+          // call — this service never schedules a retry of its own.
+          if (latest !== undefined || checkpoint.committed !== undefined || checkpoint.initial !== undefined) throw failure('extension-session-not-ready')
+          // Publish the replayed checkpoint before the capture records into it: the
+          // capture path amends the entry this map holds for the agent.
+          this.checkpoints.set(agent, checkpoint)
+          await this.capture(agent, this.captureSources.get(agent), signal)
+          const captured = this.states.get(agent)
+          if (captured === undefined) throw failure('extension-session-not-ready')
+          this.wake(agent)
+          return structuredClone(captured)
+        }
         this.checkpoints.set(agent, checkpoint)
         const revision = latest?.ownerId === agent.id ? latest.revision + 1 : 1
         if (!Number.isSafeInteger(revision)) throw failure('extension-session-conflict')
         const next = { revision, selection: structuredClone(selection) }
         signal.throwIfAborted()
         await this.commit(agent, next, signal, latest && { ownerId: latest.ownerId, revision: latest.revision })
+        this.wake(agent)
         return structuredClone(next)
       } catch (error) {
         this.fail(agent, error)
@@ -383,6 +441,35 @@ export class ExtensionSessionState {
       () => this.operations.delete(operation)
     )
     return operation
+  }
+  /**
+   * Start the driver for input stranded while this service denied the session.
+   *
+   * The stranded messages are already queued, so the wake carries no payload: the
+   * marker is plugin metadata the same pre-step guard filters, and `steer` is the
+   * published way to start a driver without cancelling live work (published
+   * semantics: a wake during maintenance latches and replays at convergence).
+   * Callers run it only after a committed recovery or a successful busy retry, and
+   * this guard makes that common: an unavailable or disposed session must never
+   * open a turn, so the check here is the single place that decides.
+   */
+  private wake(agent: Agent): void {
+    if (this.disposed || !this.status(agent).ready) return
+    // Only an ordinary human request wakes a driver. The inbox decides rather than
+    // this instance's memory, because a host reload rebuilds queued input from the
+    // log. An absent context form is the opaque default, not evidence of authorship,
+    // so injected context from any producer waits for the user's next request
+    // instead. This is deliberately narrower than the historical progress
+    // classification: it decides whether to start new work, which the progress
+    // field never did.
+    const stranded = [...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(message => message.source.kind === 'user')
+    if (!stranded) return
+    agent.steer(
+      createUserMessage({
+        source: { kind: EXTENSION_SESSION_WAKE_SOURCE, form: 'context' },
+        content: [{ type: 'text', text: 'Session extension readiness restored.' }]
+      })
+    )
   }
   private fail(agent: Agent, error: unknown): void {
     // Fail-closed covers governed agents only: an ungoverned agent keeps its
@@ -456,6 +543,15 @@ export class ExtensionSessionState {
     this.lifetime.abort()
     await Promise.allSettled([...this.initializing.values(), ...this.operations])
     for (const off of this.off.splice(0)) off()
+    this.captureSources.clear()
     this.states.clear()
+    // Everything still pending was awaited above, so a disposed service keeps no
+    // per-agent bookkeeping: not a checkpoint, an error, an unavailable mark, an
+    // in-flight initialization, or a tracked operation.
+    this.checkpoints.clear()
+    this.errors.clear()
+    this.unavailable.clear()
+    this.initializing.clear()
+    this.operations.clear()
   }
 }

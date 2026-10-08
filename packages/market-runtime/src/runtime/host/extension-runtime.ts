@@ -15,7 +15,8 @@ import {
   type ExtensionHooksOverview
 } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import type { ExtensionRouteService } from '../../extension-service.js'
-import { ExtensionSessionState, EXTENSION_SESSION_SOURCE, type ExtensionApplyReceipt } from './extension-session-state.js'
+import { ExtensionSessionState, type ExtensionApplyReceipt } from './extension-session-state.js'
+import { ExtensionProgressReader } from './extension-progress.js'
 
 export interface ExtensionRuntimePorts {
   dataRoot: string
@@ -40,6 +41,8 @@ export function extensionWorkspace(agent: Agent): string {
 export class ExtensionRuntime implements ExtensionRouteService {
   readonly state: ExtensionSessionState
   private readonly store: ExtensionPresetStore
+  /** Folded session progress; the log scan is only the no-registry fallback. */
+  private readonly progress: ExtensionProgressReader
   private readonly resources = new Map<Agent, ExtensionResource[]>()
   /** Agents whose cached inventory predates the current catalog; authorization fails closed until re-read. */
   private readonly stale = new Set<Agent>()
@@ -61,6 +64,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     private readonly ports: ExtensionRuntimePorts
   ) {
     this.store = new ExtensionPresetStore(ports.dataRoot)
+    this.progress = new ExtensionProgressReader(ctx)
     this.state = new ExtensionSessionState(ctx, {
       ...(ports.eligible === undefined ? {} : { eligible: (agent: Agent) => ports.eligible?.(agent) === true }),
       initialSelection: (agent, source) => this.initialSelection(agent, source),
@@ -299,11 +303,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     // the diagnostics plus a display-only snapshot that authorizes nothing.
     const state = status.ready ? this.state.read(agent) : undefined
     const [library, resources] = await Promise.all([this.store.read(extensionWorkspace(agent)), this.refreshInventory(agent)])
-    const started = agent.session.snapshotEvents().some(event => {
-      if (event.type === 'turn/start') return true
-      const messages = event.type === 'user/message' ? [event.data] : event.type === 'agent/inbox/spliced' ? event.data.inserted : []
-      return messages.some(message => message.source.kind !== EXTENSION_SESSION_SOURCE && !('form' in message.source))
-    })
+    const started = this.progress.read(agent.session)
     return {
       sessionId,
       workspace: extensionWorkspace(agent),
@@ -358,6 +358,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     this.lifetime.abort()
     await Promise.allSettled([...this.refreshing.values()])
     for (const off of this.off.splice(0)) off()
+    await this.progress.dispose()
     await this.state.dispose()
     this.resources.clear()
     this.targets.clear()

@@ -1,0 +1,281 @@
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ✓ tests/zip-bomb.test.ts (5 tests) 3395ms
+     ✓ rejects a zip exceeding the entry-count limit  1126ms
+     ✓ rejects a tar exceeding the entry-count limit on the post-extraction walk  2008ms
+ ✓ tests/extension-acceptance-scoped-effects.test.ts (1 test) 1238ms
+     ✓ runs a granted suite hook for its own session only, and never for the same-cwd sibling  1237ms
+ ✓ tests/teammate-role.test.ts (17 tests) 1863ms
+ ✓ tests/translation-localizer.test.ts (51 tests) 1536ms
+ ✓ tests/extension-session-recovery.test.ts (14 tests) 1115ms
+12:51:44 PM [vite] (client) Failed to load source map for /Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@deepseek-ai+dsh-client-ui-primitives@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4/node_modules/@deepseek-ai/dsh-client-ui-primitives/lib/index.js.
+Error: An error occurred while trying to read the map file at index.js.map
+Error: ENOENT: no such file or directory, open '/Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@deepseek-ai+dsh-client-ui-primitives@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4/node_modules/@deepseek-ai/dsh-client-ui-primitives/lib/index.js.map'
+    at Object.readFileSync (node:fs:483:20)
+    at file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17506:13
+    at readFromFileMap (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17204:13)
+    at Object.exports.fromMapFileComment (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17299:12)
+    at Object.exports.fromMapFileSource (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17310:22)
+    at extractSourcemapFromFile (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17492:87)
+    at loadAndTransform (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:19964:22)
+ ✓ tests/markdown-crash.test.ts (1 test) 832ms
+     ✓ does not throw on any SKILL.md  831ms
+ ✓ tests/source-id-collision.test.ts (7 tests) 797ms
+ ✓ tests/extension-scoped-root-contributors.test.ts (3 tests) 766ms
+     ✓ drives one session selection through the routes the entry mounts  656ms
+ ✓ tests/extension-session-state.test.ts (14 tests) 809ms
+ ✓ tests/catalog-description-localization.test.ts (14 tests) 785ms
+ ✓ tests/client-extension-preset-v5.test.ts (22 tests) 683ms
+     ✓ shows the localized title and the empty explanation in the detail dialog for an invalid configuration  321ms
+ ✓ tests/translation-document.test.ts (16 tests) 612ms
+ ✓ tests/extension-global-override-integration.test.ts (1 test) 601ms
+     ✓ serves the selected skill and command to that session only, and never flips the global switch  600ms
+ ✓ tests/real-layouts.test.ts (23 tests) 557ms
+ ✓ tests/surface-translations.test.ts (14 tests) 551ms
+ ✓ tests/extension-window-progress.test.ts (14 tests) 512ms
+ ✓ tests/host-service-seam.test.ts (6 tests) 463ms
+ ✓ tests/team-coordination.test.ts (8 tests) 483ms
+ ✓ tests/extension-acceptance.test.ts (12 tests) 466ms
+ ✓ tests/extension-host-mcp-lifecycle.test.ts (4 tests) 399ms
+ ✓ tests/extension-runtime-maintenance.test.ts (7 tests) 420ms
+ ✓ tests/extension-session-noise.test.ts (6 tests) 392ms
+stderr | tests/user-panel-surface.test.ts > unified Markdown resource panel > loads provider models on demand and saves the selected pair into the original frontmatter
+TypeError: textRange(...).getClientRects is not a function
+    at TextTile.coordsIn (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:2115:51)
+    at LineTile.coordsIn (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:2028:27)
+    at DocView.coordsAt (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:3280:21)
+    at EditorView.coordsAtPos (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8579:29)
+    at RectangleMarker.forRange (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9347:28)
+    at Object.markers (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9614:51)
+    at LayerView.measure (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9504:27)
+    at file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8220:34
+    at Array.map (<anonymous>)
+    at EditorView.measure (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8218:42)
+
+stderr | tests/user-panel-surface.test.ts > unified Markdown resource panel > loads provider models on demand and saves the selected pair into the original frontmatter
+TypeError: textRange(...).getClientRects is not a function
+    at TextTile.coordsIn (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:2115:51)
+    at LineTile.coordsIn (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:2028:27)
+    at DocView.coordsAt (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:3280:21)
+    at EditorView.coordsAtPos (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8579:29)
+    at RectangleMarker.forRange (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9347:28)
+    at Object.markers (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9614:51)
+    at LayerView.measure (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9504:27)
+    at file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8220:34
+    at Array.map (<anonymous>)
+    at EditorView.measure (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8218:42)
+
+ ✓ tests/user-panel-surface.test.ts (16 tests) 368ms
+ ✓ tests/extension-session-transaction.test.ts (6 tests) 337ms
+ ✓ tests/native-project-cwd.test.ts (3 tests) 357ms
+     ✓ reads a home cwd as no project rather than as a second view of the user dimension  343ms
+ ✓ tests/panel-resources.test.ts (13 tests) 362ms
+ ✓ tests/client-extension-presets.test.ts (25 tests) 407ms
+ ✓ tests/menu-row-faces.test.ts (12 tests) 336ms
+ ✓ tests/source-acquisition.test.ts (17 tests) 281ms
+ ✓ tests/client-banner.test.ts (6 tests) 276ms
+ ✓ tests/client-document-translation.test.ts (14 tests) 245ms
+stderr | tests/user-panel-cache.test.ts > user panel row cache > keeps the editor's own save in the cache
+TypeError: textRange(...).getClientRects is not a function
+    at TextTile.coordsIn (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:2115:51)
+    at LineTile.coordsIn (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:2028:27)
+    at DocView.coordsAt (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:3280:21)
+    at EditorView.coordsAtPos (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8579:29)
+    at RectangleMarker.forRange (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9347:28)
+    at Object.markers (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9614:51)
+    at LayerView.measure (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:9504:27)
+    at file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8220:34
+    at Array.map (<anonymous>)
+    at EditorView.measure (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@codemirror+view@6.43.13/node_modules/@codemirror/view/dist/index.js:8218:42)
+
+ ✓ tests/user-panel-cache.test.ts (6 tests) 226ms
+ ✓ tests/resource-favorites-concurrency.test.ts (5 tests) 206ms
+ ✓ tests/client-server-config-policy.test.ts (17 tests) 218ms
+ ✓ tests/layouts.test.ts (35 tests) 230ms
+ ✓ tests/mcp-oauth.test.ts (19 tests) 189ms
+ ✓ tests/client-resource-window.test.ts (17 tests) 234ms
+ ✓ tests/reuse-manifest.test.ts (13 tests) 176ms
+ ✓ tests/runtime-reconciler.test.ts (3 tests) 167ms
+ ✓ tests/extension-acceptance-lifecycle.test.ts (1 test) 172ms
+ ✓ tests/lsp-service-e2e.test.ts (6 tests) 169ms
+ ✓ tests/extension-global-defaults.test.ts (3 tests) 143ms
+ ✓ tests/market-detail-document-lazy.test.ts (2 tests) 159ms
+ ✓ tests/client-user-entry-detail-translation.test.ts (6 tests) 155ms
+ ✓ tests/host-alignment.test.ts (1 test) 155ms
+ ✓ tests/install-gate.test.ts (7 tests) 157ms
+ ✓ tests/mcp-status-render.test.ts (5 tests) 127ms
+ ✓ tests/client-detail-editors.test.ts (13 tests) 125ms
+ ✓ tests/discovery.test.ts (41 tests) 117ms
+ ✓ tests/server-config.test.ts (25 tests) 136ms
+ ✓ tests/bilingual-toggle.test.ts (19 tests) 135ms
+ ✓ tests/client-service-editor-parity.test.ts (12 tests) 143ms
+ ✓ tests/catalog.test.ts (4 tests) 142ms
+ ✓ tests/mcp-mounts.test.ts (17 tests) 145ms
+ ✓ tests/skills-provider.test.ts (10 tests) 154ms
+ ✓ tests/plugin-apply.test.ts (4 tests) 126ms
+ ✓ tests/schemas.test.ts (5 tests) 106ms
+ ✓ tests/client-mcp-detail.test.ts (19 tests) 140ms
+ ✓ tests/mcp-overrides.test.ts (26 tests) 123ms
+ ✓ tests/extension-user-skill-selection.test.ts (4 tests) 120ms
+ ✓ tests/catalog-runtime.test.ts (3 tests) 109ms
+ ✓ tests/client-busy-overlay.test.ts (22 tests) 123ms
+ ✓ tests/surface-locale-read.test.ts (5 tests) 122ms
+ ✓ tests/market-detail-document-translation.test.ts (6 tests) 126ms
+ ✓ tests/snapshot-keep-warm.test.ts (4 tests) 124ms
+ ✓ tests/market-section-render.test.ts (8 tests) 105ms
+ ✓ tests/extension-suite-declarations.test.ts (4 tests) 151ms
+ ✓ tests/native-project.test.ts (9 tests) 108ms
+ ✓ tests/source-discovery.test.ts (3 tests) 158ms
+ ✓ tests/skill-source-aggregation.test.ts (10 tests) 183ms
+ ✓ tests/resource-window-routes.test.ts (8 tests) 95ms
+ ✓ tests/install-pipeline.test.ts (2 tests) 116ms
+ ✓ tests/translation-gate-consistency.test.ts (11 tests) 85ms
+ ✓ tests/agents-layout-parity.test.ts (5 tests) 97ms
+ ✓ tests/document-chunks.test.ts (30 tests) 120ms
+ ✓ tests/extension-tool-gates.test.ts (10 tests) 79ms
+ ✓ tests/subagent-catalog.test.ts (17 tests) 80ms
+ ✓ tests/namespace.test.ts (9 tests) 85ms
+ ✓ tests/component-declarations.test.ts (15 tests) 80ms
+ ✓ tests/client-hooks-status-panel.test.ts (5 tests) 86ms
+ ✓ tests/lsp-seam-render.test.ts (3 tests) 90ms
+ ✓ tests/extension-shared-demand.test.ts (15 tests) 68ms
+ ✓ tests/user-panels.test.ts (20 tests) 95ms
+ ✓ tests/client-role-reasoning.test.ts (6 tests) 77ms
+ ✓ tests/scan-pipeline.test.ts (16 tests) 62ms
+ ✓ tests/client-lsp-detail.test.ts (6 tests) 63ms
+ ✓ tests/client-extension-preset-details.test.ts (4 tests) 69ms
+ ✓ tests/scoped-contributors.test.ts (2 tests) 61ms
+ ✓ tests/routes.test.ts (13 tests) 55ms
+ ✓ tests/runtime-disposal-reporting.test.ts (1 test) 56ms
+ ✓ tests/project-mcp.test.ts (11 tests) 75ms
+ ✓ tests/extension-disabled-consumers.test.ts (6 tests) 70ms
+ ✓ tests/commands-mounts.test.ts (9 tests) 60ms
+ ✓ tests/user-commands.test.ts (8 tests) 43ms
+ ✓ tests/storage-migration.test.ts (12 tests) 46ms
+ ✓ tests/extension-routes.test.ts (16 tests) 51ms
+ ✓ tests/mcp-direct-config.test.ts (9 tests) 48ms
+ ✓ tests/client-workspace-tabs.test.ts (3 tests) 43ms
+ ✓ tests/domain-workspaces.test.ts (3 tests) 80ms
+ ✓ tests/client-translation-binding-lifetime.test.ts (3 tests) 49ms
+ ✓ tests/surface-toggle-routes.test.ts (5 tests) 43ms
+ ✓ tests/workspace-policy-consistency.test.ts (9 tests) 45ms
+ ✓ tests/extension-preset-store.test.ts (6 tests) 42ms
+ ✓ tests/plugin-variables.test.ts (10 tests) 42ms
+ ✓ tests/extension-contributor-gates.test.ts (16 tests) 44ms
+ ✓ tests/project-hooks.test.ts (9 tests) 43ms
+ ✓ tests/mcp-reauthorize-e2e.test.ts (4 tests) 38ms
+ ✓ tests/surface-toggle-contributors.test.ts (3 tests) 33ms
+ ✓ tests/agent-role-router.test.ts (19 tests) 30ms
+ ✓ tests/profile-seam.test.ts (12 tests) 37ms
+ ✓ tests/client-plugins-item-views.test.ts (8 tests) 33ms
+ ✓ tests/client-extension-detail-frame.test.ts (1 test) 29ms
+ ✓ tests/project-commands.test.ts (2 tests) 34ms
+ ✓ tests/client-workspace-view.test.ts (2 tests) 31ms
+ ✓ tests/extension-role-spawn-final.test.ts (4 tests) 30ms
+ ✓ tests/client-editor-layout.test.ts (2 tests) 31ms
+ ✓ tests/suite-detail-document-payload.test.ts (2 tests) 33ms
+ ✓ tests/dynamic-context.test.ts (16 tests) 36ms
+ ✓ tests/client-page-mode.test.ts (2 tests) 28ms
+ ✓ tests/extension-hooks.test.ts (18 tests) 27ms
+ ✓ tests/filter-toolbar.test.ts (1 test) 27ms
+ ✓ tests/suite-queries.test.ts (4 tests) 29ms
+ ✓ tests/user-hooks.test.ts (8 tests) 25ms
+ ✓ tests/machine-translator.test.ts (33 tests) 22ms
+ ✓ tests/agent-teams-seat.test.ts (9 tests) 23ms
+ ✓ tests/extension-hooks-detail.test.ts (7 tests) 25ms
+ ✓ tests/client-api-timeout.test.ts (8 tests) 19ms
+ ✓ tests/preset-source.test.ts (5 tests) 25ms
+ ✓ tests/translation-chain-e2e.test.ts (4 tests) 16ms
+12:52:59 PM [vite] (ssr) Failed to load source map for /Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@deepseek-ai+dsh-client-ui-primitives@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4/node_modules/@deepseek-ai/dsh-client-ui-primitives/lib/index.js.
+Error: An error occurred while trying to read the map file at index.js.map
+Error: ENOENT: no such file or directory, open '/Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/@deepseek-ai+dsh-client-ui-primitives@0.2.0-rc.2_@deepseek-ai+cordis@4.0.4/node_modules/@deepseek-ai/dsh-client-ui-primitives/lib/index.js.map'
+    at Object.readFileSync (node:fs:483:20)
+    at file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17506:13
+    at readFromFileMap (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17204:13)
+    at Object.exports.fromMapFileComment (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17299:12)
+    at Object.exports.fromMapFileSource (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17310:22)
+    at extractSourcemapFromFile (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:17492:87)
+    at loadAndTransform (file:///Users/sivan/workspace/dsh-agent-plugins-market/node_modules/.pnpm/vite@8.3.1_@types+node@22.20.4_esbuild@0.28.2_yaml@2.9.1/node_modules/vite/dist/node/chunks/node.js:19964:22)
+ ✓ tests/client-plugin-card.test.ts (17 tests) 16ms
+ ✓ tests/client-translation-settings.test.ts (19 tests) 16ms
+ ✓ tests/client-agent-extension-icon.test.ts (2 tests) 15ms
+ ✓ tests/resource-window-state.test.ts (12 tests) 17ms
+ ✓ tests/state-compatibility.test.ts (12 tests) 13ms
+ ✓ tests/panel-locale-read.test.ts (1 test) 15ms
+ ✓ tests/shell-path.test.ts (21 tests) 11ms
+ ✓ tests/translation-cache.test.ts (21 tests) 17ms
+ ✓ tests/mcp-bridge.test.ts (31 tests) 13ms
+ ✓ tests/extension-lsp-provider-lifecycle.test.ts (5 tests) 13ms
+ ✓ tests/translation-chain.test.ts (19 tests) 13ms
+ ✓ tests/extension-scoped-projection.test.ts (2 tests) 13ms
+ ✓ tests/surface-toggle-gates.test.ts (5 tests) 13ms
+ ✓ tests/role-frontmatter.test.ts (5 tests) 12ms
+ ✓ tests/resource-filter-service.test.ts (5 tests) 11ms
+ ✓ tests/description-translator-seam.test.ts (3 tests) 11ms
+ ✓ tests/lsp-mounts.test.ts (21 tests) 12ms
+ ✓ tests/client-locales.test.ts (3 tests) 10ms
+ ✓ tests/resource-entry-gates.test.ts (4 tests) 12ms
+ ✓ tests/extension-native-skill-shadow.test.ts (2 tests) 10ms
+ ✓ tests/extension-project-details.test.ts (8 tests) 11ms
+ ✓ tests/lsp-server-state.test.ts (4 tests) 11ms
+ ✓ tests/settings-namespace.test.ts (15 tests) 10ms
+ ✓ tests/lsp-direct-config.test.ts (7 tests) 13ms
+ ✓ tests/timer-seat.test.ts (4 tests) 12ms
+ ✓ tests/client-menu-row-faces.test.ts (13 tests) 9ms
+ ✓ tests/description-translator.test.ts (18 tests) 9ms
+ ✓ tests/mcp-backend.test.ts (8 tests) 8ms
+ ✓ tests/state.test.ts (6 tests) 9ms
+stdout | tests/client-view-models.test.ts > client catalog view models > records a repeat-filtering baseline for a 5,000-card payload
+[client-view-model] 5,000 cards × 20 searches: 4.95ms; visible=22220
+
+ ✓ tests/client-view-models.test.ts (3 tests) 8ms
+ ✓ tests/client-agent-presets-gate.test.ts (2 tests) 9ms
+ ✓ tests/feedback-tool.test.ts (6 tests) 9ms
+ ✓ tests/mcp-status.test.ts (14 tests) 7ms
+ ✓ tests/surface-toggles.test.ts (5 tests) 8ms
+ ✓ tests/mcp-config.test.ts (17 tests) 7ms
+ ✓ tests/client-description-refresh.test.ts (5 tests) 6ms
+ ✓ tests/extension-suite-inventory.test.ts (29 tests) 9ms
+ ✓ tests/menu-row-face.test.ts (24 tests) 7ms
+ ✓ tests/lsp-status.test.ts (6 tests) 5ms
+ ✓ tests/compat-report.test.ts (5 tests) 8ms
+ ✓ tests/translation-settle.test.ts (7 tests) 6ms
+ ✓ tests/model-catalog.test.ts (4 tests) 6ms
+ ✓ tests/session-extension-composition.test.ts (1 test) 6ms
+ ✓ tests/description-translator-host-surface.test.ts (3 tests) 6ms
+ ✓ tests/source-auto-update.test.ts (3 tests) 6ms
+ ✓ tests/command-name-allocator.test.ts (21 tests) 5ms
+ ✓ tests/translation-provider-partial.test.ts (6 tests) 4ms
+ ✓ tests/deadline.test.ts (3 tests) 4ms
+ ✓ tests/extension-suite-selection.test.ts (6 tests) 4ms
+ ✓ tests/extension-hooks-inventory.test.ts (5 tests) 4ms
+ ✓ tests/mcp-projection.test.ts (12 tests) 4ms
+ ✓ tests/mcp-detail.test.ts (1 test) 4ms
+ ✓ tests/package-branding.test.ts (2 tests) 5ms
+ ✓ tests/text-masking.test.ts (18 tests) 4ms
+ ✓ tests/extension-preset-selection.test.ts (7 tests) 4ms
+ ✓ tests/mcp-redaction.test.ts (12 tests) 4ms
+ ✓ tests/mcp-schema-subset.test.ts (2 tests) 4ms
+ ✓ tests/paths.test.ts (23 tests) 3ms
+ ✓ tests/client-shared-labels.test.ts (5 tests) 4ms
+ ✓ tests/mcp-auth-record.test.ts (6 tests) 4ms
+ ✓ tests/client-credentials.test.ts (2 tests) 3ms
+ ✓ tests/lsp-spec.test.ts (7 tests) 3ms
+ ✓ tests/failure-detail.test.ts (6 tests) 3ms
+ ✓ tests/client-failure-guidance.test.ts (5 tests) 3ms
+ ✓ tests/translation-units.test.ts (6 tests) 2ms
+ ✓ tests/host-locale.test.ts (6 tests) 3ms
+ ✓ tests/regions.test.ts (7 tests) 2ms
+ ✓ tests/bilingual-description-real-case.test.ts (2 tests) 2ms
+ ✓ tests/client-mcp-detail-actions.test.ts (3 tests) 2ms
+ ✓ tests/market-contracts.test.ts (3 tests) 2ms
+ ✓ tests/bilingual-description.test.ts (6 tests) 2ms
+ ✓ tests/suite-detail-resource.test.ts (1 test) 2ms
+
+ Test Files  201 passed (201)
+      Tests  1908 passed (1908)
+   Start at  12:51:32
+   Duration  99.65s (transform 3.14s, setup 0ms, import 38.05s, tests 31.81s, environment 12.47s)
+
+JSON report written to /tmp/market-final-refactor-PUPJyV/final-tests.json

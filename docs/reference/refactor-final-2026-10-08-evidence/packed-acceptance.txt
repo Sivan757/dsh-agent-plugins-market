@@ -1,0 +1,17 @@
+Date: 2026-10-08 Asia/Shanghai
+Baseline: 92936ff.
+Artifact: dsh-agent-plugins-market-0.9.0.tgz; pnpm pack exit 0 with host-alignment/build hooks.
+Isolated root: /tmp/market-final-refactor-PUPJyV
+Host: installed DSH 0.2.0-rc.2, Node test tools v24.21.0, loopback port 51117.
+Code: extracted public tarball; external dependencies reused, private workspace symlinks excluded. No fresh registry installation claimed.
+Cross-process policy: six workers released from an IPC barrier, six distinct entry updates retained in the shared document.
+Cross-process favorites: six workers released from an IPC barrier, six distinct favorites retained.
+Recovery fixture: invalid isolated workspace preset library causes first capture failure. One user prompt sent and parked.
+After repairing the fixture: status ready=false, revision=0, recoverable=true, error=preset-state-invalid.
+Explicit recovery: no second prompt sent. Status becomes ready=true, revision=1; original queued user request reaches local mock once.
+Completed state: busy=false, ready=true, started=true; actual Hook log contains one final-hook marker.
+Session: session-5682fe43-37e1-4b58-8262-14eca2da5247.
+Browser shows original request, completed response and no warning/error messages in final query.
+Private token/cookie excluded. No host source or live profile change. No push/publication.
+Limit: malformed library blocks the window read until the underlying data error is repaired; recovery does not erase corrupt library data.
+Limit: no current Windows CI or live external model/service reliability execution. Existing tests retain source-map/CodeMirror warnings.

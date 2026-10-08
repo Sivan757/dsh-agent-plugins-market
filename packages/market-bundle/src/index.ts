@@ -306,26 +306,10 @@ export async function apply(
     () => localePreference
   )
 
-  // Per-workspace surface switches: the composer control writes them and every
-  // mount below reads them, so a toggle runs through the ordinary refresh chain.
-  const surfaceToggles = new SurfaceToggleService(dataRoot, process.cwd(), {
-    onTogglesChanged: async () => {
-      await onChanged()
-    }
-  })
-  // Per-workspace entry filters (the project resource window) share the same
-  // document and the same refresh chain: flipping one entry reconciles exactly
-  // like flipping its surface switch, through the contributors' own gates.
-  const resourceFilters = new ResourceFilterService(dataRoot, process.cwd(), {
-    onFiltersChanged: async () => {
-      await onChanged()
-    }
-  })
-  void Promise.all([surfaceToggles.reload(), resourceFilters.reload()])
-  // Each switchable surface answers its own gate at the mount branch, so the
-  // six switches stay orthogonal: turning MCP off reconciles the MCP mounts to
-  // zero servers while the same suites keep their language servers, and the
-  // reverse for LSP.
+  // Legacy surface and entry routes share one committed workspace policy.
+  const resourceFilters = new ResourceFilterService(dataRoot, process.cwd(), { onFiltersChanged: onChanged })
+  const surfaceToggles = new SurfaceToggleService(resourceFilters)
+  void resourceFilters.reload().catch(error => ctx.logger.warn('workspace policy: ' + String(error)))
 
   // The credentials store powers the MCP re-authorize action (dropping a grant
   // record forces the next mount through a fresh browser authorization). Every
@@ -478,11 +462,9 @@ export async function apply(
             if (!(face in favorite.surfaces)) continue
             ;(offEntries[face as keyof typeof favorite.surfaces] ??= []).push(entry)
           }
-          await surfaceToggles.applyAll(favorite.surfaces)
           await resourceFilters.applyFilters(favorite.surfaces, offEntries)
         },
         resetWorkspace: async () => {
-          await surfaceToggles.applyAll({ ...ALL_SURFACES_ON })
           await resourceFilters.applyFilters({ ...ALL_SURFACES_ON }, {})
         },
         saveFavorite: async name => {
@@ -506,7 +488,7 @@ export async function apply(
       autoUpdate.dispose()
       settings.dispose()
       catalog.dispose()
-      void runtime.dispose()
+      void runtime.dispose().catch(error => ctx.logger.warn('runtime disposal: ' + String(error)))
     },
     'dsh-agent-plugins-market: lifecycle'
   )

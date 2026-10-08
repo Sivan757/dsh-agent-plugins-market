@@ -3,6 +3,7 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mountSuiteRoutes } from '../packages/market-bundle/src/routes.js'
+import { ResourceFilterService } from '../packages/market-runtime/src/runtime/host/resource-filter-service.js'
 import { SurfaceToggleService } from '../packages/market-runtime/src/runtime/host/surface-toggle-service.js'
 import { ALL_SURFACES_ON } from '../packages/market-contracts/src/contracts/surface-toggles.js'
 
@@ -24,7 +25,7 @@ function fakeHost(): { host: Record<string, unknown>; routes: RecordedRoutes } {
 
 async function makeService(workspace: string): Promise<SurfaceToggleService> {
   const dataRoot = await mkdtemp(join(tmpdir(), 'toggle-routes-'))
-  return new SurfaceToggleService(dataRoot, workspace, { onTogglesChanged: () => {} })
+  return new SurfaceToggleService(new ResourceFilterService(dataRoot, workspace, { onFiltersChanged: () => {} }))
 }
 
 describe('surface toggle routes', () => {

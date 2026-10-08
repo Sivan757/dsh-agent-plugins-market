@@ -11,8 +11,16 @@ import { LlmAdapter, createUserMessage, type GenerateOptions, type StreamChunk }
 import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { captureExtensionSelection } from '../packages/market-contracts/src/contracts/extension-presets.js'
-import { ExtensionSessionState, EXTENSION_SESSION_SOURCE } from '../packages/market-runtime/src/runtime/host/extension-session-state.js'
+import { ExtensionSessionState, EXTENSION_SESSION_SOURCE, EXTENSION_SESSION_WAKE_SOURCE } from '../packages/market-runtime/src/runtime/host/extension-session-state.js'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /** A foreign producer's model-facing context, the shape another plugin injects. */
+    'foreign-context-fixture': { kind: 'foreign-context-fixture'; form: 'instructions' }
+    /** A foreign producer that declares no context form at all: the opaque default. */
+    'foreign-formless-fixture': { kind: 'foreign-formless-fixture' }
+  }
+}
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
     return Promise.reject(new Error('unused'))
@@ -125,17 +133,16 @@ it('keeps queued input through failed maintenance and restores its original ids 
   await expect(second.service.recover(resumed, 2)).rejects.toMatchObject({ code: 'extension-session-conflict' })
   expect(await second.service.recover(resumed, 3)).toEqual({ revision: 4, selection: committed })
   expect(second.initialSelection).not.toHaveBeenCalled()
-  expect(queuedUsers(resumed)).toEqual([...queued, afterRestart])
-  const final = userMessage('continue after recovery')
-  resumed.followup(final)
+  // The successful recovery wakes the driver for what this guard parked: no extra
+  // send is needed, and each parked message enters exactly one request.
   await resumed.whenIdle()
-  // Draining queued turns is host policy: one model call per queued turn, and the
-  // sessions above never send while unavailable, so nothing here could be pre-empted.
-  expect(second.adapter.requests.length).toBeGreaterThan(0)
   expect(queuedUsers(resumed)).toEqual([])
+  expect(second.adapter.requests.length).toBeGreaterThan(0)
   const consumed = resumed.session.snapshotEvents().flatMap(event => (event.type === 'user/message' && event.data.source.kind === 'user' ? [event.data] : []))
-  expect(consumed).toEqual([...queued, afterRestart, final])
-  expect(new Set(consumed.map(message => message.id)).size).toBe(queued.length + 2)
+  expect(consumed).toEqual([...queued, afterRestart])
+  expect(new Set(consumed.map(message => message.id)).size).toBe(queued.length + 1)
+  // The wake marker is plugin metadata and never becomes a request message.
+  expect(resumed.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.source.kind === 'market-extension-wake')).toBe(false)
   await second.service.dispose()
   await second.ctx.fiber.dispose()
   const third = await setup(crashed)
@@ -217,6 +224,134 @@ it('retries the original initial snapshot after cold restart instead of reading 
   await second.service.recover(resumed, 1)
   expect(second.service.read(resumed)).toEqual({ revision: 2, selection: captureExtensionSelection(null, ['skills:initial']) })
   expect(second.initialSelection).not.toHaveBeenCalled()
+})
+
+it('wakes restored input a host reload persisted, with no new send', async () => {
+  const first = await setup()
+  const agent = await first.create('restart-wake')
+  const committed = captureExtensionSelection(null, ['skills:committed'])
+  await first.service.change(agent, 1, committed)
+  first.applySelection.mockRejectedValueOnce(new Error('apply failed'))
+  await expect(first.service.change(agent, 2, captureExtensionSelection(null, ['skills:failed']))).rejects.toThrow('apply failed')
+  const queued = userMessage('queued before the reload')
+  agent.followup(queued)
+  await agent.whenIdle()
+  expect(queuedUsers(agent)).toEqual([queued])
+  await first.ctx.sessions.flush(agent.session)
+  const crashed = await crashCopy(first.root)
+  await first.service.dispose()
+  await first.ctx.fiber.dispose()
+
+  const second = await setup(crashed)
+  const resumed = (await second.ctx.agents.resume({ resumeSessionId: agent.id, agentOptions: { provider: 'mock', model: 'test' } })).agent
+  expect(queuedUsers(resumed)).toEqual([queued])
+  expect(second.adapter.requests).toHaveLength(0)
+  const status = second.service.status(resumed)
+  expect(status).toMatchObject({ ready: false, recoverable: true })
+  expect(await second.service.recover(resumed, status.revision)).toMatchObject({ revision: status.revision + 1 })
+  // The queue came from the log, not from this instance's memory: the recovery
+  // itself must wake it, with no further send.
+  await resumed.whenIdle()
+  expect(queuedUsers(resumed)).toEqual([])
+  expect(second.adapter.requests.length).toBeGreaterThan(0)
+  const consumed = resumed.session.snapshotEvents().flatMap(event => (event.type === 'user/message' && event.data.source.kind === 'user' ? [event.data] : []))
+  expect(consumed.map(message => message.id)).toEqual([queued.id])
+})
+
+it('does not wake a formless foreign context message', async () => {
+  const first = await setup()
+  const agent = await first.create('foreign-formless-only')
+  first.applySelection.mockRejectedValueOnce(new Error('apply failed'))
+  await expect(first.service.change(agent, 1, captureExtensionSelection(null, ['skills:failed']))).rejects.toThrow('apply failed')
+  // An absent form is the opaque default, not evidence that a human authored this.
+  agent.inject(createUserMessage({ source: { kind: 'foreign-formless-fixture' }, content: [{ type: 'text', text: 'foreign context' }] }))
+  await agent.whenIdle()
+  const turns = agent.session.snapshotEvents().filter(event => event.type === 'turn/start').length
+  await first.service.recover(agent, first.service.status(agent).revision)
+  await agent.whenIdle()
+  expect(first.service.status(agent).ready).toBe(true)
+  expect(first.adapter.requests).toHaveLength(0)
+  expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(turns)
+  expect([...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(message => message.source.kind === EXTENSION_SESSION_WAKE_SOURCE)).toBe(false)
+  expect([...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(message => message.source.kind === 'foreign-formless-fixture')).toBe(true)
+})
+
+it('does not manufacture work when only foreign context is queued', async () => {
+  const first = await setup()
+  const agent = await first.create('foreign-context-only')
+  first.applySelection.mockRejectedValueOnce(new Error('apply failed'))
+  await expect(first.service.change(agent, 1, captureExtensionSelection(null, ['skills:failed']))).rejects.toThrow('apply failed')
+  // Another plugin's model-facing context, with no authored request behind it.
+  agent.inject(createUserMessage({ source: { kind: 'foreign-context-fixture', form: 'instructions' }, content: [{ type: 'text', text: 'foreign instructions' }] }))
+  await agent.whenIdle()
+  const turns = agent.session.snapshotEvents().filter(event => event.type === 'turn/start').length
+  await first.service.recover(agent, first.service.status(agent).revision)
+  await agent.whenIdle()
+  expect(first.service.status(agent).ready).toBe(true)
+  // Producer-declared context is not authored input: the recovery must not wake it.
+  expect(first.adapter.requests).toHaveLength(0)
+  expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(turns)
+  expect([...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(message => message.source.kind === EXTENSION_SESSION_WAKE_SOURCE)).toBe(false)
+  expect([...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(message => message.source.kind === 'foreign-context-fixture')).toBe(true)
+})
+
+it('does not wake when the busy retry leaves the session unavailable', async () => {
+  const first = await setup()
+  const agent = await first.create('busy-retry-fails')
+  await first.service.change(agent, 1, captureExtensionSelection(null, ['skills:committed']))
+  await first.service.dispose()
+  // The hold owns the agent, so the next service attaches through its busy retry.
+  const held = Promise.withResolvers<void>()
+  const maintenance = agent.runMaintenance(() => held.promise)
+  const next = new ExtensionSessionState(first.ctx, { initialSelection: first.initialSelection, applySelection: first.applySelection })
+  cleanups.push(() => next.dispose())
+  cleanups.push(() => {
+    held.resolve()
+  })
+  await next.start()
+  expect(next.status(agent)).toMatchObject({ ready: false, error: 'extension-session-busy' })
+  // One genuine user request, parked because the session is unavailable.
+  const queued = userMessage('explicit user request')
+  agent.followup(queued)
+  // The replay the retry performs fails, so readiness never returns.
+  first.applySelection.mockRejectedValueOnce(new Error('retry apply failed'))
+  held.resolve()
+  await maintenance
+  await vi.waitFor(() => expect(next.status(agent).error).toBe('extension-session-apply-failed'))
+  await agent.whenIdle()
+  // No wake may ride along: no wake marker is queued, the user's own request is
+  // still parked unattempted, no second turn opens, and no model is reached.
+  expect([...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(message => message.source.kind === EXTENSION_SESSION_WAKE_SOURCE)).toBe(false)
+  expect([...agent.inbox.nextStep, ...agent.inbox.nextTurn].some(message => message.source.kind === 'user')).toBe(true)
+  expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(1)
+  expect(first.adapter.requests).toHaveLength(0)
+  expect(next.status(agent).ready).toBe(false)
+})
+
+it('opens no turn when a successful recovery has nothing parked', async () => {
+  const first = await setup()
+  const agent = await first.create('quiet-recovery')
+  const entered = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  first.applySelection.mockImplementationOnce(async () => {
+    entered.resolve()
+    await release.promise
+    throw new Error('apply failed')
+  })
+  const changing = first.service.change(agent, 1, captureExtensionSelection(null, ['skills:failed']))
+  const failed = expect(changing).rejects.toThrow('apply failed')
+  await entered.promise
+  release.resolve()
+  await failed
+  await agent.whenIdle()
+  expect(first.adapter.requests).toHaveLength(0)
+  const turns = agent.session.snapshotEvents().filter(event => event.type === 'turn/start').length
+  await first.service.recover(agent, first.service.status(agent).revision)
+  await agent.whenIdle()
+  expect(first.service.status(agent).ready).toBe(true)
+  // Nothing was parked, so the recovery must not manufacture a turn or a request.
+  expect(first.adapter.requests).toHaveLength(0)
+  expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(turns)
 })
 
 it('keeps a failed recovery recoverable and validates its next checkpoint on restart', async () => {

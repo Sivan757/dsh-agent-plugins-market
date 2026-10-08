@@ -216,7 +216,7 @@ describe('extension preset rendering', () => {
     )
     await click('Session extensions are not ready')
     expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Default')!.disabled).toBe(true)
-    await click('Recover saved session selection')
+    await click('Recover session extensions and continue queued input')
     expect(posts[0]!.url).toContain('/recover')
     expect(posts[0]!.body).toEqual({ sessionId: 'unready', expectedRevision: 7 })
   })

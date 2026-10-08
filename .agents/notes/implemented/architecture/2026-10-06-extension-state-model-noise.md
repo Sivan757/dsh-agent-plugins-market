@@ -8,7 +8,7 @@ Extension selection commits inject pending and committed envelopes so the host d
 
 ## Decision
 
-Keep the existing two-phase envelopes, binding schema, agent.inject and flush. In the ready pre-step path, await the next decision and remove only this service’s source kind from an enter decision’s messages. Preserve all other fields and messages, rejection decisions, and the not-ready requeue path. Replay continues to read inbox splices and historical user-message copies by message identity.
+Keep the existing two-phase envelopes, binding schema, agent.inject and flush. In the ready pre-step path, await the next decision and remove only this service’s selection and recovery-wake source kinds from an enter decision’s messages. Preserve all other fields and messages, rejection decisions, and the not-ready requeue path. Replay continues to read inbox splices and historical user-message copies by message identity.
 
 Existing conversation history is not edited. Old visible placeholders remain until normal host history management removes them; new transactions no longer add model-visible copies.
 

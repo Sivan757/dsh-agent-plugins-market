@@ -2,6 +2,8 @@
 
 日期:2026-10-03 · 状态:已实现 · 覆盖面:market、skills、commands、agents、mcp、lsp
 
+当前范围：会话预设负责新会话授权。本记录保留旧全局存储与兼容接口的理由。[策略稳定性决策](../architecture/2026-10-08-policy-and-recovery-stability.zh.md)以统一负责人替代独立可变 surface 状态及不刷新的写入。
+
 ## 决策
 
 六类插件 surface 各自携带按 workspace 的开关,状态存全局——插件 data root 下按 workspace 绝对路径哈希键控——绝不写进项目目录。会话框控制条(宿主 slot `conversation.input.left`)写开关后走普通 reconcile 链,开关卸载或重挂的是真实 surface,而不是把 UI 藏起来。

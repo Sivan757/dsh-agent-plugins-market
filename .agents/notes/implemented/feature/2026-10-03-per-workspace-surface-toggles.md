@@ -2,6 +2,8 @@
 
 Date: 2026-10-03 · Status: implemented · Surfaces: market, skills, commands, agents, mcp, lsp
 
+Current scope: session presets own new-session authorization. This record retains the legacy global storage and compatibility rationale. The [policy stability decision](../architecture/2026-10-08-policy-and-recovery-stability.md) replaces separate mutable surface state and non-refreshing writes with one owner.
+
 ## Decision
 
 The six plugin surfaces carry per-workspace on/off switches stored globally — under the plugin data root keyed by a hash of the workspace's absolute path — never inside the project tree. The composer control (host slot `conversation.input.left`) writes a toggle and the change runs through the ordinary reconcile chain, so a switch unmounts or remounts real surfaces rather than hiding UI.
