@@ -252,10 +252,28 @@ describe('extension preset rendering', () => {
     await act(async () => button.click())
     expect(host!.querySelector('svg')).not.toBeNull()
     expect([...document.querySelectorAll('button')].some(b => b.textContent === 'Adjust this session')).toBe(false)
-    expect(document.body.textContent).toContain(extensionPresetsEn.epBusy)
+    expect(document.body.textContent).not.toContain(extensionPresetsEn.epBusy)
+    expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Default')!.disabled).toBe(false)
     await click('Manage presets')
     expect(document.body.textContent).not.toContain(extensionPresetsEn.epLibraryHint)
     expect(document.querySelector('input[aria-label="Preset name"]')).toBeNull()
+  })
+  it('shows the intended selection while busy and submits its latest revision', async () => {
+    await mount(true, true)
+    state = { ...state, sessionId: 'pending', intendedRevision: 4, intendedSelection: { ...state.state.selection, presetId: null, presetName: null } }
+    await act(async () =>
+      root!.render(
+        h(ExtensionPresetEntry, {
+          renderDetail,
+          sessionId: 'pending',
+          t: key => extensionPresetsEn[key as keyof typeof extensionPresetsEn] ?? settingsEn[key as keyof typeof settingsEn] ?? key
+        })
+      )
+    )
+    expect(host!.querySelector('button')!.getAttribute('aria-label')).toBe('Default')
+    await click('Default')
+    await click('Research')
+    expect(posts[0]!.body).toMatchObject({ sessionId: 'pending', expectedRevision: 4, presetId: 'preset' })
   })
   it('autosaves rapid manager toggles serially without losing the latest snapshot', async () => {
     await mount()
@@ -269,7 +287,8 @@ describe('extension preset rendering', () => {
     expect(posts.map(post => post.body.expectedRevision)).toEqual([1, 2])
     expect(posts[1]!.body.enabledIds).toEqual([row.suiteResourceId, row.id])
     expect(posts.every(post => post.url.endsWith('/update'))).toBe(true)
-    expect(document.body.textContent).toContain('Saved')
+    expect(document.body.textContent).not.toContain('Saved')
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Delete preset Research"]')!.disabled).toBe(false)
   })
   it('blocks a queued stale autosave after conflict and retains the dirty draft', async () => {
     await mount()
@@ -293,7 +312,8 @@ describe('extension preset rendering', () => {
     expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.getAttribute('aria-label') === 'Delete preset Research')!.disabled).toBe(true)
     await click('Retry')
     expect(posts[0]!.body.expectedRevision).toBe(2)
-    expect(document.body.textContent).toContain('Saved')
+    expect(document.body.textContent).not.toContain('Saved')
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Delete preset Research"]')!.disabled).toBe(false)
   })
   it('restores the edited preset when a delete confirmation is dismissed', async () => {
     const base = payload()
@@ -517,7 +537,7 @@ describe('extension preset rendering', () => {
     await mount(false, false, { revision: 1, defaultPresetId: null, presets: [] })
     await click('Research')
     await click('Manage presets')
-    expect(document.body.textContent).toContain(extensionPresetsEn.epGlobalHint)
+    expect(document.body.textContent).not.toContain(extensionPresetsEn.epGlobalHint)
     expect(document.body.textContent).not.toContain('Unsaved snapshot')
     expect(document.querySelector('article')).not.toBeNull()
     expect(document.querySelector('input[aria-label="Preset name"]')).toBeNull()

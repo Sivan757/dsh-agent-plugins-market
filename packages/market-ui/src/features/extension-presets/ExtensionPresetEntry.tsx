@@ -45,6 +45,7 @@ export function ExtensionPresetEntry(props: ExtensionPresetEntryProps): ReactNod
 }
 function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps): ReactNode {
   const { data, error, mutate, retry } = useExtensionWindow(sessionId)
+  const selected = data?.intendedSelection ?? data?.state.selection
   const [menu, setMenu] = useState(false),
     [manager, setManager] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
@@ -57,8 +58,7 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
     [writes, setWrites] = useState(0)
   const [toast, setToast] = useState<{ id: number; text: string; success: boolean }>()
   const sequence = useRef(0)
-  const [actionsOpen, setActionsOpen] = useState(false),
-    [help, setHelp] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const [naming, setNaming] = useState<'save' | 'default' | 'rename' | null>(null),
     [newName, setNewName] = useState('')
   const [deletingId, setDeletingId] = useState<string>()
@@ -136,25 +136,12 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
   const openManager = () => {
     if (!data || manager) return
     setMenu(false)
-    loadEditor(data.library, data.state.selection.presetId)
+    loadEditor(data.library, selected?.presetId ?? null)
     setManager(true)
-    try {
-      if (localStorage.getItem('dsh-extension-guide:' + data.workspace) !== 'seen') setHelp(true)
-    } catch {
-      setHelp(true)
-    }
-  }
-  const closeHelp = () => {
-    try {
-      if (data) localStorage.setItem('dsh-extension-guide:' + data.workspace, 'seen')
-    } catch {
-      /* The guide remains available when storage is blocked. */
-    }
-    setHelp(false)
   }
   const select = (presetId: string | null) => {
     setMenu(false)
-    if (data?.state.selection.modified) {
+    if (selected?.modified) {
       setReplacement({ presetId })
       return
     }
@@ -249,7 +236,7 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
   const name = unready
     ? t('epNotReady')
     : data
-      ? (data.state.selection.presetName ?? t('epGlobal')) + (data.state.selection.modified ? ' · ' + t('epModified') : '')
+      ? (selected?.presetName ?? t('epGlobal')) + (selected?.modified ? ' · ' + t('epModified') : '')
       : t(error ? 'epLoadFailed' : 'epLoading')
   const savedDirty = dirty && !libraryDraft
   const duplicate = data?.library.presets.some(p => p.name === newName.trim() && (naming !== 'rename' || p.id !== editing)) === true
@@ -263,7 +250,7 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
         side="top"
         dense
         selection="check"
-        selectedId={unready || data?.state.selection.modified ? undefined : (data?.state.selection.presetId ?? 'global')}
+        selectedId={unready || selected?.modified ? undefined : (selected?.presetId ?? 'global')}
         anchor={
           <Tooltip label={t('epTitle') + ' · ' + name} side="top">
             <span>
@@ -285,8 +272,8 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
         footer={[{ id: 'manage', label: t('epManage'), icon: <IconSettingsOutlineMedium />, disabled: !data }]}
         items={[
           { type: 'label', id: 'heading', text: t('epTitle') },
-          { id: 'global', label: t('epGlobal'), icon: <IconRefreshOutlineMedium />, disabled: !data || data.busy || unready || writes > 0 },
-          ...(data?.library.presets.map(p => ({ id: p.id, label: p.name, icon: <AgentExtensionIcon size={16} />, disabled: data.busy || unready || writes > 0 })) ?? []),
+          { id: 'global', label: t('epGlobal'), icon: <IconRefreshOutlineMedium />, disabled: !data || unready || writes > 0 },
+          ...(data?.library.presets.map(p => ({ id: p.id, label: p.name, icon: <AgentExtensionIcon size={16} />, disabled: unready || writes > 0 })) ?? []),
 
           ...(unready
             ? [
@@ -294,7 +281,6 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
                 ...(data.status?.recoverable ? [{ id: 'recover', label: t('epRecover'), disabled: data.busy || writes > 0 }] : [])
               ]
             : []),
-          ...(data?.busy ? [{ type: 'label' as const, id: 'busy', text: t('epBusy') }] : []),
           ...(error
             ? [
                 { type: 'label' as const, id: 'error', text: t('epLoadFailed') + ' ' + error },
@@ -317,11 +303,6 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
           onClose={dismiss}
           footer={
             <div className={css.footer}>
-              <div className={css.footerContext}>
-                <Button variant="ghost" size="sm" onClick={() => setHelp(true)}>
-                  {t('epHelp')}
-                </Button>
-              </div>
               <Button size="sm" variant="outline" disabled={writes > 0 || savedDirty || defaultSelected} onClick={setDefault}>
                 {defaultSelected ? t('epIsDefault') : t('epDefault')}
               </Button>
@@ -439,26 +420,28 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
                 }}
               />
             </div>
-            <div className={css.inlineStatus + ' ' + panelCss.subtitle} role="status">
-              <span>{feedback || t(libraryDraft ? 'epDraftHint' : editing ? 'epAutosaveHint' : 'epGlobalHint')}</span>
-              {savedDirty && writes === 0 && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      draftRevision.current = data.library.revision
-                      saveNamed(draftRef.current)
-                    }}
-                  >
-                    {t('epRetry')}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => loadEditor(data.library, editing)}>
-                    {t('epDiscard')}
-                  </Button>
-                </>
-              )}
-            </div>
+            {savedDirty && writes === 0 && (
+              <div className={css.inlineStatus + ' ' + panelCss.subtitle} role="alert">
+                <span>{feedback}</span>
+                {savedDirty && writes === 0 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        draftRevision.current = data.library.revision
+                        saveNamed(draftRef.current)
+                      }}
+                    >
+                      {t('epRetry')}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => loadEditor(data.library, editing)}>
+                      {t('epDiscard')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
             <ResourceList resources={data.resources} ids={draft.enabledIds} disabled={false} t={t} onToggle={patch} onView={setDetail} />
           </div>
         </Modal>
@@ -546,21 +529,6 @@ function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps)
           }}
         />
         {feedback && <p role="status">{feedback}</p>}
-      </Modal>
-      <Modal
-        open={help}
-        title={t('epHelp')}
-        closeLabel={t('epClose')}
-        onClose={closeHelp}
-        footer={
-          <Button variant="primary" onClick={closeHelp}>
-            {t('epGotIt')}
-          </Button>
-        }
-      >
-        <p>{t('epGuide')}</p>
-        <p>{t('epLibraryHint')}</p>
-        <p>{t('epClipboardHelp')}</p>
       </Modal>
       <Modal
         open={leave !== undefined}

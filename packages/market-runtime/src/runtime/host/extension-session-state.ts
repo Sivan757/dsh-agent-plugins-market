@@ -22,6 +22,7 @@ const bindingSchema = z
     ownerId: z.string().min(1),
     revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     phase: z.enum(['pending', 'committed']),
+    requestRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
     selection: selectionSchema,
     recoveryOf: z
       .object({ ownerId: z.string().min(1), revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) })
@@ -32,15 +33,27 @@ const bindingSchema = z
 type Binding = z.infer<typeof bindingSchema>
 /** The metadata marker that wakes a driver after a recovery; it never enters a request. */
 export const EXTENSION_SESSION_WAKE_SOURCE = 'market-extension-wake'
+/** One durable request that becomes effective only at a safe boundary. */
+const intentSchema = z
+  .object({
+    ownerId: z.string().min(1),
+    /** The public selection CAS token, independent of the binding journal. */
+    revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    selection: selectionSchema
+  })
+  .strict()
+type Intent = z.infer<typeof intentSchema>
+export const EXTENSION_INTENT_SOURCE = 'market-extension-intent'
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'market-extension-selection': { kind: 'market-extension-selection'; form: 'context'; binding: Binding }
     'market-extension-wake': { kind: 'market-extension-wake'; form: 'context' }
+    'market-extension-intent': { kind: 'market-extension-intent'; form: 'context'; intent: Intent }
   }
 }
 /** Whether one message kind is this service's own metadata rather than user input. */
 function isPluginMetadata(kind: string): boolean {
-  return kind === EXTENSION_SESSION_SOURCE || kind === EXTENSION_SESSION_WAKE_SOURCE
+  return kind === EXTENSION_SESSION_SOURCE || kind === EXTENSION_SESSION_WAKE_SOURCE || kind === EXTENSION_INTENT_SOURCE
 }
 export interface ExtensionSessionSnapshot {
   revision: number
@@ -59,6 +72,8 @@ interface Checkpoint {
   latest?: Binding
   committed?: Binding
   initial?: ExtensionSelection
+  /** The last durable request replayed from the log; effective only after promotion. */
+  intent?: Intent
 }
 /**
  * Optional lease on one applied selection.
@@ -114,6 +129,16 @@ export class ExtensionSessionState {
   private readonly unavailable = new Set<Agent>()
   /** The capture classification each attempt used, so an explicit recovery replays it exactly. */
   private readonly captureSources = new Map<Agent, string | undefined>()
+  /** Durable requests waiting for a safe boundary; the last one received wins. */
+  private readonly intents = new Map<Agent, Intent>()
+  /** The turn each pending request was made in: a boundary only exists in a later turn. */
+  private readonly intentTurns = new Map<Agent, number | undefined>()
+  /** Per-agent order for requests and promotions, so no two of them interleave. */
+  private readonly requests = new Map<Agent, Promise<unknown>>()
+  /** The turn each agent last entered, so a request can record the turn it came from. */
+  private readonly currentTurns = new Map<Agent, number>()
+  /** Single-flight promotion per agent: one turn boundary promotes once. */
+  private readonly promoting = new Map<Agent, Promise<void>>()
   private readonly operations = new Set<Promise<unknown>>()
   private readonly off: Array<() => void> = []
   private disposed = false
@@ -133,6 +158,45 @@ export class ExtensionSessionState {
     this.off.push(
       ctx.on('agent/pre-step', async (event, next): Promise<PreStepDecision> => {
         if (!this.governs(event.agent)) return next()
+        this.currentTurns.set(event.agent, event.turn)
+        if (this.intents.get(event.agent) !== undefined && this.intentTurns.get(event.agent) === undefined) {
+          // The request arrived before any turn was observed for it, so this turn is
+          // the one it came from: a boundary exists only in a later turn. Seeding here
+          // keeps that from costing one blocked turn at this turn's own first step.
+          this.intentTurns.set(event.agent, event.turn)
+        }
+        // A request waiting for its boundary must not run under the superseded
+        // authorization. Only the first step of a turn that started after the
+        // request is that request's step: park it whole, promote from idle, and let
+        // the filtered wake hand it back, so no model step is spent on the old
+        // selection and no stale tool assembly is ever used.
+        //
+        // A later step of the same turn is mid-turn work. The host claims every
+        // next-step message at every step, so a steer belongs here, and rejecting it
+        // would block the running turn. Such a step keeps the committed selection.
+        const intentTurn = this.intentTurns.get(event.agent)
+        const newTurnStep = event.step === 1 && (intentTurn === undefined || event.turn > intentTurn)
+        if (this.intents.get(event.agent) !== undefined && newTurnStep && event.messages.some(message => message.source.kind === 'user')) {
+          const { agent } = event
+          const strandedIds = new Set([...agent.inbox.nextStep, ...agent.inbox.nextTurn].map(message => message.id))
+          let identityHeld = false
+          for (const message of [...event.messages].reverse()) {
+            if (strandedIds.has(message.id)) {
+              identityHeld = true
+              continue
+            }
+            agent.inbox.prepend('next-step', message)
+            strandedIds.add(message.id)
+          }
+          this.promoteAfterIdle(agent)
+          // An empty enter at the turn's first step completes that turn with no step
+          // and no model call, while reject would label it blocked in the durable log.
+          // The claim already removed these messages, so the prepend above is what
+          // keeps the request intact for the wake to re-run. A claimed identity that is
+          // somehow still pending is a corruption signal, and then reject fails closed.
+          if (identityHeld) return Promise.resolve({ kind: 'reject' })
+          return Promise.resolve({ kind: 'enter', messages: [] })
+        }
         if (this.status(event.agent).ready) {
           // The envelope's durable record is its inbox splice; the claimed copy is
           // filtered out before it can enter a request as placeholder user text.
@@ -154,6 +218,25 @@ export class ExtensionSessionState {
       })
     )
     this.off.push(
+      // A clean stop promotes the pending request after the last step of the turn
+      // and before the next turn claims input, which is the only boundary where the
+      // next request's tool assembly and the gates agree.
+      ctx.on('agent/turn-stopping', async ({ agent, signal }) => {
+        if (this.disposed || !this.governs(agent) || this.intents.get(agent) === undefined) return
+        signal.throwIfAborted()
+        await this.promote(agent).catch(() => {})
+      })
+    )
+    this.off.push(
+      // A turn that ended without stopping (cancelled, aborted, failed) never
+      // dispatches turn-stopping, so the idle transition promotes instead.
+      ctx.on('agent/status', ({ agent, status }) => {
+        if (status !== 'idle' || this.disposed || !this.governs(agent)) return
+        if (this.intents.get(agent) === undefined) return
+        this.promoteAfterIdle(agent)
+      })
+    )
+    this.off.push(
       ctx.on('agent/disposed', ({ agent }) => {
         this.states.delete(agent)
         this.checkpoints.delete(agent)
@@ -161,6 +244,11 @@ export class ExtensionSessionState {
         this.unavailable.delete(agent)
         this.initializing.delete(agent)
         this.captureSources.delete(agent)
+        this.intents.delete(agent)
+        this.promoting.delete(agent)
+        this.intentTurns.delete(agent)
+        this.currentTurns.delete(agent)
+        this.requests.delete(agent)
       })
     )
   }
@@ -266,6 +354,30 @@ export class ExtensionSessionState {
       for (const event of observation.events) {
         const messages = event.type === 'user/message' ? [event.data] : event.type === 'agent/inbox/spliced' ? event.data.inserted : []
         for (const message of messages) {
+          if (message.source.kind === EXTENSION_INTENT_SOURCE) {
+            let intent: Intent
+            try {
+              intent = intentSchema.parse(message.source.intent)
+            } catch {
+              throw failure('extension-session-corrupt')
+            }
+            const serializedIntent = JSON.stringify(intent)
+            const previousIntent = seen.get(message.id)
+            if (previousIntent !== undefined) {
+              if (previousIntent !== serializedIntent) throw failure('extension-session-corrupt')
+              continue
+            }
+            seen.set(message.id, serializedIntent)
+            if (intent.ownerId !== agent.id) {
+              // An inherited request belongs to the session that made it: a fork keeps
+              // the committed selection and drops the request.
+              if (event.seq >= observation.inheritedEventCount) throw failure('extension-session-corrupt')
+              continue
+            }
+            // The log is read in order, so the last request written is the one that wins.
+            checkpoint.intent = intent
+            continue
+          }
           if (message.source.kind !== EXTENSION_SESSION_SOURCE) continue
           let binding: Binding
           try {
@@ -302,6 +414,8 @@ export class ExtensionSessionState {
           } else {
             if (!latest || latest.phase !== 'pending' || JSON.stringify({ ...latest, phase: 'committed' }) !== serialized) throw failure('extension-session-corrupt')
             checkpoint.committed = binding
+            // A request written before the newest commit was superseded by it.
+            checkpoint.intent = undefined
           }
           checkpoint.latest = binding
         }
@@ -323,6 +437,7 @@ export class ExtensionSessionState {
     this.checkpoints.set(agent, checkpoint)
     const { latest } = checkpoint
     if (latest?.phase === 'pending') throw failure('extension-session-incomplete')
+    if (checkpoint.intent !== undefined) this.intents.set(agent, checkpoint.intent)
     if (latest?.ownerId === agent.id) {
       // Re-publishing a replayed committed selection is a transaction too: the
       // adapter may hand back a receipt, and an interruption before the state is
@@ -341,6 +456,7 @@ export class ExtensionSessionState {
         this.unavailable.delete(agent)
         this.errors.delete(agent)
         this.ports.committed?.(agent)
+        if (this.intents.has(agent)) this.promoteAfterIdle(agent)
       } catch (error) {
         // Fail closed before unwinding: the restore path may not have marked the
         // agent unavailable yet, and gates must deny while the undo is in flight.
@@ -352,6 +468,8 @@ export class ExtensionSessionState {
     }
     if (latest?.selection !== undefined) {
       const replayed = selectionSchema.parse(latest.selection)
+      // Re-applying keeps the published revision, so a client that cached it can
+      // still compare against it after an attach.
       checkpoint.initial ??= replayed
       await this.commit(agent, { revision: 1, selection: replayed }, signal)
       return
@@ -410,7 +528,7 @@ export class ExtensionSessionState {
       }
     })
   }
-  async change(agent: Agent, expectedRevision: number, selection: ExtensionSelection): Promise<ExtensionSessionSnapshot> {
+  async change(agent: Agent, expectedRevision: number, selection: ExtensionSelection, requestRevision?: number): Promise<ExtensionSessionSnapshot> {
     const captured = selectionSchema.parse(selection)
     return this.maintenance(agent, async signal => {
       await this.initialize(agent, undefined, signal)
@@ -420,9 +538,176 @@ export class ExtensionSessionState {
       if (!Number.isSafeInteger(next.revision)) throw failure('extension-session-conflict')
       signal.throwIfAborted()
       this.unavailable.add(agent)
-      await this.commit(agent, next, signal)
+      await this.commit(agent, next, signal, undefined, requestRevision)
       return structuredClone(next)
     })
+  }
+  /**
+   * Accept one selection request.
+   *
+   * An idle agent commits immediately through the ordinary transaction. While a
+   * turn owns the agent the request is only written durably: the effective
+   * selection, every gate and every mount keep reading the committed snapshot
+   * until a safe boundary promotes it, so nothing is staged or swapped while the
+   * current turn's tools are live.
+   * @param agent - the agent the selection belongs to.
+   * @param expectedRevision - the revision the caller believes is current: the committed revision or the pending request's revision.
+   * @param selection - the requested selection.
+   * @returns whether it applied now, and the revision a caller compares against next.
+   */
+  async requestSelection(agent: Agent, expectedRevision: number, selection: ExtensionSelection): Promise<{ applied: boolean; revision: number }> {
+    const captured = selectionSchema.parse(selection)
+    // Requests and promotions run one at a time per agent, so two callers cannot
+    // both read the same base and lose one another's write. The tracked promise
+    // keeps disposal waiting for a request that is still writing.
+    return this.track(
+      this.serialize(agent, async () => {
+        if (this.disposed) throw failure('extension-session-not-ready')
+        // A session that is not ready authorizes nothing, even when an older snapshot
+        // still sits in memory: accepting a change there would write against a
+        // selection the gates refuse to use.
+        if (!this.status(agent).ready) throw failure('extension-session-not-ready')
+        const committed = this.states.get(agent)!.revision
+        // Latest request wins. Once a request is pending only its own revision
+        // compares, so a caller that never saw it cannot overwrite it, and each
+        // request carries a revision of its own rather than repeating one.
+        if (expectedRevision !== this.selectionRevision(agent)) throw failure('extension-session-conflict')
+        const revision = this.selectionRevision(agent) + 1
+        if (!Number.isSafeInteger(revision)) throw failure('extension-session-conflict')
+        if (this.isIdle(agent)) {
+          // Nothing is in flight, so this request is the selection: a pending request
+          // it supersedes is dropped instead of being promoted over it later.
+          try {
+            await this.change(agent, committed, captured, revision)
+            this.intents.delete(agent)
+            this.intentTurns.delete(agent)
+            return { applied: true, revision }
+          } catch (error) {
+            if (!(error instanceof Error) || !('code' in error) || error.code !== 'extension-session-busy') throw error
+          }
+        }
+        const intent: Intent = { ownerId: agent.id, revision, selection: captured }
+        await this.persistIntent(agent, intent)
+        this.lifetime.signal.throwIfAborted()
+        if (this.ctx.agents.get(agent.id) !== agent) throw failure('extension-session-not-ready')
+        this.intents.set(agent, intent)
+        // The turn is not part of the durable record: turn numbering is per attached
+        // lifecycle, so a replayed request must not answer to a number from a past one.
+        this.intentTurns.set(agent, this.currentTurns.get(agent))
+        // The agent can leave its turn while the write is in flight. An idle session
+        // has no later boundary to wait for, so the promote is scheduled here.
+        if (this.isIdle(agent)) this.promoteAfterIdle(agent)
+        return { applied: false, revision }
+      })
+    )
+  }
+  /** Public compare-and-swap token, independent of the sequential binding journal. */
+  selectionRevision(agent: Agent): number {
+    const committed = this.checkpoints.get(agent)?.committed
+    return this.intents.get(agent)?.revision ?? (committed?.ownerId === agent.id ? (committed.requestRevision ?? committed.revision) : this.states.get(agent)?.revision) ?? 0
+  }
+  /** The pending request, for a caller that shows the intended selection. */
+  intended(agent: Agent): { selection: ExtensionSelection; revision: number } | undefined {
+    const intent = this.intents.get(agent)
+    return intent === undefined ? undefined : { selection: structuredClone(intent.selection), revision: intent.revision }
+  }
+  /**
+   * Make the pending request effective: durable request first, then the effect,
+   * then the committed twin and the published snapshot, exactly like a change.
+   * Single-flight per agent, so one boundary promotes once.
+   * @param agent - the agent whose pending request becomes effective.
+   */
+  async promote(agent: Agent): Promise<void> {
+    if (this.disposed || !this.governs(agent)) return
+    const inFlight = this.promoting.get(agent)
+    if (inFlight !== undefined) return inFlight
+    const operation = this.track(this.serialize(agent, () => this.promoteNow(agent)))
+    this.promoting.set(agent, operation)
+    try {
+      await operation
+    } finally {
+      if (this.promoting.get(agent) === operation) this.promoting.delete(agent)
+    }
+  }
+  private async promoteNow(agent: Agent): Promise<void> {
+    const intent = this.intents.get(agent)
+    const current = this.states.get(agent)
+    if (this.disposed || !this.status(agent).ready || intent === undefined || current === undefined) return
+    try {
+      this.intents.delete(agent)
+      this.intentTurns.delete(agent)
+      this.unavailable.add(agent)
+      await this.commit(agent, { revision: current.revision + 1, selection: structuredClone(intent.selection) }, this.lifetime.signal, undefined, intent.revision)
+    } catch (error) {
+      // The durable request stays in the log; the service denies and lets explicit
+      // recovery decide. It never retries on its own.
+      this.fail(agent, error)
+      throw error
+    }
+  }
+  /**
+   * Promote from the idle phase, for a turn that never reached a clean stop and a
+   * request that raced the boundary. Re-wakes parked input so the same request
+   * re-runs under the promoted selection.
+   */
+  private promoteAfterIdle(agent: Agent): void {
+    if (this.disposed || this.intents.get(agent) === undefined) return
+    const signal = this.lifetime.signal
+    let stop = () => {}
+    const disposed = new Promise<void>(resolve => {
+      if (signal.aborted) {
+        resolve()
+        return
+      }
+      const onAbort = () => resolve()
+      signal.addEventListener('abort', onAbort, { once: true })
+      stop = () => signal.removeEventListener('abort', onAbort)
+    })
+    const settled = Promise.race([agent.whenIdle(), disposed]).then(async () => {
+      stop()
+      if (this.disposed || !this.status(agent).ready || !this.intents.has(agent) || this.ctx.agents.get(agent.id) !== agent) return
+      try {
+        await this.maintenance(agent, () => this.promote(agent))
+      } catch {
+        // Busy again: the next clean stop owns the request.
+        return
+      }
+      this.wake(agent)
+    })
+    void this.track(settled).catch(() => {})
+  }
+  /**
+   * Whether the host reports this agent idle. The call keeps the answer opaque to
+   * control-flow narrowing, which a direct property comparison cannot.
+   */
+  private isIdle(agent: Agent): boolean {
+    return agent.status === 'idle'
+  }
+  /**
+   * Run one task at a time per agent. Each task starts after the previous settled,
+   * whether it succeeded or failed, so a rejected write never blocks the next one.
+   */
+  private serialize<T>(agent: Agent, task: () => Promise<T>): Promise<T> {
+    const previous = this.requests.get(agent) ?? Promise.resolve()
+    const next = previous.then(task, task)
+    this.requests.set(
+      agent,
+      next.then(
+        () => undefined,
+        () => undefined
+      )
+    )
+    return next
+  }
+  private async persistIntent(agent: Agent, intent: Intent): Promise<void> {
+    const message = createUserMessage({
+      source: { kind: EXTENSION_INTENT_SOURCE, form: 'context', intent },
+      content: [{ type: 'text', text: 'Session extension selection request.' }]
+    })
+    agent.inject(message)
+    // The insertion is durable evidence; no pending message must prevent the host's turn-stopping boundary.
+    agent.inbox.remove(message.id)
+    if (!(await this.ctx.sessions.flush(agent.session))) throw failure('extension-session-persistence-unavailable')
   }
   private maintenance<T>(agent: Agent, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
     if (this.disposed) return Promise.reject(failure('extension-session-not-ready'))
@@ -490,8 +775,18 @@ export class ExtensionSessionState {
     this.checkpoints.get(agent)!.latest = binding
     if (!(await this.ctx.sessions.flush(agent.session))) throw failure('extension-session-persistence-unavailable')
   }
-  private async commit(agent: Agent, state: ExtensionSessionSnapshot, signal?: AbortSignal, recoveryOf?: Binding['recoveryOf']): Promise<void> {
-    const binding: Binding = { version: 1, ownerId: agent.id, phase: 'pending', ...structuredClone(state), ...(recoveryOf ? { recoveryOf } : {}) }
+  private async commit(agent: Agent, state: ExtensionSessionSnapshot, signal?: AbortSignal, recoveryOf?: Binding['recoveryOf'], requestRevision?: number): Promise<void> {
+    const previous = this.checkpoints.get(agent)?.latest
+    const token = requestRevision ?? Math.max(state.revision, previous?.ownerId === agent.id ? (previous.requestRevision ?? 0) + 1 : 1)
+    if (!Number.isSafeInteger(token)) throw failure('extension-session-conflict')
+    const binding: Binding = {
+      version: 1,
+      ownerId: agent.id,
+      phase: 'pending',
+      ...structuredClone(state),
+      ...(token === state.revision ? {} : { requestRevision: token }),
+      ...(recoveryOf ? { recoveryOf } : {})
+    }
     const checkpoint = this.checkpoints.get(agent)!
     checkpoint.initial ??= structuredClone(state.selection)
     let receipt: ExtensionApplyReceipt | undefined
@@ -544,6 +839,11 @@ export class ExtensionSessionState {
     await Promise.allSettled([...this.initializing.values(), ...this.operations])
     for (const off of this.off.splice(0)) off()
     this.captureSources.clear()
+    this.intents.clear()
+    this.promoting.clear()
+    this.intentTurns.clear()
+    this.currentTurns.clear()
+    this.requests.clear()
     this.states.clear()
     // Everything still pending was awaited above, so a disposed service keeps no
     // per-agent bookkeeping: not a checkpoint, an error, an unavailable mark, an

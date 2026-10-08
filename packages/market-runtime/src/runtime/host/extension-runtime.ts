@@ -304,6 +304,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     const state = status.ready ? this.state.read(agent) : undefined
     const [library, resources] = await Promise.all([this.store.read(extensionWorkspace(agent)), this.refreshInventory(agent)])
     const started = this.progress.read(agent.session)
+    const intent = this.state.intended(agent)
     return {
       sessionId,
       workspace: extensionWorkspace(agent),
@@ -311,6 +312,12 @@ export class ExtensionRuntime implements ExtensionRouteService {
       busy: agent.status !== 'idle',
       library,
       state: state ?? { revision: status.revision, selection: status.selection ?? captureExtensionSelection(null, []) },
+      // The pending request rides the payload so the manager shows what is coming
+      // without a banner and cannot snap back to the superseded selection.
+      ...(intent === undefined ? {} : { intendedSelection: intent.selection, intendedRevision: intent.revision }),
+      // The last accepted selection revision, effective or pending: the CAS base a
+      // client keeps across a promotion, which never moves backwards.
+      selectionRevision: this.state.selectionRevision(agent),
       resources,
       status
     }
@@ -329,7 +336,28 @@ export class ExtensionRuntime implements ExtensionRouteService {
     await this.store.create(extensionWorkspace(this.agent(sessionId)), revision, input)
   }
   async update(sessionId: string, revision: number, id: string, input: ExtensionPresetInput): Promise<void> {
-    await this.store.update(extensionWorkspace(this.agent(sessionId)), revision, id, input)
+    const agent = this.agent(sessionId)
+    const workspace = extensionWorkspace(agent)
+    await this.store.update(workspace, revision, id, input)
+    // An edit to the preset this session is running, or has already asked for, is a
+    // request for this session alone: every other session keeps its own snapshot.
+    const library = await this.store.read(workspace)
+    const revised = library.presets.find(row => row.id === id)
+    // A pending request is the newer intent, so it decides both whether this edit
+    // concerns this session and which revision the new request compares against.
+    const intended = this.state.intended(agent)
+    const effective = this.state.status(agent).ready ? this.state.read(agent) : undefined
+    const selection = intended?.selection ?? effective?.selection
+    if (revised === undefined || selection?.presetId !== id) return
+    const resources = await this.refreshInventory(agent)
+    await this.state.requestSelection(
+      agent,
+      this.state.selectionRevision(agent),
+      captureExtensionSelection(
+        revised,
+        resources.filter(row => row.control !== 'global-only' && row.available && row.globalEnabled !== false).map(row => row.id)
+      )
+    )
   }
   async delete(sessionId: string, revision: number, id: string): Promise<void> {
     await this.store.delete(extensionWorkspace(this.agent(sessionId)), revision, id)
@@ -343,7 +371,9 @@ export class ExtensionRuntime implements ExtensionRouteService {
     const preset = library.presets.find(row => row.id === id)
     if (id !== null && !preset) throw new ExtensionPresetError('preset-not-found', 'extension preset no longer exists')
     const resources = await this.refreshInventory(agent)
-    await this.state.change(
+    // A request made while a turn owns the session is durable intent, not an
+    // application: the committed selection keeps authorizing until the boundary.
+    const outcome = await this.state.requestSelection(
       agent,
       revision,
       captureExtensionSelection(
@@ -351,7 +381,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
         resources.filter(row => row.control !== 'global-only' && row.available && row.globalEnabled !== false).map(row => row.id)
       )
     )
-    await this.ports.ready?.(agent)
+    if (outcome.applied) await this.ports.ready?.(agent)
   }
   async dispose(): Promise<void> {
     this.disposed = true

@@ -38,4 +38,4 @@ Runtime refresh remains serialized after a committed policy mutation. Slow refre
 
 ## Related
 
-This partially supersedes the state ownership in [workspace toggles](../feature/2026-10-03-per-workspace-surface-toggles.md). Its hashed global location remains. The [transaction metadata decision](2026-10-06-extension-state-model-noise.md) retains durable envelopes and now also excludes wake markers. Neither decision is fully superseded.
+This partially supersedes the state ownership in [workspace toggles](../feature/2026-10-03-per-workspace-surface-toggles.md). Its hashed global location remains. The [transaction metadata decision](2026-10-06-extension-state-model-noise.md) retains durable envelopes and now also excludes wake markers. Neither decision is fully superseded. [Next-turn selection](2026-10-08-shared-surfaces-and-next-turn-selection.md) adds durable requests without replacing failed-transaction recovery.

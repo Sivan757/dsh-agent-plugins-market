@@ -10,9 +10,10 @@
  * @module client/PluginWorkspace
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { SegmentedTabs } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
+import { ResourceTabs } from '../ui/ResourceTabs.js'
 import type { Translate } from '../i18n.js'
+import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
 import { MarketSection } from '../features/market/MarketSection.js'
 import { McpStatusPanel } from '../features/mcp/StatusPanel.js'
@@ -79,14 +80,12 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
   return h(
     'div',
     { className: mode === 'page' ? `${css.workspace} ${css.pageMode}` : css.workspace, 'data-agent-plugins-workspace': true },
-    // The host's controlled tab row (roving tabindex, sliding indicator).
-    // Panels stay caller-owned: the workspace hands every tab one shared
-    // panel id and renders the active section inside it below.
-    h(SegmentedTabs<WorkspaceTab>, {
-      // Static, unlike the manager modal's scrolling row: the settings column
-      // is wide enough for all seven labels, and a settings tab row that
-      // scrolled sideways would hide tabs rather than fit them.
-      className: css.tabRowStatic,
+    // The shared tab row: the host owns the roving tab stop, the walk keys and
+    // the sliding indicator; the row policy (equal columns, ellipsized labels,
+    // no sideways scroll) is the same one the preset manager renders. Panels
+    // stay caller-owned: every tab names one shared panel id, and the active
+    // section renders inside it below.
+    h(ResourceTabs<WorkspaceTab>, {
       label: labelKeys.market,
       value: active,
       // Switching tabs is local state only; the URL stays the host's.
@@ -94,13 +93,13 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
       // Display order restated so the required first tab is a literal: the
       // host's items demand a non-empty tuple, and the tab set is fixed anyway.
       items: [
-        { value: 'market', label: labelKeys.market, id: 'agent-plugins-tab-market', panelId: 'agent-plugins-panel' },
-        { value: 'skills', label: labelKeys.skills, id: 'agent-plugins-tab-skills', panelId: 'agent-plugins-panel' },
-        { value: 'commands', label: labelKeys.commands, id: 'agent-plugins-tab-commands', panelId: 'agent-plugins-panel' },
-        { value: 'personas', label: labelKeys.personas, id: 'agent-plugins-tab-personas', panelId: 'agent-plugins-panel' },
-        { value: 'mcp', label: labelKeys.mcp, id: 'agent-plugins-tab-mcp', panelId: 'agent-plugins-panel' },
-        { value: 'lsp', label: labelKeys.lsp, id: 'agent-plugins-tab-lsp', panelId: 'agent-plugins-panel' },
-        { value: 'hooks', label: labelKeys.hooks, id: 'agent-plugins-tab-hooks', panelId: 'agent-plugins-panel' }
+        { value: 'market', text: labelKeys.market, id: 'agent-plugins-tab-market', panelId: 'agent-plugins-panel' },
+        { value: 'skills', text: labelKeys.skills, id: 'agent-plugins-tab-skills', panelId: 'agent-plugins-panel' },
+        { value: 'commands', text: labelKeys.commands, id: 'agent-plugins-tab-commands', panelId: 'agent-plugins-panel' },
+        { value: 'personas', text: labelKeys.personas, id: 'agent-plugins-tab-personas', panelId: 'agent-plugins-panel' },
+        { value: 'mcp', text: labelKeys.mcp, id: 'agent-plugins-tab-mcp', panelId: 'agent-plugins-panel' },
+        { value: 'lsp', text: labelKeys.lsp, id: 'agent-plugins-tab-lsp', panelId: 'agent-plugins-panel' },
+        { value: 'hooks', text: labelKeys.hooks, id: 'agent-plugins-tab-hooks', panelId: 'agent-plugins-panel' }
       ]
     }),
     // Every detail dialog these panels open inherits the fixed settings-sized
@@ -128,6 +127,9 @@ function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi |
     case 'lsp':
       return h(LspStatusPanel, { t })
     case 'hooks':
-      return h(HooksStatusPanel, { t })
+      // Both dictionaries are registered under this one namespace, so the
+      // translator already answers the preset keys; the declared split is a
+      // typing boundary, reconciled here as the entry point does.
+      return h(HooksStatusPanel, { t: t as ExtensionTranslate })
   }
 }

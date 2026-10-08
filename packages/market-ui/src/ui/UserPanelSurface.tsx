@@ -6,13 +6,13 @@
  * @module client/ui/UserPanelSurface
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { IconEditOutlineMedium, IconTrashOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconEditOutlineMedium, IconTrashOutlineMedium, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanelEntry, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
 import { cachedUserPanel, loadUserPanel } from './user-panel-resource.js'
 import { commandCallName } from '../../../market-contracts/src/model/command-names.js'
 import type { Translate } from '../i18n.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
-import { ResourceCard, ResourceCollection } from './ResourceCard.js'
+import { CardIdentity, ResourceCard, ResourceCollection } from './ResourceCard.js'
 import { useDisplayText } from './translated-text.js'
 import { hintProps, hoverHint } from './hover-hint.js'
 import { BilingualToggle } from './BilingualToggle.js'
@@ -460,12 +460,7 @@ function UserEntryRow(props: {
   return h(
     ResourceCard,
     { state: entry.disabled ? 'disabled' : 'active', surface: props.kind === 'agents' ? 'personas' : props.kind, ...interactive },
-    h(
-      'div',
-      { className: rc.rowId },
-      hoverHint(entry.name, h('span', hintProps({ className: mono ? `${rc.name} ${rc.nameMono}` : rc.name }), title)),
-      h(Tag, { tone: 'neutral' }, entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin'))
-    ),
+    h(CardIdentity, { text: title, hint: entry.name, mono, tag: entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin') }),
     h(
       'div',
       { className: rc.rowActions },

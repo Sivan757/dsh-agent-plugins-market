@@ -20,14 +20,6 @@
 .managerBody {
   overflow: hidden;
 }
-/* One secondary event tab's dot and label: the host pill centers its content,
-   so the pair rides one inline line and the dot keeps its own color. */
-.eventTab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
 .entryButton.entryButton {
   width: 28px;
   min-width: 28px;
@@ -61,11 +53,6 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.listHead {
-  display: flex;
-  justify-content: space-between;
-  flex: none;
-}
 .listRegion {
   min-height: 0;
   flex: 1;
@@ -73,16 +60,10 @@
 }
 .footer {
   display: flex;
+  justify-content: flex-end;
   width: 100%;
   gap: 8px;
   align-items: center;
-}
-.footerContext {
-  margin-right: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
 }
 .clipboardText {
   box-sizing: border-box;
@@ -93,9 +74,6 @@
 @media (max-width: 600px) {
   .footer {
     flex-wrap: wrap;
-  }
-  .footerContext {
-    width: 100%;
   }
   .footer > button {
     flex: 1;

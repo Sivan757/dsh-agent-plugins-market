@@ -29,7 +29,7 @@ import {
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { failureGuidanceKey } from '../../ui/failure-guidance.js'
-import { interactiveCardProps, ResourceCard, ResourceCollection, type ResourceState } from '../../ui/ResourceCard.js'
+import { CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection, type ResourceState } from '../../ui/ResourceCard.js'
 import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './lsp-status-view-model.js'
@@ -332,14 +332,9 @@ function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry;
   return h(
     ResourceCard,
     { state: lspCardState(entry.state), surface: 'lsp', ...interactive },
-    h(
-      'div',
-      { className: rc.rowId },
-      hoverHint(entry.serverKey, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), entry.serverKey)),
-      // The state rail on the card's leading edge carries the state; a written
-      // label beside it would say the same thing twice.
-      h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')))
-    ),
+    // The state rail on the card's leading edge carries the state; a written
+    // label beside it would say the same thing twice.
+    h(CardIdentity, { text: entry.serverKey, mono: true, tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'), chip: true }),
     h(
       'div',
       { className: rc.rowActions },

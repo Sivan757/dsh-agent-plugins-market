@@ -54,10 +54,13 @@ export function useExtensionWindow(sessionId: string) {
         if (batch !== generation.current) throw new Error('An earlier save failed; retry the retained draft')
         const before = current.current
         if (!before || before.sessionId !== sessionId) throw new Error('Session changed')
-        const revision = action === 'recover' ? before.status!.revision : (draftRevision?.current ?? (action === 'select' ? before.state.revision : before.library.revision))
+        const revision =
+          action === 'recover'
+            ? before.status!.revision
+            : (draftRevision?.current ?? (action === 'select' ? (before.selectionRevision ?? before.intendedRevision ?? before.state.revision) : before.library.revision))
         try {
           const next = await writeWindow(action, sessionId, revision, body)
-          if (draftRevision) draftRevision.current = action === 'select' ? next.state.revision : next.library.revision
+          if (draftRevision) draftRevision.current = action === 'select' ? (next.selectionRevision ?? next.intendedRevision ?? next.state.revision) : next.library.revision
           if (active.current && current.current?.sessionId === sessionId) {
             current.current = next
             setData(next)

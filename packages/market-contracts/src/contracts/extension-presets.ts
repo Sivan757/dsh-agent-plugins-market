@@ -44,7 +44,9 @@ const ENTRY_ID = /^(market|skills|commands|agents|mcp|lsp|hooks):.{1,1023}$/u
  * read-only Hooks row. When a runtime bridge lands, the validator admits the
  * event and its entry here flips, instead of editing every consumer.
  */
-export const HOOK_EVENT_HOST_SUPPORT: Readonly<Record<string, 'supported' | 'supported-partial' | 'registered-only'>> = {
+export type HookEventSupport = 'supported' | 'supported-partial' | 'registered-only'
+
+export const HOOK_EVENT_HOST_SUPPORT: Readonly<Record<string, HookEventSupport>> = {
   SessionStart: 'supported',
   UserPromptSubmit: 'supported',
   PreToolUse: 'supported',
@@ -131,6 +133,28 @@ export type ExtensionDetail = (
   | { kind: 'panel'; panel: 'skills' | 'commands' | 'agents'; entryId: string }
   | { kind: 'mcp'; entryId: string }
   | { kind: 'lsp'; entryId: string }
+  | {
+      kind: 'hook'
+      /** The suite whose declaration carries the hook. */
+      sourceId: string
+      suiteId: string
+      /** The event the hook was declared under. */
+      event: string
+      /** The hook's declaration position inside that event; absent for a rejected declaration, which has no admitted hook. */
+      hookIndex?: number
+      /** The command exactly as authored; absent for a rejected declaration. */
+      command?: string
+      /** The matcher of the group the hook belongs to; absent for an ungrouped or catch-all declaration. */
+      matcher?: string
+      /** The declaration's own timeout in seconds; absent when it inherits the bridge default. */
+      timeoutSec?: number
+      /** The suite or configuration the hook came from, without the matcher suffix the row's source carries. */
+      provenance: string
+      /** What the host bridge can do with this event today. */
+      support: HookEventSupport
+      /** The validator's rejection, for a row that exists only as a diagnostic. */
+      diagnostic?: string
+    }
 ) & { sessionId?: string }
 
 export interface ExtensionResource {
@@ -169,6 +193,19 @@ export interface ExtensionWindowPayload {
   state: ExtensionSessionSnapshot
   /** While not ready, state is a display-only recovery snapshot, never effective authorization. */
   status?: { ready: boolean; revision: number; recoverable: boolean; error?: string; selection?: ExtensionSelection }
+  /**
+   * The selection a request made mid-turn will commit at the next safe boundary.
+   * Absent when nothing is pending: `state` stays the effective selection until then.
+   */
+  intendedSelection?: ExtensionSelection
+  /** CAS token of the pending request, retained as selectionRevision after promotion. */
+  intendedRevision?: number
+  /**
+   * The revision of the last accepted selection request, effective or pending. It
+   * never moves backwards, so a client can keep comparing against it across a
+   * promotion, which a bare committed revision cannot support.
+   */
+  selectionRevision?: number
   resources: ExtensionResource[]
 }
 

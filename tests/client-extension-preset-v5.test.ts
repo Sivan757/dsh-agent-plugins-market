@@ -44,7 +44,6 @@ async function mount(started = false, resources: ExtensionResource[] = [suite, s
     state: { revision: 1, selection: { presetId: null, presetName: null, presetRevision: null, modified: false, enabledIds: [suite.id] } },
     resources
   }
-  localStorage.setItem('dsh-extension-guide:/workspace/acme', 'seen')
   posts.length = 0
   vi.stubGlobal(
     'fetch',
@@ -191,12 +190,19 @@ it('does not retain stale duplicate cards after a filtered row is removed', asyn
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards()[0]!.getAttribute('data-resource-state')).toBe('active')
 })
-it('omits the workspace name from the footer while retaining help', async () => {
+it('omits the workspace name from the footer and carries no help affordance', async () => {
   await mount()
   await open()
   expect(document.querySelector('[title="/workspace/acme"]')).toBeNull()
   expect(document.body.textContent).not.toContain('acme')
-  expect(document.body.textContent).toContain('Help')
+  // The manager carries no help entry, no guide copy and no hint row: the
+  // library, its tabs and its actions are the whole surface.
+  expect(document.body.textContent).not.toContain(en.epHelp)
+  expect(document.body.textContent).not.toContain(en.epGuide)
+  expect(document.body.textContent).not.toContain(en.epLibraryHint)
+  expect(document.body.textContent).not.toContain(en.epClipboardHelp)
+  expect(document.querySelector('button[aria-label="' + en.epHelp + '"]')).toBeNull()
+  expect([...document.querySelectorAll('[role="dialog"]')].some(node => node.getAttribute('aria-label') === en.epHelp)).toBe(false)
 })
 it('requires confirmation before discarding a global library draft', async () => {
   await mount()
@@ -224,16 +230,18 @@ it('routes real detail toggles through the library draft without global mutation
   expect(document.body.textContent).toContain('Unnamed preset')
   expect(posts).toHaveLength(0)
 })
-it('shows the guide once for each workspace and remembers dismissal', async () => {
+it('opens no automatic guide and remembers no dismissal for a workspace', async () => {
   await mount()
   localStorage.removeItem('dsh-extension-guide:/workspace/acme')
   await open()
-  expect([...document.querySelectorAll('[role="dialog"]')].some(node => node.getAttribute('aria-label') === 'Help')).toBe(true)
-  await click('Got it')
-  expect(localStorage.getItem('dsh-extension-guide:/workspace/acme')).toBe('seen')
+  // The first-run guide is gone: opening the manager shows the library only,
+  // and nothing is written on its behalf.
+  expect([...document.querySelectorAll('[role="dialog"]')].some(node => node.getAttribute('aria-label') === en.epHelp)).toBe(false)
+  expect(document.body.textContent).not.toContain(en.epGuide)
+  expect(localStorage.getItem('dsh-extension-guide:/workspace/acme')).toBeNull()
   await click('Done')
   await open()
-  expect([...document.querySelectorAll('[role="dialog"]')].some(node => node.getAttribute('aria-label') === 'Help')).toBe(false)
+  expect([...document.querySelectorAll('[role="dialog"]')].some(node => node.getAttribute('aria-label') === en.epHelp)).toBe(false)
 })
 it('shows selection failures through the native visible toast', async () => {
   await mount()
@@ -371,24 +379,27 @@ const zh = { ...settingsZh, ...extensionPresetsZh } as Record<string, string>
 const tZh = (key: string) => zh[key] ?? key
 
 describe('user hooks configuration row', () => {
-  it('keeps the tab row horizontally scrollable with one-line labels instead of vertically clipped ones', async () => {
+  it('keeps the tab row on equal columns with ellipsized labels instead of a sideways scroll', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
     await act(async () => root!.render(h(ResourceList, { resources: [suite, hooksRow], ids: [], disabled: false, t: tZh, onToggle: toggle, onView: view })))
-    // The workspace module owns the row policy: it scrolls sideways and never shows a scrollbar.
-    const workspaceCss = readFileSync('packages/market-ui/src/workspace/workspace.module.css', 'utf8')
-    const tabRowRule = /\.tabRow\s*\{[^}]*/.exec(workspaceCss)?.[0] ?? ''
-    expect(tabRowRule, '.tabRow rule must exist with overflow-x scroll policy').toMatch(/overflow-x:\s*auto/)
-    expect(tabRowRule).toMatch(/scrollbar-width:\s*none/)
-    // The host tablist is re-laid to its natural width so each column fits its label on one line.
-    expect(workspaceCss).toContain(".tabRow > [role='tablist']")
-    expect(workspaceCss).toMatch(/\.tabRow > \[role='tablist'\]\s*\{[^}]*width:\s*max-content/)
-    expect(workspaceCss).toMatch(/\.tabRow > \[role='tablist'\] > \[role='tab'\]\s*\{[^}]*white-space:\s*nowrap/)
+    // The shared row policy: the host sizes the columns, and a label that does
+    // not fit ellipsizes inside its own share. Nothing scrolls sideways.
+    const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
+    const rowRule = /\.row\s*\{[^}]*/.exec(sharedCss)?.[0] ?? ''
+    expect(rowRule).toMatch(/overflow:\s*hidden/)
+    expect(rowRule).toMatch(/min-width:\s*0/)
+    expect(sharedCss).not.toMatch(/overflow-x:\s*auto/)
+    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*text-overflow:\s*ellipsis/)
+    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*white-space:\s*nowrap/)
+    // Equal columns are the host's own inline grid, so the indicator geometry
+    // stays correct at any width.
+    const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
+    expect(faceTablist.getAttribute('style') ?? '').toContain('minmax(0, 1fr)')
     // The rendered row actually carries the module class the policy rides on.
-    const tabRow = document.querySelector('.' + (await import('../packages/market-ui/src/workspace/workspace.module.css')).default.tabRow)
-    expect(tabRow).not.toBeNull()
-    expect(tabRow!.querySelector('[role="tablist"]')).not.toBeNull()
+    const rowClass = (await import('../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
+    expect(document.querySelector('.' + rowClass)!.querySelector('[role="tablist"]')).not.toBeNull()
   })
 
   it('keeps the user-hooks configuration row out of every face tab in a localized build', async () => {
@@ -473,17 +484,34 @@ const hooksDetailPayload = {
  * carries the event name the tab groups by.
  */
 const HOOKS_PARENT = 'market:@user-hooks/user-hooks'
-const hookRow = (id: string, over: Partial<ExtensionResource> = {}): ExtensionResource => ({
-  id,
-  face: 'hooks',
-  name: 'cmd',
-  source: 'user-hooks',
-  available: false,
-  description: 'PreToolUse',
-  suiteResourceId: HOOKS_PARENT,
-  detail: { kind: 'suite', sourceId: '@user-hooks', suiteId: 'user-hooks' },
-  ...over
-})
+const hookRow = (id: string, over: Partial<ExtensionResource> = {}): ExtensionResource => {
+  const row: ExtensionResource = {
+    id,
+    face: 'hooks',
+    name: 'cmd',
+    source: 'user-hooks',
+    available: false,
+    description: 'PreToolUse',
+    suiteResourceId: HOOKS_PARENT,
+    detail: { kind: 'suite', sourceId: '@user-hooks', suiteId: 'user-hooks' },
+    ...over
+  }
+  // The server now addresses the hook itself, so the fixture carries the same
+  // metadata the inventory emits: provenance, the authored command, the event
+  // and the host's support verdict.
+  return {
+    ...row,
+    detail: {
+      kind: 'hook',
+      sourceId: '@user-hooks',
+      suiteId: 'user-hooks',
+      event: row.description ?? 'PreToolUse',
+      command: row.name,
+      provenance: 'user-hooks',
+      support: row.available ? 'supported' : 'registered-only'
+    }
+  }
+}
 
 describe('hooks tab', () => {
   it('renders the Hooks face tab beside the six faces and groups rows into secondary event tabs', async () => {
@@ -506,6 +534,10 @@ describe('hooks tab', () => {
         })
       )
     )
+    // The tab row carries no count summary: the removed strip printed the
+    // filtered item count and the preview's enabled count, and neither belongs
+    // to the row any surface renders now.
+    expect(document.body.textContent ?? '').not.toContain(en.epPreview)
     // The Hooks tab rides the primary row unconditionally: it is a face, not a conditional local tab.
     const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
     expect([...faceTablist.querySelectorAll('[role="tab"]')].map(node => node.textContent)).toEqual([
@@ -658,7 +690,7 @@ describe('hooks tab', () => {
     expect(document.body.textContent).toContain(tZh('epHookEventUnsupported'))
   })
 
-  it('keeps eight one-line tabs inside the scrolling tab-row policy', async () => {
+  it('keeps eight one-line tabs on the shared tab-row policy', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -674,16 +706,22 @@ describe('hooks tab', () => {
         })
       )
     )
-    // Seven primary faces plus at least one secondary event tab: every tab row the surface owns scrolls.
-    const rows = [...document.querySelectorAll('.' + (await import('../packages/market-ui/src/workspace/workspace.module.css')).default.tabRow)]
-    expect(rows.length).toBeGreaterThanOrEqual(1)
-    const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
-    expect(faceTablist.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    const rowClass = (await import('../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
+    // Seven primary faces plus the secondary event row: both are the one shared
+    // component, so both carry its class and its one-line, non-scrolling policy.
+    const faceRow = document.querySelector('.' + rowClass)!
+    expect(faceRow.querySelectorAll('[role="tab"]')).toHaveLength(7)
     await click(en.epHooksTab)
     const eventTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-PreToolUse-panel"]'))!
     expect(eventTablist.querySelectorAll('[role="tab"]')).toHaveLength(1)
-    // Both rows carry the policy class: the stylesheet rule applies to each.
-    const afterSwitch = [...document.querySelectorAll('.' + (await import('../packages/market-ui/src/workspace/workspace.module.css')).default.tabRow)]
-    expect(afterSwitch.length).toBeGreaterThanOrEqual(2)
+    const rows = [...document.querySelectorAll('.' + rowClass)]
+    expect(rows.length).toBeGreaterThanOrEqual(2)
+    expect(rows.every(row => row.querySelector('[role="tablist"]') !== null)).toBe(true)
+    // One line each, and never a sideways scroll: the shared truncation rule is
+    // the only thing that gives on a narrow frame.
+    const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
+    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*white-space:\s*nowrap/)
+    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*text-overflow:\s*ellipsis/)
+    expect(sharedCss).not.toMatch(/overflow-x:\s*auto/)
   })
 })

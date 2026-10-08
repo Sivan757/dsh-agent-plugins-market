@@ -8,7 +8,7 @@ One workspace can contain unrelated frontend, backend and research sessions. Wor
 
 ## Proposal
 
-The approved product model separates a workspace-private preset library from detached per-session capability choices. A new-session default is a pointer to a preset, not a live parent for existing sessions. Editing or deleting a preset never changes an existing session's copy. Explicit session changes apply only at a safe execution boundary. Global hard-disabled or uninstalled capabilities remain unavailable.
+The approved product model separates a workspace-private preset library from detached per-session capability choices. A new-session default is a pointer to a preset, not a live parent for existing sessions. [Next-turn selection](../../implemented/architecture/2026-10-08-shared-surfaces-and-next-turn-selection.md) supersedes edit isolation for the initiating session. Other sessions retain detached copies. Explicit session changes apply only at a safe execution boundary. Global hard-disabled or uninstalled capabilities remain unavailable.
 
 Blank and ongoing sessions share one 28px icon button to the right of Permissions. The monochrome outline combines an Agent head with a capability connector. The prototype defines behavior and approximate layout, not a separate visual system. The manager uses the current settings page components and styles for tabs, source chips, typography, resource cards, counts and actions. Host Modal supplies the fixed 800×800 viewport-capped frame. Cards toggle the selected preset, and details remain a separate action. Clipboard transfer carries a version, display name and portable resource ids only.
 

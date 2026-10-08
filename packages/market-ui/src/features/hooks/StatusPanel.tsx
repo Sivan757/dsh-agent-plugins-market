@@ -1,41 +1,38 @@
 /**
- * The settings workspace's Hooks panel: the same event-grouped presentation
- * the preset manager's Hooks tab renders, in read-only mode.
- *
- * Rows come from the sessionless hooks overview route, so the panel shows the
- * same identities and support verdicts as the manager. Support status stands
- * in for the enable switch this surface has no right to carry: a supported
- * event reads as a normal row, a partial or not-yet-executable event reads as
- * a warning with its localized reason, and no row offers a toggle — the
- * declarations are edited in the hooks files under the Agent layout root, not
- * here.
+ * The settings workspace's Hooks panel: the manager's event-grouped presentation
+ * in read-only form. Rows come from the sessionless hooks overview route and
+ * render through the shared tab row and hook card, whose support Tag stands in
+ * for the switch this surface has no right to carry.
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { SegmentedTabs, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { Translate } from '../../i18n.js'
+import type { ExtensionTranslate } from '../../i18n.js'
 import { fetchHooksOverview } from '../../api.js'
-import type { ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
+import type { ExtensionDetail, ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import { useHookEvents } from '../../ui/hook-event-grouping.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
+import { ResourceTabs } from '../../ui/ResourceTabs.js'
+import { HookResourceCard } from '../../ui/HookResourceCard.js'
+import { ResourceCollection } from '../../ui/ResourceCard.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
-import { hoverHint } from '../../ui/hover-hint.js'
+import { HookDetailModal } from '../../ui/HookDetailModal.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
-import rc from '../../ui/resource-card.module.css'
 import css from '../mcp/mcp-status.module.css'
-import workspace from '../../workspace/workspace.module.css'
 
 type Filter = 'all' | 'supported' | 'limited'
 
+/** One hook's detail address, as the shared card opens it. */
+type HookDetail = Extract<ExtensionDetail, { kind: 'hook' }>
+
 /** The configured command hooks of both sources, grouped by event, read-only. */
-export function HooksStatusPanel({ t }: { t: Translate }): ReactNode {
+export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   const [rows, setRows] = useState<ExtensionResource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [view, setView] = useWorkspaceView()
+  const [detail, setDetail] = useState<HookDetail | undefined>(undefined)
 
   const refresh = (): void => {
     setLoading(true)
@@ -71,8 +68,11 @@ export function HooksStatusPanel({ t }: { t: Translate }): ReactNode {
     { id: 'limited' as const, label: t('hooksFilterLimited'), count: rows.filter(limited).length, active: filter === 'limited', onSelect: () => setFilter('limited') }
   ]
   const filterId = 'hooks-panel-filter'
-
-  const reasonKey = (row: ExtensionResource): string => (row.unavailableReason === 'hook-event-partial' ? 'epHookEventPartial' : 'epHookEventUnsupported')
+  // One opener for the whole panel: the card reports the row, and the detail
+  // comes from that row's own address, so no other hook can be opened here.
+  const openDetail = (row: ExtensionResource): void => {
+    if (row.detail.kind === 'hook') setDetail(row.detail)
+  }
 
   return h(
     'div',
@@ -96,23 +96,20 @@ export function HooksStatusPanel({ t }: { t: Translate }): ReactNode {
       onViewChange: nextView => setView(nextView)
     }),
     hook.events.length > 0 &&
-      h(
-        'div',
-        { className: workspace.tabRow },
-        h(SegmentedTabs, {
-          value: hook.active,
-          onChange: value => {
-            if (hook.events.includes(value)) hook.setRequested(value)
-          },
-          label: t('workspaceTabHooks'),
-          items: hook.events.map(name => ({
-            value: name,
-            label: h('span', { className: 'event-tab-label' }, h(StateDot, { state: hook.dotFor(name) }), name),
-            id: 'hooks-panel-event-' + name,
-            panelId: 'hooks-panel-event-panel'
-          })) as never
-        })
-      ),
+      h(ResourceTabs, {
+        value: hook.active,
+        onChange: value => {
+          if (hook.events.includes(value)) hook.setRequested(value)
+        },
+        label: t('workspaceTabHooks'),
+        items: hook.events.map(name => ({
+          value: name,
+          text: name,
+          dot: hook.dotFor(name),
+          id: 'hooks-panel-event-' + name,
+          panelId: 'hooks-panel-event-panel'
+        }))
+      }),
     error !== undefined
       ? h('div', { className: css.error, role: 'status' }, error)
       : loading && rows.length === 0
@@ -123,18 +120,17 @@ export function HooksStatusPanel({ t }: { t: Translate }): ReactNode {
               ResourceCollection,
               { view },
               filtered.map(row =>
-                h(
-                  ResourceCard,
-                  { key: row.id, surface: 'hooks', state: limited(row) ? 'warning' : 'active' },
-                  h('div', { className: rc.rowId }, hoverHint(row.name, h('span', { className: rc.name }, row.name))),
-                  h(
-                    'div',
-                    { className: rc.rowFoot },
-                    hoverHint(row.source, h('span', { ...{}, className: rc.provenance }, row.source)),
-                    limited(row) ? h(Tag, { tone: 'warning' }, t(reasonKey(row) as never)) : null
-                  )
-                )
+                h(HookResourceCard, {
+                  key: row.id,
+                  row,
+                  t,
+                  // Read-only chrome: a limited declaration warns, everything
+                  // else the host can run reads active.
+                  state: limited(row) ? 'warning' : 'active',
+                  onView: openDetail
+                })
               )
-            )
+            ),
+    detail === undefined ? null : h(HookDetailModal, { detail, t, onClose: () => setDetail(undefined) })
   )
 }

@@ -8,6 +8,10 @@
  * @module client/i18n
  */
 import type { LocaleKey } from './locales.js'
+import type { ExtensionPresetLocaleKey } from './locales-extension-presets.js'
 
 /** Render one localized string; `params` fill the dictionary's placeholders. */
 export type Translate = (key: LocaleKey, params?: Record<string, unknown>) => string
+
+/** Resource surfaces use both the preset and settings dictionaries. */
+export type ExtensionTranslate = (key: ExtensionPresetLocaleKey | LocaleKey, params?: Record<string, unknown>) => string

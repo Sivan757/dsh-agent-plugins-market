@@ -68,12 +68,15 @@ export class ExtensionHooks {
   ) {
     this.listeners.push(
       ctx.on('agent/pre-step', (event, next) => {
-        if (event.agent !== agent || this.disposed || event.messages.length === 0) return next()
+        // A submitted prompt is authored input. A claimed batch can also carry this
+        // plugin's own metadata, which is neither a prompt nor prompt content.
+        const authored = event.messages.filter(message => message.source.kind === 'user')
+        if (event.agent !== agent || this.disposed || authored.length === 0) return next()
         return this.track(async () => {
           const merged = await this.runPoint(
             'UserPromptSubmit',
             '',
-            { ...base(agent, 'UserPromptSubmit'), prompt: text(event.messages.flatMap(message => message.content)) },
+            { ...base(agent, 'UserPromptSubmit'), prompt: text(authored.flatMap(message => message.content)) },
             agent,
             event.turn,
             event.signal

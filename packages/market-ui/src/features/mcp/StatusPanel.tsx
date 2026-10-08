@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, IconEditOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconEditOutlineMedium, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { PanelActions, PanelHeader } from '../../ui/panel.js'
 import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
+import { CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './mcp-status-view-model.js'
@@ -271,14 +271,9 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
       surface: 'mcp',
       ...interactive
     },
-    h(
-      'div',
-      { className: rc.rowId },
-      hoverHint(entry.name, h('span', hintProps({ className: `${rc.name} ${rc.nameMono}` }), displayName)),
-      // The state rail on the card's left edge carries the state; a written
-      // label beside it would say the same thing twice.
-      h('span', { className: rc.provenanceChip }, h(Tag, { tone: 'neutral' }, entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect')))
-    ),
+    // The state rail on the card's left edge carries the state; a written label
+    // beside it would say the same thing twice.
+    h(CardIdentity, { text: displayName, hint: entry.name, mono: true, tag: entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect'), chip: true }),
     h(
       'div',
       { className: rc.rowActions },

@@ -38,4 +38,4 @@ ResourceFilterService 拥有一份工作区策略快照。旧 surface 门面委�
 
 ## Related
 
-本决策部分替代[工作区开关](../feature/2026-10-03-per-workspace-surface-toggles.zh.md)的状态归属，全局哈希路径仍保留。[事务元数据决策](2026-10-06-extension-state-model-noise.zh.md)继续保留持久信封，并额外排除唤醒标记。两项决策均未完全失效。
+本决策部分替代[工作区开关](../feature/2026-10-03-per-workspace-surface-toggles.zh.md)的状态归属，全局哈希路径仍保留。[事务元数据决策](2026-10-06-extension-state-model-noise.zh.md)继续保留持久信封，并额外排除唤醒标记。两项决策均未完全失效。[下一轮选择](2026-10-08-shared-surfaces-and-next-turn-selection.zh.md)增加持久请求，不替代失败事务恢复。

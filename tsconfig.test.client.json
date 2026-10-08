@@ -31,6 +31,7 @@
     "tests/client-extension-presets.test.ts",
     "tests/client-extension-preset-v5.test.ts",
     "tests/client-hooks-status-panel.test.ts",
+    "tests/client-hook-resource-card.test.ts",
     "tests/client-extension-detail-frame.test.ts",
     "tests/client-agent-extension-icon.test.ts",
     "tests/client-extension-preset-details.test.ts",

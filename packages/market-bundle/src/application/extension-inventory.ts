@@ -207,8 +207,12 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
       let index = 0
       for (const group of groups) {
         for (const hook of group.hooks) {
+          // The position is the identity the row was published under, so it is
+          // read before the counter moves rather than inside the id expression.
+          const hookIndex = index
+          index += 1
           rows.push({
-            id: hookResourceId(suite.sourceId, suite.id, event, index++),
+            id: hookResourceId(suite.sourceId, suite.id, event, hookIndex),
             face: 'hooks',
             name: hook.command,
             source: group.matcher === undefined || group.matcher === '*' ? provenance : provenance + ' · ' + group.matcher,
@@ -217,7 +221,21 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
             ...(selectable
               ? { available: true, globalEnabled: true }
               : { available: false, control: 'global-only', unavailableReason: support === 'supported-partial' ? 'hook-event-partial' : 'hook-event-unsupported' }),
-            detail: { kind: 'suite', sourceId: suite.sourceId, suiteId: suite.id, ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }) }
+            // The detail a row opens is the hook itself, not the suite behind it:
+            // every field the surface shows comes from this scanned declaration.
+            detail: {
+              kind: 'hook',
+              sourceId: suite.sourceId,
+              suiteId: suite.id,
+              event,
+              hookIndex,
+              command: hook.command,
+              ...(group.matcher === undefined ? {} : { matcher: group.matcher }),
+              ...(hook.timeout === undefined ? {} : { timeoutSec: hook.timeout }),
+              provenance,
+              support,
+              ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId })
+            }
           })
         }
       }
@@ -230,6 +248,7 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
     for (const error of suite.errors) {
       const event = /^\S+ unsupported hook event (\S+)$/.exec(error)?.[1]
       if (event === undefined) continue
+      const support = HOOK_EVENT_HOST_SUPPORT[event] ?? 'registered-only'
       rows.push({
         id: 'hooks:' + suite.sourceId + '/' + suite.id + '/' + event + '/declared',
         face: 'hooks',
@@ -238,8 +257,19 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
         description: event,
         available: false,
         control: 'global-only',
-        unavailableReason: HOOK_EVENT_HOST_SUPPORT[event] === 'supported-partial' ? 'hook-event-partial' : 'hook-event-unsupported',
-        detail: { kind: 'suite', sourceId: suite.sourceId, suiteId: suite.id, ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }) }
+        unavailableReason: support === 'supported-partial' ? 'hook-event-partial' : 'hook-event-unsupported',
+        // A rejected declaration has no admitted hook, so the detail carries the
+        // event and the validator's own words instead of a command or position.
+        detail: {
+          kind: 'hook',
+          sourceId: suite.sourceId,
+          suiteId: suite.id,
+          event,
+          provenance,
+          support,
+          diagnostic: error,
+          ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId })
+        }
       })
     }
   }

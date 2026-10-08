@@ -8,7 +8,10 @@
  * resource; a partial or registered-only event's rows stay read-only with the
  * reason; a declaration the validator rejected (which exists only as a suite
  * diagnostic) still surfaces as one read-only row, so the Hooks tab registers
- * it instead of dropping it into the suite detail's error list.
+ * it instead of dropping it into the suite detail's error list. Each row opens
+ * its own declaration: the detail names the event, the hook's position, the
+ * command as authored, the declared matcher and timeout, the provenance and the
+ * host support verdict the row already carries.
  */
 import { describe, expect, it } from 'vitest'
 import { readExtensionInventory } from '../packages/market-bundle/src/application/extension-inventory.js'
@@ -30,7 +33,12 @@ const userHooksSuite = (overrides: { events?: ProjectHooks['events']; errors?: s
   errors: overrides.errors ?? []
 })
 
-const command = (text: string) => ({ type: 'command' as const, command: text })
+/** One declared command hook; a declared timeout travels as the declaration's own field. */
+const command = (text: string, timeout?: number): { type: 'command'; command: string; timeout?: number } => ({
+  type: 'command',
+  command: text,
+  ...(timeout === undefined ? {} : { timeout })
+})
 const eventGroup = (...hooks: ReturnType<typeof command>[]) => [{ hooks }]
 const eventGroupWithMatcher = (matcher: string, ...hooks: ReturnType<typeof command>[]) => [{ matcher, hooks }]
 
@@ -71,8 +79,77 @@ describe('user hook declarations as Hooks tab rows', () => {
     // Supported events select like any other resource and are globally on by default.
     for (const row of hookRows) expect(row).toMatchObject({ available: true, globalEnabled: true })
     expect(hookRows.some(row => row.control !== undefined)).toBe(false)
-    // Every hook row still addresses the read-only suite detail behind the configuration.
-    expect(hookRows.every(row => row.detail.kind === 'suite' && row.detail.sourceId === '@user-hooks' && row.detail.suiteId === 'user-hooks')).toBe(true)
+    // Every hook row addresses its own declaration, not the suite behind it.
+    expect(hookRows.every(row => row.detail.kind === 'hook' && row.detail.sourceId === '@user-hooks' && row.detail.suiteId === 'user-hooks')).toBe(true)
+  })
+
+  it('describes one hook row with its own position, matcher and declared timeout', async () => {
+    const rows = await readExtensionInventory(ports, {
+      projectSuites: [
+        userHooksSuite({
+          events: {
+            PreToolUse: [...eventGroupWithMatcher('Edit', command('echo edit', 12)), ...eventGroup(command('echo plain')), ...eventGroupWithMatcher('*', command('echo star'))]
+          }
+        })
+      ]
+    })
+    const [edit, plain, star] = rows.filter(row => row.face === 'hooks')
+
+    // Everything the surface shows about one hook comes from its scanned declaration.
+    expect(edit!.detail).toEqual({
+      kind: 'hook',
+      sourceId: '@user-hooks',
+      suiteId: 'user-hooks',
+      event: 'PreToolUse',
+      hookIndex: 0,
+      command: 'echo edit',
+      matcher: 'Edit',
+      timeoutSec: 12,
+      provenance: 'user-hooks',
+      support: 'supported'
+    })
+    // A declaration carrying neither matcher nor timeout has neither field: the
+    // detail states what was declared rather than inventing a default.
+    expect(plain!.detail).toEqual({
+      kind: 'hook',
+      sourceId: '@user-hooks',
+      suiteId: 'user-hooks',
+      event: 'PreToolUse',
+      hookIndex: 1,
+      command: 'echo plain',
+      provenance: 'user-hooks',
+      support: 'supported'
+    })
+    // The position counts across matcher groups, as the row id always has, and a
+    // declared catch-all stays visible even though the row's source omits it.
+    expect(star!.detail).toMatchObject({ hookIndex: 2, matcher: '*' })
+    expect(star!.source).toBe('user-hooks')
+  })
+
+  it('carries the rejection and the support verdict on a declared-event row, with no command or position', async () => {
+    const rows = await readExtensionInventory(ports, {
+      projectSuites: [
+        userHooksSuite({
+          events: { PreToolUse: eventGroup(command('echo ok')) },
+          errors: ['hooks.json: unsupported hook event Notification', 'hooks.json: unsupported hook event PreCompact']
+        })
+      ]
+    })
+
+    expect(rows.find(row => row.id.endsWith('/Notification/declared'))!.detail).toEqual({
+      kind: 'hook',
+      sourceId: '@user-hooks',
+      suiteId: 'user-hooks',
+      event: 'Notification',
+      provenance: 'user-hooks',
+      support: 'supported-partial',
+      diagnostic: 'hooks.json: unsupported hook event Notification'
+    })
+    const rejected = rows.find(row => row.id.endsWith('/PreCompact/declared'))!.detail
+    expect(rejected).toMatchObject({ kind: 'hook', event: 'PreCompact', support: 'registered-only', diagnostic: 'hooks.json: unsupported hook event PreCompact' })
+    // No admitted hook exists behind a rejected declaration, so neither field is claimed.
+    expect(rejected).not.toHaveProperty('command')
+    expect(rejected).not.toHaveProperty('hookIndex')
   })
 
   it('keeps partial and registered-only events read-only with their reason', async () => {
@@ -112,7 +189,7 @@ describe('user hook declarations as Hooks tab rows', () => {
 
   it('names no session on the detail address unless the read carries one', async () => {
     const withSession = await readExtensionInventory(ports, { projectSuites: [userHooksSuite({ events: { Stop: eventGroup(command('echo stop')) } })], sessionId: 'session-9' })
-    expect(withSession.find(row => row.face === 'hooks')!.detail).toMatchObject({ kind: 'suite', sessionId: 'session-9' })
+    expect(withSession.find(row => row.face === 'hooks')!.detail).toMatchObject({ kind: 'hook', sessionId: 'session-9' })
     const withoutSession = await readExtensionInventory(ports, { projectSuites: [userHooksSuite({ events: { Stop: eventGroup(command('echo stop')) } })] })
     expect(withoutSession.find(row => row.face === 'hooks')!.detail.sessionId).toBeUndefined()
   })

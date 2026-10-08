@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-保留现有两阶段信封、binding schema、agent.inject 和 flush。在已就绪的 pre-step 路径中等待下一层决策，只从 enter 决策的 messages 删除本服务的选择与恢复唤醒来源类型。保留其他字段和消息、拒绝决策以及未就绪时的重新排队路径。恢复继续按消息身份读取 inbox splice 和历史 user-message 副本。
+保留现有两阶段信封、binding schema、agent.inject 和 flush。在已就绪的 pre-step 路径中等待下一层决策，只从 enter 决策的 messages 删除本服务的选择、选择意图与恢复唤醒来源类型。保留其他字段和消息、拒绝决策以及未就绪时的重新排队路径。恢复继续按消息身份读取 inbox splice 和历史 user-message 副本。
 
 不编辑现有对话历史。旧可见占位消息保留，直到宿主正常历史管理移除；新事务不再追加模型可见副本。
 

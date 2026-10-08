@@ -3,14 +3,14 @@
  * provenance tag) with the action cluster on its trailing edge, a full-width
  * description, and a source row carrying the counts.
  */
-import { createElement as h, type HTMLAttributes, type ReactElement, type ReactNode } from 'react'
+import { createElement as h, type ReactNode } from 'react'
 import { useDisplayText } from '../../ui/translated-text.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
-import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Switch, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../i18n.js'
 import rc from '../../ui/resource-card.module.css'
-import { ResourceCard } from '../../ui/ResourceCard.js'
+import { CardCount, CardIdentity, CardWarning, ResourceCard } from '../../ui/ResourceCard.js'
 
 /** Surface counts render as `label <number>`, separated by a middot. */
 function countList(t: Translate, suite: SuiteCardData): Array<[string, number]> {
@@ -24,15 +24,6 @@ function countList(t: Translate, suite: SuiteCardData): Array<[string, number]> 
       [t('surfaceLsp'), suite.surfaces.lsp]
     ] as Array<[string, number]>
   ).filter(([, count]) => count > 0)
-}
-
-/**
- * A warning chip. `Tooltip` clones its child and chains its own hover/focus
- * handlers onto it, so the anchor is a plain span with an explicit prop type.
- */
-function warnAnchor(text: string): ReactElement<HTMLAttributes<HTMLSpanElement>> {
-  const props: HTMLAttributes<HTMLSpanElement> = { className: rc.warnWrap }
-  return h('span', props, h(Tag, { tone: 'warning' }, text))
 }
 
 export interface SuiteCardProps {
@@ -142,13 +133,7 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
   return h(
     ResourceCard,
     { state: suite.installed && suite.enabled ? 'active' : 'disabled', surface: 'market', onClick: props.onOpen },
-    h(
-      'div',
-      { className: rc.rowId },
-      hoverHint(suite.name, h('span', hintProps({ className: rc.name }), suite.name)),
-      suite.version === undefined ? null : h('span', { className: rc.version }, `v${suite.version}`),
-      h(Tag, { tone: 'neutral' }, provenance)
-    ),
+    h(CardIdentity, { text: suite.name, version: suite.version, tag: provenance }),
     h('div', { className: rc.rowActions }, ...actions),
     // Two lines fit; anything longer stays readable through the hint.
     description === '' ? null : hoverHint(description, h('p', hintProps({ className: `${rc.rowBody} ${rc.desc}` }), description)),
@@ -156,16 +141,11 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
       'div',
       { className: rc.rowFoot },
       hoverHint(suite.sourceId, h('span', hintProps({ className: rc.provenance }), suite.sourceId)),
-      ...counts.flatMap(([label, count]) => [
-        h('span', { key: `sep-${label}`, className: rc.separator }, '·'),
-        h('span', { key: label, className: rc.count }, label, ' ', h('span', { className: rc.countValue }, String(count)))
-      ]),
+      ...counts.flatMap(([label, count]) => h(CardCount, { label, count })),
       suite.errors.length === 0 ? null : h('span', { key: 'errors', className: rc.separator }, '·'),
-      suite.errors.length === 0
-        ? null
-        : h(Tooltip, { label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')), children: warnAnchor(`⚠ ${t('errors')} ${suite.errors.length}`) }),
+      suite.errors.length === 0 ? null : h(CardWarning, { text: `⚠ ${t('errors')} ${suite.errors.length}`, label: suite.errors.slice(0, 8).join(t('sourceErrorSeparator')) }),
       mcpErrors.length === 0 ? null : h('span', { key: 'mcpSep', className: rc.separator }, '·'),
-      mcpErrors.length === 0 ? null : h(Tooltip, { label: mcpErrors.slice(0, 8).join(t('sourceErrorSeparator')), children: warnAnchor(`⚠ ${t('mcpSection')} ${mcpErrors.length}`) })
+      mcpErrors.length === 0 ? null : h(CardWarning, { text: `⚠ ${t('mcpSection')} ${mcpErrors.length}`, label: mcpErrors.slice(0, 8).join(t('sourceErrorSeparator')) })
     )
   )
 }

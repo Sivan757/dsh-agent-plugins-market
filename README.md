@@ -51,7 +51,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 ## What you can do
 
-- Enable the experimental Agent preset manager in plugin settings to show its composer entry. It is off by default and does not disable the session runtime. Session extension presets select skills, commands, roles, MCP and LSP capabilities through the Agent extension icon button to the right of Permissions. Each workspace owns a preset library and a default for new sessions. Existing sessions retain independent copies when presets change. Copy and paste a preset to another workspace to create an independent copy. Globally managed resources show their actual state without a session switch. Preset details do not change shared credentials or configuration. After a failed session selection, explicit recovery restores readiness and continues queued user input without another Send.
+- Enable the experimental Agent preset manager in plugin settings to show its composer entry. It is off by default and does not disable the session runtime. Session extension presets select skills, commands, roles, MCP and LSP capabilities through the Agent extension icon button to the right of Permissions. Each workspace owns a preset library and a default for new sessions. Selecting a preset while a session runtime is active takes effect on that session's next user request. Mid-turn steering and tools do not change. Editing the selected or pending preset in the current session updates that session. Every other session keeps its own detached copy. Copy and paste a preset to another workspace to create an independent copy. Globally managed resources show their actual state without a session switch. Preset details do not change shared credentials or configuration. After a failed session selection, explicit recovery restores readiness and continues queued user input without another Send.
 
 - **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
 - **Sources.** Add a Git repository, a local directory or an archive (`.zip` / `.tar.gz` / `.tgz` / `.tar`); adopt a checkout you cloned yourself; refresh on demand; delete a managed checkout when you remove its source.
@@ -64,7 +64,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 - **Project dimension.** Skills, agents, commands, MCP servers and hooks are read from the project's own directories with no install step.
 - **Your own resources.** Author skills, commands and agent personas as Markdown under `~/.agents/`, then edit them or disable them without deleting the files.
 - **Background source updates.** Optionally refresh every configured source on a timer; off by default.
-- **Web workspace.** Seven tabs: Market, Skills, Commands, Agent personas, MCP services, LSP servers and Hooks, each with search, filters and a grid/list toggle, plus status panels with diagnostics, credential editing, and an install confirmation that warns before executable third-party content is enabled.
+- **Web workspace.** Seven tabs: Market, Skills, Commands, Agent personas, MCP services, LSP servers and Hooks, each with search, filters and a grid/list toggle, plus status panels with diagnostics, credential editing, and an install confirmation that warns before executable third-party content is enabled. The settings page is the canonical layout. Every surface shares one tab row of equal columns that never scrolls sideways, and a label that does not fit ellipsizes. Every surface also shares one card and detail anatomy, and the preset manager follows it.
 - **Bilingual interface and feedback.** Workspace strings and injected prompts follow the host language. With feedback enabled, the model can file a `report_market_issue` report through the `gh` CLI or a GitHub token; with neither, it opens a prefilled GitHub issue page and hands you the complete issue text.
 - **Translation.** Descriptions and expanded documents can follow the Chinese or English interface. Names stay unchanged. Chinese defaults to on and English to off, but your saved choice takes priority. Documents offer original, translated, and paragraph-by-paragraph bilingual views, with bilingual selected by default. Translation starts on demand, tries Google Translate, Microsoft Translator, then your default model, and keeps the original when none answers. Results stay cached locally until cleared. Turning translation off keeps that cache. See [translation](docs/user/usage.md#translation).
 
@@ -95,13 +95,13 @@ The workspace has seven tabs:
 | Agent personas | Save role instructions and model settings; delegate through `subagent_role` or create role-aware Team members with `spawn_teammate_role`. |
 | MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                        |
 | LSP servers    | Add and configure language servers and inspect their runtime status.                                                                      |
-| Hooks          | Inspect configured command hooks and their supported events.                                                                              |
+| Hooks          | Inspect configured command hooks and supported events. Each row opens a read-only declaration with command, matcher, timeout and support. |
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
 
 Everything you author yourself lives in the shared Agent layout root: skills, commands and personas as Markdown under `~/.agents/`, command hooks in `~/.agents/hooks.json` (or `~/.agents/hooks/hooks.json`), and the MCP and LSP services you add in the workspace in `~/.agents/mcp.json` and `~/.agents/lsp.json`. Commands and personas are read at any subdirectory depth, so a file another tool wrote at `~/.agents/commands/git/commit.md` is callable as `/git-commit`. Project-native resources stay in the project. See [storage and discovery](docs/user/usage.md#storage-and-discovery) for paths and precedence.
 
-All seven tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active.
+All seven tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active. A hook row opens its own read-only declaration. The declaration shows the full command, the declared matcher, the declared timeout and the host support verdict, never the whole suite behind it.
 
 ## Compatibility and boundaries
 

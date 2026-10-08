@@ -24,54 +24,9 @@
   padding: 4px 0;
 }
 
-/* The host SegmentedTabs provides its own track, indicator, and keyboard
-   walk; this class only carries the row into the layout flow. */
-.tabRow {
-  flex: none;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-/* A wrapped tab row keeps its labels readable on one line: the host sizes
-   the columns equal-width by inline style, which at a narrow frame (a 390px
-   viewport bounds the preset manager to ~374px) squeezes six or seven labels
-   into columns narrow enough to wrap vertically and clip. The wrapped row
-   instead lays the host track out at the labels' natural width and scrolls
-   sideways — the market page's stable-gutter treatment. Font size, pill
-   height and the sliding indicator stay the host's; the inline
-   grid-template-columns yields only to an important override. Surfaces that
-   put .tabRow on the host tablist itself are untouched. */
-.tabRow > [role='tablist'] {
-  width: max-content;
-  min-width: 100%;
-  grid-auto-flow: column;
-  /* Equal columns keep the host indicator's `calc((100% - 8px) / N)` width and
-     `translateX(index * 100%)` step aligned; at max-content width each column
-     is as wide as the widest label needs. */
-  grid-auto-columns: 1fr;
-  grid-template-columns: none !important;
-  overflow: visible;
-}
-.tabRow > [role='tablist'] > [role='tab'] {
-  white-space: nowrap;
-}
-.tabRow::-webkit-scrollbar {
-  display: none;
-}
-
-/* The settings workspace's tab row: static by requirement. The column is
-   wide enough for every label, so the host's own equal-width grid fills the
-   width and the row never scrolls sideways — unlike the manager modal, where
-   .tabRow scrolls because the frame is narrow. Only nowrap keeps a long
-   locale from wrapping inside its fixed share. */
-.tabRowStatic {
-  flex: none;
-  min-width: 0;
-}
-.tabRowStatic > [role='tab'] {
-  white-space: nowrap;
-}
+/* Tab rows are the shared ResourceTabs component: it owns the row policy
+   (equal host columns, ellipsized labels, no sideways scroll) for the workspace
+   and the preset manager alike, so nothing here carries one surface's row. */
 
 .tabPanel {
   display: flex;

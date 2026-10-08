@@ -1,0 +1,44 @@
+/**
+ * The shared tab-row policy: equal host columns, no sideways scroll.
+ *
+ * The host sizes its columns with an inline equal-width grid, so this module
+ * only has to stop the row from growing past its frame and let each label
+ * truncate inside its own column. Nothing here sets `overflow-x`, and nothing
+ * hides a tab: a narrow frame ellipsizes labels instead.
+ */
+
+.row {
+  flex: none;
+  min-width: 0;
+  /* Clips, never scrolls: a label that cannot fit its column ellipsizes below. */
+  overflow: hidden;
+}
+
+.tabs {
+  min-width: 0;
+}
+
+.row [role='tab'] {
+  min-width: 0;
+  padding-inline: 6px;
+  overflow: hidden;
+}
+
+/* The dot-then-label arrangement, shared by the hook-event rows and the plain
+   ones. inline-flex keeps the dot aligned with the text and the gap fixed. */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The truncation target: one line, ellipsized, inside whatever column the host
+   grid gave it. */
+.labelText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

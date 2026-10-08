@@ -3,7 +3,7 @@ import { isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type { ExtensionSelection } from '../../market-contracts/src/contracts/extension-presets.js'
+import type { ExtensionHooksOverview, ExtensionSelection } from '../../market-contracts/src/contracts/extension-presets.js'
 import type { Suite } from '../../market-contracts/src/model/types.js'
 import { loadDisabledLspServers } from '../../market-lsp/src/index.js'
 import {
@@ -13,7 +13,6 @@ import {
   extensionWorkspace,
   projectExtensionSuites,
   readExtensionSuiteDeclarations,
-  loadUserHooksSuite,
   shellSeamOf,
   projectAgentRoles,
   type ExtensionToolGates,
@@ -54,11 +53,33 @@ interface SessionExtensions {
   session(): SuiteRouteSessionResolver | undefined
 }
 
+/** The catalog reads the settings Hooks page needs. */
+type HooksOverviewCatalog = Pick<Catalog, 'enabledUserSuites' | 'overview' | 'mcpStatus' | 'lspStatus'>
+
+/**
+ * The settings Hooks page's read: one row per declared command hook.
+ *
+ * `enabledUserSuites()` already carries the Agent layout root's synthetic hook
+ * suite whenever it declares events, so this read lists that result as it
+ * stands: the suite enters once and each declaration publishes one id.
+ */
+export async function readHooksOverview(catalog: HooksOverviewCatalog): Promise<ExtensionHooksOverview> {
+  const suites = await catalog.enabledUserSuites()
+  const rows = await readExtensionInventory(
+    {
+      catalog: { overview: () => catalog.overview(), mcpStatus: async () => catalog.mcpStatus(), lspStatus: async () => catalog.lspStatus() },
+      panels: { skills: { list: async () => [] }, commands: { list: async () => [] }, agents: { list: async () => [] } }
+    },
+    { projectSuites: suites }
+  )
+  return { rows: rows.filter(row => row.face === 'hooks') }
+}
+
 /**
  * Create the stable readers before catalog initialization. Mount only after its sources are loaded.
  * Call mount once. Host injection owns start and disposal; construction registers nothing.
  */
-export function createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, hostLocale }: SessionExtensionOptions): SessionExtensions {
+export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: SessionExtensionOptions): SessionExtensions {
   let extensionPresets: ExtensionRuntime | undefined
   let scopedContributors: ScopedExtensionContributors | undefined
   let selectedRoleSuites: ((agent: Agent) => Promise<Suite[]>) | undefined
@@ -158,17 +179,7 @@ export function createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, ho
         // shows both sources, provenance on every row. The same
         // readExtensionInventory fan-out produces the rows the manager's Hooks
         // tab renders, so both surfaces agree on identity and support verdicts.
-        hooksOverview: async () => {
-          const suites = [...(await catalog.enabledUserSuites()), await loadUserHooksSuite(agentsRoot)]
-          const rows = await readExtensionInventory(
-            {
-              catalog: { overview: () => catalog.overview(), mcpStatus: async () => catalog.mcpStatus(), lspStatus: async () => catalog.lspStatus() },
-              panels: { skills: { list: async () => [] }, commands: { list: async () => [] }, agents: { list: async () => [] } }
-            },
-            { projectSuites: suites }
-          )
-          return { rows: rows.filter(row => row.face === 'hooks') }
-        },
+        hooksOverview: () => readHooksOverview(catalog),
         // A session change touches that session only: its own contributions and its
         // own gate. The global pipeline belongs to catalog changes, which the change
         // hook drives for every agent.

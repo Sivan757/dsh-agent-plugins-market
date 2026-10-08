@@ -7,6 +7,7 @@ import { LspDetailModal } from '../features/lsp/LspStatusPanel.js'
 import { UserEntryDetailModal } from '../ui/UserEntryDetail.js'
 import { fetchLspStatus, fetchMcpStatus, fetchUserPanelEntry, type LspStatusEntry, type McpStatusEntry, type UserPanelEntry } from '../api.js'
 import type { Translate } from '../i18n.js'
+import { HookDetailModal } from '../ui/HookDetailModal.js'
 import type { ExtensionDetailProps } from '../features/extension-presets/details.js'
 
 export function ExtensionDetailView(props: ExtensionDetailProps): ReactNode {
@@ -61,6 +62,7 @@ function ResourceDetail({ resource, t, onClose }: ExtensionDetailProps): ReactNo
       alive = false
     }
   }, [address, t])
+  if (address.kind === 'hook') return h(HookDetailModal, { detail: address, t: translate, onClose })
   if (address.kind === 'suite')
     return h(SuiteDetailModal, {
       sessionId: address.sessionId,

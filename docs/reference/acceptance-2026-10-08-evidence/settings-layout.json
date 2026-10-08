@@ -1,0 +1,19 @@
+{
+  "tabs": [
+    {
+      "width": 564,
+      "scrollWidth": 564,
+      "overflow": "hidden",
+      "labels": [
+        { "text": "市场", "width": 79, "clipped": false },
+        { "text": "技能", "width": 79, "clipped": false },
+        { "text": "快捷指令", "width": 79, "clipped": false },
+        { "text": "专家", "width": 79, "clipped": false },
+        { "text": "连接器", "width": 79, "clipped": false },
+        { "text": "语言引擎", "width": 79, "clipped": false },
+        { "text": "钩子", "width": 79, "clipped": false }
+      ]
+    }
+  ],
+  "cards": ["hooks:@user-hooks/user-hooks/SessionStart/0"]
+}

@@ -91,6 +91,37 @@ it('suppresses pending auth confirmation when changed to read-only', async () =>
   expect(retry).not.toHaveBeenCalled()
   expect(auth).not.toHaveBeenCalled()
 })
+it('opens a single Hook declaration with its full command and diagnostic', async () => {
+  const command = 'node -e "' + 'a'.repeat(200) + '"'
+  await render({
+    id: 'hooks:source/suite/SessionStart/0',
+    face: 'hooks',
+    name: command,
+    source: 'Suite',
+    available: true,
+    detail: {
+      kind: 'hook',
+      sourceId: 'source',
+      suiteId: 'suite',
+      event: 'SessionStart',
+      hookIndex: 0,
+      provenance: 'Suite',
+      command,
+      matcher: 'startup|resume',
+      timeoutSec: 12,
+      support: 'supported',
+      diagnostic: 'fixture diagnostic'
+    }
+  })
+  expect(document.querySelector('pre')?.textContent).toBe(command)
+  expect(document.body.textContent).toContain('SessionStart')
+  expect(document.body.textContent).toContain('startup|resume')
+  expect(document.body.textContent).toContain('fixture diagnostic')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('hookDetailTimeout')
+  expect(document.querySelector('input')).toBeNull()
+  expect(api.fetchMcpStatus).not.toHaveBeenCalled()
+  expect(api.fetchLspStatus).not.toHaveBeenCalled()
+})
 it('uses the full LSP detail rather than navigating to settings', async () => {
   vi.mocked(api.fetchLspStatus).mockResolvedValue({ entries: [lsp] } as Awaited<ReturnType<typeof api.fetchLspStatus>>)
   await render({ ...row('lsp', lsp.id), detail: { kind: 'lsp', entryId: lsp.id, sessionId: 'project-session' } })
