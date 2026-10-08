@@ -1,0 +1,26 @@
+$ pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse
+$ pnpm run typecheck && pnpm run lint
+$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.test.client.json --noEmit
+$ eslint index.ts packages tests
+$ prettier --check .
+Checking formatting...
+All matched files use Prettier code style!
+$ vitest run tests/market-contracts.test.ts tests/routes.test.ts
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ✓ tests/routes.test.ts (13 tests) 58ms
+ ✓ tests/market-contracts.test.ts (3 tests) 2ms
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  10:55:43
+   Duration  958ms (transform 460ms, setup 0ms, import 718ms, tests 60ms, environment 0ms)
+
+$ depcruise --validate .dependency-cruiser.cjs index.ts packages
+
+✔ no dependency violations found (260 modules, 980 dependencies cruised)
+
+$ node scripts/check-reuse.mjs
+check-reuse: 60 ledger rows, 1 surface dir(s), 344 published export names
+check-reuse: ok

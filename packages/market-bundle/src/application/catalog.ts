@@ -10,7 +10,7 @@
  * know which collaborator owns a given invariant.
  */
 import { qualifiedSuiteId } from '../../../market-catalog/src/index.js'
-import { stripFrontmatter } from '../../../market-catalog/src/index.js'
+
 import type { LspLegacySeamMigration, LspStatusPayload } from '../../../market-contracts/src/contracts/lsp-status.js'
 import type {
   MenuRowFaceWire,
@@ -27,17 +27,16 @@ import type { SourceRef, Suite, SuiteSurfaceKey } from '../../../market-contract
 import type { McpBackend } from '../../../market-contracts/src/contracts/mcp.js'
 import { loadUserMcpSuite } from '../../../market-mcp/src/index.js'
 import type { McpMountDiagnostic } from '../../../market-contracts/src/contracts/mcp.js'
-import { loadSuiteOverrides, type McpServerOverride, type McpSuiteOverrides } from '../../../market-mcp/src/index.js'
+import { type McpServerOverride, type McpSuiteOverrides } from '../../../market-mcp/src/index.js'
 import { loadUserHooksSuite } from '../../../market-runtime/src/index.js'
 import { applyLspOverrides } from '../../../market-lsp/src/index.js'
-import { buildSuiteDetail, readSuiteDocument } from './details.js'
+import { SuiteQueries } from './suite-queries.js'
 import { CatalogContext, type CatalogGitOptions, type CatalogOptions } from '../../../market-catalog/src/index.js'
 import { TranslationService } from '../../../market-translation/src/index.js'
 import type { DocumentTranslation, TranslationFields, TranslationSurfaceKind } from '../../../market-contracts/src/contracts/translation.js'
 import { InstallStore } from '../../../market-catalog/src/index.js'
 import { LspService } from '../../../market-lsp/src/index.js'
 import { McpService } from '../../../market-mcp/src/index.js'
-import { pluginResourceId } from '../../../market-runtime/src/index.js'
 import {
   resolveCatalogPorts,
   type CatalogPorts,
@@ -62,6 +61,7 @@ export class Catalog implements MarketService {
   private readonly mcp: McpService
   private readonly lsp: LspService
   private readonly translation: TranslationService
+  private readonly suiteQueries: SuiteQueries
 
   constructor(options: CatalogOptions) {
     this.context = new CatalogContext(options)
@@ -80,6 +80,18 @@ export class Catalog implements MarketService {
       providers: this.ports.translationProviders ?? [],
       ...(this.ports.translationEnabled === undefined ? {} : { enabled: this.ports.translationEnabled }),
       providerIdentity: this.ports.translationProviderIdentity ?? (() => 'none')
+    })
+    // Every dependency is a closure over this instance, so a caller that replaces
+    // one of these methods still decides what the query sees.
+    this.suiteQueries = new SuiteQueries({
+      readUserCatalog: () => this.readUserCatalog(),
+      readProjectCatalog: cwd => this.readProjectCatalog(cwd),
+      installed: (sourceId, suiteId) => this.context.installed(sourceId, suiteId),
+      dataRoot: () => this.context.dataRoot,
+      mcpDiagnostics: () => this.mcp.diagnostics,
+      localePreference: () => this.ports.localePreference(),
+      translateFields: (surface, id, fields, locale) => this.translateFields(surface, id, fields, locale),
+      translateDocument: (surface, id, text, locale) => this.translateDocument(surface, id, text, locale)
     })
   }
 
@@ -356,66 +368,19 @@ export class Catalog implements MarketService {
     return faces
   }
 
-  /** One suite's full detail for the market detail modal. */
+  /** One suite's full detail. {@link SuiteQueries.suiteDetail} owns the composition. */
   async suiteDetail(sourceId: string, suiteId: string, projectCwd?: string): Promise<SuiteDetail> {
-    const suite = await this.suiteOf(sourceId, suiteId, projectCwd)
-    const suiteKey = qualifiedSuiteId(sourceId, suiteId)
-    const detail = await buildSuiteDetail(suite, this.context.installed(sourceId, suiteId), this.mcp.diagnostics, await loadSuiteOverrides(this.context.dataRoot, suiteKey))
-    // The detail modal renders the same name and description as the card, so it
-    // takes the same translations (and queues the same cache misses).
-    const localized = this.translateFields('market', suiteKey, { name: detail.name, description: detail.description ?? undefined }, this.ports.localePreference())
-    return { ...detail, ...localized.fields, ...(localized.pending > 0 ? { translationPending: localized.pending } : {}) }
+    return this.suiteQueries.suiteDetail(sourceId, suiteId, projectCwd)
   }
 
-  /**
-   * One suite document's authored text for the market detail modal — a skill, a
-   * command, or an agent, all through the one reader.
-   *
-   * The suite comes from the same snapshot {@link suiteDetail} answers from, and
-   * the text is re-read from the checkout the scan found it in: the request
-   * names an identity, never a path, so this route cannot be spent on a file of
-   * a page's choosing.
-   */
+  /** One suite document's authored text. {@link SuiteQueries.suiteDocument} owns the read. */
   async suiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, projectCwd?: string): Promise<SuiteDocumentText> {
-    const suite = await this.suiteOf(sourceId, suiteId, projectCwd)
-    return { name, content: await readSuiteDocument(suite, kind, name) }
+    return this.suiteQueries.suiteDocument(sourceId, suiteId, kind, name, projectCwd)
   }
 
-  /** The normalized suite a source-qualified identity names, or a miss. */
-  private async suiteOf(sourceId: string, suiteId: string, projectCwd?: string): Promise<Suite> {
-    const snapshot = projectCwd === undefined ? await this.readUserCatalog() : await this.readProjectCatalog(projectCwd)
-    const suite = snapshot.suites.find(entry => entry.sourceId === sourceId && entry.id === suiteId)
-    if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
-    return suite
-  }
-
-  /**
-   * Translate one suite document for the market detail page.
-   *
-   * The suite comes from the same snapshot {@link suiteDetail} and
-   * {@link suiteDocument} answer from, and the document is re-read from the
-   * checkout the scan found it in: the request names an identity and never
-   * carries text, so this path cannot be spent on content of a page's choosing.
-   *
-   * The translation is keyed exactly as the user panel keys the same file
-   * ({@link pluginResourceId}, on the document's own surface), so one document
-   * is one cache entry however it was opened — whichever surface translated it
-   * first, the other reads it back without paying a provider again.
-   *
-   * Frontmatter is stripped for the reason the panel strips it: a provider
-   * asked to translate YAML answers with YAML that no longer parses. The reader
-   * still sees the authored block above the document, because the row renders
-   * the file and this section renders only its translation.
-   * @param sourceId - the source the suite belongs to.
-   * @param suiteId - the suite's id inside that source.
-   * @param kind - which document surface the name belongs to.
-   * @param name - the document's name inside that surface.
-   * @returns the assembled body and how many chunks are still in flight.
-   */
+  /** One suite document's translation. {@link SuiteQueries.suiteDocumentTranslation} owns the keying. */
   async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, projectCwd?: string): Promise<DocumentTranslation> {
-    const suite = await this.suiteOf(sourceId, suiteId, projectCwd)
-    const text = await readSuiteDocument(suite, kind, name)
-    return this.translateDocument(kind, pluginResourceId(sourceId, suiteId, kind, name), stripFrontmatter(text), this.ports.localePreference())
+    return this.suiteQueries.suiteDocumentTranslation(sourceId, suiteId, kind, name, projectCwd)
   }
 
   // ---- Source acquisition and CRUD ----

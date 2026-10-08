@@ -20,9 +20,13 @@ A new server bundler would add module-resolution and dynamic-import changes. Roo
 
 A universal mutable shared service would obscure ownership. The contracts workspace contains stateless records, helpers and type-only ports, not stores or runtime registrations.
 
+A generic registration container would add lifecycle policy that the host already owns. Bundle-local session assembly retains the existing injected scope and disposal order instead.
+
 ## Consequences
 
 Catalog discovery does not instantiate translation or connector services. Runtime receives concrete connector factories from composition. Translation presentation rules live in its own service. MCP and LSP configuration use cases have separate owners.
+
+Bundle-local session assembly owns per-agent maps, selection application, cached project readers and role queries. Suite presentation has a separate read-only module. Both retain live callbacks and existing lifecycle ordering.
 
 Tests remain in the root integration suite for this migration. Package-entry smoke tests complement internal unit tests. All 1,860 frozen test identities remain exercised.
 
