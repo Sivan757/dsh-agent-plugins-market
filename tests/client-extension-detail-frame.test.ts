@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, createElement as h } from 'react'
+import { readFileSync } from 'node:fs'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it } from 'vitest'
 import { DetailModal, SettingsSizedDetails } from '../packages/market-ui/src/ui/DetailModal.js'
@@ -26,6 +27,10 @@ it('keeps preset details settings-sized across loading and loaded content withou
     expect(dialog.classList.contains(css.settingsFrame!)).toBe(true)
     expect(dialog.classList.contains(css.tallDialog!)).toBe(true)
     expect(dialog.textContent).toContain(content)
+    expect(dialog.querySelector(`.${css.contentStack!}`)?.textContent).toBe(content)
     expect(dialog.querySelector(`.${css.footer!}`)?.textContent).toContain('Toggle preset resource')
   }
+  const styles = readFileSync('packages/market-ui/src/ui/detail.module.css', 'utf8')
+  expect(styles).not.toContain("[class*='body'] > *")
+  expect(styles).toContain('container-type: inline-size')
 })

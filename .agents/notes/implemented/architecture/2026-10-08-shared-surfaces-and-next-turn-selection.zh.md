@@ -33,3 +33,5 @@ Status: implemented
 ## Verification
 
 参见[验收台账](../../../../docs/reference/acceptance-fixes-2026-10-08.md)。回归覆盖输入标识、当前轮次稳定、请求版本、回放、分支、共享标签和单项 Hook 详情。
+
+[输入框实时刷新和详情内容流](../bug-fix/2026-10-09-skill-menu-freshness-and-detail-flow.zh.md)补充客户端缓存失效并保留各内容块布局。选择生效边界保持不变。

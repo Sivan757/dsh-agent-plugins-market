@@ -9,6 +9,7 @@ import { createWriteQueue, resourceSelected, toggleResource, uniquePresetName } 
 import { apply, COMPOSER_TOGGLE_SLOT } from '../packages/market-ui/src/index.js'
 import { bindAgentPresetsEnabled } from '../packages/market-ui/src/ui/agent-presets-enabled.js'
 import { ExtensionPresetEntry } from '../packages/market-ui/src/features/extension-presets/ExtensionPresetEntry.js'
+import { useExtensionWindow } from '../packages/market-ui/src/features/extension-presets/use-window.js'
 import { extensionPresetsEn, extensionPresetsZh } from '../packages/market-ui/src/locales-extension-presets.js'
 import type { ExtensionResource, ExtensionWindowPayload } from '../packages/market-contracts/src/contracts/extension-presets.js'
 const renderDetail = vi.fn(() => null)
@@ -88,6 +89,45 @@ afterEach(async () => {
   root = undefined
 })
 describe('extension preset state', () => {
+  it('keeps the newest overlapping read and owns one polling timer after commit replay', async () => {
+    vi.useFakeTimers()
+    const responses: Array<(value: { ok: boolean; json(): Promise<ExtensionWindowPayload> }) => void> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(resolve => responses.push(resolve)))
+    )
+    const committed = vi.fn()
+    const observer = {
+      committed,
+      subscribe: (_id: string, refresh: () => void) => {
+        refresh()
+        return () => {}
+      }
+    }
+    function Probe() {
+      const window = useExtensionWindow('session / one', observer)
+      return h('span', null, String(window.data?.state.revision ?? 'loading'))
+    }
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    try {
+      await act(async () => root!.render(h(Probe)))
+      expect(responses).toHaveLength(2)
+      const newer = payload()
+      newer.state.revision = 2
+      await act(async () => responses[1]!({ ok: true, json: async () => newer }))
+      await act(async () => responses[0]!({ ok: true, json: async () => payload() }))
+      expect(host.textContent).toBe('2')
+      expect(committed).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(1)
+      await act(async () => root!.unmount())
+      root = undefined
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('registers exactly one session-scoped entry using actual slot props', async () => {
     const register = vi.fn<Parameters<typeof apply>[0]['slots']['register']>(() => undefined)
     const dictionary = vi.fn()

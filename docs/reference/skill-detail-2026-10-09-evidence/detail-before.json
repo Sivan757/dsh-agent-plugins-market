@@ -1,0 +1,22 @@
+{
+  "title": "fresh-one",
+  "rect": { "x": 240, "y": 100, "width": 800, "height": 800, "top": 100, "right": 1040, "bottom": 900, "left": 240 },
+  "blocks": [
+    { "class": "_8d45eG_hero", "flex": "1 0 auto", "direction": "column", "height": 184.5, "text": "已启用用户/tmp/market-live-details-crrnwr/agents/skills/fresh-one/SKILL.md" },
+    { "class": "_8d45eG_heroText", "flex": "0 1 auto", "direction": "column", "height": 44, "text": "已启用用户/tmp/market-live-details-crrnwr/agents/skills/fresh-one/SKILL.md" },
+    { "class": "_8d45eG_heroLine", "flex": "0 1 auto", "direction": "row", "height": 21, "text": "已启用用户" },
+    { "class": "_8d45eG_heroMono", "flex": "0 1 auto", "direction": "row", "height": 18, "text": "/tmp/market-live-details-crrnwr/agents/skills/fresh-one/SKILL.md" },
+    {
+      "class": "_8d45eG_block",
+      "flex": "1 0 auto",
+      "direction": "column",
+      "height": 157.5,
+      "text": "概览来源套件用户类型用户磁盘路径/tmp/market-live-details-crrnwr/agents/skills/fresh-on"
+    },
+    { "class": "_8d45eG_blockHead", "flex": "0 1 auto", "direction": "row", "height": 16, "text": "概览" },
+    { "class": "_8d45eG_block", "flex": "1 0 auto", "direction": "column", "height": 141.5, "text": "描述First live skill for freshness and detail acceptance." },
+    { "class": "_8d45eG_blockHead", "flex": "0 1 auto", "direction": "row", "height": 16, "text": "描述" },
+    { "class": "_8d45eG_block", "flex": "1 0 auto", "direction": "column", "height": 156.5, "text": "技能文档SKILL.md点击展开完整内容" },
+    { "class": "_8d45eG_blockHead", "flex": "0 1 auto", "direction": "row", "height": 16, "text": "技能文档" }
+  ]
+}

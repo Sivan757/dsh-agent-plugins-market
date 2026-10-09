@@ -35,6 +35,8 @@
     "tests/client-extension-detail-frame.test.ts",
     "tests/client-hooks-status-panel.test.ts",
     "tests/client-hook-resource-card.test.ts",
+    "tests/client-skill-refresh.test.ts",
+    "tests/client-selection-skill-notifications.test.ts",
     "tests/client-agent-presets-gate.test.ts",
     "tests/client-agent-extension-icon.test.ts",
     "tests/client-extension-preset-details.test.ts",

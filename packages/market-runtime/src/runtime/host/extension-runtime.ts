@@ -298,11 +298,12 @@ export class ExtensionRuntime implements ExtensionRouteService {
   }
   async window(sessionId: string): Promise<ExtensionWindowPayload> {
     const agent = this.agent(sessionId)
+    const [library, resources] = await Promise.all([this.store.read(extensionWorkspace(agent)), this.refreshInventory(agent)])
+    await this.state.whenSelectionSettled(agent)
     const status = this.state.status(agent)
     // Not ready is a reportable state, not a failed read: the payload carries
     // the diagnostics plus a display-only snapshot that authorizes nothing.
     const state = status.ready ? this.state.read(agent) : undefined
-    const [library, resources] = await Promise.all([this.store.read(extensionWorkspace(agent)), this.refreshInventory(agent)])
     const started = this.progress.read(agent.session)
     const intent = this.state.intended(agent)
     return {

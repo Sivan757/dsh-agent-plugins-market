@@ -27,6 +27,21 @@ const FACE_PATCH = Symbol.for('dsh-agent-plugins-market.menu-row-face')
 
 /** Disposer recorded on a patched function, handed back to a second installer. */
 const FACE_DISPOSE = Symbol.for('dsh-agent-plugins-market.menu-row-face.dispose')
+const CATALOG_CANDIDATES = Symbol.for('dsh-agent-plugins-market.skill-catalog.candidates')
+const ORIGINAL_CANDIDATES = Symbol.for('dsh-agent-plugins-market.original-candidates')
+
+/** Replace the catalog reader below this plugin's optional translation wrapper. */
+export function replaceSkillCandidates(holder: Record<string | symbol, unknown>, candidate: (this: unknown, ...args: unknown[]) => unknown): () => void {
+  const current = holder['candidates']
+  const original = marker(current, ORIGINAL_CANDIDATES) ?? current
+  mark(candidate, ORIGINAL_CANDIDATES, original)
+  holder[CATALOG_CANDIDATES] = candidate
+  if (marker(current, FACE_PATCH) !== true) holder['candidates'] = candidate
+  return () => {
+    if (holder[CATALOG_CANDIDATES] === candidate) delete holder[CATALOG_CANDIDATES]
+    if (holder['candidates'] === candidate) holder['candidates'] = original
+  }
+}
 
 /** The menu groups this plugin faces. */
 export type MenuRowSource = 'commands' | 'skills'
@@ -162,7 +177,9 @@ function wrapCandidates(holder: unknown, source: MenuRowSource, faceOf: MenuRowF
     // A rejected Host source is the Host's to report: it already renders as a
     // failed group with a console error, and swallowing it here would trade a
     // loud failure for a silently empty group.
-    const rows = await call.apply(this, args)
+    const read = (holder as Record<symbol, unknown>)[CATALOG_CANDIDATES]
+    const reader = (typeof read === 'function' ? read : (marker(call, ORIGINAL_CANDIDATES) ?? call)) as typeof call
+    const rows = await reader.apply(this, args)
     try {
       onCandidates?.(args[0])
       return faceRows(rows, source, faceOf)
@@ -173,9 +190,12 @@ function wrapCandidates(holder: unknown, source: MenuRowSource, faceOf: MenuRowF
   }
   const dispose = (): void => {
     if (target['candidates'] !== patched) return
-    if (inherited) delete target['candidates']
-    else target['candidates'] = original
+    const read = (holder as Record<symbol, unknown>)[CATALOG_CANDIDATES]
+    if (typeof read === 'function') target['candidates'] = read
+    else if (inherited) delete target['candidates']
+    else target['candidates'] = marker(original, ORIGINAL_CANDIDATES) ?? original
   }
+  mark(patched, ORIGINAL_CANDIDATES, marker(original, ORIGINAL_CANDIDATES) ?? original)
   mark(patched, FACE_PATCH, true)
   mark(patched, FACE_DISPOSE, dispose)
   try {
@@ -193,73 +213,65 @@ function isSkillSource(value: unknown): boolean {
 }
 
 /** The `skill` sources already on the roster, when the service exposes its live list. */
-function registeredSkillSources(roster: unknown): unknown[] {
+export function registeredSkillSources(roster: unknown): unknown[] {
   const sources = field(field(roster, 'live'), 'sources')
   return Array.isArray(sources) ? sources.filter(isSkillSource) : []
 }
 
-/**
- * Face a `skill` source that registers after this plugin.
- *
- * `ui-skill` owns the group and the bundle order does not guarantee it runs
- * first, so the roster is read once and this covers the late arrival. Watching
- * registration is the timer-free form of a retry: no polling, no delay, and it
- * unwinds with the disposer.
- * @param roster - the `ctx.inputTriggers` service.
- * @param faceOf - the owner's face resolver.
- * @param collect - receives the disposer of every source faced while watching.
- * @returns the disposer, or undefined when the roster exposes no registration seam.
- */
-function watchSkillRegistrations(
-  roster: unknown,
-  faceOf: MenuRowFaceOptions['faceOf'],
-  collect: (dispose: () => void) => void,
-  onCandidates?: MenuRowFaceOptions['onCandidates']
-): (() => void) | undefined {
-  if (roster === null || roster === undefined) return undefined
-  if (typeof roster !== 'object' && typeof roster !== 'function') return undefined
+type SourceAdapter = (source: Record<string | symbol, unknown>) => (() => void) | undefined
+type SourceWatch = { listeners: Set<(source: unknown) => void>; restore: () => void }
+const sourceWatchers = new WeakMap<object, SourceWatch>()
+
+/** Adapt existing and later skill sources, without registering a second menu group. */
+export function adaptSkillSources(roster: unknown, adapt: SourceAdapter): () => void {
+  if (roster === null || typeof roster !== 'object') return () => {}
   const target = roster as Record<string, unknown>
-  const register = target['registerSource']
-  if (typeof register !== 'function') return undefined
-  if (marker(register, FACE_PATCH) === true) return undefined
-  const inherited = !Object.prototype.hasOwnProperty.call(target, 'registerSource')
-  const call = register as (this: unknown, ...args: unknown[]) => unknown
-  const patched = function patchedRegisterSource(this: unknown, ...args: unknown[]): unknown {
-    const disposer = call.apply(this, args)
-    const source = args[0]
-    if (isSkillSource(source)) {
-      try {
-        const dispose = wrapCandidates(source, 'skills', faceOf, onCandidates)
-        if (dispose !== undefined) collect(dispose)
-      } catch (error) {
-        reportFailure(error)
+  const releases = new Map<unknown, () => void>()
+  const accept = (source: unknown): void => {
+    if (!isSkillSource(source) || releases.has(source)) return
+    try {
+      const release = adapt(source as Record<string | symbol, unknown>)
+      if (release) releases.set(source, release)
+    } catch (error) {
+      reportFailure(error)
+    }
+  }
+  let watch = sourceWatchers.get(roster)
+  if (!watch) {
+    const listeners = new Set<(source: unknown) => void>()
+    const original = target['registerSource']
+    if (typeof original !== 'function') return () => {}
+    const subscribers = listeners
+    const patched = function (this: unknown, source: unknown): unknown {
+      for (const listener of subscribers) listener(source)
+      return original.call(this, source)
+    }
+    target['registerSource'] = patched
+    watch = {
+      listeners,
+      restore: () => {
+        if (target['registerSource'] === patched) target['registerSource'] = original
       }
     }
-    return disposer
+    sourceWatchers.set(roster, watch)
   }
-  const dispose = (): void => {
-    if (target['registerSource'] !== patched) return
-    if (inherited) delete target['registerSource']
-    else target['registerSource'] = register
+  const { listeners, restore } = watch
+  listeners.add(accept)
+  for (const source of registeredSkillSources(roster)) accept(source)
+  return () => {
+    listeners.delete(accept)
+    for (const release of releases.values()) release()
+    releases.clear()
+    if (listeners.size === 0) {
+      restore()
+      sourceWatchers.delete(roster)
+    }
   }
-  mark(patched, FACE_PATCH, true)
-  try {
-    target['registerSource'] = patched
-  } catch (error) {
-    reportFailure(error)
-    return undefined
-  }
-  return dispose
 }
 
-/** Face every `skill` source the roster can reach, now and on later registration. */
+/** Face every reachable skill source, now and on later registration. */
 function faceSkillSources(options: MenuRowFaceOptions, collect: (dispose: () => void) => void): void {
-  for (const source of registeredSkillSources(options.inputTriggers)) {
-    const dispose = wrapCandidates(source, 'skills', options.faceOf, options.onCandidates)
-    if (dispose !== undefined) collect(dispose)
-  }
-  const watching = watchSkillRegistrations(options.inputTriggers, options.faceOf, collect, options.onCandidates)
-  if (watching !== undefined) collect(watching)
+  collect(adaptSkillSources(options.inputTriggers, source => wrapCandidates(source, 'skills', options.faceOf, options.onCandidates)))
 }
 
 /**

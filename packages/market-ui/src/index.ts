@@ -6,6 +6,10 @@
  * module table, so it cannot reach packages the host does not serve.
  */
 import { createElement as h, type ReactNode } from 'react'
+import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
+import { createSkillCatalogRefresh, type SkillCatalogRefresh, type SkillCatalogEntry } from './ui/skill-catalog-refresh.js'
+import { watchSelectionCommits, type SelectionCommitBinding } from './ui/selection-skill-notifications.js'
+import type { ExtensionWindowObserver } from './features/extension-presets/use-window.js'
 import { createRoot } from 'react-dom/client'
 import { BusyOverlay } from './ui/BusyOverlay.js'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
@@ -58,6 +62,7 @@ interface ConfigFormsService {
 /** The client cordis context this plugin relies on (structural subset). */
 interface SuiteClientContext {
   effect(callback: () => unknown, label?: string): void
+  on?(event: 'connection/reset', listener: () => void): () => void
   /** Late service resolution; absent on hosts predating cross-plugin inject. */
   inject?(services: string[], callback: (resolved: Record<string, unknown>) => (() => void) | undefined): void
   configForms?: ConfigFormsService
@@ -77,10 +82,10 @@ export const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
  * The slot's payload, behind the experimental switch: nothing renders while
  * the setting is off, and a flip shows the entry without a reload.
  */
-function PresetEntrySlot(props: { sessionId?: string; t: ExtensionTranslate }): ReactNode {
+function PresetEntrySlot(props: { sessionId?: string; t: ExtensionTranslate; observer: ExtensionWindowObserver }): ReactNode {
   const enabled = useAgentPresetsEnabled()
   if (!enabled || !props.sessionId) return null
-  return h(ExtensionPresetEntry, { sessionId: props.sessionId, t: props.t, renderDetail: detail => h(ExtensionDetailView, detail) })
+  return h(ExtensionPresetEntry, { sessionId: props.sessionId, t: props.t, observer: props.observer, renderDetail: detail => h(ExtensionDetailView, detail) })
 }
 
 /** Detect host primitives that predate the exports this UI relies on. */
@@ -88,13 +93,83 @@ export function missingPrimitives(module: Record<string, unknown>, required: rea
   return required.filter(name => module[name] === undefined)
 }
 
+interface SkillRefreshServices {
+  inputTriggers: unknown
+  sessions: {
+    scope(id: string): unknown
+    binding(id: string): SelectionCommitBinding | undefined
+    subagentAddress?(id: string): unknown
+    list: { getSnapshot(): { byId: Record<string, { cwd?: string } | undefined> } }
+  }
+  remote: {
+    skills: {
+      list(
+        request: { sessionId: string },
+        signal: AbortSignal
+      ): Promise<{ ok: true; value: { skills: SkillCatalogEntry[] } } | { ok: false; error: { code: string; message: string } }>
+    }
+    $on?(event: 'agent-preset/selected', listener: (sessionId: string) => void): () => void
+  }
+  sidebarRight: { openResource(address: ReturnType<typeof fileAddressFor>): void }
+}
+
 export function apply(ctx: SuiteClientContext): void {
+  let catalog: SkillCatalogRefresh | undefined
+  let bindingOf: ((id: string) => SelectionCommitBinding | undefined) | undefined
+  const subscriptions = new Set<{ id: string; refresh: () => void; stop?: () => void }>()
+  const connect = (entry: { id: string; refresh: () => void; stop?: () => void }) => {
+    entry.stop?.()
+    const binding = bindingOf?.(entry.id)
+    entry.stop = binding ? watchSelectionCommits(binding, entry.refresh) : undefined
+  }
+  const observer: ExtensionWindowObserver = {
+    committed: id => catalog?.refresh(id),
+    subscribe: (id, refresh) => {
+      const entry = { id, refresh, stop: undefined as (() => void) | undefined }
+      subscriptions.add(entry)
+      connect(entry)
+      return () => {
+        entry.stop?.()
+        subscriptions.delete(entry)
+      }
+    }
+  }
+  ctx.inject?.(['inputTriggers', 'sessions', 'remote.skills', 'sidebarRight'], resolved => {
+    const scoped = resolved as unknown as SkillRefreshServices
+    if (!scoped.inputTriggers || !scoped.sessions || !scoped.remote?.skills || !scoped.sidebarRight) return
+    catalog = createSkillCatalogRefresh({
+      inputTriggers: scoped.inputTriggers,
+      sessions: scoped.sessions,
+      list: async (sessionId, signal) => {
+        const result = await scoped.remote.skills.list({ sessionId }, signal)
+        if (!result.ok) throw new Error('skills/list failed: ' + result.error.code + ': ' + result.error.message)
+        return result.value.skills
+      },
+      userOnlyLabel: () => (ctx.locale.bind('skill') as (key: string) => string)('menu.userOnly'),
+      openResource: (sessionId, path) => scoped.sidebarRight.openResource(fileAddressFor(sessionId, scoped.sessions.list.getSnapshot().byId[sessionId]?.cwd, path))
+    })
+    const offPreset = scoped.remote.$on?.('agent-preset/selected', id => catalog?.refresh(id))
+    const offReset = ctx.on?.('connection/reset', () => catalog?.refreshAll())
+    bindingOf = id => scoped.sessions.binding(id)
+    for (const entry of subscriptions) connect(entry)
+    return () => {
+      for (const entry of subscriptions) {
+        entry.stop?.()
+        entry.stop = undefined
+      }
+      offPreset?.()
+      offReset?.()
+      bindingOf = undefined
+      catalog?.dispose()
+      catalog = undefined
+    }
+  })
   // No additive top entry exists; this seat supplies the materialized session identity beside Permissions.
   // The capability is experimental: the entry renders only while the setting is on, and a flip shows it without a reload.
   ctx.slots.inject(COMPOSER_TOGGLE_SLOT, () => {
     const dispose = ctx.slots.register(
       { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-resources', order: 60, label: () => (ctx.locale.bind(NS) as ExtensionTranslate)('epTitle') },
-      (props: { sessionId?: string }) => slotH(PresetEntrySlot, { sessionId: props.sessionId, t: ctx.locale.bind(NS) as ExtensionTranslate })
+      (props: { sessionId?: string }) => slotH(PresetEntrySlot, { sessionId: props.sessionId, t: ctx.locale.bind(NS) as ExtensionTranslate, observer })
     )
     return () => dispose?.()
   })

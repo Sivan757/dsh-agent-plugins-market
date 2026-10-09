@@ -601,6 +601,10 @@ export class ExtensionSessionState {
       })
     )
   }
+  /** Join the current selection writer, not the active user turn; failures remain visible through status. */
+  async whenSelectionSettled(agent: Agent): Promise<void> {
+    await this.requests.get(agent)
+  }
   /** Public compare-and-swap token, independent of the sequential binding journal. */
   selectionRevision(agent: Agent): number {
     const committed = this.checkpoints.get(agent)?.committed

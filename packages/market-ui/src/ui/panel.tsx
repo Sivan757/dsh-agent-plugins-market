@@ -139,6 +139,7 @@ export function EntryEditorModal(props: {
       setError(props.nameLabel)
       return
     }
+    setError(undefined)
     void props
       .onSave({ ...current, name: current.name.trim() })
       .then(ok => {

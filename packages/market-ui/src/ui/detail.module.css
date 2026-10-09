@@ -57,14 +57,16 @@
   min-height: 0;
   overflow-y: auto;
 }
-/* Whatever the caller wraps the editor in fills that body, so the editor's own
-   controls can take the height the shorter view leaves over. It grows but never
-   shrinks: a wrapper compressed below its content would clip the form and leave
-   the body with nothing to scroll. */
-.tallDialog [class*='content'] > [class*='body'] > * {
+/* Own the flex allocation without overriding the layout of individual detail blocks. */
+.contentStack {
   display: flex;
   flex: 1 0 auto;
   flex-direction: column;
+  min-width: 0;
+  container-type: inline-size;
+}
+.contentStack > * {
+  flex-shrink: 0;
 }
 .footer {
   display: flex;

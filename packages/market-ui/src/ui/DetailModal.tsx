@@ -50,6 +50,7 @@ export function DetailModal(props: ComponentProps<typeof Modal> & { size?: Detai
       ...modal,
       className: `${modal.className ?? ''} ${css.dialog} ${sizeClass(size)}${compactTop}${height === 'tall' ? ` ${css.tallDialog}` : ''}${settingsFrame ? ` ${css.settingsFrame}` : ''}`,
       contentClassName: `${modal.contentClassName ?? ''} ${css.body}`,
+      children: h('div', { className: css.contentStack }, modal.children),
       footer: h('div', { className: css.footer }, settingsFrame?.footer, modal.footer, h('div', { ref: setTarget, className: css.footerSlot }))
     })
   )

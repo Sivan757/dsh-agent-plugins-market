@@ -23,7 +23,7 @@ import {
 import type { ExtensionTranslate } from './types.js'
 import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
-import { useExtensionWindow } from './use-window.js'
+import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
 import { resourceSelected, toggleResource, uniquePresetName } from './resource.js'
 import css from './presets.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
@@ -38,13 +38,14 @@ export interface ExtensionPresetEntryProps {
   sessionId: string
   t: ExtensionTranslate
   renderDetail: RenderExtensionDetail
+  observer?: ExtensionWindowObserver
 }
 
 export function ExtensionPresetEntry(props: ExtensionPresetEntryProps): ReactNode {
   return h(SessionEntry, { ...props, key: props.sessionId })
 }
-function SessionEntry({ sessionId, t, renderDetail }: ExtensionPresetEntryProps): ReactNode {
-  const { data, error, mutate, retry } = useExtensionWindow(sessionId)
+function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetEntryProps): ReactNode {
+  const { data, error, mutate, retry } = useExtensionWindow(sessionId, observer)
   const selected = data?.intendedSelection ?? data?.state.selection
   const [menu, setMenu] = useState(false),
     [manager, setManager] = useState(false)

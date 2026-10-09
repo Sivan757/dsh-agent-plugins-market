@@ -33,3 +33,5 @@ This partially supersedes the edit-isolation rule in [extension presets](../../p
 ## Verification
 
 See [the acceptance ledger](../../../../docs/reference/acceptance-fixes-2026-10-08.md). Regressions cover exact input identity, current-turn stability, request tokens, replay, forks, shared tabs and individual Hook details.
+
+[Composer freshness and detail flow](../bug-fix/2026-10-09-skill-menu-freshness-and-detail-flow.md) adds client cache invalidation and preserves per-block layout. The selection boundary remains unchanged.
