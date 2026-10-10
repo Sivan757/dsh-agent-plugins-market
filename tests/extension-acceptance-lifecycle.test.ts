@@ -147,7 +147,10 @@ describe('extension preset lifecycle boundaries', () => {
         holder.current?.refresh()
       }
     )
-    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true))
+    // A bounded wait rather than the 1s default: the runtime mounts extensions
+    // and opens file watchers, and a loaded Windows runner needs longer than the
+    // default. The assertion still fails if it never becomes ready.
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
 
     // A root-owned (inherited) tool: same-scope tools are exempt from the host
     // restriction, so the boundary must be probed with an inherited one.

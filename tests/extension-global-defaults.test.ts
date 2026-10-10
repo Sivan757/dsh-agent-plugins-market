@@ -108,7 +108,10 @@ describe('globally disabled capabilities are never a session default', () => {
   it('keeps a globally disabled but valid resource available and out of the default selection', async () => {
     const { runtime, create } = await setup()
     const agent = await create('defaults')
-    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true))
+    // A bounded wait rather than the 1s default: the runtime mounts extensions
+    // and opens file watchers, and a loaded Windows runner needs longer than the
+    // default. The assertion still fails if it never becomes ready.
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
     const window = await runtime.window(agent.id)
     // The three states the inventory must distinguish.
     expect(window.resources.find(row => row.id === OFF)).toMatchObject({ available: true, globalEnabled: false })
@@ -121,7 +124,10 @@ describe('globally disabled capabilities are never a session default', () => {
   it('does not grant a globally disabled resource when a session selects no preset', async () => {
     const { runtime, create } = await setup()
     const agent = await create('explicit-none')
-    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true))
+    // A bounded wait rather than the 1s default: the runtime mounts extensions
+    // and opens file watchers, and a loaded Windows runner needs longer than the
+    // default. The assertion still fails if it never becomes ready.
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
     const before = await runtime.window(agent.id)
     await runtime.select(agent.id, before.state.revision, null)
     const after = await runtime.window(agent.id)
@@ -132,7 +138,10 @@ describe('globally disabled capabilities are never a session default', () => {
   it('lets a saved preset name the globally disabled resource explicitly', async () => {
     const { runtime, create } = await setup()
     const agent = await create('opt-in')
-    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true))
+    // A bounded wait rather than the 1s default: the runtime mounts extensions
+    // and opens file watchers, and a loaded Windows runner needs longer than the
+    // default. The assertion still fails if it never becomes ready.
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
     await runtime.create(agent.id, (await runtime.window(agent.id)).library.revision, { name: 'opt-in', enabledIds: [OFF] })
     const preset = (await runtime.window(agent.id)).library.presets.find(row => row.name === 'opt-in')
     expect(preset).toBeDefined()

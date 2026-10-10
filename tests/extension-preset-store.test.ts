@@ -25,7 +25,11 @@ describe('workspace extension preset library', () => {
     expect((await new ExtensionPresetStore(root).read('/project/a')).defaultPresetId).toBe(p.id)
     expect((await s.read('/project/b')).presets).toEqual([])
     expect(selected.revision).toBe(2)
-    expect((await stat(extensionPresetLibraryPath(root, '/project/a'))).mode & 0o777).toBe(0o600)
+    // Windows has no POSIX permission bits: chmod only toggles the read-only
+    // attribute, so stat reports 0o666 there. Assert the mode where it exists.
+    if (process.platform !== 'win32') {
+      expect((await stat(extensionPresetLibraryPath(root, '/project/a'))).mode & 0o777).toBe(0o600)
+    }
   })
 
   it('auto-saves a revisioned preset without changing captured sessions', async () => {
