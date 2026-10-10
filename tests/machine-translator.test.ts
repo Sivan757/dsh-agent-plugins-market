@@ -317,7 +317,10 @@ describe('the host chain through runChain', () => {
     urls.length = 0
     expect((await runChain(providers, ['Hello'], 'zh')).provider).toBe('microsoft')
     // The second batch goes straight to the fallback; google is never retried.
-    expect(urls.some(url => url.includes('googleapis'))).toBe(false)
-    expect(urls.some(url => url.includes('edge.microsoft.com'))).toBe(true)
+    // Compare parsed hosts, not substrings: a substring check would also accept
+    // a lookalike host that merely contains the name.
+    const hosts = urls.map(url => new URL(url).hostname)
+    expect(hosts).not.toContain('translate-pa.googleapis.com')
+    expect(hosts).toContain('edge.microsoft.com')
   })
 })

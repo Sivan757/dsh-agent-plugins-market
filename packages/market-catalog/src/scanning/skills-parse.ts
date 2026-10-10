@@ -27,11 +27,35 @@ function isSkillName(name: string): boolean {
  * → "presentations"), or `undefined` when nothing usable remains.
  */
 function normalizeSkillName(name: string): string | undefined {
-  const normalized = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  return normalized === '' ? undefined : normalized
+  const folded = foldToKebab(name.toLowerCase())
+  return folded === '' ? undefined : folded
+}
+
+/**
+ * Fold a display name into kebab-case: a character in `[a-z0-9]` survives, a
+ * run of any other character becomes one `-`, and the `-` that leads or trails
+ * the result is dropped.
+ *
+ * One pass, because the name arrives from a third-party suite and the pattern
+ * pair this replaces cost time quadratic in the length of a separator-only
+ * name.
+ */
+function foldToKebab(value: string): string {
+  const parts: string[] = []
+  let rejected = false
+  for (const character of value) {
+    if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')) {
+      if (rejected && parts.length > 0) parts.push('-')
+      rejected = false
+      parts.push(character)
+    } else {
+      rejected = true
+    }
+  }
+  let folded = parts.join('')
+  while (folded.startsWith('-')) folded = folded.slice(1)
+  while (folded.endsWith('-')) folded = folded.slice(0, -1)
+  return folded
 }
 
 function parseBoolean(value: unknown): boolean | undefined {
@@ -152,11 +176,14 @@ export function skillEntryRejection(text: string): string | undefined {
 function lenientFrontmatter(body: string): Record<string, unknown> {
   const record: Record<string, unknown> = {}
   for (const line of body.split(/\r?\n/)) {
-    const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line)
-    if (match === null) continue
-    const [, key, value] = match
-    if (key === undefined || value === undefined) continue
-    if (record[key] === undefined) record[key] = value.trim()
+    // Split on the first colon instead of matching `:\s*(.*)` in one pattern:
+    // the separator and the value pattern both accept spaces, so a line of many
+    // spaces gave the matcher two ways to split at every position.
+    const colon = line.indexOf(':')
+    if (colon <= 0) continue
+    const key = line.slice(0, colon)
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(key)) continue
+    if (record[key] === undefined) record[key] = line.slice(colon + 1).trim()
   }
   return record
 }

@@ -32,8 +32,83 @@ import { PLUGIN_ROOT_VARIABLES, PLUGIN_DATA_VARIABLES } from '../../../../market
 
 /** The max length the bridge accepts for a serverName. */
 const SERVER_NAME_MAX = 32
-const PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g
 const BUILTIN_PLACEHOLDERS = new Set([...PLUGIN_ROOT_VARIABLES, ...PLUGIN_DATA_VARIABLES])
+
+/** One `${NAME}` or `${NAME:-fallback}` reference found in a value. */
+interface PlaceholderMatch {
+  /** Index of the leading `$`. */
+  index: number
+  /** The matched text, from `$` through the closing brace. */
+  text: string
+  /** The referenced credential name. */
+  name: string
+  /** The text after `:-`, or `undefined` when the reference names no fallback. */
+  fallback?: string
+}
+
+function isPlaceholderNameStart(character: string): boolean {
+  return (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') || character === '_'
+}
+
+function isPlaceholderNamePart(character: string): boolean {
+  return isPlaceholderNameStart(character) || (character >= '0' && character <= '9')
+}
+
+/**
+ * Find the next reference at or after `from`.
+ *
+ * Scanned rather than matched: a value arrives from a third-party suite, and
+ * the pattern that described this grammar let the engine retry the fallback
+ * body from every `$` it saw, so a value of many `${{A:-` runs cost time
+ * quadratic in its length. The cursor only moves forward.
+ */
+function nextPlaceholder(value: string, from: number): PlaceholderMatch | undefined {
+  let cursor = from
+  while (cursor < value.length) {
+    const start = value.indexOf('${', cursor)
+    if (start === -1) return undefined
+    const first = value[start + 2]
+    if (first === undefined || !isPlaceholderNameStart(first)) {
+      cursor = start + 2
+      continue
+    }
+    let at = start + 3
+    while (at < value.length) {
+      const character = value[at]
+      if (character === undefined || !isPlaceholderNamePart(character)) break
+      at += 1
+    }
+    const name = value.slice(start + 2, at)
+    let fallback: string | undefined
+    if (value[at] === ':' && value[at + 1] === '-') {
+      const close = value.indexOf('}', at + 2)
+      if (close === -1) {
+        cursor = start + 2
+        continue
+      }
+      fallback = value.slice(at + 2, close)
+      at = close
+    }
+    if (value[at] !== '}') {
+      cursor = start + 2
+      continue
+    }
+    return { index: start, text: value.slice(start, at + 1), name, fallback }
+  }
+  return undefined
+}
+
+/** Every reference in one value, in order. */
+function placeholderMatches(value: string): PlaceholderMatch[] {
+  const matches: PlaceholderMatch[] = []
+  let cursor = 0
+  for (;;) {
+    const match = nextPlaceholder(value, cursor)
+    if (match === undefined) return matches
+    matches.push(match)
+    cursor = match.index + match.text.length
+  }
+}
 
 export interface McpMountRequest {
   suiteId: string
@@ -292,9 +367,8 @@ export function credentialRefsInServer(server: McpServer): string[] {
   }
   const refs = new Set<string>()
   for (const value of values) {
-    for (const match of value.matchAll(PLACEHOLDER)) {
-      const name = match[1]
-      if (name !== undefined && !BUILTIN_PLACEHOLDERS.has(name)) refs.add(name)
+    for (const match of placeholderMatches(value)) {
+      if (!BUILTIN_PLACEHOLDERS.has(match.name)) refs.add(match.name)
     }
   }
   return [...refs].sort()
@@ -424,12 +498,9 @@ function expander(suite: Suite, pluginData: string, resolver: McpCredentialResol
     let cursor = 0
     let output = ''
     const missing: string[] = []
-    for (const match of value.matchAll(PLACEHOLDER)) {
-      const index = match.index ?? 0
-      const name = match[1]
-      if (name === undefined) continue
+    for (const match of placeholderMatches(value)) {
+      const { index, name, fallback } = match
       output += value.slice(cursor, index)
-      const fallback = match[2]
       let replacement: string | undefined
       if (PLUGIN_ROOT_VARIABLES.has(name)) replacement = suite.root
       else if (PLUGIN_DATA_VARIABLES.has(name)) replacement = pluginData
@@ -441,11 +512,11 @@ function expander(suite: Suite, pluginData: string, resolver: McpCredentialResol
           replacement = ''
         } else {
           // §9.2: unrecognized placeholder-like text stays literal.
-          replacement = match[0]
+          replacement = match.text
         }
       }
       output += replacement
-      cursor = index + match[0].length
+      cursor = index + match.text.length
     }
     output += value.slice(cursor)
     return { value: output, missing }
@@ -484,12 +555,34 @@ function joinInside(root: string, segment: string): string {
   return `${root.replace(/[\\/]$/, '')}/${segment}`
 }
 
-/** Sanitize one token into `[A-Za-z0-9_-]`. */
+/**
+ * Sanitize one token into `[A-Za-z0-9_-]`.
+ *
+ * One pass over the characters, collapsing any run of other characters into a
+ * single `_` and dropping leading and trailing ones. The previous chain of
+ * three patterns over input that arrives from a third-party suite made a
+ * separator-only token cost time quadratic in its length.
+ */
 function sanitizeToken(raw: string): string {
-  const cleaned = raw
-    .replace(/[^A-Za-z0-9_-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
+  const accepted = (character: string): boolean =>
+    (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') || character === '-'
+  const parts: string[] = []
+  let rejected = false
+  for (const character of raw) {
+    if (character === '_' || accepted(character)) {
+      // `_` is both an accepted character and the replacement, so a run of them
+      // collapses to one, exactly as the `[^A-Za-z0-9_-]+` then `_+` pair did.
+      if (character === '_' && (rejected || parts[parts.length - 1] === '_')) continue
+      if (rejected && parts.length > 0) parts.push('_')
+      rejected = false
+      parts.push(character)
+    } else {
+      rejected = true
+    }
+  }
+  let cleaned = parts.join('')
+  while (cleaned.startsWith('_')) cleaned = cleaned.slice(1)
+  while (cleaned.endsWith('_')) cleaned = cleaned.slice(0, -1)
   return cleaned === '' ? 'server' : cleaned
 }
 
