@@ -44,17 +44,45 @@ export interface CatalogAgent {
 export type CatalogStepDecision = { kind: 'reject' } | { kind: 'enter'; messages: UserMessage[]; startsRequestSeries?: true }
 export type CatalogStepListener = (payload: { agent: CatalogAgent; signal: AbortSignal }, next: () => Promise<CatalogStepDecision>) => Promise<CatalogStepDecision>
 
+/**
+ * One observation of the roles a session can delegate to.
+ *
+ * The complete flag is the discovery contract the host skill registry already
+ * uses: an observation that could not read every source carries no authority to
+ * replace the published list, because a failed read is not evidence that its
+ * roles were removed. Only a complete observation may publish, including a
+ * complete observation that is genuinely empty.
+ */
+export interface SubagentCatalogSnapshot {
+  entries: readonly SubagentCatalogEntry[]
+  complete: boolean
+}
+
+/** A snapshot, or a bare entry list, which the protocol treats as complete. */
+export type SubagentCatalogObservation = SubagentCatalogEntry[] | SubagentCatalogSnapshot
+
+/** Normalize the two accepted provider shapes; a bare list means it read everything. */
+function normalizeSnapshot(observation: SubagentCatalogObservation): SubagentCatalogSnapshot {
+  return Array.isArray(observation) ? { entries: observation, complete: true } : observation
+}
+
 interface CatalogHost {
   tools: { get(name: string, agent: CatalogAgent): unknown }
   on(name: 'agent/pre-step', listener: CatalogStepListener): () => void
   logger?: { warn(message: string): void }
 }
 
-/** Register after the exact tool definition; teardown removes guidance before execution. */
+/**
+ * Register after the exact tool definition; teardown removes guidance before execution.
+ *
+ * The snapshot callback follows the host skill registry's provider protocol: it may
+ * return the entries directly (meaning a complete read) or an explicit snapshot
+ * whose `complete` flag reports whether every source answered.
+ */
 export function mountSubagentCatalog(
   ctx: Context,
   tool: { name: string },
-  snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogEntry[]>,
+  snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogObservation>,
   mode: 'subagent_role' | 'spawn_teammate_role' = 'subagent_role'
 ): () => void {
   const host = ctx as unknown as CatalogHost
@@ -63,9 +91,9 @@ export function mountSubagentCatalog(
     const decision = await next()
     if (decision.kind === 'reject' || disposed) return decision
     signal.throwIfAborted()
-    let entries: SubagentCatalogEntry[]
+    let observed: SubagentCatalogSnapshot
     try {
-      entries = host.tools.get(tool.name, agent) === tool ? await snapshot(agent, signal) : []
+      observed = normalizeSnapshot(host.tools.get(tool.name, agent) === tool ? await snapshot(agent, signal) : { entries: [], complete: true })
     } catch (error) {
       signal.throwIfAborted()
       host.logger?.warn(`subagent catalog snapshot incomplete: ${String(error)}`)
@@ -73,6 +101,11 @@ export function mountSubagentCatalog(
     }
     signal.throwIfAborted()
     if (disposed) return decision
+    // A reader that could not enumerate every source publishes nothing: the
+    // previous catalog stays the model's authority until a complete read says
+    // otherwise, so a temporarily unreadable directory cannot shrink the list.
+    if (!observed.complete) return decision
+    let entries: SubagentCatalogEntry[] = [...observed.entries]
     if (host.tools.get(tool.name, agent) !== tool) entries = []
     const digest = digestEntries(entries)
     const history = catalogHistory(agent, mode)

@@ -25,7 +25,9 @@ it('keeps construction inert and callers safe before the required host services 
     expect(inject).not.toHaveBeenCalled()
     expect(sessions.session()).toBeUndefined()
     expect(sessions.commandRegistrations()).toEqual([])
-    expect(await sessions.roles()).toEqual([])
+    // No mounted source and no calling session means "unknown", not "no roles":
+    // an incomplete observation cannot replace a published catalog.
+    expect(await sessions.roles()).toEqual({ entries: [], complete: false })
     expect(sessions.refresh()).toBeUndefined()
     sessions.invalidate(invalidateDefaultSkills)
     expect(invalidateDefaultSkills).toHaveBeenCalledOnce()
@@ -34,7 +36,7 @@ it('keeps construction inert and callers safe before the required host services 
     expect(inject).toHaveBeenCalledWith(['agents', 'sessions', 'sessionQuery', 'tools'], expect.any(Function))
     expect(readUserDeclarations).not.toHaveBeenCalled()
     expect(sessions.session()).toBeUndefined()
-    expect(await sessions.roles()).toEqual([])
+    expect(await sessions.roles()).toEqual({ entries: [], complete: false })
     await ctx.fiber.dispose()
     expect(sessions.commandRegistrations()).toEqual([])
     expect(sessions.refresh()).toBeUndefined()

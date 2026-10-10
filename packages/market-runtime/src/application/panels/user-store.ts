@@ -15,7 +15,8 @@
  */
 
 import { readdir, readFile, rmdir, rm, stat } from 'node:fs/promises'
-import type { Dirent } from 'node:fs'
+import type { Dirent, Stats } from 'node:fs'
+import { isAbsentPath } from '../fs-probe.js'
 import { dirname, join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { parseDocument, stringify } from 'yaml'
@@ -70,13 +71,40 @@ export interface EntryDocument {
   shape: EntryShape
 }
 
+/**
+ * Whether one panel directory may be listed, answered structurally rather than
+ * from a listing failure.
+ *
+ * A path is either an existing directory, absent (a user who authored nothing
+ * has not broken anything), or something that can never hold entries. Only the
+ * first is listed; the second is a valid empty panel; the third is a broken
+ * configuration. Confirming the shape before listing keeps that decision
+ * independent of the code a `readdir` failure happens to carry.
+ * @param dir - the panel directory.
+ * @param strict - whether a broken configuration is an error or an empty read.
+ * @returns `true` when the directory is confirmed and may be listed.
+ */
+async function confirmDirectory(dir: string, strict: boolean): Promise<boolean> {
+  let info: Stats
+  try {
+    info = await stat(dir)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    if (strict) throw error
+    return false
+  }
+  if (info.isDirectory()) return true
+  if (strict) throw Object.assign(new Error(`ENOTDIR: not a directory, scandir '${dir}'`), { code: 'ENOTDIR' })
+  return false
+}
+
 /** Whether a path is a regular file; strict runtime snapshots propagate real I/O failures. */
 async function isFile(file: string, strict: boolean): Promise<boolean> {
   try {
     return (await stat(file)).isFile()
   } catch (error) {
-    if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    return false
+    if (!strict || (await isAbsentPath(file))) return false
+    throw error
   }
 }
 
@@ -107,12 +135,15 @@ export async function listEntryDocuments(dir: string, strict = false, shapes: re
     await collectNestedEntryDocuments(dir, '', shapes, strict, found)
     return [...found.values()].sort((a, b) => a.name.localeCompare(b.name))
   }
+  if (!(await confirmDirectory(dir, strict))) return []
   let entries: string[]
   try {
     entries = await readdir(dir)
   } catch (error) {
-    if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    return []
+    // Only a structurally confirmed absence is tolerated: the directory can be
+    // removed between the confirmation and the listing.
+    if (!strict || (await isAbsentPath(dir))) return []
+    throw error
   }
   for (const entry of entries.sort()) {
     const name = entry.endsWith('.md') ? entry.slice(0, -3) : shapes.includes('skill-directory') ? entry : undefined
@@ -135,12 +166,13 @@ export async function listEntryDocuments(dir: string, strict = false, shapes: re
  * `/` separators and no trailing slash.
  */
 async function collectNestedEntryDocuments(dir: string, prefix: string, shapes: readonly EntryShape[], strict: boolean, found: Map<string, EntryDocument>): Promise<void> {
+  if (!(await confirmDirectory(dir, strict))) return
   let entries: Dirent[]
   try {
     entries = await readdir(dir, { withFileTypes: true })
   } catch (error) {
-    if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    return
+    if (!strict || (await isAbsentPath(dir))) return
+    throw error
   }
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (entry.isSymbolicLink() || entry.name.startsWith('.') || entry.name === 'node_modules') continue
@@ -183,8 +215,8 @@ export async function readEntryDocument(document: EntryDocument, strict = false)
   try {
     text = await readFile(document.file, 'utf8')
   } catch (error) {
-    if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    return undefined
+    if (!strict || (await isAbsentPath(document.file))) return undefined
+    throw error
   }
   let meta: Record<string, unknown>
   try {

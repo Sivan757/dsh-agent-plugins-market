@@ -14,6 +14,7 @@ import {
   type CatalogAgent,
   type CatalogStepDecision,
   type SubagentCatalogEntry,
+  type SubagentCatalogObservation,
   type SubagentCatalogSource
 } from '../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
 import { agentRoleCatalog } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
@@ -99,7 +100,7 @@ function newAgent(id: string, cwd?: string): { id: string; session: HostSession 
   return { id, session }
 }
 
-async function setup(snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogEntry[]>) {
+async function setup(snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogObservation>) {
   const ctx = new Context()
   const promptFiber = await ctx.plugin(SystemPrompt)
   cleanups.push(() => promptFiber.dispose())
@@ -524,5 +525,28 @@ A role`)
     await stores.agents.remove('reviewer')
     await catalog.setScanProjectLayouts(false)
     expect(publish(parent, await step(parent))[0]?.source).toMatchObject({ update: true, entries: [] })
+  })
+
+  it('keeps the published catalog on an incomplete read and still clears on a complete empty one', async () => {
+    let observation = (): SubagentCatalogObservation => ({ entries: [reviewer], complete: true })
+    const { step } = await setup(async () => observation())
+    const agent = newAgent('incomplete-observation')
+    const first = publish(agent, await step(agent))[0]
+    if (first === undefined) throw new Error('expected one published catalog')
+    expect(catalogSource(first).entries).toHaveLength(1)
+    // A reader that could not enumerate every source says so. The published
+    // catalog stays authoritative instead of being replaced by a smaller list,
+    // which is the host registry's discovery contract for a failed provider.
+    observation = () => ({ entries: [], complete: false })
+    expect(messages(await step(agent))).toEqual([])
+    // Recovery reads the same roles again, so the visible catalog still matches
+    // and nothing republishes.
+    observation = () => ({ entries: [reviewer], complete: true })
+    expect(messages(await step(agent))).toEqual([])
+    // A complete empty read is a real removal, not a failed one, and publishes.
+    observation = () => ({ entries: [], complete: true })
+    const cleared = publish(agent, await step(agent))[0]
+    if (cleared === undefined) throw new Error('expected one clearing catalog')
+    expect(catalogSource(cleared).entries).toEqual([])
   })
 })
