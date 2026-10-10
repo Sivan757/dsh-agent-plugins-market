@@ -67,7 +67,7 @@ function harness() {
     return { value, append, inject, steer }
   }
   const mount = (owner: Agent, selected: Suite[], allows: (suite: Suite) => boolean = () => true, hookAllows?: (suite: Suite, event: string, index: number) => boolean) => {
-    const hooks = new ExtensionHooks(ctx, owner, allows, hookAllows)
+    const hooks = new ExtensionHooks(ctx, owner, allows, hookAllows, '/data')
     disposers.push(() => hooks.dispose())
     return { hooks, ready: hooks.reconcile(selected) }
   }
@@ -285,9 +285,28 @@ describe('ExtensionHooks', () => {
     expect(h.calls).toHaveLength(0)
     expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), next)).toEqual({ kind: 'allow' })
     expect(h.calls).toHaveLength(1)
-    expect(h.calls[0]).toMatchObject({ command: 'echo /plugins/good /same-workspace', workdir: '/same-workspace', timeoutMs: 1500, env: { CLAUDE_PROJECT_DIR: '/same-workspace' } })
+    expect(h.calls[0]).toMatchObject({ command: 'echo /plugins/good /same-workspace', workdir: '/same-workspace', timeoutMs: 1500 })
+    expect(h.calls[0]!.env).toEqual({
+      CLAUDE_PLUGIN_ROOT: '/plugins/good',
+      CLAUDE_PLUGIN_DATA: '/data/source/good',
+      CLAUDE_PROJECT_DIR: '/same-workspace'
+    })
     expect(h.calls[0]!.stdin.endsWith(String.fromCharCode(10))).toBe(true)
     expect(a.append.mock.calls[1]).toEqual(['hook/result', expect.objectContaining({ decision: 'pass', stderrSummary: 'executor unavailable' })])
+  })
+
+  it('exports the claude-code names and omits an absent plugin root', async () => {
+    const h = harness()
+    const a = h.agents('project')
+    const command = 'echo ${CLAUDE_PLUGIN_ROOT} ${CLAUDE_PLUGIN_DATA}'
+    const native = suite('native', { PreToolUse: [command] })
+    native.manifest.layout = 'project-native'
+    delete (native as Partial<Suite>).root
+    const { ready } = h.mount(a.value, [native])
+    expect(await ready).toEqual([])
+    await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), async () => ({ kind: 'allow' as const }))
+    expect(h.calls[0]!.command).toBe(command)
+    expect(h.calls[0]!.env).toEqual({ CLAUDE_PROJECT_DIR: '/same-workspace' })
   })
 
   it('removes obsolete selections during in-flight execution', async () => {

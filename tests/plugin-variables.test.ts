@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { expandPluginPaths, pluginRootOf } from '../packages/market-catalog/src/scanning/plugin-variables.js'
+import { expandPluginPaths, pluginPathEnvironment, pluginRootOf } from '../packages/market-catalog/src/scanning/plugin-variables.js'
 import { suiteDataDir } from '../packages/market-catalog/src/scanning/paths.js'
 import { scanSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
 import { discoverNativeProjectSuites } from '../packages/market-catalog/src/scanning/native-project.js'
@@ -88,6 +88,16 @@ describe('path variable expansion', () => {
         '${HOME} ${NAME:-default} ${user_config.KEY} plain'
       ].join('\n')
     )
+  })
+
+  it('answers only the claude-code names, never a dialect alias', () => {
+    expect(pluginPathEnvironment({ root: '/suite', data: '/data/s', skillDir: '/suite/skills/x', projectDir: '/project' })).toEqual({
+      CLAUDE_PLUGIN_ROOT: '/suite',
+      CLAUDE_PLUGIN_DATA: '/data/s',
+      CLAUDE_PROJECT_DIR: '/project'
+    })
+    expect(pluginPathEnvironment({ root: '/suite' })).toEqual({ CLAUDE_PLUGIN_ROOT: '/suite' })
+    expect(pluginPathEnvironment({})).toEqual({})
   })
 
   it('keeps a variable verbatim when the calling layer holds no value for it', () => {

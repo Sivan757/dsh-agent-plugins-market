@@ -40,6 +40,17 @@ export const PLUGIN_DATA_VARIABLES: ReadonlySet<string> = new Set(['PLUGIN_DATA'
 export const PROJECT_DIR_VARIABLES: ReadonlySet<string> = new Set(['CLAUDE_PROJECT_DIR', 'ZCODE_PROJECT_DIR', 'QODER_PROJECT_DIR'])
 /** Claude Code names the directory holding the skill's own file; no dialect alias exists. */
 export const SKILL_DIR_VARIABLE = 'CLAUDE_SKILL_DIR'
+/**
+ * The path names the Claude Code runtime exports to a spawned component. Only
+ * the claude-code spellings: a suite script reads a generic or other-dialect
+ * alias as a runtime marker, so exporting one would select another runtime's
+ * branch. Skill-directory names stay out because no process receives them.
+ */
+export const CLAUDE_COMPONENT_ENVIRONMENT: Readonly<Record<'root' | 'data' | 'projectDir', string>> = {
+  root: 'CLAUDE_PLUGIN_ROOT',
+  data: 'CLAUDE_PLUGIN_DATA',
+  projectDir: 'CLAUDE_PROJECT_DIR'
+}
 
 /** Explicit project document formats and portable surfaces; execution stays in the runtime adapters. */
 export type ProjectMcpFormat = 'mcpServers' | 'zcode' | 'codex'

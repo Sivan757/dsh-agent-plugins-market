@@ -19,7 +19,7 @@ import {
   runHook
 } from '@deepseek-ai/dsh-hook-protocol'
 import { qualifiedSuiteId } from '../../../../market-catalog/src/index.js'
-import { expandPluginPaths } from '../../../../market-catalog/src/index.js'
+import { expandPluginPaths, pluginPathEnvironment, pluginRootOf, suiteDataDir } from '../../../../market-catalog/src/index.js'
 import { normalizeHookDocuments, standaloneHookDocument } from '../../../../market-catalog/src/index.js'
 import type { ProjectHooks, Suite } from '../../../../market-contracts/src/model/types.js'
 import { hookConfigPath, type HooksMountDiagnostic } from './hooks-mounts.js'
@@ -42,6 +42,8 @@ const CONTEXT_SOURCE = { kind: 'hooks-claude-code' } as const
  * Subagent events use the exact parent carrier, but identify the child on stdin.
  * Like the host bridge, input rewrites, systemMessage and run-level halt are not
  * applied; SubagentStop is observation-only. Unknown remote child cwd is empty.
+ * Every command receives its suite's path variables in the process environment,
+ * the same values its command string expands to.
  */
 export class ExtensionHooks {
   private selected = new Map<string, Selection>()
@@ -64,7 +66,9 @@ export class ExtensionHooks {
      * the same position the session inventory published a row for. Absent keeps the
      * parent-suite contract, which is what a suite with no individual row requires.
      */
-    private readonly isHookAllowed?: (suite: Suite, event: string, index: number) => boolean
+    private readonly isHookAllowed?: (suite: Suite, event: string, index: number) => boolean,
+    /** Plugin storage root; supplies the suite's data directory to hook processes. */
+    private readonly dataRoot?: string
   ) {
     this.listeners.push(
       ctx.on('agent/pre-step', (event, next) => {
@@ -261,6 +265,12 @@ export class ExtensionHooks {
       const { suite, hooks } = selection
       const cwd = subject?.session.header.cwd
       const projectDir = hooks.projectRoot ?? cwd
+      // One context drives both the inline substitution and the process
+      // environment, so a command and its own process.env reads agree.
+      const root = pluginRootOf(suite)
+      const data = root === undefined || this.dataRoot === undefined ? undefined : suiteDataDir(this.dataRoot, suite.sourceId, suite.id)
+      const pathContext = { ...(root === undefined ? {} : { root }), ...(data === undefined ? {} : { data }), ...(projectDir === undefined ? {} : { projectDir }) }
+      const env = pluginPathEnvironment(pathContext)
       // The declaration index counts every command hook of this event in declaration
       // order and across matcher groups, exactly as the session inventory numbered
       // its rows: a hook whose matcher does not apply still advances the position.
@@ -283,7 +293,7 @@ export class ExtensionHooks {
             appendHookInvoked(subject.session, { turn, point, dialect: 'claude-code', handlerId, ...(group.matcher === undefined ? {} : { matcher: group.matcher }) })
           const { output, durationMs } = await runHook(
             this.ctx.shell,
-            { command: expandPluginPaths(hook.command, { root: suite.root, projectDir }), ...(hook.timeout === undefined ? {} : { timeoutSec: hook.timeout }) },
+            { command: expandPluginPaths(hook.command, pathContext), ...(hook.timeout === undefined ? {} : { timeoutSec: hook.timeout }) },
             {
               payload,
               defaultTimeoutMs: DEFAULT_HOOK_TIMEOUT_MS,
@@ -291,7 +301,7 @@ export class ExtensionHooks {
               trailingNewline: true,
               expectedEventName: point,
               ...(cwd === undefined ? {} : { cwd }),
-              ...(projectDir === undefined ? {} : { env: { CLAUDE_PROJECT_DIR: projectDir } })
+              ...(Object.keys(env).length === 0 ? {} : { env })
             },
             () => performance.now()
           )

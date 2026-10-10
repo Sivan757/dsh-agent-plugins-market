@@ -16,7 +16,7 @@ Claude Code 的契约（Plugins reference 的 "Environment variables" 表与 Ski
 
 作者写在套件文本里的占位符，全部由注入层解析。
 
-`packages/market-catalog/src/scanning/plugin-variables.ts` 是唯一的实现：`expandPluginPaths(text, context)` 按四组变量分别解析——`PLUGIN_ROOT_VARIABLES`（`PLUGIN_ROOT` 与各方言拼写）、`PLUGIN_DATA_VARIABLES`、`PROJECT_DIR_VARIABLES`、`SKILL_DIR_VARIABLE`，调用方只传自己手里的值，没有值的变量原样保留（`${NAME:-default}` 之类的作者意图不会被清空）；`pluginRootOf(suite)` 对 `project-native` 布局返回 `undefined`，因为那些文件是仓库自己的原生目录，没有插件根（Claude Code 同样只在插件技能里替换插件根变量）。数据目录由 `suiteDataDir(dataRoot, sourceId, suiteId)` 统一定义，MCP 走的是同一个函数。
+`packages/market-catalog/src/scanning/plugin-variables.ts` 是唯一的实现：`expandPluginPaths(text, context)` 按四组变量分别解析——`PLUGIN_ROOT_VARIABLES`（`PLUGIN_ROOT` 与各方言拼写）、`PLUGIN_DATA_VARIABLES`、`PROJECT_DIR_VARIABLES`、`SKILL_DIR_VARIABLE`，同一 context 又由 `pluginPathEnvironment(context)` 变成子进程环境，只写 claude-code 的三个名字；调用方只传自己手里的值，没有值的变量原样保留（`${NAME:-default}` 之类的作者意图不会被清空）；`pluginRootOf(suite)` 对 `project-native` 布局返回 `undefined`，因为那些文件是仓库自己的原生目录，没有插件根（Claude Code 同样只在插件技能里替换插件根变量）。数据目录由 `suiteDataDir(dataRoot, sourceId, suiteId)` 统一定义，MCP 走的是同一个函数。
 
 各面的取用时机按「谁在什么时候知道值」选择：
 
@@ -26,7 +26,7 @@ Claude Code 的契约（Plugins reference 的 "Environment variables" 表与 Ski
 - 启动指令：`suiteInstructions` 按套件展开，数据根由挂载点传入，项目目录取该 agent 的 cwd。
 - LSP：声明在挂载前展开（`expandLspServerConfig`），因此 `suite.lsp` 里保留的是作者原文，预览看到的是声明、挂载拿到的是绝对路径。
 - MCP：沿用既有的凭据感知展开器，它已经处理数据目录与凭据引用。
-- hooks：命令串的插件根与项目目录由宿主桥替换。`${PLUGIN_DATA}` 在 hooks 里不解析——桥的 Config 没有 env 口子，这一层我们改不了。
+- hooks：由本插件的 `ExtensionHooks` 在每个 agent 上执行，插件的根、数据目录与项目目录与其它面用同一个 context，命令串据此展开，同一份 context 再按 claude-code 的三个名字写进子进程环境。
 
 动态上下文在 `src/runtime/dynamic-context.ts`：一次扫描同时识别行首或空白后的 `` !`cmd` `` 与 ` ```! ` 代码块，命令按顺序在会话目录中运行（120s 上限、32 KiB stdout 上限），输出作为纯文本插入且不再被扫描。两个流合并后注入，截断带一行说明。退出码 1 对 `grep`、`rg`、`find`、`diff`、`test`、`[`、`git diff`、`git grep` 算结果而非失败（与宿主 shell 消费者一致），其余失败、超时、取消都抛出带命令与输出的错误：命令处理器把它转成 `kind: 'error'`，技能加载直接失败——模型永远不会只看到注入了一半的文本。shell seam 按结构读取（`ctx.shell`），profile 里没有这个服务时占位符保持字面量，绝不猜测。
 
@@ -39,18 +39,19 @@ Claude Code 的契约（Plugins reference 的 "Environment variables" 表与 Ski
 - **动态上下文只在斜杠命令上实现。** 否决：已装套件里 214 个技能文件用到它、命令只有 10 个，而 Claude Code 里两者本就是同一个能力。
 - **让动态上下文失败时降级为字面量。** 否决：Claude Code 的行为是中止整次调用，而半注入的提示词会让模型按残缺上下文行动；`kind: 'error'` 至少把命令自己的输出交给用户。
 - **给动态上下文加一个开关设置。** 未采纳：本仓库的设置面在宿主设置服务与客户端卡片里，加开关是一次独立改动；已启用套件本来就能通过 hooks、MCP 起进程，这里只是把同一信任面延伸到技能与命令，因此先按 Claude Code 的默认行为实现并在用户文档里写明。
-- **在 hooks 里自行重写临时 hooks.json 来补 `${PLUGIN_DATA}`。** 否决：只能替换命令串里的文本，修不了脚本里读 `process.env`，还要把文件型配置复制一份，收益不抵复杂度；这属于宿主桥的能力缺口。
+- **把四组变量的全部别名都写进 hook 子进程环境。** 否决：`PLUGIN_DATA`、`PLUGIN_ROOT` 这类通用名在套件脚本里是运行时探测位——`ponytail-runtime.js:22` 用 `Boolean(process.env.PLUGIN_DATA)` 判定 Codex，随后换状态目录与输出格式（`ponytail-runtime.js:36`、`ponytail-activate.js:70`、`ponytail-mode-tracker.js:111`）。导出别名会让套件在本运行时走错分支；命令串里的占位符替换不受影响。
+- **在 hooks 里自行重写临时 hooks.json 来补 `${PLUGIN_DATA}`。** 否决：重写文件只替换命令串里的文本，修不了脚本里读 `process.env`，还要把文件型配置复制一份。运行器自己持有 env 口子，补环境变量即可。
 
 ## Consequences
 
-- 四个路径变量在技能、命令、子代理、启动指令、LSP 与 MCP 上按作者预期解析；hooks 拿到插件根与项目目录，但没有数据目录。
+- 四个路径变量在技能、命令、子代理、启动指令、LSP、MCP 与 hooks 上按作者预期解析；hook 命令串按四组变量展开，子进程环境只写 `CLAUDE_PLUGIN_ROOT`、`CLAUDE_PLUGIN_DATA`、`CLAUDE_PROJECT_DIR`。
 - 技能与命令里的动态上下文现在会真的执行 shell 命令，输出进入提示词。已安装并启用的套件由此可以在技能加载或命令调用时运行其自带脚本——与 hooks、MCP 同一信任级别，用户文档已写明要检查套件内容。
 - 命令处理器改为异步（宿主命令注册表本来就接受 `Promise<CommandResult>`），失败以 `kind: 'error'` 结算。
 - 文件类文本的预览与编辑仍是作者原文（技能、命令、子代理卡片）；LSP 声明同样保留原文，展开发生在挂载前。
 - 面板条目的 HTTP 契约多了可选的 `suiteRoot` 与 `suiteData`，客户端不使用它们。
 - 项目原生目录只解析项目目录变量：那里的插件根与数据目录没有意义。
-- 已知缺口：hook 子进程拿不到 `CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA` 环境变量（脚本里读 `process.env` 仍为空，已装套件中 `understand-anything`、`promptbook` 就这么写），这要宿主桥支持；MCP/LSP 子进程同样没有这两个环境变量，只有声明里的占位符被替换。
+- hooks 的环境缺口已关闭：`ExtensionHooks` 把 `CLAUDE_PLUGIN_ROOT`、`CLAUDE_PLUGIN_DATA`、`CLAUDE_PROJECT_DIR` 写进子进程环境，脚本里读 `process.env` 与命令串里的占位符拿到同一个值。
 
 ## Testing
 
-`tests/plugin-variables.test.ts` 覆盖四组变量的展开与缺失值保留、`project-native` 守卫、命令转发、子代理 persona 与目录描述、技能正文（含技能目录与项目目录）、启动指令、LSP 挂载前展开与声明原文保留。`tests/dynamic-context.test.ts` 覆盖行首/空白后/非空白后三种识别、围栏多行、输出不再扫描、多占位符顺序、双流合并、截断、失败/超时/取消三种报错、退出码 1 的白名单，以及命令与技能两条注入路径（含没有 shell seam 时保持字面量）。既有 `tests/mcp-mounts.test.ts`、`tests/project-commands.test.ts` 已改为 await 异步处理器。
+`tests/plugin-variables.test.ts` 覆盖四组变量的展开与缺失值保留、`project-native` 守卫、命令转发、子代理 persona 与目录描述、技能正文（含技能目录与项目目录）、启动指令、LSP 挂载前展开与声明原文保留。`tests/dynamic-context.test.ts` 覆盖行首/空白后/非空白后三种识别、围栏多行、输出不再扫描、多占位符顺序、双流合并、截断、失败/超时/取消三种报错、退出码 1 的白名单，以及命令与技能两条注入路径（含没有 shell seam 时保持字面量）。`tests/extension-hooks.test.ts` 断言 hook 子进程环境只拿到三个 claude-code 名字，以及套件没有插件根时不留插件变量。既有 `tests/mcp-mounts.test.ts`、`tests/project-commands.test.ts` 已改为 await 异步处理器。

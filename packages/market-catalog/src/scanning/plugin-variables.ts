@@ -15,7 +15,13 @@
  * emptied, and a surface that cannot supply a session directory does not
  * invent one.
  */
-import { PLUGIN_DATA_VARIABLES, PLUGIN_ROOT_VARIABLES, PROJECT_DIR_VARIABLES, SKILL_DIR_VARIABLE } from '../../../market-contracts/src/model/layouts.js'
+import {
+  CLAUDE_COMPONENT_ENVIRONMENT,
+  PLUGIN_DATA_VARIABLES,
+  PLUGIN_ROOT_VARIABLES,
+  PROJECT_DIR_VARIABLES,
+  SKILL_DIR_VARIABLE
+} from '../../../market-contracts/src/model/layouts.js'
 import type { Suite } from '../../../market-contracts/src/model/types.js'
 
 /** The absolute paths one expansion can supply; an absent entry leaves its variable verbatim. */
@@ -46,4 +52,22 @@ export function expandPluginPaths(text: string, context: PluginPathContext): str
     if (PROJECT_DIR_VARIABLES.has(name)) return context.projectDir ?? match
     return match
   })
+}
+
+/**
+ * The process environment one expanded command can read.
+ *
+ * A suite that writes `process.env.CLAUDE_PLUGIN_ROOT` needs the value the
+ * placeholder expansion writes into a command. Only the claude-code names
+ * appear: a generic or other-dialect alias is a runtime marker inside suite
+ * scripts, so exporting one would make a suite take another runtime's branch.
+ * A path the context does not hold contributes no entry, exactly as its
+ * placeholder stays verbatim.
+ */
+export function pluginPathEnvironment(context: PluginPathContext): Record<string, string> {
+  const env: Record<string, string> = {}
+  if (context.root !== undefined) env[CLAUDE_COMPONENT_ENVIRONMENT.root] = context.root
+  if (context.data !== undefined) env[CLAUDE_COMPONENT_ENVIRONMENT.data] = context.data
+  if (context.projectDir !== undefined) env[CLAUDE_COMPONENT_ENVIRONMENT.projectDir] = context.projectDir
+  return env
 }

@@ -128,7 +128,8 @@ export class ScopedExtensionContributors {
           hookScope,
           agent,
           suite => mount.active && this.ports.allows(agent, suiteId(suite)),
-          (suite, event, index) => !exposesIndividualHooks(suite) || (mount.active && this.ports.allows(agent, hookResourceId(suite.sourceId, suite.id, event, index)))
+          (suite, event, index) => !exposesIndividualHooks(suite) || (mount.active && this.ports.allows(agent, hookResourceId(suite.sourceId, suite.id, event, index))),
+          this.ports.dataRoot
         )
         hookScope.effect(() => () => mount.hooks!.dispose(), 'dsh-agent-plugins-market: scoped hooks')
       })
