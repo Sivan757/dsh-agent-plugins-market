@@ -89,7 +89,9 @@ async function confirmDirectory(dir: string, strict: boolean): Promise<boolean> 
   try {
     info = await stat(dir)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    // A directory is absent only when its ancestors stay searchable: a platform
+    // can report ENOENT for a child of a file, which is an unreadable panel.
+    if (await isAbsentPath(dir)) return false
     if (strict) throw error
     return false
   }

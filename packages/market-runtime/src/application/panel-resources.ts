@@ -9,6 +9,7 @@ import { pluginRootOf } from '../../../market-catalog/src/index.js'
 import { isWithin, suiteDataDir } from '../../../market-catalog/src/index.js'
 import { parseSkillFrontmatter, stripFrontmatter } from '../../../market-catalog/src/index.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
+import { isAbsentPath } from './fs-probe.js'
 import type { LocalizeDocument, LocalizeFields } from '../../../market-contracts/src/ports/ports.js'
 /**
  * The user-panel store surface the panel resources drive (structural).
@@ -415,8 +416,8 @@ class PanelResources implements PanelResourceStore {
           : (suite.resources?.[this.kind] ?? (await defaultMarkdownResources(suite.root, this.kind)))
       for (const resource of files) {
         const { name, file } = resource
-        const rawText = await resourceText(resource).catch(error => {
-          if (strict && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        const rawText = await resourceText(resource).catch(async error => {
+          if (strict && !(await isAbsentPath(file))) throw error
           return undefined
         })
         if (rawText === undefined) continue

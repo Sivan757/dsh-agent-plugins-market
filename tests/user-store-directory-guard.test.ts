@@ -23,6 +23,7 @@ vi.mock('node:fs/promises', async importOriginal => {
   }
 })
 
+import { isAbsentPath } from '../packages/market-runtime/src/application/fs-probe.js'
 import { listEntryDocuments, listEntryFiles } from '../packages/market-runtime/src/application/panels/user-store.js'
 
 const FRONTMATTER_REVIEW = ['---', 'description: Review', '---', 'Instructions'].join('\n')
@@ -56,6 +57,20 @@ describe('panel directory reads', () => {
     await expect(listEntryFiles(panel, true)).rejects.toMatchObject({ code: 'ENOTDIR' })
     // Non-strict reads keep the documented skip-what-cannot-be-read behavior.
     expect(await listEntryFiles(panel, false)).toEqual([])
+  })
+
+  it('calls a missing child of a file unreadable, not removed', async () => {
+    const root = await scratch()
+    const panel = join(root, 'agents')
+    await writeFile(panel, 'not a directory')
+    // Windows reports ENOENT for this child; the parent shape still decides.
+    expect(await isAbsentPath(join(panel, 'reviewer.md'))).toBe(false)
+    expect(await isAbsentPath(panel)).toBe(false)
+    // A removed document under a real directory is genuinely absent.
+    await mkdir(join(root, 'real'))
+    expect(await isAbsentPath(join(root, 'real', 'gone.md'))).toBe(true)
+    // A missing chain is absent, however deep.
+    expect(await isAbsentPath(join(root, 'gone', 'deeper', 'x.md'))).toBe(true)
   })
 
   it('does not accept a listing failure as absence while the directory still exists', async () => {

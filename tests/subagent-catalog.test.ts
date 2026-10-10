@@ -17,7 +17,7 @@ import {
   type SubagentCatalogObservation,
   type SubagentCatalogSource
 } from '../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
-import { agentRoleCatalog } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
+import { agentRoleCatalog, type AgentRoleEntry } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
 import { projectAgentRoles } from '../packages/market-runtime/src/application/project-agent-roles.js'
 import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
@@ -525,6 +525,22 @@ A role`)
     await stores.agents.remove('reviewer')
     await catalog.setScanProjectLayouts(false)
     expect(publish(parent, await step(parent))[0]?.source).toMatchObject({ update: true, entries: [] })
+  })
+
+  it('fails instead of dropping a role whose document cannot be read', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'subagent-catalog-blocked-'))
+    cleanups.push(() => rm(root, { recursive: true, force: true }))
+    // The document's own directory is now a file: a platform may report ENOENT
+    // for the document, which must not read as a removed role.
+    const blocked = join(root, 'agents')
+    await writeFile(blocked, 'temporarily not a directory')
+    const role: AgentRoleEntry = {
+      name: '["source","suite","agents","reviewer"]',
+      path: join(blocked, 'reviewer.md'),
+      description: 'Installed reviewer',
+      disabled: false
+    }
+    await expect(agentRoleCatalog([role], new AbortController().signal)).rejects.toBeInstanceOf(Error)
   })
 
   it('keeps the published catalog on an incomplete read and still clears on a complete empty one', async () => {
