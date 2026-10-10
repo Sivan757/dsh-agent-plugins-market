@@ -1,0 +1,22 @@
+2026-10-07 Asia/Shanghai. Executed by Lead against installed DSH 0.2.0-rc.2.
+Private DSH_HOME: /tmp/market-repair-HQdPmz/dsh-home
+Private DSH_AGENTS_HOME: /tmp/market-repair-HQdPmz/agents
+Workspace: /tmp/market-repair-HQdPmz/workspace
+URL: http://127.0.0.1:54754/
+Authentication: launch token exchanged for isolated browser cookie. Token and cookie not included in evidence.
+Model: local audit-mock/test adapter using published LlmAdapter. No external model request.
+Baseline plugin: /tmp/market-version-audit-Ljr5F4/snapshot, built during first audit.
+Repaired plugin: /tmp/market-repair-HQdPmz/repaired, built during repair.
+Build-only adjustment: repaired copy changes Hooks StatusPanel label t('epHooksEvents') to t('workspaceTabHooks') because concurrent shared-tree work does not typecheck. This adjustment is NOT applied to the shared working tree.
+Main session: session-ab3e1bc0-cc2d-419a-91b0-d69c4a46acc8
+Sibling session: session-58f50da6-8940-4eb7-9e76-f1d2cb08db45
+Baseline: preset Only Hook B contains parent market:@user-hooks/user-hooks and hooks:@user-hooks/user-hooks/UserPromptSubmit/1. ready=true. Prompt completes. Actual shell markers: hook-a, hook-b. FAILURE reproduced.
+After repaired build and process restart: same persisted selection restored at revision 2. Prompt completes. Added shell marker: hook-b only. PASS.
+Browser: open preset menu, Manage presets, dismiss help, open Hooks tab. Hook A unchecked, Hook B checked.
+Browser: turn Hook B off. UI reports saved, enabled count zero. Preset revision advances, existing session still retains Hook B. PASS detached snapshot.
+Browser: close manager and explicitly reselect Only Hook B. Session revision 3, presetRevision 2, enabledIds contains parent only. Prompt completes. No new shell marker. PASS individual disablement.
+Sibling: create second session at identical cwd, create and select preset with parent plus Hook A. Prompt completes. Added shell marker hook-a only. First session still contains parent only. PASS session isolation.
+Final hook-calls log has exactly four lines: hook-a, hook-b, hook-b, hook-a.
+Repaired browser console query reports no warning or error messages.
+RPC session/create and session/prompt require payload: {args: {request: ...}} inside client-request envelope. HTTP token exchange returns 303; RPC returns HTTP 200 and result.ok=true.
+No host source, live profile, live GUI 19387, git commit or remote write changed.

@@ -1,0 +1,37 @@
+
+=== typecheck ===
+[gate-exit: 0] typecheck
+
+=== lint ===
+[gate-exit: 0] lint
+
+=== format:check ===
+Checking formatting...
+[ELIFECYCLE] Command failed with exit code 1.
+[gate-exit: 1] format:check
+
+=== check:architecture ===
+
+✔ no dependency violations found (236 modules, 911 dependencies cruised)
+
+[gate-exit: 0] check:architecture
+
+=== check:reuse ===
+check-reuse: 60 ledger rows, 1 surface dir(s), 344 published export names
+check-reuse: ok
+[gate-exit: 0] check:reuse
+
+=== check:host-alignment ===
+host baseline: 0.2.0-rc.2 (channel next) — 36 package(s) checked
+  ✓ every declared and dynamically imported host package matches the baseline
+[gate-exit: 0] check:host-alignment
+[stderr]
+$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.test.client.json --noEmit
+$ eslint src tests
+$ prettier --check .
+[warn] src/routes-extension-presets.ts
+[warn] tests/client-hooks-status-panel.test.ts
+[warn] Code style issues found in 2 files. Run Prettier with --write to fix.
+$ depcruise --validate .dependency-cruiser.cjs src
+$ node scripts/check-reuse.mjs
+$ node scripts/check-host-alignment.mjs

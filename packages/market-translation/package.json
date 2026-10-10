@@ -1,0 +1,14 @@
+{
+  "name": "@dsh-market/translation",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "description": "Private translation source boundary for dsh-agent-plugins-market",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@dsh-market/catalog": "workspace:*",
+    "@dsh-market/contracts": "workspace:*"
+  }
+}

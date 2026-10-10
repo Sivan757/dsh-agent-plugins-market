@@ -18,7 +18,7 @@ Status: implemented
 
 ## 边界
 
-只有宿主自身界面读取的文本可以标出来源：斜杠菜单的注册描述对套件命令保留 `[{suiteName}] {description}`，对用户条目保留 `[用户命令] {description}`，因为菜单没有来源列，且那里的 `suiteName` 是 manifest 名而不是 id。`src/client/locales.ts` 中的面板文案不受影响。
+只有宿主自身界面读取的文本可以标出来源：斜杠菜单的注册描述对套件命令保留 `[{suiteName}] {description}`，对用户条目保留 `[用户命令] {description}`，因为菜单没有来源列，且那里的 `suiteName` 是 manifest 名而不是 id。`packages/market-ui/src/locales.ts` 中的面板文案不受影响。
 
 `report_market_issue` 仍然是刻意的例外：它的工具描述点名所提交的仓库，这正是它能为正确的问题被调用的原因。
 

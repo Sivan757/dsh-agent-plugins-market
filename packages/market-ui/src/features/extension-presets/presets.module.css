@@ -1,0 +1,81 @@
+/* The host owns dialog chrome and viewport insets. This surface owns only its frame and flex allocation. */
+.modal[role='dialog'] {
+  width: 800px;
+  height: 800px;
+  max-width: 100%;
+  max-height: 100%;
+}
+.modalContent {
+  min-height: 0;
+  flex: 1;
+  container-type: inline-size;
+}
+.modalContent > div:last-child {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+}
+.managerBody {
+  overflow: hidden;
+}
+.entryButton.entryButton {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.entryButton > svg {
+  flex: none;
+}
+.planBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.planStrip {
+  flex: 1;
+  min-width: 0;
+}
+.inlineStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.inlineStatus > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.listRegion {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+}
+.clipboardText {
+  box-sizing: border-box;
+  width: 100%;
+  height: 220px;
+  resize: vertical;
+}
+@media (max-width: 600px) {
+  .footer {
+    flex-wrap: wrap;
+  }
+  .footer > button {
+    flex: 1;
+  }
+}

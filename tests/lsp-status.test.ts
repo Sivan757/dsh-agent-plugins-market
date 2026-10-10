@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { buildLspStatus, type LspMountStatusSource } from '../src/application/lsp/lsp-status.js'
-import type { LspMountDiagnostic } from '../src/runtime/lsp/lsp-mounts.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { buildLspStatus, type LspMountStatusSource } from '../packages/market-lsp/src/application/lsp/lsp-status.js'
+import type { LspMountDiagnostic } from '../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 function lspSuite(id: string, overrides: Partial<Suite> = {}): Suite {
   return {

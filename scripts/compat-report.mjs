@@ -78,9 +78,9 @@ async function isFile(path) {
 
 /** Compile the plugin's TypeScript into `lib/` so the report runs the shipped scanner. */
 async function ensureScanner() {
-  const entry = join(ROOT, 'lib', 'catalog', 'suite-scanner.js')
+  const entry = join(ROOT, 'lib', 'packages', 'market-catalog', 'src', 'scanning', 'suite-scanner.js')
   await sh('pnpm', ['exec', 'tsc', '-p', 'tsconfig.json'])
-  scannerMarketplaces = (await import(pathToFileURL(join(ROOT, 'lib', 'model', 'layouts.js')).href)).MARKETPLACE_PATHS
+  scannerMarketplaces = (await import(pathToFileURL(join(ROOT, 'lib', 'packages', 'market-contracts', 'src', 'model', 'layouts.js')).href)).MARKETPLACE_PATHS
   return import(pathToFileURL(entry).href)
 }
 
@@ -256,7 +256,7 @@ async function main() {
       schema:
         'Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored schemas/1.0.0/plugin.schema.json.',
       scanner:
-        'Each checkout is scanned by the shipped catalog scanner (lib/catalog/suite-scanner.js scanSource) after a sparse depth-1 clone, so the row records what this plugin actually does with the repository.',
+        'Each checkout is scanned by the shipped catalog scanner (lib/packages/market-catalog/src/scanning/suite-scanner.js scanSource) after a sparse depth-1 clone, so the row records what this plugin actually does with the repository.',
       marketplace: `The scanner marketplace lookup order is ${scannerMarketplaces.map(path => `\`${path}\``).join(' then ')}; other dialects' marketplace files are listed for context but are not read.`,
       verdicts: {
         integrated: 'The scanner read this dialect\u2019s own manifest as the suite identity.',

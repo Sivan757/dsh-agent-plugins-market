@@ -1,0 +1,15 @@
+import { afterEach, expect, it, vi } from 'vitest'
+import { createTranslationProviders } from '../src/runtime/host/translation-providers.js'
+import { isTripped, resetCircuitBreaker, runChain } from '../src/application/translation/chain.js'
+
+afterEach(() => resetCircuitBreaker())
+it('records a damaged description discarding a valid sibling and retiring later healthy batches', async () => {
+  resetCircuitBreaker()
+  const translate = vi.fn(async () => ['有效描述', '链接被遗漏'])
+  const provider = createTranslationProviders({ host: {}, llm: { id: 'llm', available: () => true, translate } }).find(row => row.id === 'llm')!
+  await expect(runChain([provider], ['A normal description', 'Read https://example.test/guide'], 'zh')).rejects.toThrow('lost or duplicated a placeholder')
+  expect(isTripped('llm')).toBe(true)
+  translate.mockResolvedValue(['健康的翻译'])
+  await expect(runChain([provider], ['Another normal description'], 'zh')).rejects.toThrow('skipped after an earlier failure')
+  expect(translate).toHaveBeenCalledTimes(1)
+})

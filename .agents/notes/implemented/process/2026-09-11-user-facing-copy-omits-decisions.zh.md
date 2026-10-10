@@ -4,13 +4,13 @@ Status: implemented
 
 ## Problem
 
-本仓库面向用户的界面曾携带内部取舍的理由。例如代理角色编辑器会告诉读者：`tools` / `disallowedTools` 仍保存在 frontmatter 中但不生效，因为它们写的是 Claude Code 工具名——这句话讲的是本插件为何不再翻译外来工具方言，而不是读者能做什么。这类文案要求插件使用者记住一个实现决策、把注意力花在我们的推演上，并且在该决策被重新审视的那一刻就过期。这种泄漏也没有停止线：README、使用指南、文档站、`src/client/locales.ts` 中的面板文案和代码注释各自决定要暴露多少推理过程。
+本仓库面向用户的界面曾携带内部取舍的理由。例如代理角色编辑器会告诉读者：`tools` / `disallowedTools` 仍保存在 frontmatter 中但不生效，因为它们写的是 Claude Code 工具名——这句话讲的是本插件为何不再翻译外来工具方言，而不是读者能做什么。这类文案要求插件使用者记住一个实现决策、把注意力花在我们的推演上，并且在该决策被重新审视的那一刻就过期。这种泄漏也没有停止线：README、使用指南、文档站、`packages/market-ui/src/locales.ts` 中的面板文案和代码注释各自决定要暴露多少推理过程。
 
 ## Decision
 
-面向用户的文档与注释只说明用户能得到什么、可以做什么。它们不呈现决策信息——内部选择的理由、被否决的方案、放弃了什么——也不携带无人索要的提示。覆盖范围包括中英文 README、`docs/`、`docs-site/`、`src/client/locales.ts` 中的面板文案以及代码注释。理由存放在面向开发者的 Agent Notes 与 ADR 中。
+面向用户的文档与注释只说明用户能得到什么、可以做什么。它们不呈现决策信息——内部选择的理由、被否决的方案、放弃了什么——也不携带无人索要的提示。覆盖范围包括中英文 README、`docs/`、`docs-site/`、`packages/market-ui/src/locales.ts` 中的面板文案以及代码注释。理由存放在面向开发者的 Agent Notes 与 ADR 中。
 
-首次落地删除了 `src/client/locales.ts` 两张语言表中的 `personaToolsHint`，以及 `src/client/features/personas/RoleMetadataFields.tsx` 中渲染它的段落。
+首次落地删除了 `packages/market-ui/src/locales.ts` 两张语言表中的 `personaToolsHint`，以及 `src/client/features/personas/RoleMetadataFields.tsx` 中渲染它的段落。
 
 ## 边界
 

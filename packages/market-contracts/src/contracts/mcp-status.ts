@@ -1,0 +1,101 @@
+/** Browser-safe MCP status records shared by host aggregation and client rendering. */
+
+/** A tool observed in the host MCP tool registry. */
+export interface McpStatusTool {
+  /** The tool's call name, as the server advertises it; never translated. */
+  name: string
+  description?: string
+  /** The description translated for the panel's locale; absent means render `description`. */
+  translatedDescription?: string
+  /** The advertised input schema, kept only while it stays small enough to transport; absent otherwise. */
+  parameters?: unknown
+}
+
+/** Whether an MCP row comes from a suite or direct host observation. */
+export type McpStatusKind = 'plugin' | 'direct'
+
+/** Operational state rendered for an MCP row. `foreign` = mounted by another MCP client (informational). */
+export type McpStatusState = 'connected' | 'degraded' | 'failed' | 'needs-credentials' | 'orphaned' | 'disabled' | 'foreign'
+
+/**
+ * Why a row carries a reason. The mount failures explain a failed connection;
+ * the remaining entries are the states that have something to say without
+ * being broken, and each one has its own wording in the panel.
+ */
+export type McpStatusCode =
+  | 'unsupported-transport'
+  | 'missing-credential'
+  | 'credential-error'
+  | 'unmount-failed'
+  | 'mount-failed'
+  | 'foreign-mount'
+  | 'duplicate-mount'
+  /** Tools are still registered although the surface that declared them is gone. */
+  | 'orphaned-tools'
+  /** Switched off through this plugin's own override record. */
+  | 'disabled-override'
+  /** A stored override changed the configuration the suite declares. */
+  | 'modified-override'
+
+/** One MCP service row for the status surface. */
+export interface McpStatusEntry {
+  id: string
+  name: string
+  kind: McpStatusKind
+  /** A direct service whose persisted configuration is owned by this plugin. */
+  managed?: boolean
+  /** The current backend and credential service support resetting this server's OAuth grant. */
+  canReauthorize?: boolean
+  state: McpStatusState
+  source?: string
+  suiteId?: string
+  serverKey?: string
+  transport: string
+  endpoint?: string
+  config?: Record<string, unknown>
+  tools: McpStatusTool[]
+  /** The one-line diagnostic this row reports, in the words of the layer that failed. */
+  reason?: string
+  /** Why this row carries a reason; also the key the panel localizes it by. */
+  code?: McpStatusCode
+  /**
+   * The messages under the failure's `cause` chain, outermost first. A wrapper
+   * sentence such as `initial connection … failed` names no cause by itself, so
+   * the detail that points at the real problem travels beside it.
+   */
+  causes?: string[]
+  /** Environment-variable credential references required by this server. */
+  credentialRefs?: string[]
+  /** Whether this server advertised zero tools at observation time. Zero-tool
+   *  servers are legitimate, so the panel never treats `degraded` as broken. */
+  advertisedTools?: boolean
+  /** Whether a failed server will be retried automatically. */
+  retryable?: boolean
+  /** A remote server whose suite declares no `auth` block: the bridge still
+   *  runs the OAuth flow when the server answers 401, which the redacted
+   *  configuration alone cannot show. */
+  oauthDefault?: boolean
+  /** Suite allow-list for this server's tools; absent when the suite narrows nothing. */
+  suiteEnabledTools?: string[]
+  /** Tools the suite's own declaration leaves out. */
+  suiteDisabledTools?: string[]
+  /** Tools the user turned off through the panel. */
+  userDisabledTools?: string[]
+}
+
+/** The MCP status response returned by the host. */
+export interface McpStatusPayload {
+  entries: McpStatusEntry[]
+  observedAt: string
+  totals: { all: number; connected: number; degraded: number; failed: number; needsCredentials: number; orphaned: number; disabled: number; foreign: number }
+  directObservationOnly: boolean
+  /** The mount backend the rows were observed under; `host` cannot enforce tool
+   *  filters or startup timeouts, so the panel disables those controls. */
+  backend?: 'builtin' | 'host'
+  /**
+   * Descriptions this read queued that have not landed yet; absent means the
+   * text is settled. The panel re-reads while it is non-zero, so translated
+   * text appears without the user pressing refresh.
+   */
+  translationPending?: number
+}

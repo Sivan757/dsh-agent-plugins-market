@@ -8,9 +8,8 @@ import {
   mountAgentRoleTool,
   parseAgentRole,
   resolveAgentOptions,
-  type AgentRoleHost,
-  type AgentRoleJobs
-} from '../src/runtime/agents/agent-role-router.js'
+  type AgentRoleHost
+} from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const roots: string[] = []
@@ -36,14 +35,12 @@ function hostFixture(terminal: { stopReason?: string; diagnostic?: string; outpu
   }))
   const resolveCallConfig = vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config)
   const register = vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn())
-  const startJob = vi.fn<AgentRoleJobs['start']>(() => 'subagent-1')
-  const jobs: AgentRoleJobs = { start: startJob }
   const host: AgentRoleHost = {
     tools: { register },
     llm: { resolveCallConfig },
     subagents: { startContinuable, start }
   }
-  return { host, jobs, startJob, startContinuable, start, disposeRun, resolveCallConfig, register }
+  return { host, startContinuable, start, disposeRun, resolveCallConfig, register }
 }
 
 async function roleFile(text: string) {
@@ -211,12 +208,11 @@ describe('agent role metadata and runtime routing', () => {
   })
 
   it('starts a continuable child and returns its durable id without waiting', async () => {
-    const { host, startContinuable, start, startJob } = hostFixture()
+    const { host, startContinuable, start } = hostFixture()
     const entry = await roleFile('---\nprovider: deepseek\nmodel: deepseek-chat\ntools: [Read, Grep]\n---\nReview carefully.')
     const call = signal()
     expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review my diff', parent, {}, 'continuable', call)).toEqual({ kind: 'continuable', subagentId: 'child-1' })
     expect(start).not.toHaveBeenCalled()
-    expect(startJob).not.toHaveBeenCalled()
     expect(startContinuable).toHaveBeenCalledWith({
       provider: 'spawn',
       label: entry.name,
@@ -231,32 +227,6 @@ describe('agent role metadata and runtime routing', () => {
     })
     // The card's Claude tool names must never reach the host as a restriction.
     expect(startContinuable.mock.calls[0]?.[0].request).not.toHaveProperty('toolFilter')
-  })
-
-  it('runs the child as a tracked job and returns its job id', async () => {
-    const { host, jobs, startJob, startContinuable, start } = hostFixture()
-    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
-    expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review my diff', parent, {}, 'background', signal(), undefined, jobs)).toEqual({
-      kind: 'background',
-      jobId: 'subagent-1'
-    })
-    // The job is registered without starting the child: `run()` owns that.
-    expect(startContinuable).not.toHaveBeenCalled()
-    expect(start).not.toHaveBeenCalled()
-    expect(startJob).toHaveBeenCalledWith(expect.objectContaining({ kind: 'subagent', label: entry.name, owner: parent }))
-    const spec = startJob.mock.calls[0]?.[0]
-    if (spec === undefined) throw new Error('expected the job spec')
-    const hooks = spec.run()
-    // Cancellation reaches the child's own run through its abort controller.
-    hooks.cancel('enough')
-    expect(await hooks.done).toEqual({ status: 'completed' })
-    expect(start).toHaveBeenCalledWith('spawn', expect.objectContaining({ parent, maxDepth: 3, persona: 'Review carefully.' }))
-  })
-
-  it('refuses the job channel when the host jobs registry is not loaded', async () => {
-    const { host } = hostFixture()
-    const entry = await roleFile('---\nmodel: inherit\n---\nReview.')
-    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'background', signal())).rejects.toThrow('background role jobs unavailable')
   })
 
   it('runs one foreground child, returns its report and always disposes the run', async () => {
@@ -307,15 +277,50 @@ describe('agent role metadata and runtime routing', () => {
     const [definition] = call
     expect(definition).toHaveProperty('name', 'subagent_role')
     expect(definition).toHaveProperty('parameters.required', ['agent', 'prompt'])
+    expect(definition).toHaveProperty('parameters.properties.agent.description', 'Exact callable role name listed in the current "subagent-catalog" message.')
     // The role name is the first parameter; every other name matches `subagent`.
     for (const key of ['agent', 'prompt', 'provider', 'model', 'reasoning_effort', 'run_in_background']) {
       expect(definition).toHaveProperty(`parameters.properties.${key}`, expect.anything())
     }
-    // Three channels, matching the host tool's discriminated result shape.
+    // Two channels, matching the host tool's discriminated result shape.
     expect(definition).toHaveProperty('output.schema.oneOf')
     expect(on).toHaveBeenCalledWith('agent/pre-step', expect.any(Function))
     dispose()
     expect(disposeListener).toHaveBeenCalledOnce()
+  })
+
+  it('maps run_in_background to the two channels: omitted and true keep the durable child, false runs one foreground child', async () => {
+    // The parameter keeps the host tool's own two-value semantics, so the
+    // mapping is asserted through the registered tool rather than by calling
+    // the executor with a mode the model cannot actually select.
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
+    const invoke = async (args: Record<string, unknown>) => {
+      const { host, startContinuable, start, register } = hostFixture()
+      const dispose = mountAgentRoleTool({ ...host, on: vi.fn(() => vi.fn()) } as unknown as Context, async () => [entry])
+      try {
+        const [call] = register.mock.calls
+        if (call === undefined) throw new Error('expected the agent role tool to register exactly once')
+        const definition = call[0] as { execute(args: Record<string, unknown>, exec: { agent: unknown; signal: AbortSignal }): Promise<unknown> }
+        return { result: await definition.execute(args, { agent: parent, signal: signal() }), startContinuable, start, dispose }
+      } finally {
+        dispose()
+      }
+    }
+
+    for (const args of [
+      { agent: entry.name, prompt: 'Review' },
+      { agent: entry.name, prompt: 'Review', run_in_background: true }
+    ]) {
+      const { result, startContinuable, start } = await invoke(args)
+      expect(result).toEqual({ kind: 'continuable', subagentId: 'child-1' })
+      expect(startContinuable).toHaveBeenCalledOnce()
+      expect(start).not.toHaveBeenCalled()
+    }
+
+    const { result, startContinuable, start } = await invoke({ agent: entry.name, prompt: 'Review', run_in_background: false })
+    expect(result).toEqual({ kind: 'foreground', runId: 'child-1', output: [{ type: 'text', text: 'Looks correct.' }] })
+    expect(start).toHaveBeenCalledOnce()
+    expect(startContinuable).not.toHaveBeenCalled()
   })
 
   it('catalogs roles with exact routes only and reads inline definitions', async () => {

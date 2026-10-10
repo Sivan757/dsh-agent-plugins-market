@@ -27,7 +27,7 @@
  *   --manifest <path>    Ledger path relative to the repo root
  *                        (default: docs/reference/reuse-manifest.md).
  *   --surface <dir>      Repeatable; extra self-built surface directory relative to the
- *                        repo root (default: src/client/ui).
+ *                        repo root (default: packages/market-ui/src/ui).
  *   --package <name>     Repeatable; extra installed host package to scan exports from.
  *   --json               Emit a machine-readable report and exit 0 when no findings.
  *   --self-test          Run the built-in assertions and exit; checks the parser, the
@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const MANIFEST_PATH = join(ROOT, 'docs', 'reference', 'reuse-manifest.md')
-const SURFACE_DIRS = [join(ROOT, 'src', 'client', 'ui')]
+const SURFACE_DIRS = [join(ROOT, 'packages', 'market-ui', 'src', 'ui')]
 /** The published UI surface this plugin's client components must be checked against. */
 const EXPORT_PACKAGES = [
   '@deepseek-ai/dsh-client-ui-primitives',
@@ -117,7 +117,7 @@ function extractManifestRows(text, manifestPath) {
     // Header, separator, and commentary rows do not name a file in the first cell.
     if (!first.startsWith(String.fromCharCode(96)) || !first.endsWith(String.fromCharCode(96))) continue
     const surface = first.slice(1, -1).trim()
-    if (!surface.startsWith('src/')) continue
+    if (!surface.startsWith('src/') && !surface.startsWith('packages/')) continue
     const status = (cells[3] ?? '').toLowerCase()
     if (!STATUSES.has(status)) {
       throw new Error(manifestPath + ':' + (index + 1) + ': unknown status "' + (cells[3] ?? '') + '"' + ' (expected use-host, self-built or wait-host) on row for ' + surface)

@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { addUserMcpServer, loadUserMcpSuite } from '../src/application/mcp/mcp-direct-config.js'
-import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
-import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
+import { addUserMcpServer, loadUserMcpSuite, prepareUserMcpServer } from '../packages/market-mcp/src/application/mcp/mcp-direct-config.js'
+import { CommandMountRegistry } from '../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
+import { toMcpMounts } from '../packages/market-mcp/src/application/mcp/mcp-config.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -18,6 +18,19 @@ afterEach(async () => {
 })
 
 describe('user MCP persistence', () => {
+  it('prepares a validated addition without changing storage until publication', async () => {
+    const path = await root()
+    await addUserMcpServer(path, 'existing', { type: 'stdio', command: 'node' })
+    const before = await readFile(join(path, 'mcp.json'), 'utf8')
+    const publish = await prepareUserMcpServer(path, 'new', { type: 'stdio', command: 'other' })
+    await expect(prepareUserMcpServer(path, 'existing', { type: 'stdio', command: 'other' })).rejects.toThrow('already exists')
+    await expect(prepareUserMcpServer(path, '../bad', { type: 'stdio', command: 'other' })).rejects.toThrow('invalid MCP server name')
+    await expect(prepareUserMcpServer(path, 'broken', { type: 'stdio' })).rejects.toThrow('invalid MCP configuration')
+    expect(await readFile(join(path, 'mcp.json'), 'utf8')).toBe(before)
+    await publish()
+    expect(Object.keys((await loadUserMcpSuite(path)).mcp.servers)).toEqual(['existing', 'new'])
+  })
+
   it('preserves services and feeds the real mount request builder', async () => {
     const path = await root()
     await addUserMcpServer(path, 'one', { type: 'stdio', command: 'node', args: ['--version'] })

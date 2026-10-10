@@ -1,0 +1,11 @@
+{
+  "sessionId": "session-08584475-94f5-4d69-885d-894fb6b07616",
+  "before": ["fresh-oneFirst live skill for freshness and detail acceptance."],
+  "after": {
+    "rows": ["fresh-twoSecond live skill for changed preset discovery."],
+    "elapsed": 54.10000014305115
+  },
+  "savedMs": 44.90000009536743,
+  "revision": 7,
+  "query": "/fresh"
+}

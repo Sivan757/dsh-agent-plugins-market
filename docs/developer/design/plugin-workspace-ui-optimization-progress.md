@@ -26,7 +26,7 @@ Agent Plugins 工作台 UI 优化 — 落地进度
 
 | # | 条目 | 落点 | 验证 |
 | --- | --- | --- | --- |
-| C1 | 统一卡片句法 | 新增共享槽位层 `src/client/ui/resource-card.module.css`（`rowId / rowBody / rowFoot / rowActions` + `name / version / desc / monoLine / provenance / count / countValue / iconBtn / revealOnHover`）；`features/market/SuiteCard.tsx`、`ui/UserPanelSurface.tsx`（`UserEntryRow`）、`McpStatusPanel.tsx`（`McpCard`）、`LspStatusPanel.tsx`（`LspRow`）全部改写 | 独立 profile 走查下六页签同句法、同行等高 |
+| C1 | 统一卡片句法 | 新增共享槽位层 `packages/market-ui/src/ui/resource-card.module.css`（`rowId / rowBody / rowFoot / rowActions` + `name / version / desc / monoLine / provenance / count / countValue / iconBtn / revealOnHover`）；`features/market/SuiteCard.tsx`、`ui/UserPanelSurface.tsx`（`UserEntryRow`）、`McpStatusPanel.tsx`（`McpCard`）、`LspStatusPanel.tsx`（`LspRow`）全部改写 | 独立 profile 走查下六页签同句法、同行等高 |
 | C2 | 栅格几何 | `repeat(auto-fill, minmax(320px, 1fr))`、`grid-auto-rows: 122px`、列表行 56px；断点改容器查询 | 走查中面板宽 750px 时 2 列，窄容器降至 1 列 |
 | C3 | 操作簇放身份行右侧 | `resource-card.module.css` 网格模板 `'id act' / 'body body' / 'foot foot'` | 暗色截图 `aliyunlog v1.7.1 用户级 [安装]` 同行，描述整宽 |
 | C4 | 仓库来源条保持现状 | 未改动 `features/market/SourceTabsRow.tsx`、`SourceTab.tsx` 与相关 CSS；只修正了与调用方 chip 顺序矛盾的模块注释 | 走查中胶囊、两行折叠、选中来源改名、前导 `全部` 与线上一致 |
@@ -106,7 +106,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 ## 五、本次改动文件
 
-新增：`src/client/ui/UserEntryDetail.tsx`、`src/client/ui/json-tree-labels.ts`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`、本文件。
+新增：`packages/market-ui/src/ui/UserEntryDetail.tsx`、`packages/market-ui/src/ui/json-tree-labels.ts`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`、本文件。
 
 修改：`src/client/LspStatusPanel.tsx`、`MarketSection.tsx`、`McpStatusPanel.tsx`、`SearchFilterToolbar.tsx`、`SearchFilterToolbar.module.css`、`SuiteDetail.tsx`、`features/market/SuiteCard.tsx`、`features/market/SourceTabsRow.tsx`、`locales.ts`、`market.module.css`、`mcp-status.module.css`、`ui/DetailModal.tsx`、`ui/detail.module.css`、`ui/UserPanelSurface.tsx`、`ui/panel.tsx`、`ui/panel.module.css`、`ui/resource-card.module.css`、`tests/user-panel-surface.test.ts`、`tests/filter-toolbar.test.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-02-market-card-platform-affordances.md` + `.zh.md`。
 
@@ -162,7 +162,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 新增：`.agents/notes/implemented/feature/2026-09-16-workspace-live-card-affordances.md` + `.zh.md`。
 
-修改：`src/client/features/market/SuiteCard.tsx`、`src/client/features/market/SourceTabsRow.tsx`（注释之外无行为改动）、`src/client/MarketSection.tsx`、`src/client/McpStatusPanel.tsx`、`src/client/LspStatusPanel.tsx`、`src/client/SuiteDetail.tsx`、`src/client/ui/UserPanelSurface.tsx`、`src/client/ui/panel.tsx`、`src/client/ui/ResourceCard.tsx`、`src/client/ui/resource-card.module.css`、`src/client/SearchFilterToolbar.tsx`、`src/client/SearchFilterToolbar.module.css`、`src/client/market.module.css`、`src/client/api.ts`、`src/client/locales.ts`、`src/client/features/mcp-status/mcp-status-view-model.ts`、`src/client/features/lsp-status/lsp-status-view-model.ts`、`src/contracts/market.ts`、`src/routes.ts`、`src/application/catalog.ts`、`src/application/queries.ts`、`src/application/mcp-service.ts`、`tests/filter-toolbar.test.ts`、`tests/client-view-models.test.ts`、`tests/user-panel-surface.test.ts`、`tests/routes.test.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`。
+修改：`packages/market-ui/src/features/market/SuiteCard.tsx`、`src/client/features/market/SourceTabsRow.tsx`（注释之外无行为改动）、`src/client/MarketSection.tsx`、`src/client/McpStatusPanel.tsx`、`src/client/LspStatusPanel.tsx`、`src/client/SuiteDetail.tsx`、`packages/market-ui/src/ui/UserPanelSurface.tsx`、`packages/market-ui/src/ui/panel.tsx`、`packages/market-ui/src/ui/ResourceCard.tsx`、`packages/market-ui/src/ui/resource-card.module.css`、`src/client/SearchFilterToolbar.tsx`、`src/client/SearchFilterToolbar.module.css`、`src/client/market.module.css`、`packages/market-ui/src/api.ts`、`packages/market-ui/src/locales.ts`、`src/client/features/mcp-status/mcp-status-view-model.ts`、`src/client/features/lsp-status/lsp-status-view-model.ts`、`packages/market-contracts/src/contracts/market.ts`、`packages/market-bundle/src/routes.ts`、`packages/market-bundle/src/application/catalog.ts`、`packages/market-contracts/src/ports/queries.ts`、`packages/market-mcp/src/application/mcp-service.ts`、`tests/filter-toolbar.test.ts`、`tests/client-view-models.test.ts`、`tests/user-panel-surface.test.ts`、`tests/routes.test.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`。
 
 ## 九、编辑页复刻（截图 40–49）
 
@@ -189,7 +189,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 | # | 条目 | 落点 | 实测 |
 | --- | --- | --- | --- |
-| G1 | 新增共享表单样式表 | 新增 `src/client/ui/form.module.css`：`.field`（12px/600 次级色标签 + `gap:5px`；input/select/textarea `7px 9px`、`radius 8px`、`1px border-l2`、`12px`；textarea `min-height:240px`、等宽 `12/19`）、`.form`（`flex column`、`gap:14px`）、`.formGrid`（2 列 `gap:12px`）、`.seg`（一条带边框轨道 + 24px 按钮）、`.readonly`（虚线 `border-l3` + `interactive-bg-hover` + 等宽）、`.rows`/`.row`（含 34% / 26% 键列）、`.iconBtn`（扁平 24px 删除）、`.addRow`（26px 带边框）、`.inlineCheck`、`.fieldset`、`.panes`、`.previewBox`、`.footer` | 实测输入框 31px 高、`7px 9px`、`radius 8px`、`1px border-l2`、12px；标签 12px/600 `label-secondary`；文本域 240px、12px 等宽 |
+| G1 | 新增共享表单样式表 | 新增 `packages/market-ui/src/ui/form.module.css`：`.field`（12px/600 次级色标签 + `gap:5px`；input/select/textarea `7px 9px`、`radius 8px`、`1px border-l2`、`12px`；textarea `min-height:240px`、等宽 `12/19`）、`.form`（`flex column`、`gap:14px`）、`.formGrid`（2 列 `gap:12px`）、`.seg`（一条带边框轨道 + 24px 按钮）、`.readonly`（虚线 `border-l3` + `interactive-bg-hover` + 等宽）、`.rows`/`.row`（含 34% / 26% 键列）、`.iconBtn`（扁平 24px 删除）、`.addRow`（26px 带边框）、`.inlineCheck`、`.fieldset`、`.panes`、`.previewBox`、`.footer` | 实测输入框 31px 高、`7px 9px`、`radius 8px`、`1px border-l2`、12px；标签 12px/600 `label-secondary`；文本域 240px、12px 等宽 |
 | G2 | 三个编辑器改用该表 | `ui/panel.tsx`（`EntryEditorModal` 的窗格/字段/提示/底部）、`ui/ServerConfigEditor.tsx`（整表重写）、`features/market/SourceEditorModal.tsx`、`features/personas/RoleMetadataFields.tsx` | 三处字段几何一致；`运行配置` fieldset 用 `.fieldset` |
 | G3 | 编辑器字段改原生控件 | 名称、参数提示、来源地址等不再用宿主 `Input`（宿主 `Input` 仍是面板搜索框） | 名称框与旁边的命令框同为 12px `border-l2`、`radius 8px` |
 | G4 | 行编辑器按原型 | `StringRows` 改 `.rows`/`.row` + 扁平 24px 删除按钮 + 带边框的 `添加参数 / 添加变量 / 添加请求头 / 添加映射`；`表单｜JSON` 用 `.seg` | 走查中 MCP 的 `参数 / 环境变量 / 工作目录` 与来源分段控件都是一条轨道 |
@@ -224,9 +224,9 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 ## 十、编辑页改动文件
 
-新增：`src/client/ui/form.module.css`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md` + `.zh.md`。
+新增：`packages/market-ui/src/ui/form.module.css`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md` + `.zh.md`。
 
-修改：`src/client/ui/panel.tsx`、`src/client/ui/panel.module.css`、`src/client/ui/detail.module.css`、`src/client/market.module.css`、`src/client/ui/UserPanelSurface.tsx`、`src/client/ui/ServerConfigEditor.tsx`、`src/client/ui/detail.module.css`、`src/client/McpStatusPanel.tsx`、`src/client/LspStatusPanel.tsx`、`src/client/mcp-status.module.css`、`src/client/features/market/SourceEditorModal.tsx`、`src/client/features/personas/RoleMetadataFields.tsx`、`src/client/features/personas/frontmatter.ts`、`src/client/locales.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`。
+修改：`packages/market-ui/src/ui/panel.tsx`、`packages/market-ui/src/ui/panel.module.css`、`packages/market-ui/src/ui/detail.module.css`、`src/client/market.module.css`、`packages/market-ui/src/ui/UserPanelSurface.tsx`、`packages/market-ui/src/ui/ServerConfigEditor.tsx`、`packages/market-ui/src/ui/detail.module.css`、`src/client/McpStatusPanel.tsx`、`src/client/LspStatusPanel.tsx`、`src/client/mcp-status.module.css`、`packages/market-ui/src/features/market/SourceEditorModal.tsx`、`src/client/features/personas/RoleMetadataFields.tsx`、`src/client/features/personas/frontmatter.ts`、`packages/market-ui/src/locales.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`。
 
 ## 十三、编辑区的多行文本域换成编辑器
 
@@ -244,9 +244,9 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 ## 十四、本轮改动文件
 
-新增：`src/client/ui/CodeEditor.tsx`、`src/client/ui/code-editor.module.css`、`.agents/notes/implemented/feature/2026-09-16-workspace-document-editor.md` + `.zh.md`。
+新增：`packages/market-ui/src/ui/CodeEditor.tsx`、`packages/market-ui/src/ui/code-editor.module.css`、`.agents/notes/implemented/feature/2026-09-16-workspace-document-editor.md` + `.zh.md`。
 
-修改：`src/client/ui/panel.tsx`、`src/client/ui/form.module.css`、`package.json`、`pnpm-lock.yaml`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md` + `.zh.md`。
+修改：`packages/market-ui/src/ui/panel.tsx`、`packages/market-ui/src/ui/form.module.css`、`package.json`、`pnpm-lock.yaml`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md` + `.zh.md`。
 
 ## 十五、编辑器外壳去文案与表单控件统一
 
@@ -266,7 +266,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 新增：`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome-cleanup.md` + `.zh.md`。
 
-修改：`src/client/ui/panel.tsx`、`src/client/ui/UserPanelSurface.tsx`、`src/client/ui/ServerConfigEditor.tsx`、`src/client/ui/form.module.css`、`src/client/LspStatusPanel.tsx`、`src/client/McpStatusPanel.tsx`、`src/client/features/market/SourceEditorModal.tsx`、`src/client/features/personas/RoleMetadataFields.tsx`、`src/client/locales.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md` + `.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-document-editor.md` + `.zh.md`。
+修改：`packages/market-ui/src/ui/panel.tsx`、`packages/market-ui/src/ui/UserPanelSurface.tsx`、`packages/market-ui/src/ui/ServerConfigEditor.tsx`、`packages/market-ui/src/ui/form.module.css`、`src/client/LspStatusPanel.tsx`、`src/client/McpStatusPanel.tsx`、`packages/market-ui/src/features/market/SourceEditorModal.tsx`、`src/client/features/personas/RoleMetadataFields.tsx`、`packages/market-ui/src/locales.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md` + `.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-document-editor.md` + `.zh.md`。
 
 ## 十七、编辑表单改单栏，markdown 预览改为按钮切换
 
@@ -289,4 +289,4 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 新增：`.agents/notes/implemented/feature/2026-09-16-workspace-document-editor-single-view.md` + `.zh.md`。
 
-修改：`src/client/ui/panel.tsx`、`src/client/ui/UserPanelSurface.tsx`、`src/client/ui/panel.module.css`、`src/client/ui/form.module.css`、`src/client/locales.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-document-editor.md` + `.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome-cleanup.md` + `.zh.md`。
+修改：`packages/market-ui/src/ui/panel.tsx`、`packages/market-ui/src/ui/UserPanelSurface.tsx`、`packages/market-ui/src/ui/panel.module.css`、`packages/market-ui/src/ui/form.module.css`、`packages/market-ui/src/locales.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-document-editor.md` + `.zh.md`、`.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome-cleanup.md` + `.zh.md`。

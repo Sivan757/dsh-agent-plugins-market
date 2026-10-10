@@ -13,7 +13,7 @@
 
 ## 总览结论
 
-1. **消费面已经很宽**：`src/client` 有 27 个文件、31 条 import 直接消费官方包（`src/client/index.ts` 还带 `missingPrimitives` 降级守卫）。组件层的「纯自研」只剩 7 个文件：ResourceCard、DetailRows、StatusBand、BusyOverlay、SearchFilterToolbar、SourceTabsRow/SourceTab、PluginWorkspace 的 tab 行，外加 SearchFilterToolbar 内 2 个自绘 view glyph。
+1. **消费面已经很宽**：`src/client` 有 27 个文件、31 条 import 直接消费官方包（`packages/market-ui/src/index.ts` 还带 `missingPrimitives` 降级守卫）。组件层的「纯自研」只剩 7 个文件：ResourceCard、DetailRows、StatusBand、BusyOverlay、SearchFilterToolbar、SourceTabsRow/SourceTab、PluginWorkspace 的 tab 行，外加 SearchFilterToolbar 内 2 个自绘 view glyph。
 2. **最大一块可评估的官方替换不在原语层，而在卡片层**：`plugin-card-controller.ts`（348 行）自建的暂存/保存/修订围栏模型，与 rc.2 **已公开导出**的 `SettingsFormModel` + `settingsNumberField`/`settingsTextField` + `SettingsForm`/`SettingsSecretField` 职责重合 —— 建议立项迁移（P1）。
 3. **rc.2 新发布的 `SegmentedControl`/`SegmentedTabs` 是本矩阵最大的新增替换机会**：本仓库 4 处手工段控（SearchFilterToolbar 过滤段、MarketSection 状态 tab、ServerConfigEditor form/json 切换、PluginWorkspace 主 tab）都可用它收敛（P2）。
 4. 剩余自研全部有 JSDoc/ADR 级别的成文理由（DisclosureRow 形状不合、官方无编辑器、官方无目标遮罩等），归「有意自建/维持」。

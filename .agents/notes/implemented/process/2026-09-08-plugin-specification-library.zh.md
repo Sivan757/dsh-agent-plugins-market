@@ -8,7 +8,7 @@ Status: implemented
 
 ## 决策
 
-- **`schemas/` 下放两类文件，且这个区分必须显式。** `schemas/1.0.0/*.schema.json` 是唯一的**内置（vendored）** schema：由 `src/catalog/validate.ts` 在运行时加载，并从上游整体替换。其他每个目录放的都是扫描器**不读取**的**自撰参考契约**。`schemas/README.md` 在第一段和出处政策一节都写明这一点，避免维护者把参考 schema 误当成门禁。
+- **`schemas/` 下放两类文件，且这个区分必须显式。** `schemas/1.0.0/*.schema.json` 是唯一的**内置（vendored）** schema：由 `packages/market-catalog/src/scanning/validate.ts` 在运行时加载，并从上游整体替换。其他每个目录放的都是扫描器**不读取**的**自撰参考契约**。`schemas/README.md` 在第一段和出处政策一节都写明这一点，避免维护者把参考 schema 误当成门禁。
 - **每个方言一个目录，形态固定。** `<dialect>/plugin.schema.json`、`<dialect>/marketplace.schema.json`、`<dialect>/spec.md`。`agent-plugins/spec.md` 与 `skill-collection/spec.md` 不带 schema，前者复用 `1.0.0/`，后者没有 manifest 可校验。`tests/schemas.test.ts` 强制这一配对，避免将来新增方言时只落一半文档。
 - **出处写在产物里，而不只写在散文里。** 每个自撰 schema 都带 `$comment`，写明来源与核对日期；每份 `spec.md` 开头列出核对日期、证据清单、上游 schema 状态，结尾列证据缺口。缺口是刻意保留的：ZCode 与 Qoder 的实机运行时与已发布文档在若干点上互相矛盾，掩盖这一点的契约比没有契约更糟。
 - **自撰 schema 默认开放。** 客户端会忽略或剥离未知 manifest 字段，因此除上游封闭的 agent-plugins.org schema 之外，一律 `additionalProperties: true`。必填项与 `pattern` 只镜像已有文档或实现验证过的规则。
@@ -22,7 +22,7 @@ Status: implemented
 - **只写 markdown，不做 JSON Schema。** 被否决：仓库自身对「钉住的契约」的惯例就是 schema 文件；而且写 schema 的过程暴露了散文曾抹平的真实矛盾（ZCode 的顶层 `pluginRoot` 与 `metadata.pluginRoot`；Qoder 文档中的三种作用域与 CLI 的四种）。
 - **内置 SchemaStore 的 Claude Code schema。** 它们由社区维护且相对文档已过期（生成于 2026-04-23，缺 `displayName`、`metadata`、`defaultEnabled`、`experimental`、`workflows`、`renames`）。内置它们等于把错误契约贴上上游标签。
 - **把上游校验器（`scripts/validate.py`、Qoder 的 Zod bundle）搬进 schema。** 这样 schema 能按厂商自己的规则执行，但等于把实现复制进文档目录，且每次客户端发版都会过期。改为在 `$comment` 里记录观测到的版本。
-- **为对称把 `1.0.0/` 移进 `agent-plugins/1.0.0/`。** 需要改 `src/catalog/validate.ts` 里的运行时路径常量与测试，且没有任何功能收益；内置目录保留原名与运行时角色。
+- **为对称把 `1.0.0/` 移进 `agent-plugins/1.0.0/`。** 需要改 `packages/market-catalog/src/scanning/validate.ts` 里的运行时路径常量与测试，且没有任何功能收益；内置目录保留原名与运行时角色。
 
 ## 后果
 

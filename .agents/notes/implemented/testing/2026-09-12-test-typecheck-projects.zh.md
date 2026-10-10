@@ -9,7 +9,7 @@ Status: implemented
 因此测试文件可以引用一个不存在的成员、传一个没人读的属性、或者构造一个缺必填字段的 fixture，直到有人在运行时走到那条分支才会暴露。这不是假设。第一个同时覆盖 `src/**` 与 `tests/**` 的项目在 **70 个测试文件中的 22 个里报出 48 条诊断**：
 
 - **14 条是测试验证的东西和它声称验证的不是一回事。** 一个 `MarketService` fake 少了八个接口成员（`serverConfig`、`lspStatus`、`lspServers`、`mcpOverrides`、`saveServerConfig`、`addLspServer`、`setLspServers`、`setLspServerEnabled`）——被测的路由一个都没调用它们，缺口因此不可见。一个凭据解析器被当成裸的 `async () => …` 函数传入，而声明要求的是 `{ resolve }`；一个 `Map` 被传到了声明为 `McpSuiteOverrides` 的位置：`overrides[serverKey]` 从 `Map` 上读到的永远是 `undefined`，于是这个 stub 以错误的理由表现得像 `{}`。四个 `McpStatusPayload` fixture 漏了 `totals.foreign`。
-- **3 条是生产类型本身写错了。** `tests/scan-pipeline.test.ts` 构造 `{ source: 'github', repo: 'example/other' }`，而 `src/catalog/scan-resolvers.ts` 里的 `githubRepoUrl` 会读 `record['repo']`——这是 Claude Code marketplace 真实支持的简写，`MarketplaceEntry.source` 却没有声明它。
+- **3 条是生产类型本身写错了。** `tests/scan-pipeline.test.ts` 构造 `{ source: 'github', repo: 'example/other' }`，而 `packages/market-catalog/src/scanning/scan-resolvers.ts` 里的 `githubRepoUrl` 会读 `record['repo']`——这是 Claude Code marketplace 真实支持的简写，`MarketplaceEntry.source` 却没有声明它。
 - **31 条是类型噪音**，与测试证明了什么无关：`strict` 下的 `globalThis.IS_REACT_ACT_ENVIRONMENT`、一个漏写的默认参数、一个没写类型参数的 `querySelectorAll`。
 
 同一个缺口还有另一半。类型感知规则需要知道文件归属哪个程序，而在没有工程覆盖 `tests/` 时，带类型的 ESLint 规则集根本用不了——不只是测试，`src/` 也一样，因为配置是共用的。会推理类型的规则从来没在这个仓库跑过。

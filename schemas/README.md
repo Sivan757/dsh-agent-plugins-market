@@ -2,7 +2,7 @@
 
 This directory is the specification library for the plugin layouts this manager reads. It holds three kinds of files:
 
-1. **Vendored upstream schemas** in [`1.0.0/`](1.0.0/) and [`1.1.0/`](1.1.0/) — pinned copies of the official agent-plugins.org schemas (1.0.0 published, 1.1.0 the working draft this manager explicitly recognizes as compatible; the two releases' schemas differ only in the version string). These are bundled into the published package and loaded at runtime by [`src/catalog/validate.ts`](../src/catalog/validate.ts), because the specification requires clients to validate plugin packages without retrieving schemas at load time (§7.2.1: "Clients MUST NOT retrieve a schema while loading a plugin").
+1. **Vendored upstream schemas** in [`1.0.0/`](1.0.0/) and [`1.1.0/`](1.1.0/) — pinned copies of the official agent-plugins.org schemas (1.0.0 published, 1.1.0 the working draft this manager explicitly recognizes as compatible; the two releases' schemas differ only in the version string). These are bundled into the published package and loaded at runtime by [`packages/market-catalog/src/scanning/validate.ts`](../packages/market-catalog/src/scanning/validate.ts), because the specification requires clients to validate plugin packages without retrieving schemas at load time (§7.2.1: "Clients MUST NOT retrieve a schema while loading a plugin").
 2. **Reference contracts** in `<dialect>/` — an authored JSON Schema pair plus a `spec.md` for each layout the manager recognizes. **These are documentation, not runtime validators**: the scanner still applies the strategy-chain rules in `src/catalog/`. They exist so a dialect's field set, file locations, and evidence are pinned in one place.
 3. **The client extension namespace contract** in [`com.deepseek.harness/`](com.deepseek.harness/) — the authored schema and rules for this manager's own §8 namespace: manifest data under `extensions["com.deepseek.harness"]` and the top-level `com.deepseek.harness/` extension directory.
 
@@ -69,11 +69,11 @@ All ten active layouts are covered by [offline README repository tests](../tests
 
 ## Provenance and update policy
 
-- `1.0.0/*.schema.json` and `1.1.0/*.schema.json` are vendored. Replace the files from [`agentplugins/agent-plugins-spec`](https://github.com/agentplugins/agent-plugins-spec) at the pinned spec versions and bump the spec-version references in `src/catalog/validate.ts`. Never edit them by hand.
+- `1.0.0/*.schema.json` and `1.1.0/*.schema.json` are vendored. Replace the files from [`agentplugins/agent-plugins-spec`](https://github.com/agentplugins/agent-plugins-spec) at the pinned spec versions and bump the spec-version references in `packages/market-catalog/src/scanning/validate.ts`. Never edit them by hand.
 - `<dialect>/*.schema.json` and `spec.md` are authored here. They are **not** upstream copies and carry no upstream compatibility guarantee. When a cited source changes, re-verify and update the schema, the `spec.md`, and the `$comment` provenance line together.
 - `agent-plugins/spec.md` documents the published standard but deliberately keeps its schemas in `1.0.0/` and `1.1.0/` so there is exactly one copy of each release in the tree.
 - `com.deepseek.harness/` is authored here and owned here: it defines this manager's own §8 namespace, so its evolution is governed by the namespace `schemaVersion`, not by upstream releases.
 
 ## Validation
 
-`tests/schemas.test.ts` compiles every schema with Ajv 2020-12, asserts `$id` uniqueness, pins the vendored ids to the runtime constants in `src/catalog/validate.ts`, and requires each dialect to keep a `spec.md` and a paired marketplace schema (the vendored release directories and the namespace contract keep their own documented shape instead). Run `pnpm run test` after touching this directory; run `pnpm run format:check` for formatting.
+`tests/schemas.test.ts` compiles every schema with Ajv 2020-12, asserts `$id` uniqueness, pins the vendored ids to the runtime constants in `packages/market-catalog/src/scanning/validate.ts`, and requires each dialect to keep a `spec.md` and a paired marketplace schema (the vendored release directories and the namespace contract keep their own documented shape instead). Run `pnpm run test` after touching this directory; run `pnpm run format:check` for formatting.

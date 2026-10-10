@@ -9,10 +9,10 @@
  * structurally because the bridge must not depend on host test packages.
  */
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest'
-import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../src/runtime/mcp/bridge/tools.js'
-import { createTransport } from '../src/runtime/mcp/bridge/transport.js'
-import { apply } from '../src/runtime/mcp/bridge/bridge.js'
-import type { Config, StreamableHttpConfig } from '../src/application/mcp/mcp-bridge-config.js'
+import { publicToolName, syncTools, type ToolBridgeOptions, type ToolDefinition, type ToolHost } from '../packages/market-mcp/src/runtime/mcp/bridge/tools.js'
+import { createTransport } from '../packages/market-mcp/src/runtime/mcp/bridge/transport.js'
+import { apply } from '../packages/market-mcp/src/runtime/mcp/bridge/bridge.js'
+import type { Config, StreamableHttpConfig } from '../packages/market-mcp/src/application/mcp/mcp-bridge-config.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 const testToolSignal = new AbortController().signal
@@ -315,7 +315,7 @@ vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
 // deterministically instead of spawning a login shell.
 const { resolveDeclaredCommandMock } = vi.hoisted(() => ({ resolveDeclaredCommandMock: vi.fn() }))
 
-vi.mock('../src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: resolveDeclaredCommandMock }))
+vi.mock('../packages/market-runtime/src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: resolveDeclaredCommandMock }))
 
 // Streamable HTTP specifically, not the `Config` union: spreading a union-typed
 // value makes every override an excess property on the other constituents.

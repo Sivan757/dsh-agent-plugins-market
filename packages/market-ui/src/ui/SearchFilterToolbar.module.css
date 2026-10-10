@@ -1,0 +1,75 @@
+/* Shared search + filter + view-switch row.
+ *
+ * The filter control is the host's SegmentedControl and the view switch is one
+ * flat icon button, so the current filter and the current view are both readable
+ * without hovering. The search box flexes; the filter and the switch keep their
+ * natural width and are pushed to the trailing edge.
+ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: none;
+}
+
+.search {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+/* The host input renders its own bordered wrapper; this only lets it fill the
+   flex track and keeps the 12px settings-panel type size. */
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.searchInput input {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+/* The filter's 28px segments sit inside the host control's 4px padding, lining
+   them up with the 32px search field. */
+.segment {
+  flex: none;
+}
+
+/* The host sizes a segment to its widest label through 16px of side padding,
+   which reads as a wide gap between two short filters; half of it keeps the
+   labels apart without the spread. The track's indicator derives its width
+   from the track, so it follows this padding on its own. */
+.segment [role='tab'] {
+  padding-inline: 8px;
+}
+
+/* The view switch is a flat 24px glyph like every other panel action; the
+   toolbar's own colour already marks it as available. */
+.viewSwitch {
+  flex: none;
+}
+
+/* The caller's trailing control sits in the same cluster as the view switch,
+   so it keeps that glyph's width and never absorbs the search field's squeeze. */
+.beforeView {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+/* The toolbar stays on one row: the search field absorbs the squeeze, exactly
+   as the settings column's width changes. Only a genuinely narrow container —
+   below where the filter segments would overflow — stacks it. */
+@container (max-width: 480px) {
+  .toolbar {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .search {
+    flex-basis: 100%;
+  }
+}

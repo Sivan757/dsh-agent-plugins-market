@@ -4,13 +4,13 @@ Status: implemented
 
 ## Problem
 
-User-facing surfaces here carried the reasoning behind internal choices. The agent-role editor, for example, told the reader that `tools` / `disallowedTools` stay in the frontmatter but are never applied, because they name Claude Code tools — a sentence about why this plugin stopped translating a foreign tool dialect, not about anything the reader can do. Copy like that asks a plugin user to keep an implementation decision in mind, spends their attention on our deliberation, and goes stale the moment that decision is revisited. The leakage had no stopping point either: the READMEs, the usage guides, the docs site, panel copy in `src/client/locales.ts`, and code comments each decided separately how much reasoning to expose.
+User-facing surfaces here carried the reasoning behind internal choices. The agent-role editor, for example, told the reader that `tools` / `disallowedTools` stay in the frontmatter but are never applied, because they name Claude Code tools — a sentence about why this plugin stopped translating a foreign tool dialect, not about anything the reader can do. Copy like that asks a plugin user to keep an implementation decision in mind, spends their attention on our deliberation, and goes stale the moment that decision is revisited. The leakage had no stopping point either: the READMEs, the usage guides, the docs site, panel copy in `packages/market-ui/src/locales.ts`, and code comments each decided separately how much reasoning to expose.
 
 ## Decision
 
-User-facing documentation and comments state what the user gets and what they can do. They do not present decision information — the rationale for an internal choice, the rejected alternative, what was given up — and they do not carry hints nobody asked for. This covers the READMEs, `docs/`, `docs-site/`, panel copy in `src/client/locales.ts`, and code comments. The rationale lives in Agent Notes and ADRs, which are developer-facing.
+User-facing documentation and comments state what the user gets and what they can do. They do not present decision information — the rationale for an internal choice, the rejected alternative, what was given up — and they do not carry hints nobody asked for. This covers the READMEs, `docs/`, `docs-site/`, panel copy in `packages/market-ui/src/locales.ts`, and code comments. The rationale lives in Agent Notes and ADRs, which are developer-facing.
 
-The first application removed `personaToolsHint` from both locale tables in `src/client/locales.ts` and the paragraph rendering it in `src/client/features/personas/RoleMetadataFields.tsx`.
+The first application removed `personaToolsHint` from both locale tables in `packages/market-ui/src/locales.ts` and the paragraph rendering it in `src/client/features/personas/RoleMetadataFields.tsx`.
 
 ## Where the line falls
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
-import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { McpMountRegistry } from '../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { required } from './helpers/fixture.js'
 
@@ -435,8 +435,8 @@ describe('CommandMountRegistry (CC commands compat)', () => {
         }
       }
     }
-    const registry = new (await import('../src/runtime/surfaces/commands-mounts.js')).CommandMountRegistry(ctx as never)
-    const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const registry = new (await import('../packages/market-runtime/src/runtime/surfaces/commands-mounts.js')).CommandMountRegistry(ctx as never)
+    const scanned = await (await import('../packages/market-catalog/src/scanning/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
     const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const diagnostics = await registry.reconcile(suites)
     expect(diagnostics).toEqual([])
@@ -465,7 +465,7 @@ describe('CommandMountRegistry (CC commands compat)', () => {
 
 describe('agent definitions stay separate from skills', () => {
   it('keeps installed roles out of skill candidates while retaining ordinary skills', async () => {
-    const { Catalog } = await import('../src/application/catalog.js')
+    const { Catalog } = await import('../packages/market-bundle/src/application/catalog.js')
     const { mkdtemp } = await import('node:fs/promises')
     const { tmpdir } = await import('node:os')
     const userRoot = await mkdtemp(`${tmpdir()}/dsh-agent-plugins-agents-`)
@@ -474,7 +474,7 @@ describe('agent definitions stay separate from skills', () => {
     await manager.mergeSources([{ id: 'cc', url: CC_COMMANDS_ROOT, local: true }])
     await manager.install('cc', 'cc-commands')
     await manager.setEnabled('cc', 'cc-commands', true)
-    const provider = new (await import('../src/runtime/surfaces/skills-provider.js')).SuiteSkillProvider(manager)
+    const provider = new (await import('../packages/market-runtime/src/runtime/surfaces/skills-provider.js')).SuiteSkillProvider(manager)
     const candidates = await provider.list({})
     const names = candidates.map(candidate => candidate.name)
     expect(names).not.toContain('agent-codex-rescue')
@@ -492,8 +492,8 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
       },
       logger: { warn: () => {} }
     }
-    const registry = new (await import('../src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
-    const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const registry = new (await import('../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
+    const scanned = await (await import('../packages/market-catalog/src/scanning/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
     const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const diagnostics = await registry.reconcile(suites)
     expect(diagnostics).toEqual([])
@@ -520,8 +520,8 @@ describe('HooksMountRegistry (CC hooks compat)', () => {
       },
       logger: { warn: () => {} }
     }
-    const registry = new (await import('../src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
-    const scanned = await (await import('../src/catalog/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const registry = new (await import('../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
+    const scanned = await (await import('../packages/market-catalog/src/scanning/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
     const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
     const ccSuite = required(suites[0], 'the cc-commands fixture to yield one suite')
 

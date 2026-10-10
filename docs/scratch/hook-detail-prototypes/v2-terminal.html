@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>V2 终端优先</title><link rel="stylesheet" href="./proto.css">
+<style>
+.terminal { display: flex; flex-direction: column; border: 1px solid var(--border-1); border-radius: 10px; background: var(--code-bg); overflow: hidden; }
+.terminal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border-1); font-family: var(--mono); font-size: 12px; }
+.terminal-name { display: flex; align-items: center; gap: 8px; color: var(--label-2); }
+.terminal-body { margin: 0; padding: 12px 14px; color: var(--label-2); font-family: var(--mono); font-size: 12px; line-height: 19px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.prompt { color: var(--label-3); }
+</style></head>
+<body>
+<div class="dialog">
+  <div class="dialog-head">
+    <div>
+      <div class="dialog-title">dsh-workflow</div>
+      <div class="dialog-sub">来源 dsh-workflow</div>
+    </div>
+    <button class="close" aria-label="关闭">✕</button>
+  </div>
+  <div class="body">
+    <div class="terminal">
+      <div class="terminal-head">
+        <span class="terminal-name"><span class="dot" style="background: var(--ok);"></span>session-start.sh</span>
+        <span class="row" style="gap: 8px;">
+          <span class="tag ok">退出码 0</span>
+          <span class="tag">128 ms</span>
+          <button class="btn primary">试运行</button>
+        </span>
+      </div>
+      <pre class="terminal-body"><span class="prompt">$</span> /Users/sivan/workspace/zealwon-plugins/plugins/dsh-workflow/hooks/session-start.sh
+[dsh-workflow] routing table refreshed (7 rules)
+[dsh-workflow] AGENTS.md routing block is current</pre>
+    </div>
+    <div class="row" style="gap: 6px;">
+      <span class="tag mono">SessionStart</span>
+      <span class="tag">匹配 *</span>
+      <span class="tag">超时 继承 600 秒</span>
+      <span class="method-note">在用户根目录运行，事件数据为合成值</span>
+    </div>
+  </div>
+</div>
+</body></html>

@@ -18,13 +18,13 @@ Status: implemented
 
 ## Decision
 
-目录把角色名单和操作约定一起发布，组织方式与 Claude Code 的子代理提示词一致，分三节：使用说明、提示词的写法、不该使用角色子代理的场景。约定随它所约束的名称一起到达，完整替换会重新声明它，而不是让模型去推断上一版。
+目录把角色名单和操作约定一起发布，组织方式与 Claude Code 的子代理提示词一致：先讲何时该委派，再列角色名单，然后讲提示词怎么写、子代理运行期间怎么协作。约定随它所约束的名称一起到达，完整替换会重新声明它，而不是让模型去推断上一版。
 
 文本由 `src/runtime/subagent-catalog.ts` 的模块常量构成，经持久化 `subagent-catalog` 来源注入。它固定为英文，从不查询宿主翻译器，因此约定不会随操作者的界面语言变化；`src/runtime/host-locale.ts` 现在只保留给人读的界面文案。角色行采用宿主技能目录的反引号形式 ``- `名称`: 描述``，一行给出可调用名称与说明何时使用它的描述。配置路由不再进入模型可见的正文，仍保留在持久化条目中用于执行与变更检测。
 
 宿主的通用委派工具只在需要时由工具描述点名，不在目录里被仲裁：每个工具自己说明后台行为、参数与限制，因此目录既不重复它们的清单，也不重复它们的选择顺序。
 
-工具名为 `subagent_role`，除第一个参数外参数面与宿主的 `subagent` 一致：第一个参数 `agent` 指定目录角色，宿主对应位置是展示用的 `description`；`prompt`、`provider`、`model`、`reasoning_effort`、`run_in_background` 沿用宿主的名称与语义。调用侧给出的 `provider` + `model` 覆盖卡片路由，并从所选模型的默认思考强度起步；调用侧不给路由时使用卡片路由；两者都没有时子代理继承父代理路由。省略 `run_in_background` 时经 `startContinuable` 返回 `{ kind: 'continuable', subagentId }`；传 `true` 时经 `ctx.get('jobs')` 把同一个子代理注册到宿主 jobs 注册表并返回 `{ kind: 'background', jobId }` 供 `job_output` 与 `job_kill` 使用；传 `false` 时经宿主的一次性 `start` 运行一次并返回 `{ kind: 'foreground', runId, output }`。没有注册表服务调用方时，任务通道会明确报错并点名需要加载的两个包，不会静默降级到别的通道。
+工具名为 `subagent_role`，除第一个参数外参数面与宿主的 `subagent` 一致：第一个参数 `agent` 指定目录角色，宿主对应位置是展示用的 `description`；`prompt`、`provider`、`model`、`reasoning_effort`、`run_in_background` 沿用宿主的名称与语义。调用侧给出的 `provider` + `model` 覆盖卡片路由，并从所选模型的默认思考强度起步；调用侧不给路由时使用卡片路由；两者都没有时子代理继承父代理路由。省略 `run_in_background` 时经 `startContinuable` 返回 `{ kind: 'continuable', subagentId }`；传 `false` 时经宿主的一次性 `start` 运行一次并返回 `{ kind: 'foreground', runId, output }`。两条通道，按宿主解读同一参数的方式解读；本记录最初描述的作业通道已在[角色委派提供宿主的两条通道](../../implemented/bug-fix/2026-10-02-role-delegation-two-channels.zh.md)中移除。
 
 说明覆盖：准确名称规则；子代理需要的交底；运行期间的提问不会被回答，因此交底要一次说清，子代理也应自行决断并在报告里写明缺口；父代理要把等待时间用来推进独立工作；通知前不得预测；答复按报告对待；不得重复子代理已经在做的工作；以及并行子代理各自的工作树与文件范围。`src/runtime/agent-role-router.ts` 的工具描述保持简短，只承载目录不在视野时模型也需要的信息：子代理是什么；调用立即返回 ID、不等待结果；子代理通常运行数分钟，父代理应继续干活；结算通知到达之前不得交付任何依赖该答复的产物；通知到达后要对照文件核对并把结果转述给用户；以及没有匹配角色时改走通用委派通道。
 
@@ -64,8 +64,8 @@ Status: implemented
 
 ## Testing
 
-`tests/subagent-catalog.test.ts` 在真实的宿主会话与工具注册表上断言：角色行按反引号形式转义渲染，一行只有名称与描述、不含路由；描述或路由变化会重新发布，只改标题不会；同一文本在不同宿主 locale 下逐字节相同；三节说明与运行期间提问规则都在，被删除的通道清单不再出现。`tests/host-locale.test.ts` 断言界面文案在两种语言下都能翻译，并断言模型可见的角色目录已不属于该词典。`tests/agent-role-router.test.ts` 断言注册的 `subagent_role` 参数面、调用路由优先于卡片路由、可继续通道的请求形状、任务通道的注册与取消、缺少注册表时的明确报错，以及前台路径的返回与释放。
+`tests/subagent-catalog.test.ts` 在真实的宿主会话与工具注册表上断言：角色行按反引号形式转义渲染，一行只有名称与描述、不含路由；描述或路由变化会重新发布，只改标题不会；同一文本在不同宿主 locale 下逐字节相同；三节说明与运行期间提问规则都在，被删除的通道清单不再出现。`tests/host-locale.test.ts` 断言界面文案在两种语言下都能翻译，并断言模型可见的角色目录已不属于该词典。`tests/agent-role-router.test.ts` 断言注册的 `subagent_role` 参数面、调用路由优先于卡片路由、可继续通道的请求形状、各类拒绝场景，以及前台路径的返回与释放。
 
 ## Related decisions
 
-扩展 [persistent subagent catalog and role execution](2026-09-09-subagent-catalog.md) 与 [agent role delegation over the host continuation seam](2026-09-10-agent-role-delegation-via-host-continuation.md)：目录持久化、角色身份、严格解析与可继续委派继续有效；操作约定放在哪里、摘要覆盖哪些字段，由本篇改定。
+扩展 [persistent subagent catalog and role execution](2026-09-09-subagent-catalog.md) 与 [agent role delegation over the host continuation seam](2026-09-10-agent-role-delegation-via-host-continuation.md)：目录持久化、角色身份、严格解析与可继续委派继续有效；操作约定放在哪里、摘要覆盖哪些字段，由本篇改定。部分被[角色委派提供宿主的两条通道](../../implemented/bug-fix/2026-10-02-role-delegation-two-channels.zh.md)取代：三通道清单及其 `run_in_background` 描述不再有效。由[角色 Team 创建入口](2026-10-02-role-aware-team-entry.zh.md)扩展：独立部署保留本操作约定，Team 部署使用增强成员入口及仅用于发现的精简目录。

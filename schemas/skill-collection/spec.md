@@ -2,9 +2,9 @@
 
 Reference contract for repositories that ship skills without any plugin manifest.
 
-- **Schema:** none, because there is no manifest to validate. The unit of validation is the `SKILL.md` frontmatter, which is parsed by `src/catalog/skills-parse.ts`.
+- **Schema:** none, because there is no manifest to validate. The unit of validation is the `SKILL.md` frontmatter, which is parsed by `packages/market-catalog/src/scanning/skills-parse.ts`.
 - **Status:** this is a discovery convention of this plugin and of the Agent Skills ecosystem, not a vendor-published plugin format.
-- **Evidence:** the shared scanning rules in `src/catalog/scan-resolvers.ts`; upstream Agent Skills documentation at https://code.claude.com/docs/en/skills and https://developers.openai.com/codex/skills.
+- **Evidence:** the shared scanning rules in `packages/market-catalog/src/scanning/scan-resolvers.ts`; upstream Agent Skills documentation at https://code.claude.com/docs/en/skills and https://developers.openai.com/codex/skills.
 
 ## Qualification
 
@@ -19,6 +19,14 @@ A source directory qualifies as a manifest-less skill collection only after skil
 | `<root>/skills/*.md`            | Flat skill files, when the consumer supports them.                            |
 
 `SKILL.md` frontmatter carries `name` and `description`; user-invocable skills surface as `/` entries in chat, and skills may restrict manual invocation.
+
+## Source grouping
+
+Without productive marketplace entries, discovered skill-only roots form one suite at the source checkout root. This includes `<root>/<name>/SKILL.md` and nested collections. Explicit plugin manifests and roots with other runtime surfaces keep their existing identities and relative paths. A source that already resolves at its checkout root keeps that suite identity.
+
+The aggregate uses the reserved ID `@skills`, qualified by the source ID, and the checkout basename as its display name. Individual skill IDs cannot grant installation permission to the aggregate. Install the aggregate separately to enable its skills. Existing install records remain unchanged.
+
+Skill names, documents, and resource directories remain attached to their original files. Duplicate names keep the first discovered skill. Invalid skills produce diagnostics and stay excluded. An entirely invalid collection produces no suite.
 
 ## Surfaces
 

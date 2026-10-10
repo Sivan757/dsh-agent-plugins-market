@@ -7,7 +7,7 @@ Markdown under `docs/` is organized by the reader it serves. A page states its o
 | Directory | Holds | Examples |
 | --- | --- | --- |
 | `user/` | Product-facing guides for someone using the plugin | [usage.md](user/usage.md), [agent-roles.md](user/agent-roles.md), [layout-coverage.md](user/layout-coverage.md) |
-| `reference/` | Stable material a page or PR cites: contracts, audits, generated reports | [dsh-plugin-development-standard.md](reference/dsh-plugin-development-standard.md), [compat-report.md](reference/compat-report.md) |
+| `reference/` | Stable material a page or PR cites: contracts, audits, generated reports | [dsh-plugin-development-standard.md](reference/dsh-plugin-development-standard.md), [host-foundation-map.md](reference/host-foundation-map.md), [compat-report.md](reference/compat-report.md) |
 | `developer/decisions/` | Accepted decisions, one page per decision | [0002-versioning-and-release-policy.md](developer/decisions/0002-versioning-and-release-policy.md) |
 | `developer/design/` | Design and staged plans for maintainers | [engineering-refactor-plan.md](developer/design/engineering-refactor-plan.md) |
 | `developer/discussion/` | Findings that inform a decision, kept as evidence | [2026-09-02-agent-config-compat-ecosystem.md](developer/discussion/2026-09-02-agent-config-compat-ecosystem.md) |

@@ -1,13 +1,14 @@
+import { createMcpMount } from '../packages/market-bundle/src/runtime-adapters.js'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { discoverProjectMcp } from '../src/catalog/project-config.js'
-import { mountProjectMcp } from '../src/runtime/surfaces/project-runtime.js'
-import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
-import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { discoverProjectMcp } from '../packages/market-catalog/src/scanning/project-config.js'
+import { mountProjectMcp } from '../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
+import { discoverNativeProjectSuites } from '../packages/market-catalog/src/scanning/native-project.js'
+import { toMcpMounts } from '../packages/market-mcp/src/application/mcp/mcp-config.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const roots: string[] = []
@@ -292,7 +293,7 @@ describe('project MCP runtime scope', () => {
     })
     await catalog.load()
     await catalog.setScanProjectLayouts(true)
-    const runtime = mountProjectMcp(host as unknown as Context, catalog, join(userRoot, 'data'))
+    const runtime = mountProjectMcp(host as unknown as Context, catalog, join(userRoot, 'data'), createMcpMount)
     try {
       await runtime.refresh()
       const [firstScope, secondScope] = scopes

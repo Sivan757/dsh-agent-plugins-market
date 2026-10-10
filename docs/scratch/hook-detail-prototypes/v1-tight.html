@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>V1 收紧的现状</title><link rel="stylesheet" href="./proto.css"></head>
+<body>
+<div class="dialog">
+  <div class="dialog-head">
+    <div>
+      <div class="dialog-title">dsh-workflow</div>
+      <div class="dialog-sub">命令钩子 · 声明原文</div>
+    </div>
+    <button class="close" aria-label="关闭">✕</button>
+  </div>
+  <div class="body">
+    <div class="row">
+      <span class="tag mono">SessionStart</span>
+      <span class="tag mono">匹配 *</span>
+      <span class="tag ok"><span class="dot"></span>可运行</span>
+      <span class="tag">超时 继承 600 秒</span>
+    </div>
+    <div>
+      <div class="row" style="justify-content: space-between;">
+        <span class="section-label">命令</span>
+        <button class="btn">试运行</button>
+      </div>
+      <pre class="code" style="margin-top: 8px;">/Users/sivan/workspace/zealwon-plugins/plugins/dsh-workflow/hooks/session-start.sh</pre>
+    </div>
+    <div>
+      <div class="section-label">运行结果</div>
+      <div class="caption" style="margin: 6px 0 8px;">退出码 0 · 128 毫秒 · 在用户根目录运行，事件数据为合成值</div>
+      <pre class="code">[dsh-workflow] routing table refreshed (7 rules)
+[dsh-workflow] AGENTS.md routing block is current</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="caption">只读声明。编辑 ~/.agents 下的 hooks 文件即可修改。</span><button class="btn">关闭</button></div>
+</div>
+</body></html>

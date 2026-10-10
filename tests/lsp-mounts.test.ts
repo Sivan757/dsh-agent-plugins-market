@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LspMountRegistry, toLspServerConfig, type LspStdioServerConfig } from '../src/runtime/lsp/lsp-mounts.js'
-import type { LegacyLspSeam } from '../src/application/lsp/profile-seam.js'
-import type { Suite } from '../src/model/types.js'
+import { LspMountRegistry, toLspServerConfig, type LspStdioServerConfig } from '../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
+import type { LegacyLspSeam } from '../packages/market-lsp/src/application/lsp/profile-seam.js'
+import type { Suite } from '../packages/market-contracts/src/model/types.js'
 import { required } from './helpers/fixture.js'
 
 // The registry delegates command resolution to `runtime/host/shell-path`; the
@@ -10,7 +10,7 @@ import { required } from './helpers/fixture.js'
 // resolver is faked to answer deterministically.
 const { resolveDeclaredCommandMock } = vi.hoisted(() => ({ resolveDeclaredCommandMock: vi.fn() }))
 
-vi.mock('../src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: resolveDeclaredCommandMock }))
+vi.mock('../packages/market-runtime/src/runtime/host/shell-path.js', () => ({ resolveDeclaredCommand: resolveDeclaredCommandMock }))
 
 beforeEach(() => {
   resolveDeclaredCommandMock.mockReset()

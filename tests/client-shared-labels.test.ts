@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { suiteLayoutLabel } from '../src/client/layout-label.js'
-import { jsonTreeLabels } from '../src/client/ui/json-tree-labels.js'
-import { lastChangeLabel } from '../src/client/ui/last-change.js'
+import { suiteLayoutLabel } from '../packages/market-ui/src/layout-label.js'
+import { jsonTreeLabels } from '../packages/market-ui/src/ui/json-tree-labels.js'
+import { lastChangeLabel } from '../packages/market-ui/src/ui/last-change.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
 describe('suite layout labels', () => {

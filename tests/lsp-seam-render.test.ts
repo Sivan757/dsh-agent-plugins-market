@@ -45,7 +45,7 @@ const conflicted = vi.hoisted(() => ({
 
 const clean = vi.hoisted(() => ({ entries: [], observedAt: '', totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 }, hostMissing: false }))
 
-vi.mock('../src/client/api.js', () => ({
+vi.mock('../packages/market-ui/src/api.js', () => ({
   fetchLspStatus: vi.fn().mockResolvedValue(conflicted),
   addLspServer: vi.fn(),
   migrateLspSeam: vi.fn().mockResolvedValue({
@@ -58,8 +58,8 @@ vi.mock('../src/client/api.js', () => ({
   saveServerConfig: vi.fn()
 }))
 
-import { LspStatusPanel } from '../src/client/features/lsp/LspStatusPanel.js'
-import type { Translate } from '../src/client/index.js'
+import { LspStatusPanel } from '../packages/market-ui/src/features/lsp/LspStatusPanel.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 const t: Translate = key => String(key)
 
@@ -85,7 +85,7 @@ async function mountPanel(): Promise<HTMLDivElement> {
 
 describe('LSP legacy seam banner', () => {
   it('names the profile and the file, and removes exactly that profile', async () => {
-    const api = await import('../src/client/api.js')
+    const api = await import('../packages/market-ui/src/api.js')
     const el = await mountPanel()
 
     // The banner is the upgrade repair, and it is verifiable by hand: the
@@ -110,7 +110,7 @@ describe('LSP legacy seam banner', () => {
   })
 
   it('renders no banner when the host reports no legacy layer', async () => {
-    const api = await import('../src/client/api.js')
+    const api = await import('../packages/market-ui/src/api.js')
     vi.mocked(api.fetchLspStatus).mockResolvedValue(clean)
     const el = await mountPanel()
     expect(el.textContent).not.toContain('lspSeamTitle')
@@ -119,7 +119,7 @@ describe('LSP legacy seam banner', () => {
 
 describe('LSP card actions', () => {
   it('opens the editor from the card and leaves the report without one', async () => {
-    const api = await import('../src/client/api.js')
+    const api = await import('../packages/market-ui/src/api.js')
     vi.mocked(api.fetchLspStatus).mockResolvedValue({ ...conflicted, legacySeam: undefined })
     vi.mocked(api.fetchServerConfig).mockResolvedValue({
       kind: 'lsp',

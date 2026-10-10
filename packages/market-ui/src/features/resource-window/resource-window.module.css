@@ -1,0 +1,134 @@
+/* Project resource window layout. Colors resolve only through dsw alias
+   tokens (see AGENTS.local.md); dark mode comes free with them. */
+
+.entryWrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.entryButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.entryButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.entryButton[data-active='true'] {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.entryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.3px;
+  width: 12px;
+  height: 12px;
+}
+
+/* One 8px filled cell; the b/c pair rides 0.38 opacity like the prototype. */
+.entryGrid span {
+  border-radius: 2.5px;
+  background: currentColor;
+}
+
+.entryGrid .entryCellB,
+.entryGrid .entryCellC {
+  opacity: 0.38;
+}
+
+.entryDot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-business-primary);
+  border: 2px solid var(--dsw-specific-input-major);
+}
+
+.window {
+  width: min(680px, 100%);
+  height: min(700px, 100%);
+}
+
+/* The content column above the scrolling list; vertical rhythm comes from the
+   section paddings, not an even gap. It is also the size container the card
+   anatomy's narrow-branch queries resolve against. */
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+/* The host Modal nests header + body inside the content div (Modal.tsx). The
+   body has no flex of its own, so the window's list would push past a capped
+   dialog; stretching the body (always .content's last child) bounds it. The
+   body also carries the host's 20px margin-top — dead space under an
+   already-padded title row — which the shim cancels. */
+.content > div:last-child {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0;
+  flex-direction: column;
+}
+
+/* The row is the market's source strip with the tail save button: the strip
+   takes the row's free width (the save button's auto margin keeps it flush
+   right while the strip folds), and when the strip unfolds on hover the row
+   grows with it. */
+.favoritesRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  /* One horizontal band: the strip folds inside its own grid, the row never wraps. */
+  flex-wrap: nowrap;
+  padding: 0 0 10px;
+}
+
+/* The shared toolbar row carries no outer spacing of its own and the window
+   has no shell gap, so the rhythm below the face tabs rides here. */
+.tabs {
+  margin: 0 0 12px;
+}
+
+/* The shared ResourceCollection owns the view layout and the scrollbar;
+   the window only adds its vertical rhythm. */
+.list {
+  flex: 1;
+  min-height: 120px;
+  padding: 6px 0 12px;
+}
+
+/* The save-favorite button rides the shared iconBtn anatomy; the auto margin
+   keeps it flush right while the strip folds. */
+.favoritesSave {
+  margin-left: auto;
+  flex: none;
+}
+
+/* The toolbar row, the counts, and the empty state ride the shared
+   SearchFilterToolbar and panel.module.css styles. */
+
+.nameField {
+  width: 100%;
+  box-sizing: border-box;
+}

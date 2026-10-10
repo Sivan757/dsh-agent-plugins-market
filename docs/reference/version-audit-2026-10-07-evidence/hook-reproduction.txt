@@ -1,0 +1,36 @@
+exitCode: 1
+
+ RUN  v4.1.11 /private/tmp/market-version-audit-Ljr5F4/snapshot
+
+ × tests/audit-hook-root-entry.test.ts > scoped extension effects in one workspace > does not dispatch a user hook removed from a selected preset 863ms
+   → expected [ 'echo audit-user-hook' ] to deeply equal []
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  20:26:38
+   Duration  1.93s (transform 522ms, setup 0ms, import 969ms, tests 864ms, environment 0ms)
+
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/audit-hook-root-entry.test.ts > scoped extension effects in one workspace > does not dispatch a user hook removed from a selected preset
+AssertionError: expected [ 'echo audit-user-hook' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "echo audit-user-hook",
++ ]
+
+ ❯ tests/audit-hook-root-entry.test.ts:255:51
+    253|     shell.calls.length = 0
+    254|     await ctx.waterfall('tools/pre-execute', exec(granted, 'Bash'), as…
+    255|     expect(shell.calls.map(call => call.command)).toEqual([])
+       |                                                   ^
+    256|   })
+    257| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

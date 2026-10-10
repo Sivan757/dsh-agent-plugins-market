@@ -38,16 +38,16 @@ const overviewPayload = vi.hoisted(() => ({
   totals: { all: 1, installed: 0 }
 }))
 
-vi.mock('../src/client/api.js', () => ({
+vi.mock('../packages/market-ui/src/api.js', () => ({
   fetchOverview: vi.fn().mockResolvedValue(overviewPayload),
   fetchSourceProgress: vi.fn().mockResolvedValue({ step: undefined, error: undefined }),
   fetchSuiteDetail: vi.fn(),
   fetchMcpStatus: vi.fn(),
-  fetchSkillContent: vi.fn(),
+  fetchSuiteDocument: vi.fn(),
   postAction: vi.fn().mockResolvedValue({})
 }))
 
-vi.mock('../src/client/features/market/market-resource.js', () => ({
+vi.mock('../packages/market-ui/src/features/market/market-resource.js', () => ({
   loadOverview: vi.fn(() => ({
     initial: overviewPayload,
     revalidating: false,
@@ -57,8 +57,8 @@ vi.mock('../src/client/features/market/market-resource.js', () => ({
   startSourceProgressPolling: vi.fn(() => ({ stop: () => {} }))
 }))
 
-import { MarketSection } from '../src/client/features/market/MarketSection.js'
-import type { Translate } from '../src/client/index.js'
+import { MarketSection } from '../packages/market-ui/src/features/market/MarketSection.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 // A permissive translate that returns the key — enough to render labels.
 const t: Translate = (key, params) => {
@@ -91,7 +91,7 @@ async function mountSection(): Promise<HTMLDivElement> {
 
 /** Point the mocked overview resource at a payload before the section mounts. */
 async function stubOverview(payload: unknown): Promise<void> {
-  const resource = await import('../src/client/features/market/market-resource.js')
+  const resource = await import('../packages/market-ui/src/features/market/market-resource.js')
   vi.mocked(resource.loadOverview).mockReturnValue({ initial: payload as never, revalidating: false, promise: Promise.resolve(payload as never) })
 }
 
@@ -105,13 +105,27 @@ function installButton(): HTMLButtonElement {
 }
 
 describe('MarketSection rendering', () => {
-  it('renders the section title, source tabs, and suite cards after load', async () => {
+  it('renders the description, source tabs, and suite cards after load', async () => {
     const el = await mountSection()
     const text = el.textContent ?? ''
-    expect(text).toContain('nav')
+    // The Market tab already names this page, so the header carries only the
+    // description that says something the tab does not.
+    expect(text).toContain('navDescription')
+    expect(el.querySelector('[data-panel-header] h2')).toBeNull()
     expect(text).toContain('Demo Suite')
     expect(text).toContain('demo')
     expect(el.querySelector('article')).not.toBeNull()
+  })
+
+  it('drops the repeated heading but keeps the description row compact', async () => {
+    const el = await mountSection()
+    const header = el.querySelector('[data-panel-header]')
+    expect(header).not.toBeNull()
+    expect(header!.querySelector('h2')).toBeNull()
+    expect(header!.querySelector('p')?.textContent).toBe('navDescription')
+    // The 46px floor is sized for a title plus its description; a
+    // description-only header must not carry that band of dead space.
+    expect(header!.className).toContain('headerCompact')
   })
 
   it('renders the add-source and refresh controls in the header', async () => {
@@ -145,7 +159,7 @@ describe('MarketSection rendering', () => {
     act(() => {
       cancelButton!.click()
     })
-    const postAction = (await import('../src/client/api.js')).postAction as ReturnType<typeof vi.fn>
+    const postAction = (await import('../packages/market-ui/src/api.js')).postAction as ReturnType<typeof vi.fn>
     expect(postAction).not.toHaveBeenCalledWith('install', expect.anything())
   })
 
@@ -159,6 +173,24 @@ describe('MarketSection rendering', () => {
     const bodyText = document.body.textContent ?? ''
     expect(bodyText).toContain('installConfirmLocalTree')
     expect(bodyText).not.toContain('f0e9fdf066c1')
+  })
+
+  it('renders the selected source chip with reachable edit and delete controls', async () => {
+    // The selected chip renders with .srcTabOn (not .srcTab), so the hover-reveal
+    // selector must cover both classes — the regression that hid the ✎/× plate.
+    const el = await mountSection()
+    // Select the demo source chip: its main button carries the chip id.
+    const chipButton = [...el.querySelectorAll('button')].find(button => (button.textContent ?? '').startsWith('demo '))
+    expect(chipButton).toBeDefined()
+    await act(async () => {
+      chipButton!.click()
+    })
+    const chip = [...el.querySelectorAll('[class]')].find(node => node.className.includes('srcTabOn'))
+    expect(chip).toBeDefined()
+    // The plate must exist with both controls, reachable inside the chip.
+    const plate = chip!.querySelector('[class*=srcTabControls]')
+    expect(plate).not.toBeNull()
+    expect(plate!.querySelectorAll('button')).toHaveLength(2)
   })
 
   it('renders an adopted source like any other chip, without an adoption badge', async () => {

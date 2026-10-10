@@ -3,10 +3,11 @@ import { act, createElement as h, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
-import { composeServerDocument, rowsFromPastedText } from '../src/client/ui/server-form.js'
-import type { CredentialApi } from '../src/client/credentials.js'
-import { MarkdownDocument } from '../src/client/ui/MarkdownDocument.js'
+import { ServerConfigEditor } from '../packages/market-ui/src/ui/ServerConfigEditor.js'
+import { composeServerDocument, rowsFromPastedText } from '../packages/market-ui/src/ui/server-form.js'
+import type { CredentialApi } from '../packages/market-ui/src/credentials.js'
+import { MarkdownDocument } from '../packages/market-ui/src/ui/MarkdownDocument.js'
+import { EntryEditorModal, type PanelEditorState } from '../packages/market-ui/src/ui/panel.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
@@ -80,6 +81,48 @@ const advanced = () => [...host.querySelectorAll('button')].find(node => node.te
 const secretBand = () => [...host.querySelectorAll('button')].find(node => node.textContent?.includes('mcpCredentialTitle'))
 
 describe('shared resource detail editors', () => {
+  it('replaces a corrected name error with the rejected save reason and retains the draft', async () => {
+    const draft: PanelEditorState = { mode: 'create', name: '', text: '# Retained draft' }
+    let saved: PanelEditorState | undefined
+    function EntryHarness() {
+      const [saveError, setSaveError] = useState<string>()
+      return h(EntryEditorModal, {
+        t,
+        open: true,
+        state: draft,
+        title: 'Create command',
+        nameLabel: 'Name',
+        textLabel: 'Document',
+        showPreview: true,
+        saveLabel: 'Save',
+        saveError,
+        onClose: () => {},
+        onSave: async value => {
+          saved = value
+          setSaveError('Server rejected the save')
+          return false
+        }
+      })
+    }
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(EntryHarness)))
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
+    const save = [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Save')!
+    await act(async () => save.click())
+    expect(dialog.querySelector('[role="alert"]')?.textContent).toBe('Name')
+    expect(saved).toBeUndefined()
+    const name = dialog.querySelector<HTMLInputElement>('[aria-label="Name"]')!
+    await act(async () => typeInto(name, 'fixture-command'))
+    await act(async () => save.click())
+    expect(dialog.querySelector('[role="alert"]')?.textContent).toBe('Server rejected the save')
+    expect(name.value).toBe('fixture-command')
+    expect(dialog.textContent).toContain('Retained draft')
+    expect(saved).toEqual({ ...draft, name: 'fixture-command' })
+    expect(document.querySelector('[role="dialog"]')).toBe(dialog)
+  })
+
   it('offers the advanced disclosure without policy timeouts when no policy props are supplied', async () => {
     await mount({ type: 'stdio', command: 'node' })
     const disclosure = [...host.querySelectorAll('button')].find(node => node.textContent?.includes('mcpAdvanced'))

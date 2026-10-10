@@ -1,81 +1,56 @@
-// Layering boundaries for the shipped source.
-//
-// Node builtin edges are invisible to dependency-cruiser: a `node:*` dependency appears in the
-// graph only as a bare `resolved` value, so a `to: { path: '^node:' }` rule can never fire. The
-// "domain data and the client bundle stay free of Node APIs" boundaries are therefore enforced by
-// `no-restricted-imports` in `eslint.config.mjs`.
+// Domain ownership and technical layers for private source workspaces.
+const root = 'packages/'
 module.exports = {
   forbidden: [
+    { name: 'browser-does-not-load-host-augmentations', severity: 'error', from: { path: '^packages/market-ui/' }, to: { path: '^packages/market-contracts/src/host/' } },
+    { name: 'no-circular-dependencies', severity: 'error', from: {}, to: { circular: true } },
     {
-      name: 'client-cannot-import-host',
+      name: 'cross-domain-imports-use-public-entries',
       severity: 'error',
-      from: { path: '^src/client' },
-      to: { path: '^src/(application|catalog|context|routes|runtime)(/|\\.)' }
+      from: { path: '^packages/(market-[^/]+)/src/' },
+      to: { path: '^packages/(?!$1/|market-contracts/)[^/]+/src/(?!index[.]ts$)' }
+    },
+    { name: 'contracts-stay-stateless', severity: 'error', from: { path: '^packages/market-contracts/' }, to: { path: '^packages/(?!market-contracts/)' } },
+    { name: 'catalog-has-no-product-runtime', severity: 'error', from: { path: '^packages/market-catalog/' }, to: { path: '^packages/(?!market-catalog/|market-contracts/)' } },
+    {
+      name: 'runtime-does-not-import-concrete-adapters',
+      severity: 'error',
+      from: { path: '^packages/market-runtime/' },
+      to: { path: '^packages/(?!market-runtime/|market-catalog/|market-contracts/)' }
     },
     {
-      name: 'catalog-cannot-import-host-or-client',
+      name: 'connectors-do-not-import-composition-or-each-other',
       severity: 'error',
-      from: { path: '^src/catalog' },
-      to: { path: '^src/(application|client|context|index|routes|runtime)(/|\\.)' }
+      from: { path: '^packages/(market-mcp|market-lsp)/' },
+      to: { path: '^packages/(?!$1/|market-runtime/|market-catalog/|market-contracts/)' }
     },
     {
-      name: 'runtime-cannot-import-client-or-routes',
+      name: 'translation-independent-of-product',
       severity: 'error',
-      from: { path: '^src/runtime' },
-      to: { path: '^src/(client|routes)(/|\\.)' }
+      from: { path: '^packages/market-translation/' },
+      to: { path: '^packages/(?!market-translation/|market-catalog/|market-contracts/)' }
+    },
+    { name: 'browser-imports-portable-contracts-only', severity: 'error', from: { path: '^packages/market-ui/' }, to: { path: '^packages/(?!market-ui/|market-contracts/)' } },
+    {
+      name: 'scanning-does-not-import-use-cases',
+      severity: 'error',
+      from: { path: '^packages/market-catalog/src/scanning/' },
+      to: { path: '^packages/market-catalog/src/application/' }
     },
     {
-      name: 'contracts-import-nothing',
+      name: 'application-does-not-import-host-effects',
       severity: 'error',
-      from: { path: '^src/contracts' },
-      to: { path: '^src/(?!contracts(/|\\.))' }
+      from: { path: '^packages/(?!market-bundle/)[^/]+/src/application/' },
+      to: { path: '^packages/[^/]+/src/runtime/' }
     },
     {
-      name: 'model-cannot-import-server-layers',
-      severity: 'error',
-      from: { path: '^src/model' },
-      to: { path: '^src/(application|client|index|routes|runtime)(/|\\.)' }
-    },
-    {
-      name: 'application-cannot-import-client-routes-or-index',
-      severity: 'error',
-      from: { path: '^src/application' },
-      to: { path: '^src/(client|index|routes)(/|\\.)' }
-    },
-    {
-      // The design plan draws application -> model/catalog/contracts with runtime
-      // effects driven through ports. Every cross-edge this rule used to warn
-      // about was resolved by the Stage C2 relocation; violations are errors now.
-      name: 'application-cannot-import-runtime',
-      severity: 'error',
-      from: { path: '^src/application' },
-      to: { path: '^src/runtime(/|\\.)' }
-    },
-    {
-      // Feature folders are peers, not layers: code in one feature may not import a
-      // sibling feature's modules. dependency-cruiser substitutes $1 group placeholders
-      // in to.path from the from.path capture, so the first lookahead exempts the
-      // feature's own folder; a \1 backreference would instead refer to the to-regex's
-      // own (empty) groups. The second lookahead keeps cross-feature .css imports legal;
-      // the modules share one design vocabulary and tsdown resolves those imports.
       name: 'client-feature-cannot-import-sibling-feature',
       severity: 'error',
-      from: { path: '^src/client/features/([^/]+)' },
-      to: { path: '^src/client/features/(?!$1(?:/|\\.))(?!.*\\.css$)' }
+      from: { path: '^packages/market-ui/src/features/([^/]+)' },
+      to: { path: '^packages/market-ui/src/features/(?!$1(?:/|[.]))(?!.*[.]css$)' }
     },
-    {
-      // Shared controls stay generic: ui/ may not reach into a feature or the
-      // workspace shell; the dependency direction is features -> ui only.
-      name: 'client-ui-cannot-import-features',
-      severity: 'error',
-      from: { path: '^src/client/ui' },
-      to: { path: '^src/client/(features|workspace)' }
-    }
+    { name: 'client-ui-cannot-import-features', severity: 'error', from: { path: '^packages/market-ui/src/ui/' }, to: { path: '^packages/market-ui/src/(features|workspace)/' } },
+    { name: 'client-entry-is-not-a-type-module', severity: 'error', from: { path: '^packages/market-ui/src/(?!index[.]ts)' }, to: { path: '^packages/market-ui/src/index[.]ts$' } }
   ],
-  options: {
-    doNotFollow: { path: 'node_modules' },
-    exclude: '(^|/)node_modules/',
-    includeOnly: '^src',
-    tsPreCompilationDeps: true
-  }
+  options: { doNotFollow: { path: 'node_modules' }, exclude: '(^|/)node_modules/', includeOnly: '^(index[.]ts$|' + root + ')', tsPreCompilationDeps: true }
 }

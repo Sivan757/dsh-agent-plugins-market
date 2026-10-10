@@ -12,5 +12,5 @@
     "noEmit": true,
     "types": ["react"]
   },
-  "include": ["src/client/**/*.ts", "src/client/**/*.tsx"]
+  "include": ["packages/market-ui/src/**/*.ts", "packages/market-ui/src/**/*.tsx"]
 }

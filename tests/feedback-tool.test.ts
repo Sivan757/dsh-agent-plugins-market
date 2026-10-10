@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { newIssueUrl, renderFeedbackBody, submitFeedback, type FeedbackPorts } from '../src/runtime/host/feedback-tool.js'
+import { newIssueUrl, renderFeedbackBody, submitFeedback, type FeedbackPorts } from '../packages/market-bundle/src/platform/feedback-tool.js'
 
 /** Ports that never reach the network, a CLI, or a browser. */
 function offline(): { ports: FeedbackPorts; opened: string[] } {

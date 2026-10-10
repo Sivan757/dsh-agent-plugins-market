@@ -5,10 +5,11 @@
  * selected but unusable (package missing, legacy SSE transport).
  */
 import { describe, expect, it, vi } from 'vitest'
-import { MARKET_SETTINGS_NAMESPACE } from '../src/contracts/settings.js'
-import { MarketSettingsSchema, probeHostMcpClient } from '../src/application/mcp/mcp-backend.js'
-import { McpMountRegistry } from '../src/runtime/mcp/mcp-mounts.js'
-import { effectiveSurfaces, type Suite } from '../src/model/types.js'
+import { MARKET_SETTINGS_NAMESPACE } from '../packages/market-contracts/src/contracts/settings.js'
+import { probeHostMcpClient } from '../packages/market-mcp/src/application/mcp/mcp-backend.js'
+import { MarketSettingsSchema } from '../packages/market-bundle/src/platform/settings-schema.js'
+import { McpMountRegistry } from '../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 // The hoisted switch lets one mock serve both the available and the missing
 // host-client scenarios.
@@ -65,6 +66,18 @@ describe('MCP backend persistence', () => {
     const off = MarketSettingsSchema({ mcpEnhanced: false, downloadRegion: 'china' }) as { mcpEnhanced?: boolean; downloadRegion?: string }
     expect(off.mcpEnhanced).toBe(false)
     expect(off.downloadRegion).toBe('china')
+  })
+
+  it('declares no default for the translation switch, keeping "never set" apart from "turned off"', () => {
+    // A declared default is materialized into the live config reference, where
+    // both states would read false; the language-derived default needs the
+    // difference, so the schema leaves the field absent.
+    const unset = MarketSettingsSchema({}) as { translationEnabled?: boolean }
+    expect(unset.translationEnabled).toBeUndefined()
+    const off = MarketSettingsSchema({ translationEnabled: false }) as { translationEnabled?: boolean }
+    expect(off.translationEnabled).toBe(false)
+    const on = MarketSettingsSchema({ translationEnabled: true }) as { translationEnabled?: boolean }
+    expect(on.translationEnabled).toBe(true)
   })
 
   it('reads a missing scanProjectLayouts as off so a project joins only on an explicit opt-in', () => {

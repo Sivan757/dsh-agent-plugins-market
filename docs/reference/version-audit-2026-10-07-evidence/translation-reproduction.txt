@@ -1,0 +1,10 @@
+exitCode: 0
+
+ RUN  v4.1.11 /private/tmp/market-version-audit-Ljr5F4/snapshot
+
+ ✓ tests/audit-translation-batch.test.ts > records a damaged description discarding a valid sibling and retiring later healthy batches 3ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  20:27:25
+   Duration  128ms (transform 28ms, setup 0ms, import 38ms, tests 3ms, environment 0ms)

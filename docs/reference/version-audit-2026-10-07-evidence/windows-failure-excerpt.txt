@@ -1,0 +1,122 @@
+Remote evidence, not a current Windows run.
+URL: https://github.com/Sivan757/dsh-agent-plugins-market/actions/runs/37288684706
+SHA: c19f08a2cf8eb725fed338d07fc2ed2abe267366
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0016290Z ^[[31m⎯⎯⎯⎯⎯⎯⎯^[[39m^[[1m^[[41m Failed Tests 2 ^[[49m^[[22m^[[31m⎯⎯⎯⎯⎯⎯⎯^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0016671Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0020446Z ^[[41m^[[1m FAIL ^[[22m^[[49m tests/resource-window-state.test.ts^[[2m > ^[[22mresource favorites storage^[[2m > ^[[22mroundtrips a favorite in the global data-root file
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0032596Z ^[[31m^[[1mAssertionError^[[22m: expected 'C:\Users\RUNNER~1\AppData\Local\Temp\…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…' // Object.is equality^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0033174Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0034161Z Expected: ^[[32m"C:\Users\RUNNER~1\AppData\Local\Temp\resource-favorites-0Pnr0y^[[7m\^[[27mresource-favorites.json"^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0036384Z Received: ^[[31m"C:\Users\RUNNER~1\AppData\Local\Temp\resource-favorites-0Pnr0y^[[7m/^[[27mresource-favorites.json"^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0036842Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0037182Z ^[[36m ^[[2m❯^[[22m tests/resource-window-state.test.ts:^[[2m90:45^[[22m^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0087190Z     ^[[90m 88|^[[39m     expect(loaded[0]!.offEntries).toEqual(['skills:database', 'mcp:hcs…
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0088193Z     ^[[90m 89|^[[39m     ^[[90m// The file lives under the data root, never inside a project.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0088914Z     ^[[90m 90|^[[39m     expect(resourceFavoritesPath(dataRoot)).toBe(join(dataRoot, 'resou…
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0089516Z     ^[[90m   |^[[39m                                             ^[[31m^^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0089974Z     ^[[90m 91|^[[39m   })
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0090428Z     ^[[90m 92|^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0090693Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0093406Z ^[[31m^[[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯^[[22m^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0093898Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0095703Z ^[[41m^[[1m FAIL ^[[22m^[[49m tests/subagent-catalog.test.ts^[[2m > ^[[22mdurable subagent catalog on the real host session and tool registries^[[2m > ^[[22mtracks real user edits, suite disable/uninstall and project scope with no role skills
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0098253Z ^[[31m^[[1mAssertionError^[[22m: expected [ { content: [ { …(2) } ], …(3) } ] to deeply equal []^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0098846Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0099089Z ^[[32m- Expected^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0099506Z ^[[31m+ Received^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0099649Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0099753Z ^[[32m- []^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0099965Z ^[[31m+ [^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0100158Z ^[[31m+   {^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0100412Z ^[[31m+     "content": [^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0100667Z ^[[31m+       {^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0100967Z ^[[31m+         "text": "<system-reminder>^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0101886Z ^[[31m+ The available subagent roles changed. This complete list replaces every earlier role list in this session; every name from an earlier catalog is void:^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0103128Z ^[[31m+ Delegate proactively: hand self-contained work to a role child by default instead of doing it inline. Delegate when any of these holds:^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0104832Z ^[[31m+ - The task would burn many tool calls or file reads whose raw output would flood this conversation — codebase exploration, tracing behavior across files, digesting long logs or reports. The child reads everything and returns only the distilled result.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0106307Z ^[[31m+ - The task is a complete unit one briefing can state: a scoped implementation, a review, an analysis, a document.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0107255Z ^[[31m+ - Two or more such tasks are independent: start all the children in one message and let them run in parallel.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0108302Z ^[[31m+ Decide by the briefing test: if you can state the task in full and it needs no further input from the user, delegate it and keep working.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0108899Z ^[[31m+^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0109150Z ^[[31m+ <available_subagents>^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0109547Z ^[[31m+ - `github-native/reviewer`: Project reviewer^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0110344Z ^[[31m+ - `suite/reviewer`: Installed reviewer^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0110707Z ^[[31m+ </available_subagents>^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0110955Z ^[[31m+^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0114520Z ^[[31m+ Writing the prompt: brief the child like a colleague who just walked into the room — it has not seen this conversation, does not know what you tried, and does not know why the task matters. Explain what you are trying to accomplish, describe what you learned and ruled out, and give enough context for the child to make judgment calls. The child cannot see this conversation, so prompt must be self-contained: the task itself, the relevant files and known findings, the output you expect, and the boundaries of the task (research only, or may edit files). Terse command-style prompts produce shallow, generic work.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0137587Z ^[[31m+ Usage notes:^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0139597Z ^[[31m+ - Call subagent_role with the exact catalog name as agent. A child has its own context: it starts without this conversation, so it suits self-contained work that one briefing can state in full. If no listed role matches, do not substitute a similarly named one — delegate through one of the host's general delegation channels instead, and do not load these roles through skill or slash commands.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0143190Z ^[[31m+ - The call returns a durable subagent id immediately and does not block you. A child usually runs for minutes: spend that time advancing independent work that does not depend on it, and do not poll it or re-check its progress.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0144626Z ^[[31m+ - Leave run_in_background unset; set it to false only when your next action depends on the result and no independent work remains.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0146388Z ^[[31m+ - A question a child asks while it runs goes unanswered: nothing will reply on your behalf. So state the prompt in full the first time, and a child should decide for itself, keep going, and list in its final reply which choices it made alone and what information it still lacked.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0148640Z ^[[31m+ - The settlement notice arrives as a user message, not as a tool result. Until it arrives, do not assume or predict its findings, and do not deliver anything that depends on them. The child's output is not visible to the user: when it finishes, summarize the result to the user yourself.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0151592Z ^[[31m+ - The child's final reply is its own report: check its assertions against the files themselves, and treat its statements about its own configuration the same way — a child cannot see how its role instructions were installed.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0154512Z ^[[31m+ - Do not duplicate work a child is already doing. When several children run at once, give each its own git worktree and name the files it owns in prompt.^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0155890Z ^[[31m+ </system-reminder>",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0156514Z ^[[31m+         "type": "text",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0157003Z ^[[31m+       },^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0157406Z ^[[31m+     ],^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0158037Z ^[[31m+     "id": "de186c4d-e78a-45c0-a5fb-d4074c775f89",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0158718Z ^[[31m+     "role": "user",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0159217Z ^[[31m+     "source": {^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0159726Z ^[[31m+       "entries": [^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0160260Z ^[[31m+         {^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0160850Z ^[[31m+           "description": "Project reviewer",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0161613Z ^[[31m+           "name": "github-native/reviewer",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0162634Z ^[[31m+           "roleId": "[\"native\",\"github-native\",\"agents\",\"reviewer.agent\"]",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0163530Z ^[[31m+           "title": "reviewer",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0164064Z ^[[31m+         },^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0164476Z ^[[31m+         {^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0165082Z ^[[31m+           "description": "Installed reviewer",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0165939Z ^[[31m+           "name": "suite/reviewer",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0166939Z ^[[31m+           "roleId": "[\"source\",\"suite\",\"agents\",\"reviewer\"]",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0167859Z ^[[31m+           "title": "reviewer",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0168536Z ^[[31m+         },^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0169056Z ^[[31m+       ],^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0169596Z ^[[31m+       "form": "catalog",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0170290Z ^[[31m+       "kind": "subagent-catalog",^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0171321Z ^[[31m+       "update": true,^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0171890Z ^[[31m+     },^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0172323Z ^[[31m+   },^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0172752Z ^[[31m+ ]^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0172964Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0173560Z ^[[36m ^[[2m❯^[[22m tests/subagent-catalog.test.ts:^[[2m444:42^[[22m^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0210593Z     ^[[90m442|^[[39m     ^[[35mawait^[[39m ^[[34mrename^[[39m(roleDir^[[33m,^[[39m ^[[32m`^[[39m^[[36m${^[[39mroleDir^[[36m}^[[39m^[[32m.backup`^[[39m)
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0212464Z     ^[[90m443|^[[39m     ^[[35mawait^[[39m ^[[34mwriteFile^[[39m(roleDir^[[33m,^[[39m ^[[32m'temporarily not a directory'^[[39m)
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0214261Z     ^[[90m444|^[[39m     ^[[34mexpect^[[39m(^[[34mmessages^[[39m(^[[35mawait^[[39m ^[[34mstep^[[39m(parent)))^[[33m.^[[39m^[[34mtoEqual^[[39m([])
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0215955Z     ^[[90m   |^[[39m                                          ^[[31m^^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0216897Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0217594Z     ^[[90m445|^[[39m     ^[[35mawait^[[39m ^[[34mrm^[[39m(roleDir)
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0219083Z     ^[[90m446|^[[39m     ^[[35mawait^[[39m ^[[34mrename^[[39m(^[[32m`^[[39m^[[36m${^[[39mroleDir^[[36m}^[[39m^[[32m.backup`^[[39m^[[33m,^[[39m roleDir)
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0220055Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0220586Z ^[[31m^[[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯^[[22m^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0221123Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0281401Z ^[[2m Test Files ^[[22m ^[[1m^[[31m2 failed^[[39m^[[22m^[[2m | ^[[22m^[[1m^[[32m147 passed^[[39m^[[22m^[[2m | ^[[22m^[[33m1 skipped^[[39m^[[90m (150)^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0283643Z ^[[2m      Tests ^[[22m ^[[1m^[[31m2 failed^[[39m^[[22m^[[2m | ^[[22m^[[1m^[[32m1434 passed^[[39m^[[22m^[[2m | ^[[22m^[[33m2 skipped^[[39m^[[90m (1438)^[[39m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0284928Z ^[[2m   Start at ^[[22m 09:16:36
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0286271Z ^[[2m   Duration ^[[22m 190.04s^[[2m (transform 5.57s, setup 0ms, import 53.62s, tests 67.22s, environment 33.52s)^[[22m
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0287619Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0300048Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0329692Z ##[error]AssertionError: expected 'C:\Users\RUNNER~1\AppData\Local\Temp\…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…' // Object.is equality
+windows	UNKNOWN STEP
+windows	UNKNOWN STEP	Expected: "C:\Users\RUNNER~1\AppData\Local\Temp\resource-favorites-0Pnr0y\resource-favorites.json"
+windows	UNKNOWN STEP	Received: "C:\Users\RUNNER~1\AppData\Local\Temp\resource-favorites-0Pnr0y/resource-favorites.json"
+windows	UNKNOWN STEP
+windows	UNKNOWN STEP	 ❯ tests/resource-window-state.test.ts:90:45
+windows	UNKNOWN STEP
+windows	UNKNOWN STEP
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0342035Z
+windows	UNKNOWN STEP	2026-10-05T09:19:47.0372045Z ##[error]AssertionError: expected [ { content: [ { …(2) } ], …(3) } ] to deeply equal []
+windows	UNKNOWN STEP
+windows	UNKNOWN STEP	- Expected
+windows	UNKNOWN STEP	+ Received
+windows	UNKNOWN STEP
+windows	UNKNOWN STEP	- []
+windows	UNKNOWN STEP	+ [
+windows	UNKNOWN STEP	+   {
+windows	UNKNOWN STEP	+     "content": [
+windows	UNKNOWN STEP	+       {
+windows	UNKNOWN STEP	+         "text": "<system-reminder>
+windows	UNKNOWN STEP	+ The available subagent roles changed. This complete list replaces every earlier role list in this session; every name from an earlier catalog is void:
+windows	UNKNOWN STEP	+ Delegate proactively: hand self-contained work to a role child by default instead of doing it inline. Delegate when any of these holds:
+windows	UNKNOWN STEP	+ - The task would burn many tool calls or file reads whose raw output would flood this conversation — codebase exploration, tracing behavior across files, digesting long logs or reports. The child reads everything and returns only the distilled result.

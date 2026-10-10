@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-`src/model/types.ts` 里的 `Suite` 同时描述了两件不同的事。
+`packages/market-contracts/src/model/types.ts` 里的 `Suite` 同时描述了两件不同的事。
 
 **扫描态**：遍历一个 checkout 产出的东西（`source-catalog.ts`、`scan-resolvers.ts`、`suite-scanner.ts`、`native-project.ts`）。没有安装状态，也没有生效的 surface 集合——`project-native` 除外，它的布局自己描述了这份集合，因为机器上并不存在它的安装条目。
 

@@ -1,0 +1,12 @@
+{
+  "baseline": 1863,
+  "current": 1868,
+  "missing": [],
+  "added": [
+    "session-extension-composition.test.ts :: keeps construction inert and callers safe before the required host services exist",
+    "suite-queries.test.ts :: suite queries over the read port translates a document by the identity the panel keys it with, with frontmatter stripped",
+    "suite-queries.test.ts :: suite queries over the read port reads a document whole from the checkout, and a miss fails before any provider call",
+    "suite-queries.test.ts :: suite queries over the read port answers from the snapshot the caller names",
+    "suite-queries.test.ts :: suite queries over the read port merges the detail translation, reports pending only when outstanding, and reads the port per call"
+  ]
+}

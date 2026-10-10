@@ -1,0 +1,73 @@
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ❯ tests/workspace-policy-consistency.test.ts (4 tests | 3 failed) 16ms
+     × keeps a surface switched off when an entry is denied afterwards from the same reloaded state 9ms
+     ✓ keeps an entry denial when a surface is switched afterwards, in the reverse order 2ms
+     × keeps both switches when two instances of one service write the same document (confirmed defect) 2ms
+     × leaves the in-memory switch unchanged when the document cannot be written 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/workspace-policy-consistency.test.ts > one workspace document shared by the surface and entry writers > keeps a surface switched off when an entry is denied afterwards from the same reloaded state
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/workspace-policy-consistency.test.ts:71:34
+     69|     // The entry denial lands, and the switch the other writer just pe…
+     70|     expect(document.entries?.mcp).toEqual([entryId])
+     71|     expect(document.toggles.mcp).toBe(false) // confirmed defect: the …
+       |                                  ^
+     72|   })
+     73|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/workspace-policy-consistency.test.ts > one workspace document shared by the surface and entry writers > keeps both switches when two instances of one service write the same document (confirmed defect)
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/workspace-policy-consistency.test.ts:100:34
+     98|     expect(first.currentToggles().mcp).toBe(false)
+     99|     // Both flips survive, whatever order their writers ran in.
+    100|     expect(document.toggles.mcp).toBe(false)
+       |                                  ^
+    101|     expect(document.toggles.lsp).toBe(false)
+    102|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/workspace-policy-consistency.test.ts > a failed write must not publish state it did not save (confirmed defect) > leaves the in-memory switch unchanged when the document cannot be written
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/workspace-policy-consistency.test.ts:118:35
+    116|     // Nothing was persisted, so nothing may be readable as if it were.
+    117|     await expect(readFile(surfaceTogglesPath(root, workspace), 'utf8')…
+    118|     expect(toggles.allows('mcp')).toBe(true) // confirmed defect: memo…
+       |                                   ^
+    119|   })
+    120| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  11:51:59
+   Duration  388ms (transform 165ms, setup 0ms, import 276ms, tests 16ms, environment 0ms)

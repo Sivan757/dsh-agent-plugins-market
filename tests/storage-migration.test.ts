@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from '../src/catalog/paths.js'
-import { migratePluginStorage } from '../src/application/state/storage-migration.js'
+import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from '../packages/market-catalog/src/scanning/paths.js'
+import { migratePluginStorage } from '../packages/market-catalog/src/application/state/storage-migration.js'
 
 let root: string
 beforeEach(async () => {

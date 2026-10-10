@@ -20,18 +20,18 @@
 
 **根因：用户维度只扫描 `state.json` 里登记的 sources，不扫描 `.sources/` 下的未登记目录。**
 
-- `src/catalog/source-catalog.ts:30-37` — `discoverSourceListWithNotes()` 的 `checkouts` 仅由 `state.sources` 构造；
-- `src/catalog/source-catalog.ts:38-47` — 只有 `dimension === 'project'` 才会 `readdir(checkoutRoot)` 把未登记目录纳入扫描；用户维度（`~/.dsh/agent-plugins`）没有这条分支。
+- `packages/market-catalog/src/scanning/source-catalog.ts:30-37` — `discoverSourceListWithNotes()` 的 `checkouts` 仅由 `state.sources` 构造；
+- `packages/market-catalog/src/scanning/source-catalog.ts:38-47` — 只有 `dimension === 'project'` 才会 `readdir(checkoutRoot)` 把未登记目录纳入扫描；用户维度（`~/.dsh/agent-plugins`）没有这条分支。
 
 **本机验证**（2026-09-01）：`~/.dsh/agent-plugins/.sources/` 下有 20 个目录，`state.json` 只登记 12 个 source。未登记的手动克隆包括：`browser-use`、`claude-code-config`、`claude-code-plugins-plus-skills`、`claude-plugins-community`、`context7`、`mcp-memory-service`、`skills`、`taste-skill` 共 8 个。
 
-**连带坑：重新添加同一 URL 会导致二次克隆而非收编。** `src/application/catalog.ts:377-418` 的 `addSource()` 先经 `pickSourceId()`（`catalog.ts:453-467`）选 id——若 `.sources/<id>` 已被手动克隆占用，会退避到 `<id>-2` 后缀，然后**克隆一份新的**，而不是直接登记现有目录。
+**连带坑：重新添加同一 URL 会导致二次克隆而非收编。** `packages/market-bundle/src/application/catalog.ts:377-418` 的 `addSource()` 先经 `pickSourceId()`（`catalog.ts:453-467`）选 id——若 `.sources/<id>` 已被手动克隆占用，会退避到 `<id>-2` 后缀，然后**克隆一份新的**，而不是直接登记现有目录。
 
-**当前可用的 workaround**：`local: true` 源（UI「local dir」模式，`src/routes.ts:120-124`、`SourceEditorModal.tsx:57-76`）。把手动克隆的路径（绝对路径或 `~/…`）以本地目录形式登记即可立刻显示，且 `local` 源永不触发克隆/删除。
+**当前可用的 workaround**：`local: true` 源（UI「local dir」模式，`packages/market-bundle/src/routes.ts:120-124`、`SourceEditorModal.tsx:57-76`）。把手动克隆的路径（绝对路径或 `~/…`）以本地目录形式登记即可立刻显示，且 `local` 源永不触发克隆/删除。
 
 ### 1.2 克隆路径现状
 
-- `src/catalog/git.ts:17-24` — `git clone --depth 1 [--branch B]`，`execFile` 无 shell（防注入，保留）；超时固定 120s；无重试；`git pull --ff-only` 更新。
+- `packages/market-catalog/src/scanning/git.ts:17-24` — `git clone --depth 1 [--branch B]`，`execFile` 无 shell（防注入，保留）；超时固定 120s；无重试；`git pull --ff-only` 更新。
 - 代理：`execFile` 继承 DSH 进程环境变量，`HTTPS_PROXY` 实际有效，但插件无自身配置项，GUI 进程通常不带代理变量；错误信息也不提示代理。
 - 更新：`git pull --ff-only` 对 shallow 仓库有已知的 "refusing to fetch into branch" 类失败面。
 
@@ -84,7 +84,7 @@
 
 ### 2.3 问题三：支持 Git 之外的来源形式
 
-**SourceRef 扩展**（`src/model/types.ts`）：
+**SourceRef 扩展**（`packages/market-contracts/src/model/types.ts`）：
 
 ```ts
 interface SourceRef {
@@ -100,7 +100,7 @@ interface SourceRef {
 - `state.json` 只加可选字段，`version: 1` 不 bump，向后兼容。
 - 推断规则：`local` 显式为真 → local；URL 以 `.zip/.tar.gz/.tgz` 结尾或 `kind` 显式 → archive；其余 → git。
 
-**archive 来源的获取管线**（`src/catalog/archive.ts` 新模块）：
+**archive 来源的获取管线**（`packages/market-catalog/src/scanning/archive.ts` 新模块）：
 
 1. **下载**：Node 内置 `fetch` 流式下载到 `.sources/<id>/` 临时文件；强制 HTTPS（允许配置放宽为内网 http）；大小上限 256 MiB（对齐 CC）；可选 sha256 校验，不匹配即拒绝。
 2. **解压**：zip 用纯 JS 依赖 `fflate`（零原生依赖、体积小）；`.tar.gz` 用系统 `tar`（macOS/Linux/Win10+ 自带）。**必须防 zip-slip**：逐条目校验解压目标不逃逸目标根目录。

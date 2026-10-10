@@ -6,7 +6,7 @@ The only published cross-vendor plugin format in this directory. Unlike the othe
 - **Specification:** https://agent-plugins.org/specification
 - **Repository:** [`agentplugins/agent-plugins-spec`](https://github.com/agentplugins/agent-plugins-spec) (`spec/1.0.0.md`, `spec/1.1.0.md`, `schemas/1.0.0/`, `schemas/1.1.0/`)
 - **Status:** 1.0.0 published; 1.1.0 is a working draft whose schemas differ from 1.0.0 only in the version string (verified 2026-09-17 at upstream `ff8ab5e`); the spec text additionally renames two phrasings ("claiming conformance to Agent Plugins v1" → "claiming conformance", "Agent Plugins v1 defines no OAuth" → "This specification defines no OAuth"). This manager explicitly recognizes 1.1.0 as compatible (§5.2) and validates each version against its own vendored schemas.
-- **Runtime use:** `src/catalog/validate.ts` loads all four vendored schemas through Ajv and selects the validator by the manifest's declared `$schema`; `src/catalog/manifests.ts` selects this dialect only when a root `plugin.json` declares a recognized `$schema`. Client-specific behavior beyond the portable core lives in the [`com.deepseek.harness` namespace](../com.deepseek.harness/spec.md).
+- **Runtime use:** `packages/market-catalog/src/scanning/validate.ts` loads all four vendored schemas through Ajv and selects the validator by the manifest's declared `$schema`; `packages/market-catalog/src/scanning/manifests.ts` selects this dialect only when a root `plugin.json` declares a recognized `$schema`. Client-specific behavior beyond the portable core lives in the [`com.deepseek.harness` namespace](../com.deepseek.harness/spec.md).
 
 ## Manifest location
 
@@ -59,4 +59,4 @@ The technical steering committee is Amazon, Cursor, Microsoft, OpenAI, and Verce
 
 ## Update procedure
 
-Replace the vendored files from the upstream repository at the pinned spec versions and bump the spec-version references in `src/catalog/validate.ts`. Do not edit the vendored files by hand.
+Replace the vendored files from the upstream repository at the pinned spec versions and bump the spec-version references in `packages/market-catalog/src/scanning/validate.ts`. Do not edit the vendored files by hand.

@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { Catalog } from '../src/application/catalog.js'
-import { toMcpMounts } from '../src/application/mcp/mcp-config.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { toMcpMounts } from '../packages/market-mcp/src/application/mcp/mcp-config.js'
 import {
   applyOverride,
   loadSuiteOverrides,
@@ -14,9 +14,9 @@ import {
   sanitizeOverrides,
   saveSuiteOverrides,
   withoutPolicyFields
-} from '../src/application/mcp/mcp-overrides.js'
+} from '../packages/market-mcp/src/application/mcp/mcp-overrides.js'
 import { expectTransport } from './helpers/bridge-config.js'
-import { effectiveSurfaces, type McpServerStreamableHttp, type Suite } from '../src/model/types.js'
+import { effectiveSurfaces, type McpServerStreamableHttp, type Suite } from '../packages/market-contracts/src/model/types.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixture = join(here, 'fixtures', 'v1-suite')

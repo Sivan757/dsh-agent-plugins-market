@@ -1,0 +1,32 @@
+Extension window progress — measurement record
+Date: 2026-10-08  Repo: dsh-agent-plugins-market @ 92936ff (working tree with disjoint teammate changes)
+Runtime: node v24.21.0 from /Applications/DeepSeek Harness.app/Contents/Resources/runtime/primary-runtime/dependencies/node/bin/node
+Session implementation under measurement: /Users/sivan/workspace/dsh-agent-plugins-market/node_modules/@deepseek-ai/dsh-session/lib/index.js (published 0.2.0-rc.2, real host Session.append/snapshotEvents)
+Scripts: /tmp/scope-window-measure/measure.mjs (cold/warm/copy) and measure2.mjs (fold vs scan)
+Event shape used to grow the log: hook/invoked {turn, point, dialect, handlerId} — a type the production predicate never matches, so the scan runs to the end (worst case).
+
+Current path (before the change): predicate over session.snapshotEvents(), one per window read, polled every 2500 ms by the preset entry.
+N        | scan p50 | extra copy after an append | polls/hour | ms/hour/session
+1 000    | 0.037 ms | 0.004 ms                   | 1 440      | 52.7
+10 000   | 0.252 ms | 0.008 ms                   | 1 440      | 363.4
+50 000   | 1.285 ms | 0.056 ms                   | 1 440      | 1 850.5
+The copy exists because Session.append clears eventsSnapshot (harness packages/core/session/src/index.ts:762), so the next full read re-copies the log (:653-655).
+
+Projection alternative (one fold, then O(1) reads): 0.036 / 0.167 / 0.398 ms for the same N, once per session. Subsequent reads read the folded boolean. Measured with an explicit loop rather than Array.prototype.some, so treat the fold figure as "at most one scan-equivalent"; the saving is (polls - 1) scans plus the copies per session.
+
+CAVEATS
+- Scan-only measurement. The window() payload also refreshes the inventory (session-extension.ts inventory fan-out); that part is unchanged by this work and was NOT measured here.
+- Numbers are a single machine, warm V8, p50 of 20 runs; not a benchmark suite.
+- The fallback path still performs the full scan by design, for a host without the projection registry.
+
+Post-change verification (run today):
+- tests/extension-window-progress.test.ts: 11 passed (6 semantics cases + registry lifetime, fold-once, fallback, clear, fold-definition).
+- Targeted runtime tests together: extension-window-progress + extension-acceptance + extension-routes = 39 passed.
+- tsc -p tsconfig.json --noEmit: clean. tsc -p tsconfig.test.json --noEmit: clean.
+Not run: full suite, lint, build, commits.
+
+Lifecycle hardening (added after the Lead's review, same day)
+- ExtensionProgressReader now holds a disposed flag, guards the injected callback and the effect body, keeps an identity guard in the effect cleanup, owns the injected fiber (ctx.inject returns Fiber & PromiseLike<Fiber>; fiber.dispose(): Promise<void> per cordis fiber.d.ts:112) and exposes ready, which settles once the current registration attempt has run.
+- ExtensionRuntime.dispose() awaits the reader disposal.
+- Tests: dispose before registry arrival (service mounted afterwards; reader stays unregistered and stateOf is undefined), registry re-provision while live (cleanup clears only its own pointer, the new registration is live, and a later dispose unregisters the live one), and the reader still answers from the log after disposal.
+- Verified: 14 tests in tests/extension-window-progress.test.ts; 49 across it plus extension-acceptance, extension-routes and extension-runtime-maintenance; tsc server and test projects clean.

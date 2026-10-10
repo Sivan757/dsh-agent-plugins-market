@@ -18,7 +18,7 @@ Five keys left the host dictionary: `commandForwardTitle`, `userCommandForwardTi
 
 ## Where the line falls
 
-Text only the host's own UI reads may name its source: the slash-menu registration description stays `[{suiteName}] {description}` for a suite command and `[用户命令] {description}` for a user entry, because the palette has no source column and the display name there is the manifest name, not an id. Panel copy in `src/client/locales.ts` is unaffected.
+Text only the host's own UI reads may name its source: the slash-menu registration description stays `[{suiteName}] {description}` for a suite command and `[用户命令] {description}` for a user entry, because the palette has no source column and the display name there is the manifest name, not an id. Panel copy in `packages/market-ui/src/locales.ts` is unaffected.
 
 `report_market_issue` remains the deliberate exception: its tool description names the repository it files against, which is what makes the tool callable for the right problem.
 

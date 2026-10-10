@@ -8,7 +8,7 @@ import { defineConfig } from 'tsdown'
  * with no companion asset.
  */
 export default defineConfig({
-  entry: { client: 'src/client/index.ts' },
+  entry: { client: 'packages/market-ui/src/index.ts' },
   format: ['cjs'],
   outDir: 'client',
   platform: 'browser',
@@ -18,7 +18,7 @@ export default defineConfig({
   // YAML edits run in the browser; it is not a host-injected client module.
   deps: {
     neverBundle: [/^react(\/|$)/, /^react-dom(\/|$)/, /^@deepseek-ai\/dsh-client-/, /^@deepseek-ai\/dsh-llm(\/|$)/],
-    alwaysBundle: ['yaml']
+    alwaysBundle: ['yaml', '@deepseek-ai/dsh-util-workspace-path']
   },
   css: { inject: true },
   outExtensions: ({ format }) => (format === 'cjs' ? { js: '.js' } : {}),

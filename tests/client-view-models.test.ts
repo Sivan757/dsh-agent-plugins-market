@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { deriveMarketViewModel } from '../src/client/features/market/market-view-model.js'
-import { deriveMcpStatusViewModel } from '../src/client/features/mcp/mcp-status-view-model.js'
-import type { OverviewData } from '../src/client/api.js'
-import type { McpStatusPayload } from '../src/contracts/mcp-status.js'
+import { deriveMarketViewModel } from '../packages/market-ui/src/features/market/market-view-model.js'
+import { deriveMcpStatusViewModel } from '../packages/market-ui/src/features/mcp/mcp-status-view-model.js'
+import type { OverviewData } from '../packages/market-ui/src/api.js'
+import type { McpStatusPayload } from '../packages/market-contracts/src/contracts/mcp-status.js'
 
 const overview: OverviewData = {
   sources: [],

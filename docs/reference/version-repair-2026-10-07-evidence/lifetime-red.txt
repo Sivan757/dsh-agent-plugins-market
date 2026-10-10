@@ -1,0 +1,57 @@
+
+ RUN  v4.1.11 /Users/sivan/workspace/dsh-agent-plugins-market
+
+ ❯ tests/extension-runtime-maintenance.test.ts (7 tests | 2 failed) 342ms
+   × releases applied epochs when an agent is disposed 55ms
+   × releases applied epochs when the runtime is disposed 33ms
+   ✓ publishes the newly enabled inherited schema before queued Send opens its first request 67ms
+   ✓ keeps the session ready during registration rebuilding and coalesces a newer catalog epoch 32ms
+   ✓ keeps publication failures denied and restores the saved selection by explicit recovery 56ms
+   ✓ an explicit session change can finish rebuilding a globally invalidated epoch 45ms
+   ✓ continues queued input after a global revoke without another Send and denies only unavailable capabilities 53ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 5 passed (7)
+   Start at  20:57:26
+   Duration  655ms (transform 103ms, setup 0ms, import 230ms, tests 342ms, environment 0ms)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/extension-runtime-maintenance.test.ts > releases applied epochs when an agent is disposed
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/extension-runtime-maintenance.test.ts:93:29
+     91|   expect(epochs.has(agent)).toBe(true)
+     92|   ctx.emit('agent/disposed', { agent })
+     93|   expect(epochs.has(agent)).toBe(false)
+       |                             ^
+     94| })
+     95|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/extension-runtime-maintenance.test.ts > releases applied epochs when the runtime is disposed
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/extension-runtime-maintenance.test.ts:101:23
+     99|   expect(epochs.has(agent)).toBe(true)
+    100|   await runtime.dispose()
+    101|   expect(epochs.size).toBe(0)
+       |                       ^
+    102| })
+    103|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯

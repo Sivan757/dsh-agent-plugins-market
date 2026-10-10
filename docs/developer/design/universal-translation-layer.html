@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Translation layer · Technical design</title>
+    <style>
+      :root {
+        --canvas: #eef1f7;
+        --surface: #fbfcfe;
+        --white: #fff;
+        --ink: #101828;
+        --muted: #667085;
+        --faint: #98a2b3;
+        --line: #e2e7ef;
+        --line-strong: #d4dce8;
+        --blue: #4966f5;
+        --blue-soft: #edf1ff;
+        --green: #159957;
+        --green-soft: #e9f8ef;
+        --amber: #a86f17;
+        --amber-soft: #fdf4e3;
+        --red: #d34242;
+        --red-soft: #fdecec;
+        --violet: #7c4dd1;
+        --violet-soft: #f2ecfd;
+        --slate-soft: #f1f3f8;
+        --mono: 'SFMono-Regular', 'SF Mono', Menlo, Consolas, monospace;
+        --ui: 'Avenir Next', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        min-height: 100vh;
+        padding: 40px 24px 96px;
+        color: var(--ink);
+        background: radial-gradient(circle at 10% 0%, rgba(73, 102, 245, 0.09), transparent 32%), var(--canvas);
+        font-family: var(--ui);
+        font-size: 14px;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 232px minmax(0, 1fr);
+        gap: 34px;
+        max-width: 1240px;
+        margin: 0 auto;
+        align-items: start;
+      }
+      nav {
+        position: sticky;
+        top: 40px;
+        padding: 20px 18px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      }
+      nav .navHead {
+        color: var(--faint);
+        font: 600 10px/16px var(--mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+      nav a {
+        display: block;
+        padding: 5px 8px;
+        margin: 0 -8px;
+        color: var(--muted);
+        border-radius: 7px;
+        font-size: 12.5px;
+        text-decoration: none;
+        transition:
+          background 0.12s,
+          color 0.12s;
+      }
+      nav a:hover {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+      nav a .n {
+        display: inline-block;
+        width: 20px;
+        color: var(--faint);
+        font: 500 11px var(--mono);
+      }
+      main {
+        min-width: 0;
+      }
+      header.doc {
+        margin-bottom: 30px;
+      }
+      .kicker {
+        color: var(--blue);
+        font: 600 10px/16px var(--mono);
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      h1 {
+        font-size: 30px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+        margin-bottom: 10px;
+      }
+      .lede {
+        color: var(--muted);
+        font-size: 14.5px;
+        max-width: 76ch;
+      }
+      .metaRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .metaRow span {
+        padding: 4px 10px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font: 500 11.5px var(--mono);
+      }
+      section {
+        margin-bottom: 20px;
+        padding: 24px 26px 26px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+        scroll-margin-top: 24px;
+      }
+      h2 {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-size: 18px;
+        letter-spacing: -0.01em;
+        margin-bottom: 6px;
+      }
+      h2 .num {
+        color: var(--faint);
+        font: 500 12px var(--mono);
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 18px;
+        max-width: 80ch;
+      }
+      h3 {
+        font-size: 13.5px;
+        margin: 22px 0 10px;
+      }
+      h3:first-of-type {
+        margin-top: 4px;
+      }
+      p {
+        margin-bottom: 10px;
+        max-width: 82ch;
+      }
+      code {
+        padding: 1.5px 5px;
+        background: var(--slate-soft);
+        border-radius: 5px;
+        font: 500 12px var(--mono);
+        color: #344054;
+      }
+      .chain {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        margin: 6px 0 4px;
+      }
+      .hop {
+        flex: 1 1 176px;
+        min-width: 168px;
+        padding: 14px 15px;
+        background: var(--white);
+        border: 1px solid var(--line-strong);
+        border-radius: 11px;
+        position: relative;
+      }
+      .hop + .hop {
+        margin-left: 26px;
+      }
+      .hop + .hop::before {
+        content: '';
+        position: absolute;
+        left: -21px;
+        top: 50%;
+        width: 16px;
+        height: 1.5px;
+        background: var(--line-strong);
+      }
+      .hop + .hop::after {
+        content: '';
+        position: absolute;
+        left: -8px;
+        top: 50%;
+        width: 6px;
+        height: 6px;
+        border-top: 1.5px solid var(--line-strong);
+        border-right: 1.5px solid var(--line-strong);
+        transform: translateY(-50%) rotate(45deg);
+      }
+      .hop .rank {
+        font: 600 10px var(--mono);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+      .hop .title {
+        font-size: 14px;
+        font-weight: 650;
+        margin-bottom: 3px;
+      }
+      .hop .host {
+        font: 500 11px var(--mono);
+        color: var(--faint);
+        word-break: break-all;
+        margin-bottom: 9px;
+      }
+      .hop .fact {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .hop .fact b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .hop.g {
+        border-color: #b9e3cb;
+        background: linear-gradient(180deg, var(--green-soft), var(--white) 62%);
+      }
+      .hop.g .rank {
+        color: var(--green);
+      }
+      .hop.m {
+        border-color: #bcd0fb;
+        background: linear-gradient(180deg, var(--blue-soft), var(--white) 62%);
+      }
+      .hop.m .rank {
+        color: var(--blue);
+      }
+      .hop.l {
+        border-color: #d9c8f5;
+        background: linear-gradient(180deg, var(--violet-soft), var(--white) 62%);
+      }
+      .hop.l .rank {
+        color: var(--violet);
+      }
+      .hop.o {
+        background: linear-gradient(180deg, var(--slate-soft), var(--white) 62%);
+      }
+      .hop.o .rank {
+        color: var(--faint);
+      }
+      .layers {
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        margin-top: 4px;
+      }
+      .layer {
+        display: grid;
+        grid-template-columns: 148px minmax(0, 1fr);
+        gap: 16px;
+        padding: 13px 15px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--line-strong);
+        border-radius: 10px;
+      }
+      .layer.new {
+        border-left-color: var(--blue);
+        background: linear-gradient(90deg, var(--blue-soft), var(--white) 34%);
+      }
+      .layer.touch {
+        border-left-color: var(--amber);
+        background: linear-gradient(90deg, var(--amber-soft), var(--white) 34%);
+      }
+      .layer .lname {
+        font: 600 12.5px var(--mono);
+      }
+      .layer .lrole {
+        font-size: 11.5px;
+        color: var(--faint);
+        margin-top: 2px;
+      }
+      .layer .lmods {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        padding: 3px 8px;
+        border-radius: 6px;
+        font: 500 11.5px var(--mono);
+        background: var(--slate-soft);
+        color: #475467;
+        border: 1px solid transparent;
+      }
+      .chip.add {
+        background: var(--blue-soft);
+        color: #2f4bd8;
+        border-color: #cdd9fb;
+      }
+      .chip.edit {
+        background: var(--amber-soft);
+        color: #8a5a12;
+        border-color: #f0dcb4;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+        gap: 10px;
+        margin-top: 6px;
+      }
+      .step {
+        padding: 12px 13px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .step .snum {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 19px;
+        height: 19px;
+        margin-bottom: 7px;
+        background: var(--ink);
+        color: var(--white);
+        border-radius: 6px;
+        font: 600 10.5px var(--mono);
+      }
+      .step .stitle {
+        font-size: 12.5px;
+        font-weight: 650;
+        margin-bottom: 4px;
+      }
+      .step .sbody {
+        font-size: 11.5px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+        margin-top: 4px;
+      }
+      th {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1.5px solid var(--line-strong);
+        color: var(--faint);
+        font: 600 10.5px var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      td {
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      td.mono {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: #344054;
+        word-break: break-all;
+      }
+      .tag {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 5px;
+        font: 600 10px var(--mono);
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+      .tag.new {
+        background: var(--blue-soft);
+        color: #2f4bd8;
+      }
+      .tag.mod {
+        background: var(--amber-soft);
+        color: #8a5a12;
+      }
+      .tag.mv {
+        background: var(--violet-soft);
+        color: #6234b8;
+      }
+      .tag.tst {
+        background: var(--green-soft);
+        color: #0f7a45;
+      }
+      .tag.doc {
+        background: var(--slate-soft);
+        color: #475467;
+      }
+      .callout {
+        margin-top: 16px;
+        padding: 13px 15px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--white);
+        font-size: 12.5px;
+        line-height: 1.65;
+      }
+      .callout.warn {
+        border-color: #f0dcb4;
+        background: var(--amber-soft);
+      }
+      .callout.ok {
+        border-color: #b9e3cb;
+        background: var(--green-soft);
+      }
+      .callout b {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 12px;
+      }
+      pre {
+        margin: 10px 0 0;
+        padding: 13px 15px;
+        background: #101828;
+        color: #e4e7ec;
+        border-radius: 10px;
+        overflow-x: auto;
+        font: 500 11.5px/1.75 var(--mono);
+      }
+      pre .c {
+        color: #7f8ea3;
+      }
+      pre .k {
+        color: #8ab4ff;
+      }
+      pre .s {
+        color: #86e0a8;
+      }
+      pre .w {
+        color: #f5c26b;
+      }
+      ul.plain {
+        margin: 6px 0 0 18px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      ul.plain li {
+        margin-bottom: 5px;
+      }
+      ul.plain b {
+        color: var(--ink);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
+        gap: 12px;
+        margin-top: 4px;
+      }
+      .mini {
+        padding: 13px 15px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .mini h4 {
+        font-size: 12.5px;
+        margin-bottom: 5px;
+      }
+      .mini p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0;
+      }
+      footer {
+        max-width: 1240px;
+        margin: 26px auto 0;
+        padding-left: 266px;
+        color: var(--faint);
+        font-size: 11.5px;
+      }
+      @media (max-width: 940px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+        nav {
+          position: static;
+        }
+        nav a {
+          display: inline-block;
+          margin-right: 6px;
+        }
+        footer {
+          padding-left: 0;
+        }
+        .hop + .hop {
+          margin-left: 0;
+          margin-top: 26px;
+        }
+        .hop + .hop::before {
+          left: 50%;
+          top: -21px;
+          width: 1.5px;
+          height: 16px;
+        }
+        .hop + .hop::after {
+          left: 50%;
+          top: -8px;
+          transform: translateX(-50%) rotate(135deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <nav>
+        <div class="navHead">Contents</div>
+        <a href="#s1"><span class="n">01</span>Language and display</a>
+        <a href="#s2"><span class="n">02</span>Provider order</a>
+        <a href="#s3"><span class="n">03</span>Responsibilities</a>
+        <a href="#s4"><span class="n">04</span>On-demand reads</a>
+        <a href="#s5"><span class="n">05</span>Stable cache units</a>
+        <a href="#s6"><span class="n">06</span>Markdown structure</a>
+        <a href="#s7"><span class="n">07</span>Reading modes</a>
+        <a href="#s8"><span class="n">08</span>Disable and reset</a>
+        <a href="#s9"><span class="n">09</span>Limits</a>
+        <a href="#s10"><span class="n">10</span>Verification owners</a>
+      </nav>
+      <main>
+        <header class="doc">
+          <div class="kicker">Technical design · current source contract</div>
+          <h1>Translation layer</h1>
+          <p class="lede">Read descriptions and expanded documents in Chinese or English without changing names, source files or model input.</p>
+          <div class="metaRow"><span>Updated · 2026-10-06</span><span>Host baseline · 0.2.0-rc.2</span></div>
+          <p class="sub">
+            The <a href="../decisions/2026-10-04-universal-translation-layer.md">ADR</a> owns provider order and cache identity. The
+            <a href="../../../.agents/notes/implemented/feature/2026-10-06-translation-reading-and-lifecycle.md">reading and lifecycle note</a> owns document modes, language
+            independence and cancellation. This page does not report a test run or a live latency measurement.
+          </p>
+        </header>
+
+        <section id="s1">
+          <h2><span class="num">01</span>Language and display</h2>
+          <p>
+            The interface dictionary selects <code>zh</code> or <code>en</code>. The translation switch independently controls display and new work. Chinese defaults to on and
+            English to off. A stored choice takes priority until the user restores the default.
+          </p>
+          <p>
+            English can translate Chinese when explicitly enabled. Preferences that do not start with <code>en</code>, including an absent preference, use the plugin's Chinese
+            dictionary and target.
+          </p>
+        </section>
+
+        <section id="s2">
+          <h2><span class="num">02</span>Provider order</h2>
+          <p>The first provider that returns a valid batch supplies the result. Free endpoints precede the configured model.</p>
+          <div class="chain">
+            <div class="hop g">
+              <div class="rank">First</div>
+              <div class="title">Google Translate</div>
+              <div class="host">translate-pa.googleapis.com/v1/translateHtml</div>
+              <div class="fact">No user key. Deadline: 3 seconds.</div>
+            </div>
+            <div class="hop m">
+              <div class="rank">Second</div>
+              <div class="title">Microsoft Translator</div>
+              <div class="host">edge.microsoft.com/translate/translatetext</div>
+              <div class="fact">No user key. Deadline: 15 seconds.</div>
+            </div>
+            <div class="hop l">
+              <div class="rank">Third</div>
+              <div class="title">Default model</div>
+              <div class="host">Configured model route</div>
+              <div class="fact">Uses the operator's quota. Deadline: 30 seconds.</div>
+            </div>
+            <div class="hop o">
+              <div class="rank">Fallback</div>
+              <div class="title">Authored text</div>
+              <div class="host">Not a provider</div>
+              <div class="fact">Remains readable when no translation is available.</div>
+            </div>
+          </div>
+          <p>
+            A failed provider is skipped until translation is re-enabled, the cache is reset, or the process restarts. Cancellation does not trip a provider or start another
+            fallback. Public endpoints provide no availability or latency guarantee.
+          </p>
+        </section>
+
+        <section id="s3">
+          <h2><span class="num">03</span>Responsibilities</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Owner</th>
+                <th>Responsibility</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>contracts/settings.ts</code></td>
+                <td>Resolve the target and effective switch independently.</td>
+              </tr>
+              <tr>
+                <td><code>application/translation/document.ts</code></td>
+                <td>Parse document structure, extract stable prose units and assemble complete Markdown.</td>
+              </tr>
+              <tr>
+                <td><code>application/translation/localizer.ts</code></td>
+                <td>Queue work, reuse translations and serialize persistence.</td>
+              </tr>
+              <tr>
+                <td><code>runtime/host/</code></td>
+                <td>Adapt provider requests and protect technical text.</td>
+              </tr>
+              <tr>
+                <td><code>client/ui/DocumentTranslation.tsx</code></td>
+                <td>Select a reading mode and render one complete document through the host.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>No parser or translation provider is added to the browser bundle. No host code is modified.</p>
+        </section>
+
+        <section id="s4">
+          <h2><span class="num">04</span>On-demand reads</h2>
+          <p>
+            A panel or menu read can request description translation. Expanding a document mounts its reader and starts its translation read. Unexpanded files are not
+            pretranslated.
+          </p>
+          <p>
+            Direct detail reads report unfinished descriptions through <code>translationPending</code>. The client re-reads until it reaches zero, translation is disabled, or the
+            detail closes.
+          </p>
+          <p>
+            An open slash menu performs up to 40 follow-up reads with a 1.5-second timer. Changed descriptions refresh through the public controller without another keystroke.
+            Closing the menu stops its timer. A host without that controller updates on later candidate requests.
+          </p>
+          <p>
+            Document routes accept identities, not arbitrary prose or paths. The server reads the named file from the scanned resource list and removes frontmatter before
+            translation.
+          </p>
+          <p>
+            The response retains <code>text</code> and <code>pending</code> and adds optional <code>bilingualText</code>. Pending segments retain authored text. The reader
+            revalidates while work remains and stops its reads on close or original mode.
+          </p>
+        </section>
+
+        <section id="s5">
+          <h2><span class="num">05</span>Stable cache units</h2>
+          <p>
+            A persistent key includes target, surface, entity id, role, source text and provider-chain identity. Entries do not expire. The user panel and Market detail share the
+            same document identity.
+          </p>
+          <p>
+            Each paragraph, heading or table cell produces independent prose units. Only oversized prose splits further. Inserting a paragraph does not change unrelated keys.
+            Transport batches group units without changing their identities.
+          </p>
+          <p>
+            The localizer also reuses known text through an in-memory index. That index is not a persistent global content cache. A new entity can need translation after restart
+            even when another entity carried the same text.
+          </p>
+        </section>
+
+        <section id="s6">
+          <h2><span class="num">06</span>Markdown structure</h2>
+          <p>
+            The server uses a Markdown abstract syntax tree, or AST, with GFM and math extensions. It extracts text leaves and retains code, inline code, link destinations, math
+            and raw HTML locally.
+          </p>
+          <p>
+            Ordered placeholders preserve inline structure. Invalid order or empty replacements retain the original prose. The server serializes one complete document, so
+            references, lists and footnotes retain their shared context.
+          </p>
+          <p>
+            Serialization can normalize whitespace and Markdown markers. It does not promise every private grammar extension of the host. Original mode retains the authored source.
+          </p>
+        </section>
+
+        <section id="s7">
+          <h2><span class="num">07</span>Reading modes</h2>
+          <p>
+            The host <code>SegmentedTabs</code> offers compact icon controls at the upper-right for original, translated and bilingual modes. Bilingual is the default. The host
+            <code>MarkdownText</code> renders the selected complete document.
+          </p>
+          <p>
+            Bilingual paragraphs place translation below the original. Headings retain original and translated versions. Tables show the complete original table followed by the
+            translated table, not paired text in every cell.
+          </p>
+          <p>Names and keywords remain unchanged. Prompts and tool descriptions that enter model context retain their authored language.</p>
+        </section>
+
+        <section id="s8">
+          <h2><span class="num">08</span>Disable and reset</h2>
+          <p>
+            Disable drops queued work, aborts active batches and prevents later fallback calls. Completed translations remain cached. A remote provider can ignore cancellation, but
+            its old response cannot update the new generation.
+          </p>
+          <p>
+            Reset also removes completed entries. Generation checks reject old results and cleanup. Serialized persistence orders old writes before deletion and fresh writes after
+            deletion.
+          </p>
+          <p>An enabled read after reset can start fresh work. Re-enable resets failure state but does not pretranslate unopened documents.</p>
+        </section>
+
+        <section id="s9">
+          <h2><span class="num">09</span>Limits</h2>
+          <ul class="plain">
+            <li>Public endpoints can change, fail or rate-limit requests. The model can consume paid quota.</li>
+            <li>Batch limits count source text. Masking and output expansion still require truncation handling.</li>
+            <li>Long paragraphs can lose translation context where they split.</li>
+            <li>Cache entries accumulate until reset, and each flush writes the whole cache document.</li>
+            <li>Closing a document stops client reads, not every server request already submitted for it.</li>
+          </ul>
+        </section>
+
+        <section id="s10">
+          <h2><span class="num">10</span>Verification owners</h2>
+          <p>
+            <a href="../../../tests/document-chunks.test.ts">Document chunk tests</a> cover structure and stable units.
+            <a href="../../../tests/translation-document.test.ts">Document translation tests</a> cover catalog assembly and protected content.
+          </p>
+          <p>
+            <a href="../../../tests/translation-localizer.test.ts">Localizer tests</a> cover reuse, target budgets and reset races.
+            <a href="../../../tests/translation-chain.test.ts">Chain tests</a> cover provider order and cancellation.
+          </p>
+          <p>
+            <a href="../../../tests/client-document-translation.test.ts">Reader tests</a> cover reading modes. The
+            <a href="../../../.agents/notes/implemented/feature/2026-10-06-translation-reading-and-lifecycle.md">decision note</a> records supersession and known limits. Test
+            execution and the final build belong to the integration review.
+          </p>
+        </section>
+      </main>
+    </div>
+    <footer>Translation layer · Current design · 2026-10-06 · Source contracts, not live verification evidence</footer>
+  </body>
+</html>

@@ -2,10 +2,19 @@
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { beginBusyOperation, busySnapshot, withBusyOperation } from '../src/client/ui/busy-operation.js'
-import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_MIN_VISIBLE_MS, BUSY_SETTLE_MS, BUSY_LONG_RUNNING_MS } from '../src/client/ui/BusyOverlay.js'
+import { beginBusyOperation, busySnapshot, withBusyOperation } from '../packages/market-ui/src/ui/busy-operation.js'
+import { BusyOverlay, BUSY_SHOW_DELAY_MS, BUSY_LONG_RUNNING_MS } from '../packages/market-ui/src/ui/BusyOverlay.js'
 import { stubTranslate as t } from './helpers/translate.js'
-import { fetchLspStatus, postAction } from '../src/client/api.js'
+import {
+  fetchLspStatus,
+  fetchMcpStatus,
+  fetchOverview,
+  fetchServerConfig,
+  fetchSuiteDetail,
+  fetchSuiteDocument,
+  fetchUserPanel,
+  postAction
+} from '../packages/market-ui/src/api.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: Root | undefined
@@ -19,6 +28,7 @@ afterEach(async () => {
   document.body.replaceChildren()
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('shared operation overlay', () => {
@@ -40,6 +50,7 @@ describe('shared operation overlay', () => {
       await polling
       const mutation = postAction('test', {})
       expect(busySnapshot()).toHaveLength(1)
+      expect(busySnapshot()[0]?.blocking).toBe(true)
       const failure = expect(mutation).rejects.toThrow('rejected')
       complete(new Response(JSON.stringify({ ok: false, error: 'rejected' }), { status: 400 }))
       await failure
@@ -48,6 +59,34 @@ describe('shared operation overlay', () => {
       vi.unstubAllGlobals()
     }
   })
+  it.each([
+    ['overview', () => fetchOverview()],
+    ['suite detail', () => fetchSuiteDetail('source', 'suite')],
+    ['suite document', () => fetchSuiteDocument('source', 'suite', 'skills', 'skill')],
+    ['server config', () => fetchServerConfig('mcp', 'server')],
+    ['MCP status', () => fetchMcpStatus()],
+    ['LSP status', () => fetchLspStatus()],
+    ['user panel', () => fetchUserPanel('agents')]
+  ] as const)('keeps the %s read lease nonblocking', async (_name, load) => {
+    let complete!: (response: Response) => void
+    vi.stubGlobal(
+      'fetch',
+      () =>
+        new Promise<Response>(resolve => {
+          complete = resolve
+        })
+    )
+    const request = load()
+    try {
+      expect(busySnapshot()).toHaveLength(1)
+      expect(busySnapshot()[0]?.blocking).toBe(false)
+    } finally {
+      complete(new Response('{}', { status: 200 }))
+      await request
+    }
+    expect(busySnapshot()).toHaveLength(0)
+  })
+
   it('counts concurrent leases and releases rejected requests without masking their error', async () => {
     let release!: () => void
     const work = withBusyOperation(
@@ -104,8 +143,14 @@ describe('shared operation overlay', () => {
       end = beginBusyOperation(dialog)
       releases.push(end)
     })
-    expect(dialog.hasAttribute('inert')).toBe(true)
-    expect(host.textContent).not.toContain('busyHintProcessing')
+    expect(dialog.hasAttribute('inert')).toBe(false)
+    expect(document.activeElement).toBe(button)
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    button.click()
+    backdrop.click()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    expect(clicked).not.toHaveBeenCalled()
+    expect(escaped).not.toHaveBeenCalled()
     await act(async () => {
       vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS)
     })
@@ -120,9 +165,6 @@ describe('shared operation overlay', () => {
     })
     expect(host.textContent).toContain('busyHintRefresh')
     await act(async () => end())
-    await act(async () => {
-      vi.advanceTimersByTime(BUSY_SETTLE_MS)
-    })
     expect(host.querySelector('[data-operation-overlay]')).toBeNull()
     expect(dialog.hasAttribute('inert')).toBe(false)
     expect(dialog.hasAttribute('aria-busy')).toBe(false)
@@ -155,16 +197,45 @@ describe('shared operation overlay', () => {
       vi.advanceTimersByTime(BUSY_LONG_RUNNING_MS)
     })
     expect(host.textContent).toContain('busyLongRunning')
-    // The warning belongs to the wait, not to the mask: releasing the lease
-    // clears both.
     await act(async () => end())
-    await act(async () => {
-      vi.advanceTimersByTime(BUSY_SETTLE_MS)
-    })
     expect(host.querySelector('[data-operation-overlay]')).toBeNull()
   })
 
-  it('never paints quick requests and holds a visible mask across a short request gap', async () => {
+  it.each([80, 199])('keeps a %ims read interactive without painting or moving focus', async duration => {
+    vi.useFakeTimers()
+    const dialog = document.createElement('div')
+    const button = document.createElement('button')
+    dialog.append(button)
+    document.body.append(dialog)
+    button.focus()
+    const clicked = vi.fn()
+    button.onclick = clicked
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    let end!: () => void
+    await act(async () => {
+      end = beginBusyOperation(dialog, { blocking: false })
+      releases.push(end)
+    })
+    expect(dialog.hasAttribute('inert')).toBe(false)
+    expect(document.activeElement).toBe(button)
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    button.click()
+    expect(clicked).toHaveBeenCalledOnce()
+    await act(async () => {
+      vi.advanceTimersByTime(duration)
+      end()
+    })
+    expect(document.activeElement).toBe(button)
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    await act(async () => vi.advanceTimersByTime(BUSY_LONG_RUNNING_MS))
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each([201, 450, 800])('releases a visible %ims operation without a minimum stay or settling delay', async duration => {
     vi.useFakeTimers()
     const dialog = document.createElement('div')
     document.body.append(dialog)
@@ -177,45 +248,183 @@ describe('shared operation overlay', () => {
       end = beginBusyOperation(dialog)
       releases.push(end)
     })
-    expect(dialog.hasAttribute('inert')).toBe(true)
-    await act(async () => {
-      vi.advanceTimersByTime(80)
-      end()
-    })
-    expect(host.querySelector('[data-visible="true"]')).toBeNull()
-    expect(dialog.hasAttribute('inert')).toBe(false)
-    await act(async () => {
-      vi.advanceTimersByTime(500)
-    })
-    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
-
-    await act(async () => {
-      end = beginBusyOperation(dialog)
-      releases.push(end)
-    })
-    await act(async () => {
-      vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS)
-    })
-    const mask = host.querySelector('[data-visible="true"]')
-    expect(mask).not.toBeNull()
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
+    expect(host.querySelector('[data-visible="true"]')).not.toBeNull()
+    await act(async () => vi.advanceTimersByTime(duration - BUSY_SHOW_DELAY_MS))
     await act(async () => end())
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    expect(dialog.hasAttribute('inert')).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('keeps overlapping leases visible until the last release and restarts after an idle gap', async () => {
+    vi.useFakeTimers()
+    const dialog = document.createElement('div')
+    document.body.append(dialog)
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    let first!: () => void
+    let second!: () => void
     await act(async () => {
-      vi.advanceTimersByTime(50)
+      first = beginBusyOperation(dialog)
+      releases.push(first)
     })
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
+    const mask = host.querySelector('[data-visible="true"]')
     await act(async () => {
-      end = beginBusyOperation(dialog)
-      releases.push(end)
+      second = beginBusyOperation(dialog)
+      releases.push(second)
+      first()
     })
     expect(host.querySelector('[data-visible="true"]')).toBe(mask)
+    await act(async () => second())
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    await act(async () => vi.advanceTimersByTime(50))
     await act(async () => {
-      vi.advanceTimersByTime(BUSY_MIN_VISIBLE_MS)
-      end()
-    })
-    expect(dialog.hasAttribute('inert')).toBe(true)
-    await act(async () => {
-      vi.advanceTimersByTime(BUSY_SETTLE_MS)
+      first = beginBusyOperation(dialog)
+      releases.push(first)
     })
     expect(host.querySelector('[data-operation-overlay]')).toBeNull()
-    expect(dialog.hasAttribute('inert')).toBe(false)
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
+    expect(host.querySelector('[data-visible="true"]')).not.toBeNull()
+  })
+
+  it('never paints an overlay for a read, however long it runs', async () => {
+    vi.useFakeTimers()
+    const target = document.createElement('div')
+    document.body.append(target)
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    let end!: () => void
+    await act(async () => {
+      end = beginBusyOperation(target, { blocking: false })
+      releases.push(end)
+    })
+    // The panel shows its own loading line, so the overlay stays out of the way
+    // no matter how long the read takes.
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS + 50))
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    await act(async () => vi.advanceTimersByTime(BUSY_LONG_RUNNING_MS))
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    await act(async () => end())
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not retain or refocus a disconnected target after completion', async () => {
+    vi.useFakeTimers()
+    const target = document.createElement('div')
+    const button = document.createElement('button')
+    target.append(button)
+    document.body.append(target)
+    button.focus()
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    let end!: () => void
+    await act(async () => {
+      end = beginBusyOperation(target)
+      releases.push(end)
+    })
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
+    target.remove()
+    const replacement = document.createElement('button')
+    document.body.append(replacement)
+    replacement.focus()
+    await act(async () => end())
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    expect(document.activeElement).toBe(replacement)
+    expect(target.hasAttribute('inert')).toBe(false)
+  })
+
+  it('restores pre-existing attributes on unmount', async () => {
+    vi.useFakeTimers()
+    const dialog = document.createElement('div')
+    dialog.setAttribute('inert', '')
+    dialog.setAttribute('aria-busy', 'false')
+    document.body.append(dialog)
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    await act(async () => {
+      releases.push(beginBusyOperation(dialog))
+    })
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
+    expect(host.querySelector('[data-operation-overlay]')).not.toBeNull()
+    expect(dialog.getAttribute('aria-busy')).toBe('true')
+    await act(async () => root!.unmount())
+    // React schedules an immediate callback while detaching the root.
+    vi.advanceTimersByTime(0)
+    root = undefined
+    // `inert` was already there, so the overlay must leave it in place.
+    expect(dialog.hasAttribute('inert')).toBe(true)
+    expect(dialog.getAttribute('aria-busy')).toBe('false')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not steal focus or input from a dialog opened during a slow read', async () => {
+    vi.useFakeTimers()
+    const target = document.createElement('div')
+    document.body.append(target)
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    let end!: () => void
+    await act(async () => {
+      end = beginBusyOperation(target, { blocking: false })
+      releases.push(end)
+    })
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    const button = document.createElement('button')
+    dialog.append(button)
+    document.body.append(dialog)
+    button.focus()
+    const clicked = vi.fn()
+    const keyed = vi.fn()
+    button.onclick = clicked
+    button.onkeydown = keyed
+    await act(async () => vi.advanceTimersByTime(BUSY_SHOW_DELAY_MS))
+    // A read never paints, and never takes focus or input from the dialog.
+    expect(host.querySelector('[data-operation-overlay]')).toBeNull()
+    expect(target.hasAttribute('inert')).toBe(false)
+    expect(document.activeElement).toBe(button)
+    button.click()
+    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(clicked).toHaveBeenCalledOnce()
+    expect(keyed).toHaveBeenCalledOnce()
+    await act(async () => end())
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('keeps a mutation guarded when a concurrent read targets another panel', async () => {
+    vi.useFakeTimers()
+    const saving = document.createElement('div')
+    const reading = document.createElement('div')
+    const button = document.createElement('button')
+    saving.append(button)
+    document.body.append(saving, reading)
+    const clicked = vi.fn()
+    button.onclick = clicked
+    const host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(BusyOverlay, { t })))
+    let end!: () => void
+    await act(async () => {
+      end = beginBusyOperation(saving)
+      releases.push(end, beginBusyOperation(reading, { blocking: false }))
+    })
+    button.click()
+    expect(clicked).not.toHaveBeenCalled()
+    await act(async () => end())
+    button.click()
+    expect(clicked).toHaveBeenCalledOnce()
   })
 })

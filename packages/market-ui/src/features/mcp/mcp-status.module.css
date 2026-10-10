@@ -1,0 +1,312 @@
+.surface {
+  composes: shell from '../../ui/panel.module.css';
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.toolbar {
+  flex: none;
+}
+
+@media (max-width: 760px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.empty,
+.detailEmpty {
+  padding: 24px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 12px;
+  text-align: center;
+}
+.error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  font-size: 12px;
+}
+.detailBody {
+  max-height: 72vh;
+  overflow-y: auto;
+}
+.modalFooter {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* Sits opposite the dialog's buttons and says what saving does. */
+.modalFooterHint {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+.modalFooterGrow {
+  flex: 1 1 auto;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The destructive-authorization confirmation: explanation plus the two
+   buttons, directly under the status band it belongs to. It carries no fill of
+   its own — the band is the dialog's one state container. */
+.reauthConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.reauthExplain {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary, #4e5969);
+  font-size: 12px;
+  line-height: 18px;
+}
+.reauthActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* The block heading with its optional trailing control (the tool search). */
+.blockHeadRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* The tools heading with its text-view switch on the same line. */
+.toolsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* A line of context under a block heading, dimmer than the rows it introduces. */
+.blockSub {
+  margin: 0 0 6px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* The tool list's search field, above a long capability list. */
+.toolSearch {
+  display: block;
+  flex: 0 1 220px;
+  min-width: 0;
+}
+
+.toolList {
+  display: flex;
+  flex-direction: column;
+}
+/* Three columns: the identity track sizes to its content (long MCP tool names
+   are the identity, never clipped), the description takes the remainder, and
+   the state note keeps its own narrow track. The 3px left border is the
+   per-row state rail. */
+.tool {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) minmax(0, 1fr) max-content;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0 7px 2px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #eef1f5);
+}
+.tool:last-child {
+  border-bottom: none;
+}
+/* The allow checkbox and the name share the identity track. */
+.toolIdentity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolName {
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font:
+    11px/16px ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+}
+.toolDescription {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+.toolNote {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+/* A tool name that opens its parameter list reads as a control, not a label. */
+.toolNameButton {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.toolNameButton:hover {
+  color: var(--dsw-alias-brand-primary, #4f6ef7);
+}
+/* The parameter table spans the row's three tracks. */
+.toolParams {
+  grid-column: 1 / -1;
+  padding: 8px 0 2px 11px;
+}
+.toolParamsGrid {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) minmax(60px, max-content) max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: baseline;
+}
+.toolParam {
+  display: contents;
+}
+.toolParamName {
+  color: var(--dsw-alias-label-primary, #1f2328);
+  font:
+    11px/16px ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+}
+.toolParamType {
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font:
+    10px/16px ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+}
+.toolParamRequired {
+  color: var(--dsw-alias-state-warn-primary, #b45309);
+  font-size: 10px;
+  line-height: 16px;
+}
+.toolParamDesc {
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 10px;
+  line-height: 16px;
+}
+.toolParamsEmpty {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 10px;
+  line-height: 16px;
+}
+/* The row that expands the list; a text button in the flow, not a boxed CTA. */
+.toolMore {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-secondary, #667085);
+  font-size: 11px;
+  line-height: 17px;
+  cursor: pointer;
+}
+.toolMore:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+@media (max-width: 760px) {
+  .toolbar {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .list .cardTop {
+    max-width: 100%;
+  }
+  .tool {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .toolDescription {
+    display: none;
+  }
+}
+
+@keyframes lspStartingPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Legacy profile LSP layer: a one-action upgrade repair above the inventory.
+   Warn-toned rather than error-toned — nothing is broken, one file needs a row
+   removed — and it carries the exact path so the edit is verifiable by hand. */
+.seamBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--dsw-alias-state-warn-primary, #b45309);
+  border-radius: 8px;
+  background: var(--dsw-alias-state-warn-tertiary, rgba(180, 83, 9, 0.08));
+}
+.seamTitle {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #1f2329);
+}
+.seamBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary, #4e5969);
+}
+.seamPathLabel {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+}
+.seamPath {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary, #4e5969);
+  overflow-wrap: anywhere;
+}
+.seamOther {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+}
+.seamDone {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-success-primary, #15803d);
+}

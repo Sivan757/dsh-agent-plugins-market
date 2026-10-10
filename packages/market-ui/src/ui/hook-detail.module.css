@@ -1,0 +1,96 @@
+/**
+ * The hook detail's own anatomy: one status card, then labelled sections.
+ *
+ * The card mirrors the shared expert-detail summary; the sections mirror the
+ * same labelled grid and block rhythm. Values come from the platform tokens
+ * only, so dark mode needs no branch.
+ */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.cardTags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardName {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.pathLine {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pathDot {
+  flex: none;
+  margin-top: 6px;
+}
+
+.pathText {
+  color: var(--dsw-alias-label-secondary);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 19px;
+  overflow-wrap: anywhere;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.status {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.failure {
+  margin: 0;
+  color: var(--dsw-alias-state-error-primary, var(--dsw-alias-label-secondary));
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.streamLabel {
+  margin: 0 0 6px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}

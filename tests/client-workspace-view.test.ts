@@ -14,7 +14,7 @@ describe('workspace display preference', () => {
     const storageWindow = new JSDOM('', { url: 'http://localhost' }).window
     vi.stubGlobal('localStorage', storageWindow.localStorage)
     window.localStorage.setItem(KEY, JSON.stringify('list'))
-    const { useWorkspaceView } = await import('../src/client/ui/workspace-view.js')
+    const { useWorkspaceView } = await import('../packages/market-ui/src/ui/workspace-view.js')
     function Tab({ name }: { name: string }) {
       const [view, setView] = useWorkspaceView()
       return h(
@@ -52,7 +52,7 @@ describe('workspace display preference', () => {
     const storageWindow = new JSDOM('', { url: 'http://localhost' }).window
     vi.stubGlobal('localStorage', storageWindow.localStorage)
     window.localStorage.setItem(KEY, JSON.stringify('sideways'))
-    const { useWorkspaceView } = await import('../src/client/ui/workspace-view.js')
+    const { useWorkspaceView } = await import('../packages/market-ui/src/ui/workspace-view.js')
     function Tab() {
       const [view, setView] = useWorkspaceView()
       return h(

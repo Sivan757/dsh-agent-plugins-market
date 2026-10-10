@@ -8,7 +8,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['src/**/*.ts', 'src/**/*.tsx', 'tests/**/*.ts'],
+    files: ['index.ts', 'packages/**/*.ts', 'packages/**/*.tsx', 'tests/**/*.ts'],
     languageOptions: {
       parserOptions: {
         // Type-aware rules need to know which program a file belongs to. The four
@@ -32,7 +32,7 @@ export default tseslint.config(
     // dependency-cruiser cannot see Node builtin edges, so the boundaries that
     // depend on them are enforced here: the domain records and the browser-safe
     // contracts stay data only, and the client bundle never reaches a Node API.
-    files: ['src/model/**/*.ts', 'src/contracts/**/*.ts', 'src/client/**/*.ts', 'src/client/**/*.tsx'],
+    files: ['packages/market-contracts/src/**/*.ts', 'packages/market-ui/src/**/*.ts', 'packages/market-ui/src/**/*.tsx'],
     rules: {
       'no-restricted-imports': [
         'error',

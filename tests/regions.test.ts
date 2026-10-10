@@ -4,8 +4,8 @@
  * env escape hatch, pass-through for everything else).
  */
 import { describe, expect, it } from 'vitest'
-import { narrowDownloadRegion } from '../src/contracts/settings.js'
-import { githubCloneUrl, resolveRegion } from '../src/application/regions.js'
+import { narrowDownloadRegion } from '../packages/market-contracts/src/contracts/settings.js'
+import { githubCloneUrl, resolveRegion } from '../packages/market-catalog/src/application/regions.js'
 
 describe('narrowDownloadRegion', () => {
   it('accepts the three known values and defaults everything else to auto', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { failureGuidanceKey } from '../src/client/ui/failure-guidance.js'
+import { failureGuidanceKey } from '../packages/market-ui/src/ui/failure-guidance.js'
 
 describe('failure guidance', () => {
   it('reads a recorded code before the wording', () => {

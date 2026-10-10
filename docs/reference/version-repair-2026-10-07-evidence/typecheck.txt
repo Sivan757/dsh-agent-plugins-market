@@ -1,0 +1,4 @@
+src/client/features/hooks/StatusPanel.tsx(104,20): error TS2345: Argument of type '"epHooksEvents"' is not assignable to parameter of type '"nav" | "version" | "market" | "localeProbeLang" | "toggleSurfaceTitle" | "toggleSurfaceMarket" | "toggleSurfaceSkills" | "toggleSurfaceCommands" | "toggleSurfaceAgents" | ... 413 more ... | "translationResetDone"'.
+[ELIFECYCLE] Command failed with exit code 2.
+[stderr]
+$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.test.client.json --noEmit

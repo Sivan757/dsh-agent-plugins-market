@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { MARKET_API_PREFIX, MARKET_ROUTES, skillRoute, suiteRoute, type OverviewPayload } from '../src/contracts/market.js'
-import type { McpStatusPayload } from '../src/contracts/mcp-status.js'
+import { documentRoute, MARKET_API_PREFIX, MARKET_ROUTES, suiteRoute, type OverviewPayload } from '../packages/market-contracts/src/contracts/market.js'
+import type { McpStatusPayload } from '../packages/market-contracts/src/contracts/mcp-status.js'
 
 describe('market transport contracts', () => {
   it('keeps the host and client route paths in one declaration', () => {
@@ -11,9 +11,11 @@ describe('market transport contracts', () => {
     expect(MARKET_ROUTES.setEnabled).toBe('/api/agent-plugins/set-enabled')
   })
 
-  it('encodes suite and skill query identifiers at the contract seam', () => {
+  it('encodes suite and document query identifiers at the contract seam', () => {
     expect(suiteRoute('source one', 'suite/two')).toBe('/api/agent-plugins/suite?sourceId=source%20one&suiteId=suite%2Ftwo')
-    expect(skillRoute('source one', 'suite/two', 'skill#three')).toBe('/api/agent-plugins/skill?sourceId=source%20one&suiteId=suite%2Ftwo&skill=skill%23three')
+    expect(documentRoute('source one', 'suite/two', 'commands', 'cmd#three')).toBe(
+      '/api/agent-plugins/suite/document?sourceId=source%20one&suiteId=suite%2Ftwo&kind=commands&name=cmd%23three'
+    )
   })
 
   it('represents remote overview cards and MCP status as shared records', () => {

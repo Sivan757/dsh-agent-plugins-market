@@ -12,11 +12,11 @@ Status: implemented
 
 变更在状态落盘时就应答，绝不等挂载就绪。`CatalogContext.notifyChanged` 同步失效缓存，并在后台调度一次合并后的刷新 pass；已在执行的 pass 会吸收期间到达的变更。显式调用方要等待这次 pass 时用 `CatalogContext.refreshSettled(deadlineMs)`，上限为 `DERIVED_REFRESH_WAIT_MS`（10 秒），超时后如实返回而不是继续死等。
 
-有界的是等待，不是工作。`settlesWithin(work, deadlineMs)`（`src/runtime/deadline.ts`）让 promise 与计时器赛跑并报告谁先结束；任何工作都不会被取消，因为取消一次挂载要么让已派生的服务进程变成孤儿，要么丢弃用户正在完成的授权。组合根给变更流水线的每个阶段同样的处理（`src/index.ts` 中的 `CHANGE_STAGE_DEADLINE_MS`，20 秒）：记录超时日志后继续，因此卡住的 surface 只损失自身的新鲜度，不会拖垮整条流水线的活性。
+有界的是等待，不是工作。`settlesWithin(work, deadlineMs)`（`src/runtime/deadline.ts`）让 promise 与计时器赛跑并报告谁先结束；任何工作都不会被取消，因为取消一次挂载要么让已派生的服务进程变成孤儿，要么丢弃用户正在完成的授权。组合根给变更流水线的每个阶段同样的处理（`packages/market-bundle/src/index.ts` 中的 `CHANGE_STAGE_DEADLINE_MS`，20 秒）：记录超时日志后继续，因此卡住的 surface 只损失自身的新鲜度，不会拖垮整条流水线的活性。
 
 手动重试会重建存活挂载。bridge 背后的服务即使已经死掉，其已解析配置的指纹仍然没变，所以任何 pass 都不会再校验它——某个本机 IDE 侧端点在被上报为 `connected` 很久之后早已开始拒绝连接。`McpMountRegistry.forceRemountAll` 会把每个存活挂载标记为显式重建，经 `mcpRemountAll` 端口接线，由 `retryMounts` 在它所等待的那次 pass 之前应用。
 
-客户端不会无休止地等待。`src/client/api.ts` 中读取由 `READ_TIMEOUT_MS`（15 秒）约束、写操作由 `MUTATION_TIMEOUT_MS`（10 分钟）兜底；`RequestTimeoutError` 经 `clientErrorMessage` 以 `requestTimeout` 文案呈现给用户。阻塞遮罩在 `BUSY_LONG_RUNNING_MS`（20 秒）后明确说明等待时间偏长，而不是让用户自行猜测。
+客户端不会无休止地等待。`packages/market-ui/src/api.ts` 中读取由 `READ_TIMEOUT_MS`（15 秒）约束、写操作由 `MUTATION_TIMEOUT_MS`（10 分钟）兜底；`RequestTimeoutError` 经 `clientErrorMessage` 以 `requestTimeout` 文案呈现给用户。阻塞遮罩在 `BUSY_LONG_RUNNING_MS`（20 秒）后明确说明等待时间偏长，而不是让用户自行猜测。
 
 ## Alternatives considered
 

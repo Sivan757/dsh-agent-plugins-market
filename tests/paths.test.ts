@@ -10,7 +10,7 @@
 import { homedir } from 'node:os'
 import { join, posix, resolve, win32 } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { expandHome, isWithin, isWithinUnder, resolveAgentsRoot, resolveDshHome } from '../src/catalog/paths.js'
+import { expandHome, isWithin, isWithinUnder, resolveAgentsRoot, resolveDshHome } from '../packages/market-catalog/src/scanning/paths.js'
 
 const win32Cases: Array<{ name: string; root: string; candidate: string; contained: boolean }> = [
   {

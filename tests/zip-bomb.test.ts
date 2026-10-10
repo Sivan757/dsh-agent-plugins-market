@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { zipSync } from 'fflate'
 import { createServer, type ServerResponse } from 'node:http'
-import { archiveInstall, ARCHIVE_MAX_ENTRIES } from '../src/catalog/archive.js'
+import { archiveInstall, ARCHIVE_MAX_ENTRIES } from '../packages/market-catalog/src/scanning/archive.js'
 
 const run = promisify(execFile)
 

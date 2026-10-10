@@ -1,0 +1,14 @@
+Date: 2026-10-08 Asia/Shanghai
+Baseline: 1c401e4, clean at start.
+Build: pnpm pack in /tmp/market-boundaries-eD8x4T/build, exit 0. Host-alignment and build hooks passed.
+Artifact: dsh-agent-plugins-market-0.9.0.tgz extracted into isolated profile. External dependencies reused; private workspace links excluded.
+DSH: installed 0.2.0-rc.2, separate DSH_HOME and DSH_AGENTS_HOME, workspace /tmp/market-boundaries-eD8x4T/workspace, loopback port 63089.
+Model: local audit-mock/test; no external model requests.
+Session: session-763872e9-ddd1-4703-bda2-a149e096ba6c.
+Initial session: ready=true, selected user Hook and parent, prompt accepted and completed; actual shell marker boundary-hook written once.
+Parent-only preset: create and select through public routes, ready=true, only market:@user-hooks/user-hooks selected; next prompt accepted and completed, no extra Hook marker.
+Browser: authenticated with private launch token, two completed turns visible, selected Parent only preset visible, final console query has no warnings/errors.
+Emitted session-extension declaration contains no node_modules, absolute checkout path, or bare private-package reference.
+Source/public contracts: no package manifest, lockfile, existing test, client source, host source or live-profile change.
+Test identity comparison: 1863 previous tests preserved, 5 direct module tests added.
+Known limits: no current Windows run or fresh registry dependency install. Existing source-map and CodeMirror DOM warnings persist in tests.

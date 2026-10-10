@@ -81,7 +81,7 @@ A reload re-wires the source before its first read, so nothing in the locale pat
 
 The read calls `describe()` per refresh rather than per translated string: the projection walks every active entry, which is heavier than the getter it replaced, so the entry re-binds on the settings event and application reads (region resolution, MCP status) take the wired reader once per call. Removing the file parse also removed the last asynchronous step in this path, which is why an unexpected failure now surfaces as a plugin load error instead of an unhandled rejection the host turns into an exit.
 
-Supersession: [optional host services are read through the service store](2026-09-15-optional-host-services-read-through-the-service-store.md) owns the service-read rule and stays authoritative. This note records the lifetime half of that rule and the projection the locale read needs; neither note supersedes the other.
+Supersession: [optional host services are read through the service store](2026-09-15-optional-host-services-read-through-the-service-store.md) owns the service-read rule and stays authoritative. This note records the lifetime half of that rule and the projection the locale read needs; neither note supersedes the other. The cost bound layered on that wiring — one preference read per operation, no TTL, and the freshness it shares with the host copy — is recorded in [read-path cost bounds and the locale freshness contract](../architecture/2026-10-05-read-path-cost-bounds-and-locale-freshness.md).
 
 ## Testing
 

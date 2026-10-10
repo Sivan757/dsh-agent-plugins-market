@@ -6,8 +6,9 @@
  * looking saved, and that the compat-mode guard blocks the save.
  */
 import { describe, expect, it } from 'vitest'
-import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../src/contracts/settings.js'
-import { bindMarketCardForm, regionChoice } from '../src/client/features/settings-card/market-card-form.js'
+import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../packages/market-contracts/src/contracts/settings.js'
+import { bindMarketCardForm, regionChoice } from '../packages/market-ui/src/features/settings-card/market-card-form.js'
+import type { InterfaceLanguage } from '../packages/market-ui/src/ui/translation-enabled.js'
 
 /** The probe answer a test's card reads: host client present or missing. */
 const probeAnswer = (hostClientAvailable: boolean) => async () => ({
@@ -16,9 +17,39 @@ const probeAnswer = (hostClientAvailable: boolean) => async () => ({
   downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
 })
 
+/**
+ * The section the host serves over one user layer: every declared default, and
+ * the translation switch only when the layer carries it — its schema declares
+ * no default, so an untouched document serves a section without the field.
+ */
+function servedSection(user: Partial<MarketSettings> = {}): MarketSettings {
+  const section: MarketSettings = { ...MARKET_SETTINGS_DEFAULTS, ...user }
+  if (!Object.hasOwn(user, 'translationEnabled')) Reflect.deleteProperty(section, 'translationEnabled')
+  return section
+}
+
+/** The interface language a card resolves its translation default against. */
+function languageSource(preference: string): InterfaceLanguage & { update(next: string): void } {
+  let value = preference
+  const listeners = new Set<() => void>()
+  return {
+    current: () => value,
+    subscribe(listener: () => void) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    update(next: string) {
+      value = next
+      for (const listener of listeners) listener()
+    }
+  }
+}
+
 /** A settings scope double speaking the model's SettingsFormScope shape. */
 function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?: boolean; ready?: boolean } = {}) {
-  let value: MarketSettings = { ...MARKET_SETTINGS_DEFAULTS, ...initial }
+  let value: MarketSettings = servedSection(initial)
   let user: Record<string, unknown> = { ...initial }
   const writable = options.writable ?? true
   const ready = options.ready ?? true
@@ -52,11 +83,12 @@ function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?
           const next = { ...user }
           delete next[field]
           user = next
-          value = { ...value, [field]: MARKET_SETTINGS_DEFAULTS[field as keyof MarketSettings] }
         } else if ('value' in op) {
           user = { ...user, [field]: op.value }
-          value = { ...value, [field]: op.value }
         }
+        // The served section is the user layer resolved over the defaults, so
+        // every write rebuilds it the way the host would.
+        value = servedSection(user)
       }
       for (const listener of listeners) listener()
       return true
@@ -73,8 +105,8 @@ function scopeDouble(initial: Partial<MarketSettings> = {}, options: { writable?
 type ProbeAnswer = Awaited<ReturnType<ReturnType<typeof probeAnswer>>>
 
 /** A bound card with its face; the probe answers synchronously settleable. */
-function cardFor(scope: ReturnType<typeof scopeDouble>, hostClientAvailable = true) {
-  const bound = bindMarketCardForm(scope, probeAnswer(hostClientAvailable))
+function cardFor(scope: ReturnType<typeof scopeDouble>, hostClientAvailable = true, language?: InterfaceLanguage) {
+  const bound = bindMarketCardForm(scope, probeAnswer(hostClientAvailable), language)
   const state = () => bound.face.hooks.marketCard.getSnapshot()
   return { ...bound, state }
 }
@@ -97,6 +129,62 @@ describe('market card form binding', () => {
     expect(state().mcpEnhanced).toMatchObject({ text: String(MARKET_SETTINGS_DEFAULTS.mcpEnhanced), overridden: false })
     // The regions field reads the stored word.
     expect(state().downloadRegion.text).toBe(MARKET_SETTINGS_DEFAULTS.downloadRegion)
+  })
+
+  it('shows the language default on the translation switch while the document says nothing', () => {
+    const zh = cardFor(scopeDouble(), true, languageSource('zh'))
+    expect(zh.state().translationEnabled).toMatchObject({ text: 'true', overridden: false })
+    const en = cardFor(scopeDouble(), true, languageSource('en'))
+    expect(en.state().translationEnabled).toMatchObject({ text: 'false', overridden: false })
+  })
+
+  it('keeps an explicit translation preference in either interface language', () => {
+    const english = cardFor(scopeDouble({ translationEnabled: true }), true, languageSource('en'))
+    expect(english.state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+    const on = cardFor(scopeDouble({ translationEnabled: true }), true, languageSource('zh'))
+    expect(on.state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+    // A stored "off" always wins, whichever way the interface language points.
+    const off = cardFor(scopeDouble({ translationEnabled: false }), true, languageSource('zh'))
+    expect(off.state().translationEnabled).toMatchObject({ text: 'false', overridden: true })
+  })
+
+  it('lets an English reader stage translation on', () => {
+    const language = languageSource('en')
+    const { face, state } = cardFor(scopeDouble(), true, language)
+    expect(state().translationEnabled).toMatchObject({ text: 'false', overridden: false })
+    face.edit('translationEnabled', 'true')
+    expect(state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+    expect(state().dirty).toBe(true)
+  })
+
+  it('moves an unset translation row with the language and shows the language again after a clear', () => {
+    const language = languageSource('zh')
+    const { face, state } = cardFor(scopeDouble(), true, language)
+    expect(state().translationEnabled).toMatchObject({ text: 'true', overridden: false })
+    language.update('en')
+    expect(state().translationEnabled).toMatchObject({ text: 'false', overridden: false })
+    // A staged edit answers for itself from the moment it is staged.
+    face.edit('translationEnabled', 'true')
+    language.update('zh')
+    expect(state().translationEnabled).toMatchObject({ text: 'true', overridden: true })
+    // Clearing it hands the row back to the language, which is on again.
+    face.resetField('translationEnabled')
+    expect(state().translationEnabled).toMatchObject({ text: 'true', overridden: false })
+  })
+
+  it('writes the answer the user gives and stops following the language', async () => {
+    const language = languageSource('zh')
+    const scope = scopeDouble()
+    const { face, state } = cardFor(scope, true, language)
+    expect(state().translationEnabled.text).toBe('true')
+    face.edit('translationEnabled', 'false')
+    face.save()
+    await settle()
+    expect(scope.getSnapshot().user).toMatchObject({ translationEnabled: false })
+    // Switching the language back to Chinese must not re-enable it.
+    language.update('en')
+    language.update('zh')
+    expect(state().translationEnabled).toMatchObject({ text: 'false', overridden: true })
   })
 
   it('keeps a staged edit out of the document until the save, then commits it', async () => {

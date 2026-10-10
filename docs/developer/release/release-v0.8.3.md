@@ -12,7 +12,7 @@
 
 | 告警 | 规则 | 修复 |
 | --- | --- | --- |
-| `src/application/mcp/mcp-redaction.ts` | `js/polynomial-redos`（high） | `${NAME}` 匹配从正则改为单游标扫描。旧正在 `"${{".repeat(50000)` 上实测 10.9 秒，而该值来自接口返回值与日志行；新实现微秒级返回。行为不变：名称仍必需（`${}` 不算引用）、第一个花括号名称仍然优先、未闭合的 `${` 仍不匹配 |
+| `packages/market-contracts/src/redaction.ts` | `js/polynomial-redos`（high） | `${NAME}` 匹配从正则改为单游标扫描。旧正在 `"${{".repeat(50000)` 上实测 10.9 秒，而该值来自接口返回值与日志行；新实现微秒级返回。行为不变：名称仍必需（`${}` 不算引用）、第一个花括号名称仍然优先、未闭合的 `${` 仍不匹配 |
 | `scripts/normalize-client-banner.mjs` ×2 | `js/bad-code-sanitization`（medium） | 该脚本用 `JSON.stringify` 之后插值构造产物源码，样式表与包名任一字节都可能提前结束字符串字面量。样式表改为 base64 传输、页面内解码；包名改为按模块标识校验 |
 
 同时折叠五个 dependabot 升级：smol-toml 1.9.0、astro 7.3.5、eslint 10.11.0、@codemirror/state 6.7.6、@types/node 22.20.4（一个统一的锁文件）。

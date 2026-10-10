@@ -23,9 +23,21 @@ tools: [read_file, search_files]
 
 `GET /api/agent-plugins/model-catalog?provider=<id>&model=<id>` 通过 `llm.resolveModelInfo` 只解析指定模型。响应增加 `reasoning: { efforts: [{ id, name, description? }], defaultEffort? }`，未声明思考强度的模型返回空等级列表。省略 `model` 时保持原有供应商/模型列表行为。适配器等待上限为十秒，失败返回 HTTP 503。
 
-使用 `subagent_role`，传入 `agent`（当前目录中的可读名称，只有冲突时才增加套件/来源限定）和 `prompt`（子代理在没有本会话的情况下也能执行的交底：任务、相关文件与已有结论、期望的输出形式、范围边界）。它替代 `market_agent`，没有 `action`、列表调用或旧名别名。目录把这份操作约定与角色名单一起发布，组织方式与宿主自己的子代理提示词一致：使用说明、提示词的写法、以及不该使用角色子代理的场景。这段文本固定为英文，不随界面语言设置变化，模型读到的约定因此不会因为操作者的语言偏好而改变。没有匹配角色时，说明指向宿主的通用委派工具，不再逐一列举与仲裁它们；这些工具的语义由它们自己的描述承载。执行时重新读取角色与安装状态，应用角色指令与有效路由，并通过三条通道之一运行子代理：默认在 `spawn` 后端上启动一个可继续的子代理，在 inbox 接受时立即返回 `{ kind: 'continuable', subagentId }` 而不等待；传 `run_in_background: true` 时把同一个子代理作为受跟踪的后台任务启动，返回 `{ kind: 'background', jobId }` 供 `job_output` 与 `job_kill` 使用；传 `run_in_background: false` 时在前台运行一个子代理并返回 `{ kind: 'foreground', runId, output }` 及其报告。调用传入的 `provider` 与 `model` 覆盖角色卡路由，`reasoning_effort` 覆盖它的思考强度。子代理不继承父会话对话。子代理结束时运行时投递 `subagent-settled` 通知，携带结果与最终答复；运行期间可用 `send_message` 追加指令，`list_agents` 可列出它。在通知到达之前，子代理的发现并不存在；它的答复是一份报告，父代理对外给出的结论，其证据仍由父代理自己核对。目录里没有匹配的角色时，改用宿主的通用委派通道；这些工具的调度方式、参数与限制由它们自己的描述承载。工具与目录需要宿主 `agents`、`tools`、`llm`、`subagents` 与会话持久化服务。调用产生所选供应商的正常模型用量。
+## 委派模式
 
-角色不再注册为 `agent-*` 或 `persona-*` 技能、斜杠命令。普通技能或命令本身以这些前缀命名的，不受影响。只有本插件的准确 `subagent_role` 工具在当前作用域可见时才展示目录；工具被隐藏或替换后清空已发布目录。项目角色从调用会话的工作目录解析，并遵循 `scanProjectLayouts`。界面编辑、启停变更在下一次模型 step 生效，不会修改已发送的请求。外部文件发现仍使用现有扫描缓存 TTL 或手动刷新，本次没有添加文件监听。
+未启用 Agent Teams 时，调用 `subagent_role`，提供目录中的准确 `agent` 与独立完整的 `prompt`。省略或传 true 的 `run_in_background` 立即返回 `{ kind: 'continuable', subagentId }`；false 等待 `{ kind: 'foreground', runId, output }`。没有受跟踪作业通道或 action 参数，子代理不继承父对话。
+
+启用 Agent Teams 后，调用 `spawn_teammate_role(agent, name, description, prompt)`。可选 `provider`、`model`、`reasoning_effort` 沿用调用优先于卡片的路由规则；provider 指 LLM 路由而非 Team 传输后端。只有 Lead 在用户明确要求 Team 工作后才能创建成员。成员始终从全新上下文启动，没有前台／fork 参数。结果包含 `target`、角色身份与有效模型路由；通信、中断、名册和共享任务由原生 Team 工具管理。后续任务复用成员；同一角色可用于多个成员，但成员名称不可复用。
+
+两种模式下模型可见的目录标题都为 `subagent-catalog`，角色工具参数明确引用这个标题。Team 模式下目录继续作为精简的发现与选择列表：先匹配专业角色再用增强入口，无匹配或需要 fork 时使用原生创建。目录和增强创建工具仅对 Lead 可见，成员及非 Team 子代理不可见也不可调用该工具，执行时仍保留 Lead 身份检查；即使角色名称不变，模式或指导文案变化也会在下一步发布一次替代说明，保留此前历史。Team 服务后到时撤下独立入口；增强创建仍需要 sessions、会话查询与系统提示词服务。缺少依赖时不回退到 Team 看不见的独立子代理。
+
+独立的 **Team coordination** 系统段面向原生和角色成员，即使角色目录为空或被过滤也可用；它只依赖 agents、Agent Teams 和系统提示词服务。用户授权 Team 工作后，提示引导 Lead 尽早分派独立调研、广泛探索、实现与验证，同时保留需求沟通、范围决策、方向更新和最终验收。成员收到自己的真实 Team 名称、保留的 Lead 通信地址 `target: "lead"` 及回报阻塞、证据和结果的说明。这是协作指导，不新增权限，也不替代宿主策略。
+
+协调段在每次提示组装时按准确的活跃 Agent 身份解析，因此压缩或成员恢复后仍可用，无需再追加目录消息。它不鼓励轮询状态或仅为收结果而阻塞：阶段性反馈不等于完成声明，最终交付仍需要必要的成员结果与验证。用户纠正通过共享任务和消息传给已有成员；重叠工作需要明确交接。增强创建还会在初始上下文消息中给出可读角色名和 Team 身份；内部角色 ID 留在持久元数据中。
+
+角色指令与已验证路由在首个请求前固定，通过宿主 inbox 保存到插件自有消息来源。冷恢复和插件重载使用创建时快照，不读取后来编辑的角色卡。恢复这份配置需要继续安装本插件。不要把原生 rc.2 名册当作路由依据：角色成员在活跃期间由插件把角色路由写入其自身 Agent，运行中的行因此一致，成员空闲后没有活跃 Agent 则回退为 Lead 的模型。有效路由以本工具结果为准，不要读 `list_agents`。调用产生供应商正常用量。
+
+角色不是技能或斜杠命令。项目发现遵循调用目录及 `scanProjectLayouts`。编辑与启停影响后续 step／新成员，不改变已接受任务或成员快照。外部发现使用扫描缓存 TTL 或手动刷新，没有文件监听。`tools` 与 `disallowedTools` 保留但不执行权限限制。转述前应核对子代理报告。
 
 插件状态位于 `$DSH_HOME/agent-plugins`，默认 `~/.dsh/agent-plugins`：`.sources` 保存 checkout，`state.json` 保存安装状态，`data` 保存 suite 可变数据与配置。自建资源位于共用的 Agent 布局根目录 `~/.agents/{skills,commands,agents}/`，与 `~/.agents/mcp.json`、`~/.agents/lsp.json` 的服务声明同级。旧 `userRoot`、`dataRoot` 仅作为迁移来源。启动时迁移旧目录、`agent-plugins-data`、`data/user`、`user/<kind>` 条目，以及旧的 `mcp-servers.json` / `lsp-servers.json` 声明；冲突文件保留原位，并报告路径、阻止激活，解决后重启。项目级和显式外部本地 source 仍按原有就地读取约定处理。
 

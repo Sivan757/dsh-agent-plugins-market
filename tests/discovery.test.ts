@@ -3,9 +3,9 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { discoverSuitesInSource } from '../src/catalog/suite-scanner.js'
-import { Catalog } from '../src/application/catalog.js'
-import { validateMcpJson, validatePluginManifest, pathContainmentError, remoteUrlError, headersError } from '../src/catalog/validate.js'
+import { discoverSuitesInSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { validateMcpJson, validatePluginManifest, pathContainmentError, remoteUrlError, headersError } from '../packages/market-catalog/src/scanning/validate.js'
 import { required } from './helpers/fixture.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -339,10 +339,10 @@ describe('validate: manifest and mcp.json', () => {
 })
 
 describe('discovery: manifest-less skill collection layout', () => {
-  it('treats flat SKILL.md directories as synthetic suites', async () => {
+  it('groups flat SKILL.md directories into one synthetic suite', async () => {
     const suites = await discoverSuitesInSource(join(fixtures, 'flat-skills'), 'flat', 'user')
-    expect(suites.map(suite => suite.id)).toEqual(['order-crud'])
-    const suite = required(suites[0], 'order-crud as the only flat-skills suite')
+    expect(suites.map(suite => suite.id)).toEqual(['@skills'])
+    const suite = required(suites[0], 'flat-skills as the only collection suite')
     expect(suite.manifest.layout).toBe('skill-collection')
     const skill = required(suite.skills[0], 'order-crud to ship one skill')
     expect(skill.name).toBe('order-crud')
@@ -376,8 +376,13 @@ describe('suite detail and skill content (market detail endpoints)', () => {
     expect(detail).toMatchObject({ name: 'v1-suite', version: '1.2.3', layout: 'agent-plugin-v1' })
     expect((detail['skills'] as Array<{ name: string }>).map(skill => skill.name)).toEqual(['greet'])
     expect((detail['mcpServers'] as Array<{ key: string }>).map(server => server.key)).toEqual(['toolbox', 'remote'])
-    const content = await manager.skillContent('demo', 'v1-suite', 'greet')
+    // Document bodies stay out of the detail payload: a command or agent entry
+    // carries the identity its row renders, and the text is one read away.
+    expect(detail.commands).toEqual([{ name: 'deploy', description: 'Deploy the fixture' }])
+    expect(detail.agents).toEqual([{ name: 'reviewer', description: 'Review code changes' }])
+    const content = await manager.suiteDocument('demo', 'v1-suite', 'skills', 'greet')
     expect(content.content).toContain('${CLAUDE_PLUGIN_ROOT}')
+    expect((await manager.suiteDocument('demo', 'v1-suite', 'commands', 'deploy')).content).toContain('Deploy the v1 fixture suite.')
     await expect(manager.suiteDetail('demo', 'missing')).rejects.toThrow('not found')
   })
 })

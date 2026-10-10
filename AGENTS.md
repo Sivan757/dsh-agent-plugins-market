@@ -5,45 +5,50 @@
 ## Repository layout
 
 ```
-src/
-  application/  use cases: Catalog facade + ports + queries at the root; domain folders mcp/ and lsp/
-                (config, overrides, redaction, status, backend), state/ (stores, migrations),
-                panels/ (document stores) — imports no runtime module (gated)
-  catalog/      pure source scanning: manifests, dialects, scan pipeline, fs probes, lsp-spec validation
-  client/       Web market page: entry, transport (api.ts), bilingual locales.ts at the root; features/
-                (mcp, lsp, market, settings-card), workspace/, shared ui/
-  contracts/    API request/response types shared by routes and client (imports nothing); mcp.ts and
-                lsp.ts hold the backend selector and mount-diagnostic wire shapes
-  model/        domain records only (suite, source, surfaces) — no Node APIs
-  runtime/      harness-facing effects in domain folders: core/ (reconciler, scheduling, mount lifecycle),
-                mcp/ (mounts + bridge/, the self-built MCP client), lsp/ (mounts), surfaces/ (skills,
-                commands, hooks, dynamic context), panels/, agents/ (role routing, subagent catalog),
-                host/ (locale, settings namespace, tool observation, feedback)
-  index.ts      plugin entry (composition root); routes.ts  API surface
-schemas/        versioned mcp.schema.json and friends (strict validation contracts)
-tests/          vitest suites mirroring src/; fixtures under tests/fixtures
+index.ts        public installation entry: re-exports the bundle package. The published package name and
+                artifact are unchanged; the workspace packages stay private.
+packages/       eight private workspace packages consumed by that one artifact:
+  market-bundle/       composition root and HTTP surface: src/index.ts (plugin entry), routes*.ts,
+                       runtime-adapters.ts, application/, platform/
+  market-catalog/      pure source scanning (scanning/) and the catalog use cases (application/)
+  market-contracts/    stateless shared records: contracts/, model/, ports/, host/, redaction.ts —
+                       imports nothing outside this package and uses no Node APIs
+  market-runtime/      session selection and harness effects: runtime/ (core, surfaces, panels, agents,
+                       host), application/, adapter-contracts.ts, catalog-port.ts, extension-service.ts
+  market-mcp/          MCP configuration, the self-built bridge, mounts, tools and status
+                       (application/, runtime/)
+  market-lsp/          LSP configuration, mounts, provider lifecycle and status (application/, runtime/)
+  market-translation/  translation engine, provider chain and translators (application/, runtime/)
+  market-ui/           Web market page: src/index.ts, api.ts, locales.ts and i18n.ts, features/,
+                       workspace/, ui/
+schemas/        the layout specification library: vendored 1.0.0/ and 1.1.0/ agent-plugins schemas, one
+                reference contract directory per dialect (plugin/marketplace schema + spec.md), and this
+                manager's own com.deepseek.harness/ namespace — see schemas/README.md
+tests/          vitest suites for the whole workspace; fixtures under tests/fixtures
 docs/           user/, reference/, developer/{decisions,design,discussion,release,upstream-proposal}/, scratch/ — see docs/AGENTS.md
 docs-site/      Astro docs site
-scripts/        build helpers (client banner, lifecycle verification)
+scripts/        build and verification helpers: client banner, lifecycle verification, host-alignment
+                and reuse gates, compatibility report, fixture updates, git-hook setup
 ```
 
 ## Commands
 
 ```sh
-pnpm run typecheck           # src, client, and both test projects
-pnpm run lint                # eslint src tests
+pnpm run typecheck           # the four TypeScript projects: server, client and both test projects
+pnpm run lint                # eslint index.ts packages tests
 pnpm run check:quick         # typecheck + lint — also runs before test and build
 pnpm run format:check        # prettier — tracked text except the paths in .prettierignore
 pnpm run test                # vitest run (full suite)
 pnpm run test:contract       # routes + market contracts only
-pnpm run check:architecture  # dependency-cruiser over src/
-pnpm run check:refactor      # check:quick + format:check + test:contract + architecture
+pnpm run check:architecture  # dependency-cruiser over the workspace packages
+pnpm run check:reuse         # reuse ledger vs published host exports
+pnpm run check:refactor      # check:quick + format:check + test:contract + architecture + reuse
 pnpm run build               # tsc emits lib/, tsdown bundles client/
 ```
 
 `check:quick` is the cheap half of the gate and runs on its own: `pretest` and `prebuild` invoke it, so a type or lint error surfaces the moment someone tests or builds rather than at review. The pre-commit hook runs it plus `format:check` and the host-alignment check — `git commit --no-verify` bypasses all three deliberately.
 
-`check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not, except the paths in `.prettierignore` (`docs-site/`, `lib/`, `client/`, `tests/fixtures/`, `CHANGELOG.md`, `docs/reference/compat-report.*`) — run `format:check` after writing docs or HTML before claiming a green tree.
+`check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not, except the paths in [.prettierignore](.prettierignore) — run `format:check` after writing docs or HTML before claiming a green tree.
 
 ## Conventions
 
@@ -51,15 +56,17 @@ pnpm run build               # tsc emits lib/, tsdown bundles client/
 - **Non-trivial changes include an Agent Note** in the same PR — a decision a maintainer may reasonably revisit is recorded under [.agents/notes/](.agents/notes/README.md) (proposed/implemented/rejected by class), and a new note triggers a supersession check of active notes on the same decision. Mechanical or local edits are exempt.
 - **Commit types drive releases.** `feat:`/`fix:` in conventional-commit subjects are parsed by release-please into the next version and the changelog; a misclassified subject ships a wrong version. Scope the subject to the surface (`feat(mcp):`, `fix(lsp-status):`) and keep the body carrying the rationale.
 - **Releases are workflow-owned.** release-please (embedded in `.github/workflows/npm-publish.yml`) opens the Release PR against `main`; merging it auto-tags, auto-creates the GitHub Release, and auto-publishes npm. Follow [docs/developer/release/release-process.md](docs/developer/release/release-process.md); the runbook's one hard rule: any remote write (`git push`, `git tag`, `npm publish`) requires user confirmation first.
-- **Bilingual is part of the change.** User-visible strings go through `src/client/locales.ts` with paired zh/en keys; user-facing docs ship `README.md` and `README.zh.md` as one edit. A surface that renders English-only text is an incomplete change.
-- **Validation fails closed.** A malformed manifest, `mcp.json` server, or `lspServers` declaration is diagnosed and skipped (or drops to an empty table), never silently half-mounted; suite data flows into `SourceOverview.scanNotes` and the status panels instead of disappearing. Follow the existing strategy-chain and status-builder patterns in `src/catalog/` and `src/runtime/`.
+- **Bilingual is part of the change.** User-visible strings go through `packages/market-ui/src/locales.ts` with paired zh/en keys; user-facing docs ship `README.md` and `README.zh.md` as one edit. A surface that renders English-only text is an incomplete change.
+- **Validation fails closed.** A malformed manifest, `mcp.json` server, or `lspServers` declaration is diagnosed and skipped (or drops to an empty table), never silently half-mounted; suite data flows into `SourceOverview.scanNotes` and the status panels instead of disappearing. Follow the existing strategy-chain and status-builder patterns in `packages/market-catalog/src/` and `packages/market-runtime/src/`.
 - **Docs accompany code.** A behavior change to config keys, defaults, routes, error codes, or schemas updates README(s), the affected `docs/` page, and JSDoc in the same PR. Architecture decisions get an ADR under `docs/developer/decisions/`.
-- **Runtime owns effects; catalog stays pure.** Keep filesystem, process, and harness-context access in `src/runtime/` and `src/application/`; `src/catalog/` resolvers stay testable pure functions. `check:architecture` enforces the boundaries.
+- **Runtime owns effects; catalog stays pure.** Keep filesystem, process, and harness-context access in `packages/market-runtime/src/` and each adapter's `runtime/` folder; `packages/market-catalog/src/scanning/` resolvers stay testable pure functions. `check:architecture` enforces the boundaries, and the package dependency rules are recorded in [the domain workspace refactor](docs/developer/design/domain-workspace-refactor.md).
 - **New dependencies are justified in the PR body** and land in `pnpm-lock.yaml` (`--frozen-lockfile` is the CI contract).
 
 ## Editing these instructions
 
-`AGENTS.md` is this repository's only instruction entry point; edit it here. Keep each rule self-contained and link rationale instead of restating it.
+Repository instructions live in the `AGENTS.md` files this tree ships ([docs/](docs/AGENTS.md), [.agents/notes/](.agents/notes/AGENTS.md)) plus the gitignored `AGENTS.local.md`; edit each rule in the file that owns it rather than duplicating it here. Keep each rule self-contained and link rationale instead of restating it.
+
+The `dsh-workflow:begin`/`end` block below is generated by the `dsh-workflow` plugin (its `init-routing` command); re-running it rewrites the block in place and leaves the rest of this file untouched. Do not hand-edit inside the markers — the skills it routes to live in the plugin repositories (`agent-plugins`, `zealwon-plugins`), and the local `.agents/skills/market-*` skills are the repository-specific counterparts.
 
 <!-- dsh-workflow:begin -->
 

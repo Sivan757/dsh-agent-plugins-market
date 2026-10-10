@@ -10,9 +10,13 @@ Status: implemented
 
 ## Decision
 
+设置入口位置由 [Agent 扩展双语品牌与插件内设置](../feature/2026-10-04-agent-plugins-branding.zh.md) 持有：已安装插件使用 plugins.bundle.config，而非官方 plugins.item 列表。
+
 **一个事实只有一个归属，宿主已经拥有的就归宿主。**
 
-设置。`src/contracts/settings.ts` 是默认值、字段名与「缺失意味着什么」的唯一落笔处。`MarketSettingsSchema` 只是把这些默认值声明给宿主，并不持有它们。每个读取方——node 半边的四个开关、catalog 的初值、浏览器卡片——都走 `resolveMarketSettings`。注册不再声明 `base` 层：每个字段都带 schema 默认值，`base` 只是同一批值的第二份拷贝，且不改变解析结果。
+设置。`packages/market-contracts/src/contracts/settings.ts` 持有默认值与缺失值解析规则。入口 Config schema 通过 `MarketSettingsFields` 声明这些默认值——只有 `translationEnabled` 例外：它的「不声明」是承重的，因为它的默认值跟随界面语言，而声明一个默认值会抹掉「未触碰过的字段」与「存了 false」之间的区别（[翻译开关的默认值](../feature/2026-10-05-translation-default-follows-language.zh.md)）。`MarketSettingsNamespace` 通过 `resolveMarketSettings` 读取实时引用，翻译开关也走同一读口。浏览器卡片消费宿主已解析的表单。
+
+翻译读取方。`packages/market-ui/src/ui/translation-enabled.ts` 使用已发布的快照 store，将共享宿主表单投影为一个只读布尔可订阅对象，不启用持久化或帧调度。面板 hook 和菜单集成读取同一个对象。替换绑定会退订旧表单、保留消费者订阅，并防止旧 disposer 清除新绑定。解除绑定时恢复契约默认值。设置与菜单的注入回调直接返回清理函数，服务替换时即可释放订阅，不必等到根插件卸载。
 
 卡片表单。`src/client/plugin-card-controller.ts` 暂存编辑、保存时提交，与 `settings.plugin.item` 槽位里每个卡片遵循的契约一致。控制器把状态投影成 `@deepseek-ai/dsh-client-store` 快照，经槽位的 `hooks` 座位发布，由宿主渲染器合成卡片的选择器 hook，`src/client/McpPluginCard.tsx` 因此只是一个渲染器。命名空间未送达时卡片不渲染任何内容；只有用户层确实带着该字段时才标记为已自定义；重置走 `scope.unset`，让字段重新跟随插件，而不是把当前值钉死。
 
@@ -49,5 +53,7 @@ Status: implemented
 node 半边有一处行为变化：`discoverSourceListWithNotes` 现在要求传入 `scanProjectLayouts`。它唯一真实的调用方一直会传，因此那个默认值只是一份没人读的第二拷贝。
 
 ## Testing
+
+`tests/client-translation-settings.test.ts` 覆盖共享默认值、有效值变更通知、延迟绑定、替换和释放。`tests/client-plugins-item-views.test.ts` 覆盖两种服务到达顺序以及撤销和重新注册。`tests/settings-namespace.test.ts` 覆盖缺失及实时变化的宿主引用。这些测试不承诺切换设置会取消已排队翻译或重读已收敛的面板；这些行为仍由功能层持有。
 
 `tests/client-plugin-card.test.ts` 覆盖卡片表单的契约：命名空间未送达前不渲染、已存段落按契约默认值解析、暂存编辑在保存前不写入文档、放弃、重置把字段交还、被拒绝的写入报告为未保存、宿主 MCP 客户端缺失时阻止兼容模式、只读文档拒绝编辑。`tests/timer-seat.test.ts` 覆盖两条调度路径——存在宿主座位时优先使用它，兜底路径则负责重复、延迟、合并与释放停止——并覆盖挂了 timer 插件却没有 inject 的 fiber：那里混入的访问器会抛错，读服务则照常可用。`tests/deadline.test.ts` 固定 settle/超时竞速、非正等待，以及「拒绝算作已 settle」。`tests/mcp-backend.test.ts` 固定 schema 默认值，`tests/regions.test.ts` 固定区域收窄，`tests/mcp-status.test.ts` 固定工具观察及其失败形态，`tests/host-locale.test.ts` 固定 `locale` 条目的投影、未接线时的答案与接线的身份判断，`tests/client-workspace-view.test.ts` 固定持久化偏好与非法值兜底。

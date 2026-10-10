@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
-import { bindHostLocale } from '../src/runtime/host/host-locale.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
-import { UserCommandMountRegistry } from '../src/runtime/panels/user-commands.js'
+import { bindHostLocale } from '../packages/market-runtime/src/runtime/host/host-locale.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { UserCommandMountRegistry } from '../packages/market-runtime/src/runtime/panels/user-commands.js'
 import { required } from './helpers/fixture.js'
 
 const roots: string[] = []
@@ -38,6 +38,7 @@ function commandHost(registered: Map<string, Definition>): Context {
 async function mountCommands(documents: Record<string, string>): Promise<{
   store: Awaited<ReturnType<typeof createUserPanelStores>>['commands']
   registered: Map<string, Definition>
+  registry: UserCommandMountRegistry
   diagnostics: string[]
 }> {
   const root = await mkdtemp(join(tmpdir(), 'market-user-commands-'))
@@ -47,7 +48,7 @@ async function mountCommands(documents: Record<string, string>): Promise<{
   const registered = new Map<string, Definition>()
   const registry = new UserCommandMountRegistry(commandHost(registered), panels.commands, bindHostLocale(undefined))
   const diagnostics = await registry.reconcile()
-  return { store: panels.commands, registered, diagnostics }
+  return { store: panels.commands, registered, registry, diagnostics }
 }
 
 /** One flat command, its panel store, and its live registration. */
@@ -107,16 +108,74 @@ describe('user command mounts', () => {
     expect(forwarded.content).toEqual([{ type: 'text', text: 'Commit: now' }])
   })
 
-  it('registers one of two commands that flatten to the same call name and diagnoses the other', async () => {
+  it('renames the second of two commands that flatten to the same call name and diagnoses it', async () => {
     const { registered, diagnostics } = await mountCommands({
       'git-commit': '---\ndescription: Flat spelling\n---\nFlat: $ARGUMENTS',
       'git/commit': '---\ndescription: Nested spelling\n---\nNested: $ARGUMENTS'
     })
-    expect([...registered.keys()]).toEqual(['git-commit'])
+    // Registering one name twice makes the host refuse the second, and a
+    // refused definition is what the slash menu drops — so both stay reachable.
+    expect([...registered.keys()]).toEqual(['git-commit', 'git-commit-1'])
     expect(diagnostics).toHaveLength(1)
-    // The diagnostic names both documents, so the shadowed one stays findable.
-    expect(diagnostics[0]).toContain('git-commit')
-    expect(diagnostics[0]).toContain('git/commit')
-    expect(diagnostics[0]).toContain('shadowed')
+    // The diagnostic names the entry and the call name it had to take.
+    expect(diagnostics[0]).toContain('git-commit-1')
+  })
+
+  it('renames only the entry whose call name actually collides', async () => {
+    const { registered, diagnostics } = await mountCommands({
+      'git-commit': '---\ndescription: Flat\n---\nFlat: $ARGUMENTS',
+      'git/commit': '---\ndescription: Nested\n---\nNested: $ARGUMENTS',
+      'git/commit/apply': '---\ndescription: Deeper\n---\nDeeper: $ARGUMENTS'
+    })
+    // `git/commit/apply` flattens to git-commit-apply, which nothing holds, so
+    // it keeps that name and costs no suffix.
+    expect([...registered.keys()].sort()).toEqual(['git-commit', 'git-commit-1', 'git-commit-apply'])
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]).toContain('git-commit-1')
+  })
+
+  it('acknowledges a renamed command under the name the user types', async () => {
+    const { registered } = await mountCommands({
+      'git-commit': '---\ndescription: Flat spelling\n---\nFlat: $ARGUMENTS',
+      'git/commit': '---\ndescription: Nested spelling\n---\nNested: $ARGUMENTS'
+    })
+    const renamed = registered.get('git-commit-1')
+    if (renamed === undefined) throw new Error('expected the second flattening entry to register as git-commit-1')
+    const messages: unknown[] = []
+    const result = renamed.handler({ agent: { followup: (message: unknown) => messages.push(message) }, rawInput: ' now' })
+    expect(result).toEqual({ kind: 'success', text: '/git-commit-1 已转交模型执行' })
+    const forwarded = required(messages[0] as UserMessage | undefined, 'the renamed user command to forward one follow-up')
+    expect(forwarded.content).toEqual([{ type: 'text', text: 'Nested: now' }])
+  })
+
+  it('releases a call name when its entry is removed, so a later entry reuses it', async () => {
+    const { store, registered, registry } = await mountCommands({
+      'git-commit': '---\ndescription: Flat spelling\n---\nFlat: $ARGUMENTS',
+      'git/commit': '---\ndescription: Nested spelling\n---\nNested: $ARGUMENTS'
+    })
+    expect([...registered.keys()]).toEqual(['git-commit', 'git-commit-1'])
+
+    // Dropping the suffixed entry frees git-commit-1 without disturbing the
+    // preferred name the other entry still holds.
+    await store.remove('git/commit')
+    expect(await registry.reconcile()).toEqual([])
+    expect([...registered.keys()]).toEqual(['git-commit'])
+
+    // A new entry that flattens to the freed name claims it back.
+    await store.create('git-commit-1', '---\ndescription: Reused\n---\nReused: $ARGUMENTS')
+    expect(await registry.reconcile()).toEqual([])
+    expect([...registered.keys()].sort()).toEqual(['git-commit', 'git-commit-1'])
+  })
+
+  it('is idempotent across repeated reconciles of one snapshot', async () => {
+    const { registered, registry } = await mountCommands({
+      'git-commit': '---\ndescription: Flat spelling\n---\nFlat: $ARGUMENTS',
+      'git/commit': '---\ndescription: Nested spelling\n---\nNested: $ARGUMENTS'
+    })
+    expect([...registered.keys()]).toEqual(['git-commit', 'git-commit-1'])
+    // The same input must not spend another suffix or re-register anything.
+    expect(await registry.reconcile()).toEqual([])
+    expect(await registry.reconcile()).toEqual([])
+    expect([...registered.keys()]).toEqual(['git-commit', 'git-commit-1'])
   })
 })

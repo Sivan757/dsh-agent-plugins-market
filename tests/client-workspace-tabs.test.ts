@@ -7,17 +7,18 @@ import { act } from 'react'
 
 // Each tab's surface is heavy; the tab-row contract under test needs only a
 // marker naming which tab is mounted.
-vi.mock('../src/client/features/market/MarketSection.js', () => ({
+vi.mock('../packages/market-ui/src/features/market/MarketSection.js', () => ({
   MarketSection: (props: { mode?: string }) => h('output', { 'data-tab': 'market', 'data-mode': props.mode ?? 'settings' })
 }))
-vi.mock('../src/client/features/mcp/StatusPanel.js', () => ({ McpStatusPanel: () => h('output', { 'data-tab': 'mcp' }) }))
-vi.mock('../src/client/features/lsp/LspStatusPanel.js', () => ({ LspStatusPanel: () => h('output', { 'data-tab': 'lsp' }) }))
-vi.mock('../src/client/ui/UserPanelSurface.js', () => ({ UserPanelSurface: (props: { kind: string }) => h('output', { 'data-tab': props.kind }) }))
+vi.mock('../packages/market-ui/src/features/mcp/StatusPanel.js', () => ({ McpStatusPanel: () => h('output', { 'data-tab': 'mcp' }) }))
+vi.mock('../packages/market-ui/src/features/lsp/LspStatusPanel.js', () => ({ LspStatusPanel: () => h('output', { 'data-tab': 'lsp' }) }))
+vi.mock('../packages/market-ui/src/features/hooks/StatusPanel.js', () => ({ HooksStatusPanel: () => h('output', { 'data-tab': 'hooks' }) }))
+vi.mock('../packages/market-ui/src/ui/UserPanelSurface.js', () => ({ UserPanelSurface: (props: { kind: string }) => h('output', { 'data-tab': props.kind }) }))
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-import { PluginWorkspace } from '../src/client/workspace/PluginWorkspace.js'
-import type { Translate } from '../src/client/index.js'
+import { PluginWorkspace } from '../packages/market-ui/src/workspace/PluginWorkspace.js'
+import type { Translate } from '../packages/market-ui/src/index.js'
 
 const t: Translate = key => String(key)
 
@@ -39,7 +40,7 @@ async function mount(): Promise<void> {
   await act(async () => root!.render(h(PluginWorkspace, { t })))
 }
 
-/** The tab at its display position (market, skills, commands, personas, mcp, lsp). */
+/** The tab at its display position (market, skills, commands, personas, mcp, lsp, hooks). */
 const tab = (index: number): HTMLButtonElement | null => host?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index] ?? null
 const activePanelTab = (): Element | null => host?.querySelector('[role="tabpanel"] [data-tab]') ?? null
 
@@ -49,7 +50,7 @@ describe('PluginWorkspace tab row', () => {
     const tablist = host!.querySelector('[role="tablist"]')
     expect(tablist).not.toBeNull()
     expect(tablist!.getAttribute('aria-label')).toBe('workspaceTabMarket')
-    expect(host!.querySelectorAll('[role="tab"]').length).toBe(6)
+    expect(host!.querySelectorAll('[role="tab"]').length).toBe(7)
     // Exactly one tab stop: the selected tab only.
     expect(tab(0)?.getAttribute('aria-selected')).toBe('true')
     expect(host!.querySelectorAll('[role="tab"][tabindex="0"]').length).toBe(1)
@@ -63,22 +64,42 @@ describe('PluginWorkspace tab row', () => {
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
   })
 
-  it('writes the deep-link hash on click and follows a pasted #/agent-plugins/<tab> hash', async () => {
+  it('consumes a pasted deep-link hash and leaves the host URL alone on click', async () => {
     await mount()
     await act(async () => tab(5)!.click())
-    expect(window.location.hash).toBe('#/agent-plugins/lsp')
+    // Switching tabs is local state: the plugin never writes the host page's URL.
+    expect(window.location.hash).toBe('')
+    expect(activePanelTab()?.getAttribute('data-tab')).toBe('lsp')
 
     await act(async () => {
       window.location.hash = '#/agent-plugins/skills'
       window.dispatchEvent(new Event('hashchange'))
     })
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('skills')
+    // The instruction is spent, so a later mount cannot reselect it.
+    expect(window.location.hash).toBe('')
 
-    // An unknown hash leaves the active tab untouched.
+    // An unknown hash is not the plugin's to clear and leaves the tab untouched.
     await act(async () => {
       window.location.hash = '#/agent-plugins/nonsense'
       window.dispatchEvent(new Event('hashchange'))
     })
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('skills')
+    expect(window.location.hash).toBe('#/agent-plugins/nonsense')
+  })
+
+  it('opens on a deep-linked tab at mount, and on the market tab without one', async () => {
+    window.location.hash = '#/agent-plugins/mcp'
+    await mount()
+    expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
+    expect(window.location.hash).toBe('')
+
+    await act(async () => root!.unmount())
+    root = undefined
+    host?.remove()
+    host = undefined
+
+    await mount()
+    expect(activePanelTab()?.getAttribute('data-tab')).toBe('market')
   })
 })

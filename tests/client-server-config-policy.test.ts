@@ -2,23 +2,37 @@
 import { act, createElement as h, useState, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ServerConfigPayload, ServerPolicyPayload } from '../src/contracts/market.js'
-import { ServerConfigEditor } from '../src/client/ui/ServerConfigEditor.js'
-import { composeServerDocument, type ServerPolicyDraft } from '../src/client/ui/server-form.js'
+import type { ServerConfigPayload, ServerPolicyPayload } from '../packages/market-contracts/src/contracts/market.js'
+import { ServerConfigEditor } from '../packages/market-ui/src/ui/ServerConfigEditor.js'
+import { composeServerDocument, type ServerPolicyDraft } from '../packages/market-ui/src/ui/server-form.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
 
-vi.mock('../src/client/api.js', async importOriginal => ({
-  ...(await importOriginal<typeof import('../src/client/api.js')>()),
+vi.mock('../packages/market-ui/src/api.js', async importOriginal => ({
+  ...(await importOriginal<typeof import('../packages/market-ui/src/api.js')>()),
+  fetchServerConfigDefaults: vi.fn(async () => ({
+    kind: 'mcp',
+    id: '',
+    key: '',
+    editable: true,
+    config: { type: 'stdio', command: '' },
+    backend: 'builtin',
+    policy: {
+      toolCallTimeout: { user: null, suite: null, effective: 60000, source: 'default' },
+      startupTimeout: { user: null, suite: null, effective: 10000, source: 'default' },
+      deniedTools: { user: null, suite: null, effective: [] },
+      auth: { user: null, suite: null, effective: true }
+    }
+  })),
   fetchServerConfig: vi.fn(),
   saveServerConfig: vi.fn(async () => {}),
   addMcpServer: vi.fn(async () => {})
 }))
 
-import { McpConfigModal } from '../src/client/features/mcp/McpConfigModal.js'
-import { McpAddModal } from '../src/client/features/mcp/McpAddModal.js'
-import * as api from '../src/client/api.js'
-import type { McpStatusEntry } from '../src/contracts/mcp-status.js'
+import { McpConfigModal } from '../packages/market-ui/src/features/mcp/McpConfigModal.js'
+import { McpAddModal } from '../packages/market-ui/src/features/mcp/McpAddModal.js'
+import * as api from '../packages/market-ui/src/api.js'
+import type { McpStatusEntry } from '../packages/market-contracts/src/contracts/mcp-status.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: Root | undefined
@@ -108,8 +122,10 @@ describe('MCP advanced settings', () => {
     expect(button('mcpAdvanced')?.getAttribute('aria-expanded')).toBe('true')
     expect(input('mcpToolCallTimeout').placeholder).toBe('30000')
     expect(input('mcpStartupTimeout').placeholder).toBe('10000')
-    expect(host.textContent).toContain('mcpTimeoutInherit · mcpTimeoutFromSuite')
-    expect(host.textContent).toContain('mcpTimeoutInherit · mcpTimeoutFromDefault')
+    // An empty field inherits silently: the placeholder carries the effective
+    // value and no line repeats where it came from.
+    expect(host.textContent).not.toContain('mcpTimeoutInherit')
+    expect(host.textContent).not.toContain('mcpTimeoutUserSet')
   })
 
   it('moves the stdio working directory into the disclosure', async () => {
@@ -129,14 +145,15 @@ describe('MCP advanced settings', () => {
     expect(disclosureBody().contains(input('mcpStartupTimeout'))).toBe(true)
   })
 
-  it('states that a remote server negotiates OAuth itself instead of offering a switch', async () => {
+  it('offers no OAuth switch and no note for a remote server', async () => {
     await render(h(EditorHarness, { config: { type: 'streamable-http', url: 'https://example.test/mcp' } }))
     expect(find('detailUrl')).not.toBeNull()
-    expect(host.textContent).not.toContain('mcpOauthAuto')
 
     await act(async () => button('mcpAdvanced')!.click())
+    // A remote server's advanced block carries only the timeouts: the working
+    // directory belongs to stdio, and OAuth needs no control or explanation.
     expect(find('detailCwd')).toBeNull()
-    expect(disclosureBody().textContent).toContain('mcpOauthAuto')
+    expect(disclosureBody().querySelectorAll('input')).toHaveLength(2)
     expect(disclosureBody().contains(input('mcpToolCallTimeout'))).toBe(true)
     expect(disclosureBody().contains(input('mcpStartupTimeout'))).toBe(true)
   })
@@ -189,7 +206,7 @@ describe('MCP advanced settings', () => {
 describe('the new-service dialog', () => {
   /**
    * The dialog the panel opens for a new service: the same component the edit
-   * dialog mounts, with the name as its one extra field and nothing to read.
+   * dialog mounts, with the name as its one extra field and backend defaults loaded.
    */
   async function renderCreate(): Promise<void> {
     host = document.createElement('div')
@@ -203,8 +220,8 @@ describe('the new-service dialog', () => {
 
   it('adds a service from the form the edit dialog opens', async () => {
     await renderCreate()
-    // Creating reads no service, and shows the fields editing shows.
     expect(api.fetchServerConfig).not.toHaveBeenCalled()
+    expect(api.fetchServerConfigDefaults).toHaveBeenCalledWith('mcp')
     expect(find('detailCommand')).not.toBeNull()
     expect(button('mcpAdvanced')).toBeDefined()
     await act(async () => typeInto(input('mcpServerName'), 'kuboard'))
@@ -214,8 +231,7 @@ describe('the new-service dialog', () => {
       button('editorCreate')!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The document a service is created from is the definition itself: no
-    // declaration key exists yet, so no wrapper may reach the add route.
+    // The add request carries the definition, not the editor document wrapper.
     expect(api.addMcpServer).toHaveBeenCalledWith('kuboard', { type: 'stdio', command: 'npx -y server' })
   })
 
@@ -363,6 +379,6 @@ describe('ServerConfigDetail policy', () => {
     expect(input('mcpToolCallTimeout').value).toBe('120000')
     expect(input('mcpToolCallTimeout').placeholder).toBe('120000')
     expect(document.body.textContent).toContain('mcpTimeoutUserSet')
-    expect(document.body.textContent).not.toContain('mcpTimeoutInherit · mcpTimeoutFromSuite')
+    expect(document.body.textContent).not.toContain('mcpTimeoutInherit')
   })
 })

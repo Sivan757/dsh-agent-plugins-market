@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, writeFile, cp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Catalog } from '../src/application/catalog.js'
-import { SuiteSkillProvider, SUITE_PROJECT_SOURCE, SUITE_USER_SOURCE } from '../src/runtime/surfaces/skills-provider.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { SuiteSkillProvider, SUITE_PROJECT_SOURCE, SUITE_USER_SOURCE } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { isModelInvocable } from '@deepseek-ai/dsh-skill'
 
 const here = dirname(fileURLToPath(import.meta.url))

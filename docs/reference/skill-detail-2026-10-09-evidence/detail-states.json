@@ -1,0 +1,1116 @@
+{
+  "evidence": "Real isolated DSH UI with controlled response payloads, not external service execution",
+  "main": [
+    {
+      "name": "skills:user",
+      "title": "fixture-skills-user",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "skills:document-open",
+      "title": "fixture-skills-user",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "skills:plugin",
+      "title": "fixture-skills-plugin",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "skills:disabled",
+      "title": "fixture-skills-disabled",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "skills:invalid",
+      "title": "fixture-skills-invalid",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "commands:user",
+      "title": "fixture-commands-user",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "commands:document-open",
+      "title": "fixture-commands-user",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "commands:plugin",
+      "title": "fixture-commands-plugin",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "commands:disabled",
+      "title": "fixture-commands-disabled",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "commands:invalid",
+      "title": "fixture-commands-invalid",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "agents:user",
+      "title": "fixture-agents-user",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "agents:document-open",
+      "title": "fixture-agents-user",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "agents:plugin",
+      "title": "fixture-agents-plugin",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "agents:disabled",
+      "title": "fixture-agents-disabled",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "agents:invalid",
+      "title": "fixture-agents-invalid",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false,
+      "hero": {
+        "class": "F_Vn9q_hero",
+        "direction": "row",
+        "height": 68,
+        "width": 752,
+        "scrollWidth": 752,
+        "columns": "none"
+      }
+    },
+    {
+      "name": "连接器:0",
+      "title": "fixture-connected",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:1",
+      "title": "fixture-degraded",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:2",
+      "title": "fixture-failed",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:3",
+      "title": "fixture-needs-credentials",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:4",
+      "title": "fixture-orphaned",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:5",
+      "title": "fixture-disabled",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:6",
+      "title": "fixture-foreign",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:7",
+      "title": "fixture-unsupported",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:8",
+      "title": "fixture-managed",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "连接器:9",
+      "title": "fixture-observed",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "语言引擎:0",
+      "title": "fixture-lsp-failed",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "语言引擎:1",
+      "title": "fixture-lsp-conflict",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "语言引擎:2",
+      "title": "fixture-lsp-host-missing",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "语言引擎:3",
+      "title": "fixture-lsp-starting",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "语言引擎:4",
+      "title": "fixture-lsp-disabled",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "语言引擎:5",
+      "title": "fixture-lsp-mounted",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "语言引擎:6",
+      "title": "fixture-direct-lsp",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "hook:PreToolUse",
+      "title": "Fixture Suite",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "hook:Stop",
+      "title": "Fixture Suite",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "hook:Notification",
+      "title": "Fixture Suite",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "hook:SessionEnd",
+      "title": "Fixture Suite",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "hook:PreCompact",
+      "title": "Fixture Suite",
+      "width": 800,
+      "height": 800,
+      "horizontalOverflow": false
+    }
+  ],
+  "secondary": [
+    {
+      "name": "Suite enabled collapsed",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite disabled collapsed",
+      "title": "Fixture Suite disabled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite uninstalled collapsed",
+      "title": "Fixture Suite uninstalled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite empty collapsed",
+      "title": "Fixture Suite empty",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite diagnostic collapsed",
+      "title": "Fixture Suite diagnostic",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite expanded fixture-skill",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite expanded fixture/review",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite expanded fixture-raw.json",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite detail loading",
+      "title": "插件详情",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite detail loading released",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite detail fetch error",
+      "title": "插件详情",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite document fetch error",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP tools expanded at 600px",
+      "title": "fixture-connected",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP all nine tools at 600px",
+      "title": "fixture-connected",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP tool search no match at 600px",
+      "title": "fixture-connected",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "LSP editor form at 600px",
+      "title": "编辑语言引擎服务 (LSP)",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "LSP editor JSON at 600px",
+      "title": "编辑语言引擎服务 (LSP)",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "LSP invalid JSON at 600px",
+      "title": "编辑语言引擎服务 (LSP)",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Command create at 600px",
+      "title": "新建快捷指令",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Command missing-name validation",
+      "title": "新建快捷指令",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Command preview at 600px",
+      "title": "新建快捷指令",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Command failed save at 600px",
+      "title": "新建快捷指令",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Plugin role routing-only at 600px",
+      "title": "fixture-agents-plugin",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP reauthorization confirmation at 600px",
+      "title": "fixture-connected",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP reauthorization failure at 600px",
+      "title": "fixture-connected",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP reauthorization pending at 600px",
+      "title": "fixture-connected",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP reauthorization success at 600px",
+      "title": "fixture-connected",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Command fresh save rejection at 600px",
+      "title": "新建快捷指令",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP retry failure at 600px",
+      "title": "fixture-failed",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP retry pending at 600px",
+      "title": "fixture-failed",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "MCP retry success at 600px",
+      "title": "fixture-failed",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite document loading at 600px",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite document loading released at 600px",
+      "title": "Fixture Suite enabled",
+      "viewport": {
+        "width": 600,
+        "height": 900
+      },
+      "dialog": {
+        "x": 24,
+        "y": 50,
+        "width": 552,
+        "height": 800,
+        "bottom": 850,
+        "right": 576
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite empty light zh representative",
+      "title": "Fixture Suite empty",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Suite empty light en representative",
+      "title": "Fixture Suite empty",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    }
+  ],
+  "translation": [
+    {
+      "name": "Translation pending bilingual",
+      "title": "fixture-skills-user",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Translation original mode",
+      "title": "fixture-skills-user",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Translation translated mode",
+      "title": "fixture-skills-user",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Translation bilingual settled",
+      "title": "fixture-skills-user",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Translation failure retains prior translated content and shows retry",
+      "title": "fixture-skills-user",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Translation retry succeeded",
+      "title": "fixture-skills-user",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "name": "Translation disabled original only",
+      "title": "fixture-skills-user",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "dialog": {
+        "x": 240,
+        "y": 100,
+        "width": 800,
+        "height": 800,
+        "bottom": 900,
+        "right": 1040
+      },
+      "horizontalOverflow": false
+    }
+  ],
+  "footer": {
+    "evidence": "Actual rebuilt DSH UI with controlled save rejection, not backend persistence",
+    "facts": {
+      "name": "fixture-footer-after",
+      "draft": "---description: 这个快捷指令的用途argument-hint: ---请处理以下请求: $ARGUMENTS",
+      "alerts": ["Controlled fixture save rejected. Draft must remain visible."]
+    },
+    "pass": true
+  },
+  "limits": [
+    "Controlled MCP/LSP and source states do not prove remote services or credentials.",
+    "Dark Chinese covers the state sweep; light Chinese and English are representative checks, not the full state cross-product.",
+    "Cold translation failure before any successful translation was not separately exercised."
+  ]
+}

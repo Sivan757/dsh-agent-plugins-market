@@ -4,15 +4,15 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { scanSource } from '../src/catalog/suite-scanner.js'
-import { MARKETPLACE_PATHS, PLUGIN_LAYOUTS, MANIFEST_ALIASES } from '../src/model/layouts.js'
-import { readMarketplaces } from '../src/catalog/manifests.js'
-import { readCommands } from '../src/runtime/surfaces/commands-mounts.js'
-import { buildSuiteDetail } from '../src/application/details.js'
-import { mountSuiteInstructions, suiteInstructions } from '../src/runtime/surfaces/project-runtime.js'
-import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
+import { scanSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { MARKETPLACE_PATHS, PLUGIN_LAYOUTS, MANIFEST_ALIASES } from '../packages/market-contracts/src/model/layouts.js'
+import { readMarketplaces } from '../packages/market-catalog/src/scanning/manifests.js'
+import { readCommands } from '../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
+import { buildSuiteDetail } from '../packages/market-bundle/src/application/details.js'
+import { mountSuiteInstructions, suiteInstructions } from '../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
+import { SuiteSkillProvider } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
-import { isRecord } from '../src/catalog/component-files.js'
+import { isRecord } from '../packages/market-catalog/src/scanning/component-files.js'
 import Ajv2020Default from 'ajv/dist/2020.js'
 import { required } from './helpers/fixture.js'
 
@@ -244,7 +244,9 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     const declared = suite.resources?.commands ?? []
     if (declared.length > 0) {
       expect(detail.commands.map(command => command.name)).toEqual(declared.map(resource => resource.name))
-      for (const command of detail.commands) expect(command.content.trim(), command.name).not.toBe('')
+      // The payload names documents; their bodies are one read away and never
+      // travel with it.
+      for (const command of detail.commands) expect(Object.hasOwn(command, 'content'), command.name).toBe(false)
       for (const resource of declared) expect(Object.hasOwn(data.files, relative(root, resource.file).replace(/\\/g, '/')), resource.file).toBe(true)
     } else {
       expect(detail.commands).toEqual([])

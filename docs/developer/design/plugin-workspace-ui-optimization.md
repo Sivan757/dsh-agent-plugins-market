@@ -162,7 +162,7 @@
 
 ### C11 文案与双语
 
-所有面向用户的字串走 `src/client/locales.ts`，中英成对。本次新增或调整：编辑来源、移除来源、来源 ID、分支、SHA256、传输方式、环境变量、请求头、工作目录、Scope、参数提示、系统提示词、推理强度、模型、工具、语言扩展名映射、初始化选项、创建、最近变更、布局、作者、根目录、来源套件、校验诊断、套件详情里的「其余 N 个」。能复用的沿用现有 key（`tabAll`、`tabInstalled`、`tabUninstalled`、`panelAdd`、`install`、`uninstall`、`panelDeleteTitle` 等）。
+所有面向用户的字串走 `packages/market-ui/src/locales.ts`，中英成对。本次新增或调整：编辑来源、移除来源、来源 ID、分支、SHA256、传输方式、环境变量、请求头、工作目录、Scope、参数提示、系统提示词、推理强度、模型、工具、语言扩展名映射、初始化选项、创建、最近变更、布局、作者、根目录、来源套件、校验诊断、套件详情里的「其余 N 个」。能复用的沿用现有 key（`tabAll`、`tabInstalled`、`tabUninstalled`、`panelAdd`、`install`、`uninstall`、`panelDeleteTitle` 等）。
 
 ### C12 测试、文档与门禁
 

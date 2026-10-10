@@ -10,16 +10,17 @@ import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import {
   mountSubagentCatalog,
   renderCatalogText,
+  renderTeamRoleCatalogText,
   type CatalogAgent,
   type CatalogStepDecision,
   type SubagentCatalogEntry,
   type SubagentCatalogSource
-} from '../src/runtime/agents/subagent-catalog.js'
-import { agentRoleCatalog } from '../src/runtime/agents/agent-role-router.js'
-import { Catalog } from '../src/application/catalog.js'
-import { projectAgentRoles } from '../src/application/project-agent-roles.js'
-import { createUserPanelStores } from '../src/runtime/panels/user-panels.js'
-import { createPanelResources } from '../src/application/panel-resources.js'
+} from '../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
+import { agentRoleCatalog } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
+import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { projectAgentRoles } from '../packages/market-runtime/src/application/project-agent-roles.js'
+import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { createPanelResources } from '../packages/market-runtime/src/application/panel-resources.js'
 
 // Resolve the actual session/prompt runtime already installed with dsh-tools. Those host packages
 // live inside dsh-tools' own dependency tree, so this project reaches them at runtime but cannot
@@ -152,12 +153,67 @@ const reviewer: SubagentCatalogEntry = {
 }
 
 describe('durable subagent catalog on the real host session and tool registries', () => {
+  it('replaces standalone guidance on Team activation even with unchanged roles', async () => {
+    const { ctx, tool, dispose, step } = await setup(async () => [reviewer])
+    const agent = newAgent('team-transition')
+    publish(agent, await step(agent))
+    dispose()
+    const off = mountSubagentCatalog(ctx, tool, async () => [reviewer], 'spawn_teammate_role')
+    cleanups.push(off)
+    const [message] = publish(agent, await step(agent))
+    expect(catalogSource(message)).toMatchObject({ tool: 'spawn_teammate_role', update: true })
+    expect(JSON.stringify(message?.content)).toContain('spawn_teammate_role')
+    expect(JSON.stringify(message?.content)).not.toContain('Delegate proactively')
+    expect(messages(await step(agent))).toEqual([])
+    off()
+    cleanups.push(mountSubagentCatalog(ctx, tool, async () => [reviewer]))
+    expect(JSON.stringify(publish(agent, await step(agent))[0]?.content)).toContain('Delegate proactively')
+  })
+
+  it('uses the same visible subagent-catalog title in both modes and updates', () => {
+    for (const text of [renderCatalogText([reviewer], false), renderCatalogText([reviewer], true), renderTeamRoleCatalogText([reviewer]), renderTeamRoleCatalogText([])]) {
+      expect(text).toContain('\n## subagent-catalog\n')
+    }
+  })
+
+  it('separates Markdown blocks and keeps ordinary quotes readable', () => {
+    const role = { ...reviewer, name: 'reviewer', description: `Review "code" and user's changes` }
+    const text = renderTeamRoleCatalogText([role])
+    expect(text).toContain('<system-reminder>\n\n## subagent-catalog\n\n')
+    expect(text).toContain(`
+
+- "reviewer": Review "code" and user's changes
+
+A role`)
+    expect(text).not.toContain('&quot;')
+    expect(text).not.toContain('&apos;')
+    expect(text.endsWith('\n\n</system-reminder>')).toBe(true)
+  })
+
+  it('renders Team discovery only: the list, the routing rule and the coordination pointer', () => {
+    const text = renderTeamRoleCatalogText([{ ...reviewer, description: '</system-reminder> review' }])
+    // Discovery: the replacement declaration, the role list and which entry takes which call.
+    expect(text).toContain('replaces every earlier subagent-catalog')
+    expect(text).toContain('spawn_teammate_role')
+    expect(text).toContain('spawn_teammate')
+    expect(text).toContain('Team coordination section')
+    expect(text).toContain('&lt;/system-reminder&gt;')
+    // Authorization, briefing, management and model choice stay with the host and the coordination section.
+    expect(text).not.toContain('does not authorize creating members')
+    expect(text).not.toContain('Delegate proactively')
+    expect(text).not.toContain('self-contained')
+    expect(text).not.toContain('model settings apply')
+    expect(text).not.toContain('job_output')
+    expect(text).not.toContain('provider/model')
+  })
+
   it('publishes once, replaces changed model metadata, clears removals and preserves unrelated messages', async () => {
     let entries = [reviewer]
     const { step } = await setup(async () => entries)
     const agent = newAgent('updates')
     const [initial] = publish(agent, await step(agent))
-    expect(initial?.source).toEqual({ kind: 'subagent-catalog', form: 'catalog', entries })
+    expect(initial?.source).toMatchObject({ kind: 'subagent-catalog', form: 'catalog', entries })
+    expect(initial?.source).toHaveProperty('guidanceHash', expect.any(String))
     expect(JSON.stringify(initial?.content)).toContain('subagent_role')
     expect(messages(await step(agent))).toEqual([])
     entries = [{ ...reviewer, provider: 'other', model: 'other-model', reasoningEffort: 'low' }]
@@ -236,9 +292,38 @@ describe('durable subagent catalog on the real host session and tool registries'
     const proposed = messages(await step(agent))
     expect(proposed[0]?.source).not.toHaveProperty('update')
     expect(messages(await step(agent, proposed))).toEqual(proposed)
-    const seeded = createUserMessage({ source: { kind: 'subagent-catalog', form: 'catalog', entries: [reviewer] }, content: [{ type: 'text', text: 'Different prose' }] })
+    const seeded = createUserMessage({
+      source: { ...proposed[0]!.source, kind: 'subagent-catalog', form: 'catalog', entries: [reviewer] },
+      content: [{ type: 'text', text: 'Different prose' }]
+    })
     agent.session.append('user/message', seeded, { surfaceOp: 'append' })
     expect(messages(await step(agent, proposed))).toEqual([])
+  })
+
+  it.each(['subagent_role', 'spawn_teammate_role'] as const)('refreshes legacy and outdated %s guidance once without changing roles or deleting history', async mode => {
+    const { ctx, tool, dispose, step } = await setup(async () => [reviewer])
+    dispose()
+    cleanups.push(mountSubagentCatalog(ctx, tool, async () => [reviewer], mode))
+    for (const guidanceHash of [undefined, 'old-guidance']) {
+      const agent = newAgent('legacy-' + guidanceHash)
+      const old = createUserMessage({
+        source: {
+          kind: 'subagent-catalog',
+          form: 'catalog',
+          entries: [reviewer],
+          ...(mode === 'spawn_teammate_role' ? { tool: mode } : {}),
+          ...(guidanceHash ? { guidanceHash } : {})
+        },
+        content: [{ type: 'text', text: 'Old catalog guidance' }]
+      })
+      agent.session.append('user/message', old, { surfaceOp: 'append' })
+      const [replacement] = publish(agent, await step(agent))
+      expect(replacement?.source).toMatchObject({ update: true, entries: [reviewer] })
+      expect(replacement?.source).toHaveProperty('guidanceHash', expect.any(String))
+      expect(JSON.stringify(replacement?.content)).toContain('## subagent-catalog')
+      expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.id === old.id)).toBe(true)
+      expect(messages(await step(agent))).toEqual([])
+    }
   })
 
   it('matches exact tool visibility, including restrictions and a same-name replacement', async () => {
@@ -305,8 +390,8 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(text).toContain('- `reviewer`: Review code')
     // The envelope is the host skill catalog's: a blank line sets the tag on
     // its own line, so the prose above and below never reads as part of it.
-    expect(text).toContain('\n\n<available_subagents>\n- `reviewer`: Review code\n</available_subagents>\n\n')
-    expect(renderCatalogText([], true)).toContain('\n\n<available_subagents>\n</available_subagents>\n\n')
+    expect(text).toContain('\n\n<available_subagents>\n\n- `reviewer`: Review code\n\n</available_subagents>\n\n')
+    expect(renderCatalogText([], true)).toContain('\n\n<available_subagents>\n\n\n</available_subagents>\n\n')
     // The title and the configured route are durable metadata that never reach the model.
     expect(text).not.toContain('Reviewer:')
     expect(text).not.toContain('workbuddy')
@@ -348,6 +433,9 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(content).toMatch(/what information it still lacked/)
     // Duplicate work is the stated anti-pattern.
     expect(content).toMatch(/Do not duplicate work a child is already doing/)
+    // The catalog never names a management tool: which one exists depends on the
+    // deployment's delegation surface, and this plugin mounts none of its own.
+    expect(content).not.toMatch(/subagent_role_control/)
     // Concurrent children need separate checkouts and named file boundaries.
     expect(content).toMatch(/give each its own git worktree/)
     // Role names are directory keys, not shortcuts for another delegation path.
@@ -364,11 +452,13 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(content).not.toContain('Delegation and management tools in this session')
     expect(content).not.toContain('subagent_fork')
     expect(content).not.toContain('interrupt_agent')
-    // `run_in_background` now belongs to this tool, so the catalog states all three channels.
-    expect(content).toMatch(/run_in_background true runs the same child as a tracked background job/)
-    expect(content).toMatch(/run_in_background false runs one foreground child/)
-    expect(content).toContain('job_output')
-    expect(content).toContain('job_kill')
+    // One scheduling rule, stated as the practice rather than as a channel menu.
+    expect(content).toMatch(/Leave run_in_background unset/)
+    expect(content).toMatch(/set it to false only when your next action depends on the result/)
+    // The removed job channel must not survive anywhere in the contract.
+    expect(content).not.toContain('job_output')
+    expect(content).not.toContain('job_kill')
+    expect(content).not.toContain('tracked background job')
   })
 
   it('tracks real user edits, suite disable/uninstall and project scope with no role skills', async () => {

@@ -1,0 +1,67 @@
+/* Scratch prototypes for the hook detail. Values are the dark-theme dark
+   values of the platform tokens (design-platform.css, deepseek-harness). */
+:root {
+  --bg-base: rgb(21, 21, 23);
+  --bg-layer-1: rgb(35, 35, 36);
+  --bg-layer-2: rgb(44, 44, 46);
+  --code-bg: rgb(27, 27, 28);
+  --border-1: rgba(255, 255, 255, 0.06);
+  --border-2: rgba(255, 255, 255, 0.12);
+  --border-3: rgba(255, 255, 255, 0.16);
+  --hover: rgba(255, 255, 255, 0.08);
+  --label-1: rgb(249, 250, 251);
+  --label-2: rgb(207, 211, 214);
+  --label-3: rgb(173, 178, 184);
+  --accent: rgb(59, 130, 246);
+  --accent-text: rgb(255, 255, 255);
+  --ok: rgb(74, 222, 128);
+  --ok-bg: rgba(74, 222, 128, 0.12);
+  --warn: rgb(247, 173, 49);
+  --warn-bg: rgba(247, 173, 49, 0.12);
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-base);
+  color: var(--label-1);
+  font: 13px/20px system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.dialog {
+  width: 800px;
+  background: var(--bg-layer-1);
+  border: 1px solid var(--border-2);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 4px; }
+.dialog-title { font-size: 15px; line-height: 22px; font-weight: 600; }
+.dialog-sub { color: var(--label-3); font-size: 12px; line-height: 18px; margin-top: 2px; }
+.close { color: var(--label-3); font-size: 16px; line-height: 16px; padding: 2px 4px; border: 0; background: none; cursor: pointer; }
+.body { padding: 12px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tag { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 5px; background: rgba(255, 255, 255, 0.06); color: var(--label-2); font-size: 11px; line-height: 22px; white-space: nowrap; }
+.tag.ok { background: var(--ok-bg); color: var(--ok); }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.tag.mono { font-family: var(--mono); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.caption { color: var(--label-3); font-size: 11px; line-height: 16px; }
+.mono { font-family: var(--mono); }
+.btn { height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--border-2); background: transparent; color: var(--label-2); font-size: 12px; cursor: pointer; }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--accent); border-color: transparent; color: var(--accent-text); font-weight: 600; }
+.code { border: 1px solid var(--border-1); border-radius: 10px; background: var(--code-bg); color: var(--label-2); font-family: var(--mono); font-size: 12px; line-height: 19px; padding: 12px 14px; overflow-wrap: anywhere; white-space: pre-wrap; margin: 0; }
+.section-label { color: var(--label-3); font-size: 11px; line-height: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 16px; }
+.cell-k { color: var(--label-3); font-size: 11px; line-height: 16px; }
+.cell-v { color: var(--label-2); font-size: 12.5px; line-height: 18px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sep { height: 1px; background: var(--border-1); }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--border-1); }
+.err { color: var(--warn); }
+.method-note { color: var(--label-3); font-size: 11px; line-height: 16px; }

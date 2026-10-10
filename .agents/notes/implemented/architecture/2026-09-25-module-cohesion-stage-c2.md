@@ -16,7 +16,7 @@ Move every pure module to `application/` and make the arrow a gate:
 - **Bridge config vocabulary**: `mcp-client/config.ts` became `application/mcp-bridge-config.ts`. It is type/constant data extending `model` types, including `ReconnectConfig`, whose ownership moved with it.
 - **Selectors and seams**: `mcp-backend` (schema declaration + host probe; node:module/fs are application-legal), `regions`, `deadline`, and the agent-role frontmatter parser (extracted from the 527-line cordis router into `application/agent-roles.ts`; the executing half stays in runtime).
 - **Structural seam types live in `ports.ts`**: `McpToolSnapshot`, `LspMountStatusSource`, the user-panel store surface in `panel-resources`. Wire-owned types (`McpBackend`, `McpMountDiagnostic`, `LspMountDiagnostic`) moved to `contracts/mcp.ts` and `contracts/lsp.ts`.
-- **Locale read became a port**: `localePreference(): string` on `CatalogPorts`, wired from `index.ts` as `readLocalePreference() ?? 'zh'`. The composition root owns host seams; services stay host-agnostic.
+- **Locale read became a port**: `localePreference(): string` on `CatalogPorts`, wired from `index.ts` to the preference the entry re-reads at its three refresh points ([read-path cost bounds and the locale freshness contract](../architecture/2026-10-05-read-path-cost-bounds-and-locale-freshness.md)). The composition root owns host seams; services stay host-agnostic.
 - `dependency-cruiser`'s `application-cannot-import-runtime` flipped from warn to error; the run reports zero violations.
 
 ## Alternatives considered

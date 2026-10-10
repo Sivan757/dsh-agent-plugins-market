@@ -2,16 +2,16 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { expandPluginPaths, pluginRootOf } from '../src/catalog/plugin-variables.js'
-import { suiteDataDir } from '../src/catalog/paths.js'
-import { scanSource } from '../src/catalog/suite-scanner.js'
-import { discoverNativeProjectSuites } from '../src/catalog/native-project.js'
-import { defaultMarkdownResources } from '../src/catalog/component-files.js'
-import { expandLspServerConfig } from '../src/runtime/lsp/lsp-mounts.js'
-import { CommandMountRegistry } from '../src/runtime/surfaces/commands-mounts.js'
-import { SuiteSkillProvider } from '../src/runtime/surfaces/skills-provider.js'
-import { agentRoleCatalog, readAgentRole } from '../src/runtime/agents/agent-role-router.js'
-import { suiteInstructions } from '../src/runtime/surfaces/project-runtime.js'
+import { expandPluginPaths, pluginPathEnvironment, pluginRootOf } from '../packages/market-catalog/src/scanning/plugin-variables.js'
+import { suiteDataDir } from '../packages/market-catalog/src/scanning/paths.js'
+import { scanSource } from '../packages/market-catalog/src/scanning/suite-scanner.js'
+import { discoverNativeProjectSuites } from '../packages/market-catalog/src/scanning/native-project.js'
+import { defaultMarkdownResources } from '../packages/market-catalog/src/scanning/component-files.js'
+import { expandLspServerConfig } from '../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
+import { CommandMountRegistry } from '../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
+import { SuiteSkillProvider } from '../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
+import { agentRoleCatalog, readAgentRole } from '../packages/market-runtime/src/runtime/agents/agent-role-router.js'
+import { suiteInstructions } from '../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 
 const DATA_ROOT = '/data'
@@ -88,6 +88,16 @@ describe('path variable expansion', () => {
         '${HOME} ${NAME:-default} ${user_config.KEY} plain'
       ].join('\n')
     )
+  })
+
+  it('answers only the claude-code names, never a dialect alias', () => {
+    expect(pluginPathEnvironment({ root: '/suite', data: '/data/s', skillDir: '/suite/skills/x', projectDir: '/project' })).toEqual({
+      CLAUDE_PLUGIN_ROOT: '/suite',
+      CLAUDE_PLUGIN_DATA: '/data/s',
+      CLAUDE_PROJECT_DIR: '/project'
+    })
+    expect(pluginPathEnvironment({ root: '/suite' })).toEqual({ CLAUDE_PLUGIN_ROOT: '/suite' })
+    expect(pluginPathEnvironment({})).toEqual({})
   })
 
   it('keeps a variable verbatim when the calling layer holds no value for it', () => {

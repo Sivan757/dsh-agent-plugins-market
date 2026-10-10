@@ -45,4 +45,4 @@ Status: implemented
 
 ## Related decisions
 
-部分取代[持久子代理目录与角色执行](2026-09-09-subagent-catalog.zh.md)：目录发布、角色身份与严格解析继续有效；同步一次性执行、工具过滤与内部路由解析不再有效。本次对齐的宿主侧决策记录在 `deepseek-harness` 的 model-selected subagent routes 与 user-authorized subagent model routes 两篇 note 中。
+部分取代[持久子代理目录与角色执行](2026-09-09-subagent-catalog.zh.md)：目录发布、角色身份与严格解析继续有效；同步一次性执行、工具过滤与内部路由解析不再有效。其作业通道被[角色委派提供宿主的两条通道](../../implemented/bug-fix/2026-10-02-role-delegation-two-channels.zh.md)取代；可继续委派、精确路由规则与工具过滤移除继续有效。本次对齐的宿主侧决策记录在 `deepseek-harness` 的 model-selected subagent routes 与 user-authorized subagent model routes 两篇 note 中。
