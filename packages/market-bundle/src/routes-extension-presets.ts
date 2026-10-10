@@ -100,6 +100,48 @@ export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRout
       }
     })
   )
+  // The hook detail modal's dry run. The body names the declaration only: the
+  // command is resolved from the scanned catalog, so a caller can never choose
+  // what runs, and the working directory is always the server's home directory.
+  disposers.push(
+    host.webServer.register({
+      kind: 'exact',
+      path: EXTENSION_ROUTES.hookRun,
+      async handler(request, response) {
+        if (request.method !== 'POST') {
+          json(response, 405, { ok: false, code: 'method-not-allowed', error: 'method not allowed' })
+          return
+        }
+        if (!sameOrigin(request)) {
+          json(response, 403, { ok: false, code: 'cross-origin', error: 'cross-origin request rejected' })
+          return
+        }
+        try {
+          const hookRun = service.hookRun?.bind(service)
+          if (hookRun === undefined) throw Object.assign(new Error('extension hook dry run is unavailable'), { code: 'extension-hook-run-unavailable' })
+          const input = await body(request)
+          const rawIndex = input.hookIndex
+          if (rawIndex !== undefined && (typeof rawIndex !== 'number' || !Number.isSafeInteger(rawIndex) || rawIndex < 0)) throw new Error('invalid hook index')
+          const hookIndex = rawIndex
+          const sessionId = input.sessionId === undefined ? undefined : id(input.sessionId)
+          json(
+            response,
+            200,
+            await hookRun({
+              sourceId: id(input.sourceId),
+              suiteId: id(input.suiteId),
+              event: id(input.event),
+              ...(hookIndex === undefined ? {} : { hookIndex }),
+              ...(sessionId === undefined ? {} : { sessionId })
+            })
+          )
+        } catch (error) {
+          const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? error.code : 'invalid-extension-request'
+          json(response, code.includes('not-found') ? 404 : 400, { ok: false, code, error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+    })
+  )
   const mutate = (path: string, operation: (session: string, revision: number, input: Record<string, unknown>) => Promise<void>): void => {
     add(path, 'POST', async input => {
       const session = id(input.sessionId)

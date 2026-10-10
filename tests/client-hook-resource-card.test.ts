@@ -8,6 +8,7 @@ import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HookResourceCard, type HookResourceCardProps } from '../packages/market-ui/src/ui/HookResourceCard.js'
+import { resourceSelected } from '../packages/market-ui/src/features/extension-presets/resource.js'
 import { extensionPresetsEn as en } from '../packages/market-ui/src/locales-extension-presets.js'
 import { en as settingsEn } from '../packages/market-ui/src/locales.js'
 import type { ExtensionResource } from '../packages/market-contracts/src/contracts/extension-presets.js'
@@ -73,6 +74,13 @@ describe('settings card (read-only)', () => {
     expect(onView).toHaveBeenCalledTimes(2)
   })
 
+  it('marks a follows-suite row and never offers it a switch', async () => {
+    const card = await mountCard({ row: hookRow({ followsSuite: true, suiteResourceId: 'market:zealwon-plugins/dsh-workflow' }), t, state: 'active', onView: () => {} })
+
+    expect(card.textContent).toContain(en.epHookFollowsSuite)
+    expect(card.querySelector('[role="switch"]')).toBeNull()
+  })
+
   it('renders no switch and opens once when the info action is clicked', async () => {
     const onView = vi.fn()
     const card = await mountCard({ row: hookRow(), t, state: 'active', onView })
@@ -81,6 +89,15 @@ describe('settings card (read-only)', () => {
     await act(async () => card.querySelector<HTMLButtonElement>('button')!.click())
     // The action cluster stops its own events, so the card handler never runs too.
     expect(onView).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: hookRow().id }))
+  })
+})
+
+describe('follows-suite selection', () => {
+  it('mirrors the owning suite instead of its own row id', () => {
+    const row = hookRow({ followsSuite: true, suiteResourceId: 'market:zealwon-plugins/dsh-workflow' })
+
+    expect(resourceSelected(row, ['market:zealwon-plugins/dsh-workflow'])).toBe(true)
+    expect(resourceSelected(row, [row.id])).toBe(false)
   })
 })
 

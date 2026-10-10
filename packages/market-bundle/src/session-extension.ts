@@ -1,18 +1,26 @@
 /** Session-owned selection, cached project readers, tool gates and scoped registration. */
+import { homedir } from 'node:os'
 import { isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type { ExtensionHooksOverview, ExtensionSelection } from '../../market-contracts/src/contracts/extension-presets.js'
+import type { ExtensionHookRunInput, ExtensionHooksOverview, ExtensionResource, ExtensionSelection } from '../../market-contracts/src/contracts/extension-presets.js'
 import type { Suite } from '../../market-contracts/src/model/types.js'
+import { pluginPathEnvironment, pluginRootOf, suiteDataDir } from '../../market-catalog/src/index.js'
 import { loadDisabledLspServers } from '../../market-lsp/src/index.js'
 import {
+  HOOK_RUN_NO_COMMAND,
+  HOOK_RUN_SHELL_UNAVAILABLE,
+  HOOK_RUN_UNKNOWN_DECLARATION,
   ExtensionRuntime,
   ScopedExtensionContributors,
   attachExtensionToolGates,
   extensionWorkspace,
+  hookRunFailure,
+  hookRunShellOf,
   projectExtensionSuites,
   readExtensionSuiteDeclarations,
+  runHookDryRun,
   shellSeamOf,
   projectAgentRoles,
   type ExtensionToolGates,
@@ -28,6 +36,13 @@ import { readExtensionInventory } from './application/extension-inventory.js'
 import { mountExtensionPresetRoutes } from './routes-extension-presets.js'
 import type { SuiteRouteSessionResolver } from './routes.js'
 import { createMcpMount } from './runtime-adapters.js'
+
+/** One suite per owner: a second copy would publish the same hook id twice. */
+function dedupeSuites(suites: readonly Suite[]): Suite[] {
+  const byOwner = new Map<string, Suite>()
+  for (const suite of suites) byOwner.set(suite.sourceId + '/' + suite.id, suite)
+  return [...byOwner.values()]
+}
 
 interface SessionExtensionOptions {
   ctx: Context
@@ -63,8 +78,7 @@ type HooksOverviewCatalog = Pick<Catalog, 'enabledUserSuites' | 'overview' | 'mc
  * suite whenever it declares events, so this read lists that result as it
  * stands: the suite enters once and each declaration publishes one id.
  */
-export async function readHooksOverview(catalog: HooksOverviewCatalog): Promise<ExtensionHooksOverview> {
-  const suites = await catalog.enabledUserSuites()
+async function readHookRows(catalog: HooksOverviewCatalog, suites: readonly Suite[]): Promise<ExtensionResource[]> {
   const rows = await readExtensionInventory(
     {
       catalog: { overview: () => catalog.overview(), mcpStatus: async () => catalog.mcpStatus(), lspStatus: async () => catalog.lspStatus() },
@@ -72,7 +86,39 @@ export async function readHooksOverview(catalog: HooksOverviewCatalog): Promise<
     },
     { projectSuites: suites }
   )
-  return { rows: rows.filter(row => row.face === 'hooks') }
+  return rows.filter(row => row.face === 'hooks')
+}
+
+export async function readHooksOverview(catalog: HooksOverviewCatalog): Promise<ExtensionHooksOverview> {
+  return { rows: await readHookRows(catalog, await catalog.enabledUserSuites()) }
+}
+
+/** One dry run's resolved declaration: the command the catalog published, or the stable code that names why none resolved. */
+export type HookDeclarationResolution = { command: string; timeoutSec?: number; suite: Suite } | { error: string }
+
+/**
+ * Resolve one dry run's declaration from the same rows the Hooks overview
+ * publishes.
+ *
+ * The caller passes the suites to search, so a session's project hooks join
+ * user and installed rows without changing how identity is built. The command
+ * comes from the scanned declaration; the request carries identity only.
+ * @param catalog - the catalog status reads the overview uses.
+ * @param suites - the suites whose hook rows the lookup may match.
+ * @param input - the declaration address from the client.
+ * @returns the resolved command with its suite, or a stable error code.
+ */
+export async function resolveHookDeclaration(catalog: HooksOverviewCatalog, suites: readonly Suite[], input: ExtensionHookRunInput): Promise<HookDeclarationResolution> {
+  const row = (await readHookRows(catalog, suites)).find(candidate => {
+    const detail = candidate.detail
+    return detail.kind === 'hook' && detail.sourceId === input.sourceId && detail.suiteId === input.suiteId && detail.event === input.event && detail.hookIndex === input.hookIndex
+  })
+  if (row === undefined) return { error: HOOK_RUN_UNKNOWN_DECLARATION }
+  const detail = row.detail
+  if (detail.kind !== 'hook' || detail.command === undefined || detail.hookIndex === undefined) return { error: HOOK_RUN_NO_COMMAND }
+  const suite = suites.find(candidate => candidate.sourceId === input.sourceId && candidate.id === input.suiteId)
+  if (suite === undefined) return { error: HOOK_RUN_UNKNOWN_DECLARATION }
+  return { command: detail.command, ...(detail.timeoutSec === undefined ? {} : { timeoutSec: detail.timeoutSec }), suite }
 }
 
 /**
@@ -150,6 +196,12 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
             loadDisabledLspServers(dataRoot)
           ])
           const listedSuites = [...projectSuites, ...candidates.map(row => row.suite).filter(suite => suite.sourceId === '@user-hooks')]
+          // Hook rows search one more list than the suite rows: an installed
+          // user-dimension suite publishes no hook row of its own, so the
+          // manager lists its declarations beside the project and @user-hooks
+          // ones. The list stays separate from projectSuites, so project owner
+          // addressing is unaffected.
+          const hookSuites = dedupeSuites([...projectSuites, ...candidates.map(row => row.suite).filter(suite => suite.dimension === 'user')])
           const mcpOverrides = await catalog.allMcpOverrides(candidates.map(row => row.suite))
           return readExtensionInventory(
             {
@@ -171,7 +223,7 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
                 ])
               ) as Parameters<typeof readExtensionInventory>[0]['panels']
             },
-            { projectSuites: listedSuites, candidates, mcpOverrides, lspDisabledIds, sessionId: agent.id, mcpSessionControl: backend === 'builtin' }
+            { projectSuites: listedSuites, hookSuites, candidates, mcpOverrides, lspDisabledIds, sessionId: agent.id, mcpSessionControl: backend === 'builtin' }
           )
         },
         // The settings Hooks tab: hook declarations belong to the user Agent
@@ -180,6 +232,33 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
         // readExtensionInventory fan-out produces the rows the manager's Hooks
         // tab renders, so both surfaces agree on identity and support verdicts.
         hooksOverview: () => readHooksOverview(catalog),
+        // The dry run resolves the declaration from the catalog, then runs it in the
+        // home directory. A named session only widens the lookup to that workspace's
+        // project hooks; it never supplies the run directory.
+        hookRun: async input => {
+          const suites = [...(await catalog.enabledUserSuites())]
+          if (input.sessionId !== undefined) {
+            const agent = hostCtx.agents.get(SessionId(input.sessionId))
+            const cwd = agent?.session.header.cwd
+            if (typeof cwd === 'string' && isAbsolute(cwd)) suites.push(...(await catalog.readProjectCatalog(cwd)).suites)
+          }
+          const resolved = await resolveHookDeclaration(catalog, suites, input)
+          if ('error' in resolved) return hookRunFailure(resolved.error)
+          const shell = hookRunShellOf(shellSeamOf(hostCtx))
+          if (shell === undefined) return hookRunFailure(HOOK_RUN_SHELL_UNAVAILABLE)
+          const root = pluginRootOf(resolved.suite)
+          const data = root === undefined ? undefined : suiteDataDir(dataRoot, resolved.suite.sourceId, resolved.suite.id)
+          const env = pluginPathEnvironment({
+            ...(root === undefined ? {} : { root }),
+            ...(data === undefined ? {} : { data }),
+            projectDir: homedir()
+          })
+          return runHookDryRun(shell, resolved.command, {
+            event: input.event,
+            ...(resolved.timeoutSec === undefined ? {} : { timeoutSec: resolved.timeoutSec }),
+            ...(Object.keys(env).length === 0 ? {} : { env })
+          })
+        },
         // A session change touches that session only: its own contributions and its
         // own gate. The global pipeline belongs to catalog changes, which the change
         // hook drives for every agent.

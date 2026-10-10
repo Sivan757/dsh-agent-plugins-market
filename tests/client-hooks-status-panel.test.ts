@@ -22,6 +22,8 @@ const fill = (dict: Record<string, string>, key: string, params?: Record<string,
 }
 const t = (key: string, params?: Record<string, unknown>) => fill(en, key, params)
 const tZh = (key: string, params?: Record<string, unknown>) => fill(zh, key, params)
+/** How many times one exact string appears in the rendered text. */
+const occurrences = (text: string, needle: string): number => text.split(needle).length - 1
 
 const overview: ExtensionHooksOverview = {
   rows: [
@@ -92,21 +94,17 @@ async function mountPanel(translator: (key: string) => string = t) {
   })
 }
 
-it('renders configured hooks grouped by event with support notes and no switches', async () => {
+it('lists every configured hook with its stage tag and no switches', async () => {
   await mountPanel()
-  // Same presentation model as the manager: one secondary event tab per event,
-  // first event active, only its rows visible.
+  // No event tab row remains: both declarations list at once and each card
+  // carries its own stage.
   const eventTabs = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].filter(tab => ['PreToolUse', 'SessionEnd'].includes(tab.textContent ?? ''))
-  expect(eventTabs.map(tab => tab.textContent)).toEqual(['PreToolUse', 'SessionEnd'])
+  expect(eventTabs).toEqual([])
   const cards = [...document.querySelectorAll('article')]
-  expect(cards).toHaveLength(1)
-  const supported = cards[0]!
-  expect(supported.getAttribute('data-resource-state')).toBe('active')
+  expect(cards).toHaveLength(2)
+  const supported = document.querySelector('article[data-resource-state="active"]')!
   expect(supported.textContent).toContain('echo guard --strict')
-  expect(supported.textContent).not.toContain('SessionEnd')
-  // Switching to the limited event shows its warning row with the reason.
-  const sessionEndTab = eventTabs.find(tab => tab.textContent === 'SessionEnd')!
-  await act(async () => sessionEndTab.click())
+  expect(supported.textContent).toContain('PreToolUse')
   const limited = document.querySelector('article[data-resource-state="warning"]')!
   expect(limited.textContent).toContain('SessionEnd')
   expect(limited.textContent).toContain(en.hooksEventUnsupported)
@@ -135,34 +133,155 @@ it('opens one hook detail per card, with the declared command, matcher and timeo
   expect(dialog.textContent).toContain('Edit')
   expect(dialog.textContent).toContain(en.hookDetailTimeout)
   expect(dialog.textContent).toContain('12 seconds')
-  expect(dialog.textContent).toContain(en.hookDetailCommand)
+  expect(dialog.textContent).toContain(en.hookDetailOverview)
+  expect(dialog.textContent).toContain(en.hookDetailDeclaration)
+  // The command reads twice while the declaration row stays folded: the status
+  // card states it, and the row repeats it as its one-line preview. The row is
+  // the reference declaration shape, so the event names the record and the
+  // command previews it.
   expect(dialog.textContent).toContain('echo guard --strict')
+  expect(occurrences(dialog.textContent ?? '', 'echo guard --strict')).toBe(2)
   expect(dialog.querySelector('[role="switch"]')).toBeNull()
 
   // Closing it and opening the rejected declaration shows its diagnostic and
   // claims no command, because no hook was admitted behind it.
   await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="' + en.mcpClose + '"]')!.click())
   expect(document.querySelector('[role="dialog"]')).toBeNull()
-  const sessionEndTab = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => tab.textContent === 'SessionEnd')!
-  await act(async () => sessionEndTab.click())
-  await act(async () => document.querySelector<HTMLElement>('article')!.click())
+  const rejectedCard = [...document.querySelectorAll<HTMLElement>('article')][1]!
+  await act(async () => rejectedCard.click())
 
   const rejected = document.querySelector('[role="dialog"]')!
   expect(rejected.textContent).toContain(en.hookDetailDiagnostic)
   expect(rejected.textContent).toContain('hooks.json: unsupported hook event SessionEnd')
-  expect(rejected.textContent).not.toContain(en.hookDetailCommand)
+  // A rejected declaration admits no hook, so it offers no run section.
+  expect(rejected.textContent).not.toContain(en.hookDetailRunResult)
   // The matcher row states the catch-all rather than leaving a blank.
   expect(rejected.textContent).toContain('*')
 })
 
+it('folds the declaration JSON behind one row and opens it on demand', async () => {
+  await mountPanel()
+  await act(async () => document.querySelector<HTMLElement>('article')!.click())
+  const dialog = document.querySelector('[role="dialog"]')!
+  const declarationTitle = en.hookDetailDeclaration!
+  const headings = [...dialog.querySelectorAll('h3')].map(node => node.textContent)
+  const heading = [...dialog.querySelectorAll('h3')].find(node => node.textContent === declarationTitle)!
+  expect(heading).toBeDefined()
+  // The block sits between the overview grid and the diagnostic section.
+  expect(headings.indexOf(declarationTitle)).toBe(headings.indexOf(en.hookDetailOverview!) + 1)
+  const section = heading.parentElement!
+  const toggle = section.querySelector<HTMLButtonElement>('button')!
+  // The row names the event and previews the command, and it opens folded: the
+  // declaration is one line until the reader asks for the record behind it.
+  expect(toggle.textContent).toContain('PreToolUse')
+  expect(toggle.textContent).toContain('echo guard --strict')
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  expect(dialog.querySelector('[role="tree"]')).toBeNull()
+
+  await act(async () => toggle.click())
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  const tree = dialog.querySelector('[role="tree"]')!
+  expect(tree.getAttribute('aria-label')).toBe('PreToolUse')
+  // Only the declaration's own facts reach the block, with the timeout in the
+  // seconds the declaration states.
+  expect(tree.textContent).toContain('event:"PreToolUse"')
+  expect(tree.textContent).toContain('matcher:"Edit"')
+  expect(tree.textContent).toContain('command:"echo guard --strict"')
+  expect(tree.textContent).toContain('timeout:12')
+  // Address and host-derived fields stay out: the block states what the
+  // declaration says, not where it lives or what the host can run with it.
+  for (const absent of ['sourceId', 'suiteId', 'provenance', 'support', 'hookIndex', 'sessionId']) {
+    expect(tree.textContent).not.toContain(absent)
+  }
+  // Expanded, the command reads a third time inside the record itself. The
+  // dialog opens folded, so the two occurrences above are the resting count.
+  expect(occurrences(dialog.textContent ?? '', 'echo guard --strict')).toBe(3)
+
+  // A rejected declaration carries no command, so its record holds the event
+  // and the validator's own words and nothing else.
+  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="' + en.mcpClose + '"]')!.click())
+  const rejectedCard = [...document.querySelectorAll<HTMLElement>('article')][1]!
+  await act(async () => rejectedCard.click())
+  const rejected = document.querySelector('[role="dialog"]')!
+  const rejectedSection = [...rejected.querySelectorAll('h3')].find(node => node.textContent === en.hookDetailDeclaration)!.parentElement!
+  await act(async () => rejectedSection.querySelector<HTMLButtonElement>('button')!.click())
+  const rejectedTree = rejected.querySelector('[role="tree"]')!
+  expect(rejectedTree.textContent).toContain('event:"SessionEnd"')
+  expect(rejectedTree.textContent).toContain('diagnostic:"hooks.json: unsupported hook event SessionEnd"')
+  expect(rejectedTree.textContent).not.toContain('command')
+  expect(rejectedTree.textContent).not.toContain('matcher')
+})
+
 it('renders the localized tags and subtitle in a zh build', async () => {
   await mountPanel(tZh)
-  const eventTabs = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].filter(tab => ['PreToolUse', 'SessionEnd'].includes(tab.textContent ?? ''))
-  const sessionEndTabZh = eventTabs.find(tab => tab.textContent === 'SessionEnd')!
-  await act(async () => sessionEndTabZh.click())
   const warning = document.querySelector('article[data-resource-state="warning"]')!
+  expect(warning.textContent).toContain('SessionEnd')
   expect(warning.textContent).toContain(zh.hooksEventUnsupported)
   expect(document.body.textContent).toContain(zh.hooksPanelSubtitle)
+})
+
+it('dry-runs one hook from its detail and renders the bounded result', async () => {
+  const calls: Array<{ url: string; method?: string; body?: string }> = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method, ...(typeof init?.body === 'string' ? { body: init.body } : {}) })
+      if (init?.method === 'POST') {
+        return {
+          ok: true,
+          text: async () => JSON.stringify({ cwd: '/Users/tester', exitCode: 0, stdout: 'guard ok\n', stderr: '', durationMs: 12.4, timedOut: false, truncated: false })
+        } as Response
+      }
+      return { ok: true, json: async () => overview } as Response
+    })
+  )
+  const host = document.createElement('div')
+  document.body.append(host)
+  root = createRoot(host)
+  await act(async () => root!.render(h(HooksStatusPanel, { t })))
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  await act(async () => document.querySelector<HTMLElement>('article')!.click())
+  const runButton = [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === en.hookRunStart)!
+  expect(runButton).toBeDefined()
+  await act(async () => runButton.click())
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  // Identity travels; no command ever leaves the client.
+  const post = calls.find(call => call.method === 'POST')!
+  expect(post.url).toContain('/api/agent-plugins/extension-presets/hook-run')
+  expect(JSON.parse(post.body ?? '')).toEqual({ sourceId: '@user-hooks', suiteId: 'user-hooks', event: 'PreToolUse', hookIndex: 0 })
+  const dialog = document.querySelector('[role="dialog"]')!
+  expect(dialog.textContent).toContain('Exit code 0')
+  expect(dialog.textContent).toContain(en.hookRunStdout)
+  expect(dialog.textContent).toContain('guard ok')
+  expect(dialog.textContent).toContain(en.hookRunSynthetic)
+})
+
+it('reports a non-JSON run failure as a status, not a parse error', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? ({ ok: false, status: 404, text: async () => 'not found' } as Response) : ({ ok: true, json: async () => overview } as unknown as Response)
+    )
+  )
+  const host = document.createElement('div')
+  document.body.append(host)
+  root = createRoot(host)
+  await act(async () => root!.render(h(HooksStatusPanel, { t })))
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  await act(async () => document.querySelector<HTMLElement>('article')!.click())
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === en.hookRunStart)!.click())
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  const dialog = document.querySelector('[role="dialog"]')!
+  expect(dialog.textContent).toContain('hook run failed: 404')
+  expect(dialog.textContent).not.toContain('Unexpected token')
 })
 
 it('shows the empty state when nothing is configured', async () => {

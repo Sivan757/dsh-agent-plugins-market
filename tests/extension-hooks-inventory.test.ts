@@ -194,3 +194,75 @@ describe('user hook declarations as Hooks tab rows', () => {
     expect(withoutSession.find(row => row.face === 'hooks')!.detail.sessionId).toBeUndefined()
   })
 })
+
+/** One suite declaring command hooks, in the dimension the case needs. */
+const declaredSuite = (overrides: { sourceId: string; id: string; dimension: 'user' | 'project'; events?: ProjectHooks['events']; errors?: string[] }): Suite => ({
+  sourceId: overrides.sourceId,
+  id: overrides.id,
+  root: '/suite-root',
+  manifest: { layout: 'agent-plugin-v1', path: '/suite-root/plugin.json', id: overrides.id, name: overrides.id },
+  skills: [],
+  surfaces: { skills: 0, mcp: 0, hooks: 0, commands: 0, agents: 0, lsp: 0 },
+  dimension: overrides.dimension,
+  enabled: true,
+  activeSurfaces: effectiveSurfaces({ skills: false, mcp: false, commands: false, agents: false, lsp: false }),
+  installedAt: 'user',
+  ...(overrides.events === undefined ? {} : { hooks: { events: overrides.events } }),
+  errors: overrides.errors ?? []
+})
+
+const hookRowsOf = (rows: readonly { face: string; name: string }[]): { face: string; name: string }[] => rows.filter(row => row.face === 'hooks')
+const hookRowOfSuite = (rows: Awaited<ReturnType<typeof readExtensionInventory>>, suiteId: string) =>
+  rows.filter(row => row.face === 'hooks' && row.detail.kind === 'hook' && row.detail.suiteId === suiteId)
+
+describe('installed suite hooks follow their suite', () => {
+  const installed = declaredSuite({
+    sourceId: 'demo',
+    id: 'v1',
+    dimension: 'user',
+    events: { PreToolUse: eventGroup(command('echo installed')), UserPromptSubmit: eventGroup(command('echo prompt')) }
+  })
+  const project = declaredSuite({ sourceId: 'native', id: 'agents-native', dimension: 'project', events: { PreToolUse: eventGroup(command('echo project')) } })
+  const userHooks = userHooksSuite({ events: { PreToolUse: eventGroup(command('echo user')) } })
+
+  it('stamps followsSuite on every hook row of an installed suite the dedicated list carries', async () => {
+    const rows = await readExtensionInventory(ports, { hookSuites: [project, installed, userHooks] })
+    const installedRows = hookRowOfSuite(rows, 'v1')
+    expect(installedRows.map(row => row.name)).toEqual(['echo installed', 'echo prompt'])
+    // An installed suite publishes no per-hook switch: every row follows the parent grant.
+    for (const row of installedRows) expect(row.followsSuite).toBe(true)
+    // The support verdict alone decides selectability, exactly as before.
+    expect(installedRows.map(row => row.available)).toEqual([true, true])
+  })
+
+  it('leaves followsSuite absent on project and @user-hooks rows', async () => {
+    const rows = await readExtensionInventory(ports, { hookSuites: [project, installed, userHooks] })
+    expect(hookRowOfSuite(rows, 'agents-native')[0]).not.toHaveProperty('followsSuite')
+    expect(hookRowOfSuite(rows, 'user-hooks')[0]).not.toHaveProperty('followsSuite')
+  })
+
+  it('stamps the same verdict when the installed suite arrives through projectSuites', async () => {
+    // The rule is the suite's, not the caller's: the settings overview's global
+    // read carries the same flag, so the card explains why no switch appears.
+    const rows = await readExtensionInventory(ports, { projectSuites: [installed] })
+    for (const row of hookRowOfSuite(rows, 'v1')) expect(row.followsSuite).toBe(true)
+  })
+
+  it('stamps a follows-suite row that exists only as a validator diagnostic', async () => {
+    const broken = declaredSuite({
+      sourceId: 'demo',
+      id: 'v1',
+      dimension: 'user',
+      events: { PreToolUse: eventGroup(command('echo ok')) },
+      errors: ['plugin.json: unsupported hook event SessionEnd']
+    })
+    const rows = await readExtensionInventory(ports, { hookSuites: [broken] })
+    expect(rows.find(row => row.id.endsWith('/declared'))).toMatchObject({ followsSuite: true, available: false, control: 'global-only' })
+  })
+
+  it('falls back to projectSuites as the hook source when the dedicated list is absent', async () => {
+    const rows = await readExtensionInventory(ports, { projectSuites: [userHooks] })
+    expect(hookRowsOf(rows)).toHaveLength(1)
+    expect(rows.find(row => row.face === 'hooks')).not.toHaveProperty('followsSuite')
+  })
+})

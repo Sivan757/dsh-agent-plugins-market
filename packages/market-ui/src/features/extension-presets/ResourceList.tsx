@@ -5,9 +5,11 @@ import { CardCount, CardIdentity, CardWarning, ResourceCard, ResourceCollection,
 import { ResourceTabs } from '../../ui/ResourceTabs.js'
 import { HookResourceCard } from '../../ui/HookResourceCard.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
+import { BilingualToggle } from '../../ui/BilingualToggle.js'
+import { displayText } from '../../ui/translated-text.js'
+import { useTranslationEnabled } from '../../ui/translation-enabled.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { resourceSelected } from './resource.js'
-import { useHookEvents } from '../../ui/hook-event-grouping.js'
 import type { ExtensionTranslate } from './types.js'
 import rc from '../../ui/resource-card.module.css'
 import css from './presets.module.css'
@@ -30,6 +32,8 @@ export function ResourceList({
   ids,
   disabled,
   t,
+  showOriginal,
+  onToggleShowOriginal,
   onToggle,
   onView
 }: {
@@ -37,6 +41,9 @@ export function ResourceList({
   ids: string[]
   disabled: boolean
   t: ExtensionTranslate
+  /** True while the authored text shows; the same state the detail dialog reads. */
+  showOriginal: boolean
+  onToggleShowOriginal: () => void
   onToggle: (row: ExtensionResource, enabled: boolean) => void
   onView: (row: ExtensionResource) => void
 }): ReactNode {
@@ -59,7 +66,12 @@ export function ResourceList({
   const selected = (row: ExtensionResource) => row.available && resourceSelected(row, ids)
   const rows = resources.filter(row => row.face === face && row.configuration === undefined)
   const displayName = (row: ExtensionResource) => (row.configuration === 'user-hooks' ? t('epUserHooks') : row.name)
-  const controlled = (row: ExtensionResource) => row.available && row.control !== 'global-only' && !disabled
+  // One rule for every description on this surface, the same one the settings
+  // panels resolve through: the translation when it exists, the authored text
+  // otherwise, and the authored text under the panel-wide original view.
+  const enabled = useTranslationEnabled()
+  const displayDescription = (row: ExtensionResource) => displayText(row.translatedDescription, row.description, t, { original: !enabled || showOriginal })
+  const controlled = (row: ExtensionResource) => row.available && row.control !== 'global-only' && row.followsSuite !== true && !disabled
   // The owner tag mirrors each settings face's own mapping: a market row is an
   // installed user-dimension suite (extension-inventory.ts), a panel entry with
   // no owning suite is the user's own file, and an MCP or LSP row with no owning
@@ -78,13 +90,14 @@ export function ResourceList({
           ? t('epHookEventUnsupported')
           : t('epGlobalManaged')
       : (row.unavailableReason ?? t(row.configuration ? 'epConfigurationUnavailable' : 'epUnavailable'))
-  // The Hooks tab groups rows by event through the shared presentation model
-  // the settings page uses too: same events, same dot, same grouping.
-  const hook = useHookEvents(face === 'hooks' ? rows : [], selected)
-  const filtered = (face === 'hooks' ? hook.rowsFor(hook.active) : rows).filter(
+  // The Hooks face lists every event together: the stage travels on each card,
+  // so no tab row hides the other events.
+  const filtered = rows.filter(
     row =>
       (filter === 'all' || (filter === 'on') === selected(row)) &&
-      (displayName(row) + ' ' + row.name + ' ' + (row.description ?? '') + ' ' + row.source).toLowerCase().includes(query.toLowerCase())
+      // Both texts stay searchable: a reader who saw the translation can still
+      // find the row after flipping to the authored text, and the reverse.
+      (displayName(row) + ' ' + row.name + ' ' + (row.description ?? '') + ' ' + (row.translatedDescription ?? '') + ' ' + row.source).toLowerCase().includes(query.toLowerCase())
   )
   const stopClick = (event: import('react').MouseEvent) => event.stopPropagation()
   const stopKey = (event: import('react').KeyboardEvent) => event.stopPropagation()
@@ -117,33 +130,21 @@ export function ResourceList({
           onViewChange={setView}
           toListLabel={t('epList')}
           toGridLabel={t('epGrid')}
+          beforeView={h(BilingualToggle, { t, showOriginal, onToggle: onToggleShowOriginal })}
         />
-        {face === 'hooks' && hook.events.length > 0 && (
-          <ResourceTabs
-            value={hook.active}
-            onChange={value => {
-              if (hook.events.includes(value)) hook.setRequested(value)
-            }}
-            label={t('epHooksEvents')}
-            items={hook.events.map(name => ({
-              value: name,
-              text: name,
-              dot: hook.dotFor(name),
-              id: id + '-hooks-' + name,
-              panelId: id + '-hooks-' + name + '-panel'
-            }))}
-          />
-        )}
         <div className={css.listRegion} role="tabpanel" id={id + '-filter-' + filter + '-panel'} aria-labelledby={id + '-filter-' + filter}>
           <ResourceCollection view={view}>
-            {filtered.map(row =>
-              row.face === 'hooks' ? (
+            {filtered.map(row => {
+              const description = displayDescription(row)
+              return row.face === 'hooks' ? (
                 <HookResourceCard
                   key={row.id}
                   row={row}
                   t={t}
                   state={!row.available ? (row.control === 'global-only' ? 'disabled' : 'warning') : selected(row) ? 'active' : 'disabled'}
-                  toggle={{ selected: selected(row), disabled: !controlled(row), onChange: enabled => onToggle(row, enabled) }}
+                  {...(row.followsSuite === true
+                    ? {}
+                    : { toggle: { selected: selected(row), disabled: !controlled(row), onChange: (enabled: boolean) => onToggle(row, enabled) } })}
                   onView={onView}
                 />
               ) : (
@@ -155,7 +156,7 @@ export function ResourceList({
                   {...(controlled(row) ? { ...interactiveCardProps(() => onToggle(row, !selected(row))), 'aria-pressed': selected(row), 'aria-label': displayName(row) } : {})}
                 >
                   <CardIdentity text={row.name} mono={row.face === 'commands'} version={row.version} tag={ownerLabel(row)} />
-                  {row.description ? hoverHint(row.description, h('p', { className: rc.rowBody + ' ' + rc.desc }, row.description)) : null}
+                  {description === undefined || description === '' ? null : hoverHint(description, h('p', { className: rc.rowBody + ' ' + rc.desc }, description))}
                   <div className={rc.rowFoot}>
                     {hoverHint(row.source, h('span', { className: rc.provenance }, row.source))}
                     {row.face === 'market' &&
@@ -189,7 +190,7 @@ export function ResourceList({
                   </div>
                 </ResourceCard>
               )
-            )}
+            })}
           </ResourceCollection>
           {!filtered.length && (
             <div className={panel.empty} role="status">

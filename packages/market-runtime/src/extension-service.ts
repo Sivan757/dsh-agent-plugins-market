@@ -1,4 +1,10 @@
-import type { ExtensionHooksOverview, ExtensionWindowPayload, ExtensionPresetInput } from '../../market-contracts/src/contracts/extension-presets.js'
+import type {
+  ExtensionHookRunInput,
+  ExtensionHookRunResult,
+  ExtensionHooksOverview,
+  ExtensionWindowPayload,
+  ExtensionPresetInput
+} from '../../market-contracts/src/contracts/extension-presets.js'
 
 export interface ExtensionRouteService {
   window(sessionId: string): Promise<ExtensionWindowPayload>
@@ -10,4 +16,6 @@ export interface ExtensionRouteService {
   recover?(sessionId: string, revision: number): Promise<void>
   /** The settings Hooks tab reads the configured declarations; no session owns them. */
   hooksOverview?(): Promise<ExtensionHooksOverview>
+  /** Run one declared hook as a dry run; the declaration is resolved server-side. */
+  hookRun?(input: ExtensionHookRunInput): Promise<ExtensionHookRunResult>
 }

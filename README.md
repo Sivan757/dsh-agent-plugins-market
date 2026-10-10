@@ -87,15 +87,15 @@ Requirements, profile configuration and alternative installs: [usage guide](docs
 
 The workspace has seven tabs:
 
-| Tab            | Use it to                                                                                                                                 |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Market         | Add sources, preview suites, install / uninstall, enable / disable and refresh.                                                           |
-| Skills         | Browse skills and create or edit your own reusable instructions.                                                                          |
-| Commands       | Manage prompt templates invoked as `/name`.                                                                                               |
+| Tab | Use it to |
+| --- | --- |
+| Market | Add sources, preview suites, install / uninstall, enable / disable and refresh. |
+| Skills | Browse skills and create or edit your own reusable instructions. |
+| Commands | Manage prompt templates invoked as `/name`. |
 | Agent personas | Save role instructions and model settings; delegate through `subagent_role` or create role-aware Team members with `spawn_teammate_role`. |
-| MCP services   | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures.                        |
-| LSP servers    | Add and configure language servers and inspect their runtime status.                                                                      |
-| Hooks          | Inspect configured command hooks and supported events. Each row opens a read-only declaration with command, matcher, timeout and support. |
+| MCP services | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures. |
+| LSP servers | Add and configure language servers and inspect their runtime status. |
+| Hooks | Inspect configured command hooks and supported events. Each row opens a declaration card with support, event, matcher and timeout, plus a dry run in your home directory. Installed suite hooks list read-only and follow their suite. |
 
 A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
 

@@ -5,6 +5,7 @@ import { typeInto } from './helpers/dom-events.js'
 import { en as settingsEn, zh as settingsZh } from '../packages/market-ui/src/locales.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { bindTranslationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
 import { ResourceList } from '../packages/market-ui/src/features/extension-presets/ResourceList.js'
 import { ExtensionPresetEntry } from '../packages/market-ui/src/features/extension-presets/ExtensionPresetEntry.js'
 import { extensionPresetsEn as en, extensionPresetsZh } from '../packages/market-ui/src/locales-extension-presets.js'
@@ -109,6 +110,33 @@ afterEach(async () => {
   document.body.replaceChildren()
   vi.unstubAllGlobals()
 })
+it('offers the text switch in the manager toolbar and flips the cards with it', async () => {
+  // The screenshot's gap: the settings panels put a text-view switch at the
+  // toolbar's trailing edge, and the manager's toolbar carried none.
+  const unbind = bindTranslationEnabled({ getSnapshot: () => ({ value: { translationEnabled: true } }), subscribe: () => () => {} })
+  try {
+    const translated: ExtensionResource = { ...suite, description: 'English description', translatedDescription: '中文描述' }
+    await mount(false, [translated])
+    await open()
+    const toolbar = document.querySelector('[data-panel-toolbar]')!
+    const button = toolbar.querySelector<HTMLButtonElement>('[data-bilingual-toggle]')!
+    expect(button).not.toBeNull()
+    // The trailing cluster is where every settings panel puts its own switch:
+    // it sits beside the grid/list button, right of the filter segment.
+    const viewSwitch = toolbar.querySelector('[data-view-switch]')!
+    expect(button.parentElement!.nextElementSibling).toBe(viewSwitch)
+    expect(document.body.textContent).toContain('中文描述')
+
+    await act(async () => button.click())
+    expect(document.body.textContent).toContain('English description')
+    expect(document.body.textContent).not.toContain('中文描述')
+    // The name is an identifier: it reads the same in both views.
+    expect(document.body.textContent).toContain('frontend-kit')
+  } finally {
+    await act(async () => unbind())
+  }
+})
+
 it.each([false, true])('uses the shared agent extension icon for started=%s', async started => {
   await mount(started)
   const button = document.querySelector('button')!
@@ -315,7 +343,20 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
   const child: ExtensionResource = { ...skill, id: 'project-skill', suiteResourceId: local.id }
   const toggle = vi.fn(),
     view = vi.fn()
-  await act(async () => root!.render(h(ResourceList, { resources: [suite, local, hooks, child], ids: [local.id, child.id], disabled: false, t, onToggle: toggle, onView: view })))
+  await act(async () =>
+    root!.render(
+      h(ResourceList, {
+        resources: [suite, local, hooks, child],
+        ids: [local.id, child.id],
+        disabled: false,
+        t,
+        showOriginal: false,
+        onToggleShowOriginal: () => {},
+        onToggle: toggle,
+        onView: view
+      })
+    )
+  )
   const faceTabs = [
     settingsEn.workspaceTabMarket,
     settingsEn.workspaceTabSkills,
@@ -383,7 +424,11 @@ describe('user hooks configuration row', () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
-    await act(async () => root!.render(h(ResourceList, { resources: [suite, hooksRow], ids: [], disabled: false, t: tZh, onToggle: toggle, onView: view })))
+    await act(async () =>
+      root!.render(
+        h(ResourceList, { resources: [suite, hooksRow], ids: [], disabled: false, t: tZh, showOriginal: false, onToggleShowOriginal: () => {}, onToggle: toggle, onView: view })
+      )
+    )
     // The shared row policy: the host sizes the columns, and a label that does
     // not fit ellipsizes inside its own share. Nothing scrolls sideways.
     const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
@@ -406,7 +451,11 @@ describe('user hooks configuration row', () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
-    await act(async () => root!.render(h(ResourceList, { resources: [hooksRow], ids: [], disabled: false, t: tZh, onToggle: toggle, onView: view })))
+    await act(async () =>
+      root!.render(
+        h(ResourceList, { resources: [hooksRow], ids: [], disabled: false, t: tZh, showOriginal: false, onToggleShowOriginal: () => {}, onToggle: toggle, onView: view })
+      )
+    )
     // No local tab exists, and the row stays unrendered under every face.
     const tabs = [
       tZh('workspaceTabMarket'),
@@ -514,7 +563,7 @@ const hookRow = (id: string, over: Partial<ExtensionResource> = {}): ExtensionRe
 }
 
 describe('hooks tab', () => {
-  it('renders the Hooks face tab beside the six faces and groups rows into secondary event tabs', async () => {
+  it('renders the Hooks face tab and lists every event with its stage on the card', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -529,6 +578,8 @@ describe('hooks tab', () => {
           ids: [HOOKS_PARENT, 'hooks:@user-hooks/user-hooks/PreToolUse/0'],
           disabled: false,
           t,
+          showOriginal: false,
+          onToggleShowOriginal: () => {},
           onToggle: toggle,
           onView: view
         })
@@ -550,27 +601,23 @@ describe('hooks tab', () => {
       en.epHooksTab
     ])
     await click(en.epHooksTab)
-    // One secondary tab per declared event, in first-seen order, each with its status dot.
-    const eventTabs = [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelector('[aria-controls$="-PreToolUse-panel"]'))
-    expect(eventTabs).toHaveLength(1)
-    const eventLabels = [...eventTabs[0]!.querySelectorAll('[role="tab"]')].map(node => node.textContent)
-    expect(eventLabels).toEqual(['PreToolUse', 'SessionStart'])
-    // The first event is active and shows exactly its two rows; the second event's row is hidden.
+    // No secondary event row remains: every declaration lists at once, and each
+    // card names its own stage.
+    expect([...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelector('[aria-controls$="-PreToolUse-panel"]'))).toHaveLength(0)
     expect([...document.querySelectorAll('article')].map(node => node.getAttribute('data-resource-id'))).toEqual([
       'hooks:@user-hooks/user-hooks/PreToolUse/0',
-      'hooks:@user-hooks/user-hooks/PreToolUse/1'
+      'hooks:@user-hooks/user-hooks/PreToolUse/1',
+      'hooks:@user-hooks/user-hooks/SessionStart/0'
     ])
-    await click('SessionStart')
-    expect([...document.querySelectorAll('article')].map(node => node.getAttribute('data-resource-id'))).toEqual(['hooks:@user-hooks/user-hooks/SessionStart/0'])
-    // A supported event's rows carry a switch that toggles through the preset draft.
-    await click('PreToolUse')
+    expect(document.querySelector('article[data-resource-id="hooks:@user-hooks/user-hooks/SessionStart/0"]')!.textContent).toContain('SessionStart')
+    // A supported declaration keeps its switch and toggles through the preset draft.
     await act(async () =>
       document.querySelector<HTMLElement>('article[data-resource-id="hooks:@user-hooks/user-hooks/PreToolUse/1"]')!.querySelector<HTMLButtonElement>('[role="switch"]')!.click()
     )
     expect(toggle).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'hooks:@user-hooks/user-hooks/PreToolUse/1' }), true)
   })
 
-  it('marks each event tab dot by support and selection: done, idle, or warning', async () => {
+  it('states the support verdict on the card: a switch when supported, a limited tag otherwise', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -602,21 +649,24 @@ describe('hooks tab', () => {
           ids: [HOOKS_PARENT, 'hooks:@user-hooks/user-hooks/PreToolUse/0'],
           disabled: false,
           t,
+          showOriginal: false,
+          onToggleShowOriginal: () => {},
           onToggle: toggle,
           onView: view
         })
       )
     )
     await click(en.epHooksTab)
-    const dotOf = (label: string): string | null =>
-      [...document.querySelectorAll('[role="tab"]')]
-        .find(node => node.textContent === label)
-        ?.querySelector('[data-state]')
-        ?.getAttribute('data-state') ?? null
-    expect(dotOf('PreToolUse')).toBe('done')
-    expect(dotOf('Stop')).toBe('idle')
-    expect(dotOf('Notification')).toBe('warning')
-    expect(dotOf('SessionEnd')).toBe('warning')
+    const cardOf = (id: string) => document.querySelector<HTMLElement>('article[data-resource-id="' + id + '"]')!
+    // A supported event keeps its own switch; the selection is the only difference.
+    expect(cardOf('hooks:@user-hooks/user-hooks/PreToolUse/0').querySelector('[role="switch"]')).not.toBeNull()
+    expect(cardOf('hooks:@user-hooks/user-hooks/Stop/0').querySelector('[role="switch"]')).not.toBeNull()
+    // A partial or registered-only event is read-only and its card says why.
+    for (const id of ['hooks:@user-hooks/user-hooks/Notification/0', 'hooks:@user-hooks/user-hooks/SessionEnd/declared']) {
+      const card = cardOf(id)
+      expect(card.querySelector('[role="switch"]')).toBeNull()
+      expect([...card.querySelectorAll('span')].some(node => node.getAttribute('data-tone') === 'quiet')).toBe(true)
+    }
   })
 
   it('renders unsupported-event rows read-only with the localized note and no switch', async () => {
@@ -654,43 +704,37 @@ describe('hooks tab', () => {
           ids: [],
           disabled: false,
           t: tZh,
+          showOriginal: false,
+          onToggleShowOriginal: () => {},
           onToggle: toggle,
           onView: view
         })
       )
     )
     await click(tZh('epHooksTab'))
-    // The first event tab is active; both its rows are read-only.
-    const read_only = [...document.querySelectorAll('article')]
-    expect(read_only).toHaveLength(1)
-    const card = read_only[0]!
-    expect(card.querySelector('[role="switch"]')).toBeNull()
-    // The Global tag carries the localized reason on hover.
-    const tag = [...card.querySelectorAll('span')].find(node => node.getAttribute('data-tone') === 'quiet')
-    expect(tag).toBeDefined()
-    await act(async () => {
-      tag!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
-    })
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 10))
-    })
+    // Both read-only rows list at once, each with its own reason tag.
+    expect(document.querySelectorAll('article')).toHaveLength(2)
+    const cardOf = (id: string) => document.querySelector<HTMLElement>('article[data-resource-id="' + id + '"]')!
+    const hover = async (card: HTMLElement): Promise<void> => {
+      const tag = [...card.querySelectorAll('span')].find(node => node.getAttribute('data-tone') === 'quiet')!
+      await act(async () => {
+        tag.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      })
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10))
+      })
+    }
+    const partial = cardOf('hooks:@user-hooks/user-hooks/Notification/0')
+    expect(partial.querySelector('[role="switch"]')).toBeNull()
+    await hover(partial)
     expect(document.body.textContent).toContain(tZh('epHookEventPartial'))
-    // Switching to the registered-only event shows its own note.
-    await click('SessionEnd')
-    expect(document.querySelectorAll('article')).toHaveLength(1)
-    const secondCard = document.querySelector('article')!
-    expect(secondCard.querySelector('[role="switch"]')).toBeNull()
-    const secondTag = [...secondCard.querySelectorAll('span')].find(node => node.getAttribute('data-tone') === 'quiet')
-    await act(async () => {
-      secondTag!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
-    })
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 10))
-    })
+    const registered = cardOf('hooks:@user-hooks/user-hooks/SessionEnd/declared')
+    expect(registered.querySelector('[role="switch"]')).toBeNull()
+    await hover(registered)
     expect(document.body.textContent).toContain(tZh('epHookEventUnsupported'))
   })
 
-  it('keeps eight one-line tabs on the shared tab-row policy', async () => {
+  it('keeps the seven one-line face tabs on the shared tab-row policy', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -701,22 +745,20 @@ describe('hooks tab', () => {
           ids: [],
           disabled: false,
           t,
+          showOriginal: false,
+          onToggleShowOriginal: () => {},
           onToggle: toggle,
           onView: view
         })
       )
     )
     const rowClass = (await import('../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
-    // Seven primary faces plus the secondary event row: both are the one shared
-    // component, so both carry its class and its one-line, non-scrolling policy.
+    // Seven primary faces on one shared component with one one-line,
+    // non-scrolling policy. The secondary event row is gone.
     const faceRow = document.querySelector('.' + rowClass)!
     expect(faceRow.querySelectorAll('[role="tab"]')).toHaveLength(7)
     await click(en.epHooksTab)
-    const eventTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-PreToolUse-panel"]'))!
-    expect(eventTablist.querySelectorAll('[role="tab"]')).toHaveLength(1)
-    const rows = [...document.querySelectorAll('.' + rowClass)]
-    expect(rows.length).toBeGreaterThanOrEqual(2)
-    expect(rows.every(row => row.querySelector('[role="tablist"]') !== null)).toBe(true)
+    expect([...document.querySelectorAll('.' + rowClass)]).toHaveLength(1)
     // One line each, and never a sideways scroll: the shared truncation rule is
     // the only thing that gives on a narrow frame.
     const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')

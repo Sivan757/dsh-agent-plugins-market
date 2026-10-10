@@ -113,7 +113,7 @@ it('opens a single Hook declaration with its full command and diagnostic', async
       diagnostic: 'fixture diagnostic'
     }
   })
-  expect(document.querySelector('pre')?.textContent).toBe(command)
+  expect(document.querySelector('[role="dialog"] code')?.textContent).toBe(command)
   expect(document.body.textContent).toContain('SessionStart')
   expect(document.body.textContent).toContain('startup|resume')
   expect(document.body.textContent).toContain('fixture diagnostic')

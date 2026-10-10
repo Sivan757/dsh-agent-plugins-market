@@ -8,9 +8,7 @@ import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import type { ExtensionTranslate } from '../../i18n.js'
 import { fetchHooksOverview } from '../../api.js'
 import type { ExtensionDetail, ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
-import { useHookEvents } from '../../ui/hook-event-grouping.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
-import { ResourceTabs } from '../../ui/ResourceTabs.js'
 import { HookResourceCard } from '../../ui/HookResourceCard.js'
 import { ResourceCollection } from '../../ui/ResourceCard.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
@@ -47,13 +45,11 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
     refresh()
   }, [])
 
-  // The shared presentation model: same events, same dot, same grouping as
-  // the manager. Read-only means no isSelected, so supported events read idle.
-  const hook = useHookEvents(rows, undefined)
-  const eventRows = hook.rowsFor(hook.active)
   const limited = (row: ExtensionResource): boolean => row.control === 'global-only'
   const needle = search.trim().toLowerCase()
-  const filtered = eventRows.filter(
+  // Every event lists together: the stage travels on each card, so no tab row
+  // hides the other events.
+  const filtered = rows.filter(
     row => (filter === 'all' || (filter === 'supported') === !limited(row)) && (needle === '' || (row.name + ' ' + row.source).toLowerCase().includes(needle))
   )
   const filters = [
@@ -95,21 +91,6 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
       toGridLabel: t('switchToGrid'),
       onViewChange: nextView => setView(nextView)
     }),
-    hook.events.length > 0 &&
-      h(ResourceTabs, {
-        value: hook.active,
-        onChange: value => {
-          if (hook.events.includes(value)) hook.setRequested(value)
-        },
-        label: t('workspaceTabHooks'),
-        items: hook.events.map(name => ({
-          value: name,
-          text: name,
-          dot: hook.dotFor(name),
-          id: 'hooks-panel-event-' + name,
-          panelId: 'hooks-panel-event-panel'
-        }))
-      }),
     error !== undefined
       ? h('div', { className: css.error, role: 'status' }, error)
       : loading && rows.length === 0

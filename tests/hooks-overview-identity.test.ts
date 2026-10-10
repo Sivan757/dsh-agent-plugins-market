@@ -16,6 +16,7 @@ import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
 import { readExtensionInventory } from '../packages/market-bundle/src/application/extension-inventory.js'
 import { readHooksOverview } from '../packages/market-bundle/src/session-extension.js'
 import { loadUserHooksSuite, USER_HOOKS_SOURCE } from '../packages/market-runtime/src/application/panels/user-hooks.js'
+import { effectiveSurfaces, type Suite } from '../packages/market-contracts/src/model/types.js'
 import type { ExtensionResource } from '../packages/market-contracts/src/contracts/extension-presets.js'
 
 /** The declaration file the acceptance run used: two events, one command each. */
@@ -117,5 +118,53 @@ describe('hooks overview identity', () => {
     // Two copies of one suite publish four rows under two ids.
     expect(hookRows).toHaveLength(4)
     expect(new Set(ids(hookRows)).size).toBe(2)
+  })
+})
+
+/** One installed user-dimension suite: a supported event and a registered-only one. */
+const installedSuite = (): Suite => ({
+  sourceId: 'demo',
+  id: 'v1',
+  root: '/suites/demo',
+  manifest: { layout: 'agent-plugin-v1', path: '/suites/demo/plugin.json', id: 'v1', name: 'Demo' },
+  skills: [],
+  surfaces: { skills: 0, mcp: 0, hooks: 2, commands: 0, agents: 0, lsp: 0 },
+  dimension: 'user',
+  enabled: true,
+  activeSurfaces: effectiveSurfaces({ skills: false, mcp: false, commands: false, agents: false, lsp: false }),
+  installedAt: 'user',
+  hooks: {
+    events: {
+      PreToolUse: [{ hooks: [{ type: 'command', command: 'echo installed' }] }],
+      Notification: [{ hooks: [{ type: 'command', command: 'notify-me' }] }]
+    }
+  },
+  errors: []
+})
+
+describe('hooks overview follows-suite rows', () => {
+  it('carries the flag on installed hooks, adds no switch, and keeps the control-derived filter state', async () => {
+    const agentsRoot = await layoutRoot()
+    const synthetic = await loadUserHooksSuite(agentsRoot)
+    const catalog = {
+      agentsRoot,
+      enabledUserSuites: async () => [installedSuite(), synthetic],
+      overview: ports.catalog.overview,
+      mcpStatus: ports.catalog.mcpStatus,
+      lspStatus: ports.catalog.lspStatus
+    }
+    const rows = (await readHooksOverview(catalog)).rows
+    const installed = rows.filter(row => row.detail.kind === 'hook' && row.detail.sourceId === 'demo')
+    expect(ids(installed)).toEqual(['hooks:demo/v1/PreToolUse/0', 'hooks:demo/v1/Notification/0'])
+    // The panel is read-only; the flag explains the absent switch instead of
+    // adding one, so the supported row keeps its selectable shape...
+    expect(installed[0]).toMatchObject({ followsSuite: true, available: true, globalEnabled: true })
+    expect(installed[0]).not.toHaveProperty('control')
+    // ...and the limited row keeps control, the field the filter and card state read.
+    expect(installed[1]).toMatchObject({ followsSuite: true, available: false, control: 'global-only', unavailableReason: 'hook-event-partial' })
+    // The user's own declarations stay individually addressed.
+    const userRows = rows.filter(row => row.detail.kind === 'hook' && row.detail.sourceId === USER_HOOKS_SOURCE)
+    expect(userRows.length).toBeGreaterThan(0)
+    for (const row of userRows) expect(row).not.toHaveProperty('followsSuite')
   })
 })

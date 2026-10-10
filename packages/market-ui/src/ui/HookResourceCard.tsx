@@ -64,6 +64,11 @@ export function HookResourceCard({ row, t, state, toggle, onView }: HookResource
       <div className={rc.rowId}>{hoverHint(title, h('span', { className: rc.name }, title))}</div>
       <p className={rc.rowBody + ' ' + rc.desc}>{hoverHint(command, h('span', { className: rc.nameMono }, command))}</p>
       <div className={rc.rowFoot}>
+        {/* An installed suite's hook has no switch of its own: the suite row owns
+            the selection, and the card says so instead of pretending to toggle. */}
+        {row.followsSuite === true ? <Tag tone="quiet">{t('epHookFollowsSuite')}</Tag> : null}
+        {/* The stage travels on the card: the surfaces no longer switch events by tab. */}
+        {hook?.event === undefined ? null : <Tag tone="quiet">{hook.event}</Tag>}
         {hook?.matcher === undefined ? null : <span className={rc.provenance}>{hoverHint(hook.matcher, h('span', { className: rc.nameMono }, hook.matcher))}</span>}
         {limited ? (
           <Tooltip label={reason} portal side="top">
