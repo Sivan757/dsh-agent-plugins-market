@@ -13,6 +13,7 @@ import {
   IconRefreshOutlineMedium
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
+  stripConfigurationParentIds,
   parseExtensionName,
   parseExtensionPresetTransfer,
   serializeExtensionPresetTransfer,
@@ -64,11 +65,17 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     [newName, setNewName] = useState('')
   const [deletingId, setDeletingId] = useState<string>()
   const [detail, setDetail] = useState<ExtensionResource>()
+  // One reading mode for the whole manager: the switch lives in the list's
+  // toolbar, so the cards and the detail dialog behind them flip together.
+  const [showOriginal, setShowOriginal] = useState(false)
   const [clipboard, setClipboard] = useState<'copy' | 'paste' | null>(null),
     [clipText, setClipText] = useState('')
   const [leave, setLeave] = useState<{ action: () => void }>()
   const [replacement, setReplacement] = useState<{ presetId: string | null }>()
-  const globalIds = () => data?.resources.filter(row => row.available && row.control !== 'global-only' && row.globalEnabled !== false).map(row => row.id) ?? []
+  // The same shape the server capture publishes: available, globally on, and
+  // never carrying a configuration parent id.
+  const globalIds = () =>
+    stripConfigurationParentIds(data?.resources.filter(row => row.available && row.control !== 'global-only' && row.globalEnabled !== false).map(row => row.id) ?? [])
   const setLocal = (next: ExtensionPresetInput) => {
     draftRef.current = next
     setDraft(next)
@@ -443,7 +450,16 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                 )}
               </div>
             )}
-            <ResourceList resources={data.resources} ids={draft.enabledIds} disabled={false} t={t} onToggle={patch} onView={setDetail} />
+            <ResourceList
+              resources={data.resources}
+              ids={draft.enabledIds}
+              disabled={false}
+              t={t}
+              showOriginal={showOriginal}
+              onToggleShowOriginal={() => setShowOriginal(current => !current)}
+              onToggle={patch}
+              onView={setDetail}
+            />
           </div>
         </Modal>
       )}
@@ -579,6 +595,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         ? renderDetail({
             resource: detail,
             t,
+            showOriginal,
             onClose: () => setDetail(undefined),
             checked: detail.available && resourceSelected(detail, draft.enabledIds),
             disabled: !detail.available || detail.control === 'global-only',

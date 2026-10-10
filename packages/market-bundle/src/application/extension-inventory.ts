@@ -10,7 +10,7 @@ import type { McpSuiteOverrides } from '../../../market-mcp/src/index.js'
 import { qualifiedSuiteId } from '../../../market-catalog/src/index.js'
 import { deriveServerName } from '../../../market-mcp/src/index.js'
 import type { ExtensionSuiteCandidate } from '../../../market-runtime/src/index.js'
-import { USER_HOOKS_SOURCE, USER_HOOKS_SUITE } from '../../../market-runtime/src/index.js'
+import { USER_HOOKS_SOURCE, USER_HOOKS_SUITE, exposesIndividualHooks } from '../../../market-runtime/src/index.js'
 import { DIRECT_LSP_SUITE_ID } from '../../../market-lsp/src/index.js'
 
 /** User-owned configuration is not a market offering. Its direct MCP servers have no suite parent. */
@@ -35,6 +35,13 @@ interface ExtensionInventoryBaseOptions {
   mcpSessionControl?: boolean
   /** Legacy mode: installed/local suites without validated declarations. */
   projectSuites?: readonly Suite[]
+  /**
+   * Suites whose hook declarations this read publishes. The session inventory
+   * lists project hooks, installed user-dimension suites and the @user-hooks
+   * suite here; it stays separate from {@link projectSuites} so project owner
+   * addressing keeps its meaning. Absent, the hook source is projectSuites.
+   */
+  hookSuites?: readonly Suite[]
 }
 /** Candidate mode: the override data must be explicit, because a missing value would read as "enabled". */
 export interface ExtensionInventoryCandidateOptions extends ExtensionInventoryBaseOptions {
@@ -128,6 +135,7 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
       name: suite.name,
       source: suite.sourceId,
       description: suite.description,
+      ...(suite.translatedDescription === undefined ? {} : { translatedDescription: suite.translatedDescription }),
       ...(suite.version === undefined ? {} : { version: suite.version }),
       available: suite.enabled !== false,
       counts: SUITE_SURFACE_KEYS.filter(key => suite.surfaces[key] > 0).map(key => ({ label: key, count: suite.surfaces[key] })),
@@ -139,8 +147,11 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
   const rowById = new Map(rows.map(row => [row.id, row]))
   for (const candidate of candidates) {
     const { suite } = candidate
-    // Direct MCP entries have no parent. User hooks retain a local configuration control, not a market card.
-    if (suite.sourceId === USER_MCP_SOURCE && suite.id === USER_MCP_SUITE) continue
+    // Direct MCP entries have no parent, and the user hooks configuration has no
+    // card anywhere: neither publishes a market row. The hooks suite's rows stay
+    // on the Hooks face, where its grant is derived from the selected hooks
+    // themselves instead of from a parent id no preset carries.
+    if (isOwnedSentinel(suite.sourceId, suite.id)) continue
     const owner = 'market:' + suite.sourceId + '/' + suite.id
     const usable = candidateAvailable(candidate)
     const globalEnabled = usable && suite.enabled && SUITE_SURFACE_KEYS.some(key => globalSurfaceEnabled(candidate, key))
@@ -174,6 +185,9 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
     const owner = 'market:' + suite.sourceId + '/' + suite.id
     // Candidate validation already owns this resource; legacy discovery cannot append or override it.
     if (rowById.has(owner)) continue
+    // The user hooks configuration has no card on any face; its hook rows come
+    // from the hook loop below and its grant is derived from them.
+    if (isOwnedSentinel(suite.sourceId, suite.id)) continue
     const row: ExtensionResource = {
       id: owner,
       face: 'market',
@@ -197,9 +211,14 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
   // other resource; a partial or registered-only event's rows stay read-only
   // with the reason, so the Hooks tab registers the declaration without
   // pretending the host runs it.
-  for (const suite of options.projectSuites ?? []) {
+  for (const suite of options.hookSuites ?? options.projectSuites ?? []) {
     if (suite.hooks === undefined) continue
     const provenance = suite.sourceId === USER_HOOKS_SOURCE && suite.id === USER_HOOKS_SUITE ? 'user-hooks' : suite.manifest.name
+    // The rule is the suite's, not the caller's: an installed suite publishes no
+    // per-hook switch, so every row of its declaration follows the parent
+    // grant, while project and @user-hooks declarations stay individually
+    // addressable. Both reads carry the same verdict.
+    const followsSuite = !exposesIndividualHooks(suite)
     const supportedEvents = suite.hooks.events
     for (const [event, groups] of Object.entries(supportedEvents)) {
       const support = HOOK_EVENT_HOST_SUPPORT[event] ?? 'registered-only'
@@ -221,6 +240,7 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
             ...(selectable
               ? { available: true, globalEnabled: true }
               : { available: false, control: 'global-only', unavailableReason: support === 'supported-partial' ? 'hook-event-partial' : 'hook-event-unsupported' }),
+            ...(followsSuite ? { followsSuite: true } : {}),
             // The detail a row opens is the hook itself, not the suite behind it:
             // every field the surface shows comes from this scanned declaration.
             detail: {
@@ -258,6 +278,7 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
         available: false,
         control: 'global-only',
         unavailableReason: support === 'supported-partial' ? 'hook-event-partial' : 'hook-event-unsupported',
+        ...(followsSuite ? { followsSuite: true } : {}),
         // A rejected declaration has no admitted hook, so the detail carries the
         // event and the validator's own words instead of a command or position.
         detail: {
@@ -285,7 +306,10 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
         id: face + ':' + identity,
         face,
         name: entry.name,
-        description: entry.translatedDescription ?? entry.description,
+        // Both texts travel: the panel renders the translated one until the
+        // reader flips the shared view, which needs the authored text too.
+        description: entry.description,
+        ...(entry.translatedDescription === undefined ? {} : { translatedDescription: entry.translatedDescription }),
         source: entry.suiteName ?? 'user',
         ...(owner === undefined ? {} : { suiteResourceId: owner }),
         ...(face === 'skills' && entry.origin === 'user'

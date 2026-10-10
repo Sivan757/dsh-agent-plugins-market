@@ -1,4 +1,4 @@
-import { EXTENSION_ROUTES, type ExtensionWindowPayload, type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
+import { CONFIGURATION_PARENT_IDS, EXTENSION_ROUTES, type ExtensionWindowPayload, type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 
 export type Mutation = Exclude<keyof typeof EXTENSION_ROUTES, 'window'>
 export async function readWindow(sessionId: string): Promise<ExtensionWindowPayload> {
@@ -21,6 +21,13 @@ export async function writeWindow(action: Mutation, sessionId: string, expectedR
 }
 export function resourceSelected(resource: ExtensionResource, ids: readonly string[]): boolean {
   if (resource.control === 'global-only') return resource.available
+  // A follows-suite row mirrors its owner: the preset selects the suite, never
+  // the individual hook, so the row reads selected exactly when the suite does.
+  if (resource.followsSuite === true) return resource.suiteResourceId !== undefined && ids.includes(resource.suiteResourceId)
+  // A child of a configuration parent decides on its own id: the parent has no
+  // card, its grant is derived, and no preset carries its id.
+  const parentIsConfiguration = resource.suiteResourceId !== undefined && CONFIGURATION_PARENT_IDS.has(resource.suiteResourceId)
+  if (parentIsConfiguration) return ids.includes(resource.id)
   return ids.includes(resource.id) && (resource.suiteResourceId === undefined || ids.includes(resource.suiteResourceId))
 }
 export function toggleResource(resource: ExtensionResource, ids: readonly string[], enabled: boolean): string[] {
@@ -28,7 +35,9 @@ export function toggleResource(resource: ExtensionResource, ids: readonly string
   const next = new Set(ids)
   if (enabled) {
     next.add(resource.id)
-    if (resource.suiteResourceId) next.add(resource.suiteResourceId)
+    // A configuration parent never enters the selection: it has no card and the
+    // runtime derives its grant from this very child.
+    if (resource.suiteResourceId && !CONFIGURATION_PARENT_IDS.has(resource.suiteResourceId)) next.add(resource.suiteResourceId)
   } else next.delete(resource.id)
   return [...next]
 }

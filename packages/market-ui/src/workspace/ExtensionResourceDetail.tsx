@@ -25,7 +25,7 @@ export function ExtensionDetailView(props: ExtensionDetailProps): ReactNode {
         })
   return h(SettingsSizedDetails, { footer, children: h(ResourceDetail, { ...props, key: props.resource.id }) })
 }
-function ResourceDetail({ resource, t, onClose }: ExtensionDetailProps): ReactNode {
+function ResourceDetail({ resource, t, showOriginal, onClose }: ExtensionDetailProps): ReactNode {
   const address = resource.detail
   const [entry, setEntry] = useState<UserPanelEntry>()
   const [mcp, setMcp] = useState<McpStatusEntry>()
@@ -69,7 +69,9 @@ function ResourceDetail({ resource, t, onClose }: ExtensionDetailProps): ReactNo
       sourceId: address.sourceId,
       suiteId: address.suiteId,
       t: translate,
-      showOriginal: false,
+      // The dialog renders the manager's own view, so a suite opened from the
+      // list shows the same description the card behind it shows.
+      showOriginal: showOriginal === true,
       onClose,
       // The user-hooks configuration row localizes its identity instead of
       // translating the wire id, and explains an empty or invalid set of hook

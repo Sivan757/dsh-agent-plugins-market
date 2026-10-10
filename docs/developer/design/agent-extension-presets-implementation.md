@@ -12,7 +12,7 @@ The prototype defines interaction and approximate layout. The current settings p
 
 Selection changes use acknowledged maintenance before reporting effective state. Busy sessions reject/defer explicitly, never race an active request. Sessions select saved presets; the manager edits the workspace library. There is no temporary session editor or adjustment endpoint. Full details remain reusable; session selection never mutates global credentials or configuration.
 
-Local project groups and user Hooks are configuration, not market offerings. The optional `configuration` metadata moves their controls into a separate local tab. Child resources remain in their respective surface tabs. Existing resource ids, parent authorization and preset transfer records remain unchanged. The local group controls remain accessible because they also govern hooks and parent-level instructions.
+Local project groups and user Hooks are configuration, not market offerings. They publish no market card: their parent id never enters a preset, a session selection, or a preset transfer. The runtime derives each configuration parent's grant from its selected children instead, and a child of a configuration parent is selected by its own id alone. Legacy records that still carry an explicit parent id keep working; the id drops out at the next save or copy. Child resources remain in their respective surface tabs.
 
 ## Baseline and ownership
 

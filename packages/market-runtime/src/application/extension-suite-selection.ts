@@ -1,4 +1,5 @@
 import type { ExtensionSelection } from '../../../market-contracts/src/contracts/extension-presets.js'
+import { CONFIGURATION_PARENT_IDS } from '../../../market-contracts/src/contracts/extension-presets.js'
 import type { Suite, SuiteSurfaceKey } from '../../../market-contracts/src/model/types.js'
 import { admitsAnyHook, exposesIndividualHooks } from './extension-hook-selection.js'
 import { pluginResourceId } from './panel-resources.js'
@@ -17,6 +18,38 @@ export interface ExtensionSuiteProjection {
 }
 
 /**
+ * Whether one resource id belongs to this suite's own selectable surface.
+ *
+ * The inventory addresses a suite's children with these exact spellings, so
+ * this one predicate decides both "the suite is selected" (the parent id, or
+ * any child id for a configuration parent whose card no client renders) and
+ * "this child is selected". It is the single derivation point the session
+ * selection and the shared reconciler share.
+ */
+export function suiteOwnsResourceId(suite: Pick<Suite, 'sourceId' | 'id'>, resourceId: string): boolean {
+  const key = suite.sourceId + '/' + suite.id
+  const parent = 'market:' + key
+  if (resourceId === parent) return true
+  if (CONFIGURATION_PARENT_IDS.has(parent)) {
+    if (resourceId.startsWith('hooks:' + key + '/')) return true
+    if (resourceId.startsWith('mcp:plugin:' + key + '/') || resourceId.startsWith('lsp:' + key + '/')) return true
+    for (const kind of ['skills', 'commands', 'agents'] as const) {
+      // pluginResourceId spells the panel id as a JSON tuple; match by the
+      // spelled prefix instead of re-serializing every candidate name.
+      if (resourceId.startsWith(kind + ':')) {
+        try {
+          const [sourceId, suiteId] = JSON.parse(resourceId.slice(kind.length + 1)) as unknown[]
+          if (sourceId === suite.sourceId && suiteId === suite.id) return true
+        } catch {
+          // A non-tuple id (a user-authored entry) belongs to no suite.
+        }
+      }
+    }
+  }
+  return false
+}
+
+/**
  * Project validated declarations without scanning, mounting, or changing global defaults.
  * Callers retain credential, tool-policy and execution checks; this is not shared-service union ownership.
  * Unmaterialized markdown is empty rather than a request for downstream filesystem discovery.
@@ -25,7 +58,12 @@ export interface ExtensionSuiteProjection {
 export function projectExtensionSuites(candidates: readonly ExtensionSuiteCandidate[], selection: ExtensionSelection): ExtensionSuiteProjection[] {
   const selected = new Set(selection.enabledIds)
   return candidates
-    .filter(({ suite }) => selected.has('market:' + suite.sourceId + '/' + suite.id))
+    .filter(
+      ({ suite }) =>
+        // An explicit parent id selects as before; a configuration parent whose
+        // id no preset carries is selected through any of its children.
+        selected.has('market:' + suite.sourceId + '/' + suite.id) || selection.enabledIds.some(id => suiteOwnsResourceId(suite, id))
+    )
     .map(({ suite: original, validSurfaces }) => {
       const suite = structuredClone(original)
       const key = suite.sourceId + '/' + suite.id

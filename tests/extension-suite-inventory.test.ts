@@ -156,9 +156,10 @@ describe('validated but globally disabled suite declarations', () => {
     const entry = find(rows, 'skills:' + child.id)!
     expect(entry.face).toBe('skills')
     expect(entry.suiteResourceId).toBe('market:native/agents-native')
-    const selection = { presetId: null, presetName: null, presetRevision: null, modified: false, enabledIds: [entry.id, 'market:native/agents-native'] }
+    const selection = { presetId: null, presetName: null, presetRevision: null, modified: false, enabledIds: [entry.id] }
+    // A configuration parent's child is selected by its own id; the parent id
+    // derives its grant and no preset carries it.
     expect(extensionResourceEnabled(entry, selection, rows)).toBe(true)
-    expect(extensionResourceEnabled(entry, { ...selection, enabledIds: [entry.id] }, rows)).toBe(false)
     expect(rows.filter(row => row.face === 'market' && row.configuration === undefined)).toHaveLength(0)
   })
   it('classifies user hooks as local configuration, never a market offering', async () => {
@@ -169,17 +170,19 @@ describe('validated but globally disabled suite declarations', () => {
         projectSuites: [hooks]
       })
     )
-    expect(rows.filter(row => row.id === 'market:@user-hooks/user-hooks')).toHaveLength(1)
-    expect(find(rows, 'market:@user-hooks/user-hooks')).toMatchObject({ configuration: 'user-hooks', available: true })
-    expect(rows.filter(row => row.face === 'market' && row.configuration === undefined)).toHaveLength(0)
+    // The configuration suite publishes no market row at all: its hooks stay on
+    // the Hooks face and their grant is derived from the selected hooks.
+    expect(rows.filter(row => row.id === 'market:@user-hooks/user-hooks')).toHaveLength(0)
+    expect(rows.filter(row => row.face === 'market')).toHaveLength(0)
   })
 
   it('keeps rejected user hook declarations disabled without a legacy duplicate', async () => {
     const hooks = suite({ sourceId: '@user-hooks', id: 'user-hooks', skills: [], mcp: undefined, lsp: undefined, enabled: true })
     const declaration = candidate({ suite: hooks, validSurfaces: { skills: false, commands: false, agents: false, mcp: false, lsp: false, hooks: false } })
     const rows = await readExtensionInventory(ports(), candidateMode([declaration], { projectSuites: [hooks] }))
-    expect(rows.filter(row => row.id === 'market:@user-hooks/user-hooks')).toHaveLength(1)
-    expect(find(rows, 'market:@user-hooks/user-hooks')).toMatchObject({ configuration: 'user-hooks', available: false, globalEnabled: false })
+    // A rejected declaration publishes no row of any face, so nothing can grant it.
+    expect(rows.filter(row => row.id === 'market:@user-hooks/user-hooks')).toHaveLength(0)
+    expect(rows.filter(row => row.face === 'hooks' && row.detail.kind === 'hook' && row.detail.sourceId === '@user-hooks')).toHaveLength(0)
   })
   it('lists a project suite only once when both discovery paths supply it', async () => {
     const project = suite({ sourceId: 'native', id: 'agents-native', dimension: 'project', enabled: false })
@@ -203,6 +206,26 @@ describe('validated but globally disabled suite declarations', () => {
     expect(row.description).toBe('translated description')
     // The validated declaration supplies availability and the switch, in place.
     expect(row).toMatchObject({ available: true, globalEnabled: false })
+  })
+
+  it('carries both description texts so the panel can flip between them', async () => {
+    // A translated card: the overview answers with the authored text and the
+    // translation beside it, and the row must keep both — the manager's text
+    // switch renders one or the other without another read.
+    const card = overviewCard({ description: 'Authored text', translatedDescription: '翻译文本' })
+    const rows = await readExtensionInventory(ports({}, { cards: [card] }), candidateMode([candidate()]))
+    expect(find(rows, 'market:demo/v1')).toMatchObject({ description: 'Authored text', translatedDescription: '翻译文本' })
+
+    // An untranslated card carries no second field, so the row falls back to
+    // the authored text instead of rendering an empty translation.
+    const plain = await readExtensionInventory(ports({}, { cards: [overviewCard()] }), candidateMode([candidate()]))
+    expect(find(plain, 'market:demo/v1')).not.toHaveProperty('translatedDescription')
+
+    // A panel entry travels the same way: the authored description stays the
+    // row's own text and the translation rides beside it.
+    const translated = { ...panelEntry('skills', 'alpha', false), description: 'Authored', translatedDescription: '译文' }
+    const panelRows = await readExtensionInventory(ports({ skills: [translated] }))
+    expect(panelRows.find(row => row.face === 'skills')).toMatchObject({ description: 'Authored', translatedDescription: '译文' })
   })
 
   it('reports a suite with no valid surface as unavailable rather than merely off', async () => {

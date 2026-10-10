@@ -7,6 +7,7 @@ import { writeJsonDocument } from '../../../../market-catalog/src/index.js'
 import {
   parseExtensionIds,
   parseExtensionName,
+  stripConfigurationParentIds,
   type ExtensionPreset,
   type ExtensionPresetInput,
   type ExtensionPresetLibrary
@@ -88,9 +89,9 @@ export class ExtensionPresetStore {
     }
   }
 
-  /** Create a named preset at the caller's observed library revision. */
+  /** Create a named preset at the caller's observed library revision; configuration parents never persist. */
   create(workspace: string, expectedRevision: number, input: ExtensionPresetInput): Promise<ExtensionPresetLibrary> {
-    const parsed = { name: parseExtensionName(input.name), enabledIds: parseExtensionIds(input.enabledIds) }
+    const parsed = { name: parseExtensionName(input.name), enabledIds: stripConfigurationParentIds(parseExtensionIds(input.enabledIds)) }
     return this.mutate(workspace, expectedRevision, library => {
       if (library.presets.length >= 256) throw new Error('workspace extension preset limit reached')
       this.assertName(library, parsed.name)
@@ -100,7 +101,7 @@ export class ExtensionPresetStore {
 
   /** Replace one preset and advance its revision; existing session snapshots are not touched. */
   update(workspace: string, expectedRevision: number, id: string, input: ExtensionPresetInput): Promise<ExtensionPresetLibrary> {
-    const parsed = { name: parseExtensionName(input.name), enabledIds: parseExtensionIds(input.enabledIds) }
+    const parsed = { name: parseExtensionName(input.name), enabledIds: stripConfigurationParentIds(parseExtensionIds(input.enabledIds)) }
     return this.mutate(workspace, expectedRevision, library => {
       const preset = this.requirePreset(library, id)
       this.assertName(library, parsed.name, id)

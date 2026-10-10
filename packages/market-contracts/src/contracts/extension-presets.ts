@@ -1,3 +1,5 @@
+import { PROJECT_LAYOUTS } from '../model/layouts.js'
+
 /** Portable extension choices. These records never carry credentials or service configuration. */
 export interface ExtensionPreset {
   id: string
@@ -85,6 +87,37 @@ export function parseExtensionIds(value: unknown): string[] {
   return [...new Set(value as string[])].sort()
 }
 
+/**
+ * Resource ids of suites that are local configuration, never a market offering
+ * (the user hooks root and every project native layout). Their parent id is
+ * derived from child selection at read time, so it must not persist in a preset
+ * or a session selection: a parent id a card cannot render must never be
+ * something a caller can select or a copy can carry.
+ *
+ * The native ids mirror the scanner's naming in market-catalog's native-project
+ * scanner (sanitizeId(dirName + '-native') under sourceId 'native'); the
+ * sanitizer's rules are restated here because contracts imports nothing outside
+ * this package.
+ */
+export const CONFIGURATION_PARENT_IDS: ReadonlySet<string> = new Set([
+  'market:@user-hooks/user-hooks',
+  ...PROJECT_LAYOUTS.map(layout => {
+    const raw = layout.dirName.toLowerCase() + '-native'
+    return (
+      'market:native/' +
+      raw
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '')
+        .replace(/-{2,}/g, '-')
+    )
+  })
+])
+
+/** Drop configuration-parent ids a copy or a persisted preset must never carry. */
+export function stripConfigurationParentIds(ids: readonly string[]): string[] {
+  return ids.filter(id => !CONFIGURATION_PARENT_IDS.has(id))
+}
+
 /** Validate a display name without using it as a filesystem key. */
 export function parseExtensionName(value: unknown): string {
   if (typeof value !== 'string' || value.trim() === '' || value.length > 80 || hasControlCharacters(value)) {
@@ -93,14 +126,19 @@ export function parseExtensionName(value: unknown): string {
   return value.trim()
 }
 
-/** Capture once; later preset edits and newly installed resources do not change this selection. */
+/**
+ * Capture once; later preset edits and newly installed resources do not change
+ * this selection. Configuration parents are stripped here: the selection a
+ * capture publishes is the same data a preset stores and a copy serializes, and
+ * a parent no card renders must never enter it.
+ */
 export function captureExtensionSelection(preset: ExtensionPreset | null, globalEnabledIds: readonly string[]): ExtensionSelection {
   return {
     presetId: preset?.id ?? null,
     presetName: preset?.name ?? null,
     presetRevision: preset?.revision ?? null,
     modified: false,
-    enabledIds: parseExtensionIds(preset?.enabledIds ?? [...globalEnabledIds])
+    enabledIds: stripConfigurationParentIds(parseExtensionIds(preset?.enabledIds ?? [...globalEnabledIds]))
   }
 }
 
@@ -109,9 +147,13 @@ export function selectionAllows(selection: ExtensionSelection | undefined, entry
   return available && (selection === undefined || selection.enabledIds.includes(entryId))
 }
 
-/** Serialize a copyable preset; identifiers, revisions and arbitrary object properties are not exported. */
+/** Serialize a copyable preset; identifiers, revisions, arbitrary object properties and configuration parents are not exported. */
 export function serializeExtensionPresetTransfer(preset: ExtensionPresetInput): string {
-  const text = JSON.stringify({ format: EXTENSION_TRANSFER_FORMAT, version: 1, name: parseExtensionName(preset.name), enabledIds: parseExtensionIds(preset.enabledIds) }, null, 2)
+  const text = JSON.stringify(
+    { format: EXTENSION_TRANSFER_FORMAT, version: 1, name: parseExtensionName(preset.name), enabledIds: stripConfigurationParentIds(parseExtensionIds(preset.enabledIds)) },
+    null,
+    2
+  )
   if (new TextEncoder().encode(text).byteLength > EXTENSION_TRANSFER_MAX_BYTES) throw new Error('extension preset is too large to copy')
   return text
 }
@@ -125,7 +167,7 @@ export function parseExtensionPresetTransfer(text: string): ExtensionPresetInput
   if (record.format !== EXTENSION_TRANSFER_FORMAT || record.version !== 1 || Object.keys(record).some(key => !['format', 'version', 'name', 'enabledIds'].includes(key))) {
     throw new Error('unsupported extension preset transfer')
   }
-  return { name: parseExtensionName(record.name), enabledIds: parseExtensionIds(record.enabledIds) }
+  return { name: parseExtensionName(record.name), enabledIds: stripConfigurationParentIds(parseExtensionIds(record.enabledIds)) }
 }
 /** Resource detail addresses are data identifiers consumed by existing full detail components. */
 export type ExtensionDetail = (
@@ -163,7 +205,10 @@ export interface ExtensionResource {
   /** Local configuration is not a market offering. Resource ids and parent gates remain stable. */
   configuration?: 'project' | 'user-hooks'
   name: string
+  /** The authored description; the text a reader sees when no translation exists. */
   description?: string
+  /** The description translated for the active locale; absent means render `description`. */
+  translatedDescription?: string
   source: string
   version?: string
   counts?: Array<{ label: string; count: number }>
@@ -174,6 +219,12 @@ export interface ExtensionResource {
   globalEnabled?: boolean
   /** Global-only resources remain exposed by an independent host contributor and are not part of a session selection. */
   control?: 'session' | 'global-only'
+  /**
+   * True when the resource follows its owning suite's selection instead of
+   * carrying its own switch. A hook owned by an installed suite reads this, so
+   * the manager lists it without a toggle.
+   */
+  followsSuite?: boolean
   /** A surface that cannot be controlled safely must explain why, not pretend to toggle. */
   unavailableReason?: string
   detail: ExtensionDetail
@@ -212,6 +263,7 @@ export interface ExtensionWindowPayload {
 export const EXTENSION_ROUTES = {
   window: '/api/agent-plugins/extension-presets',
   hooksOverview: '/api/agent-plugins/extension-presets/hooks',
+  hookRun: '/api/agent-plugins/extension-presets/hook-run',
   create: '/api/agent-plugins/extension-presets/create',
   update: '/api/agent-plugins/extension-presets/update',
   delete: '/api/agent-plugins/extension-presets/delete',
@@ -223,4 +275,35 @@ export const EXTENSION_ROUTES = {
 /** The settings workspace's Hooks tab: the configured hook declarations, without any session. */
 export interface ExtensionHooksOverview {
   rows: ExtensionResource[]
+}
+
+/** One declared command hook's identity: the address a dry run names. */
+export interface ExtensionHookRunInput {
+  sourceId: string
+  suiteId: string
+  /** The event the hook was declared under. */
+  event: string
+  /** The declaration's position inside that event; absent for a rejected declaration, which has no admitted hook. */
+  hookIndex?: number
+  /**
+   * Calling session, from the resource address. It widens resolution to that
+   * session's project hooks; the run itself always uses the home directory.
+   */
+  sessionId?: string
+}
+
+/** One dry run's bounded result. The command comes from the scanned declaration, never from the caller. */
+export interface ExtensionHookRunResult {
+  /** Working directory the command ran in. */
+  cwd: string
+  /** Present unless the process died by signal or the run could not start. */
+  exitCode?: number
+  stdout: string
+  stderr: string
+  durationMs: number
+  timedOut: boolean
+  /** Output reached the server's per-stream cap. */
+  truncated: boolean
+  /** Set when no declaration matched, the declaration carries no command, or no shell seam is mounted. */
+  error?: string
 }

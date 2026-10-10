@@ -7,12 +7,15 @@ import { ExtensionPresetStore, ExtensionPresetError } from '../../application/st
 import { loadResourceFilters } from '../../application/state/resource-filters.js'
 import { extensionResourceEnabled } from '../../application/extension-authorization.js'
 import {
+  CONFIGURATION_PARENT_IDS,
   captureExtensionSelection,
   type ExtensionResource,
   type ExtensionSelection,
   type ExtensionPresetInput,
   type ExtensionWindowPayload,
-  type ExtensionHooksOverview
+  type ExtensionHooksOverview,
+  type ExtensionHookRunInput,
+  type ExtensionHookRunResult
 } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import type { ExtensionRouteService } from '../../extension-service.js'
 import { ExtensionSessionState, type ExtensionApplyReceipt } from './extension-session-state.js'
@@ -28,6 +31,8 @@ export interface ExtensionRuntimePorts {
   committed?(agent: Agent): void
   /** The sessionless Hooks overview the settings workspace renders; hook declarations belong to the user, not to a session. */
   hooksOverview?(): Promise<ExtensionHooksOverview>
+  /** Run one declared command hook as a dry run; the composition resolves the declaration and owns the shell. */
+  hookRun?(input: ExtensionHookRunInput): Promise<ExtensionHookRunResult>
 }
 function failure(code: string): Error {
   return Object.assign(new Error(code), { code })
@@ -143,13 +148,21 @@ export class ExtensionRuntime implements ExtensionRouteService {
   private selected(agent: Agent, selection: ExtensionSelection, resourceId: string, suiteId?: string): boolean {
     const resources = this.resources.get(agent) ?? []
     const row = resources.find(resource => resource.id === resourceId)
+    // A configuration parent publishes no row anywhere: the hooks bridge and the
+    // mount filter still address it by its suite id, so the grant is derived from
+    // the children it owns, exactly as extensionResourceEnabled derives it for a
+    // parent row that does exist.
+    if (row === undefined) {
+      if (!CONFIGURATION_PARENT_IDS.has(resourceId)) return false
+      return resources.some(child => child.suiteResourceId === resourceId && extensionResourceEnabled(child, selection, resources))
+    }
     // The caller names the suite with a bare 'source/suite' while the selection
     // holds 'market:source/suite' resource ids, and extensionResourceEnabled
     // already requires the authoritative parent (suiteResourceId) to be selected
     // and available. Comparing the caller's suiteId here could only ever deny a
     // granted call, so the argument is deliberately not consulted.
     void suiteId
-    return row !== undefined && extensionResourceEnabled(row, selection, resources)
+    return extensionResourceEnabled(row, selection, resources)
   }
   /**
    * A catalog change can revoke a global resource at any moment, so every live
@@ -268,6 +281,11 @@ export class ExtensionRuntime implements ExtensionRouteService {
     if (this.ports.hooksOverview === undefined) throw failure('extension-hooks-unavailable')
     return this.ports.hooksOverview()
   }
+  /** One declared hook's dry run: the composition resolves the command, this service only gates availability and forwards. */
+  async hookRun(input: ExtensionHookRunInput): Promise<ExtensionHookRunResult> {
+    if (this.ports.hookRun === undefined) throw failure('extension-hook-run-unavailable')
+    return this.ports.hookRun(input)
+  }
   private agent(sessionId: string): Agent {
     const agent = this.ctx.agents.get(SessionId(sessionId))
     if (!agent) throw failure('extension-session-not-found')
@@ -290,6 +308,10 @@ export class ExtensionRuntime implements ExtensionRouteService {
         // evidence for it; those rows select like any other when no filter ran.
         (legacy === undefined || row.face === 'hooks' || (legacy.toggles[row.face] && !legacy.offEntries[row.face]?.includes(row.id)))
     )
+    // The guard set keeps every available id, the configuration parents
+    // included: the child-keeps-parent check below must still see them. Only
+    // the published selection drops a configuration parent, whose grant is
+    // derived from the selected children at read time.
     const ids = new Set(available.map(row => row.id))
     return captureExtensionSelection(
       null,

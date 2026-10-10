@@ -5,6 +5,8 @@ import type { ExtensionTranslate } from './types.js'
 export interface ExtensionDetailProps {
   resource: ExtensionResource
   t: ExtensionTranslate
+  /** The manager's panel-wide text view, so the dialog renders what the list shows. */
+  showOriginal?: boolean
   onClose: () => void
   checked?: boolean
   disabled?: boolean
