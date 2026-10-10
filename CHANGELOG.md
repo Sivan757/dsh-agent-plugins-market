@@ -9,6 +9,89 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.9.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.9.0...dsh-agent-plugins-market-v0.9.1) (2026-10-10)
+
+
+### Features
+
+* **agents:** land role-aware Team entry and teammate role routing ([d6d6051](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d6d605116d5853343260d7f725a0daca843c7428))
+* **client:** the project resource window on host primitives ([e361362](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e36136215027ad5651f1c663632e4bbf474a620c))
+* **commands:** unique command names and translated menu rows ([db8b339](https://github.com/Sivan757/dsh-agent-plugins-market/commit/db8b339ce6575df454464888f2be8f4e70563234))
+* **detail:** show the route an expert runs on ([4f16536](https://github.com/Sivan757/dsh-agent-plugins-market/commit/4f1653647410478e4599fe8ce5a6155b1bde62bc))
+* **extensions:** freeze session presets and translation behavior ([cbb2f32](https://github.com/Sivan757/dsh-agent-plugins-market/commit/cbb2f32a346d362e017069f8c2afe170da4e8560))
+* **hooks:** dry-run a declaration and read it as a card ([b2ea56f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b2ea56fd2712d06805fc87264043fc4a62411f9c))
+* **market:** show the active-locale segment of bilingual descriptions ([508fd3b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/508fd3b01183e3876c179736fe0ff4d1a12e1160))
+* **market:** translate upstream suite descriptions for the zh locale ([622be58](https://github.com/Sivan757/dsh-agent-plugins-market/commit/622be5847e05cd59e1ee2ec4019f9ff7fa5d48a4))
+* **market:** warm description translations before the first panel read ([066a36c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/066a36caa42139e6905e4e4e4e3e557a393b4983))
+* **resources:** per-workspace resource filters, favorites, and window routes ([503f1e7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/503f1e7d3a4285e655d86e628b8f53786d8a4aac))
+* **surfaces:** per-workspace switches for the six plugin surfaces ([83efdfd](https://github.com/Sivan757/dsh-agent-plugins-market/commit/83efdfdcbb717177ab56f5785ccd4fb04eb611d0))
+* **translation:** publish document translations as complete paragraphs ([1bc10c3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1bc10c383be78e192ae961f7b07c03d372bf8e04))
+* **translation:** translate descriptions and document bodies, never names ([8887d8e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8887d8e5be33439bf6978dfbf688774527830ecd))
+* **translation:** translate every surface's names and descriptions ([afc09b9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/afc09b92f42c82f6906d043339e91fa4a19d9a66))
+* **translation:** translate lazily, keep the cache, and add a reset ([09df844](https://github.com/Sivan757/dsh-agent-plugins-market/commit/09df8443f0273c33f93557def363c455f8ce5cf2))
+
+
+### Bug Fixes
+
+* **agent-roles:** record the role route on the live member ([3dc41b8](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3dc41b8d5b0e4faa8fbee30b182eed8549deff82))
+* **branding:** localize Agent Plugins identity and settings ([978f6a7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/978f6a7470e4b3cc434221d3e9187cdd5d5f4dfa))
+* **branding:** show the component row identity exactly once ([ac8ef37](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ac8ef378d1dd4d529ab6b7194d5d8df57077be3c))
+* **branding:** show the localized brand title on the Installed card ([52e9b97](https://github.com/Sivan757/dsh-agent-plugins-market/commit/52e9b97845b065118aeb2118c2ac7b75fdf1d58d))
+* **busy:** drop the corner fringe and the duplicate read overlay ([d9c3852](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d9c38523572e465bdf9413c1ec2d55a4a95b5dd6))
+* **catalog:** aggregate manifest-free skill sources into one plugin ([9df0e58](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9df0e58a7692a1a261c1d7aff81f74456e8e608f))
+* **copy:** control every tab description to 20-25 characters ([86f4460](https://github.com/Sivan757/dsh-agent-plugins-market/commit/86f4460392696ad854d0e35aaf7223a521816aa8))
+* **detail:** drop the metadata row and hint every clipped line ([e069af9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e069af9284da466adf8f700e7e46caa7ee735350))
+* **detail:** drop the remaining detail subtitles ([eac18b5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/eac18b523d34e22ebb1c26e26ff0b21d5e81bebb))
+* **detail:** drop the repeated subtitle, the command slash, and the boxed view switch ([b0767b8](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b0767b88f5c8e33ee082ebc52346a83d12ba1536))
+* **detail:** drop the suite root path and the capability switches ([8ad94ff](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8ad94ffa7f5d8efd41926a5a61bb762be0831e6b))
+* **detail:** place hover hints below the text after a short pause ([b4f6cdc](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b4f6cdc310f28099614930e3b57d5459d8673ff6))
+* **detail:** show clipped text on hover without the platform delay ([e7a494c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e7a494cf25d3beaacc70935a0aec7efc578fcf99))
+* **extensions:** align resource views and apply changes next turn ([1f4707e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1f4707ea6ed97228fbbd94e17da8bf9736901e55))
+* **extensions:** keep configuration parent ids out of every preset ([ba44274](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ba44274d33ea85467f1e9cdfe5d453d5c8420811))
+* **hooks:** give hook processes the suite path variables ([793c011](https://github.com/Sivan757/dsh-agent-plugins-market/commit/793c01179f6b529d00f9302828c17ce7771ab2ec))
+* **market:** drop the repeated page title and keep the section menu name ([34f26f9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/34f26f95a94beb122497483de023e7151f102c44))
+* **market:** halve the section spacing the panel was carrying ([446cb8e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/446cb8e5e247b59453d4b6a83af03f8b44f26c6a))
+* **market:** keep the selected chip plate hover-only ([58e00af](https://github.com/Sivan757/dsh-agent-plugins-market/commit/58e00affa8e1577518d731dff6f31c5d9c7ea45e))
+* **market:** persist a translation that lands after the plugin unloads ([02a11cb](https://github.com/Sivan757/dsh-agent-plugins-market/commit/02a11cbb0974e1c7078fc8de0de7347b7bf3f37f))
+* **market:** reveal the selected source chip edit controls on hover ([f819c99](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f819c9969b33ff9f755e7ef769843343706eb930))
+* **market:** stop spending reasoning tokens on every translation ([2eebf2d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2eebf2d99ce60bb29df052ec17dec484c359df25))
+* **mcp-form:** drop the OAuth note and the timeout inheritance hints ([103059b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/103059b993876008046c626dbeb45dccc06d9c06))
+* **mcp:** drop the server key row from the detail overview ([6c8a593](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6c8a5938abea2b0da86d104a8c6a11dc76fccc0c))
+* **mcp:** fold names and read references in one pass ([28e2aa0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/28e2aa0e987e2aaacaa0aa08ca975b13942b1891))
+* **panels:** drop the repeated headings and tighten the header band ([111227e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/111227ea3bcb4e45448e27cef0f8485f4e4a2eaf))
+* **resources:** align the resource window with the finalized prototype ([a6ffba5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a6ffba572c439bb5d055264453bc0e9d1ce99819))
+* **resources:** cancel the modal body's dead gap under the title ([066f1ea](https://github.com/Sivan757/dsh-agent-plugins-market/commit/066f1eae24cfe91e02492996016f9c100a6dc9fe))
+* **resources:** compact the window header and move save to the favorites row ([71d9846](https://github.com/Sivan757/dsh-agent-plugins-market/commit/71d9846856361af2b6e5ca7b1246c7b0c5fa0aa7))
+* **resources:** horizontal favorites and explicit favorite following ([78eb344](https://github.com/Sivan757/dsh-agent-plugins-market/commit/78eb34490072428d5d18a8d3125a074fabebf471))
+* **resources:** lay the favorites strip out on one horizontal line ([2bb00f5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2bb00f5801f74d1a139c5faa4762b7dd0d0a8d27))
+* **resources:** live-round entry icon and route gating fixes ([0d49c2e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0d49c2e98bea142b682d7cf81674d7fdb4f13992))
+* **resources:** match the row-layout modifier class to its rule ([5895901](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5895901147782da4fc6dac1742ca6b8cf9e4cf79))
+* **resources:** mirror the global state in the window rows ([13dec5b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/13dec5bb74bc811a57e0aa72bfb7850ce0c7faf8))
+* **resources:** tighten the window header and merge the view toggle ([a32eef3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a32eef3bb21b0a617e8d6ff4ce395fe2eb007eca))
+* **runtime:** close policy and recovery stability gaps ([74d569b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/74d569bedfb8e4b261b449acc0ac02875a314950))
+* **scratch:** close the prototype window tree and format the plan ([cd1d397](https://github.com/Sivan757/dsh-agent-plugins-market/commit/cd1d397f36eed0dc482b0404901aafc1750a2237))
+* **settings-card:** drop the discard button and keep the host action row ([7ff09f6](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7ff09f67f51dc39619c9598ba998d75d7292fcfb))
+* **settings:** order the section between presets and the IM section ([0c2818f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0c2818f2ad159a9b79d77e0611bc9cb7a2a0be57))
+* **settings:** seat the section right below Agent presets ([3b81155](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3b811559b0525a40bcb1821858c5fb154b2a1928))
+* **skills:** refresh composer discovery after preset commits ([4f8d9fa](https://github.com/Sivan757/dsh-agent-plugins-market/commit/4f8d9fac6fdcdb19bd729dfdbd5e8b56f0989bf8))
+* **surfaces:** keep the six surface switches orthogonal ([88529e4](https://github.com/Sivan757/dsh-agent-plugins-market/commit/88529e439e86d18c3e634e7ace827de13f0d0eed))
+* **surfaces:** use a border token the platform defines ([efc2b85](https://github.com/Sivan757/dsh-agent-plugins-market/commit/efc2b85de08b66d563d354759ac397a26eff6b70))
+* **test:** mock the create-form defaults route the dialog now reads ([292ef7d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/292ef7d0ca42f674ccb6ae1f33bce121343aa570))
+* **test:** stub the document read the panel double was missing ([c19f08a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c19f08a2cf8eb725fed338d07fc2ed2abe267366))
+* **ui:** reduce loading friction and clarify resource controls ([2c73012](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2c730126161adaea818c207d45487aba026218a0))
+* **ui:** unify service creation and editing forms ([7a2c9ef](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7a2c9ef4a7495752a31550af1821cdc70f2b6bed))
+* **workspace:** spend the deep-link hash so it cannot reselect a tab ([26583fc](https://github.com/Sivan757/dsh-agent-plugins-market/commit/26583fc6b223be1d0c817f297d9e752541f5508c))
+
+
+### Performance Improvements
+
+* **panels:** bound the panel read path and resolve the locale once ([c9e6e7b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c9e6e7b4dc7d373d8d4183c928b8e4fbdb24720f))
+
+
+### Miscellaneous Chores
+
+* **release:** pin this release to 0.9.1 ([b3793d3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b3793d3b4a84ab3d7c79b3b886da851064781cd6))
+
 ## [0.9.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.8.3...dsh-agent-plugins-market-v0.9.0) (2026-09-29)
 
 
