@@ -14,7 +14,7 @@
  */
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -95,7 +95,9 @@ async function setup() {
     applySelection: async () => {},
     eligible: agent => {
       const cwd = agent.session.header.cwd
-      return typeof cwd === 'string' && cwd.length > 0 && cwd.startsWith('/')
+      // Any absolute cwd, not only a POSIX one: a Windows temp dir does not
+      // start with `/`, and this stub is what makes the runtime ready.
+      return typeof cwd === 'string' && cwd.length > 0 && isAbsolute(cwd)
     }
   })
   cleanups.push(() => runtime.dispose())
@@ -108,9 +110,8 @@ describe('globally disabled capabilities are never a session default', () => {
   it('keeps a globally disabled but valid resource available and out of the default selection', async () => {
     const { runtime, create } = await setup()
     const agent = await create('defaults')
-    // A bounded wait rather than the 1s default: the runtime mounts extensions
-    // and opens file watchers, and a loaded Windows runner needs longer than the
-    // default. The assertion still fails if it never becomes ready.
+    // A bounded wait, generous for a loaded runner, that still fails when the
+    // runtime never becomes ready.
     await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
     const window = await runtime.window(agent.id)
     // The three states the inventory must distinguish.
@@ -124,9 +125,8 @@ describe('globally disabled capabilities are never a session default', () => {
   it('does not grant a globally disabled resource when a session selects no preset', async () => {
     const { runtime, create } = await setup()
     const agent = await create('explicit-none')
-    // A bounded wait rather than the 1s default: the runtime mounts extensions
-    // and opens file watchers, and a loaded Windows runner needs longer than the
-    // default. The assertion still fails if it never becomes ready.
+    // A bounded wait, generous for a loaded runner, that still fails when the
+    // runtime never becomes ready.
     await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
     const before = await runtime.window(agent.id)
     await runtime.select(agent.id, before.state.revision, null)
@@ -138,9 +138,8 @@ describe('globally disabled capabilities are never a session default', () => {
   it('lets a saved preset name the globally disabled resource explicitly', async () => {
     const { runtime, create } = await setup()
     const agent = await create('opt-in')
-    // A bounded wait rather than the 1s default: the runtime mounts extensions
-    // and opens file watchers, and a loaded Windows runner needs longer than the
-    // default. The assertion still fails if it never becomes ready.
+    // A bounded wait, generous for a loaded runner, that still fails when the
+    // runtime never becomes ready.
     await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
     await runtime.create(agent.id, (await runtime.window(agent.id)).library.revision, { name: 'opt-in', enabledIds: [OFF] })
     const preset = (await runtime.window(agent.id)).library.presets.find(row => row.name === 'opt-in')
