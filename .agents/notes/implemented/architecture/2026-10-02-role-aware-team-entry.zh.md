@@ -8,7 +8,7 @@ Team profile 替换了宿主 subagent 控制工具。独立角色子代理不是
 
 ## Decision
 
-Team 部署中以 `spawn_teammate_role` 替代 `subagent_role`，原生 Team 工具保持不变。增强入口调用 `agentTeams.spawnTeammate`。独立命名的 continuation provider 提供全新创建规格，将预留子代理 ID 关联到调用局部的角色快照。被等待的 `agent/created` hook 验证准确父代理及成员身份，再安装作用域 persona 和 `installModelSelection`。不修改父代理 options，不替换宿主方法，不创建第二套名册。
+Team 部署中以 `spawn_teammate_role` 替代 `subagent_role`，原生 Team 工具保持不变。增强入口调用 `agentTeams.spawnTeammate`。独立命名的 continuation provider 提供全新创建规格，将预留子代理 ID 关联到调用局部的角色快照。被等待的 `agent/created` hook 验证准确父代理及成员身份，再安装作用域 persona、成员自身 options 上的角色路由和 `installModelSelection`。不修改父代理 options，不替换宿主方法，不创建第二套名册。
 
 已验证角色快照保存在 `teammate-role-binding` 上下文消息的来源元数据中，通过宿主 inbox 注入，并在首次任务接受前刷盘。来源记录子代理 ID、角色身份、指令及有效路由。恢复通过 `sessionQuery` 观察成员自己拥有的日志；继承的角色绑定不能变成另一个成员的角色。专用外部事件被发布版持久化读取器拒绝，首个 system head 之前追加 user surface 也会破坏重放；inbox 同时保证已知事件封装与正确消息顺序。
 
@@ -35,7 +35,7 @@ Claude Code 2.1.284（`/opt/homebrew/bin/claude`）的已安装 SDK 声明提供
 - 角色身份可复用；Team 成员名称终身唯一，原生成员上限仍有效。后续工作应给已有成员发消息，而不是反复新建。
 - 增强入口始终从全新上下文启动，返回原生 target 与有效路由；无前台／job 通道或 fork 参数。普通成员仍可用原生 spawn_teammate。
 - 编辑卡片只影响新成员，恢复使用创建快照。卸载插件时先停止并排空活跃角色子代理再移除配置。恢复角色成员时须保持插件安装，宿主不会独立重建本插件的角色来源。
-- rc.2 原生名册不能作为路由依据：成员行取活跃 Agent 的模型，成员转为非活跃后回退为 Lead 的模型（`list` 中的 `live?.options.model ?? root.options.model`）。有效模型以增强工具结果和持久化请求头为准；不修改原生展示，因此文档改为引导操作者看工具结果。
+- rc.2 原生名册在成员空闲时不能作为路由依据：成员行取活跃 Agent 的模型，该模型由插件设为角色路由，成员转为非活跃且 Agent 被释放后回退为 Lead 的模型（`list` 中的 `live?.options.model ?? root.options.model`）。有效模型以增强工具结果和持久化请求头为准；不修改原生展示，因此文档改为引导操作者看工具结果而不是 `list_agents`。这次 options 写入与剩余的空闲缺口见[角色路由决策](../bug-fix/2026-10-09-role-route-on-child-options.md)。
 - Agent、Session、Subagent、system-prompt、Team 与 Session-query 包声明为 peer 并配精确开发镜像。Team／query peer 可选，集成测试使用已发布 loop／testkit／persistence／原生 Team 包。其传递原生依赖 koffi 禁止编译，因为测试不使用桌面 I/O。对齐门禁允许未被生产代码导入的包仅作开发依赖，但仍校验精确版本；测试证明从 src 导入而未声明运行依赖会失败，修复操作也不会把测试依赖提升为消费者 peer。
 
 ## Testing

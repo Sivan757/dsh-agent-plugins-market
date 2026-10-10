@@ -493,6 +493,7 @@ describe('role teammates on published Agent Teams', () => {
     const replacement = new TeammateRoleRuntime(ctx)
     cleanups.push(() => replacement.dispose())
     await replacement.restore()
+    expect(ctx.agents.get(memberId)?.options).toMatchObject({ provider: 'mock', model: 'restored-model' })
     const settled = Promise.withResolvers<void>()
     ctx.on('subagent/end', () => settled.resolve())
     // Release into the same activation's second step; only restore() can have composed it.
@@ -561,6 +562,64 @@ describe('role teammates on published Agent Teams', () => {
     const memberRequests = adapter.requests.filter(request => request.sessionId === row!.id)
     expect(memberRequests.at(-1)?.model).toBe('review-model')
     expect(JSON.stringify(memberRequests.at(-1)?.messages.filter(message => message.role === 'system'))).toContain('ROLE_PERSONA literal {{braces}}')
+  })
+
+  it('records the role route on the live member so the host roster reads it', async () => {
+    const { ctx, lead, runtime, adapter } = await setup()
+    adapter.hang = true
+    const spawning = runtime.spawn(
+      lead,
+      { name: 'roster-route', description: 'route', prompt: 'task' },
+      { roleId: 'r', persona: 'ROUTE_PERSONA', route: { provider: 'mock', model: 'route-model' } },
+      new AbortController().signal
+    )
+    await adapter.started.promise
+    await spawning
+    const row = ctx.agentTeams.listMembers(lead).find(member => member.name === 'roster-route')
+    expect(row).toBeDefined()
+    // The host roster reads the live Agent's own options, so the role route is
+    // recorded there as well as in the model selection.
+    expect(row?.model).toBe('route-model')
+    expect(ctx.agents.get(row!.id)?.options).toMatchObject({ provider: 'mock', model: 'route-model' })
+    const released = Promise.withResolvers<void>()
+    const disposed = Promise.withResolvers<void>()
+    ctx.on('subagent/end', () => released.resolve())
+    ctx.on('agent/disposed', ({ agent }) => {
+      if (agent.id === row!.id) disposed.resolve()
+      return undefined
+    })
+    adapter.release()
+    await released.promise
+    await disposed.promise
+    // An idle member is no longer live, so the host falls back to the Lead's
+    // model; the member's own options carry the role route only while resident.
+    expect(ctx.agentTeams.listMembers(lead).find(member => member.name === 'roster-route')?.model).toBe('parent')
+  })
+
+  it('keeps the model selection when the host freezes the member options', async () => {
+    const { ctx, lead, runtime, adapter } = await setup()
+    const done = Promise.withResolvers<void>()
+    ctx.once('subagent/end', () => done.resolve())
+    // The freeze lands before the plugin composes the member, so the route write
+    // must degrade to the model selection instead of failing the creation.
+    ctx.on(
+      'agent/created',
+      ({ agent }) => {
+        if (agent.session.header.parentSession === lead.id) Object.freeze(agent.options)
+        return undefined
+      },
+      { prepend: true }
+    )
+    await runtime.spawn(
+      lead,
+      { name: 'frozen-options', description: 'frozen', prompt: 'task' },
+      { roleId: 'r', persona: 'FROZEN_PERSONA', route: { provider: 'mock', model: 'frozen-model' } },
+      new AbortController().signal
+    )
+    await done.promise
+    const row = ctx.agentTeams.listMembers(lead).find(member => member.name === 'frozen-options')
+    expect(row).toBeDefined()
+    expect(adapter.requests.filter(request => request.sessionId === row!.id)[0]?.model).toBe('frozen-model')
   })
 
   it('introduces the member identity and the readable role name to the created teammate', async () => {

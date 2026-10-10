@@ -62,6 +62,51 @@ function memberIdentity(member: string, role: string): string {
     '</system-reminder>'
   ].join('\n')
 }
+
+/** Route fields a live Agent exposes; the host type marks them readonly while the object stays writable. */
+interface WritableRoute {
+  provider?: string
+  model?: string
+  reasoningEffort?: string
+}
+
+/**
+ * Record the role route on the member's own `AgentOptions`.
+ *
+ * The host Team creation request carries no per-member route, so the child
+ * Agent starts with the Lead's route. Host surfaces read this object rather
+ * than the model selection: the Team roster shows it, the image-input gate
+ * checks it, and the member's own delegation inherits it. A host that freezes
+ * the object is reported and keeps the model selection, which still routes
+ * every request.
+ * @param agent - the member's live Agent.
+ * @param route - the validated route from the creation snapshot.
+ * @param diagnose - diagnostic sink for a host that refuses the write.
+ * @returns the disposer that restores the inherited values.
+ */
+function applyRoleRoute(agent: Agent, route: TeammateRoleSnapshot['route'], diagnose: (message: string) => void): () => void {
+  const options = agent.options as WritableRoute
+  const inherited: WritableRoute = { provider: options.provider, model: options.model, reasoningEffort: options.reasoningEffort }
+  const write = (next: WritableRoute): boolean => {
+    try {
+      options.provider = next.provider
+      options.model = next.model
+      if (next.reasoningEffort === undefined) delete options.reasoningEffort
+      else options.reasoningEffort = next.reasoningEffort
+      return true
+    } catch {
+      return false
+    }
+  }
+  if (!write(route)) {
+    diagnose(`role teammate ${agent.id}: AgentOptions is not writable, so the host reports the inherited route`)
+    return () => {}
+  }
+  return () => {
+    write(inherited)
+  }
+}
+
 /** Creation and replay keep role data out of task text and never mutate the Lead's route. */
 export class TeammateRoleRuntime {
   private readonly teams: TeamService
@@ -192,16 +237,19 @@ export class TeammateRoleRuntime {
     this.stop.signal.throwIfAborted()
     const prompt = agent.ctx.get('systemPrompt') as SystemPrompt
     const offPersona = prompt.section({ name: 'deployment:persona-prefix', order: prompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX'), text: binding.persona, interpolate: false })
+    const offRoute = applyRoleRoute(agent, binding.route, message => this.ctx.logger?.warn(message))
     let offModel: (() => void) | undefined
     try {
       offModel = installModelSelection(agent.ctx, { current: binding.route as ModelSelection, assembled: undefined })
     } catch (error) {
+      offRoute()
       offPersona()
       throw error
     }
     this.compositions.set(agent, () => {
       offModel?.()
       offPersona()
+      offRoute()
     })
   }
 
