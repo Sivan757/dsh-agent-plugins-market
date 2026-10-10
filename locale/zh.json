@@ -1,5 +1,6 @@
 {
   "meta": {
+    "title": "Agent 扩展",
     "description": "管理技能、快捷指令、专家、连接器与语言引擎，扩展 Agent 的能力。"
   }
 }

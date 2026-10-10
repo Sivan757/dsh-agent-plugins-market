@@ -6,17 +6,17 @@ import { en, zh } from '../packages/market-ui/src/locales.js'
 const labels = (language: 'zh' | 'en'): typeof zh | typeof en => (language === 'zh' ? zh : en)
 
 describe('published Agent Plugins branding', () => {
-  it('exports description-only metadata so the row shows one identity', async () => {
+  it('exports the localized brand title so the Installed card reads as the product names it', async () => {
     const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { name: string; files: string[]; icon: string }
     expect(manifest.name).toBe('dsh-agent-plugins-market')
     expect(manifest.files).toContain('locale')
     expect(manifest.files).toContain('assets/dsh-agent-plugins.png')
-    // No localized title: the host falls back to the package name, so the
-    // component row never shows a brand name beside two technical ids.
+    // The host renders meta.title as the card title; the npm name stays on the
+    // package page, so the technical identity keeps exactly one home.
     for (const language of ['zh', 'en'] as const) {
       const resource = import.meta.resolve(`dsh-agent-plugins-market/locale/${language}.json`)
-      const { meta } = JSON.parse(await readFile(fileURLToPath(resource), 'utf8')) as { meta: { title?: string; description: string } }
-      expect(meta.title).toBeUndefined()
+      const { meta } = JSON.parse(await readFile(fileURLToPath(resource), 'utf8')) as { meta: { title: string; description: string } }
+      expect(meta.title).toBe(labels(language).nav)
       expect(meta.description).toBe(labels(language).marketCardDesc)
     }
   })

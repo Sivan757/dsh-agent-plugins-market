@@ -8,7 +8,7 @@ The package needs a user-facing name and icon distinct from its technical npm id
 
 ## Decision
 
-The npm identity stays dsh-agent-plugins-market. The exported locale resources carry meta.description but no meta.title: the host falls back to the package name, so a component row shows the identity exactly once instead of a brand name beside two technical ids. The brand name stays on our own surfaces — the workspace tabs, the settings section label, and the READMEs. package.json points icon to the bundled 256px PNG, a transparent, scaled copy of the supplied artwork below the host's 256 KiB limit. The package files list includes both locale resources and the image.
+The npm identity stays dsh-agent-plugins-market. The brand name stays on our own surfaces — the workspace tabs, the settings section label, and the READMEs. The exported locale resources now also carry meta.title, so the Installed card reads as the product; [the Installed card note](../bug-fix/2026-10-09-installed-card-brand-title.md) owns that reversal, which drops the description-only rule this note originally recorded. package.json points icon to the bundled 256px PNG, a transparent, scaled copy of the supplied artwork below the host's 256 KiB limit. The package files list includes both locale resources and the image.
 
 The existing SettingsForm binding registers at plugins.bundle.config, keyed by the npm package name, rather than plugins.item. Configuration appears inside the installed bundle page. The settings workspace remains accessible under its localized brand name; label thunks and the host locale renderer update it without re-registration. Namespace, persistence keys, save/discard behavior, and technical identifiers remain unchanged.
 
@@ -20,8 +20,8 @@ This partially supersedes the placement described in [settings and card reuse](.
 
 **Keep a standalone plugins.item card.** The published slot contract reserves that list for official settings entries. The keyed bundle slot provides the same form inside the installed package's own page.
 
-**Embed the full-resolution image.** The supplied PNG exceeds the host icon limit. Resizing the same artwork preserves transparency and reduces the asset to 46,744 bytes without changing the design.
+**Embed the full-resolution image.** The supplied PNG exceeds the host icon limit. Resizing the same artwork preserves transparency and keeps the asset below that limit without changing the design.
 
 ## Consequences
 
-No new runtime dependency or settings store is introduced. Metadata remains available when the plugin is disabled because the host reads packaged resources. Tests pin the exported descriptions, the absent titles, image dimensions and size, technical identity, slot ownership, and binding disposal. An isolated DSH profile verified the installed category, image loading, embedded settings, and live Chinese-to-English settings changes.
+No new runtime dependency or settings store is introduced. Metadata remains available when the plugin is disabled because the host reads packaged resources. The card shows the localized title; see [the Installed card note](../bug-fix/2026-10-09-installed-card-brand-title.md) for that reversal and for the duplicate id line it costs on the bundle's own row. Tests pin the exported descriptions, the localized titles, image dimensions and size, technical identity, slot ownership, and binding disposal. An isolated DSH profile verified the installed category, image loading, embedded settings, and live Chinese-to-English settings changes.
