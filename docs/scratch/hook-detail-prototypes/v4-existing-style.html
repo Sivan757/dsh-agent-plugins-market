@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>V4 现有版式 + V3 信息</title><link rel="stylesheet" href="./proto.css">
+<style>
+/* The expert-detail anatomy: one status card, then labelled sections. */
+.summary { display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; border-radius: 12px; background: var(--bg-layer-2); }
+.summary-tags { display: flex; align-items: center; gap: 8px; }
+.summary-tags .name { color: var(--label-2); font-size: 13px; margin-left: 2px; }
+.summary-path { display: flex; align-items: flex-start; gap: 8px; color: var(--label-2); font-family: var(--mono); font-size: 12.5px; line-height: 19px; overflow-wrap: anywhere; }
+.summary-path .dot { margin-top: 6px; background: var(--ok); }
+.section { display: flex; flex-direction: column; gap: 10px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.section-title { color: var(--label-2); font-size: 13px; line-height: 20px; font-weight: 500; }
+.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cell-v { font-size: 13.5px; line-height: 20px; color: var(--label-1); }
+.rowcard { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: 9px; background: var(--bg-layer-2); }
+.rowcard .file { font-family: var(--mono); font-size: 12.5px; color: var(--label-1); overflow-wrap: anywhere; }
+.rowcard .hint { color: var(--label-3); font-size: 12px; flex: none; }
+.chev { color: var(--label-3); }
+</style></head>
+<body>
+<div class="dialog" style="min-height: 760px;">
+  <div class="dialog-head">
+    <div>
+      <div class="dialog-title" style="font-size: 16px;">dsh-workflow</div>
+    </div>
+    <button class="close" aria-label="关闭">✕</button>
+  </div>
+  <div class="body" style="gap: 22px;">
+    <div class="summary">
+      <div class="summary-tags">
+        <span class="tag ok">可运行</span>
+        <span class="tag mono">SessionStart</span>
+        <span class="tag">匹配 *</span>
+        <span class="name">dsh-workflow</span>
+      </div>
+      <div class="summary-path"><span class="dot"></span><span>/Users/sivan/.dsh/agent-plugins/.sources/zealwon-plugins/plugins/dsh-workflow/hooks/session-start.sh</span></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">概览</div>
+      <div class="grid">
+        <div><div class="cell-k">来源</div><div class="cell-v">dsh-workflow</div></div>
+        <div><div class="cell-k">事件</div><div class="cell-v mono">SessionStart</div></div>
+        <div><div class="cell-k">匹配条件</div><div class="cell-v mono">*</div></div>
+        <div><div class="cell-k">超时</div><div class="cell-v">继承 600 秒</div></div>
+        <div><div class="cell-k">声明位置</div><div class="cell-v">第 1 条</div></div>
+        <div><div class="cell-k">类型</div><div class="cell-v">命令</div></div>
+        <div><div class="cell-k">来源套件</div><div class="cell-v">zealwon-plugins</div></div>
+        <div><div class="cell-k">运行目录</div><div class="cell-v">用户根目录</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">命令</div>
+      <div class="rowcard"><span class="file">/Users/sivan/.dsh/agent-plugins/.sources/zealwon-plugins/plugins/dsh-workflow/hooks/session-start.sh</span><span class="chev">›</span></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">运行结果</div>
+        <button class="btn primary">试运行</button>
+      </div>
+      <div class="caption">退出码 0 · 128 毫秒 · 在用户根目录运行，事件数据为合成值</div>
+      <pre class="code">[dsh-workflow] routing table refreshed (7 rules)
+[dsh-workflow] AGENTS.md routing block is current</pre>
+    </div>
+  </div>
+  <div class="foot"><span class="caption">只读声明。编辑 ~/.agents 下的 hooks 文件即可修改。</span><button class="btn">关闭</button></div>
+</div>
+</body></html>

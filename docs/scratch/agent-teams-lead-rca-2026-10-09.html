@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>根因分析：Agent Teams 协调者为何"笨重"</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --line:#2a313c; --line2:#39414d;
+    --fg:#e6edf3; --fg2:#9aa4b2; --fg3:#6e7781;
+    --red:#f85149; --orange:#e3934b; --yellow:#d4a72c; --green:#3fb950; --blue:#58a6ff; --purple:#a371f7; --cyan:#39c5cf;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 96px}
+  h1{font-size:30px;line-height:1.3;margin:0 0 8px}
+  h2{font-size:21px;margin:56px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:30px 0 10px}
+  p{margin:10px 0}
+  .sub{color:var(--fg2);font-size:14px;margin:0 0 26px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:12.5px;color:var(--fg2)}
+  .chip b{color:var(--fg);font-weight:600}
+  code{font-family:var(--mono);font-size:12.5px;background:#22272e;border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:#adbac7}
+  .cite{font-family:var(--mono);font-size:11.5px;color:var(--cyan);white-space:nowrap}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:12px;margin:20px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card .k{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--fg3)}
+  .card .v{font-size:26px;font-weight:700;margin:6px 0 2px;line-height:1.15}
+  .card .d{font-size:12.5px;color:var(--fg2);line-height:1.5}
+  .v.red{color:var(--red)} .v.orange{color:var(--orange)} .v.yellow{color:var(--yellow)} .v.blue{color:var(--blue)} .v.green{color:var(--green)} .v.purple{color:var(--purple)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--fg2);font-weight:600;font-size:12.5px;background:var(--panel2)}
+  tr:hover td{background:#1a2029}
+  .num{text-align:right;font-family:var(--mono);white-space:nowrap}
+  .bars{margin:18px 0}
+  .row{display:grid;grid-template-columns:52px 1fr 96px;gap:10px;align-items:center;margin:5px 0}
+  .row .lbl{font-family:var(--mono);font-size:12px;color:var(--fg2)}
+  .row .val{font-family:var(--mono);font-size:12px;color:var(--fg2);text-align:right}
+  .track{display:flex;height:20px;border-radius:4px;overflow:hidden;background:#1b2027;border:1px solid var(--line)}
+  .seg{height:100%}
+  .s-work{background:#8b3a3a} .s-edit{background:#b0603a} .s-coord{background:#2f6f8f} .s-read{background:#3a4a5c} .s-other{background:#3d3a52}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--fg2);margin:14px 0 4px}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .case{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--red);border-radius:8px;padding:6px 18px 14px;margin:16px 0}
+  .step{position:relative;padding:10px 0 10px 22px;border-left:1px solid var(--line2);margin-left:6px}
+  .step:before{content:"";position:absolute;left:-5px;top:17px;width:9px;height:9px;border-radius:50%;background:var(--fg3)}
+  .step.bad:before{background:var(--red)} .step.good:before{background:var(--green)}
+  .step .t{font-family:var(--mono);font-size:12px;color:var(--fg3)}
+  .step .h{font-weight:600;margin:2px 0 3px}
+  .step .b{color:var(--fg2);font-size:13.5px}
+  .rc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0}
+  .rc h3{margin:0 0 6px;display:flex;align-items:center;gap:9px;font-size:16px}
+  .tag{font-size:11px;font-weight:600;border-radius:5px;padding:2px 7px;border:1px solid}
+  .tag.instr{color:var(--blue);border-color:#1f3a5c;background:#12263a}
+  .tag.struct{color:var(--purple);border-color:#3a2d55;background:#251c3b}
+  .tag.role{color:var(--orange);border-color:#553a1f;background:#3a2a17}
+  .tag.mech{color:var(--cyan);border-color:#1d4b52;background:#103033}
+  .rc .ev{font-size:13.5px;color:var(--fg2);margin:8px 0 0}
+  .rc .ev b{color:var(--fg)}
+  .rec{display:grid;grid-template-columns:26px 1fr 88px;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+  .rec .n{font-family:var(--mono);color:var(--fg3);font-size:14px;padding-top:2px}
+  .rec .eff{font-size:12.5px;color:var(--fg3);text-align:right;font-family:var(--mono)}
+  .rec .hd{font-weight:600;margin-bottom:4px}
+  .rec .bd{font-size:13.5px;color:var(--fg2)}
+  blockquote{margin:14px 0;padding:12px 16px;background:var(--panel2);border-left:3px solid var(--line2);border-radius:6px;color:var(--fg2);font-size:13.5px}
+  blockquote .src{display:block;margin-top:6px;font-size:12px;color:var(--fg3)}
+  .note{background:#1a2030;border:1px solid #2a3550;border-radius:8px;padding:14px 16px;font-size:13.5px;color:var(--fg2);margin:16px 0}
+  ul,ol{margin:10px 0;padding-left:22px} li{margin:5px 0}
+  .foot{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);color:var(--fg3);font-size:12.5px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.two{grid-template-columns:1fr}.row{grid-template-columns:44px 1fr 74px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>根因分析：Agent Teams 的协调者为什么"笨重"</h1>
+<p class="sub">Lead 亲自干活过多、等待时间长、偶发误判 —— 基于本地会话日志的量化归因</p>
+
+<div class="meta">
+  <span class="chip">方法：<b>会话日志阅读（zstd JSONL）</b></span>
+  <span class="chip">主样本：<b>9 轮 / 425 工具调用 / 2310 事件</b></span>
+  <span class="chip">辅样本：<b>19 轮 / 1505 工具调用</b></span>
+  <span class="chip">对照：<b>dsh-agent-teams 机制（源码阅读）</b></span>
+  <span class="chip">未做：<b>行为复现实验</b></span>
+</div>
+
+<h2>一、结论摘要</h2>
+<p>"协调者自己做很多事"不是模型脾气问题，而是四条指令/结构因素叠加的结果：<b>验收职责写成了 Lead 亲自复跑</b>、<b>等待语义自相矛盾</b>、<b>共享工作树没有写者归属</b>、<b>启动门槛是"用户明说"</b>。下面五个数字是主要证据。</p>
+
+<div class="cards">
+  <div class="card"><div class="k">团队轮中 Lead 的直接工作量</div><div class="v red">78%</div><div class="d">第 5–9 轮 164 次调用中，128 次是 bash/编辑/读取类直接工作，仅 36 次是协调动作</div></div>
+  <div class="card"><div class="k">阻塞等待累计</div><div class="v orange">34.6 分钟</div><div class="d">5 次 wait_agent；单次最长打满 900 秒，期间没有任何用户可见输出</div></div>
+  <div class="card"><div class="k">误判中断事故</div><div class="v red">1 起</div><div class="d">把自己成员的在途编辑当成"别人已实现的旧版本"，先中断、后道歉、再恢复</div></div>
+  <div class="card"><div class="k">主任务无人认领</div><div class="v yellow">40 小时</div><div class="d">task-1 创建到执行者出现间隔 40 小时，跨了两轮别的主题（其中一段是用户裁决"先别动文件"）</div></div>
+  <div class="card"><div class="k">重复验收</div><div class="v blue">7 次全量单测</div><div class="d">独立复核者之外，Lead 仍自跑 7 轮 vitest + 自建渲染探针 + e2e 探针</div></div>
+</div>
+
+<div class="note">
+<b>先说清楚边界。</b>本报告的每一条都来自两处可查证据：会话日志的事件序号（<code>seq N</code>）与仓库/宿主源码行号。我没有复现实验，也没有对照组；"感觉笨"是用户的主观判断，报告只负责把它拆成可验证的机制原因。
+</div>
+
+<h2>二、样本与方法</h2>
+<table>
+  <tr><th>编号</th><th>会话</th><th>轮次 / 调用</th><th>委派情况</th><th>为什么选它</th></tr>
+  <tr>
+    <td>A（主）</td>
+    <td><code>session-de9e1188…a90f</code><br><span class="cite">~/.dsh/sessions/--Users-sivan-workspace-dsh-agent-plugins-market--/</span><br><span class="cite">2026-09-24 23:02 → 09-26 19:43</span></td>
+    <td class="num">9 轮<br>425 次</td>
+    <td>4 名成员：<code>desktop-env</code>、<code>ui-rework</code>、<code>cmd-resolve</code>、<code>ui-verify</code></td>
+    <td>唯一一次完整跑过 Agent Teams（建队→派工→复核→汇总→归档），包含一次中断事故</td>
+  </tr>
+  <tr>
+    <td>B（辅）</td>
+    <td><code>session-5e59b92f…2ac7</code><br><span class="cite">~/.dsh/sessions/--Users-sivan--/</span><br><span class="cite">2026-10-01 23:19 → 10-06 00:48</span></td>
+    <td class="num">19 轮<br>1505 次</td>
+    <td>1 名成员，且出现在<b>最后一轮</b></td>
+    <td>反证：用户全程没说过"用 agent teams"时的默认形态</td>
+  </tr>
+</table>
+<p>扫描范围：<code>~/.dsh/sessions/**/session.v4.jsonl.zstd</code> 全部工作区。用事件名 <code>tool/call</code> 里真正出现 <code>spawn_teammate*</code> 做筛选，避免把"系统提示里提到过该工具"的子会话误判为 Lead 会话。</p>
+
+<h2>三、时间线：Lead 在什么时候干了什么</h2>
+
+<div class="bars">
+  <div class="legend">
+    <span><i class="s-work"></i>bash（直接操作）</span>
+    <span><i class="s-edit"></i>文件编辑/写入</span>
+    <span><i class="s-coord"></i>团队协调</span>
+    <span><i class="s-read"></i>读取</span>
+    <span><i class="s-other"></i>其他</span>
+  </div>
+
+  <div class="row"><span class="lbl">T1</span><div class="track"><div class="seg s-work" style="width:64%"></div><div class="seg s-read" style="width:36%"></div></div><span class="val">14 / 0.7m</span></div>
+  <div class="row"><span class="lbl">T2</span><div class="track"><div class="seg s-work" style="width:42%"></div><div class="seg s-edit" style="width:33%"></div><div class="seg s-read" style="width:18%"></div><div class="seg s-other" style="width:7%"></div></div><span class="val">228 / 16.7m</span></div>
+  <div class="row"><span class="lbl">T4</span><div class="track"><div class="seg s-work" style="width:89%"></div><div class="seg s-read" style="width:11%"></div></div><span class="val">19 / 3.7m</span></div>
+  <div class="row"><span class="lbl">T5</span><div class="track"><div class="seg s-coord" style="width:38%"></div><div class="seg s-work" style="width:50%"></div><div class="seg s-read" style="width:6%"></div><div class="seg s-other" style="width:6%"></div></div><span class="val">32 / 15.3m</span></div>
+  <div class="row"><span class="lbl">T6</span><div class="track"><div class="seg s-work" style="width:88%"></div><div class="seg s-other" style="width:12%"></div></div><span class="val">16 / 4.2m</span></div>
+  <div class="row"><span class="lbl">T7</span><div class="track"><div class="seg s-work" style="width:80%"></div><div class="seg s-coord" style="width:10%"></div><div class="seg s-other" style="width:10%"></div></div><span class="val">10 / 4.1m</span></div>
+  <div class="row"><span class="lbl">T8</span><div class="track"><div class="seg s-coord" style="width:48%"></div><div class="seg s-work" style="width:48%"></div><div class="seg s-other" style="width:4%"></div></div><span class="val">21 / 16.6m</span></div>
+  <div class="row"><span class="lbl">T9</span><div class="track"><div class="seg s-work" style="width:49%"></div><div class="seg s-edit" style="width:25%"></div><div class="seg s-coord" style="width:15%"></div><div class="seg s-read" style="width:11%"></div></div><span class="val">85 / 45.6m</span></div>
+</div>
+
+<p><b>读法。</b>T1–T4 是"团队之前"：Lead 独自诊断与实现，T2 单轮 228 次调用、86 次编辑（这本身合理，用户当时没要求建队）。T5 是"使用 agent teams"那一轮：协调占比升到 38%，但重建了任务契约、自己又跑了 16 次 bash 调查。T9 最长（45.6 分钟）：Lead 一边等成员，一边做了 21 次文件编辑（文档/笔记）＋7 次全量单测＋11 次 git status＋4 个自建 e2e 探针。</p>
+
+<h3>等待都发生在哪</h3>
+<table>
+  <tr><th>#</th><th>轮次</th><th>调用</th><th class="num">阻塞时长</th><th>当时状态</th></tr>
+  <tr><td>1</td><td>T5</td><td><code>wait_agent</code> <span class="cite">seq1613</span></td><td class="num">384 s</td><td>等 <code>desktop-env</code> 的 PATH 调查</td></tr>
+  <tr><td>2</td><td>T9</td><td><code>wait_agent</code> <span class="cite">seq1955</span></td><td class="num">140 s</td><td>已 spawn <code>ui-verify</code>，自己同时在跑探针</td></tr>
+  <tr><td>3</td><td>T9</td><td><code>wait_agent</code> <span class="cite">seq2158</span></td><td class="num">900 s</td><td>打满调用上限；等 <code>cmd-resolve</code>，期间无输出</td></tr>
+  <tr><td>4</td><td>T9</td><td><code>wait_agent</code> <span class="cite">seq2171</span></td><td class="num">647 s</td><td>同样的等待再来一次</td></tr>
+  <tr><td>5</td><td>T9</td><td><code>wait_agent</code> <span class="cite">seq2197</span></td><td class="num">6 s</td><td>成员刚好已交付</td></tr>
+  <tr><td colspan="3"><b>合计</b></td><td class="num"><b>2077 s ≈ 34.6 min</b></td><td>T9 内 1693 s（28.2 min），占该轮 45.6 min 的 62%</td></tr>
+</table>
+<p>用户记忆里写的是"不要用 wait 命令等成员，harness 会通知"；而 Lead 实际收到成员报告的方式，恰恰就是 report 作为新 <code>user/message</code> 送达（<span class="cite">seq1620、seq1831、seq1903、seq2204</span>）。也就是说：这些阻塞等待对拿到结果没有必要性，纯属空转。</p>
+
+<h2>四、事故复盘：一次误判中断</h2>
+<div class="case">
+  <div class="step good"><div class="t">T8 · seq1800 → seq1817</div><div class="h">建 task-5、派 <code>ui-rework</code> 做 task-1</div><div class="b">派工提示里写清了契约、边界与验收（1875 字符），并要求照 11 条决定实现。</div></div>
+  <div class="step bad"><div class="t">T8 · seq1840</div><div class="h">"等一下——当前 HEAD 里似乎已经有人实现了这套改版"</div><div class="b">Lead 看到工作树里出现 <code>StatusBand</code>、<code>readableName</code>、底栏瘦身，判断是 09-25 的旧提交遗留。</div></div>
+  <div class="step bad"><div class="t">T8 · seq1843 → seq1848</div><div class="h">止损：读代码 → <code>interrupt_agent(ui-rework)</code></div><div class="b">成员被中途叫停（日志：<span class="cite">"was stopped before it finished"</span>，seq1856），当时它正在改测试。</div></div>
+  <div class="step good"><div class="t">T8 · seq1858 → seq1872</div><div class="h">核对后发现：那些改动就是该成员自己刚写的</div><div class="b">Lead 发消息道歉："我把你已经在做的改动……当成了 HEAD 里已有别人实现"（<span class="cite">seq1872</span>），成员继续干完并完成 task-1。</div></div>
+</div>
+<p><b>代价：</b>一次中断 + 一轮往返 + 成员上下文扰动（约 2–3 分钟墙上时间，外加"被叫停"造成的返工风险）。<b>诱因有两层：</b></p>
+<ul>
+  <li><b>近因：</b>Lead 用 <code>git status</code> 当唯一的进度监控手段，而工作树不记录"这行是谁写的"。</li>
+  <li><b>远因（放大了警惕）：</b>同一会话更早的 T5 里，确实存在<b>另一个会话的并发重构</b>——Lead 当时为此专门问过用户（<span class="cite">seq1555</span>："工作树里另有一个进行中的大重构：git status 共 43 项……我要改的正是这批文件"）。被咬过一次之后，"树里有改动 = 可能是别人的"成了默认假设，于是在 T8 误伤了自家人。</li>
+</ul>
+<p>用户自己的项目记忆里已经记录过这一类问题（<span class="cite">~/.dsh/memory/workspaces/…/concurrent-writer-in-tree.md</span>：并发写者同树提交需要 scoped stash + 哈希核验）——说明"同树多写者"是反复出现的基础设施级痛点，而不是这一次的偶发。</p>
+
+<h2>五、根因树</h2>
+
+<div class="rc">
+  <h3><span class="tag instr">指令</span> R1 · "验收"被定义成 Lead 亲自复跑</h3>
+  <p class="ev">团队规范里写着：<b>"collect required member results, verify their evidence and the combined changes"</b> —— 追认证据与环境改造都由 Lead 兜底。模型据此把"验收"理解成"我再跑一遍全套门禁"，于是 T9 出现：独立复核者（<code>ui-verify</code>）之外，Lead 自己再跑 7 次 vitest、自建 2 个渲染探针、自建 e2e 探针、还重新构建。</p>
+  <p class="ev">证据：<span class="cite">packages/market-runtime/src/runtime/agents/team-coordination.ts:13</span>；<span class="cite">会话 A seq1926/1928/1933/2209/2266/2286/2293</span>（vitest）；<span class="cite">seq1933、seq2227</span>（自建探针）。</p>
+</div>
+
+<div class="rc">
+  <h3><span class="tag instr">指令</span> R2 · 等待语义自相矛盾，模型选了阻塞</h3>
+  <p class="ev">同一个上下文里同时存在三种说法：</p>
+  <ul>
+    <li>宿主系统提示：<b>"The Lead must wait for required teammates before giving the final answer."</b></li>
+    <li>团队规范：<b>"Do not poll status or use wait_agent merely to collect a completion… give a progress update or return control"</b>。</li>
+    <li>用户记忆：<b>"Do not wait for teammates to return via wait commands; the harness will notify you when they finish."</b></li>
+  </ul>
+  <p class="ev">"必须等"是硬约束，"不要等"是软建议，模型自然倒向阻塞执行：5 次 <code>wait_agent</code>、34.6 分钟空转、单次打满 900 秒。而结果其实会作为新消息自动送达，等待在功能上是多余的。这是"观感笨"的最主要来源：用户看到的是一个 45 分钟不说话的回合。</p>
+  <p class="ev">证据：会话 A 系统提示（<span class="cite">seq1405</span>，系统提示全文）；<span class="cite">team-coordination.ts:13</span>；<span class="cite">team-coordination.ts:20</span>；等待时长来自 <code>tool/call</code> 到同 step <code>step/end</code> 的差值。</p>
+</div>
+
+<div class="rc">
+  <h3><span class="tag struct">结构</span> R3 · 共享工作树没有写者归属</h3>
+  <p class="ev">宿主提示明确：<b>"Team Lead and all teammates share the same working directory and filesystem. Edits are immediately visible to every member."</b>，同时 <b>"Write-scope overlap is advisory, not a lock."</b>。于是 Lead 要判断"这堆改动是谁的、有没有冲突"，手上只有 <code>git status</code> / <code>git diff</code>——没有作者信息。</p>
+  <p class="ev">T9 里 Lead 做了 11 次 git status/diff 来"看成员进展"（<span class="cite">seq1963/1979/2079/2146/2166/2180/2190/2192/2288</span>…），T8 的事故也发生在同样的自查动作之后。规范虽然要求"record expected write scopes on shared tasks"，但两侧都没有强制执行；写者身份在日志里是可得的（宿主有 journal / workspace-changes 事件），却没有回灌给 Lead 的判断。</p>
+  <p class="ev">证据：会话 A 系统提示 <span class="cite">seq1405</span>；事故 <span class="cite">seq1840–1872</span>；<span class="cite">concurrent-writer-in-tree.md</span>（同类问题的用户侧记录）。</p>
+</div>
+
+<div class="rc">
+  <h3><span class="tag role">角色</span> R4 · Lead = 最强工程师 + 协调者，且只有"明说"才建队</h3>
+  <p class="ev">两条叠加：(a) 规范把"用户意图澄清、范围与取舍、集成与最终验收"全给了 Lead，同时允许 <b>"While members work, continue useful independent work"</b>——于是 Lead 永远有活可干；(b) 宿主提示规定 <b>"create teammates only when the user explicitly asks to use Agent Teams or teammates"</b>——凡是没点名建队的轮次，Lead 一律亲自做。</p>
+  <p class="ev">辅样本 B 把这条推到极端：19 轮、累计回合时长约 7.3 小时（墙上跨 4 天）、1505 次工具调用，全程只有 1 次委派，而且发生在<b>最后一轮</b>。用户在该会话里从未说过"用 agent teams"，所以系统按规则一直让 Lead 单干。这解释了用户的直观感受："协调者总是自己做很多事"——因为在大多数轮次里，它压根没被允许进入协调模式。</p>
+  <p class="ev">证据：<span class="cite">team-coordination.ts:8–9、12</span>；会话 A 系统提示 <span class="cite">seq1405</span>；会话 B 轮次统计与 <code>spawn_teammate</code> 出现在 turn 19。</p>
+</div>
+
+<div class="rc">
+  <h3><span class="tag mech">机制</span> R5 · 没有自动派发，任务靠 Lead 记得去 spawn</h3>
+  <p class="ev">宿主这套（experimental-agent-team）的模型是：Lead 建任务 → <b>Lead 自己 spawn 成员并指派</b>。没有"任务就绪 → 唤醒空闲成员"的调度环。后果：</p>
+  <ul>
+    <li>task-1（界面改版，用户当轮的第一诉求）在 T5 创建，执行者 <code>ui-rework</code> 直到 T8 才被 spawn；T9 才开始。其中一段直接原因是用户裁决"重构还在跑，先只做只读部分"（<span class="cite">seq1555 的用户回答</span>）——但也暴露了机制没有"条件满足后自动接管"的能力。</li>
+    <li>task-3（对 task-1 的独立复核）在 T5 就创建了，复核者 <code>ui-verify</code> 到 T9 才 spawn（<span class="cite">seq1916</span>），间隔 40.3 小时：任务存在 ≠ 有人做。</li>
+    <li>T5 同时把 4 个任务建好，却只 spawn 了 1 个成员；剩下 3 个任务在后续轮次里靠 Lead"想起来"再派。</li>
+  </ul>
+  <p class="ev">证据：<span class="cite">team/task seq1530/1536/1539</span>（T5 建任务）；<span class="cite">team/member seq1547/1818/1886/1917</span>（成员逐个出现）；对照 <code>dsh-agent-teams</code> 的调度器 <code>src/scheduler.ts:341–426</code>（idle 边沿自动认领）。</p>
+</div>
+
+<h2>六、对照：dsh-agent-teams 里哪些机制正好治这些根因</h2>
+<p>同一宿主上的第三方插件 <code>@nanmicoder/dsh-agent-teams</code>（本次已做源码阅读，非实测）走的是另一条路：它自带调度器与状态文件，而不是依赖 Lead 手动派工。逐条对位：</p>
+<table>
+  <tr><th>根因</th><th>它的对应机制</th><th>出处</th></tr>
+  <tr><td>R5 无自动派发</td><td>事件驱动调度器：成员每次 idle 边沿原子认领一个 ready 任务并唤醒它；任务图一变就再试</td><td><code>src/scheduler.ts:1–13, 341–426</code></td></tr>
+  <tr><td>R4 计划只存在 Lead 脑子里</td><td>staged 计划 + 人工审批：花名册与 DAG 先落盘给人看，Approve &amp; Run 才建成员；规划轮不派工</td><td><code>src/tools.ts:707–889, 587–624</code></td></tr>
+  <tr><td>R1/R3 迟到写入与归属混乱</td><td>attempt_id 代际令牌：每次执行签发 UUID，转派先吊销旧代再等旧成员静默，迟到写入三层拦截</td><td><code>src/tools.ts:1391–1473</code>、<code>src/mailbox.ts:10–18</code></td></tr>
+  <tr><td>R1 分工模糊</td><td>成员固定只拿 4 个团队工具 + 固定成员指令；队长工具运行时被 restrict，身份不可自行改写</td><td><code>src/capabilities.ts:91–106</code>、<code>src/tool-names.ts:10–14</code></td></tr>
+  <tr><td>观感：等待期无输出</td><td>磁盘即真相 + Web 活动面板（1 秒轮询、任务 DAG、成员实时状态）；等待期间用户有东西看</td><td><code>src/snapshot.ts:115–202</code>、<code>src/client/activity-monitor.ts:178–238</code></td></tr>
+</table>
+<p class="sub" style="margin-top:10px">注：对位不代表直接可移植。它是自建一套并行团队系统（14 个 <code>agent_teams_*</code> 工具、自己的磁盘状态），与宿主原生 Agent Teams 不共用服务，两者同时装会形成竞争——这一点我在上一轮的插件研究里已经指出。</p>
+
+<h2>七、建议（按可落地性排序）</h2>
+
+<div class="rec"><div class="n">1</div><div>
+  <div class="hd">重写我们自己那份 Lead 规范里"验收"的定义</div>
+  <div class="bd">这是<b>本仓库自己的代码</b>（<code>team-coordination.ts:13</code>），改它就是改行为。把"verify their evidence and the combined changes"改成："验收 = 独立复核者通过 + Lead 抽查关键断言；<b>不要复跑全量门禁</b>"。同时把"等待"默认值写成"报告进度后交还控制权"，仅在必须串行时使用 <code>wait_agent</code>。</div>
+  <div class="eff">约半天</div>
+</div></div>
+
+<div class="rec"><div class="n">2</div><div>
+  <div class="hd">给 Lead 一份"读工作树"的正确姿势</div>
+  <div class="bd">规范里加一条硬规则：判断"工作树改动是谁的"之前，必须先读共享任务的 write scope 与成员会话；<b>不得仅凭 <code>git status</code> 推断"已有人实现"</b>，更不得据此中断成员。这条直接消灭 T8 那类事故。可先在 market 插件里以提示词落实，再考虑让宿主把 workspace-changes 事件带上写入者会话 id。</div>
+  <div class="eff">约 1 天（提示词部分半天）</div>
+</div></div>
+
+<div class="rec"><div class="n">3</div><div>
+  <div class="hd">补一个"就绪但无人"的提醒环</div>
+  <div class="bd">market 插件在会话装配或状态事件上增加检查：存在 ready 且无 owner 的任务、又有空闲成员时，提示 Lead 立刻派工。这是 R5 的低成本缓解，不必自建调度器。先确认宿主 <code>@deepseek-ai/dsh-experimental-agent-team</code> 是否已暴露相应事件，避免重复造。</div>
+  <div class="eff">约 1 天</div>
+</div></div>
+
+<div class="rec"><div class="n">4</div><div>
+  <div class="hd">把"仅用户明说才建队"放宽为任务画像触发</div>
+  <div class="bd">这是宿主指令层的事，属于上游提案：当任务呈现"多文件 / 长跨度 / 可并行研究"等特征且用户已授权 Agent Teams 时，允许 Lead 提议建队（而不是必须等关键字）。不改宿主的前提下，只能靠用户侧约定（记忆/AGENTS）先补。</div>
+  <div class="eff">提案约半天；落地依赖宿主</div>
+</div></div>
+
+<div class="rec"><div class="n">5</div><div>
+  <div class="hd">长等待期间强制产出中间进度</div>
+  <div class="bd">在规范里要求：等待超过一次工具往返仍无结果时，先输出一行进度（已派谁、在等什么、下一步），再考虑是否继续等待。这条单独就能大幅改善"笨"的观感。</div>
+  <div class="eff">约 2 小时</div>
+</div></div>
+
+<h2>八、没做的事 / 局限</h2>
+<ul>
+  <li>样本只有 2 个会话（真正跑过团队的只有 1 个），<b>不构成统计结论</b>，只能作为机制证据。</li>
+  <li>没有对照组（例如同样任务、改动后的规范跑一遍），因此建议的效果未经实测。</li>
+  <li>日志不含模型思考延迟、token 成本与用户侧感知时间；等待时长按 <code>tool/call</code> → <code>step/end</code> 估算。</li>
+  <li>会话 B 的用户消息多为排障/运维请求，天然更像"单线程调试"，用它论证 R4 时已扣除这层偏差，只主张"未点名建队 → 全程单干"这一事实。</li>
+  <li>对 <code>dsh-agent-teams</code> 的机制描述全部来自源码阅读，未运行验证。</li>
+</ul>
+
+<div class="foot">
+  生成时间：2026-10-09 · 分析者：本会话 Lead · 数据源：<code>~/.dsh/sessions/**/session.v4.jsonl.zstd</code>（只读）<br>
+  证据文件：会话 A <code>session-de9e1188-0a76-4cdd-9c3c-b0a13308a90f</code>；会话 B <code>session-5e59b92f-93e0-40e1-a6e8-42a9f2292ac7</code>；规范源码 <code>packages/market-runtime/src/runtime/agents/team-coordination.ts</code>；对照实现 <code>/tmp/dsh-agent-teams/src/</code>
+</div>
+
+</div>
+</body>
+</html>

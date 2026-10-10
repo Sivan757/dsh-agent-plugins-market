@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>V3 分区卡片</title><link rel="stylesheet" href="./proto.css"></head>
+<body>
+<div class="dialog">
+  <div class="dialog-head">
+    <div>
+      <div class="dialog-title">dsh-workflow</div>
+      <div class="dialog-sub">来自用户本地 Agent 配置的命令钩子，只读</div>
+    </div>
+    <button class="close" aria-label="关闭">✕</button>
+  </div>
+  <div class="body">
+    <div class="row">
+      <span class="tag mono">SessionStart</span>
+      <span class="tag ok"><span class="dot"></span>可运行</span>
+      <span class="tag">声明位置 0</span>
+    </div>
+    <div class="grid">
+      <div><div class="cell-k">来源</div><div class="cell-v">dsh-workflow</div></div>
+      <div><div class="cell-k">匹配条件</div><div class="cell-v mono">*</div></div>
+      <div><div class="cell-k">超时</div><div class="cell-v">继承 600 秒</div></div>
+      <div><div class="cell-k">事件</div><div class="cell-v mono">SessionStart</div></div>
+    </div>
+    <div class="sep"></div>
+    <div>
+      <div class="section-label">命令</div>
+      <pre class="code" style="margin-top: 8px;">/Users/sivan/workspace/zealwon-plugins/plugins/dsh-workflow/hooks/session-start.sh</pre>
+    </div>
+    <div class="sep"></div>
+    <div>
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <div class="section-label">运行结果</div>
+          <div class="caption" style="margin-top: 4px;">还没有运行过。试运行会在用户根目录执行一次上面的命令。</div>
+        </div>
+        <button class="btn primary">试运行</button>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span class="caption">只读声明。编辑 ~/.agents 下的 hooks 文件即可修改。</span><button class="btn">关闭</button></div>
+</div>
+</body></html>
