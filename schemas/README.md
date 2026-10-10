@@ -29,7 +29,7 @@ schemas/
 
 ## Dialect index
 
-This table records **upstream client conventions**, including their own fallback orders; it does not define this plugin's discovery priority. DSH uses one shared layout order for suite manifests and Marketplace catalogs, shown in the [README priority table](../README.md#layout-detection-precedence) ([中文](../README.zh.md#布局识别优先级)). Catalogs without a dedicated layout use root `marketplace.json` as the final fallback.
+This table records **upstream client conventions**, including their own fallback orders; it does not define this plugin's discovery priority. DSH uses one shared layout order for suite manifests and Marketplace catalogs, shown on the [compatible plugins page](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/#shared-layout-precedence). Catalogs without a dedicated layout use root `marketplace.json` as the final fallback.
 
 | Dialect | Upstream plugin manifest conventions | Upstream marketplace conventions | Upstream schema |
 | --- | --- | --- | --- |

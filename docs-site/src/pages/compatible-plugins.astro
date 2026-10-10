@@ -19,10 +19,41 @@ const markets = [
 ];
 const skills = [
   'Supported skills enter the host skill catalog; root placeholders are substituted and invocation settings are respected.',
-  'Valid MCP declarations use the built-in bridge by default; optional host-client compatibility mode is available.',
+  'A repository with no manifest still works when skill discovery finds at least one skill: a flat <code>skills/&lt;name&gt;/SKILL.md</code> collection becomes one suite. Qualification follows discovery, not directory shape, so an unrelated repository is not scanned as a suite.',
+  'Valid MCP declarations use the built-in bridge by default; optional host-client compatibility mode is available. The bridge enables OAuth 2.1 by default and activates it only on a server\'s <code>401</code> challenge, so a suite needs no OAuth declaration.',
   'hooks/hooks.json bridges to DSH interception points: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart, SubagentStop.',
   'Commands use the host slash registry. Roles enter a dynamic subagent catalog and run through subagent_run with their saved provider, model, reasoning effort and tool restrictions; this requires host agents, tools, LLM and subagents.',
   'LSP declarations mount through the LSP packages the plugin installs itself; only the language-server executable has to be on PATH.',
+];
+const surfaces = [
+  ['Skills', 'Host skill catalog and user-invocable slash entries. Supported root placeholders are expanded.'],
+  ['Commands', 'Slash commands through the host command service.'],
+  ['Agents', 'Dynamic role catalog. Use subagent_role without Agent Teams and spawn_teammate_role with it. Team mode also requires the session query and system-prompt services.'],
+  ['MCP', 'Built-in bridge by default, with stdio, Streamable HTTP with OAuth and legacy SSE. The optional host-client compatibility mode enforces the tool-call timeout but not tool filters or a startup timeout.'],
+  ['Hooks', 'The command-hook subset mapped by dsh-hooks-claude-code.'],
+  ['LSP', 'Self-provisioned. Installing the plugin is the whole setup, and lsp mounts only while a language server is wanted. The server executable must be on PATH.'],
+];
+const matrix = [
+  ['Claude Code', 'Yes', 'Yes', 'Yes', 'Yes', 'Partial', 'Yes'],
+  ['Codex', 'Yes', 'Yes', 'Yes', 'Partial', 'Partial', 'Yes'],
+  ['Cursor', 'Yes', 'Partial', 'Partial', 'Partial', 'No', 'Yes'],
+  ['Kimi Code', 'Yes', 'Yes', 'Yes', 'Yes', 'Partial', 'Partial'],
+  ['ZCode', 'Yes', 'Yes', 'Yes', 'Yes', 'Partial', 'Partial'],
+  ['Qoder CLI', 'Yes', 'Yes', 'Yes', 'Partial', 'Partial', 'Partial'],
+  ['GitHub Copilot CLI', 'Yes', 'Yes', 'Yes', 'Yes', 'Partial', 'Yes'],
+  ['Universal compatibility layout .plugin/', 'Yes', 'Yes', 'Yes', 'Yes', 'Partial', 'Yes'],
+  ['agent-plugins', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes'],
+  ['Manifest-less skill collection', 'Yes', 'Yes', 'Yes', 'Yes', 'Partial', 'Partial'],
+  ['Project-native directories', 'Yes', 'Yes', 'Yes', 'Yes', 'Partial', 'No'],
+];
+const matrixNotes = [
+  'Skills are read from the paths a manifest declares and from the conventional skills/ directory, including flat <code>&lt;name&gt;.md</code> files. A path that carries its own <code>SKILL.md</code> is one skill: the documents beside it belong to that skill and are not read as skills. A conformant agent-plugins package is the exception: skills come from one level of <code>skills/</code> subdirectories, exactly as its specification requires.',
+  'Agents and commands are read as Markdown (<code>agents/*.md</code>, <code>commands/*.md</code>). Cursor plugin commands accept <code>.md</code>, <code>.mdc</code>, <code>.markdown</code> and <code>.txt</code>. Codex and Kimi native agent and command formats (TOML, YAML) have no adapter yet.',
+  "MCP covers declared files, inline tables and arrays. Cursor's schema-less <code>mcp.json</code> and the strict agent-plugins <code>mcp.json</code> both work; Kimi Code is inline-only. Codex app connectors stay outside this adapter.",
+  'Hooks map the command-style events DSH has an equivalent for. Events without one, for example <code>afterFileEdit</code>, are reported instead of simulated. Cursor native events are not read.',
+  'LSP accepts declared files, arrays and inline tables plus the conventional <code>.lsp.json</code> and <code>lsp.json</code> locations. Declarations inside a project are reported but not mounted, because the host LSP registry is global. Some layouts only expose LSP directories for preview.',
+  'agent-plugins suites read the portable core (<code>skills/</code>, <code>mcp.json</code>) per the specification, plus the <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/com.deepseek.harness/spec.md">com.deepseek.harness</a> extension namespace for commands, agents, hooks, LSP and per-server MCP policy. Root-level <code>commands/</code>, <code>agents/</code>, <code>hooks/</code> and <code>.mcp.json</code> files belong to other layouts and are reported as unread for this dialect. Inline manifest component keys are reported and ignored per section 5.2. Both recognized releases (1.0.0 and 1.1.0) validate against their own vendored schemas.',
+  'Universal is a compatibility-layout label used by this plugin. The <a href="https://docs.openhands.dev/sdk/guides/plugins">OpenHands SDK</a> documents the same <code>.plugin/plugin.json</code> location and a <a href="https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json">Vercel repository</a> uses it, but no cross-vendor specification exists.',
 ];
 ---
 <Base
@@ -50,7 +81,16 @@ const skills = [
     {skills.map((s) => <li set:html={s.replace(/CLAUDE_PLUGIN_ROOT/, '<code>${CLAUDE_PLUGIN_ROOT}</code>').replace(/mcp\.json/, '<code>mcp.json</code>').replace(/hooks\/hooks\.json/, '<code>hooks/hooks.json</code>').replace(/commands\/\*\.md/, '<code>commands/*.md</code>').replace(/agents\/\*\.md/, '<code>agents/*.md</code>')} />)}
   </ul>
 
-  <h2>Shared layout precedence</h2>
+  <h2>Runtime surfaces</h2>
+  <p>Supported runtime surfaces describe what DSH can use from a suite.</p>
+  <table>
+    <tr><th>Surface</th><th>Runtime support and conditions</th></tr>
+    {surfaces.map((s) => (
+      <tr><td>{s[0]}</td><td>{s[1]}</td></tr>
+    ))}
+  </table>
+
+  <h2 id="shared-layout-precedence">Shared layout precedence</h2>
   <p>Suite manifests and Marketplace catalogs follow the same layout order. Catalog lookup skips layouts without a dedicated catalog; aliases follow the order shown.</p>
   <table>
     <tr><th>Layout (highest priority first)</th><th>Suite manifest</th><th>Marketplace catalog</th></tr>
@@ -66,13 +106,43 @@ const skills = [
     <tr><td>Fallback: skill collection / shared catalog</td><td>Discover skills when no recognized manifest exists</td><td>Root <code>marketplace.json</code></td></tr>
   </table>
   <p>
-    Manifest selection uses the first existing file and fails closed if it is invalid. Root <code>plugin.json</code> uses strict v1 validation only with a recognized agent-plugins.org schema; otherwise it is Claude-compatible.
-    Catalog scanning selects the first catalog that produces suites; invalid or empty catalogs allow later candidates. Root <code>marketplace.json</code> is a shared fallback, not a v1 or skill-collection catalog, and does not inherit root manifest priority.
+    Manifest selection uses the first existing file and fails closed if it is invalid. A manifest that cannot be read or validated is reported and the next one is tried, down to the fallback. If every candidate fails, the suite is diagnosed instead of loading half of it.
+    Root <code>plugin.json</code> uses strict v1 validation only with a recognized agent-plugins.org schema; otherwise it is Claude-compatible. For such a root manifest, missing component declarations can come from <code>.claude-plugin/plugin.json</code>: explicit root declarations win, and marketplace entry declarations fill the remaining gaps.
+    Catalog scanning selects the first catalog that produces suites. Invalid or empty catalogs allow later candidates. Root <code>marketplace.json</code> is a shared fallback, not a v1 or skill-collection catalog, and does not inherit root manifest priority.
+  </p>
+  <p>
+    The order is defined in <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/packages/market-contracts/src/model/layouts.ts"><code>packages/market-contracts/src/model/layouts.ts</code></a>. Selection and root-manifest fallback are implemented in <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/packages/market-catalog/src/scanning/manifests.ts"><code>packages/market-catalog/src/scanning/manifests.ts</code></a>.
   </p>
 
+  <h2>Layout support matrix</h2>
   <p>
-    All ten active schema layouts have offline README-repository tests, including isolated variants that suppress competing manifests at nested suite roots. Cursor, Kimi, Qoder, Copilot, Universal and root marketplace files are recognized alongside Claude Code and Codex catalogs. The <a
-      href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/reference/compat-report.md">compatibility report</a
-    > exercises every schema against one real repository and records the commit, the schema verdict and what the scanner did with it.
+    The table says per layout whether this plugin reads a given surface at all. <strong>Yes</strong> means the layout's own files are read and injected. <strong>Partial</strong> means only part of the formats is understood, or the upstream layout has no such definition; the notes below say which.
+  </p>
+  <table>
+    <tr><th>Layout</th><th>Skills</th><th>Agents</th><th>Commands</th><th>MCP</th><th>Hooks</th><th>LSP</th></tr>
+    {matrix.map((row) => (
+      <tr>{row.map((cell) => <td>{cell}</td>)}</tr>
+    ))}
+  </table>
+  <ul>
+    {matrixNotes.map((n) => <li set:html={n} />)}
+  </ul>
+  <p>
+    Sources such as <a href="https://github.com/jeecgboot/skills">jeecgboot/skills</a> group undeclared, skill-only directories into one plugin card. Marketplace entries and roots with plugin manifests or other runtime surfaces retain their separate identities. The aggregate requires its own installation and does not inherit individual skill installs. See the <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/skill-collection/spec.md">skill collection rules</a>.
+  </p>
+  <p>Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped.</p>
+
+  <h2>Project layout switch</h2>
+  <p>
+    The plugin settings card has <strong>Scan project Agent layouts</strong> (<code>dsh-agent-plugins-market.scanProjectLayouts</code>, default off). It controls one thing: whether the project you are working in contributes skills, commands, agent roles, MCP servers and hooks from its own directories (<code>.claude</code>, <code>.agents</code>, <code>.codex</code>, <code>.cursor</code>, <code>.kimi</code>, <code>.zcode</code>, <code>.qoder</code>, <code>.github</code>). Turning it on adds those candidates; turning it off removes them on the next discovery pass. The card applies the switch when you save it, and each setting offers Use default while it carries your own value. Configured sources and installed suites are unaffected.
+  </p>
+  <p><a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md#project-layouts">Project layouts</a> lists the directories and files read per layout and how they are mounted.</p>
+
+  <h2>Verified samples</h2>
+  <p>
+    The README repositories have offline snapshots in <a href="https://github.com/Sivan757/dsh-agent-plugins-market/tree/main/tests/fixtures/real-layouts"><code>tests/fixtures/real-layouts/</code></a> with commit IDs, hashes and licenses, and each layout has an isolated reader test. All ten active schema layouts have offline README-repository tests, including isolated variants that suppress competing manifests at nested suite roots. Cursor, Kimi, Qoder, Copilot, Universal and root marketplace files are recognized alongside Claude Code and Codex catalogs. The <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/reference/compat-report.md">compatibility report</a> exercises every schema against one real repository and records the commit, the schema verdict and what the scanner did with it. The <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/layout-coverage.md">layout audit</a> records independent resource checks.
+  </p>
+  <p>
+    These are documentation, source and sample checks — not end-to-end certification for every platform. Review third-party suites before enabling them: enabled services and hooks can execute programs.
   </p>
 </Base>

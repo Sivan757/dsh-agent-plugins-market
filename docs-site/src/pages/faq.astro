@@ -6,8 +6,16 @@ const faqs = [
     a: 'Check that the suite and its capability are enabled. Skills may restrict manual invocation. MCP and LSP panels report missing credentials, dependencies and mount failures. Project-scoped MCP is not mounted.',
   },
   {
+    q: 'Why does the market list a source before I add one?',
+    a: 'The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run. Press <strong>Refresh</strong> to fetch its suites. It behaves like any other source from there on, including removal, which the next activation undoes.',
+  },
+  {
     q: 'Where do I configure MCP credentials?',
     a: 'Open the service in <strong>MCP services</strong>. Suite details are read-only previews. Missing references show <code>needs-credentials</code>; launch-environment credentials require an environment change and a DSH restart.',
+  },
+  {
+    q: 'How do I add a service that no suite declares?',
+    a: 'Use <strong>Add</strong> in <strong>MCP services</strong> or <strong>LSP servers</strong>. The declaration is validated, stored in <code>~/.agents/mcp.json</code> or <code>~/.agents/lsp.json</code>, and mounted through the same lifecycle as suite services. Host-observed services stay read-only.',
   },
   {
     q: 'Which MCP transports are supported?',
@@ -16,6 +24,10 @@ const faqs = [
   {
     q: 'What if a source download fails?',
     a: 'Use a local directory, adopt a manual checkout, or configure a proxy or mirror. See the <a href="https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md#configure-marketplace-sources">source configuration guide</a>.',
+  },
+  {
+    q: 'Do sources refresh automatically?',
+    a: 'Only when <strong>Background source updates</strong> is on. Every configured source is then refreshed every 6 hours, starting one interval after you enable the switch. The switch is off by default, and the refresh button always works.',
   },
   {
     q: 'When do local edits become visible?',

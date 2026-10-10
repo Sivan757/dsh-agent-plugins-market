@@ -63,7 +63,8 @@ pnpm install --frozen-lockfile
 
 ### Repository map / 目录结构
 
-- `src/` — TypeScript host modules and React client modules / TypeScript 宿主模块与 React 客户端模块
+- `index.ts` — the published entry point; it re-exports the bundle package / 发布入口，转发到 bundle 包
+- `packages/` — the eight private workspace packages behind that one published artifact, mapped in [AGENTS.md](AGENTS.md) / 唯一发布产物背后的八个私有工作区包，对应关系见 [AGENTS.md](AGENTS.md)
 - `tests/` — Vitest tests and discovery fixtures / Vitest 测试与发现 fixture
 - `docs/` — user guides, reference material, and developer structure and decisions; placement rules live in [docs/AGENTS.md](docs/AGENTS.md) / 用户指南、参考资料与开发者结构与决策；归属规则见 [docs/AGENTS.md](docs/AGENTS.md)
 - `docs-site/` — Astro documentation website / Astro 文档网站

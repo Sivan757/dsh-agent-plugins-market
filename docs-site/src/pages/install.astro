@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 ---
 <Base
   title="Install the agent workspace in DeepSeek Harness — dsh-agent-plugins-market guide"
-  description="Step-by-step guide: install dsh-agent-plugins-market in a DSH profile, add a Claude Code marketplace repo as a source, and install plugin suites with skills, MCP servers, hooks and slash commands."
+  description="Step-by-step guide: install dsh-agent-plugins-market in a DSH profile from the Web GUI or a terminal, add a Claude Code marketplace repo as a source, and install plugin suites with skills, MCP servers, hooks and slash commands."
 >
   <h1>Install the agent workspace in DeepSeek Harness</h1>
   <p>
@@ -12,36 +12,49 @@ import Base from '../layouts/Base.astro';
 
   <h2>Prerequisites</h2>
   <ul>
-    <li>Node.js 22+ and a DSH Web profile with the skill service; the <a href="https://github.com/Sivan757/dsh-agent-plugins-market#quick-start">README</a> lists the DSH host packages this plugin declares</li>
-    <li>A terminal with <code>dsh</code>; Git for Git sources, and pnpm for GitHub or manual installation</li>
+    <li>Node.js 22 or later, and a DSH Web profile with the skill service</li>
+    <li>Git for Git sources</li>
+    <li>A terminal only for the command-line install path; the Web GUI path needs none</li>
   </ul>
 
   <h2>Step 1 — Install the plugin</h2>
-  <p>npm registry (recommended):</p>
+  <p>Open the DSH Web GUI, then install the plugin from the sidebar:</p>
+  <ol>
+    <li>Open <strong>Plugins</strong> in the sidebar.</li>
+    <li>Press <strong>Add plugin</strong>.</li>
+    <li>Type <code>dsh-agent-plugins-market</code>, then press <strong>Install</strong>.</li>
+  </ol>
+  <p>The same dialog accepts a GitHub repository address or a local directory path. Installing this way needs no terminal, because the npm package already contains built artifacts.</p>
+  <p>With a terminal, either command works instead:</p>
   <pre><code># inside a dsh profile
 pnpm add dsh-agent-plugins-market
 
 # or via the dsh CLI
-dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market</code></pre>
-  <p>Or install directly from GitHub:</p>
-  <pre><code>dsh plugin --profile &lt;name&gt; add github:Sivan757/dsh-agent-plugins-market</code></pre>
+dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market
+
+# or straight from GitHub
+dsh plugin --profile &lt;name&gt; add github:Sivan757/dsh-agent-plugins-market</code></pre>
+  <p>A GitHub install builds through <code>prepare</code> and needs Node.js and pnpm. The npm package does not.</p>
 
   <h2>Step 2 — Restart dsh and open the market</h2>
   <p>
-    Restart dsh, open the Web GUI, then go to <strong>Settings → Agent Plugins Market</strong>.
-    npm packages contain built artifacts. GitHub installs build through <code>prepare</code> and need Node.js and pnpm. Older shells may expose a top-level page entry instead.
+    Restart dsh, open the Web GUI, then go to <strong>Settings → Agent Plugins</strong>.
+    Older shells may expose a top-level page entry instead. The plugin also appears on the sidebar's <strong>Plugins</strong> page, where you can switch it off or remove it.
   </p>
 
-  <h2>Step 3 — Add a marketplace source</h2>
+  <h2>Step 3 — Add or refresh a marketplace source</h2>
   <p>
-    In the market page, add a supported git marketplace repository URL as a source (for example a Claude Code marketplace repo with <code>.claude-plugin/marketplace.json</code>).
-    No sources are preconfigured. Source ids are assigned automatically.
+    The market lists one first-party source on first run. Press <strong>Refresh</strong> to fetch the suites inside it.
+  </p>
+  <p>
+    To bring in another marketplace, add its repository URL as a source, for example a Claude Code marketplace repo with <code>.claude-plugin/marketplace.json</code>.
+    Source ids are assigned automatically.
   </p>
 
   <h2>Step 4 — Install suites</h2>
   <p>
-    Browse the card grid, open a suite for a preview of its skills / MCP servers / hooks / commands, then install it and ensure it is enabled.
-    Installed plugins live under <code>~/.dsh/agent-plugins/.sources/&lt;sourceId&gt;/</code> (user dimension) or <code>&lt;project&gt;/.dsh/agent-plugins/.sources/&lt;sourceId&gt;/</code> (project dimension).
+    Browse the card grid, open a suite for a preview of its skills, MCP servers, hooks and commands, then install it and ensure it is enabled.
+    Managed checkouts live under <code>~/.dsh/agent-plugins/.sources/&lt;sourceId&gt;/</code> in the user dimension, or <code>&lt;project&gt;/.dsh/agent-plugins/.sources/&lt;sourceId&gt;/</code> in the project dimension.
   </p>
 
   <h2>Step 5 — Verify and use it</h2>
@@ -55,7 +68,9 @@ dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market</code></pre>
 
   <h2>Troubleshooting</h2>
   <ul>
-    <li>Project-dimension MCP servers are not mounted (DSH has no per-session tool scope); the project dimension covers skills and context.</li>
+    <li>An installed plugin is not listed on the sidebar's <strong>Plugins</strong> page: restart DSH, then refresh that page.</li>
+    <li>The market shows no suites after a refresh: check the source's scan notes in its card, then refresh again.</li>
+    <li>Project-dimension MCP servers are not mounted, because DSH has no per-session tool scope; the project dimension covers skills and context.</li>
     <li>There is no file watcher. Local-source discovery caches results for up to 30 seconds; refresh the source to invalidate them. Project discovery has a separate five-second cache.</li>
     <li>Remote URL marketplace entries show as "remote reference" cards; add the target repo as a source to install them.</li>
   </ul>

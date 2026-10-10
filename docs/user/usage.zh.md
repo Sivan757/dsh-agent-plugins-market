@@ -65,7 +65,7 @@ Codex 项目 MCP 从 `.codex/config.toml` 读取，保留启停、环境变量�
 
 ## 其他安装方式
 
-推荐的 CLI 命令见[快速开始](../../README.zh.md#快速开始)。也可以在 profile 中安装：
+在 DSH 图形界面中打开侧边栏的**插件**页，点**添加插件**，填入 `dsh-agent-plugins-market`，然后重启 DSH。同一个对话框也接受仓库地址或本地目录。如果想用终端安装，可以在 profile 中安装：
 
 ```sh
 pnpm add dsh-agent-plugins-market
@@ -218,6 +218,6 @@ MCP 服务详情为每个工具列出一个勾选框。勾选表示允许；取�
 
 等待不会一直无声：遮罩持续超过 20 秒会明确提示本地服务可能没有响应；读取请求 15 秒后停止等待，写操作以 10 分钟为兜底，超时会被明确告知，而不是一直卡住页面。
 
-一个来源可以包含多种布局方言。套件清单与 Marketplace 目录索引遵循[同一布局优先级](../../README.zh.md#布局识别优先级)。清单按优先级逐个尝试：读不出或校验不通过的会给出诊断并尝试下一项，全部失败则拒绝该套件。索引扫描采用第一个能产出套件的索引，并按支持的规则补充发现；无效或空索引允许继续尝试后续候选。根 `marketplace.json` 是最后的共享回退。远程引用卡片不能直接安装，需要先添加对应仓库为来源。
+一个来源可以包含多种布局方言。套件清单与 Marketplace 目录索引遵循[同一布局优先级](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/#shared-layout-precedence)。清单按优先级逐个尝试：读不出或校验不通过的会给出诊断并尝试下一项，全部失败则拒绝该套件。索引扫描采用第一个能产出套件的索引，并按支持的规则补充发现；无效或空索引允许继续尝试后续候选。根 `marketplace.json` 是最后的共享回退。远程引用卡片不能直接安装，需要先添加对应仓库为来源。
 
 `schemas/1.0.0/` 的 schema 内置自 [agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)，校验时不在线下载。领域用语和开发检查见[领域词汇](../../CONTEXT.md)与[贡献指南](../../CONTRIBUTING.md)。

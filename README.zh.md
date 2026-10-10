@@ -1,242 +1,140 @@
-<img src="assets/dsh-agent-plugins.png" alt="Agent 扩展" width="64" height="64" />
+<img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/assets/dsh-agent-plugins.png" alt="Agent 扩展" width="64" height="64" />
 
 # Agent 扩展
 
 `dsh-agent-plugins-market`
 
-**在 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 之内，一站式管理 skills、subagent、MCP、LSP，兼容 Claude Code、Codex、Cursor、Kimi 等 agent plugins 体系。**
+**DeepSeek Harness（DSH）里一站式的技能、子代理、MCP 与 LSP 管理器。**
 
-复用 Claude Code、Codex、Cursor、Kimi 等已识别布局中支持的内容，在 DSH Web 界面管理自己的技能、命令、代理角色、MCP 服务和 LSP 服务。
+在 DSH 中直接运行 Claude Code、Codex、Cursor、Kimi 与 agent-plugins 套件。插件就地读取各种布局，你不必转换清单，也不必复制文件。在 DSH 图形界面里安装本插件，之后在一个工作区里管理技能、命令、代理角色、MCP 服务与 LSP 服务。
 
-如果这个插件帮到了你，欢迎在 [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market) 点个 Star ⭐。
+如果这个插件对你有用，欢迎在 [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market) 点一个 ⭐。
 
-[English](README.md) | 简体中文 | [文档站](https://sivan757.github.io/dsh-agent-plugins-market/) | [npm](https://www.npmjs.com/package/dsh-agent-plugins-market)
+[English](README.md) | 简体中文 | [在线文档](https://sivan757.github.io/dsh-agent-plugins-market/) | [npm](https://www.npmjs.com/package/dsh-agent-plugins-market)
 
-[![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)
 
-[快速开始](#快速开始) · [日常使用](#日常使用) · [兼容性](#兼容性与运行边界) · [常见问题](#常见问题)
+[快速开始](#快速开始) · [功能亮点](#功能亮点) · [日常使用](#日常使用) · [兼容性](#兼容性) · [常见问题](#常见问题)
 
 ## 页面
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/screenshots/market.png" alt="插件市场" width="100%" /><br />
-      <b>插件市场</b><br />添加来源、预览并安装套件。
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/market.png" alt="插件市场" width="100%" /><br />
+      <b>插件市场</b><br />添加来源、预览套件、安装并启用。
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/skills.png" alt="技能" width="100%" /><br />
-      <b>技能</b><br />浏览技能，编写自建技能。
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/skills.png" alt="技能" width="100%" /><br />
+      <b>技能</b><br />浏览技能，也可以自己编写。
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/commands.png" alt="命令" width="100%" /><br />
-      <b>命令</b><br />管理以 /名称 调用的提示词模板。
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/commands.png" alt="命令" width="100%" /><br />
+      <b>命令</b><br />管理通过 /名称 调用的提示词模板。
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/screenshots/personas.png" alt="代理角色" width="100%" /><br />
-      <b>代理角色</b><br />角色与精确的供应商、模型和思考强度。
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/personas.png" alt="代理角色" width="100%" /><br />
+      <b>代理角色</b><br />为角色指定精确的提供方、模型与推理强度。
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/mcp.png" alt="MCP 服务" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/mcp.png" alt="MCP 服务" width="100%" /><br />
       <b>MCP 服务</b><br />凭据、授权与连接状态。
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/lsp.png" alt="LSP 服务" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/lsp.png" alt="LSP 服务" width="100%" /><br />
       <b>LSP 服务</b><br />语言服务器配置与运行状态。
     </td>
   </tr>
 </table>
 
-## 你可以用它做什么
-
-- 在插件设置中开启实验性的 Agent 预设管理器后，输入框才显示入口。该开关默认关闭，只控制入口显示，不停用会话运行时。会话扩展预设通过「权限」右侧的Agent 扩展图标按钮选择技能、命令、角色、MCP 与 LSP 能力。每个工作区拥有自己的预设库和新会话默认值。会话运行时处于活动状态时选择预设，将在该会话的下一次用户请求生效。进行中的中途引导（steer）与工具调用不受影响。选择提交后，已打开的斜杠技能菜单自动刷新，无需再次输入或刷新页面。在当前会话中编辑已选或待选预设会更新该会话，其他会话各自保留独立副本。复制、粘贴预设到另一个工作区会生成独立副本。全局管理的资源显示真实状态，不提供会话开关。预设详情不会修改共享凭据或配置。会话选择失败后，显式恢复会还原就绪状态并继续排队的用户输入，无需再次发送。
-
-- **十种套件布局。** Claude Code、Codex、Cursor、Kimi Code、ZCode、Qoder CLI、GitHub Copilot CLI、Universal `.plugin/`、[agent-plugins](https://agent-plugins.org) 与无清单技能集合。
-- **来源。** 添加 Git 仓库、本地目录或压缩包（`.zip` / `.tar.gz` / `.tgz` / `.tar`）；收编自己克隆的目录；按需刷新；删除来源时可一并删除受管目录。
-- **第一方来源。** 插件预置一条指向自身套件集合的仓库源记录，所以首次运行市场里就列出该仓库，不需要粘贴任何地址。此后它就是普通 Git 来源——刷新以拉取，再像其他来源一样安装与启停其中的套件。
-- **适合你网络的下载方式。** 下载区域设置（默认 `auto` 跟随界面语言，也可显式选择全球或中国大陆）决定 `github.com` 克隆走的镜像前缀；代理与单次调用调优在宿主配置里。
-- **运行时能力。** 启用套件会注入会话：技能进入目录与斜杠菜单，命令以 `/名称` 调用，代理角色进入子代理目录，MCP 工具以 `mcp__` 前缀注册，hooks 挂到宿主生命周期事件，语言服务器通过 `lsp` 工具使用。
-- **MCP。** 内置桥接无需宿主 MCP 客户端，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE。`${VAR}` 引用从宿主凭据服务或启动环境解析；按服务覆盖可禁用或修补声明，不必修改源文件，可设置工具调用超时与启动超时，也可逐个关闭工具；新建与编辑共用同一服务表单，均提供高级超时设置与 JSON 视图；还可选用宿主客户端兼容模式。套件的工具名为 `mcp__<套件>__<服务>__<工具>`；你在 `~/.agents/mcp.json` 自建的服务以自己的键挂载，即 `mcp__<服务>__<工具>`。
-- **LSP。** 随插件自带：安装插件即完成全部设置，`lsp` 工具只在确有语言服务器需求时挂载；语言服务器可执行文件本身需在 `PATH` 中。从「需要你自己在 profile 里暴露 LSP」的版本升级上来时，若 profile 里还留着那层手工配置，会报接缝冲突；LSP 面板会指出该文件并代为移除这一层，且保留备份。
-- **代理角色与委派。** 角色卡保留专业指令及精确的供应商、模型、思考强度配置。未启用 Agent Teams 时使用 `subagent_role`；启用后使用 `spawn_teammate_role` 创建真正的 Team 成员，并通过原生 Team 工具管理。
-- **项目维度。** 项目自身的技能、代理、命令、MCP 服务与 hooks 无需安装即被发现。
-- **自建资源。** 技能、命令和代理角色以 Markdown 保存在 `~/.agents/` 下，可随时编辑或禁用而不删除文件。
-- **后台自动更新来源。** 可选：按定时器刷新全部已配置来源；默认关闭。
-- **Web 工作区。** 七个页签：插件市场、技能、命令、代理角色、MCP 服务、LSP 服务和 Hooks。每个页签都有搜索、过滤与网格/列表切换，并提供带诊断的状态面板、凭据编辑，以及可在启用可执行第三方内容前提示风险的安装确认。设置页是版式的准绳：所有页面共用同一条页签行（等宽列、绝不横向滚动，标签过长则省略号截断），并共用同一套卡片与详情结构，预设管理器同样如此。
-- **双语界面与反馈。** 工作区文案与注入提示跟随宿主语言；启用反馈后，模型可通过 `gh` 命令或 GitHub token 提交 `report_market_issue` 报告；两者都没有时，会打开预填好的 GitHub 新建 issue 页面并把完整 issue 文本交给你。
-- **翻译。** 描述与已展开的文档可翻译成界面所用的中文或英文，名称保持不变。中文默认开启、英文默认关闭，但你保存的选择优先。正文提供原文、译文和逐段双语三种视图，默认双语。翻译按需开始，依次尝试 Google Translate、Microsoft Translator、你的默认模型，都未应答时保留原文。结果缓存在本地直到清空；关闭翻译会保留缓存。详见[翻译](docs/user/usage.zh.md#翻译)。
-
 ## 快速开始
 
-将 `<name>` 替换为你的 profile 名称后安装：
+1. 在 DSH 图形界面中打开侧边栏的**插件**页。
+2. 点**添加插件**，填入 `dsh-agent-plugins-market`，然后安装。同一个对话框也接受仓库地址或本地目录。
+3. 重启 DSH，然后打开**设置 → Agent 扩展**。
+4. 市场里已经列出一个第一方来源。点**刷新**即可拉取其中的套件。想补充更多内容时再添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。
+5. 打开套件查看内容，确认后安装并保持启用。技能会出现在**技能**页签和聊天中的 `/` 菜单里；如果套件提供 MCP，先在 **MCP 服务**处理凭据提示，再使用它的工具。
 
-```sh
-dsh plugin --profile <name> add dsh-agent-plugins-market
-```
+命令行替代方式：`dsh plugin --profile <name> add dsh-agent-plugins-market`。环境要求、profile 配置与其他安装方式见[使用指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.zh.md#其他安装方式)。
 
-1. 重启 DSH，打开 **设置 → Agent 扩展**。
-2. 市场里已经列出第一方来源；点**刷新**即可拉取其中的套件。想补充更多内容时再添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。
-3. 打开套件查看内容，确认后安装，并确保套件已启用。
-4. 如果套件提供技能，先在**技能**页签查看，再在聊天中输入 `/` 查找允许手动调用的技能。如果提供 MCP，前往 **MCP 服务**检查状态，处理凭据或连接提示后再使用工具。
+## 功能亮点
 
-环境要求、profile 配置与其他安装方式见[使用指南](docs/user/usage.zh.md#其他安装方式)。
+### 核心能力
+
+- **任何技能仓库都能用。** 仓库里只要有 `skills/<名称>/SKILL.md`，把地址加为来源就能发现套件。不需要清单，不需要转换，不需要复制文件。
+- **十种套件布局。** Claude Code、Codex、Cursor、Kimi Code、ZCode、Qoder CLI、GitHub Copilot CLI、通用 `.plugin/`、[agent-plugins](https://agent-plugins.org) 以及无清单的技能集合。
+- **来源与下载。** 添加 Git 仓库、本地目录或压缩包，也可以接管你自己克隆的检出目录并随时刷新。镜像线路可选全球或中国大陆；需要时还可以每 6 小时自动刷新全部来源。
+- **运行时注入。** 启用套件后，技能进入技能目录与斜杠菜单，命令成为 `/名称`，代理角色进入子代理目录，MCP 工具以 `mcp__*` 前缀出现，hooks 挂到宿主生命周期事件，语言服务器接入 `lsp` 工具；LSP 装上插件即完成配置。
+- **一个工作区。** 七个页签覆盖市场、你自己创作的内容与正在运行的服务，都支持搜索、筛选和卡片或列表视图。
+
+### 进阶能力
+
+- **MCP OAuth，无需声明。** 远端 MCP 服务返回 `401` 时，自动完成 RFC 9728 发现、动态客户端注册与 PKCE 授权，浏览器授权后令牌持久保存。OAuth 默认开启，套件不需要为此写任何声明。
+- **逐个 MCP 服务精调。** 不改动来源就能覆盖某条声明，单独关闭某个工具，并设置工具调用与启动超时。
+- **项目资源与自己创作的内容。** 打开**扫描项目 Agent 布局**后，无需安装即可读取项目自身目录中的技能、命令、角色、MCP 服务与 hooks。自己的内容放在 `~/.agents/` 下，以 Markdown 编写；停用资源不必删除文件。
+- **按工作区生效的控制。** 每个工作区可以单独开关六类挂载能力，保留自己的资源筛选条件，并把资源窗口配置存为可跨项目使用的收藏。
+- **可读可试的 Hooks。** 每个 hook 行都能打开声明卡，查看事件、匹配条件与超时，并在用户根目录试运行一次。
+- **默认双语。** 界面与注入的提示词跟随宿主语言。描述与文档可显示原文、译文或双语，结果缓存在本地直到你清空缓存。
 
 ## 日常使用
 
 工作区包含七个页签：
 
-| 页签     | 可以做什么                                                                                                                                            |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 插件市场 | 添加来源、预览套件、安装 / 卸载、启用 / 禁用和刷新。                                                                                                  |
-| 技能     | 浏览技能，创建或编辑自己的可复用指令。                                                                                                                |
-| 命令     | 管理通过 `/名称` 调用的提示词模板。                                                                                                                   |
-| 代理角色 | 保存角色指令与模型配置；通过 `subagent_role` 委派，或通过 `spawn_teammate_role` 创建带角色的 Team 成员。                                              |
-| MCP 服务 | 自行新增服务或配置已安装的服务及其凭据与授权，查看连接状态并重试失败的服务。                                                                          |
-| LSP 服务 | 新增并配置语言服务器，查看运行状态。                                                                                                                  |
-| Hooks    | 查看已配置的命令 hooks 及其支持情况。每行可打开声明卡：支持情况、事件、匹配条件与超时，并可在用户根目录试运行；已安装套件的 hook 只读列出，跟随套件。 |
+| 页签     | 可以做什么                                       |
+| -------- | ------------------------------------------------ |
+| 插件市场 | 添加来源、预览套件、安装或卸载，以及启用或停用。 |
+| 技能     | 浏览技能，创建或编辑自己的可复用指令。           |
+| 命令     | 管理通过 `/名称` 调用的提示词模板。              |
+| 代理角色 | 保存角色指令与模型配置，然后委派给它们。         |
+| MCP 服务 | 新增服务，或配置已安装的服务及其凭据与授权。     |
+| LSP 服务 | 新增并配置语言服务器，查看运行状态。             |
+| Hooks    | 查看已配置的 hook 及其事件、匹配条件与超时。     |
 
-**来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件；安装并启用套件决定其运行时能力是否生效。
+**来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件，启用套件决定其运行时能力是否生效。
 
-你自己创作的内容都放在共用的 Agent 布局根目录：技能、命令和角色是 `~/.agents/` 下的 Markdown 文件，命令 hooks 放在 `~/.agents/hooks.json`（或 `~/.agents/hooks/hooks.json`），工作区里新增的 MCP 与 LSP 服务分别保存在 `~/.agents/mcp.json` 与 `~/.agents/lsp.json`。命令与角色按任意子目录深度读取，因此其它工具写在 `~/.agents/commands/git/commit.md` 的文件可用 `/git-commit` 调用。项目原生资源继续保留在项目中。路径和优先级见[存储与发现](docs/user/usage.zh.md#存储与发现)。
+你自己创作的内容都放在 `~/.agents/` 下：技能、命令和角色是 Markdown 文件，hooks 放在 `hooks.json`，工作区里新增的 MCP 与 LSP 服务分别保存在 `mcp.json` 与 `lsp.json`。项目原生资源继续保留在项目中。路径与优先级见[存储与发现](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.zh.md#存储与发现)。
 
-七个页签共用持久化的卡片/列表偏好。新增、刷新统一位于页头；资源状态条为绿色时表示生效中。hook 行打开的是它自己的只读声明，包含完整命令、声明的匹配条件、声明的超时与宿主支持情况，而不是它所属的整个套件。
+## 兼容性
 
-## 兼容性与运行边界
+插件读取十种布局方言，映射六类运行时能力。逐布局的支持情况与清单优先级见[兼容的插件市场](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/)。证据是[布局审计](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/layout-coverage.zh.md)与[兼容性报告](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/reference/compat-report.md)。
 
-支持的**布局方言（layout dialect）**描述文件如何组织。[统一优先级表](#布局识别优先级)并列列出套件清单与 Marketplace 目录索引。[`schemas/`](schemas/README.md) 中十种布局契约均有独立读取测试；[布局审计](docs/user/layout-coverage.zh.md)把它们对应到固定提交号的仓库快照。
-
-支持的**运行时能力（runtime surface）**描述 DSH 能使用什么：
-
-| 能力  | 支持情况与条件                                                                                                                                         |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 技能  | 接入宿主技能目录，允许手动调用的技能出现在斜杠菜单；展开支持的根路径占位符。                                                                           |
-| 命令  | 通过宿主命令服务注册斜杠命令。                                                                                                                         |
-| 代理  | 动态角色目录；无 Agent Teams 时用 `subagent_role`，启用后用 `spawn_teammate_role`。Team 模式还需要会话查询和系统提示词服务。                           |
-| MCP   | 默认使用内置桥接，支持 stdio、带 OAuth 的 Streamable HTTP 和旧式 SSE；也可切换宿主客户端兼容模式，该模式执行工具调用超时，但不执行工具过滤与启动超时。 |
-| Hooks | 运行 `dsh-hooks-claude-code` 桥接映射支持的 command-hook 子集。                                                                                        |
-| LSP   | 随插件自带：安装插件即安装 LSP 支持包，`lsp` 工具只在确有语言服务器需求时挂载；语言服务器可执行文件本身需在 `PATH` 中。                                |
-
-两种模式都保留角色发现。`spawn_teammate_role(agent, name, description, prompt)` 从首个请求起应用角色指令与模型配置，返回原生 Team `target`，并保留创建时快照供恢复。只有 Lead 在用户明确要求 Team 工作后才能创建成员。原生 `spawn_teammate` 仍可用，角色不会新增第二套管理 API。独立的 Team 协调说明让 Lead 负责用户意图与整合，指导成员按范围执行和回报，即使没有角色目录也可用。`tools` 与 `disallowedTools` 保留但不执行。路由、依赖与限制见[代理角色](docs/user/agent-roles.zh.md)。
-
-### 布局识别优先级
-
-**同一个套件目录**同时存在多个清单时，按下表顺序选择第一个存在的文件来确定布局：
-
-| 优先级 | 布局 | 套件清单 | Marketplace 目录索引 |
-| --- | --- | --- | --- |
-| 1 | [agent-plugins](https://agent-plugins.org) / 根兼容清单 | `plugin.json` | 无专属索引 |
-| 2 | Universal 兼容布局 | `.plugin/plugin.json` | `.plugin/marketplace.json` |
-| 3 | Claude Code | `.claude-plugin/plugin.json` | `.claude-plugin/marketplace.json` |
-| 4 | Cursor | `.cursor-plugin/plugin.json` | `.cursor-plugin/marketplace.json` |
-| 5 | Kimi Code | `kimi.plugin.json`，其次 `.kimi-plugin/plugin.json` | `.kimi-plugin/marketplace.json` |
-| 6 | Codex | `.codex-plugin/plugin.json` | `.agents/plugins/marketplace.json`，其次 `.agents/plugins/api_marketplace.json` |
-| 7 | ZCode | `.zcode-plugin/plugin.json` | 无专属索引 |
-| 8 | Qoder CLI | `.qoder-plugin/plugin.json` | `.qoder-plugin/marketplace.json` |
-| 9 | GitHub Copilot CLI | `.github/plugin/plugin.json` | `.github/plugin/marketplace.json` |
-| 回退 | 技能集合 / 共享索引 | 无已知清单时按技能集合约定发现 | 根 `marketplace.json` |
-
-- **清单按顺序尝试：** 读不出或校验不通过的清单会给出诊断，然后尝试下一优先级，直到回退项；全部失败时给出诊断，不会加载半个套件。
-- **组件补充：** 根 `plugin.json` 未声明受识别的 agent-plugins `$schema` 时，缺失的组件声明可以从 `.claude-plugin/plugin.json` 补齐；根清单中的显式声明优先，marketplace 条目声明补充剩余缺项。
-- Marketplace 索引遵循同一顺序：第一个能产出套件的索引胜出，无效或空索引允许继续尝试后续候选。
-
-顺序定义见 [`packages/market-contracts/src/model/layouts.ts`](packages/market-contracts/src/model/layouts.ts)，选择与根清单补充逻辑见 [`packages/market-catalog/src/scanning/manifests.ts`](packages/market-catalog/src/scanning/manifests.ts)。
-
-### 布局支持矩阵
-
-表中说明本插件是否读取该布局的对应能力。**支持**表示读取该布局自己的文件并注入；**部分**表示只理解其中一部分格式，或上游布局本身没有对应定义——具体见下表说明。依据见[兼容性报告](docs/reference/compat-report.md)与[布局审计](docs/user/layout-coverage.zh.md)。
-
-| 布局                                                                                                          | 技能 | 代理 | 命令 | MCP  | Hooks  | LSP    |
-| ------------------------------------------------------------------------------------------------------------- | ---- | ---- | ---- | ---- | ------ | ------ |
-| [Claude Code](https://code.claude.com/docs/en/plugins-reference)                                              | 支持 | 支持 | 支持 | 支持 | 部分   | 支持   |
-| [Codex](https://developers.openai.com/plugins/build/plugins)                                                  | 支持 | 支持 | 支持 | 部分 | 部分   | 支持   |
-| [Cursor](https://cursor.com/docs/reference/plugins)                                                           | 支持 | 部分 | 部分 | 部分 | 不支持 | 支持   |
-| Kimi Code                                                                                                     | 支持 | 支持 | 支持 | 支持 | 部分   | 部分   |
-| [ZCode](https://zcode.z.ai/en/docs/plugin) `.zcode-plugin/`                                                   | 支持 | 支持 | 支持 | 支持 | 部分   | 部分   |
-| [Qoder CLI](https://docs.qoder.com/cli/plugins-reference) `.qoder-plugin/`                                    | 支持 | 支持 | 支持 | 部分 | 部分   | 部分   |
-| [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) | 支持 | 支持 | 支持 | 支持 | 部分   | 支持   |
-| Universal 兼容布局 `.plugin/`                                                                                 | 支持 | 支持 | 支持 | 支持 | 部分   | 支持   |
-| [agent-plugins](https://agent-plugins.org)                                                                    | 支持 | 支持 | 支持 | 支持 | 支持   | 支持   |
-| 无清单技能集合                                                                                                | 支持 | 支持 | 支持 | 支持 | 部分   | 部分   |
-| 项目原生目录                                                                                                  | 支持 | 支持 | 支持 | 支持 | 部分   | 不支持 |
-
-- **技能**读取清单声明的路径与约定的 `skills/` 目录，也支持平铺的 `<name>.md` 文件。自带 `SKILL.md` 的路径就是一个技能：与它并列的文档属于该技能，不作为技能读取。合规的 agent-plugins 套件是例外：技能只来自 `skills/` 一层子目录，与其规范一致。
-- **代理与命令**按 Markdown 读取（`agents/*.md`、`commands/*.md`）。Cursor 插件命令接受 `.md`、`.mdc`、`.markdown`、`.txt`；Codex 与 Kimi 的原生代理/命令格式（TOML、YAML）尚未适配。
-- **MCP** 支持声明的文件、内联表与数组。Cursor 的无 schema `mcp.json` 与 agent-plugins 的严格 `mcp.json` 都能读取；Kimi Code 只读内联声明。Codex 的 app 连接器不在适配范围内。
-- **Hooks** 只映射 DSH 有对应点的命令类事件；没有对应点的事件（例如 `afterFileEdit`）给出诊断而不伪造执行。Cursor 的原生事件不读取。
-- **LSP** 支持声明的文件、数组、内联表，以及约定的 `.lsp.json` / `lsp.json` 位置。项目内的 LSP 声明只给诊断、不挂载：宿主 LSP 注册表是全局的。部分布局只提供目录预览。
-- **agent-plugins** 套件按规范读取可移植核心（`skills/`、`mcp.json`），另通过本插件的 [`com.deepseek.harness`](schemas/com.deepseek.harness/spec.md) 扩展命名空间承载命令、代理、hooks、LSP 与逐服务器 MCP 策略（OAuth、工具清单、超时）。该布局下根目录的 `commands/`、`agents/`、`hooks/` 与 `.mcp.json` 属于其它布局，给出「未读取」诊断；清单内联组件键按 §5.2 报告后忽略。两个受支持的版本（1.0.0、1.1.0）各自按内置 schema 校验。
-- **Universal** 是本插件使用的兼容布局名称：[OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins)文档同样使用 `.plugin/plugin.json`，[Vercel 仓库](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json)也在使用，但不存在跨厂商规范。
-
-[jeecgboot/skills](https://github.com/jeecgboot/skills) 这类源中，未声明插件且只包含技能的目录会聚合为一张插件卡片。市场条目、自带插件清单或其它运行面的目录仍保留独立身份。聚合插件需要单独安装，不继承单个技能的安装状态。详见[技能集合规则](schemas/skill-collection/spec.md)。
-
-能读取一种布局，并不保证复现原平台的全部行为。无效声明会被诊断并跳过。
-
-### 项目布局开关
-
-插件设置卡提供**扫描项目 Agent 布局**（`dsh-agent-plugins-market.scanProjectLayouts`，默认关闭）。它只控制一件事：当前项目是否把自己目录（`.claude`、`.agents`、`.codex`、`.cursor`、`.kimi`、`.zcode`、`.qoder`、`.github`）里的技能、命令、代理角色、MCP 服务与 hooks 贡献到会话里。开启后纳入这些候选，关闭后在下一轮发现时移除。卡片在你保存时生效，设置带着你自己填的值时也提供「恢复默认」。配置源与已安装套件不受影响。
-
-每种布局读取哪些目录与文件、如何挂载，见[项目布局](docs/user/usage.zh.md#项目布局)。
-
-### 抽样验证
-
-README 中的仓库在 [`tests/fixtures/real-layouts/`](tests/fixtures/real-layouts/) 保留了离线快照（含提交号、哈希与许可证），且每种布局都有独立的读取测试。[兼容性报告](docs/reference/compat-report.md)记录抽样仓库、schema 结论与扫描器输出，[布局审计](docs/user/layout-coverage.zh.md)记录独立的资源核验。这些是文档、源码与抽样核验，并非每个平台的端到端兼容认证。
-
-启用第三方套件前请检查其内容：启用的服务和 hooks 可以执行程序。详见[运行时与安全边界](docs/user/usage.zh.md#运行时与安全边界)。
+能读取某种布局，不等于它的每个行为都与原平台一致。无效声明会被诊断并跳过，不会只挂载一半。
 
 ## 常见问题
 
-**安装后为什么找不到技能或工具？**
+**已安装的技能或工具为什么不见了？**
 
-检查套件及对应能力是否启用。技能可能限制手动调用；MCP / LSP 面板显示用户服务故障。项目资源还需要开启项目扫描；不支持的原生字段与项目 LSP 声明进入扫描诊断。
+先确认套件与对应能力都已启用。MCP 与 LSP 面板会报告失败和缺失的凭据。项目资源还需要打开项目扫描开关。
 
-**在哪里配置 MCP token？**
+**MCP 的令牌在哪里配置？**
 
-在 **MCP 服务**中打开对应服务。缺失环境变量引用时显示 `needs-credentials`。宿主管理的凭据只写不读；启动环境中的凭据需要修改环境后重启 DSH。
+在 **MCP 服务**中打开该服务。缺失的环境引用会显示 `needs-credentials`。宿主托管的凭据是只写的。
 
-**套件没有声明的服务怎么添加？**
+**来源会自动刷新吗？**
 
-在 **MCP 服务**或 **LSP 服务**中点击新增并填入声明。声明会先校验，保存到 `~/.agents/mcp.json` 或 `~/.agents/lsp.json`，并与套件服务走同一套挂载生命周期。从宿主配置观察到的服务保持只读。
+只有打开**后台更新来源**时才会。它每 6 小时刷新一次全部已配置来源，并在启用后一个周期开始。刷新按钮始终可用。
 
-**来源会自动更新吗？**
+**删除来源会删掉文件吗？**
 
-只有开启**后台自动更新来源**后才会：开启后每 6 小时刷新一次全部已配置来源，第一次刷新在开启满一个周期之后。该开关默认关闭，刷新按钮始终可用。
+只有你在确认框中勾选**同时删除托管的市场目录**时才会。位于 `.sources/` 之外的本地目录来源永远不会被删除。
 
-**没有添加任何来源，市场里的套件是从哪来的？**
+更多问题见[常见问题](https://sivan757.github.io/dsh-agent-plugins-market/faq/)。
 
-插件预置一条指向自身套件集合的仓库源记录，所以首次运行市场里就列出该仓库；点**刷新**即可拉取其中的套件。此后它与其他来源完全一致——包括删除：和通过配置预置的来源一样，下次激活会重新登记。
+## 文档
 
-**来源下载失败怎么办？**
-
-可以使用本地目录、收编手动克隆的仓库，或配置代理与镜像，见[配置市场源](docs/user/usage.zh.md#配置市场源)。
-
-**本地修改什么时候生效？**
-
-没有文件监听。本地来源的发现结果最多缓存 30 秒，刷新来源可立即使缓存失效。项目发现有独立的五秒缓存。已经打开的页面不会自动刷新。
-
-**删除来源会删除文件吗？**
-
-只有勾选确认框里的「同时删除市场目录」才会删除。它删除该源在 `~/.dsh/agent-plugins/.sources/<id>` 下的目录——包括你手动克隆后被收编的目录。指向 `.sources/` 之外的本地目录源永不删除。
-
-## 仓库结构
-
-发布包仍为 `dsh-agent-plugins-market`，只产出一个构件。代码位于 `packages/` 下的八个私有工作区包：`market-bundle`（组合根与 HTTP 接口）、`market-catalog`（来源扫描与目录用例）、`market-contracts`（无状态共享记录）、`market-runtime`（会话选择与宿主副作用）、`market-mcp`、`market-lsp`、`market-translation` 与 `market-ui`（浏览器 bundle）。归属、依赖方向与迁移门禁记录在[领域工作区重构](docs/developer/design/domain-workspace-refactor.md)；维护者维护的布局图见 [AGENTS.md](AGENTS.md)。
-
-## 更多文档
-
-- [使用指南](docs/user/usage.zh.md)：安装、来源配置、存储、宿主要求、项目布局、MCP / LSP 和反馈设置。
-- [插件规范](schemas/README.md)：各布局的参考 schema 与依据、内置的 agent-plugins 契约（1.0.0、1.1.0），以及 [`com.deepseek.harness` 命名空间契约](schemas/com.deepseek.harness/spec.md)。
-- [兼容性报告](docs/reference/compat-report.md)：每个 schema 一个真实仓库，含提交号、schema 结论与扫描器输出。
-- [贡献指南](CONTRIBUTING.md)：开发环境、检查命令和 PR 流程。
-- [安全政策](SECURITY.md) · [版本记录](CHANGELOG.md) · [MIT 许可](LICENSE)。
-- [领域词汇](CONTEXT.md) · [架构设计](docs/developer/decisions/0001-catalog-centered-modular-refactor.md)。
-- [代理角色与存储](docs/user/agent-roles.zh.md)：已安装资源切换、角色模型路由与目录迁移。
+- [安装指南](https://sivan757.github.io/dsh-agent-plugins-market/install/)：从环境要求到第一个套件，逐步说明。
+- [使用指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.zh.md)：来源配置、存储、项目布局、MCP、LSP 与各项设置。
+- [兼容的插件市场](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/)：布局、优先级与抽样验证。
+- [插件规范](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/README.md)：各布局的参考 schema，以及 [`com.deepseek.harness`](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/com.deepseek.harness/spec.md) 扩展命名空间。
+- [贡献指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTRIBUTING.md) · [安全策略](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/SECURITY.md) · [更新日志](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [MIT 许可](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)。
+- [领域词汇表](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [代理角色](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/agent-roles.zh.md) · [发布流程](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md)。
 
 ## 交流群
 
-扫描下方二维码加入 **dsh-agent-plugins-market** 微信群，提问与提需求都可以在群里说。
+扫描二维码加入 **dsh-agent-plugins-market** 微信群，我们在这里答疑并收集功能建议。
 
 <div align="center">
-  <img src="docs/screenshots/wechat-group.webp" alt="dsh-agent-plugins-market 微信群二维码" width="240" />
+  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/wechat-group.webp" alt="dsh-agent-plugins-market 微信群二维码" width="240" />
 </div>
