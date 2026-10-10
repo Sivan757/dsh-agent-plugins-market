@@ -2,7 +2,7 @@
 
 ## Contract
 
-The user selected private domain workspace packages with one public installation package. The [architecture v2 design](../../../design/architecture/index.html#revision-v2) defines the target responsibilities. The [behavior freeze](../../reference/behavior-freeze-2026-10-07.md) defines the behavior that this refactor preserves.
+The user selected private domain workspace packages with one public installation package. This page defines the target responsibilities. The [behavior freeze](../../reference/behavior-freeze-2026-10-07.md) defines the behavior that this refactor preserves.
 
 The public package name, import specifiers, bundle identity, routes, settings keys, persisted data and UI behavior remain stable. Internal emitted paths can change with explicit export mappings and packed-artifact tests. No host edit or multi-package publication is part of this work.
 
