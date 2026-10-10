@@ -129,9 +129,12 @@ export class TranslationService {
    * prose only. Links, code, math, references and nested containers remain local.
    * The result includes a translated document and paragraph-paired Markdown.
    * Unchanged output preserves the source bytes. Changed output preserves the
-   * parsed structure and uses canonical Markdown formatting.
+   * parsed structure and uses canonical Markdown formatting. Pending paragraphs
+   * remain authored until complete. The retry flag resets only this document
+   * failure budgets and the provider breaker, without clearing cached successes.
    */
-  translateDocument(surface: TranslationSurfaceKind, id: string, text: string, locale: string): DocumentTranslation {
-    return translateMarkdownDocument(text, part => this.localizer.localize({ surface, id, role: 'document', text: part }, locale))
+  translateDocument(surface: TranslationSurfaceKind, id: string, text: string, locale: string, retry = false): DocumentTranslation {
+    if (retry) this.localizer.retryDocument(surface, id)
+    return translateMarkdownDocument(text, (paragraph, parts) => this.localizer.localizeParagraph({ surface, id, role: 'document', text: paragraph }, parts, locale))
   }
 }

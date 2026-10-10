@@ -20,6 +20,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, type Translate } from '../packages/market-ui/src/index.js'
 import { DocumentTranslationView } from '../packages/market-ui/src/ui/DocumentTranslation.js'
+import { readingMode } from '../packages/market-ui/src/ui/reading-mode.js'
 import { translationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
 import { MARKET_SETTINGS_DEFAULTS, type MarketSettings } from '../packages/market-contracts/src/contracts/settings.js'
 import type { DocumentTranslation } from '../packages/market-contracts/src/contracts/translation.js'
@@ -69,6 +70,7 @@ let root: Root | undefined
 let release: (() => void) | undefined
 
 afterEach(async () => {
+  readingMode.set('original')
   await act(async () => root?.unmount())
   root = undefined
   document.body.replaceChildren()
@@ -127,7 +129,9 @@ describe('the effective translation switch without a served settings page', () =
     const load = vi.fn(async () => ({ text: '译文', pending: 0 }))
     await mount(chinese, load)
     expect(document.body.querySelector('[role="tablist"]')).not.toBeNull()
-    // This component mounts only once a document is expanded.
+    // Original is the shared default, so mounting reads nothing until a mode asks.
+    expect(load).not.toHaveBeenCalled()
+    await act(async () => document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2]!.click())
     expect(load).toHaveBeenCalledTimes(1)
   })
 
@@ -150,6 +154,7 @@ describe('the effective translation switch without a served settings page', () =
     const load = vi.fn(async () => ({ text: 'translated', pending: 0 }))
     await mount(english, load)
     expect(document.body.querySelector('[role="tablist"]')).not.toBeNull()
+    await act(async () => document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2]!.click())
     expect(load).toHaveBeenCalledTimes(1)
   })
 })

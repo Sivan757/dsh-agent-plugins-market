@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTranslationProviders } from '../packages/market-translation/src/runtime/host/translation-providers.js'
 import { Catalog } from '../packages/market-bundle/src/application/catalog.js'
+import { TranslationService } from '../packages/market-translation/src/application/translation/service.js'
 import { createPanelResources } from '../packages/market-runtime/src/application/panel-resources.js'
 import { createUserPanelStores } from '../packages/market-runtime/src/runtime/panels/user-panels.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
@@ -245,7 +246,7 @@ describe('Catalog.translateDocument', () => {
   it('queues nothing at all when the deployment has no provider chain', async () => {
     const { catalog } = await seededCatalog()
     const body = longBody()
-    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'zh')).toEqual({ text: body, bilingualText: body, pending: 0 })
+    expect(catalog.translateDocument('skills', 'active/v1-suite/greet', body, 'zh')).toEqual({ text: body, bilingualText: body, pending: 0, failed: 10 })
   })
 })
 
@@ -288,5 +289,57 @@ describe('PanelResourceStore.translateDocument', () => {
     const { catalog, root } = await seededCatalog({ provider: recorder().provider })
     const panels = createPanelResources(catalog, createUserPanelStores(root))
     await expect(panels.skills.translateDocument('nobody')).rejects.toThrow('no entry named')
+  })
+})
+
+describe('TranslationService paragraph completion', () => {
+  it('retains an oversized sentence as authored with an explicit failed paragraph', async () => {
+    const { provider, batches } = recorder()
+    const { catalog } = await seededCatalog({ provider })
+    const text = 'Long sentence '.repeat(140)
+    const result = catalog.translateDocument('skills', 'oversized', text, 'zh')
+    expect(result).toEqual({ text, bilingualText: text, pending: 0, failed: 1 })
+    await catalog.settleDescriptions(500)
+    expect(batches).toEqual([])
+    catalog.dispose()
+  })
+
+  it('retries a failed document through the public retry flag without clearing its successful paragraphs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'paragraph-service-'))
+    roots.push(root)
+    let recovered = false
+    const calls: string[] = []
+    const service = new TranslationService({
+      dataRoot: root,
+      providerIdentity: () => 'test-chain',
+      providers: [
+        {
+          id: 'google',
+          available: () => true,
+          translate: async ({ texts }) => {
+            calls.push(...texts)
+            return texts.map(text => (text.startsWith('Good') || recovered ? '译:' + text : ''))
+          }
+        }
+      ]
+    })
+    await service.load()
+    const body = 'Good paragraph.\n\nFailed paragraph.'
+    service.translateDocument('skills', 'doc', body, 'zh')
+    await service.settle(500)
+    const first = service.translateDocument('skills', 'doc', body, 'zh')
+    expect(first.failed).toBe(1)
+    expect(first.pending).toBe(0)
+    expect(first.text).toContain('译:Good paragraph.')
+    expect(first.text).toContain('Failed paragraph.')
+    recovered = true
+    expect(service.translateDocument('skills', 'doc', body, 'zh', true).pending).toBe(1)
+    await service.settle(500)
+    const done = service.translateDocument('skills', 'doc', body, 'zh')
+    expect(done.failed).toBeUndefined()
+    expect(done.text).toContain('译:Failed paragraph.')
+    expect(calls.filter(text => text.startsWith('Good'))).toHaveLength(1)
+    await service.settle(500)
+    service.dispose()
   })
 })

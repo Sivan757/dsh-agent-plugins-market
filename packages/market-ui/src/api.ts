@@ -9,7 +9,7 @@ import {
   type UserPanelEntryWire,
   type UserPanelKind
 } from '../../market-contracts/src/contracts/market.js'
-import { EXTENSION_ROUTES, type ExtensionHooksOverview } from '../../market-contracts/src/contracts/extension-presets.js'
+import { EXTENSION_ROUTES, type ExtensionHookRunInput, type ExtensionHookRunResult, type ExtensionHooksOverview } from '../../market-contracts/src/contracts/extension-presets.js'
 import { documentRoute, MARKET_API_PREFIX, suiteRoute } from '../../market-contracts/src/contracts/market.js'
 import type {
   McpBackendInfo,
@@ -218,6 +218,38 @@ export async function fetchHooksOverview(): Promise<ExtensionHooksOverview> {
   return withBusyOperation(() => getJson<ExtensionHooksOverview>(EXTENSION_ROUTES.hooksOverview, 'hooks overview failed'), { blocking: false })
 }
 
+/**
+ * Dry-run one declared hook. The server resolves the command from the catalog
+ * and runs it in the home directory, so the body carries identity only. A run
+ * that fails reports its reason in the result instead of rejecting.
+ */
+export async function runExtensionHook(input: ExtensionHookRunInput): Promise<ExtensionHookRunResult> {
+  return boundedRequest(
+    EXTENSION_ROUTES.hookRun,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input)
+    },
+    MUTATION_TIMEOUT_MS,
+    async response => {
+      const text = await response.text()
+      if (!response.ok) {
+        let message = 'hook run failed: ' + response.status
+        try {
+          const payload = JSON.parse(text) as { error?: unknown }
+          if (typeof payload.error === 'string' && payload.error !== '') message = payload.error
+        } catch {
+          /* A non-JSON error body keeps the status as the message. */
+        }
+        throw new Error(message)
+      }
+      return JSON.parse(text) as ExtensionHookRunResult
+    }
+  )
+}
+
 export async function fetchLspStatus(background = false, sessionId?: string): Promise<LspStatusPayload> {
   const load = (): Promise<LspStatusPayload> => getJson<LspStatusPayload>(sessionRoute(MARKET_ROUTES.lspStatus, sessionId), 'LSP status failed')
   return background ? load() : withBusyOperation(load, { blocking: false })
@@ -271,18 +303,30 @@ export async function fetchSuiteDocument(sourceId: string, suiteId: string, kind
  * @param name - the document's name inside that surface.
  * @returns the body in the target language, and how many chunks are still in flight.
  */
-export async function fetchSuiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, sessionId?: string): Promise<DocumentTranslation> {
+export async function fetchSuiteDocumentTranslation(
+  sourceId: string,
+  suiteId: string,
+  kind: UserPanelKind,
+  name: string,
+  sessionId?: string,
+  retry = false
+): Promise<DocumentTranslation> {
   return withBusyOperation(
     async () => {
       // The session rides the query on every read, POST included: the route validates it
       // with the same reader the GET routes use, never from the body.
-      const body = await postOkJson<{ text?: string; bilingualText?: string; pending?: number }>(
+      const body = await postOkJson<{ text?: string; bilingualText?: string; pending?: number; failed?: number }>(
         sessionRoute(MARKET_ROUTES.suiteDocumentTranslation, sessionId),
-        { sourceId, suiteId, kind, name },
+        { sourceId, suiteId, kind, name, ...(retry ? { retry: true } : {}) },
         'document translation failed',
         READ_TIMEOUT_MS
       )
-      return { text: body.text ?? '', pending: body.pending ?? 0, ...(typeof body.bilingualText === 'string' ? { bilingualText: body.bilingualText } : {}) }
+      return {
+        text: body.text ?? '',
+        pending: body.pending ?? 0,
+        ...(typeof body.failed === 'number' ? { failed: body.failed } : {}),
+        ...(typeof body.bilingualText === 'string' ? { bilingualText: body.bilingualText } : {})
+      }
     },
     { blocking: false }
   )
@@ -421,16 +465,21 @@ export async function fetchUserPanelEntry(kind: UserPanelKind, name: string, ses
  * @param name - the entry's id (suite-owned entries) or its name (user entries).
  * @returns the body in the target language, and how many chunks are still in flight.
  */
-export async function fetchDocumentTranslation(kind: UserPanelKind, name: string, sessionId?: string): Promise<DocumentTranslation> {
+export async function fetchDocumentTranslation(kind: UserPanelKind, name: string, sessionId?: string, retry = false): Promise<DocumentTranslation> {
   return withBusyOperation(
     async () => {
-      const body = await postOkJson<{ text?: string; bilingualText?: string; pending?: number }>(
+      const body = await postOkJson<{ text?: string; bilingualText?: string; pending?: number; failed?: number }>(
         sessionRoute(userPanelTranslationRoute(kind), sessionId),
-        { name },
+        { name, ...(retry ? { retry: true } : {}) },
         'document translation failed',
         READ_TIMEOUT_MS
       )
-      return { text: body.text ?? '', pending: body.pending ?? 0, ...(typeof body.bilingualText === 'string' ? { bilingualText: body.bilingualText } : {}) }
+      return {
+        text: body.text ?? '',
+        pending: body.pending ?? 0,
+        ...(typeof body.failed === 'number' ? { failed: body.failed } : {}),
+        ...(typeof body.bilingualText === 'string' ? { bilingualText: body.bilingualText } : {})
+      }
     },
     { blocking: false }
   )

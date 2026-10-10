@@ -348,13 +348,15 @@ export function mountSuiteRoutes(
     if (kind !== 'skills' && kind !== 'commands' && kind !== 'agents') throw new Error('invalid document kind')
     const name = textField(body['name'] ?? '', 'document name')
     if (name === '') throw new Error('missing document name')
+    if (body['retry'] !== undefined && typeof body['retry'] !== 'boolean') throw new Error('retry must be a boolean')
+    const retry = body['retry'] === true
     // The same reader the document GET uses: the session is taken from the query,
     // validated once, and an unknown or workspace-less session is a diagnostic.
     const source = readSource(request)
     const translated = await readOwned(
       source,
-      reader => reader.suiteDocumentTranslation(sourceId, suiteId, kind, name),
-      () => manager.suiteDocumentTranslation(sourceId, suiteId, kind, name)
+      reader => reader.suiteDocumentTranslation(sourceId, suiteId, kind, name, retry),
+      () => manager.suiteDocumentTranslation(sourceId, suiteId, kind, name, retry)
     )
     return { ...translated }
   })
@@ -627,7 +629,8 @@ export function mountSuiteRoutes(
         if ('error' in source) throw new Error(source.error)
         const name = textField(body['name'] ?? '', 'entry name')
         if (name === '') throw new Error('missing entry name')
-        return { ...(await source.store.translateDocument(name)) }
+        if (body['retry'] !== undefined && typeof body['retry'] !== 'boolean') throw new Error('retry must be a boolean')
+        return { ...(await source.store.translateDocument(name, body['retry'] === true)) }
       })
 
       post(`${userPanelRoute(kind)}/create`, async body => {

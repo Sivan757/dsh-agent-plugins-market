@@ -8,27 +8,30 @@ import { mathFromMarkdown, mathToMarkdown } from 'mdast-util-math'
 import type { Nodes, Root, Text, PhrasingContent } from 'mdast'
 import type { DocumentTranslation } from '../../../../market-contracts/src/contracts/translation.js'
 
-/** Per-request source bound; transport batches may contain several stable units. */
+/** Legacy description chunk bound. Document paragraphs use a separate sentence budget. */
 export const MAX_DOCUMENT_CHUNK_CHARS = 800
 
 const markdownOptions = { extensions: [gfmToMarkdown(), mathToMarkdown()], fences: true }
 const MARKER = /⟪d\d+⟫/g
 
-/** A paragraph is one cache identity; bounded pieces only split that paragraph. */
-function boundedText(text: string): string[] {
+/** Conservative document payload bound, below the smallest target batch allowance. */
+export const MAX_PARAGRAPH_REQUEST_CHARS = 1_600
+
+/** No character fallback: a sentence that exceeds the bound keeps its paragraph authored. */
+export function paragraphParts(text: string): string[] | undefined {
+  if (text.length <= MAX_PARAGRAPH_REQUEST_CHARS) return [text]
+  const sentences = [...new Intl.Segmenter(undefined, { granularity: 'sentence' }).segment(text)].map(part => part.segment)
   const parts: string[] = []
-  let start = 0
-  for (let end = Math.min(MAX_DOCUMENT_CHUNK_CHARS, text.length); start < text.length; end = Math.min(start + MAX_DOCUMENT_CHUNK_CHARS, text.length)) {
-    if (end < text.length) {
-      const opening = text.lastIndexOf('⟪', end - 1)
-      const marker = /^⟪d\d+⟫/.exec(text.slice(opening))?.[0]
-      if (opening > start && marker !== undefined && opening + marker.length > end) end = opening
-      const code = text.charCodeAt(end - 1)
-      if (code >= 0xd800 && code <= 0xdbff) end--
+  let current = ''
+  for (const sentence of sentences) {
+    if (sentence.length > MAX_PARAGRAPH_REQUEST_CHARS) return undefined
+    if (current.length + sentence.length > MAX_PARAGRAPH_REQUEST_CHARS) {
+      parts.push(current)
+      current = ''
     }
-    parts.push(text.slice(start, end))
-    start = end
+    current += sentence
   }
+  if (current !== '') parts.push(current)
   return parts
 }
 
@@ -38,9 +41,13 @@ function boundedText(text: string): string[] {
  * A malformed boundary sequence leaves that paragraph authored, never rewrites
  * link destinations, code, or the surrounding list/reference structure.
  */
-export function translateMarkdownDocument(source: string, localize: (text: string) => { text: string; pending: boolean }): DocumentTranslation {
+export function translateMarkdownDocument(
+  source: string,
+  localize: (text: string, parts: readonly string[] | undefined) => { text: string; pending: boolean; failed?: boolean }
+): DocumentTranslation {
   const root = fromMarkdown(source, { extensions: [gfm(), math()], mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()] })
   let pending = 0
+  let failed = 0
   let changed = false
   const pairs = new Map<Nodes, Nodes>()
   const translateInline = (node: Nodes): void => {
@@ -54,21 +61,29 @@ export function translateMarkdownDocument(source: string, localize: (text: strin
     node.children.forEach(collect)
     if (leaves.length === 0) return
     // Literal marker text is not accepted as structure supplied by a provider.
-    if (leaves.some(leaf => /⟪d\d+⟫/.test(leaf.value))) return
+    if (leaves.some(leaf => /⟪d\d+⟫/.test(leaf.value))) {
+      failed++
+      return
+    }
     const original = structuredClone(node)
     const payload = leaves.map((leaf, index) => (index === 0 ? '' : '⟪d' + index + '⟫') + leaf.value).join('')
-    const values = boundedText(payload).map(part => {
-      const value = localize(part)
-      if (value.pending) pending++
-      return value.text
-    })
-    const result = values.join('')
+    const value = localize(payload, paragraphParts(payload))
+    if (value.pending) pending++
+    if (value.failed) failed++
+    if (value.pending || value.failed) return
+    const result = value.text
     if (result === payload) return
     const expected = payload.match(MARKER) ?? []
     const received = result.match(MARKER) ?? []
-    if (expected.length !== received.length || expected.some((token, i) => token !== received[i])) return
+    if (expected.length !== received.length || expected.some((token, i) => token !== received[i])) {
+      failed++
+      return
+    }
     const translatedLeaves = result.split(MARKER)
-    if (translatedLeaves.length !== leaves.length || translatedLeaves.join('').trim() === '') return
+    if (translatedLeaves.length !== leaves.length || translatedLeaves.join('').trim() === '') {
+      failed++
+      return
+    }
     leaves.forEach((leaf, i) => {
       leaf.value = translatedLeaves[i]!
     })
@@ -90,7 +105,7 @@ export function translateMarkdownDocument(source: string, localize: (text: strin
     if ('children' in node) node.children.forEach(visit)
   }
   visit(root)
-  if (!changed) return { text: source, bilingualText: source, pending }
+  if (!changed) return { text: source, bilingualText: source, pending, ...(failed > 0 ? { failed } : {}) }
   const serialize = (tree: Root): string => {
     const rendered = toMarkdown(tree, markdownOptions)
     return source.endsWith('\n') ? rendered : rendered.replace(/\n$/, '')
@@ -121,7 +136,7 @@ export function translateMarkdownDocument(source: string, localize: (text: strin
     }
     return node
   }
-  return { text: translated, bilingualText: serialize(bilingual(root) as Root), pending }
+  return { text: translated, bilingualText: serialize(bilingual(root) as Root), pending, ...(failed > 0 ? { failed } : {}) }
 }
 
 /** One piece of a document: the text to send, and whether it is worth sending at all. */

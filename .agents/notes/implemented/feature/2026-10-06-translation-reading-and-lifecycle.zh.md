@@ -18,25 +18,27 @@ Status: implemented
 
 ### 已展开文档默认双语阅读
 
-[共享阅读器](../../../../packages/market-ui/src/ui/DocumentTranslation.tsx)挂载在已展开的文档中，并在此时发起翻译读取。右上角的紧凑图标标签切换原文、译文和双语。宿主 `SegmentedTabs` 保留键盘导航，默认选择双语。本地化标签供辅助技术读取，并在悬停时显示。
+[共享阅读器](../../../../packages/market-ui/src/ui/DocumentTranslation.tsx)拥有阅读状态，并通过 render 回调把控件和正文交给调用方布局。[DetailRow](../../../../packages/market-ui/src/ui/DetailRows.tsx) 的 `headerActions` 将模式控件放在文件名同行，作为展开按钮的兄弟节点。模式按钮不会嵌套在展开按钮内，也不会因切换模式而折叠正文。宿主 `SegmentedTabs` 提供键盘导航，本地化标签可悬停查看并供辅助技术读取。`ui/reading-mode.ts` 为所有文档保存同一个模块级模式：初始为原文，任一处点击即改变所有已展开的阅读器。
+
+文档组显式启用 `documentHeaders`，外框使用 `overflow: clip`，因此弹窗仍是滚动容器。只有展开的文档标题栏使用 `position: sticky` 和不透明主题背景，到该文档末端时退出吸顶。折叠行、MCP、hooks 与 LSP 保持原有布局。
 
 未展开文档不启动翻译。原文模式停止阅读器重验证，显示作者文本。关闭阅读器不等于取消该文档的全部服务端工作。
 
-服务端响应保留 `text` 与 `pending`，增加可选的 `bilingualText`。等待中或失败的片段保留原文。阅读器通过宿主 `MarkdownText` 渲染一份完整文档，而不是每段各用一个渲染器。
+响应包含 `text`、`pending`，以及可选的 `bilingualText` 和 `failed`。等待中或失败的整段保留原文，`failed` 不会被当作翻译成功。阅读器仍用一个宿主 `MarkdownText` 渲染完整文档。[自然段策略](2026-10-09-document-translation-paragraph-atomicity.zh.md)拥有整段发布与缓存规则。
 
 直接打开的套件详情和用户条目详情也返回可选的 `translationPending`，表示描述仍有多少工作。客户端复用 `pollUntilTranslated`，在值归零、关闭翻译或卸载时停止读取，不按猜测的次数重试。
 
 ### 读取失败时停止加载并允许重试
 
-[文档轮询](../../../../packages/market-ui/src/ui/translation-settle.ts)经 `onError` 报告读取失败，然后停止，不把待处理工作当作已完成。阅读器隐藏加载提示，保留原文或部分译文，并提供「重试翻译」。重试按同一文档和目标语言发起新读取。关闭阅读器或选择原文模式后，不显示迟到的错误。
+读取或翻译期间，旋转图标替换当前模式图标，不在正文另加加载文字。[文档轮询](../../../../packages/market-ui/src/ui/translation-settle.ts)报告读取错误后停止，`failed` 则报告保留原文的失败段落。警告图标替换当前模式图标，悬停显示错误，点击当前警告模式即可重试。重试发送 `retry: true`，重置当前文档已跟踪的失败预算和共享 provider 熔断状态，不清缓存。它保留已完成段落，不能修复本身超长的单句。关闭阅读器或选择原文模式后不显示迟到错误。
 
 [翻译 POST 读取](../../../../packages/market-ui/src/api.ts)使用 15 秒读取时限，不使用 600 秒修改操作时限。请求通过竞速机制将时限覆盖到响应体读取结束，仅收到响应头不会停止计时。这只约束每次 HTTP 读取，不约束翻译工作的总时长。
 
 ### 在服务端变换文档结构
 
-[文档变换](../../../../packages/market-translation/src/application/translation/document.ts)使用带 GFM 和 math 扩展的 mdast。抽象语法树（AST）表示文档结构。变换按段落、标题或表格单元格收集 text 叶节点，用有序占位符保留行内节点位置。代码块、行内代码、链接目标、数学内容与原始 HTML 不进入 provider 输入。占位符缺失、重复或乱序的答案不能直接采用。Provider 适配器可以先尝试[有界修复](2026-10-04-universal-translation-layer.zh.md#遮蔽)，再返回有效译文，或保留原段落。允许单个行内 text 叶节点为空，但整段去掉占位符后必须仍含非空白文本。
+[文档变换](../../../../packages/market-translation/src/application/translation/document.ts)使用带 GFM 和 math 扩展的 mdast。抽象语法树（AST）表示文档结构。它收集段落、标题或表格单元格内的 text 叶节点，用有序占位符保留行内节点位置。代码、链接目标、数学内容与原始 HTML 不交给 provider 翻译。空行内片段允许自然省略，但整段必须仍有正文且保留完整有序标记。[自然段策略](2026-10-09-document-translation-paragraph-atomicity.zh.md)取代按固定字符切片和按格式叶节点修复的策略。
 
-文档正文不会为填满请求而将一段与相邻段落合并。只有超长段落才切成有上限的片段。缓存身份包含片段文本，不包含段落位置。插入一段正文不会改变无关片段的键。描述保留旧分块器，包括跨段组块和作者分隔符，以保持历史描述缓存键。
+文档段落不与相邻段落合并。超过请求预算的段落只按完整句子分组，单句超预算时整段保留原文并报告失败。每段所有部分完成后才发布并保存聚合结果。描述仍保留旧分块器和历史键，包括跨段组块与作者分隔符。正文策略版本与一次性重译开销归[自然段策略](2026-10-09-document-translation-paragraph-atomicity.zh.md)说明。
 
 双语段落在原文后换行显示译文。标题分别显示原文标题和译文标题。表格先显示完整原表，再显示译表，不做单元格内逐项配对。列表、引用与脚注保留在同一文档树内。序列化可能规范化 Markdown 空白与标记。原文模式保留源文本，所有模式都不改写源文件。
 
@@ -54,7 +56,7 @@ Provider 可以忽略取消信号并完成远端计算。链将 provider 工作�
 
 本地化器按旧 flush、删除、新 flush 的顺序串行持久化。单靠 generation 判断不能阻止旧磁盘写入恢复已清空的记录，持久化顺序提供第二道保证。重置后开启状态下的读取可以创建新记录。
 
-持久键保留目标、面、实体 id、角色、文本与链标识。同一文档在用户面板和市场详情间共享片段记录。独立的文本索引仍只在内存里，因此这不是对所有重复字符串的全局持久缓存。
+持久键包含目标、面、实体 id、角色、文本与链标识。正文另外使用策略身份，将新的整段结果与旧切片分开。用户面板和市场详情共享同一文档的段落记录。文本索引仍只在内存里，不是全局持久内容缓存。
 
 ### 打开的菜单有限重验证
 
@@ -78,7 +80,7 @@ Provider 可以忽略取消信号并完成远端计算。链将 provider 工作�
 
 阅读器无需第二套客户端渲染器，即可直接逐段对照。服务端每次文档读取增加了解析与序列化工作。AST 支持 GFM 与 math，但不保证覆盖宿主每项私有语法扩展，也不保证译文 Markdown 逐字节相同。
 
-表格保留布局，但以整表对照。长段落会按源文本预算拆分，分界处可能丢失翻译上下文。中译英输出可能膨胀，因此英文批次预算更小。源文本预算与取消机制都不能保证远端 provider 停止计算或避免截断。
+表格仍按整表对照。长段落的句间分组会减少跨句上下文，而超预算单句保持原文。英文批次预算更小，因为输出可能膨胀。源文本预算与取消机制都不保证远端 provider 停止或避免截断，相关限制归[自然段策略](2026-10-09-document-translation-paragraph-atomicity.zh.md)。
 
 ## Testing
 
@@ -92,4 +94,4 @@ Provider 可以忽略取消信号并完成远端计算。链将 provider 工作�
 
 本记录部分取代[折叠阅读决策](2026-10-05-document-translation-chunked-and-lazy.zh.md)与[语言作为门禁的决策](2026-10-05-translation-default-follows-language.zh.md)。它们保留请求限额、角色兼容与未设置值区分的理由，继续有效。旧记录对「用户选择折叠区」的归因不能作为本决策的证据。
 
-[通用翻译层](2026-10-04-universal-translation-layer.zh.md)保留 provider 顺序、持久键与模型隔离。[市场路由](../architecture/2026-10-05-market-document-translation-route-and-identity.zh.md)保留独立查找范围与共享文档身份。本次改动没有完全取代或归档任何记录。
+[自然段策略](2026-10-09-document-translation-paragraph-atomicity.zh.md)部分取代本记录的切片发布与缓存规则，本记录仍拥有标题栏交互、目标/开关独立和生命周期。[通用层](2026-10-04-universal-translation-layer.zh.md)保留 provider 顺序与模型隔离。[市场路由](../architecture/2026-10-05-market-document-translation-route-and-identity.zh.md)保留独立查找范围与共享文档身份。这些记录没有被完全取代或归档。

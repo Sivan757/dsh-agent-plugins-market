@@ -349,16 +349,14 @@ describe('unified Markdown resource panel', () => {
     expect(control().getAttribute('aria-checked')).toBe('true')
   })
 
-  it('reads an entry document when the detail row is opened, not with the list', async () => {
+  it('reads an entry document when its detail opens, not with the list', async () => {
     api.fetchUserPanel.mockResolvedValue([user])
     api.fetchUserPanelEntry.mockResolvedValue({ ...user, rawText: '---\ndescription: Review implementation\n---\nFRESHDOCBODY' })
     await mountPanel()
     const card = host.querySelector<HTMLElement>('[role="button"]')
     await act(async () => card!.click())
-    // The dialog opens from the list row alone; the document is a second read,
-    // taken only when the reader asks for it.
-    expect(api.fetchUserPanelEntry).not.toHaveBeenCalled()
-    await click('reviewer.md')
+    // The dialog opens on the document, so that read rides the open rather than
+    // a second click. The list read still carries no document of its own.
     expect(api.fetchUserPanelEntry).toHaveBeenCalledWith('agents', user.id)
     expect(host.textContent).toContain('FRESHDOCBODY')
   })

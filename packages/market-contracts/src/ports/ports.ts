@@ -56,7 +56,7 @@ export type LocalizeFields = (
  *
  * `locale` is required for the reason {@link LocalizeFields} documents.
  */
-export type LocalizeDocument = (surface: TranslationSurfaceKind, id: string, text: string, locale: string) => DocumentTranslation
+export type LocalizeDocument = (surface: TranslationSurfaceKind, id: string, text: string, locale: string, retry?: boolean) => DocumentTranslation
 
 /**
  * One read's localization: the host locale, and the resolver that applies it.

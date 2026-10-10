@@ -27,5 +27,5 @@ export interface CatalogPort {
   translateFields: LocalizeFields
   translateDocument: LocalizeDocument
   suiteDocument(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, cwd?: string): Promise<SuiteDocumentText>
-  suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, cwd?: string): Promise<DocumentTranslation>
+  suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, retry?: boolean, cwd?: string): Promise<DocumentTranslation>
 }

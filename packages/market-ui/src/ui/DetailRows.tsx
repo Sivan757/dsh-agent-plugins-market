@@ -27,9 +27,12 @@ export function DetailRows({
   summary,
   open,
   onToggle,
+  documentHeaders = false,
   children
 }: {
   label?: string | undefined
+  /** Let expanded document headers stick to the enclosing dialog scrollport. */
+  documentHeaders?: boolean
   /** One line beside the name, e.g. how many rows the group holds. */
   summary?: string | undefined
   /** Whether the group's rows are shown; only read with `onToggle`. */
@@ -58,7 +61,7 @@ export function DetailRows({
   }
   return h(
     'div',
-    { className: css.rows },
+    { className: documentHeaders ? `${css.rows} ${css.documentRows}` : css.rows, 'data-document-headers': documentHeaders || undefined },
     // The name is a row of the frame it labels: the same band a row shows, so a
     // folded group and a folded disclosure are the same shape, and an opened
     // one takes the same soft grey.
@@ -74,6 +77,8 @@ export function DetailRow(props: {
   summary?: string | undefined
   /** A row without content renders as a plain band and takes no chevron. */
   expandable?: boolean | undefined
+  /** Interactive actions occupy a sibling of the disclosure button. */
+  headerActions?: ReactNode
   open?: boolean | undefined
   onToggle?: (() => void) | undefined
   children?: ReactNode
@@ -87,6 +92,24 @@ export function DetailRow(props: {
   ]
   if (!expandable) {
     return h('div', { className: css.group }, h('div', { className: css.row, 'data-static': true }, ...header.slice(0, 2)))
+  }
+  if (props.headerActions !== undefined) {
+    return h(
+      'div',
+      { className: css.group, 'data-detail-row': true },
+      h(
+        'div',
+        { className: css.actionHeader, 'data-detail-header': true, 'data-open': open },
+        h('button', { type: 'button', className: css.actionToggle, 'aria-expanded': open, onClick: props.onToggle }, header[0], header[1]),
+        h('div', { className: css.headerActions }, props.headerActions),
+        h(
+          'button',
+          { type: 'button', className: css.collapseToggle, 'aria-expanded': open, 'aria-label': props.name, onClick: props.onToggle },
+          h('span', { className: css.chevron, 'aria-hidden': true }, open ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
+        )
+      ),
+      open ? h('div', { className: css.body, 'data-detail-body': true }, props.children) : null
+    )
   }
   return h(
     'div',

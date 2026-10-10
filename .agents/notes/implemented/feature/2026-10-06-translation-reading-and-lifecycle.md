@@ -18,25 +18,27 @@ Names and keywords remain identifiers. Translated descriptions and document pros
 
 ### Expanded documents start in bilingual mode
 
-[The shared reader](../../../../packages/market-ui/src/ui/DocumentTranslation.tsx) mounts inside an expanded document and starts the translation read there. Compact icon tabs at the upper-right select original, translated or bilingual text. The host `SegmentedTabs` retains keyboard navigation, with bilingual selected by default. Localized labels remain available to assistive technology and on hover.
+[The shared reader](../../../../packages/market-ui/src/ui/DocumentTranslation.tsx) owns reading state and gives controls and body to its caller through a render callback. [DetailRow](../../../../packages/market-ui/src/ui/DetailRows.tsx) places `headerActions` beside the filename as siblings of the disclosure button. Mode buttons are never nested inside that button, and selecting a mode does not collapse the document. Host `SegmentedTabs` provides keyboard navigation and exposes localized hover and accessibility labels. `ui/reading-mode.ts` holds one module-level mode for every document: original is the start, and a click changes every open reader.
+
+Document groups opt into `documentHeaders`. Their frame uses `overflow: clip`, so the enclosing dialog remains the scroll container. Only expanded document headers use `position: sticky`, with an opaque theme background. The document boundary releases the header at its end. Collapsed rows, MCP, hooks and LSP keep their existing layout.
 
 Unexpanded documents do not start translation. Original mode stops reader revalidation and renders authored text. Closing a reader does not cancel all server work for that document.
 
-The server response keeps `text` and `pending` and adds optional `bilingualText`. Pending or failed segments retain their original prose. The reader displays one complete document through the host `MarkdownText`, not separate renderers for each paragraph.
+The response carries `text`, `pending`, optional `bilingualText` and optional `failed`. Pending or failed paragraphs retain their original prose, and `failed` is not treated as successful translation. One host `MarkdownText` still renders the complete document. [The paragraph strategy](2026-10-09-document-translation-paragraph-atomicity.md) owns publication and caching.
 
 Direct suite and user-entry details also return optional `translationPending` for unfinished description work. Clients reuse `pollUntilTranslated` and stop at zero, disable or unmount, rather than retrying a guessed number of times.
 
 ### Failed reads stop loading and offer retry
 
-[Document polling](../../../../packages/market-ui/src/ui/translation-settle.ts) reports a read failure through `onError` and stops without treating pending work as complete. The reader hides loading, retains the original or partial translation, and offers Retry translation. Retry starts a fresh read with the same document and target. Closing the reader or selecting original mode suppresses late errors.
+While reading or translating, a spinner replaces the selected mode icon rather than adding body loading text. [Document polling](../../../../packages/market-ui/src/ui/translation-settle.ts) stops after reporting a read error, while `failed` reports paragraphs retained as original. A warning replaces the selected icon and exposes the error on hover. Activating that selected warning mode sends `retry: true`, which resets this document’s tracked failure budgets and the shared provider breaker without clearing caches. Completed paragraphs remain available, but retry cannot make an oversized sentence fit. Closing the reader or selecting original mode suppresses late errors.
 
 [Translation POST reads](../../../../packages/market-ui/src/api.ts) use the 15-second read deadline, not the 600-second mutation deadline. The request races that deadline through response-body consumption, so received headers alone do not end the timer. This bounds each HTTP read, not total translation work.
 
 ### Transform document structure on the server
 
-[The document transform](../../../../packages/market-translation/src/application/translation/document.ts) uses mdast with GFM and math extensions. An abstract syntax tree, or AST, represents document structure. The transform collects text leaves inside each paragraph, heading or table cell. Ordered placeholders preserve the positions of inline nodes. Code, inline code, link destinations, math and raw HTML do not enter provider input. Missing, duplicated or reordered placeholders are not accepted directly. The provider adapter can attempt [bounded repair](2026-10-04-universal-translation-layer.md#masking) before returning a valid translation or leaving the original paragraph. An empty inline text leaf is allowed, but the paragraph must contain non-whitespace text after placeholders are removed.
+[The document transform](../../../../packages/market-translation/src/application/translation/document.ts) uses mdast with GFM and math extensions. An abstract syntax tree, or AST, represents document structure. It collects text leaves within paragraphs, headings or table cells and uses ordered placeholders to retain inline positions. Code, link destinations, math and raw HTML stay outside provider translation. Empty inline fragments are allowed, but the paragraph must retain prose and complete ordered markers. [The paragraph strategy](2026-10-09-document-translation-paragraph-atomicity.md) supersedes fixed-character slices and formatting-leaf repair.
 
-A document paragraph is not combined with its neighbors to fill a request. Only an oversized paragraph splits into bounded segments. Cache identity includes segment text, not paragraph position. Inserting a document paragraph leaves unrelated segment keys unchanged. Descriptions retain the legacy splitter, including cross-paragraph packing and authored separators, to preserve historical description cache keys.
+Document paragraphs are never combined with neighbors. Oversized paragraphs split only between complete sentences, and an oversized single sentence leaves its paragraph original with a failure. The paragraph is published and stored as an aggregate only after all parts finish. Descriptions retain the legacy splitter and historical keys, including cross-paragraph packing and authored separators. [The paragraph strategy](2026-10-09-document-translation-paragraph-atomicity.md) documents versioning and the one-time retranslation cost.
 
 Bilingual paragraphs place translated text after the original with a line break. Headings appear as original and translated headings. Tables appear as a complete original table followed by a translated table, not cell-by-cell pairs. Lists, references and footnotes remain within the same document tree. Serialization can normalize Markdown whitespace and markers. The original mode retains source text, and no mode rewrites the source file.
 
@@ -54,7 +56,7 @@ Reset clears entries, the text index, retries and pending work. It also incremen
 
 The localizer serializes persistence as old flush, deletion, then new flush. Generation tests alone cannot stop an old disk write from restoring cleared entries. The persistence order supplies that second guarantee. An enabled read after reset can create fresh entries.
 
-Persistent keys retain the target, surface, entity id, role, text and chain identity. The same document shares segment records between the user panel and Market detail. The separate text index remains in memory, so this is not a persistent global cache of every repeated string.
+Persistent keys include target, surface, entity id, role, text and chain identity. Documents also use strategy identity to separate complete paragraph results from old slices. User panels and Market detail share paragraph records for the same document. The text index remains in memory rather than forming a global persistent content cache.
 
 ### Open menus revalidate with a limit
 
@@ -78,7 +80,7 @@ The 40 ticks span about 60 seconds, plus read time. Translations that finish aft
 
 The reader gains direct bilingual comparison without a second client renderer. Server parsing and serialization add work for each document read. The AST supports GFM and math, but it does not promise every private host grammar extension or byte-identical translated Markdown.
 
-Tables retain their layout but use whole-table comparison. Long paragraphs split at the source budget and can lose translation context at that boundary. The English batch budget is smaller because translated output can expand. Neither source budgets nor cancellation guarantee a remote provider stops or avoids truncation.
+Tables still use whole-table comparison. Sentence grouping reduces cross-sentence context for long paragraphs, while oversized single sentences remain original. The English batch budget is smaller because output can expand. Source budgets and cancellation do not guarantee that a remote provider stops or avoids truncation. [The paragraph strategy](2026-10-09-document-translation-paragraph-atomicity.md) owns those limits.
 
 ## Testing
 
@@ -92,4 +94,4 @@ Tables retain their layout but use whole-table comparison. Long paragraphs split
 
 This note partially supersedes [the disclosure-reading decision](2026-10-05-document-translation-chunked-and-lazy.md) and [the language-as-gate decision](2026-10-05-translation-default-follows-language.md). They remain active for bounded requests, role compatibility and the absent-setting distinction. The earlier attribution of the disclosure choice to the user is not evidence for this decision.
 
-[The universal layer](2026-10-04-universal-translation-layer.md) retains provider order, persistent keys and model isolation. [The Market route](../architecture/2026-10-05-market-document-translation-route-and-identity.md) retains separate lookup scopes with shared document identity. No note is fully superseded or archived by this change.
+[The paragraph strategy](2026-10-09-document-translation-paragraph-atomicity.md) partially supersedes this note’s slice publication and caching rules. This note retains header interaction, independent target and display controls, and lifecycle ownership. [The universal layer](2026-10-04-universal-translation-layer.md) retains provider order and model isolation. [The Market route](../architecture/2026-10-05-market-document-translation-route-and-identity.md) retains lookup scopes and shared identity. None is fully superseded or archived.

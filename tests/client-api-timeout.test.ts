@@ -10,6 +10,23 @@ afterEach(() => {
 })
 
 describe('client request bounds', () => {
+  it.each(['panel', 'market'] as const)('sends explicit retry only when requested for the %s document', async surface => {
+    const bodies: Record<string, unknown>[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string) as Record<string, unknown>)
+        return new Response(JSON.stringify({ ok: true, text: 'body', pending: 0, failed: 1 }), { status: 200 })
+      })
+    )
+    const load = (retry?: boolean) =>
+      surface === 'panel' ? fetchDocumentTranslation('skills', 'audit', undefined, retry) : fetchSuiteDocumentTranslation('source', 'suite', 'skills', 'audit', undefined, retry)
+    expect(await load()).toMatchObject({ failed: 1 })
+    await load(true)
+    expect(bodies[0]).not.toHaveProperty('retry')
+    expect(bodies[1]).toHaveProperty('retry', true)
+  })
+
   it.each(['panel', 'market'] as const)('bounds stalled %s translation response bodies by the read deadline', async surface => {
     vi.useFakeTimers()
     let signal: AbortSignal | undefined
@@ -41,7 +58,7 @@ describe('client request bounds', () => {
   })
 
   it.each(['panel', 'market'] as const)('preserves bilingual document content from the %s transport', async surface => {
-    const payload = { text: '译文', bilingualText: 'Original\n译文', pending: 2 }
+    const payload = { text: '译文', bilingualText: 'Original\n译文', pending: 2, failed: 1 }
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ ok: true, ...payload }), { status: 200 }))
     vi.stubGlobal('fetch', fetcher)
     const result = surface === 'panel' ? await fetchDocumentTranslation('skills', 'audit') : await fetchSuiteDocumentTranslation('source', 'suite', 'skills', 'audit')

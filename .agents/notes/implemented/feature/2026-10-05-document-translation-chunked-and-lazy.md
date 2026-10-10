@@ -16,7 +16,7 @@ A document travels in bounded prose segments rather than one provider request. C
 
 The localizer bounds both text count and source characters per batch. The model adapter sizes its output budget from the source a call carries and rejects truncated output. These are application budgets, not claims about the undocumented limits of the vendors' consumer endpoints; a change of endpoint or supported target requires reviewing them together.
 
-Descriptions also use bounded chunks. The splitter retains source separators, so unchanged chunks reconstruct the field. Invented blank lines can move a fenced example out of a list item or make a tight list loose. The splitter does not combine independent paragraphs to fill a chunk budget.
+Descriptions retain legacy cross-paragraph packing and authored separators to reuse historical cache keys. Untranslated chunks still reconstruct the original field. [The paragraph strategy](2026-10-09-document-translation-paragraph-atomicity.md) owns independent document paragraphs and sentence grouping, not a migration of description caches.
 
 ### Preserve the role slot
 

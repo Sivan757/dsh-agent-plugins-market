@@ -84,7 +84,7 @@ export interface PanelResourceStore {
    * the chunks this read could not answer for are queued; the caller polls
    * until `pending` reaches zero.
    */
-  translateDocument(id: string): Promise<DocumentTranslation>
+  translateDocument(id: string, retry?: boolean): Promise<DocumentTranslation>
   create(name: string, text: string): Promise<UserPanelEntryWire>
   update(id: string, text: string): Promise<void>
   remove(id: string): Promise<void>
@@ -162,7 +162,7 @@ function documentFields(rawText: string, skills: boolean): { rawText: string; me
  */
 export function createPanelResources(catalog: Catalog, users: Record<UserPanelKind, UserPanelEntries>, projectCwd?: string): Record<UserPanelKind, PanelResourceStore> {
   const localizeFields: LocalizeFields = (surface, id, fields, locale) => catalog.translateFields(surface, id, fields, locale)
-  const localizeDocument: LocalizeDocument = (surface, id, text, locale) => catalog.translateDocument(surface, id, text, locale)
+  const localizeDocument: LocalizeDocument = (surface, id, text, locale, retry) => catalog.translateDocument(surface, id, text, locale, retry)
   return {
     skills: new PanelResources(catalog, users.skills, 'skills', localizeFields, localizeDocument, projectCwd),
     commands: new PanelResources(catalog, users.commands, 'commands', localizeFields, localizeDocument, projectCwd),
@@ -234,14 +234,14 @@ class PanelResources implements PanelResourceStore {
     return { ...shown.entry, ...(shown.pending > 0 ? { translationPending: shown.pending } : {}) }
   }
 
-  async translateDocument(id: string): Promise<DocumentTranslation> {
+  async translateDocument(id: string, retry?: boolean): Promise<DocumentTranslation> {
     const row = await this.detail(id)
     if (row === undefined) throw new Error(`no entry named "${id}"`)
     // The body only: frontmatter is metadata the overview block already shows,
     // and a provider asked to translate YAML answers with YAML that no longer
     // parses. One preference read for the whole document, like every other
     // localized read here.
-    return this.localizeDocument(this.kind, row.translationId, stripFrontmatter(row.entry.rawText), this.catalog.localePreference)
+    return this.localizeDocument(this.kind, row.translationId, stripFrontmatter(row.entry.rawText), this.catalog.localePreference, retry)
   }
 
   create(name: string, text: string): Promise<UserPanelEntryWire> {

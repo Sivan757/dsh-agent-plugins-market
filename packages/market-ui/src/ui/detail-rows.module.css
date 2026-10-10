@@ -13,6 +13,17 @@
   overflow: hidden;
 }
 
+/* Clip rounded document frames without creating a second scroll container. */
+.documentRows {
+  overflow: clip;
+}
+.documentRows .actionHeader[data-open='true'] {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
 /* A frame whose content is one sentence rather than rows. */
 .notice {
   padding: 9px 12px;
@@ -93,6 +104,52 @@ button.row {
   display: block;
 }
 
+.actionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 10px 4px 12px;
+}
+.actionHeader[data-open='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.group + .group .actionHeader {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+.actionToggle,
+.collapseToggle {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.actionToggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 0;
+  text-align: left;
+}
+.actionToggle .name {
+  flex-shrink: 0;
+  max-width: 60%;
+}
+.headerActions {
+  flex: none;
+}
+.collapseToggle {
+  display: inline-flex;
+  padding: 7px 0;
+}
+.actionToggle:focus-visible,
+.collapseToggle:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
 .body {
   padding: 12px 14px;
   border-top: 1px solid var(--dsw-alias-border-l2);

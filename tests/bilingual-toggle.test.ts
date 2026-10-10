@@ -265,6 +265,60 @@ describe('the panel text-view switch', () => {
     expect(api.fetchMcpStatus).toHaveBeenCalledTimes(1)
   })
 
+  it('flips the preset manager cards, leaving names and the selection alone', async () => {
+    const { ResourceList } = await import('../packages/market-ui/src/features/extension-presets/ResourceList.js')
+    // One translated suite row: the list renders the translation until the
+    // reader flips the shared view, then the authored text.
+    const row = {
+      id: 'market:demo/demo-suite',
+      face: 'market' as const,
+      name: 'Demo Suite',
+      description: 'English description',
+      translatedDescription: '中文描述',
+      source: 'demo',
+      available: true,
+      globalEnabled: true,
+      detail: { kind: 'suite' as const, sourceId: 'demo', suiteId: 'demo-suite' }
+    }
+    const flips: number[] = []
+    const render = async (showOriginal: boolean): Promise<void> => {
+      await act(async () =>
+        root!.render(
+          h(ResourceList, {
+            resources: [row],
+            ids: [],
+            disabled: false,
+            // The manager's translator spans both dictionaries.
+            t: zhT as unknown as Parameters<typeof ResourceList>[0]['t'],
+            showOriginal,
+            onToggleShowOriginal: () => flips.push(1),
+            onToggle: () => {},
+            onView: () => {}
+          })
+        )
+      )
+    }
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await render(false)
+    // The suite name is an identifier and stays in both views.
+    expect(host.textContent).toContain('Demo Suite')
+    expect(host.textContent).toContain('中文描述')
+    expect(host.textContent).not.toContain('English description')
+
+    const button = toggle()!
+    expect(button.title).toBe('translationShowOriginal')
+    await act(async () => button.click())
+    // The click reports up rather than flipping local state: the entry owns the
+    // view so its detail dialog rides the same value.
+    expect(flips).toHaveLength(1)
+    await render(true)
+    expect(host.textContent).toContain('Demo Suite')
+    expect(host.textContent).toContain('English description')
+    expect(host.textContent).not.toContain('中文描述')
+  })
+
   it('offers no switch on the LSP panel: a row carries nothing but a key', async () => {
     api.fetchLspStatus.mockResolvedValue(LSP_STATUS)
     await mount(h(LspStatusPanel, { t: zhT }))

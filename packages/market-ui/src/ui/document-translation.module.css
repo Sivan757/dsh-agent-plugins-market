@@ -2,17 +2,17 @@
 .toolbar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 6px;
+  align-items: center;
 }
 .tabs {
   box-sizing: border-box;
   flex: none;
-  width: 92px;
+  width: 74px;
 }
 .tabs [role='tab'] {
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   padding: 0;
 }
 .tabs [role='tab']:focus-visible {
@@ -29,6 +29,20 @@
 }
 .icon {
   display: inline-flex;
+}
+.spinner {
+  display: inline-flex;
+  animation: document-spin 0.9s linear infinite;
+}
+@keyframes document-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
 }
 .srOnly {
   position: absolute;

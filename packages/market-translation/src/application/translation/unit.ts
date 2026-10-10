@@ -15,6 +15,8 @@ export interface TranslationUnit {
    * keeps the key it was written under.
    */
   role?: TranslationRole | undefined
+  /** Optional cache namespace for document algorithms; legacy fields omit it. */
+  strategy?: string | undefined
 }
 
 /**

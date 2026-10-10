@@ -88,7 +88,7 @@ function band(name: string): HTMLButtonElement {
 
 /** The open row's body: the document, and under it whatever the row adds. */
 function rowBody(name: string): HTMLElement {
-  const body = band(name).parentElement?.children[1]
+  const body = band(name).closest('[data-detail-row]')?.querySelector('[data-detail-body]')
   if (!(body instanceof HTMLElement)) throw new Error(`the row carrying "${name}" is not open`)
   return body
 }
@@ -120,7 +120,7 @@ describe('market detail documents are read on expand', () => {
     expect(rowBody('big').textContent).not.toContain('truncated')
   })
 
-  it('gives skills, commands, and agents the same lazy read, loading line, and error path', async () => {
+  it('gives skills, commands, and agents the same lazy read, header spinner, and retry path', async () => {
     await mount()
     const pending: Array<(value: { name: string; content: string }) => void> = []
     api.fetchSuiteDocument.mockImplementation(
@@ -134,14 +134,16 @@ describe('market detail documents are read on expand', () => {
     // the read lands.
     await click('greet')
     expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'skills', 'greet', undefined)
-    expect(rowBody('greet').textContent).toContain('loading')
+    expect(rowBody('greet').textContent).toBe('')
+    expect(band('greet').closest('[data-detail-row]')?.querySelector('[data-detail-header] [data-translation-spinner]')).not.toBeNull()
     await act(async () => pending.shift()?.({ name: 'greet', content: '# Greet\n\nRun the script.' }))
     expect(rowBody('greet').textContent).toContain('Run the script.')
 
     // The other two take exactly that path, each naming its own document.
     await click('big')
     expect(api.fetchSuiteDocument).toHaveBeenLastCalledWith('active', 'v1-suite', 'commands', 'big', undefined)
-    expect(rowBody('big').textContent).toContain('loading')
+    expect(rowBody('big').textContent).toBe('')
+    expect(band('big').closest('[data-detail-row]')?.querySelector('[data-detail-header] [data-translation-spinner]')).not.toBeNull()
     await act(async () => pending.shift()?.({ name: 'big', content: BIG_COMMAND }))
     expect(rowBody('big').textContent).toContain(BIG_TAIL)
 
@@ -154,7 +156,7 @@ describe('market detail documents are read on expand', () => {
     await click('reviewer')
     api.fetchSuiteDocument.mockRejectedValueOnce(new Error('document unreadable'))
     await click('reviewer')
-    expect(rowBody('reviewer').textContent).toContain('document unreadable')
+    expect(band('reviewer').closest('[data-detail-row]')?.querySelector('[role="status"]')?.getAttribute('aria-label')).toContain('document unreadable')
 
     // Reopening a row reads again rather than reusing whatever it showed before.
     await click('reviewer')

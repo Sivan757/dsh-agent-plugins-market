@@ -33,11 +33,14 @@ export interface UserEntryDetailProps {
 /** The entry's document, its overview, and its metadata. */
 export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
   const { t, kind, entry, sessionId } = props
-  const [open, setOpen] = useState(false)
+  // The dialog exists to show this document, so its one row starts open and the
+  // read starts with the dialog. Collapsing it is the reader's own choice.
+  const [open, setOpen] = useState(true)
   // The document arrives with the entry read, not with the list the dialog was
   // opened from, so the row shows a loading line until it lands.
   const [document, setDocument] = useState<string | undefined>(undefined)
   const [documentError, setDocumentError] = useState<string | undefined>(undefined)
+  const [documentAttempt, setDocumentAttempt] = useState(0)
   const entryId = entry.id ?? entry.name
   const target = localeIsChinese(t) ? 'zh' : 'en'
   const enabled = useTranslationEnabled()
@@ -88,7 +91,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
     return () => {
       current = false
     }
-  }, [open, kind, entryId, sessionId])
+  }, [open, kind, entryId, sessionId, documentAttempt])
   const updated = entry.updatedAt === undefined || entry.updatedAt === null ? null : lastChangeLabel(t, entry.updatedAt)
   const provenance = entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
   // A command registers under its flattened call name and every other kind under
@@ -147,24 +150,26 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
       h('h4', { className: css.blockHead }, t(kind === 'skills' ? 'docSectionSkill' : kind === 'commands' ? 'docSectionCommand' : 'docSectionPersona')),
       h(
         DetailRows,
-        null,
-        h(DetailRow, {
-          name: docName,
-          summary: t('detailDocHint'),
+        { documentHeaders: true },
+        h(DocumentTranslationView, {
+          key: entryId,
+          t,
           open,
-          onToggle: () => setOpen(!open),
-          children:
-            documentError ??
-            (document === undefined
-              ? t('loading')
-              : h(DocumentTranslationView, {
-                  t,
-                  // The authored body is what renders until the reader flips the
-                  // control; the component swaps the body rather than stacking a
-                  // second copy of the document under the first.
-                  original: document,
-                  load: () => fetchDocumentTranslation(kind, entryId, sessionId)
-                }))
+          original: document,
+          originalLoading: open && document === undefined && documentError === undefined,
+          originalError: documentError,
+          retryOriginal: () => setDocumentAttempt(value => value + 1),
+          load: retry => fetchDocumentTranslation(kind, entryId, sessionId, retry),
+          render: ({ controls, body }) =>
+            h(DetailRow, {
+              name: docName,
+              // The hint names what the click does, so it flips with the row.
+              summary: t(open ? 'detailDocCollapseHint' : 'detailDocHint'),
+              open,
+              onToggle: () => setOpen(!open),
+              headerActions: controls,
+              children: body
+            })
         })
       )
     )

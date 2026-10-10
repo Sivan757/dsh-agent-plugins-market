@@ -25,7 +25,6 @@ import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import { lastChangeLabel } from '../../ui/last-change.js'
 import { jsonTreeLabels } from '../../ui/json-tree-labels.js'
 import { fetchSuiteDetail, fetchSuiteDocument, fetchSuiteDocumentTranslation, type McpServerDetail, type SuiteDetail, type UserPanelKind } from '../../api.js'
-import type { DocumentTranslation } from '../../../../market-contracts/src/contracts/translation.js'
 import type { Translate } from '../../i18n.js'
 import { suiteLayoutLabel } from '../../layout-label.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
@@ -80,6 +79,7 @@ export function SuiteDetailModal({
   // it is the open one, so the three document surfaces share one read state.
   const [documentText, setDocumentText] = useState<string | undefined>(undefined)
   const [documentLoading, setDocumentLoading] = useState(false)
+  const [documentError, setDocumentError] = useState<string>()
   const documentRequestGuard = useRef(createLatestRequestGuard())
   // The dialog renders the panel's view and flips that same state, so the two
   // switches are one control seen from two places rather than two states.
@@ -91,6 +91,7 @@ export function SuiteDetailModal({
     setError(undefined)
     setOpenRow(undefined)
     setDocumentText(undefined)
+    setDocumentError(undefined)
     return () => {
       documentRequestGuard.current.invalidate()
     }
@@ -130,38 +131,45 @@ export function SuiteDetailModal({
       return
     }
     setOpenRow(id)
-    if (load === undefined) return
+    if (load !== undefined) await readDocument(load)
+  }
+
+  const readDocument = async (load: () => Promise<string>): Promise<void> => {
     const requestId = documentRequestGuard.current.next()
     setDocumentLoading(true)
+    setDocumentError(undefined)
     setDocumentText(undefined)
     try {
       const content = await load()
       if (documentRequestGuard.current.isCurrent(requestId)) setDocumentText(content)
     } catch (reason) {
-      if (documentRequestGuard.current.isCurrent(requestId)) setDocumentText(`⚠ ${clientErrorMessage(t, reason)}`)
+      if (documentRequestGuard.current.isCurrent(requestId)) setDocumentError(clientErrorMessage(t, reason))
     } finally {
       if (documentRequestGuard.current.isCurrent(requestId)) setDocumentLoading(false)
     }
   }
 
-  /**
-   * One document row — a skill, a command, or an agent. The three surfaces take
-   * one path: opening the row starts the read, the row shows its own loading
-   * line until that read lands, and a failed read writes the same failure text
-   * into the body. The detail payload never carries a document's bytes, so no
-   * row can render a body that was cut to fit it.
-   */
+  /** A document row keeps its reading controls in the file header. */
   const documentRow = (kind: UserPanelKind, id: string, name: string, description: string | undefined): ReactNode =>
-    row(
-      openRow,
-      id,
-      name,
-      description,
-      () => void toggleRow(id, async () => (await fetchSuiteDocument(sourceId, suiteId, kind, name, sessionId)).content),
-      openRow === id && documentLoading
-        ? h('div', { className: css.empty }, t('loading'))
-        : documentBody(t, documentText ?? '', () => fetchSuiteDocumentTranslation(sourceId, suiteId, kind, name, sessionId))
-    )
+    h(DocumentTranslationView, {
+      key: id,
+      t,
+      open: openRow === id,
+      original: openRow === id ? documentText : undefined,
+      originalLoading: openRow === id && documentLoading,
+      originalError: openRow === id ? documentError : undefined,
+      retryOriginal: () => void readDocument(async () => (await fetchSuiteDocument(sourceId, suiteId, kind, name, sessionId)).content),
+      load: retry => fetchSuiteDocumentTranslation(sourceId, suiteId, kind, name, sessionId, retry),
+      render: ({ controls, body }) =>
+        h(DetailRow, {
+          name,
+          summary: description?.replace(/\s+/g, ' ').trim(),
+          open: openRow === id,
+          onToggle: () => void toggleRow(id, async () => (await fetchSuiteDocument(sourceId, suiteId, kind, name, sessionId)).content),
+          headerActions: controls,
+          children: body
+        })
+    })
 
   const layoutLabel = detail === undefined ? '' : suiteLayoutLabel(detail.layout, t)
   const updated = detail === undefined || detail.updatedAt === null ? null : lastChangeLabel(t, detail.updatedAt)
@@ -227,7 +235,9 @@ export function SuiteDetailModal({
                 block(
                   t('skillsSection'),
                   detail.skills.length,
-                  detail.skills.map(skill => documentRow('skills', `s:${skill.name}`, skill.name, skill.description))
+                  detail.skills.map(skill => documentRow('skills', `s:${skill.name}`, skill.name, skill.description)),
+                  undefined,
+                  true
                 ),
                 block(
                   t('mcpSection'),
@@ -248,12 +258,16 @@ export function SuiteDetailModal({
                 block(
                   t('commandsSection'),
                   detail.commands.length,
-                  detail.commands.map(command => documentRow('commands', `c:${command.name}`, command.name, command.description))
+                  detail.commands.map(command => documentRow('commands', `c:${command.name}`, command.name, command.description)),
+                  undefined,
+                  true
                 ),
                 block(
                   t('agentsSection'),
                   detail.agents.length,
-                  detail.agents.map(agent => documentRow('agents', `a:${agent.name}`, agent.name, agent.description))
+                  detail.agents.map(agent => documentRow('agents', `a:${agent.name}`, agent.name, agent.description)),
+                  undefined,
+                  true
                 ),
                 block(
                   t('hooksLabel'),
@@ -298,29 +312,15 @@ export function SuiteDetailModal({
   })
 }
 
-/**
- * One document row's body: the file as authored, and under it the collapsible
- * translation section every other document surface carries.
- *
- * The section starts closed and reads nothing until a reader opens it, so a
- * document nobody translates costs nothing. It is the component the user-panel
- * detail page renders, against the same contract: the read names this suite and
- * this document, and the server re-reads the file rather than trusting the
- * detail payload that put the authored text on screen.
- */
-function documentBody(t: Translate, original: string, load: () => Promise<DocumentTranslation>): ReactNode {
-  return h(DocumentTranslationView, { t, original, load })
-}
-
 /** One surface group. A surface the suite does not carry is left out entirely. */
-function block(head: string, count: number, rows: ReactNode[], note?: ReactNode): ReactNode {
+function block(head: string, count: number, rows: ReactNode[], note?: ReactNode, documentHeaders = false): ReactNode {
   if (count === 0 && rows.length === 0) return null
   return h(
     'div',
     { className: panelCss.block },
     h('h4', { className: panelCss.blockHead }, `${head} (${count})`),
     note ?? null,
-    rows.length === 0 ? null : h(DetailRows, null, ...rows)
+    rows.length === 0 ? null : h(DetailRows, { documentHeaders }, ...rows)
   )
 }
 

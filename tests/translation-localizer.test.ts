@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BATCH_COALESCE_MS, MAX_BATCH_CHARS, MAX_BATCH_SIZE, TranslationLocalizer, needsTranslation } from '../packages/market-translation/src/application/translation/localizer.js'
 import { PROVIDER_TIMEOUT_MS, isTripped, resetCircuitBreaker, type TranslationProvider } from '../packages/market-translation/src/application/translation/chain.js'
 import type { TranslationUnit } from '../packages/market-translation/src/application/translation/unit.js'
-import { translationKey } from '../packages/market-translation/src/application/state/translation-cache.js'
+import { loadTranslationCache, translationKey } from '../packages/market-translation/src/application/state/translation-cache.js'
 
 let dataRoot: string
 let clock: number
@@ -1001,5 +1001,110 @@ describe('cold queue deadlines', () => {
       localizer.dispose()
       vi.useRealTimers()
     }
+  })
+})
+
+describe('atomic paragraph localization', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('keeps partial answers private and persists a complete paragraph after every part finishes', async () => {
+    vi.useFakeTimers()
+    const { provider, requests } = controlledProvider()
+    const localizer = build([provider])
+    const parts = ['中'.repeat(1300) + '。 ', '文'.repeat(1300) + '。']
+    const paragraph: TranslationUnit = { surface: 'skills', id: 'doc', role: 'document', text: parts.join('') }
+    expect(localizer.localizeParagraph(paragraph, parts, 'en').pending).toBe(true)
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    expect(requests).toHaveLength(2)
+    requests[1]!.resolve(['Second sentence.'])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(localizer.localizeParagraph(paragraph, parts, 'en')).toEqual({ text: paragraph.text, pending: true })
+    requests[0]!.resolve(['First sentence.'])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(localizer.localizeParagraph(paragraph, parts, 'en')).toEqual({ text: 'First sentence. Second sentence.', pending: false })
+    await localizer.flush()
+    const stored = await loadTranslationCache(dataRoot)
+    expect(Object.values(stored).some(record => record.text === 'First sentence. Second sentence.')).toBe(true)
+    const reopened = build([])
+    await reopened.load()
+    expect(reopened.localizeParagraph(paragraph, undefined, 'en')).toEqual({ text: 'First sentence. Second sentence.', pending: false })
+    reopened.dispose()
+    localizer.dispose()
+  })
+
+  it('does not reuse legacy description or document answers for the new paragraph strategy', async () => {
+    const { provider, batches } = recorder()
+    const localizer = build([provider])
+    const text = 'Read files.'
+    localizer.localize(unit('doc', text), 'zh')
+    localizer.localize({ ...unit('doc', text), role: 'document' }, 'zh')
+    await localizer.settle(500)
+    expect(batches).toHaveLength(1)
+    expect(localizer.localizeParagraph(unit('doc', text), [text], 'zh').pending).toBe(true)
+    await localizer.settle(500)
+    expect(localizer.localizeParagraph(unit('doc', text), [text], 'zh').text).toBe('ZH:' + text)
+    expect(batches).toHaveLength(2)
+    localizer.dispose()
+  })
+
+  it('keeps failures explicit and retries only the requested document without deleting completed answers', async () => {
+    let offline = true
+    const calls: string[] = []
+    const localizer = build([
+      {
+        id: 'google',
+        available: () => true,
+        translate: async ({ texts }) => {
+          calls.push(...texts)
+          if (offline) throw new Error('offline')
+          return texts.map(text => '译:' + text)
+        }
+      }
+    ])
+    const first = unit('first', 'First paragraph.')
+    const other = unit('other', 'Other paragraph.')
+    for (let attempt = 0; attempt < 4; attempt++) {
+      clock += 200_000
+      resetCircuitBreaker()
+      localizer.localizeParagraph(first, [first.text], 'zh')
+      localizer.localizeParagraph(other, [other.text], 'zh')
+      await localizer.settle(500)
+    }
+    clock += 200_000
+    expect(localizer.localizeParagraph(first, [first.text], 'zh')).toEqual({ text: first.text, pending: false, failed: true })
+    offline = false
+    localizer.retryDocument('market', 'first')
+    expect(localizer.localizeParagraph(other, [other.text], 'zh')).toEqual({ text: other.text, pending: false, failed: true })
+    expect(localizer.localizeParagraph(first, [first.text], 'zh').pending).toBe(true)
+    await localizer.settle(500)
+    expect(localizer.localizeParagraph(first, [first.text], 'zh').text).toBe('译:' + first.text)
+    localizer.retryDocument('market', 'first')
+    expect(localizer.localizeParagraph(first, [first.text], 'zh').pending).toBe(false)
+    expect(calls.filter(text => text === other.text)).toHaveLength(4)
+    localizer.dispose()
+  })
+
+  it('reports unsupported sentence input without starting provider work', async () => {
+    const { provider, batches } = recorder()
+    const localizer = build([provider])
+    const paragraph = unit('long', 'word '.repeat(500))
+    expect(localizer.localizeParagraph(paragraph, undefined, 'zh')).toEqual({ text: paragraph.text, pending: false, failed: true })
+    await localizer.settle(100)
+    expect(batches).toEqual([])
+    localizer.dispose()
+  })
+
+  it('does not resurrect cancelled paragraph parts after clear', async () => {
+    vi.useFakeTimers()
+    const { provider, requests } = controlledProvider()
+    const localizer = build([provider])
+    const paragraph = unit('doc', 'Read files.')
+    localizer.localizeParagraph(paragraph, [paragraph.text], 'zh')
+    await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
+    await localizer.clear()
+    requests[0]!.resolve(['old result'])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(localizer.localizeParagraph(paragraph, [paragraph.text], 'zh').pending).toBe(true)
+    localizer.dispose()
   })
 })

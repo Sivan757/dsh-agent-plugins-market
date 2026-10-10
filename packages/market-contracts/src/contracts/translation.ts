@@ -56,19 +56,20 @@ export interface TranslationFields {
 /**
  * One document body on its way to the target language.
  *
- * A document is far longer than a field, so it travels in chunks and the answer
- * is assembled from them: a chunk the provider has not answered for yet falls
- * back to its authored text, and `pending` says how many are still in flight.
- * That is what lets a reader open the translation before it is complete and
- * watch it fill in, rather than waiting on a provider for a whole file.
+ * Each paragraph remains authored until every request for it succeeds.
+ * `pending` counts paragraphs with unfinished work. `failed` counts paragraphs
+ * that cannot currently produce a complete translation. Other paragraphs remain
+ * readable while those requests settle.
  */
 export interface DocumentTranslation {
-  /** The body in the target language, with authored text standing in for every chunk still in flight. */
+  /** The body with complete translated paragraphs and authored fallbacks. */
   text: string
   /** Complete Markdown with each translated paragraph directly after its original. */
   bilingualText?: string
-  /** Chunks queued or running; the client re-reads while this is non-zero. */
+  /** Paragraphs with queued or running work; the client re-reads while this is non-zero. */
   pending: number
+  /** Paragraphs left original because translation failed or a sentence exceeds its safe budget. */
+  failed?: number
 }
 
 /**

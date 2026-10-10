@@ -31,7 +31,7 @@ export interface MarketQueries {
    * chunk. The suite and the document are re-read here: the route names an
    * identity and never carries text.
    */
-  suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string): Promise<DocumentTranslation>
+  suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, retry?: boolean): Promise<DocumentTranslation>
   mcpOverrides(sourceId: string, suiteId: string): Promise<McpSuiteOverrides>
   /**
    * The localized face of every `/` menu row this plugin owns: the slash

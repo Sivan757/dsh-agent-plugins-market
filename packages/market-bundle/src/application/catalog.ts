@@ -91,7 +91,7 @@ export class Catalog implements MarketService {
       mcpDiagnostics: () => this.mcp.diagnostics,
       localePreference: () => this.ports.localePreference(),
       translateFields: (surface, id, fields, locale) => this.translateFields(surface, id, fields, locale),
-      translateDocument: (surface, id, text, locale) => this.translateDocument(surface, id, text, locale)
+      translateDocument: (surface, id, text, locale, retry) => this.translateDocument(surface, id, text, locale, retry)
     })
   }
 
@@ -324,8 +324,8 @@ export class Catalog implements MarketService {
   }
 
   /** One authored text translated chunk by chunk. {@link TranslationService.translateDocument} owns the rule for bodies. */
-  translateDocument(surface: TranslationSurfaceKind, id: string, text: string, locale: string): DocumentTranslation {
-    return this.translation.translateDocument(surface, id, text, locale)
+  translateDocument(surface: TranslationSurfaceKind, id: string, text: string, locale: string, retry = false): DocumentTranslation {
+    return this.translation.translateDocument(surface, id, text, locale, retry)
   }
 
   /**
@@ -379,8 +379,8 @@ export class Catalog implements MarketService {
   }
 
   /** One suite document's translation. {@link SuiteQueries.suiteDocumentTranslation} owns the keying. */
-  async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, projectCwd?: string): Promise<DocumentTranslation> {
-    return this.suiteQueries.suiteDocumentTranslation(sourceId, suiteId, kind, name, projectCwd)
+  async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, retry = false, projectCwd?: string): Promise<DocumentTranslation> {
+    return this.suiteQueries.suiteDocumentTranslation(sourceId, suiteId, kind, name, projectCwd, retry)
   }
 
   // ---- Source acquisition and CRUD ----

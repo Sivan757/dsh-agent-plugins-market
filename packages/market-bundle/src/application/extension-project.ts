@@ -48,8 +48,8 @@ export function createProjectExtensionResources(catalog: Catalog, users: Paramet
       return catalog.suiteDocument(sourceId, suiteId, kind, name, cwd)
     },
     /** The same document's translation, answered from this workspace's snapshot. */
-    async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string) {
-      return catalog.suiteDocumentTranslation(sourceId, suiteId, kind, name, cwd)
+    async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, retry = false) {
+      return catalog.suiteDocumentTranslation(sourceId, suiteId, kind, name, retry, cwd)
     },
     async mcpStatus(diagnostics: McpMountDiagnostic[] = [], observed: readonly McpToolSnapshot[] = []) {
       const declared = (await suites()).map(suite => ({ ...suite, installedAt: suite.installedAt ?? 'project' }))

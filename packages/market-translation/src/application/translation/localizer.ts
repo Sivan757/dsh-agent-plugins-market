@@ -191,6 +191,7 @@ export class TranslationLocalizer {
    * entry.
    */
   private readonly byText = new Map<string, TranslationRecord>()
+  private readonly documentRetries = new Map<string, Set<string>>()
   /** The text each queued or running job owns, so a second entity carrying it waits for that answer. */
   private readonly owners = new Map<string, string>()
   private readonly pending = new Map<string, TranslationJob>()
@@ -257,6 +258,7 @@ export class TranslationLocalizer {
     this.cancelWork()
     this.entries = {}
     this.byText.clear()
+    this.documentRetries.clear()
     this.retry.clear()
     this.dirty = false
     if (this.flushTimer !== undefined) {
@@ -351,7 +353,7 @@ export class TranslationLocalizer {
     // screen while the control reads "off" is a contradiction the user cannot
     // resolve, and the cache survives, so nothing is re-paid on re-enable.
     if (!this.syncEnabled()) return { text, pending: false }
-    const identity = this.providerIdentity()
+    const identity = this.identityFor(unit)
     const key = translationKey(unit, target, identity)
     const textId = this.textIdentity(target, identity, text)
     const cached = this.entries[key]
@@ -394,6 +396,68 @@ export class TranslationLocalizer {
    */
   private textIdentity(target: string, identity: string, text: string): string {
     return [target, identity, text].join('\u0000')
+  }
+
+  private identityFor(unit: TranslationUnit): string {
+    const identity = this.providerIdentity()
+    return unit.strategy === undefined ? identity : JSON.stringify([identity, unit.strategy])
+  }
+
+  /** Retry this document's failed texts without discarding completed translations. */
+  retryDocument(surface: TranslationUnit['surface'], id: string): void {
+    const texts = this.documentRetries.get(JSON.stringify([surface, id]))
+    if (texts !== undefined) for (const textId of texts) this.retry.delete(textId)
+    resetCircuitBreaker()
+  }
+
+  /** Publish and persist a paragraph only after every bounded part has an answer. */
+  localizeParagraph(unit: TranslationUnit, parts: readonly string[] | undefined, locale: string): LocalizedText & { failed?: boolean } {
+    if (!this.syncEnabled() || unit.text.trim() === '') return { text: unit.text, pending: false }
+    const target = resolveTranslationTarget(locale)
+    if (!needsTranslation(unit.text, target)) return { text: unit.text, pending: false }
+    const paragraph: TranslationUnit = { ...unit, role: 'document', strategy: 'paragraph-sentences-v2' }
+    const identity = this.identityFor(paragraph)
+    const key = translationKey(paragraph, target, identity)
+    const textId = this.textIdentity(target, identity, unit.text)
+    const cached = this.entries[key] ?? this.byText.get(textId)
+    if (cached !== undefined) {
+      if (this.entries[key] === undefined) this.record(key, cached)
+      this.byText.set(textId, cached)
+      return { text: cached.text, pending: false }
+    }
+    if (parts === undefined || parts.length === 0 || parts.join('') !== unit.text) return { text: unit.text, pending: false, failed: true }
+    const documentId = JSON.stringify([unit.surface, unit.id])
+    const tracked = this.documentRetries.get(documentId) ?? new Set<string>()
+    this.documentRetries.set(documentId, tracked)
+    let pending = false
+    let failed = false
+    let provenance: TranslationRecord | undefined
+    const translated = parts.map(part => {
+      const prefix = /^\s*/.exec(part)?.[0] ?? ''
+      const suffix = /\s*$/.exec(part)?.[0] ?? ''
+      const text = part.trim()
+      if (text === '' || !needsTranslation(text, target)) return part
+      const fragment: TranslationUnit = { ...unit, role: 'document', strategy: 'paragraph-transport-v2', text }
+      const fragmentIdentity = this.identityFor(fragment)
+      tracked.add(this.textIdentity(target, fragmentIdentity, text))
+      const result = this.localize(fragment, locale)
+      const record = this.entries[translationKey(fragment, target, fragmentIdentity)]
+      if (record !== undefined) {
+        provenance ??= record
+        return prefix + record.text.trim() + suffix
+      }
+      pending ||= result.pending
+      failed ||= !result.pending
+      return part
+    })
+    if (pending || failed) return { text: unit.text, pending, ...(failed ? { failed: true } : {}) }
+    const text = translated.join('')
+    if (provenance !== undefined) {
+      const answer = { ...provenance, text }
+      this.record(key, answer)
+      this.byText.set(textId, answer)
+    }
+    return { text, pending: false }
   }
 
   /** Write one shared answer under one entity's key and mark the cache for a flush. */

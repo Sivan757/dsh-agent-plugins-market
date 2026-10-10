@@ -96,10 +96,10 @@ export class SuiteQueries {
    * @param name - the document's name inside that surface.
    * @returns the assembled body and how many chunks are still in flight.
    */
-  async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, projectCwd?: string): Promise<DocumentTranslation> {
+  async suiteDocumentTranslation(sourceId: string, suiteId: string, kind: UserPanelKind, name: string, projectCwd?: string, retry = false): Promise<DocumentTranslation> {
     const suite = await this.suiteOf(sourceId, suiteId, projectCwd)
     const text = await readSuiteDocument(suite, kind, name)
-    return this.ports.translateDocument(kind, pluginResourceId(sourceId, suiteId, kind, name), stripFrontmatter(text), this.ports.localePreference())
+    return this.ports.translateDocument(kind, pluginResourceId(sourceId, suiteId, kind, name), stripFrontmatter(text), this.ports.localePreference(), retry)
   }
 
   /** The normalized suite a source-qualified identity names, or a miss. */

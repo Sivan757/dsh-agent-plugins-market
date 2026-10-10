@@ -248,7 +248,7 @@ describe('market HTTP routes', () => {
     const webServer = strictWebServer(routes)
     const created: Array<{ kind: string; name: string; text: string }> = []
     const reads: Array<{ kind: string; force: boolean | undefined }> = []
-    const translated: Array<{ kind: string; name: string }> = []
+    const translated: Array<{ kind: string; name: string; retry: boolean }> = []
     const store = (kind: string) => ({
       read: async (_strict?: boolean, force?: boolean) => {
         reads.push({ kind, force })
@@ -262,8 +262,8 @@ describe('market HTTP routes', () => {
       },
       update: async () => {},
       remove: async () => {},
-      translateDocument: async (name: string) => {
-        translated.push({ kind, name })
+      translateDocument: async (name: string, retry = false) => {
+        translated.push({ kind, name, retry })
         return { text: `translated ${name}`, bilingualText: `original ${name}\ntranslated ${name}`, pending: 1 }
       }
     })
@@ -329,14 +329,20 @@ describe('market HTTP routes', () => {
     await routes.get(translationPath)?.(postRequest(translationPath, { name: 'demo' }), translationResponse)
     await settle()
     expect(translationResponse.value()).toMatchObject({ ok: true, text: 'translated demo', bilingualText: 'original demo\ntranslated demo', pending: 1 })
-    expect(translated).toEqual([{ kind: 'skills', name: 'demo' }])
+    expect(translated).toEqual([{ kind: 'skills', name: 'demo', retry: false }])
+    await routes.get(translationPath)?.(postRequest(translationPath, { name: 'demo', retry: true }), response())
+    expect(translated[1]).toEqual({ kind: 'skills', name: 'demo', retry: true })
+    const invalidRetry = response()
+    await routes.get(translationPath)?.(postRequest(translationPath, { name: 'demo', retry: 'true' }), invalidRetry)
+    await settle()
+    expect(invalidRetry.value()).toMatchObject({ ok: false })
 
     // A body with no entry to name is rejected before the store is asked.
     const namelessResponse = response()
     await routes.get(translationPath)?.(postRequest(translationPath, {}), namelessResponse)
     await settle()
     expect(namelessResponse.value()).toMatchObject({ ok: false })
-    expect(translated).toHaveLength(1)
+    expect(translated).toHaveLength(2)
 
     dispose()
     expect(routes.size).toBe(0)
@@ -380,11 +386,11 @@ describe('market HTTP routes', () => {
 
   it('translates one suite document from an identity, never from submitted text', async () => {
     const routes: RouteTable = new Map()
-    const calls: Array<[string, string, string, string]> = []
+    const calls: Array<[string, string, string, string, boolean]> = []
     const manager = {
       ...service(),
-      suiteDocumentTranslation: async (sourceId: string, suiteId: string, kind: string, name: string) => {
-        calls.push([sourceId, suiteId, kind, name])
+      suiteDocumentTranslation: async (sourceId: string, suiteId: string, kind: string, name: string, retry = false) => {
+        calls.push([sourceId, suiteId, kind, name, retry])
         return { text: `translated ${name}`, bilingualText: `original ${name}\ntranslated ${name}`, pending: 2 }
       }
     }
@@ -395,7 +401,7 @@ describe('market HTTP routes', () => {
       await routes.get(path)?.(postRequest(path, { sourceId: 'active', suiteId: 'v1-suite', kind: 'commands', name: 'deploy' }), translatedResponse)
       await settle()
       expect(translatedResponse.value()).toMatchObject({ ok: true, text: 'translated deploy', bilingualText: 'original deploy\ntranslated deploy', pending: 2 })
-      expect(calls).toEqual([['active', 'v1-suite', 'commands', 'deploy']])
+      expect(calls).toEqual([['active', 'v1-suite', 'commands', 'deploy', false]])
 
       // The document the reader sees arrives through the document route above
       // and this route re-reads the same file: there is no field here a page
@@ -403,7 +409,13 @@ describe('market HTTP routes', () => {
       const extra = response()
       await routes.get(path)?.(postRequest(path, { sourceId: 'active', suiteId: 'v1-suite', kind: 'agents', name: 'reviewer', text: 'translate this instead' }), extra)
       await settle()
-      expect(calls[1]).toEqual(['active', 'v1-suite', 'agents', 'reviewer'])
+      expect(calls[1]).toEqual(['active', 'v1-suite', 'agents', 'reviewer', false])
+      await routes.get(path)?.(postRequest(path, { sourceId: 'active', suiteId: 'v1-suite', kind: 'commands', name: 'deploy', retry: true }), response())
+      expect(calls[2]).toEqual(['active', 'v1-suite', 'commands', 'deploy', true])
+      const badRetry = response()
+      await routes.get(path)?.(postRequest(path, { sourceId: 'active', suiteId: 'v1-suite', kind: 'commands', name: 'deploy', retry: 1 }), badRetry)
+      await settle()
+      expect(badRetry.value()).toMatchObject({ ok: false })
 
       // A missing suite identity, an unknown surface, and a nameless document
       // are each rejected before the catalog is asked.
@@ -413,7 +425,7 @@ describe('market HTTP routes', () => {
         await settle()
         expect(rejected.value()).toMatchObject({ ok: false })
       }
-      expect(calls).toHaveLength(2)
+      expect(calls).toHaveLength(3)
     } finally {
       dispose()
     }

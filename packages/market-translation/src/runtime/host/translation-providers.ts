@@ -23,9 +23,8 @@ export interface TranslationProviderOptions {
   llm?: TranslationProvider | undefined
 }
 
-/** Repair never sends more text than the failed inputs or more than one normal batch of leaves. */
-const MAX_REPAIR_LEAVES = 60
-const REPAIR_BATCH_SIZE = 20
+/** Retry is one subset of the original batch, with complete input semantics. */
+const MAX_REPAIR_INPUTS = 20
 const STRUCTURE_MARKER = /⟪d\d+⟫/g
 
 function restoreAnswer(source: string, masked: MaskedText, answer: string): string | undefined {
@@ -38,13 +37,9 @@ function restoreAnswer(source: string, masked: MaskedText, answer: string): stri
 }
 
 /**
- * Keep valid answers in their original positions. A damaged structural answer
- * gets one bounded same-provider repair from original leaf text. Markers are
- * reconstructed locally, never guessed from damaged output. A slot neither the
- * answer nor a repair can fill stays empty and enters the localizer's per-text
- * retry policy, so one damaged answer never discards its valid siblings. The
- * batch fails only when every slot is empty, which is the failure the chain
- * retires the provider on.
+ * Preserve valid siblings and retry damaged structural inputs once, in full.
+ * A failed repair stays empty for the localizer retry policy. Formatting leaves
+ * never become separate translation requests.
  */
 function withMasking(base: TranslationProvider): TranslationProvider {
   return {
@@ -58,8 +53,7 @@ function withMasking(base: TranslationProvider): TranslationProvider {
       const restored = request.texts.map(() => '')
       /** First reason one slot could not be answered, reported only if no slot was. */
       let firstFailure: string | undefined
-      const leaves: { source: string; mask: MaskedText }[] = []
-      const repairs: { index: number; markers: string[]; parts: { text: string; result?: number }[] }[] = []
+      const repairs: number[] = []
       for (let index = 0; index < request.texts.length; index++) {
         const source = request.texts[index]!
         const answer = translated[index]!
@@ -69,10 +63,8 @@ function withMasking(base: TranslationProvider): TranslationProvider {
           continue
         }
         const markers = source.match(STRUCTURE_MARKER) ?? []
-        // Empty/marker-only output is not a damaged translation to repair, and
-        // an unstructured text has no leaves to repair it from: both leave the
-        // slot empty for the localizer's own retry rather than failing the
-        // batch, so a sibling's valid answer is still delivered.
+        // Empty results and unstructured descriptions keep the existing retry
+        // policy. Only damaged structural prose gets the whole-input retry.
         const prose = answer.replace(/⟦?[A-Z]\d+⟧|⟪d\d+⟫/g, '').trim()
         if (markers.length === 0) {
           firstFailure ??= base.id + ' translate: the answer lost or duplicated a placeholder'
@@ -82,45 +74,20 @@ function withMasking(base: TranslationProvider): TranslationProvider {
           firstFailure ??= base.id + ' translate: invalid translated text'
           continue
         }
-        const pieces = source.split(STRUCTURE_MARKER)
-        const count = pieces.filter(part => part.trim() !== '').length
-        if (leaves.length + count > MAX_REPAIR_LEAVES) continue
-        const parts = pieces.map(part => {
-          if (part.trim() === '') return { text: part }
-          const result = leaves.length
-          leaves.push({ source: part, mask: maskText(part) })
-          return { text: part, result }
-        })
-        repairs.push({ index, markers, parts })
+        if (repairs.length < MAX_REPAIR_INPUTS) repairs.push(index)
       }
-      if (leaves.length > 0) {
+      if (repairs.length > 0) {
         request.signal.throwIfAborted()
         try {
-          const answers: string[] = []
-          for (let offset = 0; offset < leaves.length; offset += REPAIR_BATCH_SIZE) {
-            request.signal.throwIfAborted()
-            const batch = leaves.slice(offset, offset + REPAIR_BATCH_SIZE)
-            const translatedLeaves = await base.translate({ ...request, texts: batch.map(leaf => leaf.mask.text) })
-            request.signal.throwIfAborted()
-            if (translatedLeaves.length !== batch.length) throw new Error(base.id + ' translate: repair result count mismatch')
-            answers.push(...translatedLeaves)
-          }
-          for (const repair of repairs) {
-            const parts = repair.parts.map(part => {
-              if (part.result === undefined) return part.text
-              const leaf = leaves[part.result]!
-              const answer = answers[part.result]!
-              // A leaf can disappear naturally, but must preserve its protected spans.
-              const text = unmaskText(answer, leaf.mask.placeholders)
-              return text !== undefined && (text.match(STRUCTURE_MARKER) ?? []).length === 0 ? text : undefined
-            })
-            if (parts.some(part => part === undefined)) continue
-            const text = parts.map((part, i) => (i === 0 ? '' : repair.markers[i - 1]!) + part!).join('')
-            if (text.replace(STRUCTURE_MARKER, '').trim() !== '') restored[repair.index] = text
-          }
+          const answers = await base.translate({ ...request, texts: repairs.map(index => masked[index]!.text) })
+          request.signal.throwIfAborted()
+          if (answers.length !== repairs.length) throw new Error(base.id + ' translate: repair result count mismatch')
+          repairs.forEach((index, offset) => {
+            restored[index] = restoreAnswer(request.texts[index]!, masked[index]!, answers[offset]!) ?? ''
+          })
         } catch (error) {
           if (request.signal.aborted) throw error
-          // Already validated answers remain usable; only repair candidates fail.
+          // Valid siblings remain available when the complete-input retry fails.
         }
       }
       request.signal.throwIfAborted()

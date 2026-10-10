@@ -15,7 +15,14 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { maskText, unmaskText } from '../packages/market-translation/src/runtime/host/text-masking.js'
 import { createTranslationProviders } from '../packages/market-translation/src/runtime/host/translation-providers.js'
-import { MAX_DOCUMENT_CHUNK_CHARS, chunkDocument, translateMarkdownDocument, type DocumentChunk } from '../packages/market-translation/src/application/translation/document.js'
+import {
+  MAX_DOCUMENT_CHUNK_CHARS,
+  MAX_PARAGRAPH_REQUEST_CHARS,
+  paragraphParts,
+  chunkDocument,
+  translateMarkdownDocument,
+  type DocumentChunk
+} from '../packages/market-translation/src/application/translation/document.js'
 import { MAX_OUTPUT_TOKENS_CAP, outputTokenBudget } from '../packages/market-translation/src/runtime/host/llm-translator.js'
 import { MAX_BATCH_CHARS } from '../packages/market-translation/src/application/translation/localizer.js'
 
@@ -101,7 +108,7 @@ async function repositoryDocuments(): Promise<string[]> {
 
 describe('bounded structural repair', () => {
   const source = 'Open ⟪d1⟫important⟪d2⟫ linked ⟪d3⟫text now.'
-  it('repairs a damaged D3 only from original leaves and retains the good batch slot', async () => {
+  it('retries a damaged D3 with the complete paragraph and retains the good batch slot', async () => {
     const signal = new AbortController().signal
     const calls: { texts: readonly string[]; signal: AbortSignal }[] = []
     const base: import('../packages/market-translation/src/application/translation/chain.js').TranslationProvider = {
@@ -109,14 +116,14 @@ describe('bounded structural repair', () => {
       available: () => true,
       translate: async request => {
         calls.push(request)
-        return calls.length === 1 ? ['已完成', '打开 ⟦D1⟧重要⟦D2⟧ 链接 D3⟧正文。'] : ['打开', '重要', '链接', '正文。']
+        return calls.length === 1 ? ['已完成', '打开 ⟦D1⟧重要⟦D2⟧ 链接 D3⟧正文。'] : ['打开⟦D1⟧重要⟦D2⟧链接⟦D3⟧正文。']
       }
     }
     const provider = createTranslationProviders({ host: {}, llm: base }).at(-1)!
     const result = await provider.translate({ texts: ['Already fine.', source], locale: 'zh', signal })
     expect(result).toEqual(['已完成', '打开⟪d1⟫重要⟪d2⟫链接⟪d3⟫正文。'])
     expect(calls).toHaveLength(2)
-    expect(calls[1]!.texts).toEqual(['Open ', 'important', ' linked ', 'text now.'])
+    expect(calls[1]!.texts).toEqual(['Open ⟦D1⟧important⟦D2⟧ linked ⟦D3⟧text now.'])
     expect(calls.every(call => call.signal === signal)).toBe(true)
   })
   it('keeps a valid slot when the single repair fails and never recursively repairs', async () => {
@@ -136,7 +143,7 @@ describe('bounded structural repair', () => {
     await expect(provider.translate({ texts: ['Good prose', source], locale: 'zh', signal: new AbortController().signal })).resolves.toEqual(['好译文', ''])
     expect(calls).toBe(2)
   })
-  it('limits structural repair to sixty leaves across three requests', async () => {
+  it('uses one complete-input retry regardless of formatting leaf count', async () => {
     const sizes: number[] = []
     const provider = createTranslationProviders({
       host: {},
@@ -151,10 +158,10 @@ describe('bounded structural repair', () => {
     }).at(-1)!
     const sixty = Array.from({ length: 60 }, (_, index) => (index ? '⟪d' + index + '⟫' : '') + 'word' + index).join('')
     const result = await provider.translate({ texts: ['Good', sixty, source], locale: 'zh', signal: new AbortController().signal })
-    expect(sizes).toEqual([3, 20, 20, 20])
+    expect(sizes).toEqual([3, 2])
     expect(result[0]).toBe('保留')
-    expect(result[1]).toContain('译word59')
-    expect(result[2]).toBe('')
+    expect(result[1]).toBe('译' + sixty)
+    expect(result[2]).toBe('译' + source)
   })
   it('stops before another repair request when cancelled', async () => {
     const controller = new AbortController()
@@ -252,6 +259,31 @@ describe('AST document translation', () => {
     expect(result.text).toContain('PRIVATE_MATH')
     expect(result.text).toContain('<private-html>')
   })
+  it('submits an entire natural paragraph instead of splitting its words at 800 characters', () => {
+    const source = 'A sentence with context. '.repeat(50).trimEnd()
+    const calls: string[] = []
+    translateMarkdownDocument(source, text => {
+      calls.push(text)
+      return { text, pending: false }
+    })
+    expect(calls).toEqual([source])
+  })
+
+  it('reports literal structure markers as a failed paragraph without sending or changing the source', () => {
+    const source = 'Read the literal ⟪d1⟫ marker.'
+    const localize = vi.fn((text: string) => ({ text, pending: false }))
+    expect(translateMarkdownDocument(source, localize)).toEqual({ text: source, bilingualText: source, pending: 0, failed: 1 })
+    expect(localize).not.toHaveBeenCalled()
+  })
+
+  it('keeps the whole paragraph original until all of its translation work finishes', () => {
+    const source = 'First sentence. Second sentence.'
+    const result = translateMarkdownDocument(source, () => ({ text: '已翻译一半。 Second sentence.', pending: true }))
+    expect(result.text).toBe(source)
+    expect(result.bilingualText).toBe(source)
+    expect(result.pending).toBe(1)
+  })
+
   it('keeps strong and link text in one ordered paragraph request', () => {
     const calls: string[] = []
     const result = translateMarkdownDocument('Read **important** and [linked](https://example.test) text.', text => {
@@ -293,7 +325,7 @@ describe('AST document translation', () => {
         return { text, pending: false }
       })
       expect(result.text).toBe(source)
-      expect(calls.every(text => text.length > 0 && text.length <= MAX_DOCUMENT_CHUNK_CHARS)).toBe(true)
+      expect(calls.every(text => text.length > 0)).toBe(true)
       expect(calls.join('')).not.toContain('SECRET')
     }
   })
@@ -447,5 +479,26 @@ describe('chunkDocument', () => {
   it('starts a new prose chunk after a fence, so nothing is reordered', () => {
     const body = ['Before.', '', '```', 'code', '```', '', 'After.'].join('\n')
     expect(chunkDocument(body).map(chunk => chunk.translatable)).toEqual([true, false, true])
+  })
+})
+
+describe('paragraphParts', () => {
+  it('keeps a paragraph that fits as one transport unit', () => {
+    const source = 'A sentence. Another sentence. '.repeat(40)
+    expect(paragraphParts(source)).toEqual([source])
+  })
+
+  it('groups complete sentences while preserving whitespace markers and emoji', () => {
+    const sentence = 'Read ⟪d1⟫important⟪d2⟫ instructions with 👩🏽‍💻. '
+    const source = sentence.repeat(80)
+    const parts = paragraphParts(source)!
+    expect(parts.length).toBeGreaterThan(1)
+    expect(parts.join('')).toBe(source)
+    expect(parts.every(part => part.length <= MAX_PARAGRAPH_REQUEST_CHARS && part.endsWith('. '))).toBe(true)
+    expect(parts.every(part => (part.match(/⟪d1⟫/g) ?? []).length === (part.match(/⟪d2⟫/g) ?? []).length)).toBe(true)
+  })
+
+  it('returns an explicit unsupported result for an oversized single sentence', () => {
+    expect(paragraphParts('word '.repeat(400))).toBeUndefined()
   })
 })

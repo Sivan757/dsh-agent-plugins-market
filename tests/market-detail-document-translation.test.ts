@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-/** The expanded document defaults to bilingual reading and retains three explicit modes. */
+/** The expanded document starts in original reading; one shared mode serves every document. */
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { readingMode } from '../packages/market-ui/src/ui/reading-mode.js'
 import { bindTranslationEnabled } from '../packages/market-ui/src/ui/translation-enabled.js'
 import type { Translate } from '../packages/market-ui/src/index.js'
 
@@ -61,6 +62,7 @@ let root: Root | undefined
 let unbind: (() => void) | undefined
 
 afterEach(async () => {
+  readingMode.set('original')
   await act(async () => root?.unmount())
   root = undefined
   document.body.replaceChildren()
@@ -100,6 +102,10 @@ function button(text: string): HTMLButtonElement {
 }
 
 /** Open one row the way a reader does, and let its own read land. */
+function rowHeader(text: string): HTMLElement {
+  return button(text).closest('[data-detail-row]')!.querySelector<HTMLElement>('[data-detail-header]')!
+}
+
 async function open(text: string): Promise<void> {
   await act(async () => {
     button(text).dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -111,7 +117,7 @@ async function open(text: string): Promise<void> {
 
 /** The open row's body: the authored document, and the control that swaps it. */
 function rowBody(text: string): HTMLElement {
-  const body = button(text).parentElement?.children[1]
+  const body = button(text).closest('[data-detail-row]')?.querySelector('[data-detail-body]')
   if (!(body instanceof HTMLElement)) throw new Error(`the row carrying "${text}" is not open`)
   return body
 }
@@ -123,6 +129,10 @@ describe('market detail document translation', () => {
     await mount(chinese)
     await open('deploy')
     await act(async () => {
+      const tab = [...rowHeader('deploy').querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(item => item.textContent === 'translationViewBilingual')!
+      tab.click()
+    })
+    await act(async () => {
       unbind?.()
       translationEnabled(false)
     })
@@ -133,7 +143,7 @@ describe('market detail document translation', () => {
     })
     expect(rowBody('deploy').textContent).toContain('译文')
     await act(async () => root!.render(h(SuiteDetailModal, { t: english, sourceId: 'active', suiteId: 'v1-suite', onClose: () => {}, showOriginal: false })))
-    expect(rowBody('deploy').querySelector('[role="tablist"]')).not.toBeNull()
+    expect(rowHeader('deploy').querySelector('[role="tablist"]')).not.toBeNull()
     expect(api.fetchSuiteDocument).toHaveBeenCalledTimes(1)
   })
 
@@ -149,13 +159,17 @@ describe('market detail document translation', () => {
     expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
     await open(name)
     expect(api.fetchSuiteDocument).toHaveBeenCalledWith('active', 'v1-suite', kind, name, undefined)
-    expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledWith('active', 'v1-suite', kind, name, undefined)
     const body = rowBody(name)
-    expect(body.querySelectorAll('[role="tab"]')).toHaveLength(3)
-    expect(body.textContent).toContain('Authored document')
+    expect(rowHeader(name).closest('[data-document-headers]')).not.toBeNull()
+    expect(body.parentElement!.querySelectorAll('[role="tab"]')).toHaveLength(3)
+    expect(body.textContent).toContain(kind === 'skills' ? 'Run the script.' : kind === 'commands' ? 'Deploy the v1 fixture suite.' : 'Review carefully.')
+    expect(body.textContent).not.toContain('Translated document')
+    expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
+    const tabs = [...body.parentElement!.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    await act(async () => tabs.find(item => item.textContent === 'translationViewBilingual')!.click())
+    expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledWith('active', 'v1-suite', kind, name, undefined, undefined)
     expect(body.textContent).toContain('Translated document')
-    const tab = [...body.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(item => item.textContent === 'translationViewOriginal')!
-    await act(async () => tab.click())
+    await act(async () => tabs.find(item => item.textContent === 'translationViewOriginal')!.click())
     expect(body.textContent).not.toContain('Translated document')
     expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledTimes(1)
   })
@@ -164,7 +178,7 @@ describe('market detail document translation', () => {
     await mount(chinese)
     await open('deploy')
     expect(rowBody('deploy').textContent).toContain('Deploy the v1 fixture suite.')
-    expect(rowBody('deploy').querySelector('[role="tablist"]')).toBeNull()
+    expect(rowHeader('deploy').querySelector('[role="tablist"]')).toBeNull()
     expect(api.fetchSuiteDocumentTranslation).not.toHaveBeenCalled()
   })
   it('supports an explicitly enabled English interface', async () => {
@@ -172,7 +186,9 @@ describe('market detail document translation', () => {
     api.fetchSuiteDocumentTranslation.mockResolvedValue({ text: 'Translated document', bilingualText: 'Translated document', pending: 0 })
     await mount(english)
     await open('deploy')
-    expect(rowBody('deploy').querySelector('[role="tablist"]')).not.toBeNull()
+    const header = rowHeader('deploy')
+    expect(header.querySelector('[role="tablist"]')).not.toBeNull()
+    await act(async () => header.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2]!.click())
     expect(api.fetchSuiteDocumentTranslation).toHaveBeenCalledTimes(1)
   })
 })
