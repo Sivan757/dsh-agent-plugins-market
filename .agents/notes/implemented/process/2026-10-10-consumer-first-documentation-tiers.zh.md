@@ -28,7 +28,7 @@ Status: implemented
 
 ## Consequences
 
-文档站从此承接兼容性参考及其入站链接。`.github/workflows/docs-pages.yml` 只监听 `docs-site/**`，因此 `docs/` 下的改动不会重建已部署站点；站点改为用 GitHub 绝对地址链接这类页面，而不是渲染它们。
+文档站从此承接兼容性参考及其入站链接。本次改动当时，`.github/workflows/docs-pages.yml` 只监听 `docs-site/**`，因此 `docs/` 下的改动不会重建已部署站点，站点改用 GitHub 绝对地址链接这类页面而不是渲染它们。[文档站直接渲染使用指南](2026-10-11-docs-site-renders-the-user-guide.md) 随后把 `docs/user/**` 加入触发路径，并让站点直接渲染指南页面，因此本记录关于 GitHub 外链的后果已不再描述现状。
 
 有三条入站链接指向被移走的 README 表格：`docs/user/usage.md` 及其中文版，以及 `schemas/README.md`。三条现已指向站点锚点 `compatible-plugins/#shared-layout-precedence`。
 

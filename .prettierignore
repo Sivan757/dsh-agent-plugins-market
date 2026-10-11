@@ -1,6 +1,8 @@
 node_modules/
-lib/
-client/
+# Build output. Anchored for the same reason as .gitignore: a bare `lib/` also
+# matched source under a nested `src/lib/`, which skipped it silently.
+/lib/
+/client/
 docs-site/
 tests/fixtures/
 pnpm-lock.yaml

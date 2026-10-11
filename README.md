@@ -125,11 +125,11 @@ More questions: [FAQ](https://sivan757.github.io/dsh-agent-plugins-market/faq/).
 ## Documentation
 
 - [Install guide](https://sivan757.github.io/dsh-agent-plugins-market/install/): prerequisites and the first suite, step by step.
-- [Usage guide](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md): source configuration, storage, project layouts, MCP, LSP and settings.
+- [User guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/usage/): installation, sources, storage, project layouts, MCP, LSP, translation and settings.
 - [Compatible plugins](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/): layouts, precedence and verified samples.
 - [Plugin specifications](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/README.md): per-dialect reference schemas and the [`com.deepseek.harness`](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/com.deepseek.harness/spec.md) namespace.
 - [Contributing](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTRIBUTING.md) · [Security](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/SECURITY.md) · [Changelog](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [License](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE).
-- [Domain glossary](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [Agent roles](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/agent-roles.md) · [Release process](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md).
+- [Domain glossary](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [Agent roles](https://sivan757.github.io/dsh-agent-plugins-market/docs/agent-roles/) · [Release process](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md).
 
 ## Community
 

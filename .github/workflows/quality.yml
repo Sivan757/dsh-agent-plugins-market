@@ -36,6 +36,32 @@ jobs:
       - name: Build published artifacts
         run: pnpm run build
 
+  docs-site:
+    name: Docs site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # The root tsconfig projects do not include .astro files, so these three
+      # steps are the only verification the site gets. They live here as well as
+      # in docs-pages.yml because that workflow runs on push to main only: a
+      # broken site change would otherwise pass review and fail after merge.
+      - name: Type-check the site
+        run: pnpm --dir docs-site run check
+      - name: Build the site
+        run: pnpm --dir docs-site run build
+      - name: Check every link in the built site
+        run: pnpm --dir docs-site run check:links
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'

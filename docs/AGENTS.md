@@ -22,6 +22,8 @@ Place a new page in the directory of its reader. Choose `reference/` over `scrat
 
 `user/` pages ship English and Simplified Chinese as one edit: `usage.md` with `usage.zh.md`. Keep headings, lists, tables, code fences, and link targets aligned one for one, and keep the physical line count equal. The English side keeps its own link when no counterpart exists. Developer, reference, and scratch material stays English-only.
 
+The [docs site](../docs-site/src/guide/guide.ts) renders every `user/` page, so a guide edit is also a site edit: the pair becomes `/docs/<name>/` and `/docs/zh/<name>/`, and the site's language switch needs both files. `docs-pages.yml` watches `docs/user/**` and `docs-site/**` for that reason. Links inside a rendered page are rewritten at build time: a target under `user/` becomes a site route, and anything else (README, `schemas/`, sources) becomes a GitHub URL.
+
 ## Generated artifacts
 
 [compat-report.md](reference/compat-report.md) and `compat-report.json` come from `node scripts/compat-report.mjs`; do not hand-edit them. Both are in `.prettierignore`. Moving or renaming one means updating the generator, [tests/compat-report.test.ts](../tests/compat-report.test.ts), and every inbound link in the same change.

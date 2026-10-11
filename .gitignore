@@ -1,5 +1,7 @@
 node_modules/
-lib/
+# Build output. Anchored: a bare `lib/` also matched source under a nested
+# `src/lib/`, which silently kept a file out of a commit.
+/lib/
 client/*.js
 client/*.map
 client/*.css

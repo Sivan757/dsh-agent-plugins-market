@@ -28,7 +28,7 @@ Compatibility leaves the README. The `docs-site/src/pages/compatible-plugins.ast
 
 ## Consequences
 
-The site now owns the compatibility reference and its inbound links. `.github/workflows/docs-pages.yml` watches only `docs-site/**`, so an edit under `docs/` does not rebuild the deployed site; the site links such pages by absolute GitHub URL instead of rendering them.
+The site now owns the compatibility reference and its inbound links. At the time of this change `.github/workflows/docs-pages.yml` watched only `docs-site/**`, so an edit under `docs/` did not rebuild the deployed site and the site linked such pages by absolute GitHub URL instead of rendering them. [The docs site renders the user guide](2026-10-11-docs-site-renders-the-user-guide.md) later added `docs/user/**` to that trigger and made the site render the guide pages directly, so this note's GitHub-link consequence no longer describes the site.
 
 Three inbound links pointed at the moved README table: `docs/user/usage.md` and its Chinese counterpart, and `schemas/README.md`. All three now point at the site anchor `compatible-plugins/#shared-layout-precedence`.
 
