@@ -3,15 +3,16 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import { resolveChildAgentOptions } from '@deepseek-ai/dsh-subagent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { agentRoleCatalog, requireCurrentRole, resolveAgentOptions, resolveRolePolicy, sessionCwd, type AgentRoleEntry } from './agent-role-router.js'
+import { agentRoleCatalog, requireCurrentRole, resolveAgentOptions, resolveRolePolicy, roleSnapshot, sessionCwd, type AgentRoleObservation } from './agent-role-router.js'
 import { mountSubagentCatalog } from './subagent-catalog.js'
 import { TeammateRoleRuntime } from './teammate-role-runtime.js'
 
 export const TEAMMATE_ROLE_TOOL_NAME = 'spawn_teammate_role'
 
 /** Install the enhanced tool after its replay listener is ready; teardown drains owned role creations. */
-export async function mountTeammateRoleTool(ctx: Context, listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>): Promise<() => Promise<void>> {
+export async function mountTeammateRoleTool(ctx: Context, listRoles: (parent?: unknown) => Promise<AgentRoleObservation>): Promise<() => Promise<void>> {
   const runtime = new TeammateRoleRuntime(ctx)
+  const entries = async (parent?: unknown) => roleSnapshot(await listRoles(parent)).entries
   const cleanups: Array<() => void> = []
   try {
     await runtime.restore()
@@ -52,7 +53,7 @@ export async function mountTeammateRoleTool(ctx: Context, listRoles: (parent?: u
         if (!parent) throw new Error('spawn_teammate_role requires a calling agent')
         exec.signal.throwIfAborted()
         if (ctx.agentTeams.membership(parent).role !== 'lead') throw new Error('only the Team Lead can create role teammates')
-        const { entry, policy } = await resolveRolePolicy(listRoles, args.agent, parent)
+        const { entry, policy } = await resolveRolePolicy(entries, args.agent, parent)
         const options = await resolveAgentOptions(
           policy,
           {
@@ -71,7 +72,7 @@ export async function mountTeammateRoleTool(ctx: Context, listRoles: (parent?: u
         if (!effective.provider || !effective.model) throw new Error('role teammate requires an effective provider and model')
         // The route lookup awaited the live LLM runtime; a role revoked during
         // it must not become a Team member.
-        await requireCurrentRole(listRoles, entry, parent)
+        await requireCurrentRole(entries, entry, parent)
         exec.signal.throwIfAborted()
         return runtime.spawn(
           parent,
@@ -122,10 +123,14 @@ export async function mountTeammateRoleTool(ctx: Context, listRoles: (parent?: u
       mountSubagentCatalog(
         ctx,
         tool,
-        async (agent, signal) =>
-          ctx.agentTeams.tryMembership(agent as Agent)?.role === 'lead'
-            ? agentRoleCatalog(await listRoles(agent), signal, message => ctx.logger.warn(message), sessionCwd(agent))
-            : [],
+        async (agent, signal) => {
+          if (ctx.agentTeams.tryMembership(agent as Agent)?.role !== 'lead') return { entries: [], complete: true }
+          const observation = roleSnapshot(await listRoles(agent))
+          return {
+            entries: await agentRoleCatalog(observation.entries, signal, message => ctx.logger.warn(message), sessionCwd(agent)),
+            complete: observation.complete
+          }
+        },
         'spawn_teammate_role'
       )
     )

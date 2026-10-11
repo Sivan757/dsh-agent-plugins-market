@@ -64,7 +64,7 @@ interface SessionExtensions {
   invalidate(invalidateDefaultSkills: () => void): void
   refresh(): Promise<void> | undefined
   commandRegistrations(): ReturnType<ScopedExtensionContributors['registrations']>
-  roles: (parent?: unknown) => ReturnType<typeof projectAgentRoles>
+  roles: (parent?: unknown) => Promise<{ entries: Awaited<ReturnType<typeof projectAgentRoles>>; complete: boolean }>
   session(): SuiteRouteSessionResolver | undefined
 }
 
@@ -130,7 +130,10 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
   let scopedContributors: ScopedExtensionContributors | undefined
   let selectedRoleSuites: ((agent: Agent) => Promise<Suite[]>) | undefined
   let suiteSession: SuiteRouteSessionResolver | undefined
-  let listRoles: (parent?: unknown) => ReturnType<typeof projectAgentRoles> = async () => []
+  let listRoles: (parent?: unknown) => Promise<{ entries: Awaited<ReturnType<typeof projectAgentRoles>>; complete: boolean }> = async () => ({
+    entries: [],
+    complete: false
+  })
 
   const mount = ({ catalog, panels, resources, readUserDeclarations }: SessionExtensionSources): void => {
     ctx.inject(['agents', 'sessions', 'sessionQuery', 'tools'], hostCtx => {
@@ -366,7 +369,11 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
     })
     listRoles = async (parent?: unknown) => {
       const agent = parent as Agent | undefined
-      if (!agent || !extensionPresets?.ready(agent)) return []
+      // "Not ready" is not "no roles": the extension runtime may still be
+      // initializing or recovering, so an empty answer must not replace the
+      // published catalog. A read failure propagates for the same reason, and
+      // the catalog publisher turns both into "no new information".
+      if (!agent || !extensionPresets?.ready(agent)) return { entries: [], complete: false }
       const user = (await resources.agents.list(true))
         .filter(entry => entry.origin === 'user' && extensionPresets?.allows(agent, 'agents:' + (entry.id ?? entry.name)))
         .map(entry => ({ ...entry, title: entry.name, name: entry.id ?? entry.name, selectionEnabled: true }))
@@ -374,7 +381,7 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
         suites: () => selectedRoleSuites?.(agent) ?? Promise.resolve([]),
         selected: role => extensionPresets?.allows(agent, 'agents:' + role.name) === true
       })
-      return [...user, ...project]
+      return { entries: [...user, ...project], complete: true }
     }
   }
 

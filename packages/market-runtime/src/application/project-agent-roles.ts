@@ -3,6 +3,7 @@ import { defaultMarkdownResources, resourceText } from '../../../market-catalog/
 import { pluginRootOf } from '../../../market-catalog/src/index.js'
 import { suiteDataDir } from '../../../market-catalog/src/index.js'
 import { parseAgentRole, type AgentRoleEntry } from './agent-roles.js'
+import { isAbsentPath } from './fs-probe.js'
 import type { CatalogPort as Catalog } from '../catalog-port.js'
 import type { Suite } from '../../../market-contracts/src/model/types.js'
 
@@ -24,8 +25,10 @@ export async function projectAgentRoles(catalog: Catalog, parent: unknown, optio
     const suiteData = suiteRoot === undefined ? undefined : suiteDataDir(catalog.dataRoot, suite.sourceId, suite.id)
     for (const resource of suite.resources?.agents ?? (options.suites ? [] : await defaultMarkdownResources(suite.root, 'agents'))) {
       const path = resource.file
-      const rawText = await resourceText(options.suites && resource.file !== suite.manifest.path ? { name: resource.name, file: resource.file } : resource).catch(error => {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      const rawText = await resourceText(options.suites && resource.file !== suite.manifest.path ? { name: resource.name, file: resource.file } : resource).catch(async error => {
+        // A vanished document is an ordinary removal; any other failure must not
+        // silently drop a project role from the catalog.
+        if (!(await isAbsentPath(path))) throw error
         return undefined
       })
       if (rawText === undefined) continue

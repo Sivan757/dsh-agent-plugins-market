@@ -27,6 +27,16 @@ const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     Add sources and install suites, create your own skills, commands and personas, and keep project-native resources in place. The workspace groups Market, Skills, Commands, Agent personas, MCP services, LSP servers and Hooks into seven tabs.
   </p>
 
+  <h2>Highlights</h2>
+  <ul>
+    <li><strong>Any skill repository works.</strong> A Git repository holding <code>skills/&lt;name&gt;/SKILL.md</code> is discovered as a suite with no manifest to add.</li>
+    <li><strong>MCP OAuth with nothing to declare.</strong> A remote MCP server that answers <code>401</code> starts RFC 9728 discovery, dynamic client registration and PKCE authorization in your browser. OAuth is on by default.</li>
+    <li><strong>Per-server MCP control.</strong> Override a declaration without editing its source, switch one tool off, and set the tool-call and startup timeouts.</li>
+    <li><strong>Project resources on a switch.</strong> Turn on <strong>Scan project Agent layouts</strong> to read skills, commands, roles, MCP servers and hooks from the project's own directories.</li>
+    <li><strong>Per-workspace control.</strong> Each workspace switches the six mounted surfaces, keeps its own filters, and saves a resource-window setup as a favorite.</li>
+    <li><strong>Bilingual by default.</strong> Descriptions and documents show the original, a translation or both, and stay cached until you clear them.</li>
+  </ul>
+
   <h2>Supported plugin layouts</h2>
   <table>
     <tr><th>Layout</th><th>Manifest</th></tr>
@@ -40,8 +50,10 @@ const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
   </table>
 
   <h2>Quick install</h2>
+  <p>In the DSH Web GUI, open <strong>Plugins</strong> in the sidebar, press <strong>Add plugin</strong>, and enter <code>dsh-agent-plugins-market</code>. Then restart DSH and open <strong>Settings → Agent Plugins</strong>.</p>
+  <p>From a terminal instead:</p>
   <pre><code>dsh plugin --profile &lt;name&gt; add dsh-agent-plugins-market</code></pre>
-  <p>Requires Node.js 22+ and a DSH Web profile with the skill service. The <a href="https://github.com/Sivan757/dsh-agent-plugins-market#quick-start">README</a> lists the DSH host packages this plugin declares; feature availability depends on host services. See the <a href={`${base}install/`}>install guide</a> for details.</p>
+  <p>Requires Node.js 22 or later and a DSH Web profile with the skill service. The <a href="https://github.com/Sivan757/dsh-agent-plugins-market">README</a> lists the DSH host packages this plugin declares; feature availability depends on host services. See the <a href={`${base}install/`}>install guide</a> for details.</p>
 
   <h2>Learn more</h2>
   <ul>

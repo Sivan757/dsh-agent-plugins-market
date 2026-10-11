@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { mountSubagentCatalog, type SubagentCatalogEntry } from './subagent-catalog.js'
+import { isAbsentPath } from '../../application/fs-probe.js'
 import { namedAgentRoles } from './agent-role-names.js'
 import { expandPluginPaths } from '../../../../market-catalog/src/index.js'
 import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../../application/agent-roles.js'
@@ -178,7 +179,9 @@ export async function agentRoleCatalog(
     try {
       text = entry.rawText ?? (await readFile(entry.path, 'utf8'))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      // Only a confirmed disappearance is a normal removal; any other failure
+      // aborts the publication instead of publishing a smaller catalog.
+      if (!(await isAbsentPath(entry.path))) throw error
       continue
     }
     let policy: AgentRolePolicy
@@ -340,8 +343,31 @@ export async function executeAgentRole(
  * re-published whenever roles change, so guidance kept out of the catalog is
  * sent once and stays readable through compaction.
  */
-export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) => Promise<AgentRoleEntry[]>): () => void {
+/**
+ * One observation of the parent-scoped role source.
+ *
+ * The complete flag is the discovery contract the host skill registry uses: a
+ * reader that could not enumerate every source reports an incomplete
+ * observation, and the catalog publisher never replaces a published list from
+ * one, because a failed read is not evidence that its roles were removed. A
+ * bare entry list is the older protocol and means the read completed.
+ */
+export interface AgentRoleSnapshot {
+  entries: AgentRoleEntry[]
+  complete: boolean
+}
+
+/** A role reader answers with entries directly or with an explicit snapshot. */
+export type AgentRoleObservation = AgentRoleEntry[] | AgentRoleSnapshot
+
+/** Normalize one observation; a bare list means the read completed. */
+export function roleSnapshot(observation: AgentRoleObservation): AgentRoleSnapshot {
+  return Array.isArray(observation) ? { entries: observation, complete: true } : observation
+}
+
+export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) => Promise<AgentRoleObservation>): () => void {
   const host = ctx as unknown as AgentRoleHost
+  const entries = async (parent?: unknown) => roleSnapshot(await listRoles(parent)).entries
   const tool = defineTool({
     name: AGENT_ROLE_TOOL_NAME,
     description:
@@ -414,7 +440,7 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
       const mode: AgentRoleRunMode = args.run_in_background === false ? 'foreground' : 'continuable'
       return executeAgentRole(
         host,
-        listRoles,
+        entries,
         args.agent,
         args.prompt,
         exec.agent,
@@ -432,9 +458,13 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
   const disposeTool = host.tools.register(tool)
   let disposeCatalog: () => void
   try {
-    disposeCatalog = mountSubagentCatalog(ctx, tool, async (agent, signal) =>
-      agentRoleCatalog(await listRoles(agent), signal, message => ctx.logger?.warn(message), sessionCwd(agent))
-    )
+    disposeCatalog = mountSubagentCatalog(ctx, tool, async (agent, signal) => {
+      const observation = roleSnapshot(await listRoles(agent))
+      return {
+        entries: await agentRoleCatalog(observation.entries, signal, message => ctx.logger?.warn(message), sessionCwd(agent)),
+        complete: observation.complete
+      }
+    })
   } catch (error) {
     disposeTool()
     throw error

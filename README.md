@@ -1,242 +1,140 @@
-<img src="assets/dsh-agent-plugins.png" alt="Agent Plugins" width="64" height="64" />
+<img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/assets/dsh-agent-plugins.png" alt="Agent Plugins" width="64" height="64" />
 
 # Agent Plugins
 
 `dsh-agent-plugins-market`
 
-**A one-stop skills, subagent, MCP and LSP manager inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.**
+**A one-stop skills, subagent, MCP and LSP manager inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).**
 
-Reuse supported content from Claude Code, Codex, Cursor, Kimi and other recognized layouts, and manage your own skills, commands, agent personas, MCP services and LSP servers in the DSH Web GUI.
+Run Claude Code, Codex, Cursor, Kimi and agent-plugins suites inside DSH. The plugin reads each layout in place, so you convert no manifest and copy no file. Install it from the DSH Web GUI, then manage skills, commands, agent personas, MCP services and LSP servers in one workspace.
 
 If this plugin is useful to you, a ⭐ on [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market) is appreciated.
 
 English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github.io/dsh-agent-plugins-market/) | [npm](https://www.npmjs.com/package/dsh-agent-plugins-market)
 
-[![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)
 
-[Quick start](#quick-start) · [Everyday use](#everyday-use) · [Compatibility](#compatibility-and-boundaries) · [FAQ](#faq)
+[Quick start](#quick-start) · [Highlights](#highlights) · [Everyday use](#everyday-use) · [Compatibility](#compatibility) · [FAQ](#faq)
 
 ## Pages
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/screenshots/market.png" alt="Market" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/market.png" alt="Market" width="100%" /><br />
       <b>Market</b><br />Add sources, preview suites, install and enable.
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/skills.png" alt="Skills" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/skills.png" alt="Skills" width="100%" /><br />
       <b>Skills</b><br />Browse skills and author your own.
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/commands.png" alt="Commands" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/commands.png" alt="Commands" width="100%" /><br />
       <b>Commands</b><br />Manage prompt templates invoked as /name.
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/screenshots/personas.png" alt="Agent personas" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/personas.png" alt="Agent personas" width="100%" /><br />
       <b>Agent personas</b><br />Roles with an exact provider, model and effort.
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/mcp.png" alt="MCP services" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/mcp.png" alt="MCP services" width="100%" /><br />
       <b>MCP services</b><br />Credentials, authorization and connection status.
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/lsp.png" alt="LSP servers" width="100%" /><br />
+      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/lsp.png" alt="LSP servers" width="100%" /><br />
       <b>LSP servers</b><br />Language server configuration and runtime status.
     </td>
   </tr>
 </table>
 
-## What you can do
-
-- Enable the experimental Agent preset manager in plugin settings to show its composer entry. It is off by default and does not disable the session runtime. Session extension presets select skills, commands, roles, MCP and LSP capabilities through the Agent extension icon button to the right of Permissions. Each workspace owns a preset library and a default for new sessions. Selecting a preset while a session runtime is active takes effect on that session's next user request. Mid-turn steering and tools do not change. Once the selection commits, the open slash skill menu refreshes without another keystroke or page reload. Editing the selected or pending preset in the current session updates that session. Every other session keeps its own detached copy. Copy and paste a preset to another workspace to create an independent copy. Globally managed resources show their actual state without a session switch. Preset details do not change shared credentials or configuration. After a failed session selection, explicit recovery restores readiness and continues queued user input without another Send.
-
-- **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
-- **Sources.** Add a Git repository, a local directory or an archive (`.zip` / `.tar.gz` / `.tgz` / `.tar`); adopt a checkout you cloned yourself; refresh on demand; delete a managed checkout when you remove its source.
-- **First-party source.** The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run with no URL to paste. It is an ordinary Git source from there on — refresh it to fetch, then install and toggle its suites like any other.
-- **Downloads that fit your network.** Pick a download region — default `auto` follows the interface language, or choose global / China mainland — and the plugin routes `github.com` clones through the matching mirror. A proxy and per-invocation tuning live in the host config.
-- **Runtime surfaces.** Enabled suites inject into sessions: skills into the catalog and slash menu, commands as `/name`, agent personas into the subagent catalog, MCP tools with an `mcp__` prefix, hooks onto host lifecycle events, and language servers through the `lsp` tool.
-- **MCP.** A built-in bridge runs stdio, Streamable HTTP with OAuth and legacy SSE without a host MCP client. `${VAR}` references resolve from the host credential store or the launch environment; per-server overrides disable or patch a declaration without editing the source, set the tool-call and startup timeouts, and switch individual tools off; creation and editing share the same service form, including advanced timeout settings and a JSON view; an optional host-client compatibility mode is available. A suite's tools register as `mcp__<suite>__<server>__<tool>`; a server you declare yourself in `~/.agents/mcp.json` mounts under its own key, `mcp__<server>__<tool>`.
-- **LSP.** Self-provisioned: installing the plugin is the whole setup, and the `lsp` tool mounts only while a language server is wanted. The server executable itself must be on `PATH`. Upgrading from a release that asked you to expose LSP from your profile? A profile that still carries that hand-added layer reports a seam conflict; the LSP panel names the file and removes the layer for you, keeping a backup.
-- **Agent personas and delegation.** Role cards keep their instructions and exact provider/model/effort settings. Without Agent Teams, use `subagent_role`; with Agent Teams, use `spawn_teammate_role` to create a real Team member and manage it through native Team tools.
-- **Project dimension.** Skills, agents, commands, MCP servers and hooks are read from the project's own directories with no install step.
-- **Your own resources.** Author skills, commands and agent personas as Markdown under `~/.agents/`, then edit them or disable them without deleting the files.
-- **Background source updates.** Optionally refresh every configured source on a timer; off by default.
-- **Web workspace.** Seven tabs: Market, Skills, Commands, Agent personas, MCP services, LSP servers and Hooks, each with search, filters and a grid/list toggle, plus status panels with diagnostics, credential editing, and an install confirmation that warns before executable third-party content is enabled. The settings page is the canonical layout. Every surface shares one tab row of equal columns that never scrolls sideways, and a label that does not fit ellipsizes. Every surface also shares one card and detail anatomy, and the preset manager follows it.
-- **Bilingual interface and feedback.** Workspace strings and injected prompts follow the host language. With feedback enabled, the model can file a `report_market_issue` report through the `gh` CLI or a GitHub token; with neither, it opens a prefilled GitHub issue page and hands you the complete issue text.
-- **Translation.** Descriptions and expanded documents can follow the Chinese or English interface. Names stay unchanged. Chinese defaults to on and English to off, but your saved choice takes priority. Documents offer original, translated, and paragraph-by-paragraph bilingual views, with bilingual selected by default. Translation starts on demand, tries Google Translate, Microsoft Translator, then your default model, and keeps the original when none answers. Results stay cached locally until cleared. Turning translation off keeps that cache. See [translation](docs/user/usage.md#translation).
-
 ## Quick start
 
-Install into your profile, replacing `<name>` with its name:
+1. In the DSH Web GUI, open **Plugins** in the sidebar.
+2. Press **Add plugin**, type `dsh-agent-plugins-market`, then install it. The same dialog accepts a repository URL or a local directory.
+3. Restart DSH, then open **Settings → Agent Plugins**.
+4. The market already lists one first-party source. Press **Refresh** to fetch its suites. To bring in more, add a source such as `https://github.com/anthropics/claude-plugins-official`.
+5. Open a suite, review its contents, then install it and keep it enabled. Skills appear in the **Skills** tab and in the `/` menu. Answer any credential notice on **MCP services** before you use that suite's tools.
 
-```sh
-dsh plugin --profile <name> add dsh-agent-plugins-market
-```
+Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`. Requirements, profile configuration and other install options live in the [usage guide](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md#installation-options).
 
-1. Restart DSH and open **Settings → Agent Plugins**.
-2. The market already lists the first-party source; press **Refresh** to fetch its suites. To pull in more, add a source, for example `https://github.com/anthropics/claude-plugins-official`.
-3. Open a suite, review its contents, then install it and ensure it is enabled.
-4. For a suite with skills, check the **Skills** tab and type `/` in chat to find its user-invocable skills. For an MCP suite, check **MCP services** and resolve any credential or connection notice before using its tools.
+## Highlights
 
-Requirements, profile configuration and alternative installs: [usage guide](docs/user/usage.md#installation-options).
+### Core
+
+- **Any skill repository works.** Add a Git URL whose repository holds `skills/<name>/SKILL.md` and the market discovers it as a suite. No manifest, no conversion, no file copying.
+- **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
+- **Sources and downloads.** Add a Git repository, a local directory or an archive, adopt a checkout you cloned yourself, and refresh on demand. Pick a global or China mainland mirror, and refresh every source on a 6-hour timer if you want.
+- **Runtime injection.** Enabled suites add skills to the catalog and slash menu, commands as `/name`, agent personas to the subagent catalog, MCP tools as `mcp__*`, hooks to lifecycle events, and language servers to the `lsp` tool. Installing the plugin is the whole LSP setup.
+- **One workspace.** Seven tabs cover the market, the resources you author, and the services that run. Every tab has search, filters and a grid or list view.
+
+### Advanced
+
+- **MCP OAuth with nothing to declare.** A remote MCP server that answers `401` starts RFC 9728 discovery, dynamic client registration and PKCE authorization in your browser, and the granted token persists. OAuth is on by default, so a suite needs no declaration for it.
+- **Per-server MCP control.** Override a declaration without editing its source, switch one tool off, and set the tool-call and startup timeouts.
+- **Project and personal resources.** Turn on **Scan project Agent layouts** to read skills, commands, roles, MCP servers and hooks from the project's own directories. Author your own under `~/.agents/` as Markdown, and disable a resource without deleting its file.
+- **Per-workspace control.** Each workspace switches the six mounted surfaces off or on, keeps its own resource filters, and saves a resource-window setup as a favorite that works across projects.
+- **Hooks you can read and try.** A hook row opens a declaration card with its event, matcher and timeout, plus a dry run in your home directory.
+- **Bilingual by default.** The interface and the injected prompts follow the host language. Descriptions and documents show the original, a translation or both, and stay cached until you clear them.
 
 ## Everyday use
 
 The workspace has seven tabs:
 
-| Tab | Use it to |
-| --- | --- |
-| Market | Add sources, preview suites, install / uninstall, enable / disable and refresh. |
-| Skills | Browse skills and create or edit your own reusable instructions. |
-| Commands | Manage prompt templates invoked as `/name`. |
-| Agent personas | Save role instructions and model settings; delegate through `subagent_role` or create role-aware Team members with `spawn_teammate_role`. |
-| MCP services | Add a service or configure an installed one, its credentials and authorization; inspect status and retry failures. |
-| LSP servers | Add and configure language servers and inspect their runtime status. |
-| Hooks | Inspect configured command hooks and supported events. Each row opens a declaration card with support, event, matcher and timeout, plus a dry run in your home directory. Installed suite hooks list read-only and follow their suite. |
+| Tab            | Use it to                                                                           |
+| -------------- | ----------------------------------------------------------------------------------- |
+| Market         | Add sources, preview suites, install or remove them, and switch them on or off.     |
+| Skills         | Browse skills and create or edit your own reusable instructions.                    |
+| Commands       | Manage prompt templates invoked as `/name`.                                         |
+| Agent personas | Save role instructions and model settings, then delegate to them.                   |
+| MCP services   | Add a service or configure an installed one, its credentials and its authorization. |
+| LSP servers    | Add and configure language servers, and read their runtime status.                  |
+| Hooks          | Read each configured hook with its event, matcher and timeout.                      |
 
-A **source** is where content comes from; a **suite** is an installable unit discovered there. Adding a source discovers its suites. Installing and enabling a suite controls its runtime capabilities.
+A **source** is where content comes from. A **suite** is an installable unit discovered there. Adding a source discovers its suites. Enabling a suite turns its runtime capabilities on.
 
-Everything you author yourself lives in the shared Agent layout root: skills, commands and personas as Markdown under `~/.agents/`, command hooks in `~/.agents/hooks.json` (or `~/.agents/hooks/hooks.json`), and the MCP and LSP services you add in the workspace in `~/.agents/mcp.json` and `~/.agents/lsp.json`. Commands and personas are read at any subdirectory depth, so a file another tool wrote at `~/.agents/commands/git/commit.md` is callable as `/git-commit`. Project-native resources stay in the project. See [storage and discovery](docs/user/usage.md#storage-and-discovery) for paths and precedence.
+Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. Project-native resources stay in the project. See [storage and discovery](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md#storage-and-discovery).
 
-All seven tabs share a saved grid/list preference. Add and refresh actions sit at the top right; resource state rails are green when active. A hook row opens its own read-only declaration. The declaration shows the full command, the declared matcher, the declared timeout and the host support verdict, never the whole suite behind it.
+## Compatibility
 
-## Compatibility and boundaries
+The plugin reads ten layout dialects and maps six runtime surfaces. Per-layout support and the manifest priority order are on the [compatible plugins page](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/). Evidence: the [layout audit](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/layout-coverage.md) and the [compatibility report](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/reference/compat-report.md).
 
-Supported **layout dialects** describe how files are organized. The [shared priority table](#layout-detection-precedence) lists suite manifests and Marketplace catalogs together. All ten layout contracts in [`schemas/`](schemas/README.md) have independent reader tests; [the layout audit](docs/user/layout-coverage.md) maps them to pinned repository fixtures.
-
-Supported **runtime surfaces** describe what DSH can use:
-
-| Surface | Runtime support and conditions |
-| --- | --- |
-| Skills | Host skill catalog and user-invocable slash entries; supported root placeholders are expanded. |
-| Commands | Slash commands through the host command service. |
-| Agents | Dynamic role catalog; `subagent_role` without Agent Teams, `spawn_teammate_role` with it. Team mode also requires session query and system-prompt services. |
-| MCP | Built-in bridge by default: stdio, Streamable HTTP with OAuth, and legacy SSE. Optional host-client compatibility mode is also available; it enforces the tool-call timeout but not tool filters or a startup timeout. |
-| Hooks | The command-hook subset mapped by `dsh-hooks-claude-code`. |
-| LSP | Self-provisioned: installing the plugin is the whole setup, and `lsp` mounts only while a language server is wanted; the server executable must be on `PATH`. |
-
-Role discovery remains available in either mode. `spawn_teammate_role(agent, name, description, prompt)` applies role instructions and model settings from the first request, returns a native Team `target`, and retains the creation snapshot for resume. Only the Lead creates members, after the user explicitly requests Team work. Native `spawn_teammate` stays available; roles do not add a second management API. A separate Team coordination briefing keeps the Lead on user intent and integration while guiding members through scoped execution and reporting, even without a role catalog. `tools` and `disallowedTools` are preserved but not enforced. See [agent roles](docs/user/agent-roles.md) for routing, prerequisites and limits.
-
-### Layout detection precedence
-
-When multiple manifests exist in the **same suite directory**, the first existing file in this order selects the layout:
-
-| Priority | Layout | Suite manifest | Marketplace catalog |
-| --- | --- | --- | --- |
-| 1 | [agent-plugins](https://agent-plugins.org) / root compatibility | `plugin.json` | No dedicated catalog |
-| 2 | Universal compatibility | `.plugin/plugin.json` | `.plugin/marketplace.json` |
-| 3 | Claude Code | `.claude-plugin/plugin.json` | `.claude-plugin/marketplace.json` |
-| 4 | Cursor | `.cursor-plugin/plugin.json` | `.cursor-plugin/marketplace.json` |
-| 5 | Kimi Code | `kimi.plugin.json`, then `.kimi-plugin/plugin.json` | `.kimi-plugin/marketplace.json` |
-| 6 | Codex | `.codex-plugin/plugin.json` | `.agents/plugins/marketplace.json`, then `.agents/plugins/api_marketplace.json` |
-| 7 | ZCode | `.zcode-plugin/plugin.json` | No dedicated catalog |
-| 8 | Qoder CLI | `.qoder-plugin/plugin.json` | `.qoder-plugin/marketplace.json` |
-| 9 | GitHub Copilot CLI | `.github/plugin/plugin.json` | `.github/plugin/marketplace.json` |
-| Fallback | Skill collection / shared catalog | Discover skills when no recognized manifest exists | Root `marketplace.json` |
-
-- **Manifests are tried in order:** a manifest that cannot be read or validated is reported and the next one is tried, down to the fallback. If every candidate fails, the suite is diagnosed instead of loading half of it.
-- **Component fallback:** for a root `plugin.json` that does not declare a recognized agent-plugins `$schema`, missing component declarations can come from `.claude-plugin/plugin.json`; explicit root declarations win, and marketplace entry declarations fill remaining gaps.
-- Marketplace catalogs follow the same order: the first catalog that produces suites wins, and invalid or empty catalogs allow the next candidate to be tried.
-
-The order is defined in [`packages/market-contracts/src/model/layouts.ts`](packages/market-contracts/src/model/layouts.ts); selection and root-manifest fallback are implemented in [`packages/market-catalog/src/scanning/manifests.ts`](packages/market-catalog/src/scanning/manifests.ts).
-
-### Layout support matrix
-
-The table says per layout whether this plugin reads a given surface at all. **Yes** means the layout's own files are read and injected; **Partial** means only part of the formats is understood, or the upstream layout has no such definition — the notes below say which. Evidence: the [compatibility report](docs/reference/compat-report.md) and [layout audit](docs/user/layout-coverage.md).
-
-| Layout                                                                                                        | Skills | Agents  | Commands | MCP     | Hooks   | LSP     |
-| ------------------------------------------------------------------------------------------------------------- | ------ | ------- | -------- | ------- | ------- | ------- |
-| [Claude Code](https://code.claude.com/docs/en/plugins-reference)                                              | Yes    | Yes     | Yes      | Yes     | Partial | Yes     |
-| [Codex](https://developers.openai.com/plugins/build/plugins)                                                  | Yes    | Yes     | Yes      | Partial | Partial | Yes     |
-| [Cursor](https://cursor.com/docs/reference/plugins)                                                           | Yes    | Partial | Partial  | Partial | No      | Yes     |
-| Kimi Code                                                                                                     | Yes    | Yes     | Yes      | Yes     | Partial | Partial |
-| [ZCode](https://zcode.z.ai/en/docs/plugin) `.zcode-plugin/`                                                   | Yes    | Yes     | Yes      | Yes     | Partial | Partial |
-| [Qoder CLI](https://docs.qoder.com/cli/plugins-reference) `.qoder-plugin/`                                    | Yes    | Yes     | Yes      | Partial | Partial | Partial |
-| [GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) | Yes    | Yes     | Yes      | Yes     | Partial | Yes     |
-| Universal compatibility layout `.plugin/`                                                                     | Yes    | Yes     | Yes      | Yes     | Partial | Yes     |
-| [agent-plugins](https://agent-plugins.org)                                                                    | Yes    | Yes     | Yes      | Yes     | Yes     | Yes     |
-| Manifest-less skill collection                                                                                | Yes    | Yes     | Yes      | Yes     | Partial | Partial |
-| Project-native directories                                                                                    | Yes    | Yes     | Yes      | Yes     | Partial | No      |
-
-- **Skills** are read from the paths a manifest declares and from the conventional `skills/` directory, including flat `<name>.md` files. A path that carries its own `SKILL.md` is one skill: the documents beside it belong to that skill and are not read as skills. A conformant agent-plugins package is the exception: skills come from one level of `skills/` subdirectories, exactly as its specification requires.
-- **Agents and commands** are read as Markdown (`agents/*.md`, `commands/*.md`). Cursor plugin commands accept `.md`, `.mdc`, `.markdown` and `.txt`. Codex and Kimi native agent/command formats (TOML, YAML) have no adapter yet.
-- **MCP** covers declared files, inline tables and arrays. Cursor's schema-less `mcp.json` and agent-plugins' strict `mcp.json` both work; Kimi Code is inline-only. Codex app connectors stay outside this adapter.
-- **Hooks** map the command-style events DSH has an equivalent for; events without one (for example `afterFileEdit`) are reported instead of simulated. Cursor's native events are not read.
-- **LSP** accepts declared files, arrays and inline tables plus the conventional `.lsp.json` / `lsp.json` locations. Declarations inside a project are reported but not mounted: the host LSP registry is global. Some layouts only expose LSP directories for preview.
-- **agent-plugins** suites read the portable core (`skills/`, `mcp.json`) per the specification, plus this plugin's [`com.deepseek.harness`](schemas/com.deepseek.harness/spec.md) extension namespace for commands, agents, hooks, LSP and per-server MCP policy (OAuth, tool lists, timeouts). Root-level `commands/`, `agents/`, `hooks/` and `.mcp.json` files belong to other layouts and are reported as unread for this dialect; inline manifest component keys are reported and ignored per §5.2. Both recognized releases (1.0.0, 1.1.0) validate against their own vendored schemas.
-- **Universal** is a compatibility-layout label used by this plugin; the [OpenHands SDK](https://docs.openhands.dev/sdk/guides/plugins) documents the same `.plugin/plugin.json` location and a [Vercel repository](https://github.com/vercel/vercel-plugin/blob/main/.plugin/plugin.json) uses it, but no cross-vendor specification exists.
-
-Sources such as [jeecgboot/skills](https://github.com/jeecgboot/skills) group undeclared, skill-only directories into one plugin card. Marketplace entries and roots with plugin manifests or other runtime surfaces retain their separate identities. The aggregate requires its own installation and does not inherit individual skill installs. See [skill collection rules](schemas/skill-collection/spec.md).
-
-Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped.
-
-### Project layout switch
-
-The plugin settings card has **Scan project Agent layouts** (`dsh-agent-plugins-market.scanProjectLayouts`, default off). It controls one thing: whether the project you are working in contributes skills, commands, agent roles, MCP servers and hooks from its own directories (`.claude`, `.agents`, `.codex`, `.cursor`, `.kimi`, `.zcode`, `.qoder`, `.github`). Turning it on adds those candidates; turning it off removes them on the next discovery pass. The card applies a switch when you save it, and each setting offers Use default while it carries your own value. Configured sources and installed suites are unaffected.
-
-[Project layouts](docs/user/usage.md#project-layouts) lists the directories and files read per layout and how they are mounted.
-
-### Verified samples
-
-The README repositories have offline snapshots in [`tests/fixtures/real-layouts/`](tests/fixtures/real-layouts/) with commit IDs, hashes and licenses, and each layout has an isolated reader test. The [compatibility report](docs/reference/compat-report.md) records the sampled repositories, their schema verdicts and the scanner output; [the audit](docs/user/layout-coverage.md) records independent resource checks. These are documentation, source and sample checks — not end-to-end certification for every platform.
-
-Review third-party suites before enabling them: enabled services and hooks can execute programs. See the [runtime and security details](docs/user/usage.md#runtime-and-security).
+Reading a layout does not guarantee every behavior of its original platform. Invalid declarations are diagnosed and skipped, never half-mounted.
 
 ## FAQ
 
 **Why is an installed skill or tool missing?**
 
-Check that the suite and the relevant capability are enabled. Skills may restrict manual invocation. MCP / LSP panels show user-service failures. Project resources additionally require the project-scan switch; unsupported native fields and project LSP declarations appear in scan diagnostics.
+Check that the suite and the relevant capability are enabled. The MCP and LSP panels report failures and missing credentials. Project resources also need the project-scan switch.
 
 **Where do I configure MCP tokens?**
 
-Open the service in **MCP services**. Missing environment references show `needs-credentials`. Host-managed credentials are write-only; launch-environment credentials require changing the environment and restarting DSH.
-
-**How do I add a service that no suite declares?**
-
-Use **Add** in **MCP services** or **LSP servers**. The declaration is validated, stored in `~/.agents/mcp.json` or `~/.agents/lsp.json`, and mounted through the same lifecycle as suite services. Host-observed services remain read-only.
+Open the service in **MCP services**. Missing environment references show `needs-credentials`. Host-managed credentials are write-only.
 
 **Do sources refresh automatically?**
 
-Only when **Background source updates** is on: every configured source is then refreshed every 6 hours, starting one interval after you enable it. The switch is off by default, and the refresh button always works.
-
-**Where do the suites that appear without adding a source come from?**
-
-The plugin presets one source record pointing at its own suite collection, so the market lists that repository on first run; press **Refresh** to fetch its suites. From there it behaves like any other source — including removal, which the next activation undoes just as it does for a source seeded through configuration.
-
-**What if a source download fails?**
-
-Use a local directory, adopt a manual checkout, or configure a proxy / mirror. See [source configuration](docs/user/usage.md#configure-marketplace-sources).
-
-**When do local edits become visible?**
-
-There is no file watcher. Local-source discovery caches results for up to 30 seconds; refresh the source to invalidate them immediately. Project discovery has a separate five-second cache. A refresh does not happen automatically on an already-open page.
+Only with **Background source updates** on. It refreshes every configured source every 6 hours, starting one interval after you enable it. The refresh button always works.
 
 **Does removing a source delete its files?**
 
-Only when you tick **also delete the managed market directory** in the confirmation. That removes the source's checkout under `~/.dsh/agent-plugins/.sources/<id>` — including one you cloned yourself and adopted. A local-directory source pointing outside `.sources/` is never deleted.
+Only when you tick **also delete the managed market directory** in the confirmation. A local-directory source outside `.sources/` is never deleted.
 
-## Repository layout
+More questions: [FAQ](https://sivan757.github.io/dsh-agent-plugins-market/faq/).
 
-The published package stays `dsh-agent-plugins-market` and ships one artifact. The code lives in eight private workspace packages under `packages/`: `market-bundle` (composition root and HTTP surface), `market-catalog` (source scanning and catalog use cases), `market-contracts` (stateless shared records), `market-runtime` (session selection and harness effects), `market-mcp`, `market-lsp`, `market-translation`, and `market-ui` (the browser bundle). Ownership, dependency direction and the migration gates are recorded in [the domain workspace refactor](docs/developer/design/domain-workspace-refactor.md); [AGENTS.md](AGENTS.md) holds the layout map maintainers edit.
+## Documentation
 
-## More documentation
-
-- [Usage guide](docs/user/usage.md): installation, source configuration, storage, host requirements, project layouts, MCP / LSP and feedback settings.
-- [Plugin specifications](schemas/README.md): per-dialect reference schemas and evidence, the vendored agent-plugins v1 contracts (1.0.0, 1.1.0), and the [`com.deepseek.harness` namespace contract](schemas/com.deepseek.harness/spec.md).
-- [Compatibility report](docs/reference/compat-report.md): one real repository per schema, with commits, schema verdicts and scanner output.
-- [Contributing](CONTRIBUTING.md): development setup, checks and PR workflow.
-- [Security policy](SECURITY.md) · [Release history](CHANGELOG.md) · [MIT license](LICENSE).
-- [Domain glossary](CONTEXT.md) · [Architecture](docs/developer/decisions/0001-catalog-centered-modular-refactor.md).
-- [Agent roles and storage](docs/user/agent-roles.md): installed-resource switching, model routing and migration.
+- [Install guide](https://sivan757.github.io/dsh-agent-plugins-market/install/): prerequisites and the first suite, step by step.
+- [Usage guide](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md): source configuration, storage, project layouts, MCP, LSP and settings.
+- [Compatible plugins](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/): layouts, precedence and verified samples.
+- [Plugin specifications](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/README.md): per-dialect reference schemas and the [`com.deepseek.harness`](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/com.deepseek.harness/spec.md) namespace.
+- [Contributing](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTRIBUTING.md) · [Security](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/SECURITY.md) · [Changelog](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [License](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE).
+- [Domain glossary](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [Agent roles](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/agent-roles.md) · [Release process](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md).
 
 ## Community
 
 Scan the QR code to join the **dsh-agent-plugins-market** WeChat group, where we answer questions and take feature requests.
 
 <div align="center">
-  <img src="docs/screenshots/wechat-group.webp" alt="WeChat group QR code for dsh-agent-plugins-market" width="240" />
+  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/wechat-group.webp" alt="WeChat group QR code for dsh-agent-plugins-market" width="240" />
 </div>

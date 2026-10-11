@@ -65,7 +65,7 @@ The prompts and tool descriptions this plugin injects into a session are not tra
 
 ## Installation options
 
-The recommended CLI command is in the [quick start](../../README.md#quick-start). Alternatively, install inside the profile:
+In the DSH Web GUI, open **Plugins** in the sidebar, press **Add plugin**, enter `dsh-agent-plugins-market`, then restart DSH. The same dialog accepts a repository address or a local directory. To install from a terminal instead, install inside the profile:
 
 ```sh
 pnpm add dsh-agent-plugins-market
@@ -218,6 +218,6 @@ Workspace requests and credential/settings writes share `withBusyOperation` (`pa
 
 Waiting never ends in silence: a mask that outlives 20 seconds says a local service may not be answering, reads stop waiting after 15 seconds, and mutations after a 10-minute backstop — a request that ran out of time is reported as such instead of holding the page.
 
-A source may contain multiple layout dialects. Suite manifests and Marketplace catalogs follow the [same layout priority](../../README.md#layout-detection-precedence). Manifest selection tries the manifests in priority order; one that cannot be read or validated is diagnosed and the next one is tried, and a suite whose every candidate fails is rejected. Catalog scanning uses the first catalog that produces suites, with supported supplemental discovery; invalid or empty catalogs allow later candidates. Root `marketplace.json` is the final shared fallback. Remote-reference cards are not directly installable: add their repository as a source first.
+A source may contain multiple layout dialects. Suite manifests and Marketplace catalogs follow the [same layout priority](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/#shared-layout-precedence). Manifest selection tries the manifests in priority order; one that cannot be read or validated is diagnosed and the next one is tried, and a suite whose every candidate fails is rejected. Catalog scanning uses the first catalog that produces suites, with supported supplemental discovery; invalid or empty catalogs allow later candidates. Root `marketplace.json` is the final shared fallback. Remote-reference cards are not directly installable: add their repository as a source first.
 
 The schemas in `schemas/1.0.0/` are vendored from [agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec), so validation does not download schemas at load time. See the [domain glossary](../../CONTEXT.md) and [contribution guide](../../CONTRIBUTING.md) for vocabulary and development checks.
