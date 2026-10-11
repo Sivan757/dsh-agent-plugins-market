@@ -1,36 +1,45 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { readGuides } from '../../guide/guide';
+import { readSections } from '../../guide/guide';
 
 const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL.slice(0, -1) : import.meta.env.BASE_URL;
-const guides = readGuides();
-const english = guides.filter((g) => g.lang === 'en');
-const chinese = guides.filter((g) => g.lang === 'zh');
+const english = readSections('en');
+const chinese = readSections('zh');
 ---
 <Base
   title="User guide — dsh-agent-plugins-market"
-  description="The full user guide for dsh-agent-plugins-market: installation, sources, storage, MCP, LSP, hooks, translation and settings."
+  description="The user guide for dsh-agent-plugins-market: installation, sources, your own resources, MCP, hooks, LSP, translation and settings."
 >
   <h1>User guide</h1>
   <p>
-    The complete documentation for <code>dsh-agent-plugins-market</code>. Every page here is the
-    file the repository ships under <code>docs/user/</code>, rendered with its links rewritten for
-    the site. The Chinese pages sit beside their English source and are updated in the same edit.
+    The complete documentation for <code>dsh-agent-plugins-market</code>, one page per task. Every
+    page here is the file the repository ships under <code>docs/user/</code>, rendered with its links
+    rewritten for the site. The Chinese pages sit beside their English source and are updated in the
+    same edit.
   </p>
 
-  <h2>English</h2>
-  <ul>
-    {english.map((g) => (
-      <li><a href={base + '/docs/' + g.slug + '/'}>{g.title}</a></li>
-    ))}
-  </ul>
+  {english.map((section) => (
+    <section>
+      <h2>{section.label}</h2>
+      <ul>
+        {section.guides.map((g) => (
+          <li><a href={base + '/docs/' + g.slug + '/'}>{g.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  ))}
 
   <h2>简体中文</h2>
-  <ul>
-    {chinese.map((g) => (
-      <li><a href={base + '/docs/' + g.slug + '/'}>{g.title}</a></li>
-    ))}
-  </ul>
+  {chinese.map((section) => (
+    <section>
+      <h3>{section.label}</h3>
+      <ul>
+        {section.guides.map((g) => (
+          <li><a href={base + '/docs/' + g.slug + '/'}>{g.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  ))}
 
   <h2>Start here</h2>
   <ul>

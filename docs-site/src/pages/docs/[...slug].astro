@@ -2,11 +2,11 @@
 import { basename } from 'node:path';
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import { guideCounterpart, guideLang, guideSlug, guideTitle, readGuides, rewriteLinks } from '../../guide/guide';
+import { guideBase, guideLang, guideSlug, guideTitle, readGuides, readSections, rewriteLinks } from '../../guide/guide';
 
 export async function getStaticPaths() {
   const entries = await getCollection('userGuide');
-  // The glob loader slugifies entry.id (it drops the dot in `usage.zh`), so the
+  // The glob loader slugifies entry.id (it drops the dot in `install.zh`), so the
   // route and the language come from the source file name, which stays verbatim.
   return entries.map((entry) => {
     if (entry.filePath === undefined) {
@@ -25,13 +25,11 @@ const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL.s
 const guides = readGuides();
 const lang = guideLang(file);
 const title = guideTitle(entry.body, file);
-const counterpart = guideCounterpart(file);
-const currentSlug = guideSlug(file);
+const counterpart = guides.find((g) => g.id === file)?.counterpart;
+const current = guideBase(file);
 const html = rewriteLinks(entry.rendered.html, base);
-const siblings = guides.filter((g) => g.lang === lang);
+const sections = readSections(lang);
 
-// The site chrome is English, but a Chinese guide page reads as Chinese: its
-// sidebar headings and its links into the site are labelled in that language.
 const zh = lang === 'zh';
 const labels = {
   guide: zh ? '使用指南' : 'User guide',
@@ -51,16 +49,20 @@ const otherLabel = zh ? 'English' : '简体中文';
   <div class="docsShell">
     <aside class="docsNav">
       <p class="docsNavTitle">{labels.guide}</p>
-      <ul>
-        {siblings.map((g) => (
-          <li>
-            <a
-              href={base + '/docs/' + g.slug + '/'}
-              aria-current={g.slug === currentSlug ? 'page' : undefined}
-            >{g.title}</a>
-          </li>
-        ))}
-      </ul>
+      {sections.map((section) => (
+        <>
+          <p class="docsNavSection">{section.label}</p>
+          <ul>
+            {section.guides.map((g) => (
+              <li>
+                <a href={base + '/docs/' + g.slug + '/'} aria-current={g.base === current ? 'page' : undefined}>
+                  {g.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
+      ))}
       <p class="docsNavTitle">{labels.language}</p>
       <ul>
         <li><span class="langNow">{languageLabel}</span></li>
@@ -74,7 +76,8 @@ const otherLabel = zh ? 'English' : '简体中文';
       </ul>
     </aside>
     <article class="docsBody">
-      <h1>{title}</h1>
+      {/* The markdown carries its own level-one heading, which is also the target of
+          section links, so the template adds none. */}
       <div class="prose" set:html={html} />
     </article>
   </div>

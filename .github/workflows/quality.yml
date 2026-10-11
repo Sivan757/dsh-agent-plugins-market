@@ -55,6 +55,8 @@ jobs:
       # steps are the only verification the site gets. They live here as well as
       # in docs-pages.yml because that workflow runs on push to main only: a
       # broken site change would otherwise pass review and fail after merge.
+      - name: Check the guide is complete and bilingual
+        run: pnpm --dir docs-site run check:guide
       - name: Type-check the site
         run: pnpm --dir docs-site run check
       - name: Build the site

@@ -5,6 +5,7 @@
   "scripts": {
     "build": "astro build && node scripts/generate-sitemap.mjs",
     "check": "astro check",
+    "check:guide": "node scripts/check-guide.mjs",
     "check:links": "node scripts/check-links.mjs"
   },
   "dependencies": {

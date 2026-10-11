@@ -57,7 +57,7 @@
 4. 市场里已经列出一个第一方来源。点**刷新**即可拉取其中的套件。想补充更多内容时再添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。
 5. 打开套件查看内容，确认后安装并保持启用。技能会出现在**技能**页签和聊天中的 `/` 菜单里；如果套件提供 MCP，先在 **MCP 服务**处理凭据提示，再使用它的工具。
 
-命令行替代方式：`dsh plugin --profile <name> add dsh-agent-plugins-market`。环境要求、profile 配置与其他安装方式见[使用指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.zh.md#其他安装方式)。
+命令行替代方式：`dsh plugin --profile <name> add dsh-agent-plugins-market`。环境要求、profile 配置与其他安装方式见[安装指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/install/#其他安装方式)。
 
 ## 功能亮点
 
@@ -94,7 +94,7 @@
 
 **来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件，启用套件决定其运行时能力是否生效。
 
-你自己创作的内容都放在 `~/.agents/` 下：技能、命令和角色是 Markdown 文件，hooks 放在 `hooks.json`，工作区里新增的 MCP 与 LSP 服务分别保存在 `mcp.json` 与 `lsp.json`。项目原生资源继续保留在项目中。路径与优先级见[存储与发现](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.zh.md#存储与发现)。
+你自己创作的内容都放在 `~/.agents/` 下：技能、命令和角色是 Markdown 文件，hooks 放在 `hooks.json`，工作区里新增的 MCP 与 LSP 服务分别保存在 `mcp.json` 与 `lsp.json`。项目原生资源继续保留在项目中。路径与优先级见[存储与发现](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/resources/#存储与发现)。
 
 ## 兼容性
 
@@ -125,7 +125,7 @@
 ## 文档
 
 - [安装指南](https://sivan757.github.io/dsh-agent-plugins-market/install/)：从环境要求到第一个套件，逐步说明。
-- [使用指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/usage/)：安装、来源、存储、项目布局、MCP、LSP、翻译与各项设置。
+- [使用指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/)：按任务分页，从安装到工作区行为。
 - [兼容的插件市场](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/)：布局、优先级与抽样验证。
 - [插件规范](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/README.md)：各布局的参考 schema，以及 [`com.deepseek.harness`](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/com.deepseek.harness/spec.md) 扩展命名空间。
 - [贡献指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTRIBUTING.md) · [安全策略](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/SECURITY.md) · [更新日志](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [MIT 许可](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)。

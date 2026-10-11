@@ -6,7 +6,7 @@ Status: implemented
 
 The site under `docs-site/` shipped four pages: a home page, an install guide, a compatible-plugins reference and an FAQ. Every page that needed user-guide detail linked out to `github.com` with a `blob/main/docs/user/usage.md` URL, so a reader who arrived at the site left it to read the guide. The site was a landing page wearing a documentation site's address.
 
-The guide itself is 223 lines in each language (`docs/user/usage.md`, `docs/user/usage.zh.md`) and covers installation, sources, storage, MCP, LSP, hooks, translation, settings and the operation overlay. Two further paired pages, `agent-roles` and `layout-coverage`, were also GitHub-only from the site.
+The guide itself was one 223-line page per language (`docs/user/usage.md`, `docs/user/usage.zh.md`) covering installation, sources, storage, MCP, LSP, hooks, translation, settings and the operation overlay: a reader looking for one answer scrolled past nine unrelated topics, and could not link to one of them except by an anchor inside a very long page. Two further paired pages, `agent-roles` and `layout-coverage`, were also GitHub-only from the site.
 
 ## Decision
 
@@ -18,7 +18,13 @@ Links survive the move. A rendered guide keeps its authored markdown links, and 
 
 The repository root is resolved by walking up from the working directory until `docs/user/usage.md` exists. A path derived from `import.meta.url` breaks once Astro bundles the module into `dist/.prerender/`, which the first build proved. The helper lives at `docs-site/src/guide/guide.ts`, deliberately not under a `lib/` directory: see [Consequences](#consequences).
 
-The site adds one guide page pair, one index at `/docs/`, a sidebar that lists the sibling language, a language switch, and a `User guide` entry in the shared navigation. The existing pages stop linking to GitHub for guide detail.
+**The guide becomes one page per task.** The 223-line pair splits into seven pairs: `install`, `sources`, `resources`, `services`, `translation`, `settings` and `workspace`. Each page owns one subject, so a reader lands on the thing they came for and can link to it. Sections that were children of the old page's parts (`Project layouts`, `MCP configuration`, `Hooks and LSP`, `Resource detail editing`) become top-level sections of the page that now owns them, and the reading order lives in the guide library: `NAV_ORDER` lists the pages, `SECTIONS` groups them into `Get started`, `Content`, `Capabilities`, `Workspace` and `Reference`.
+
+The split is mechanical, not a rewrite: a script sliced the old file by line range and re-emitted the text verbatim. Two changes are deliberate. The old line 9 restated what the `Project layouts` section already covers in full, so it is dropped as a duplicate and its one unique clause moves onto the sentence that owns that fact. The container headings `## Format details and development` and `## 格式细节与开发` dissolve with the container.
+
+Each page carries a `**Guide:**` line of sibling links, because the site sidebar does not exist on GitHub: without it the sequence of pages would be invisible in the repository view.
+
+The site adds one guide index at `/docs/`, a sectioned sidebar, a language switch, and a `User guide` entry in the shared navigation. The existing pages stop linking to GitHub for guide detail.
 
 `docs-pages.yml` now watches `docs/user/**` as well as `docs-site/**`. Before this change a guide edit did not rebuild the deployed site, and the site linked the guide by absolute GitHub URL precisely because of it.
 
@@ -30,19 +36,23 @@ The site adds one guide page pair, one index at `/docs/`, a sidebar that lists t
 
 **Install `@astrojs/markdown-remark` to run a rehype plugin for link rewriting.** Rejected as unnecessary. Astro 7 renders content collections with its own processor, and the rendered HTML carries plain `href` attributes that a targeted string rewrite handles with no new dependency. A new dependency would need the justification the repository's rules ask for, and this one buys nothing.
 
-**Keep the site's GitHub links and add the guide as one long page.** Rejected: the sidebar, the language switch and the per-page head metadata are what make the guide navigable from the site. One 223-line page per language reads as a dump, and the reader cannot link to a section of it.
+**Keep the site's GitHub links and add the guide as one long page.** Rejected: the sidebar, the language switch and the per-page head metadata are what make the guide navigable from the site. One 223-line page per language reads as a dump, and the reader cannot link to a section of it. This is also why the page later split by task rather than staying whole.
 
-**Add a full-text search index.** Deferred, not rejected. The site is 11 static pages and a sidebar covers them; search needs a client-side index and a decision about where it is built. Nothing in this change forecloses it.
+**Add a full-text search index.** Deferred, not rejected. The site is 23 static pages and a sectioned sidebar covers them; search needs a client-side index and a decision about where it is built. Nothing in this change forecloses it.
+
+**Keep the guide as one page and split it later.** Rejected: the split is what makes the pages linkable, and doing it in the same change keeps one review of the content move instead of two.
 
 ## Consequences
 
-The site is now the complete user documentation rather than an entrance to it: 11 pages, of which six are the bilingual guide. `docs/user/` edits publish on the next push to `main`, and the guide pages carry the same navigation as the rest of the site.
+The site is now the complete user documentation rather than an entrance to it: 23 pages, of which 18 are the guide (nine bilingual pairs). `docs/user/` edits publish on the next push to `main`, and the guide pages carry the same navigation as the rest of the site.
+
+Splitting one page into seven creates a new silent failure: a file that is not in `NAV_ORDER` renders nowhere and reports nothing. `docs-site/scripts/check-guide.mjs` closes it. It compares the files on disk against the library and fails when a page is unrouted, ungrouped, nameless in `SECTIONS`, missing its counterpart, unequal in line count against that counterpart, or missing its `**Guide:**` line. It also fails when `NAV_ORDER` names a file that does not exist, so a typo cannot reach the build.
 
 Link rewriting is the fragile part. It is a string rewrite over rendered HTML, not a link graph, so it cannot tell a link it should rewrite from one it should leave alone. A new link target outside `docs/user/` is rewritten to a GitHub URL automatically, so a wrong target shows as a 404 on GitHub rather than a broken site route.
 
 `docs-site/scripts/check-links.mjs` guards that. It reads the build output, resolves every internal route, fragment and asset reference against the emitted files and ids, and fails on a relative link that should have been rewritten. `docs-pages.yml` runs it after the build, so a broken link cannot deploy. The check was verified in both directions: 132 internal links, 6 anchors and 11 asset references resolve on the current content, and injected faults (a missing page, a missing fragment, a relative path and an unrewritten markdown link) each fail the run with exit code 1.
 
-The guide keeps its bilingual parity rule from [docs/AGENTS.md](../../docs/AGENTS.md): one English and one Chinese file, edited together, same line count. The site renders the pair and links them to each other, so a missing counterpart is visible as a missing language switch.
+The guide keeps its bilingual parity rule from [docs/AGENTS.md](../../docs/AGENTS.md): one English and one Chinese file, edited together, same line count. The rule applies per pair, so it survives the split: each of the seven new pairs has identical line counts, as do the two existing pairs. The site renders the pair and links them to each other, so a missing counterpart is visible as a missing language switch.
 
 This note extends [Consumer-first documentation tiers](2026-10-10-consumer-first-documentation-tiers.md), which moved compatibility reference onto the site and made the site the full documentation entrance. That note's decision stands; this one makes the site render the guide rather than link out to it.
 
@@ -74,10 +84,14 @@ Verified in both directions: the current build writes 11 URLs covering every con
 
 ## Testing
 
-`pnpm --dir docs-site exec astro build` builds 11 pages from the repository root, which is the command `docs-pages.yml` runs. Its output carries `/docs/usage/`, `/docs/agent-roles/`, `/docs/layout-coverage/` and the `/docs/zh/` counterparts.
+`pnpm --dir docs-site run build` builds 23 pages from the repository root, which is the command `docs-pages.yml` runs. Its output carries the seven task pages, `/docs/agent-roles/`, `/docs/layout-coverage/` and the `/docs/zh/` counterpart of each.
 
-Rendered structure is compared against the markdown source for four pages: heading counts match exactly (8 h2 and 8 h3 for `usage.md`), and every code fence becomes one `<pre>` block.
+The split is proved lossless rather than trusted. Every non-heading content line of the old 223-line pair appears in the new pages, with two accounted exceptions: the duplicated line 9 and the two container headings that dissolve with their container. Both language sides were checked independently, and each new pair has identical line counts.
 
 `pnpm --dir docs-site run check` reports 0 errors, 0 warnings and 0 hints over 12 files, and was proven to have teeth: with a frontmatter type error injected it fails, and without `docs-site/tsconfig.json` that same injection passed, which is why the config is part of this change.
 
-`pnpm --dir docs-site run check:links` passes on that output. Its failure path is proven by injecting four faults into a copy of the build: a missing page, a missing fragment, a relative path and an unrewritten markdown link each produce a `BROKEN` line and exit code 1. The root suite stays green at 213 files and 2048 tests on Node 24.
+`pnpm --dir docs-site run check:links` passes on that output: 559 internal links, 2 same-page anchors and 23 asset references resolve across 24 pages. Its failure path is proven by injecting four faults into a copy of the build: a missing page, a missing fragment, a relative path and an unrewritten markdown link each produce a `BROKEN` line and exit code 1. The check caught four real cross-page anchors the split broke — `settings` still pointed at `#project-layouts` and `#translation`, which had moved to other pages — before any of them reached a deployment.
+
+`pnpm --dir docs-site run check:guide` passes over 18 files in nine pairs. Its failure path is proven three ways: an unlisted page, a pair with unequal line counts, and a missing counterpart each exit 1.
+
+Every URL the READMEs and the site's own pages point at was resolved against the build: 14 distinct targets, all present, including the two Chinese anchors. The root suite stays green at 213 files and 2048 tests on Node 24.

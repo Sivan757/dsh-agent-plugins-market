@@ -30,6 +30,10 @@ jobs:
       - name: Install docs-site deps
         run: pnpm install --no-frozen-lockfile
         working-directory: .
+      # A page missing from the guide library renders nowhere and reports
+      # nothing, so the guide's completeness and bilingual parity are checked
+      # before anything is built from it.
+      - run: pnpm --dir docs-site run check:guide
       # The root tsconfig projects do not cover .astro files, so the site's own
       # type check is the only thing that reads them.
       - run: pnpm --dir docs-site run check
