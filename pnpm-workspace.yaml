@@ -60,3 +60,9 @@ minimumReleaseAgeExclude:
 packages:
   - docs-site
   - packages/*
+
+# Transitive dedupe: css-tree@3.2.1 declared ^1.2.1 and the lockfile kept the
+# 1.2.1 resolution while postcss and css-tree@2.2.1 already carried 1.2.2.
+# 1.2.2 fixes GHSA-68fv-2mgg-jv7q (indexed source-map section offsets).
+overrides:
+  source-map-js: 1.2.2
