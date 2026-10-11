@@ -6,7 +6,7 @@ Markdown under `docs/` is organized by the reader it serves. A page states its o
 
 | Directory | Holds | Examples |
 | --- | --- | --- |
-| `user/` | Product-facing guides for someone using the plugin | [usage.md](user/usage.md), [agent-roles.md](user/agent-roles.md), [layout-coverage.md](user/layout-coverage.md) |
+| `user/` | Product-facing guides for someone using the plugin, one page per task | [install.md](user/install.md), [sources.md](user/sources.md), [resources.md](user/resources.md), [services.md](user/services.md), [translation.md](user/translation.md), [settings.md](user/settings.md), [workspace.md](user/workspace.md), [agent-roles.md](user/agent-roles.md), [layout-coverage.md](user/layout-coverage.md) |
 | `reference/` | Stable material a page or PR cites: contracts, audits, generated reports | [dsh-plugin-development-standard.md](reference/dsh-plugin-development-standard.md), [host-foundation-map.md](reference/host-foundation-map.md), [compat-report.md](reference/compat-report.md) |
 | `developer/decisions/` | Accepted decisions, one page per decision | [0002-versioning-and-release-policy.md](developer/decisions/0002-versioning-and-release-policy.md) |
 | `developer/design/` | Design and staged plans for maintainers | [engineering-refactor-plan.md](developer/design/engineering-refactor-plan.md) |
@@ -20,7 +20,11 @@ Place a new page in the directory of its reader. Choose `reference/` over `scrat
 
 ## Bilingual pages
 
-`user/` pages ship English and Simplified Chinese as one edit: `usage.md` with `usage.zh.md`. Keep headings, lists, tables, code fences, and link targets aligned one for one, and keep the physical line count equal. The English side keeps its own link when no counterpart exists. Developer, reference, and scratch material stays English-only.
+`user/` pages ship English and Simplified Chinese as one edit: `install.md` with `install.zh.md`. Keep headings, lists, tables, code fences, and link targets aligned one for one, and keep the physical line count equal. The English side keeps its own link when no counterpart exists. Developer, reference, and scratch material stays English-only.
+
+Each `user/` page owns one task, and the reading order lives in [the guide library](../docs-site/src/guide/guide.ts): `NAV_ORDER` lists the pages and `SECTIONS` groups them. Add a page to both, or the site will not route it. A page carries a `**Guide:**` line of sibling links, so the sequence survives on GitHub where the site sidebar does not exist.
+
+The [docs site](../docs-site/src/guide/guide.ts) renders every `user/` page, so a guide edit is also a site edit: the pair becomes `/docs/<name>/` and `/docs/zh/<name>/`, and the site's language switch needs both files. `docs-pages.yml` watches `docs/user/**` and `docs-site/**` for that reason. Links inside a rendered page are rewritten at build time: a target under `user/` becomes a site route, and anything else (README, `schemas/`, sources) becomes a GitHub URL.
 
 ## Generated artifacts
 

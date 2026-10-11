@@ -1,0 +1,50 @@
+---
+import Base from '../../layouts/Base.astro';
+import { readSections } from '../../guide/guide';
+
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL.slice(0, -1) : import.meta.env.BASE_URL;
+const english = readSections('en');
+const chinese = readSections('zh');
+---
+<Base
+  title="User guide — dsh-agent-plugins-market"
+  description="The user guide for dsh-agent-plugins-market: installation, sources, your own resources, MCP, hooks, LSP, translation and settings."
+>
+  <h1>User guide</h1>
+  <p>
+    The complete documentation for <code>dsh-agent-plugins-market</code>, one page per task. Every
+    page here is the file the repository ships under <code>docs/user/</code>, rendered with its links
+    rewritten for the site. The Chinese pages sit beside their English source and are updated in the
+    same edit.
+  </p>
+
+  {english.map((section) => (
+    <section>
+      <h2>{section.label}</h2>
+      <ul>
+        {section.guides.map((g) => (
+          <li><a href={base + '/docs/' + g.slug + '/'}>{g.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  ))}
+
+  <h2>简体中文</h2>
+  {chinese.map((section) => (
+    <section>
+      <h3>{section.label}</h3>
+      <ul>
+        {section.guides.map((g) => (
+          <li><a href={base + '/docs/' + g.slug + '/'}>{g.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  ))}
+
+  <h2>Start here</h2>
+  <ul>
+    <li><a href={base + '/install/'}>Install guide</a> — prerequisites and the first suite, step by step.</li>
+    <li><a href={base + '/compatible-plugins/'}>Compatible plugins</a> — layouts, precedence, support matrix and verified samples.</li>
+    <li><a href={base + '/faq/'}>FAQ</a> — the questions people ask most.</li>
+  </ul>
+</Base>

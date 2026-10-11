@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-LSP 在 0.6.2 之后才改为自供给（见 [self-provisioned LSP capability](../../architecture/2026-09-11-self-provisioned-lsp-capability.md)），这次改动带来一道插件自身无法消除的迁移坎。
+LSP 在 0.6.2 之后才改为自供给（见 [self-provisioned LSP capability](../architecture/2026-09-11-self-provisioned-lsp-capability.md)），这次改动带来一道插件自身无法消除的迁移坎。
 
 在那之前，README 说明 profile 必须自己暴露 LSP 工具，所以想要语言服务器的用户会手工加这一层：profile 依赖 `@deepseek-ai/dsh-lsp` 与 `@deepseek-ai/dsh-tool-lsp`，并在 profile 自己的 `cordis.patch.yml` 里写两条 `insert`。现在 `LspMountRegistry` 用本包自带的副本挂载这两个 seam，于是升级后那层遗留配置先注册了 `service "lsp"`，所有挂载都以 `seam-conflict` 失败——用户本来能用的功能反而停了。
 
@@ -33,7 +33,7 @@ seam 冲突被报成一次可修复的升级动作，而不是死路。
 - **改为跨两个版本废弃**（这一版警告、下一版报错）。否决：等于先带着坏状态发一个版本且没有修复路径，再把它变得更糟。这个冲突是本次改动引入的，就该由本次改动带上修复。
 - **启动时自动改写 profile 的 `cordis.patch.yml`**。否决：在用户的 Harness home 里静默改文件，而且是插件并不能确定名字的 profile，正是那种本该需要一次点击的副作用。横幅就是那次点击。
 - **顺手删掉过期的 profile 依赖。** 否决：那需要 pnpm，而插件无法知道该 profile 的锁文件状态。删掉行就够了——没有行的依赖不注册任何东西。
-- **用插件自己的 bundle patch 干掉这一层。** 否决：从结构上就不可能，[self-provisioned LSP capability](../../architecture/2026-09-11-self-provisioned-lsp-capability.md) 那篇已记录过原因。bundle patch 先应用，它写的 `disabled:` 会被 profile 更晚的那层覆盖。
+- **用插件自己的 bundle patch 干掉这一层。** 否决：从结构上就不可能，[self-provisioned LSP capability](../architecture/2026-09-11-self-provisioned-lsp-capability.md) 那篇已记录过原因。bundle patch 先应用，它写的 `disabled:` 会被 profile 更晚的那层覆盖。
 
 ## Consequences
 

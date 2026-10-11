@@ -1,6 +1,8 @@
 # Layout compatibility audit
 
-English | [中文](layout-coverage.zh.md)
+English | [中文](layout-coverage.zh.md) | [README](../../README.md)
+
+**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Agent roles](agent-roles.md) · [Layout audit](layout-coverage.md)
 
 The active contracts in `schemas/` describe ten layouts: eight client/convention dialects, agent-plugins v1 (whose schemas are vendored under `1.0.0` and `1.1.0`, plus the [`com.deepseek.harness` namespace contract](../../schemas/com.deepseek.harness/spec.md)), and a manifest-less skill collection. All ten have executable discovery tests. This is not inferred from schema validity or from a higher-priority manifest reading the same repository.
 

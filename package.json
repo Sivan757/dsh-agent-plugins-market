@@ -41,11 +41,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:architecture": "depcruise --validate .dependency-cruiser.cjs index.ts packages",
+    "check:doc-links": "node scripts/check-doc-links.mjs",
     "check:host-alignment": "node scripts/check-host-alignment.mjs",
     "fix:host-alignment": "node scripts/check-host-alignment.mjs --fix",
     "check:quick": "pnpm run typecheck && pnpm run lint",
     "check:reuse": "node scripts/check-reuse.mjs",
-    "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse",
+    "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse && pnpm run check:doc-links",
     "prepack": "pnpm run check:host-alignment && pnpm run build",
     "prepare": "node scripts/setup-git-hooks.mjs && pnpm run build"
   },

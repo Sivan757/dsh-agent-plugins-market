@@ -30,5 +30,5 @@ Status: implemented
 
 ## Related
 
-- [所有设置都由这份文档承载](./2026-09-22-document-carries-every-setting.zh.md) —— 为什么 JSON 视图让快捷入口变得多余。
-- [MCP 配置开始有回应](./2026-09-22-self-service-mcp-configuration.zh.md) —— 本次退役的逐条导入报告；其中点名字段与失败建议的决策仍然成立。
+- [所有设置都由这份文档承载](../feature/2026-09-22-document-carries-every-setting.zh.md) —— 为什么 JSON 视图让快捷入口变得多余。
+- [MCP 配置开始有回应](../feature/2026-09-22-self-service-mcp-configuration.zh.md) —— 本次退役的逐条导入报告；其中点名字段与失败建议的决策仍然成立。

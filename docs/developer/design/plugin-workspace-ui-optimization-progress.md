@@ -20,7 +20,7 @@ Agent Plugins 工作台 UI 优化 — 落地进度
 
 跟踪文件：本文件即进度看板。设计与范围见 [plugin-workspace-ui-optimization.md](plugin-workspace-ui-optimization.md)，视觉基准见 `workspace-redesign/preview-a.png` 与 `workspace-redesign/preview-a-detail.png`（原型文件已移出仓库，临时存放于 `/tmp/dsh-proto-shots/prototype/prototype-a-unified-grid.html`）。
 
-状态：**已按原型复核并补齐交互、显隐、编辑页与编辑器表单样式**（见第七、九节）。决策记录见 [.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md](../../../../.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md)、[.agents/notes/implemented/feature/2026-09-16-workspace-live-card-affordances.md](../../../../.agents/notes/implemented/feature/2026-09-16-workspace-live-card-affordances.md) 与 [.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md](../../../../.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md)。
+状态：**已按原型复核并补齐交互、显隐、编辑页与编辑器表单样式**（见第七、九节）。决策记录见 [.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md](../../../.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md)、[.agents/notes/implemented/feature/2026-09-16-workspace-live-card-affordances.md](../../../.agents/notes/implemented/feature/2026-09-16-workspace-live-card-affordances.md) 与 [.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md](../../../.agents/notes/implemented/feature/2026-09-16-workspace-editor-chrome.md)。
 
 ## 一、主体改动
 

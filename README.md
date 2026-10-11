@@ -57,7 +57,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 4. The market already lists one first-party source. Press **Refresh** to fetch its suites. To bring in more, add a source such as `https://github.com/anthropics/claude-plugins-official`.
 5. Open a suite, review its contents, then install it and keep it enabled. Skills appear in the **Skills** tab and in the `/` menu. Answer any credential notice on **MCP services** before you use that suite's tools.
 
-Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`. Requirements, profile configuration and other install options live in the [usage guide](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md#installation-options).
+Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`. Requirements, profile configuration and other install options live in the [install guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/install/#installation-options).
 
 ## Highlights
 
@@ -94,7 +94,7 @@ The workspace has seven tabs:
 
 A **source** is where content comes from. A **suite** is an installable unit discovered there. Adding a source discovers its suites. Enabling a suite turns its runtime capabilities on.
 
-Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. Project-native resources stay in the project. See [storage and discovery](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md#storage-and-discovery).
+Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. Project-native resources stay in the project. See [storage and discovery](https://sivan757.github.io/dsh-agent-plugins-market/docs/resources/#storage-and-discovery).
 
 ## Compatibility
 
@@ -125,11 +125,11 @@ More questions: [FAQ](https://sivan757.github.io/dsh-agent-plugins-market/faq/).
 ## Documentation
 
 - [Install guide](https://sivan757.github.io/dsh-agent-plugins-market/install/): prerequisites and the first suite, step by step.
-- [Usage guide](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/usage.md): source configuration, storage, project layouts, MCP, LSP and settings.
+- [User guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/): one page per task, from installation to the workspace.
 - [Compatible plugins](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/): layouts, precedence and verified samples.
 - [Plugin specifications](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/README.md): per-dialect reference schemas and the [`com.deepseek.harness`](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/com.deepseek.harness/spec.md) namespace.
 - [Contributing](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTRIBUTING.md) · [Security](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/SECURITY.md) · [Changelog](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [License](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE).
-- [Domain glossary](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [Agent roles](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/user/agent-roles.md) · [Release process](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md).
+- [Domain glossary](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [Agent roles](https://sivan757.github.io/dsh-agent-plugins-market/docs/agent-roles/) · [Release process](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md).
 
 ## Community
 

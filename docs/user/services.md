@@ -1,0 +1,39 @@
+# MCP, hooks and LSP
+
+English | [简体中文](services.zh.md) | [README](../../README.md)
+
+**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md)
+
+## Runtime and security
+
+MCP details offer retry only for failed managed services or residual mounts, and OAuth reset only when the active backend supports it and the server does not supply its own Authorization header — a header-authenticated server has no browser authorization to restart. Retrying checks all managed services without clearing credentials, and rebuilds every live bridge so a service that stopped answering after being reported connected is re-verified. Reauthorization explicitly confirms grant removal and possible interruption. Unsaved configuration disables connection actions. Results are based on refreshed status, not HTTP success; missing credentials must be configured first.
+
+## MCP configuration
+
+Open **MCP services** for service configuration, credentials, overrides, authorization and retry actions. Suite details are read-only previews.
+
+Remote services authorize on demand: a declaration that says nothing about `auth` still runs OAuth, and only when the server challenges the connection. Service details mark those rows **OAuth on by default**.
+
+The **MCP enhancement** setting (`mcpEnhanced`, default `true`) selects the built-in bridge with stdio, Streamable HTTP / OAuth and legacy SSE. Turning it off selects the host client compatibility backend, which does not provide OAuth or SSE through this integration. Changing the setting remounts services.
+
+Use references such as `"env": { "FOO_TOKEN": "${FOO_TOKEN}" }`. The service editor's **Credential configuration** group lists every secret the service carries — a reference the credential store answers, or a literal the document holds, which reads as configured and hidden rather than as an editable `[redacted]` string. The group is folded to one line stating how many are configured; opening it shows each secret — its name, where it is spent, and the control that writes the value, with a literal replaced in the document. One fold per secret, not two. The detail dialog reports the service and leaves credentials to the editor. Missing references block startup with `needs-credentials`. Host credential writes are write-only and do not put literal tokens into suite state or override JSON. Read-only launch-environment values must be changed before restarting DSH.
+
+`mcp.json` uses strict schema validation and follows the agent-plugins specification's failure boundaries: a server entry that violates the schema is skipped while the rest of the file keeps working, and a file-level problem (an unrecognized or mismatched `$schema`) disables MCP for that suite with a diagnostic. Both published releases validate: `$schema` may name 1.0.0 or 1.1.0, and the two files of one suite must name the same release. Per-server client policy — OAuth authorization, tool allow/deny lists, timeout policies — is declared in the suite's [`com.deepseek.harness`](../../schemas/com.deepseek.harness/spec.md) namespace, not in `mcp.json`. Portable `mcp.json` values keep placeholder-like text literal: only `${PLUGIN_ROOT}` and `${PLUGIN_DATA}` expand, so a credential reference belongs in the MCP services panel or an override, where it resolves at mount time. `.mcp.json` (other layouts) supports common compatibility forms: top-level server maps, `http` / `local` transport aliases, omitted type inferred from `command`, and `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and `${NAME:-default}` placeholders. Invalid servers are diagnosed and skipped rather than started with partial configuration.
+
+Path variables written in suite files resolve to real values at injection time: `${CLAUDE_PLUGIN_ROOT}` (and the Codex, ZCode and Qoder spellings) points at the suite checkout, `${CLAUDE_PLUGIN_DATA}` at that suite's data directory, `${CLAUDE_SKILL_DIR}` at the skill's own directory, and `${CLAUDE_PROJECT_DIR}` at the calling session's project directory. Skill bodies, slash commands, agent personas, LSP declarations, startup instructions and hook commands all resolve them, and a hook process receives the plugin root, data directory and project directory as environment variables. A project's own `.claude/` and similar native directories are not plugins, and the plugin variables in them stay as written.
+
+`` !`command` `` in a skill body or slash command is dynamic context: the command runs in the session directory and its output replaces the placeholder, and a multi-line command goes in a ` ```! ` code block. A command that fails, times out or is cancelled aborts the whole invocation with the command's output instead of injecting half of it. A skill or command from an enabled suite therefore runs the shell commands it ships when you invoke it, so review a suite's contents before installing it.
+
+## Hooks and LSP
+
+Hooks use the bridge's mapped command-hook subset at SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, SubagentStart and SubagentStop. This is not full Claude Code runtime compatibility. A hook row in the Hooks tab opens a declaration card: support, event and matcher tags over the full command, then an overview grid for source, matcher, timeout, declaration position, kind, suite and run directory, then a collapsed declaration row that opens the declaration as JSON. A rejected declaration shows the validator diagnostic instead of a command. A declaration with an admitted hook offers a dry run: the command runs once in your home directory with synthetic event data, and the dialog shows the exit code and both output streams.
+
+LSP supports enabled suite declarations and directly configured servers through the same mount lifecycle. The plugin carries its own LSP packages, so the only thing a user supplies is the language-server executable; a missing executable, an invalid declaration, or an installation whose LSP packages fail to load each appear as a diagnostic. Previewing a declaration alone does not prove the server is running.
+
+## Validation and execution
+
+Source acquisition and manifest scanning do not establish that third-party code is trustworthy. Installing an enabled suite can start services or register executable hooks; review its contents first.
+
+Git acquisition uses `execFile` without a shell; refresh uses shallow fetch/reset. A local-directory source pointing outside `.sources/` is never deleted; a checkout under `.sources/<id>` — adopted or self-acquired — is removed only when you delete the source and tick the delete-files option. Archives default to HTTPS, a 256 MiB limit and guarded extraction, with optional SHA-256 verification. Portable paths must stay inside the suite root, including after symlink resolution. Invalid manifests and mount failures are exposed as diagnostics. A stdio service or language server declares a command; when that command is a bare name the running Host cannot find — `npx` under a Finder-launched desktop app, whose `PATH` holds only the system directories — the plugin asks your login shell which directories it exports, appends the ones the current `PATH` lacks, and resolves again. The declared command is never rewritten, an explicit `env.PATH` is left exactly as declared, and every extension or failed lookup is reported in the diagnostic.
+
+For vulnerability reports, follow the [security policy](../../SECURITY.md).

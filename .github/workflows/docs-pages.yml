@@ -3,7 +3,9 @@ name: Deploy docs site to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['docs-site/**']
+    # The site renders the user guide from docs/user/, so a guide edit is a site
+    # edit: watching only docs-site/ would leave the deployed site stale.
+    paths: ['docs-site/**', 'docs/user/**']
   workflow_dispatch:
 
 permissions:
@@ -28,7 +30,17 @@ jobs:
       - name: Install docs-site deps
         run: pnpm install --no-frozen-lockfile
         working-directory: .
-      - run: pnpm --dir docs-site exec astro build
+      # A page missing from the guide library renders nowhere and reports
+      # nothing, so the guide's completeness and bilingual parity are checked
+      # before anything is built from it.
+      - run: pnpm --dir docs-site run check:guide
+      # The root tsconfig projects do not cover .astro files, so the site's own
+      # type check is the only thing that reads them.
+      - run: pnpm --dir docs-site run check
+      - run: pnpm --dir docs-site run build
+      # The guide renders repository markdown and rewrites its links at build
+      # time, so a wrong target is invisible until a reader follows it.
+      - run: pnpm --dir docs-site run check:links
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs-site/dist

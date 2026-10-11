@@ -43,4 +43,4 @@ The cause behind the wrapper never reached the panel. The bridge throws one fixe
 ## Related
 
 - [服务详情先当档案来读](./2026-09-21-service-detail-skeleton.zh.md) — the dialog order this block sits in; its status row is what this note refines.
-- [MCP identity without a session namespace](./2026-09-13-mcp-identity-without-session-namespace.md) — why the recorded sentence repeats a name like `suite__server`.
+- [MCP identity without a session namespace](../bug-fix/2026-09-13-mcp-identity-without-session-namespace.md) — why the recorded sentence repeats a name like `suite__server`.

@@ -5,7 +5,6 @@ export interface Props {
 }
 const { title, description } = Astro.props;
 const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
-const siteName = 'dsh-agent-plugins-market';
 const faqSchema = JSON.stringify({
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
@@ -91,6 +90,27 @@ const faqSchema = JSON.stringify({
       .tagline { font-size: 1.05rem; margin: 1.25rem 0 0; }
       img.shot { max-width: 100%; border: 1px solid var(--border); border-radius: 12px; margin: 1.25rem 0; }
       footer.site { border-top: 1px solid var(--border); margin-top: 4rem; padding: 1.5rem 0; color: var(--muted); font-size: .9rem; }
+      /* Guide pages: a sidebar beside the rendered markdown. */
+      .docsShell { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2.5rem; align-items: start; margin-top: 2rem; }
+      .docsNav { position: sticky; top: 1rem; font-size: .92rem; }
+      .docsNavTitle { margin: 1.25rem 0 .35rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-size: .75rem; font-weight: 600; }
+      .docsNavSection { margin: .9rem 0 .15rem; color: var(--fg); font-size: .78rem; font-weight: 600; }
+      .docsNav ul { list-style: none; margin: 0; padding: 0; }
+      .docsNav li { margin: .2rem 0; }
+      .docsNav a { text-decoration: none; color: var(--muted); }
+      .docsNav a:hover, .docsNav a[aria-current='page'] { color: var(--accent); }
+      .docsNav a[aria-current='page'] { font-weight: 600; }
+      .docsNav .langNow { color: var(--fg); font-weight: 600; }
+      .docsBody h1 { margin-top: 0; }
+      .prose h2 { border-bottom: 1px solid var(--border); padding-bottom: .35rem; }
+      .prose h3 { margin-top: 1.75rem; }
+      .prose img { max-width: 100%; }
+      .prose li { margin: .25rem 0; }
+      .prose table { font-size: .92rem; }
+      @media (max-width: 780px) {
+        .docsShell { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+        .docsNav { position: static; }
+      }
     </style>
   </head>
   <body>
@@ -100,6 +120,7 @@ const faqSchema = JSON.stringify({
         <nav>
           <a href={`${baseUrl}`}>Home</a>
           <a href={`${baseUrl}install/`}>Install</a>
+          <a href={`${baseUrl}docs/`}>User guide</a>
           <a href={`${baseUrl}compatible-plugins/`}>Compatible plugins</a>
           <a href={`${baseUrl}faq/`}>FAQ</a>
           <a href="https://github.com/Sivan757/dsh-agent-plugins-market">GitHub ↗</a>
