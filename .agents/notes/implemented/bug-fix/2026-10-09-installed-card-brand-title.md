@@ -24,7 +24,7 @@ This reverses the `meta.title` removal in [localized Agent Plugins branding and 
 
 ## Consequences
 
-- The Installed card, its switch labels, and the uninstall confirmation read `Agent 扩展` or `Agent Plugins` according to the interface language. Both languages are pinned by `tests/package-branding.test.ts`.
+- The Installed card, its switch labels, and the uninstall confirmation read `Agent 扩展` or `Agent Plugins` according to the interface language. Both languages are pinned by `packages/market-ui/test/package-branding.test.ts`.
 - The package page keeps printing the npm name, so the card and the page together show the brand and the technical identity exactly once each.
 - No runtime dependency, settings store, or profile change is introduced. The host reads the packaged locale resources without evaluating plugin code, so the title is available even while the plugin is disabled.
 - The bundle's own row on the package page prints its technical ids again. The row id and the module name are both `dsh-agent-plugins-market`, and the host prints each one that differs from the title, so that row shows the string twice under the brand title. Changing the row id would avoid it, but the row id is the configuration key (`<package>#<rowId>`) and the profile override address, so a rename would strand saved settings. The duplicate line is the accepted cost of the brand title.
@@ -32,4 +32,4 @@ This reverses the `meta.title` removal in [localized Agent Plugins branding and 
 
 ## Testing
 
-`tests/package-branding.test.ts` asserts `meta.title` equals the localized `nav` label and `meta.description` equals `marketCardDesc` for both languages. The installed host validator was run against the desktop profile and returned `{"en":"Agent Plugins","zh":"Agent 扩展"}` with no metadata error.
+`packages/market-ui/test/package-branding.test.ts` asserts `meta.title` equals the localized `nav` label and `meta.description` equals `marketCardDesc` for both languages. The installed host validator was run against the desktop profile and returned `{"en":"Agent Plugins","zh":"Agent 扩展"}` with no metadata error.

@@ -34,11 +34,11 @@ The cause behind the wrapper never reached the panel. The bridge throws one fixe
 
 ## Testing
 
-- `tests/failure-detail.test.ts` — chain order, URL redaction, de-duplication, the cycle stop, the four-message cap, and the no-chain case.
-- `tests/client-failure-guidance.test.ts` — code-first classification, cause-chain classification over a wrapper sentence, the startup fallback, and a reason left unclassified.
-- `tests/client-mcp-detail.test.ts` — the lead sentence for a chain-classified failure, the disclosure hiding and then revealing the wrapper and its cause, an unclassified reason shown as recorded, and the retry echo no longer carrying the reason.
-- `tests/client-lsp-detail.test.ts` — the same lead-and-disclose path and the missing-component path for the language-server dialog.
-- `tests/mcp-mounts.test.ts`, `tests/mcp-status.test.ts`, `tests/lsp-status.test.ts` — the diagnostics carry the chain and the builder attaches the codes.
+- `packages/market-runtime/test/failure-detail.test.ts` — chain order, URL redaction, de-duplication, the cycle stop, the four-message cap, and the no-chain case.
+- `packages/market-ui/test/client-failure-guidance.test.ts` — code-first classification, cause-chain classification over a wrapper sentence, the startup fallback, and a reason left unclassified.
+- `packages/market-bundle/test/integration/client-mcp-detail.test.ts` — the lead sentence for a chain-classified failure, the disclosure hiding and then revealing the wrapper and its cause, an unclassified reason shown as recorded, and the retry echo no longer carrying the reason.
+- `packages/market-bundle/test/integration/client-lsp-detail.test.ts` — the same lead-and-disclose path and the missing-component path for the language-server dialog.
+- `packages/market-bundle/test/integration/mcp-mounts.test.ts`, `packages/market-bundle/test/integration/mcp-status.test.ts`, `packages/market-bundle/test/integration/lsp-status.test.ts` — the diagnostics carry the chain and the builder attaches the codes.
 
 ## Related
 

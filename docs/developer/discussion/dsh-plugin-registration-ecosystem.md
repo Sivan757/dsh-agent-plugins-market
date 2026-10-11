@@ -68,7 +68,7 @@
 
 ### 阶段 4 — 校验（fail-closed / lenient 分级）
 
-- v1 `plugin.json`：内置 AJV schema（vendored `schemas/1.0.0/plugin.schema.json`）严格校验：`$schema` 必须精确 v1 URL、`name` 必填、禁止额外字段（`packages/market-catalog/src/scanning/validate.ts`）。
+- v1 `plugin.json`：内置 AJV schema（vendored `packages/market-catalog/schemas/1.0.0/plugin.schema.json`）严格校验：`$schema` 必须精确 v1 URL、`name` 必填、禁止额外字段（`packages/market-catalog/src/scanning/validate.ts`）。
 - v1 `mcp.json`：必须 `$schema`+`mcpServers`；server 仅 stdio/streamable-http/sse 三种形态，额外字段拒绝；另有路径 containment（必须 `./` 开头、解析后不得逃逸 plugin root、symlink 逃逸拒绝）与 `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` 语义校验。
 - 非 v1 方言仅轻解析不 schema 校验；`.mcp.json` 宽容解析（server-map 简写、type 归一化、`${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`/`${NAME:-default}` 占位符）。
 

@@ -33,10 +33,10 @@ Status: implemented
 
 ## Testing
 
-- `tests/mcp-config.test.ts` —— 派生：包套件用 `__` 连接，`@user-mcp` 用裸键，另一来源下同名 `user-mcp` 套件不变，64 字符的用户键被截断。
-- `tests/mcp-direct-config.test.ts` —— 真实 `mcp.json` 往返产生的挂载，其 `serverName` 就是声明的键。
-- `tests/mcp-status.test.ts` —— 用户行显示裸名，并收拢在它下面观测到的工具。
-- `tests/client-mcp-detail.test.ts` —— 挂载名只会重复服务键时，该行不出现。
+- `packages/market-bundle/test/integration/mcp-config.test.ts` —— 派生：包套件用 `__` 连接，`@user-mcp` 用裸键，另一来源下同名 `user-mcp` 套件不变，64 字符的用户键被截断。
+- `packages/market-bundle/test/integration/mcp-direct-config.test.ts` —— 真实 `mcp.json` 往返产生的挂载，其 `serverName` 就是声明的键。
+- `packages/market-bundle/test/integration/mcp-status.test.ts` —— 用户行显示裸名，并收拢在它下面观测到的工具。
+- `packages/market-bundle/test/integration/client-mcp-detail.test.ts` —— 挂载名只会重复服务键时，该行不出现。
 
 ## Related
 

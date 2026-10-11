@@ -34,11 +34,11 @@ MCP 服务详情直接把挂载流程记下的诊断原文印在弹窗里。那�
 
 ## Testing
 
-- `tests/failure-detail.test.ts` —— 链条顺序、URL 抹除、去重、回环停止、四条上限，以及没有链条的情况。
-- `tests/client-failure-guidance.test.ts` —— 先看代码的分类、按原因链分类外层那句话、启动失败兜底，以及无法归类的原因。
-- `tests/client-mcp-detail.test.ts` —— 按原因链分类后的首句、折叠项先藏后露外层句子与它下面的原因、无法归类的原因按原文显示，以及重试回执不再带上原因。
-- `tests/client-lsp-detail.test.ts` —— 语言服务器弹窗走同一条先给首句再展开的路径，以及组件缺失那条路径。
-- `tests/mcp-mounts.test.ts`、`tests/mcp-status.test.ts`、`tests/lsp-status.test.ts` —— 诊断带上原因链，构建器挂上代码。
+- `packages/market-runtime/test/failure-detail.test.ts` —— 链条顺序、URL 抹除、去重、回环停止、四条上限，以及没有链条的情况。
+- `packages/market-ui/test/client-failure-guidance.test.ts` —— 先看代码的分类、按原因链分类外层那句话、启动失败兜底，以及无法归类的原因。
+- `packages/market-bundle/test/integration/client-mcp-detail.test.ts` —— 按原因链分类后的首句、折叠项先藏后露外层句子与它下面的原因、无法归类的原因按原文显示，以及重试回执不再带上原因。
+- `packages/market-bundle/test/integration/client-lsp-detail.test.ts` —— 语言服务器弹窗走同一条先给首句再展开的路径，以及组件缺失那条路径。
+- `packages/market-bundle/test/integration/mcp-mounts.test.ts`、`packages/market-bundle/test/integration/mcp-status.test.ts`、`packages/market-bundle/test/integration/lsp-status.test.ts` —— 诊断带上原因链，构建器挂上代码。
 
 ## Related
 

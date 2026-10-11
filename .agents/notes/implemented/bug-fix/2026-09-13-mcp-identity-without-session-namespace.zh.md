@@ -40,10 +40,10 @@ Status: implemented
 
 ## Testing
 
-- `tests/native-project-cwd.test.ts` —— home 为 cwd 时 project 目录为空，而 user 目录仍列出该安装；以 `.git` 为根的 cwd 仍解析到自己的维度。
-- `tests/project-mcp.test.ts` —— 两个 agent 在同一个派生名下挂载各自的 project 配置；关闭 project 布局时两者都卸载。
-- `tests/mcp-status.test.ts` —— 未声明 `auth` 的远端服务带 `oauthDefault`，`stdio` 或已声明的服务不带。
-- `tests/client-mcp-detail.test.ts` —— 授权说明只在该行渲染。
+- `packages/market-bundle/test/integration/native-project-cwd.test.ts` —— home 为 cwd 时 project 目录为空，而 user 目录仍列出该安装；以 `.git` 为根的 cwd 仍解析到自己的维度。
+- `packages/market-bundle/test/integration/project-mcp.test.ts` —— 两个 agent 在同一个派生名下挂载各自的 project 配置；关闭 project 布局时两者都卸载。
+- `packages/market-bundle/test/integration/mcp-status.test.ts` —— 未声明 `auth` 的远端服务带 `oauthDefault`，`stdio` 或已声明的服务不带。
+- `packages/market-bundle/test/integration/client-mcp-detail.test.ts` —— 授权说明只在该行渲染。
 
 ## Related
 

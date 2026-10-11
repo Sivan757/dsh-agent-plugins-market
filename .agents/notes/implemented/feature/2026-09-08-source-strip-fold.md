@@ -39,7 +39,7 @@ The market header listed every source as a pill in a wrapping grid (`repeat(auto
 
 ## Verification
 
-- `tests/market-section-render.test.ts` pins that an adopted source renders as an ordinary chip, that no adoption badge is rendered, that a strip which cannot be measured (jsdom) keeps every chip unfolded, and that picking a source moves it next to `全部` while the rest stay in id order.
+- `packages/market-ui/test/market-section-render.test.ts` pins that an adopted source renders as an ordinary chip, that no adoption badge is rendered, that a strip which cannot be measured (jsdom) keeps every chip unfolded, and that picking a source moves it next to `全部` while the rest stay in id order.
 - `pnpm run check:refactor` and `pnpm run test`.
 
 ## Related

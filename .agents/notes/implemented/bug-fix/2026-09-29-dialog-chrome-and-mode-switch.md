@@ -50,7 +50,7 @@ Two defects showed up in the new-service dialog.
 - Geometry measured in a reproduction page loading the host's `Modal.module.css` and `SegmentedControl.module.css` (0.2.0-rc.1) plus this repository's `detail.module.css` and `form.module.css`: before, a 592px track carried a 290px indicator over a 44px tab; after, a 145px track carries a 67px indicator exactly over a 67px tab, and the title-to-control gap measures 14px against 34px.
 - Height measured in the same reproduction page, overlay at 1000px: the tall dialog is 758px in both views, with the JSON field grown to 338px, while a detail dialog stays content-sized at 387px.
 - Overflow measured in that page's short case: with the overlay at 520px the body scrolls 501px of content through a 198px window and the editor box keeps its full 477px height, where the earlier chain compressed it to 174px and cut the form out of the scroll range.
-- `tests/client-detail-editors.test.ts` and `tests/client-server-config-policy.test.ts` — the switch still drives the same document in both directions.
+- `packages/market-ui/test/client-detail-editors.test.ts` and `packages/market-bundle/test/integration/client-server-config-policy.test.ts` — the switch still drives the same document in both directions.
 - Neither fix is visible to a jsdom test: client tests here stub CSS modules to `{}`, so the classes under test never reach the DOM.
 
 ## Related

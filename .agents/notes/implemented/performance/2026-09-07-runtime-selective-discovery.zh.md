@@ -24,4 +24,4 @@ Status: implemented
 
 ## Verification
 
-`tests/catalog-runtime.test.ts`覆盖零启用冷启动、来源选择、并发合并和失效。类型检查、lint 及针对性 Vitest 测试通过。
+`packages/market-bundle/test/integration/catalog-runtime.test.ts`覆盖零启用冷启动、来源选择、并发合并和失效。类型检查、lint 及针对性 Vitest 测试通过。

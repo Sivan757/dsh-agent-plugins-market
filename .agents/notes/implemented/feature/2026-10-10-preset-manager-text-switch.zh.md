@@ -37,4 +37,4 @@ Status: implemented
 
 ## Testing
 
-`tests/extension-suite-inventory.test.ts` 固定市场行与面板行各自携带两份文本，并固定未翻译卡片不带第二个字段。`tests/bilingual-toggle.test.ts` 断言管理器的开关翻转卡片文本而名称不变，并断言点击是向上报告而不是翻转本地状态。`tests/client-extension-preset-v5.test.ts` 打开真实的管理器弹窗，断言开关位于尾部集群中、紧邻网格/列表按钮，并通过它翻转一张卡片。
+`packages/market-bundle/test/integration/extension-suite-inventory.test.ts` 固定市场行与面板行各自携带两份文本，并固定未翻译卡片不带第二个字段。`packages/market-ui/test/bilingual-toggle.test.ts` 断言管理器的开关翻转卡片文本而名称不变，并断言点击是向上报告而不是翻转本地状态。`packages/market-bundle/test/integration/client-extension-preset-v5.test.ts` 打开真实的管理器弹窗，断言开关位于尾部集群中、紧邻网格/列表按钮，并通过它翻转一张卡片。

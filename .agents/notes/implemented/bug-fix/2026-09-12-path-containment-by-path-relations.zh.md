@@ -41,6 +41,6 @@ Windows 上本地 marketplace 条目与 POSIX 一样能解析成功，这正是�
 
 ## Testing
 
-`tests/paths.test.ts` 用 `path.posix` 与 `path.win32` 两套规则驱动 `isWithinUnder`。其中第一行 win32 用例就是报告的形状——根 `C:/Users/x/marketplace`、候选 `C:\Users\x\marketplace\plugins\typescript-lsp`——前缀规则给的是 `false`。`tests/scan-pipeline.test.ts` 通过真实的条目处理器补上同一形状：用正斜杠书写的 checkout（POSIX 上是空操作，Windows 上正是混用书写）仍须把 `./skills/one` 解析为 local。
+`packages/market-catalog/test/paths.test.ts` 用 `path.posix` 与 `path.win32` 两套规则驱动 `isWithinUnder`。其中第一行 win32 用例就是报告的形状——根 `C:/Users/x/marketplace`、候选 `C:\Users\x\marketplace\plugins\typescript-lsp`——前缀规则给的是 `false`。`packages/market-bundle/test/integration/scan-pipeline.test.ts` 通过真实的条目处理器补上同一形状：用正斜杠书写的 checkout（POSIX 上是空操作，Windows 上正是混用书写）仍须把 `./skills/one` 解析为 local。
 
 `.github/workflows/windows.yml` 在 `windows-latest` 上跑整套测试，那里宿主绑定的是 win32 路径函数。回归的端到端覆盖由既有 fixture 承担：`cc-marketplace` 声明了四个字符串路径条目与一个内联 `lspServers` 条目，在旧规则下 Windows 运行只能解析出远程条目与容器兜底那一个。

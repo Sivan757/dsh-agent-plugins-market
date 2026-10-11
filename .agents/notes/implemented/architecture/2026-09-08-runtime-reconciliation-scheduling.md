@@ -26,4 +26,4 @@ Slow MCP connections no longer delay completion of the operation that requested 
 
 ## Testing
 
-`tests/plugin-apply.test.ts` verifies backend-event coalescing and suppression after disposal. `tests/runtime-reconciler.test.ts` holds MCP readiness pending while local surfaces complete, checks per-surface ordering, and verifies failure containment and disposal ordering.
+`packages/market-bundle/test/integration/plugin-apply.test.ts` verifies backend-event coalescing and suppression after disposal. `packages/market-bundle/test/integration/runtime-reconciler.test.ts` holds MCP readiness pending while local surfaces complete, checks per-surface ordering, and verifies failure containment and disposal ordering.

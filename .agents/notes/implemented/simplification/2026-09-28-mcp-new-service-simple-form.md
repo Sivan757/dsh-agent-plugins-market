@@ -26,7 +26,7 @@ The new-MCP-service dialog carried three ways in: two shortcut buttons (template
 
 ## Testing
 
-`tests/mcp-status-render.test.ts` asserts the dialog opens with no starter buttons; `tests/routes.test.ts` drops the import forwarding; `tests/mcp-direct-config.test.ts` and `tests/client-detail-editors.test.ts` drop the paste-parser cases; `tests/client-detail-editors.test.ts` keeps `rowsFromPastedText` block-paste into env/headers rows.
+`packages/market-ui/test/mcp-status-render.test.ts` asserts the dialog opens with no starter buttons; `packages/market-bundle/test/integration/routes.test.ts` drops the import forwarding; `packages/market-bundle/test/integration/mcp-direct-config.test.ts` and `packages/market-ui/test/client-detail-editors.test.ts` drop the paste-parser cases; `packages/market-ui/test/client-detail-editors.test.ts` keeps `rowsFromPastedText` block-paste into env/headers rows.
 
 ## Related
 

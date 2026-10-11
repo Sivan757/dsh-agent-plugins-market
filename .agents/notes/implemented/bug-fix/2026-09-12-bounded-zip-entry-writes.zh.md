@@ -30,4 +30,4 @@ Status: implemented
 
 ## Testing
 
-`tests/zip-bomb.test.ts` 构造一个 20010 条目的 zip 并断言条目上限拒绝；这正是本次改动前在 Windows 上失败的那个用例。它的同类用例覆盖解包后的 tar 遍历。`tests/source-acquisition.test.ts` 端到端覆盖完整归档安装，包括暂存目录切换与单层包装目录归一，因此成功路径上的"先落定再上报"同样被覆盖。
+`packages/market-catalog/test/zip-bomb.test.ts` 构造一个 20010 条目的 zip 并断言条目上限拒绝；这正是本次改动前在 Windows 上失败的那个用例。它的同类用例覆盖解包后的 tar 遍历。`packages/market-bundle/test/integration/source-acquisition.test.ts` 端到端覆盖完整归档安装，包括暂存目录切换与单层包装目录归一，因此成功路径上的"先落定再上报"同样被覆盖。

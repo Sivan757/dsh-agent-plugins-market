@@ -34,4 +34,4 @@ Status: implemented
 
 ## Testing
 
-这个 job 本身就是它的测试：对上面列出的每一个 `/tmp` 根、POSIX 断言与依赖 CRLF 的 fixture，它都会在 `windows-latest` 上失败——每一处都是这样被发现的。`tests/paths.test.ts` 让分隔符规则本身在每个宿主上都被覆盖，因此即使某次改动只在 Linux 上被执行，win32 行为也仍然被钉住。
+这个 job 本身就是它的测试：对上面列出的每一个 `/tmp` 根、POSIX 断言与依赖 CRLF 的 fixture，它都会在 `windows-latest` 上失败——每一处都是这样被发现的。`packages/market-catalog/test/paths.test.ts` 让分隔符规则本身在每个宿主上都被覆盖，因此即使某次改动只在 Linux 上被执行，win32 行为也仍然被钉住。

@@ -31,7 +31,7 @@ Both service dialogs share one order: identity band (state dot, name, status, so
 
 ## Testing
 
-`tests/client-mcp-detail.test.ts` pins the order (capability area above the connection definition), the single enable switch, and the tool truncation, search and expand paths. `tests/client-server-config-policy.test.ts` and `tests/client-detail-editors.test.ts` open the collapsed connection definition before editing, which is the path the dialog now requires.
+`packages/market-bundle/test/integration/client-mcp-detail.test.ts` pins the order (capability area above the connection definition), the single enable switch, and the tool truncation, search and expand paths. `packages/market-bundle/test/integration/client-server-config-policy.test.ts` and `packages/market-ui/test/client-detail-editors.test.ts` open the collapsed connection definition before editing, which is the path the dialog now requires.
 
 ## Related
 

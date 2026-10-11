@@ -27,7 +27,7 @@ Suite reads retain the same user/project snapshot selection, missing-suite error
 | [Standing gate](internal-boundaries-2026-10-08-evidence/gates.txt)                  | Type, lint, format, routes, architecture and host reuse pass.              |
 | [Packed runtime](internal-boundaries-2026-10-08-evidence/artifact.txt)              | Build succeeds; isolated DSH completes selected and deselected Hook flows. |
 
-[The session-module test](../../tests/session-extension-composition.test.ts) exercises inert construction and absent-host-service behavior. [The suite-query tests](../../tests/suite-queries.test.ts) exercise the read port directly. Existing root-entry and lifecycle assertions are unchanged.
+[The session-module test](../../packages/market-bundle/test/integration/session-extension-composition.test.ts) exercises inert construction and absent-host-service behavior. [The suite-query tests](../../packages/market-bundle/test/integration/suite-queries.test.ts) exercise the read port directly. Existing root-entry and lifecycle assertions are unchanged.
 
 Independent source review found no ordering or error-policy regression. Source inspection and executed tests are separate evidence. Live acceptance uses the extracted artifact with reused external dependencies, not a fresh registry installation.
 

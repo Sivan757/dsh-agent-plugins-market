@@ -14,7 +14,7 @@ ResourceFilterService now owns the live snapshot and SurfaceToggleService delega
 
 Complete replacement intentionally uses last-writer-wins semantics. Individual updates merge. Separate processes converge on reload; no watcher is introduced. Runtime refresh remains serialized after commit and can delay a later update.
 
-Evidence: [initial failures](refactor-final-2026-10-08-evidence/policy-red.txt), [nine contract cases](../../tests/workspace-policy-consistency.test.ts), [canonical writer](../../packages/market-runtime/src/application/state/workspace-policy.ts), and [six independent writers](refactor-final-2026-10-08-evidence/packed-acceptance.txt#L7-L8).
+Evidence: [initial failures](refactor-final-2026-10-08-evidence/policy-red.txt), [nine contract cases](../../packages/market-runtime/test/workspace-policy-consistency.test.ts), [canonical writer](../../packages/market-runtime/src/application/state/workspace-policy.ts), and [six independent writers](refactor-final-2026-10-08-evidence/packed-acceptance.txt#L7-L8).
 
 ## Global favorite concurrency
 
@@ -22,7 +22,7 @@ Status: closed. Priority: high.
 
 Four initial failures demonstrated save/save loss, save/delete loss and mutation of caller-owned input before persistence. Favorite operations now snapshot input and lock the entire read-modify-write. The global document remains separate from workspace policy. Paths and the version-one shape remain unchanged.
 
-Evidence: [five concurrency cases](../../tests/resource-favorites-concurrency.test.ts), [locked writer](../../packages/market-runtime/src/application/state/resource-favorites.ts), and [six independent processes](refactor-final-2026-10-08-evidence/packed-acceptance.txt#L8).
+Evidence: [five concurrency cases](../../packages/market-bundle/test/integration/resource-favorites-concurrency.test.ts), [locked writer](../../packages/market-runtime/src/application/state/resource-favorites.ts), and [six independent processes](refactor-final-2026-10-08-evidence/packed-acceptance.txt#L8).
 
 ## Recovery progress
 
@@ -36,7 +36,7 @@ Recovery wakes pending neutral user requests only after readiness. It uses the d
 
 Review found an unready wake and a false recoverable state during implementation. Added regressions reproduce both. The final implementation closes them rather than suppressing their failures. Per-agent recovery bookkeeping clears on disposal.
 
-Evidence: [session state cases](../../tests/extension-session-state.test.ts), [recovery cases](../../tests/extension-session-recovery.test.ts), [implementation](../../packages/market-runtime/src/runtime/host/extension-session-state.ts), and [real failed-capture recovery](refactor-final-2026-10-08-evidence/packed-acceptance.txt#L9-L14).
+Evidence: [session state cases](../../packages/market-bundle/test/integration/extension-session-state.test.ts), [recovery cases](../../packages/market-bundle/test/integration/extension-session-recovery.test.ts), [implementation](../../packages/market-runtime/src/runtime/host/extension-session-state.ts), and [real failed-capture recovery](refactor-final-2026-10-08-evidence/packed-acceptance.txt#L9-L14).
 
 ## Shutdown and stale background work
 
@@ -46,7 +46,7 @@ Downstream guards refuted the proposed post-disposal remount. Retry timers clear
 
 A separate confirmed issue remained: a rejecting adapter could reject the detached product disposal promise without a handler. Teardown now attempts every owner, waits for all outcomes and reports aggregate failure. The detached caller logs rejection; callers that await still receive failure.
 
-The [held-LSP/rejected-MCP regression](../../tests/runtime-disposal-reporting.test.ts) proves that disposal does not settle early or skip another owner. The [coordinator](../../packages/market-runtime/src/runtime/core/reconciler.ts) retains disposed admission guards. This does not promise forced termination of every non-cooperating external process.
+The [held-LSP/rejected-MCP regression](../../packages/market-bundle/test/integration/runtime-disposal-reporting.test.ts) proves that disposal does not settle early or skip another owner. The [coordinator](../../packages/market-runtime/src/runtime/core/reconciler.ts) retains disposed admission guards. This does not promise forced termination of every non-cooperating external process.
 
 ## Repeated reads and projection lifetime
 
@@ -56,7 +56,7 @@ A scan of 50,000 synthetic non-matching events cost 1.285 ms p50 per window read
 
 The measurement covers the scan only, not inventory fan-out or typical end-to-end UI latency. No overall speedup percentage is claimed. The [measurement record](refactor-final-2026-10-08-evidence/progress-measurement.txt) states the synthetic input and sampling limits.
 
-Review found that a late registry could re-register after reader disposal. The reader now owns the injected fiber, guards disposal and protects registration identity during service replacement. [Fourteen tests](../../tests/extension-window-progress.test.ts) cover semantics, repeated reads, replay, fork, missing service and registration lifecycle.
+Review found that a late registry could re-register after reader disposal. The reader now owns the injected fiber, guards disposal and protects registration identity during service replacement. [Fourteen tests](../../packages/market-bundle/test/integration/extension-window-progress.test.ts) cover semantics, repeated reads, replay, fork, missing service and registration lifecycle.
 
 ## Legacy simplification
 

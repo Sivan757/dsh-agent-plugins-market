@@ -12,7 +12,7 @@ Cordis 解析 `ctx.<name>` 时沿**读取方 fiber 的祖先**向上查找，返
 - `src/runtime/commands-mounts.ts` 以 `(this.ctx as unknown as { shell?: ShellSeam }).shell` 解析同一个 seam，既落在 entry fiber 上，也落在项目挂载自己的 `['commands']` scope 上 —— 这是每一条套件斜杠命令的路径，且在检查正文里有没有占位符之前就执行。
 - `src/runtime/feedback-tool.ts` 在 entry fiber 上读取 `(hostCtx as unknown as ToolsHost).tools`。`syncFeedbackTool` 把异常吞掉，于是日志里不是预期的「宿主没有工具注册表」，而是每次设置同步都出现 `feedback tool mount failed: cannot get property "tools" without inject`，`report_market_issue` 从未注册成功。
 
-测试三处都没拦住，原因相同：它们交给被测代码的是**普通对象**，服务直接挂在对象上。普通对象没有代理陷阱，`stub.shell` 要么读出 `undefined`、要么直接可用，而真实挂载的插件会抛错。`tests/plugin-apply.test.ts` 把这个错误写在了注释里——它说自己的 stub「像宿主的服务代理一样把 tools 服务直接暴露在插件上下文上」，而代理对于 fiber 未 inject 的服务恰恰不会这样做。
+测试三处都没拦住，原因相同：它们交给被测代码的是**普通对象**，服务直接挂在对象上。普通对象没有代理陷阱，`stub.shell` 要么读出 `undefined`、要么直接可用，而真实挂载的插件会抛错。`packages/market-bundle/test/integration/plugin-apply.test.ts` 把这个错误写在了注释里——它说自己的 stub「像宿主的服务代理一样把 tools 服务直接暴露在插件上下文上」，而代理对于 fiber 未 inject 的服务恰恰不会这样做。
 
 规则本身已经写下来两次：`docs/reference/dsh-plugin-development-standard.md` §2.2，以及[设置 Agent Note](../../implemented/architecture/2026-09-13-settings-and-card-ride-the-host.md) 中关于定时器的段落。缺的是一个会失败的测试。
 
@@ -26,9 +26,9 @@ Cordis 解析 `ctx.<name>` 时沿**读取方 fiber 的祖先**向上查找，返
 - `src/runtime/tool-registry-observer.ts` 的 `toolsServiceOf(ctx)` 原本就以这种方式为 MCP 状态面板读取 `tools`，现在也支撑 `mountFeedbackTool`。
 - `src/runtime/timer-seat.ts` 的 `seatOf(ctx)` 最先采用这个写法，也是设置 Note 记录下来的那一次。
 
-**测试的对象是拓扑，不是被测函数。** `tests/host-service-seam.test.ts` 挂载一棵真实的 Cordis 树：`shell`、`tools`、`skills`、`commands` 各自来自读取方的**兄弟** fiber，然后跑通三条生产路径——entry 注册的技能 provider 加载正文里带 `` !`cmd` `` 占位符的技能、`CommandMountRegistry` 转发注入后的命令正文、`mountFeedbackTool` 在工具服务上完成注册。每个用例同时钉住陷阱本身：同一 fiber 上的属性读取会抛 `without inject`，这样「为什么要从服务表读」的理由不会随时间消失。entry 用例挂载的插件对象由 entry 自己导出的 `name`/`inject`/`apply` 组成，因此后来往注入列表里加服务、或者把某个可选服务当属性读，都会按 loader 的真实方式被执行到。
+**测试的对象是拓扑，不是被测函数。** `packages/market-bundle/test/integration/host-service-seam.test.ts` 挂载一棵真实的 Cordis 树：`shell`、`tools`、`skills`、`commands` 各自来自读取方的**兄弟** fiber，然后跑通三条生产路径——entry 注册的技能 provider 加载正文里带 `` !`cmd` `` 占位符的技能、`CommandMountRegistry` 转发注入后的命令正文、`mountFeedbackTool` 在工具服务上完成注册。每个用例同时钉住陷阱本身：同一 fiber 上的属性读取会抛 `without inject`，这样「为什么要从服务表读」的理由不会随时间消失。entry 用例挂载的插件对象由 entry 自己导出的 `name`/`inject`/`apply` 组成，因此后来往注入列表里加服务、或者把某个可选服务当属性读，都会按 loader 的真实方式被执行到。
 
-**测试里手搓的上下文 stub 一律通过 `get` 解析服务。** `tests/dynamic-context.test.ts`、`tests/mcp-mounts.test.ts`、`tests/plugin-variables.test.ts`、`tests/project-commands.test.ts`、`tests/plugin-apply.test.ts` 都已更新：把服务挂在对象上的 stub 是永远不会像宿主那样失败的 stub。
+**测试里手搓的上下文 stub 一律通过 `get` 解析服务。** `packages/market-bundle/test/integration/dynamic-context.test.ts`、`packages/market-bundle/test/integration/mcp-mounts.test.ts`、`packages/market-bundle/test/integration/plugin-variables.test.ts`、`packages/market-bundle/test/integration/project-commands.test.ts`、`packages/market-bundle/test/integration/plugin-apply.test.ts` 都已更新：把服务挂在对象上的 stub 是永远不会像宿主那样失败的 stub。
 
 ## Alternatives considered
 
@@ -50,6 +50,6 @@ Cordis 解析 `ctx.<name>` 时沿**读取方 fiber 的祖先**向上查找，返
 
 ## Testing
 
-`tests/host-service-seam.test.ts` 是回归门：四个用例跑在真实 fiber 树上、服务来自兄弟 fiber，覆盖 seam 解析、命令挂载、entry 的技能 provider 与反馈工具。把三处解析中的任何一处改回属性读取，对应用例就会以 `cannot get property "<service>" without inject` 失败。
+`packages/market-bundle/test/integration/host-service-seam.test.ts` 是回归门：四个用例跑在真实 fiber 树上、服务来自兄弟 fiber，覆盖 seam 解析、命令挂载、entry 的技能 provider 与反馈工具。把三处解析中的任何一处改回属性读取，对应用例就会以 `cannot get property "<service>" without inject` 失败。
 
-`tests/dynamic-context.test.ts` 继续用一个人造 seam 覆盖注入流程本身，现在经由 `get` 返回该 seam 的 stub 提供。`tests/plugin-apply.test.ts` 只允许通过 stub 的 `get` 解析 `tools`，因此一旦读取退回属性写法，entry 层的断言就会失败。
+`packages/market-bundle/test/integration/dynamic-context.test.ts` 继续用一个人造 seam 覆盖注入流程本身，现在经由 `get` 返回该 seam 的 stub 提供。`packages/market-bundle/test/integration/plugin-apply.test.ts` 只允许通过 stub 的 `get` 解析 `tools`，因此一旦读取退回属性写法，entry 层的断言就会失败。

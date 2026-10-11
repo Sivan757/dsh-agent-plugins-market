@@ -27,7 +27,7 @@ The UI translation types live in leaf modules rather than the browser entry. Sha
 
 [Architecture rules](../../.dependency-cruiser.cjs) reject cycles, reverse composition imports, concrete connectors in runtime, browser imports of server code, and cross-domain deep imports. The public root entry is included.
 
-[Package tests](../../tests/domain-workspaces.test.ts) require eight private owners, complete public artifact entry paths, an acyclic manifest graph, declared cross-domain dependencies and no bare private runtime imports.
+[Package tests](../../packages/market-bundle/test/repo/domain-workspaces.test.ts) require eight private owners, complete public artifact entry paths, an acyclic manifest graph, declared cross-domain dependencies and no bare private runtime imports.
 
 External published dependencies remain declared by the public deployment package. Private workspace dependencies document source relationships. Compiled relative imports need no private npm installation.
 

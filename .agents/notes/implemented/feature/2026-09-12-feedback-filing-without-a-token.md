@@ -26,4 +26,4 @@ A submission may now end with the user doing the final click. The outcome distin
 
 ## Verification
 
-`tests/feedback-tool.test.ts` covers the gh path, the prefilled-page path (URL, opened page, complete issue text), the cooldown advancing only on real submissions, and blank-title rejection with injected offline ports.
+`packages/market-bundle/test/feedback-tool.test.ts` covers the gh path, the prefilled-page path (URL, opened page, complete issue text), the cooldown advancing only on real submissions, and blank-title rejection with injected offline ports.

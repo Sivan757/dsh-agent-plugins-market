@@ -4,7 +4,7 @@
 
 **Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [服务](services.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md) · [代理角色](agent-roles.md) · [布局审计](layout-coverage.md)
 
-`schemas/` 的当前契约包含十种布局：八种客户端/约定方言、agent-plugins v1（schema 位于 `1.0.0` 与 `1.1.0`，另有 [`com.deepseek.harness` 命名空间契约](../../schemas/com.deepseek.harness/spec.md)）及无清单技能集合。十种布局都有可执行发现测试，不以 schema 通过或其它高优先级清单成功读取同一仓库代替兼容性证明。
+`schemas/` 的当前契约包含十种布局：八种客户端/约定方言、agent-plugins v1（schema 位于 `1.0.0` 与 `1.1.0`，另有 [`com.deepseek.harness` 命名空间契约](../../packages/market-catalog/schemas/com.deepseek.harness/spec.md)）及无清单技能集合。十种布局都有可执行发现测试，不以 schema 通过或其它高优先级清单成功读取同一仓库代替兼容性证明。
 
 | 布局 | README 仓库快照 | 独立核验内容 |
 | --- | --- | --- |
@@ -21,13 +21,13 @@
 
 ## 测试设计
 
-`tests/fixtures/real-layouts/` 保存选定的原始声明与运行时文本，固定完整提交号、每文件 SHA-256 和上游许可证。`scripts/update-layout-fixtures.mjs` 读取对应提交的 Git blob，不信任缓存工作树里的改动。测试不会执行这些仓库的脚本或二进制程序。
+`packages/market-bundle/test/integration/fixtures/real-layouts/` 保存选定的原始声明与运行时文本，固定完整提交号、每文件 SHA-256 和上游许可证。`scripts/update-layout-fixtures.mjs` 读取对应提交的 Git blob，不信任缓存工作树里的改动。测试不会执行这些仓库的脚本或二进制程序。
 
-`tests/real-layouts.test.ts` 核验来源、对真实清单执行 schema 校验，扫描原始多布局目录，再构建第二棵目录树，在每个套件根移除竞争清单。实际生效的 marketplace 来自扫描器返回值。测试还验证运行时命令读取、hooks 归一化、详情投影和 Kimi 指令加载。无清单和 Kimi 主路径用例明确属于派生布局变体，不冒充上游原始文件位置。
+`packages/market-bundle/test/integration/real-layouts.test.ts` 核验来源、对真实清单执行 schema 校验，扫描原始多布局目录，再构建第二棵目录树，在每个套件根移除竞争清单。实际生效的 marketplace 来自扫描器返回值。测试还验证运行时命令读取、hooks 归一化、详情投影和 Kimi 指令加载。无清单和 Kimi 主路径用例明确属于派生布局变体，不冒充上游原始文件位置。
 
-`tests/component-declarations.test.ts` 补充样本未必具备的 schema 形式：文件/目录/数组路径、Cursor 文本扩展名、MCP 文件/内联数组、文件式 LSP、Qoder 内联命令、Kimi hooks/系统提示/catalog 别名、marketplace pluginRoot 与仅条目声明的套件、Codex API catalog，以及路径隔离和失败关闭。`tests/project-hooks.test.ts` 覆盖项目维度：设置表与独立 hook 文件、`hooks.json` 可携带的裸事件表、文件损坏时的失败关闭，以及桥挂载的私有运行时快照。
+`packages/market-bundle/test/integration/component-declarations.test.ts` 补充样本未必具备的 schema 形式：文件/目录/数组路径、Cursor 文本扩展名、MCP 文件/内联数组、文件式 LSP、Qoder 内联命令、Kimi hooks/系统提示/catalog 别名、marketplace pluginRoot 与仅条目声明的套件、Codex API catalog，以及路径隔离和失败关闭。`packages/market-bundle/test/integration/project-hooks.test.ts` 覆盖项目维度：设置表与独立 hook 文件、`hooks.json` 可携带的裸事件表、文件损坏时的失败关闭，以及桥挂载的私有运行时快照。
 
-[技能源聚合测试](../../tests/skill-source-aggregation.test.ts)覆盖单卡片聚合、安装、重新加载、资源路径、同名去重和无效技能诊断。显式市场条目和插件声明保留各自身份。包含其它运行面的无清单目录仍保持独立。[技能集合契约](../../schemas/skill-collection/spec.md#source-grouping)定义安装行为。
+[技能源聚合测试](../../packages/market-bundle/test/integration/skill-source-aggregation.test.ts)覆盖单卡片聚合、安装、重新加载、资源路径、同名去重和无效技能诊断。显式市场条目和插件声明保留各自身份。包含其它运行面的无清单目录仍保持独立。[技能集合契约](../../packages/market-catalog/schemas/skill-collection/spec.md#source-grouping)定义安装行为。
 
 ## 实现
 

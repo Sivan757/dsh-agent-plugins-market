@@ -84,11 +84,11 @@ Provider 可以忽略取消信号并完成远端计算。链将 provider 工作�
 
 ## Testing
 
-[文档分块测试](../../../../tests/document-chunks.test.ts)与[目录翻译测试](../../../../tests/translation-document.test.ts)覆盖受保护内容、结构、稳定片段与中译英。[阅读器测试](../../../../tests/client-document-translation.test.ts)、[用户详情测试](../../../../tests/client-user-entry-detail-translation.test.ts)与[市场测试](../../../../tests/market-detail-document-translation.test.ts)覆盖展开与阅读模式。
+[文档分块测试](../../../../packages/market-translation/test/document-chunks.test.ts)与[目录翻译测试](../../../../packages/market-bundle/test/integration/translation-document.test.ts)覆盖受保护内容、结构、稳定片段与中译英。[阅读器测试](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts)、[用户详情测试](../../../../packages/market-ui/test/client-user-entry-detail-translation.test.ts)与[市场测试](../../../../packages/market-ui/test/market-detail-document-translation.test.ts)覆盖展开与阅读模式。
 
-[轮询测试](../../../../tests/translation-settle.test.ts)与[阅读器测试](../../../../tests/client-document-translation.test.ts)覆盖读取失败、保留部分译文和重试。[传输超时测试](../../../../tests/client-api-timeout.test.ts)覆盖停滞的响应体。[链测试](../../../../tests/translation-chain.test.ts)覆盖忽略取消的 provider，以及取消后才结束的模型能力查询。这些用例不构成对真实长期 pending 症状根因的确诊。
+[轮询测试](../../../../packages/market-ui/test/translation-settle.test.ts)与[阅读器测试](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts)覆盖读取失败、保留部分译文和重试。[传输超时测试](../../../../packages/market-ui/test/client-api-timeout.test.ts)覆盖停滞的响应体。[链测试](../../../../packages/market-bundle/test/integration/translation-chain.test.ts)覆盖忽略取消的 provider，以及取消后才结束的模型能力查询。这些用例不构成对真实长期 pending 症状根因的确诊。
 
-[本地化器测试](../../../../tests/translation-localizer.test.ts)覆盖 generation 隔离、持久化顺序、已完成缓存保留与目标预算。[链测试](../../../../tests/translation-chain.test.ts)覆盖回退前取消。[菜单测试](../../../../tests/client-menu-row-faces.test.ts)覆盖打开期间的有限刷新、关闭清理与旧响应丢弃。这些是验证归属，不代表本次文档修改运行了行为测试或复现了真实 provider 结果。
+[本地化器测试](../../../../packages/market-translation/test/translation-localizer.test.ts)覆盖 generation 隔离、持久化顺序、已完成缓存保留与目标预算。[链测试](../../../../packages/market-bundle/test/integration/translation-chain.test.ts)覆盖回退前取消。[菜单测试](../../../../packages/market-bundle/test/integration/client-menu-row-faces.test.ts)覆盖打开期间的有限刷新、关闭清理与旧响应丢弃。这些是验证归属，不代表本次文档修改运行了行为测试或复现了真实 provider 结果。
 
 ## Related
 

@@ -64,7 +64,7 @@ Status: implemented
 
 ## Testing
 
-`tests/subagent-catalog.test.ts` 在真实的宿主会话与工具注册表上断言：角色行按反引号形式转义渲染，一行只有名称与描述、不含路由；描述或路由变化会重新发布，只改标题不会；同一文本在不同宿主 locale 下逐字节相同；三节说明与运行期间提问规则都在，被删除的通道清单不再出现。`tests/host-locale.test.ts` 断言界面文案在两种语言下都能翻译，并断言模型可见的角色目录已不属于该词典。`tests/agent-role-router.test.ts` 断言注册的 `subagent_role` 参数面、调用路由优先于卡片路由、可继续通道的请求形状、各类拒绝场景，以及前台路径的返回与释放。
+`packages/market-bundle/test/integration/subagent-catalog.test.ts` 在真实的宿主会话与工具注册表上断言：角色行按反引号形式转义渲染，一行只有名称与描述、不含路由；描述或路由变化会重新发布，只改标题不会；同一文本在不同宿主 locale 下逐字节相同；三节说明与运行期间提问规则都在，被删除的通道清单不再出现。`packages/market-runtime/test/host-locale.test.ts` 断言界面文案在两种语言下都能翻译，并断言模型可见的角色目录已不属于该词典。`packages/market-runtime/test/agent-role-router.test.ts` 断言注册的 `subagent_role` 参数面、调用路由优先于卡片路由、可继续通道的请求形状、各类拒绝场景，以及前台路径的返回与释放。
 
 ## Related decisions
 

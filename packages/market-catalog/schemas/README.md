@@ -1,0 +1,79 @@
+# Plugin manifest and marketplace specifications
+
+This directory is the specification library for the plugin layouts this manager reads. It holds three kinds of files:
+
+1. **Vendored upstream schemas** in [`1.0.0/`](1.0.0/) and [`1.1.0/`](1.1.0/) — pinned copies of the official agent-plugins.org schemas (1.0.0 published, 1.1.0 the working draft this manager explicitly recognizes as compatible; the two releases' schemas differ only in the version string). These are bundled into the published package and loaded at runtime by [`packages/market-catalog/src/scanning/validate.ts`](../src/scanning/validate.ts), because the specification requires clients to validate plugin packages without retrieving schemas at load time (§7.2.1: "Clients MUST NOT retrieve a schema while loading a plugin").
+2. **Reference contracts** in `<dialect>/` — an authored JSON Schema pair plus a `spec.md` for each layout the manager recognizes. **These are documentation, not runtime validators**: the scanner still applies the strategy-chain rules in `src/catalog/`. They exist so a dialect's field set, file locations, and evidence are pinned in one place.
+3. **The client extension namespace contract** in [`com.deepseek.harness/`](com.deepseek.harness/) — the authored schema and rules for this manager's own §8 namespace: manifest data under `extensions["com.deepseek.harness"]` and the top-level `com.deepseek.harness/` extension directory.
+
+Every authored schema records its provenance in a `$comment`, and every dialect's `spec.md` records the sources, the verification date, and the unresolved gaps.
+
+## Layout
+
+```text
+schemas/
+├── 1.0.0/                     # vendored agent-plugins.org v1.0.0 (runtime-loaded)
+│   ├── plugin.schema.json
+│   └── mcp.schema.json
+├── 1.1.0/                     # vendored agent-plugins.org v1.1.0 working draft (runtime-loaded)
+├── agent-plugins/spec.md      # the published cross-vendor standard (schemas live in 1.0.0/ and 1.1.0/)
+├── com.deepseek.harness/      # this manager's §8 client extension namespace
+│   ├── namespace.schema.json
+│   └── spec.md
+├── skill-collection/spec.md   # manifest-less layout; nothing to validate
+└── <dialect>/
+    ├── plugin.schema.json
+    ├── marketplace.schema.json
+    └── spec.md
+```
+
+## Dialect index
+
+This table records **upstream client conventions**, including their own fallback orders; it does not define this plugin's discovery priority. DSH uses one shared layout order for suite manifests and Marketplace catalogs, shown on the [compatible plugins page](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/#shared-layout-precedence). Catalogs without a dedicated layout use root `marketplace.json` as the final fallback.
+
+| Dialect | Upstream plugin manifest conventions | Upstream marketplace conventions | Upstream schema |
+| --- | --- | --- | --- |
+| [Claude Code](claude-code/spec.md) | `.claude-plugin/plugin.json` (optional) | `.claude-plugin/marketplace.json`, or any `marketplace.json` added by path/URL | None; the URL the official catalog declares returns 404 |
+| [Codex](codex/spec.md) | `plugin.json` (agent-plugins `$schema`) → `.codex-plugin/` → `.claude-plugin/` → `.cursor-plugin/` | `.agents/plugins/marketplace.json` → `.agents/plugins/api_marketplace.json` → `.claude-plugin/` → `.cursor-plugin/` | agent-plugins v1.0.0 for root `plugin.json`; none otherwise |
+| [Cursor](cursor/spec.md) | `.cursor-plugin/plugin.json`, or root `plugin.json` (agent-plugins) | `.cursor-plugin/marketplace.json` | None for `.cursor-plugin/`; agent-plugins v1.0.0 for root |
+| [Kimi (kimi-code)](kimi/spec.md) | `kimi.plugin.json` → `.kimi-plugin/plugin.json` | `KIMI_CODE_PLUGIN_MARKETPLACE_URL`, default `https://code.kimi.com/kimi-code/plugins/marketplace.json` | None reachable; the declared URI serves HTML |
+| [Kimi (kimi-cli, legacy)](kimi/spec.md#kimi-cli-legacy-a-different-format) | `plugin.json` with a `tools` array | None | None |
+| [Universal `.plugin/`](universal/spec.md) | `.plugin/plugin.json` | `.plugin/marketplace.json` | None — an observed convention, not a specification |
+| [agent-plugins.org v1](agent-plugins/spec.md) | `plugin.json` (required) | Vendor-specific; not part of the standard. This manager reads `.claude-plugin/marketplace.json`, root `marketplace.json`, or rooted discovery with no catalog | **Vendored 1.0.0 and 1.1.0** |
+| [Skill collection](skill-collection/spec.md) | None | None | n/a |
+| [ZCode](zcode/spec.md) | `.zcode-plugin/plugin.json` → `.claude-plugin/` → `.codex-plugin/` | `.claude-plugin/marketplace.json` → `marketplace.json` | None |
+| [Qoder CLI](qoder/spec.md) | `.qoder-plugin/plugin.json` → `.claude-plugin/plugin.json` | `.qoder-plugin/marketplace.json` → `.claude-plugin/` → `marketplace.json` | None |
+| [GitHub Copilot CLI](github-copilot/spec.md) | `.plugin/plugin.json` → `plugin.json` → `.github/plugin/plugin.json` → `.claude-plugin/` | `marketplace.json` → `.plugin/` → `.github/plugin/` → `.claude-plugin/` | None; agent-plugins optional via `$schema` |
+
+## Cross-dialect conventions
+
+These are the points where the layouts actually differ; they cause the most silent failures.
+
+| Dialect              | MCP configuration                                                                      | Hooks                                                        |
+| -------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Claude Code          | `.mcp.json`; inline `mcpServers` is additive                                           | `hooks/hooks.json` or inline                                 |
+| Codex                | legacy: `.mcp.json` (validator rejects `mcp.json`); agent-plugins dialect: `mcp.json`  | manifest `hooks` or `hooks/`                                 |
+| Cursor               | `mcp.json` (dot-file only via an explicit `mcpServers` field)                          | `hooks/hooks.json` or inline                                 |
+| Kimi (kimi-code)     | inline `mcpServers` only                                                               | inline `hooks` array                                         |
+| Universal `.plugin/` | `.mcp.json`, `.github/mcp.json`                                                        | `hooks.json` or `hooks/hooks.json`                           |
+| agent-plugins.org v1 | `mcp.json` (optional — a skills-only suite is conformant), closed; inline is forbidden | `com.deepseek.harness/hooks/hooks.json` (namespace contract) |
+| ZCode                | `.mcp.json` only                                                                       | `hooks/hooks.json`                                           |
+| Qoder CLI            | `.mcp.json` → `mcp.json` (never merged)                                                | `hooks/hooks.json`                                           |
+| GitHub Copilot CLI   | `.mcp.json`, `.github/mcp.json`                                                        | `hooks.json` or `hooks/hooks.json`                           |
+
+Claude Code and Copilot (including the Universal convention) define usable LSP declarations. Qoder/ZCode record the field without native execution. Cursor, Codex, Kimi and agent-plugins do not define a native LSP surface; this manager reads agent-plugins LSP declarations from the [`com.deepseek.harness` namespace](com.deepseek.harness/spec.md), its own §8 extension rather than an upstream feature.
+
+## Executable coverage
+
+All ten active layouts are covered by [offline README repository tests](../../market-bundle/test/integration/real-layouts.test.ts). Fixtures retain original Git blobs, commit IDs, hashes and licenses. Competing manifests are removed at every suite root in isolated cases, and the scanner reports the productive marketplace rather than inferring it from file presence. [Component contract tests](../../market-bundle/test/integration/component-declarations.test.ts) cover path/array/inline forms and validation failures. See the [coverage audit](../../../docs/user/layout-coverage.md) for the exact boundary between layout compatibility and vendor-native runtime behavior.
+
+## Provenance and update policy
+
+- `1.0.0/*.schema.json` and `1.1.0/*.schema.json` are vendored. Replace the files from [`agentplugins/agent-plugins-spec`](https://github.com/agentplugins/agent-plugins-spec) at the pinned spec versions and bump the spec-version references in `packages/market-catalog/src/scanning/validate.ts`. Never edit them by hand.
+- `<dialect>/*.schema.json` and `spec.md` are authored here. They are **not** upstream copies and carry no upstream compatibility guarantee. When a cited source changes, re-verify and update the schema, the `spec.md`, and the `$comment` provenance line together.
+- `agent-plugins/spec.md` documents the published standard but deliberately keeps its schemas in `1.0.0/` and `1.1.0/` so there is exactly one copy of each release in the tree.
+- `com.deepseek.harness/` is authored here and owned here: it defines this manager's own §8 namespace, so its evolution is governed by the namespace `schemaVersion`, not by upstream releases.
+
+## Validation
+
+`tests/schemas.test.ts` compiles every schema with Ajv 2020-12, asserts `$id` uniqueness, pins the vendored ids to the runtime constants in `packages/market-catalog/src/scanning/validate.ts`, and requires each dialect to keep a `spec.md` and a paired marketplace schema (the vendored release directories and the namespace contract keep their own documented shape instead). Run `pnpm run test` after touching this directory; run `pnpm run format:check` for formatting.

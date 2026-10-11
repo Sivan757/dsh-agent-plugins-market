@@ -32,4 +32,4 @@ Status: implemented
 
 ## Testing
 
-`tests/extension-configuration-parents.test.ts` 钉住 id 枚举、传输与捕获剔除、两种派生授权形态、真实套件契约不变、仅子项投影。`tests/extension-suite-inventory.test.ts` 现在断言 hooks 套件无论有效或被拒都不发布 market 行。scoped-effects 验收仍经公开路由仅用子项 id 跑通一条被授予的用户 hook。
+`packages/market-bundle/test/integration/extension-configuration-parents.test.ts` 钉住 id 枚举、传输与捕获剔除、两种派生授权形态、真实套件契约不变、仅子项投影。`packages/market-bundle/test/integration/extension-suite-inventory.test.ts` 现在断言 hooks 套件无论有效或被拒都不发布 market 行。scoped-effects 验收仍经公开路由仅用子项 id 跑通一条被授予的用户 hook。

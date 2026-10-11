@@ -52,5 +52,5 @@ module.exports = {
     { name: 'client-ui-cannot-import-features', severity: 'error', from: { path: '^packages/market-ui/src/ui/' }, to: { path: '^packages/market-ui/src/(features|workspace)/' } },
     { name: 'client-entry-is-not-a-type-module', severity: 'error', from: { path: '^packages/market-ui/src/(?!index[.]ts)' }, to: { path: '^packages/market-ui/src/index[.]ts$' } }
   ],
-  options: { doNotFollow: { path: 'node_modules' }, exclude: '(^|/)node_modules/', includeOnly: '^(index[.]ts$|' + root + ')', tsPreCompilationDeps: true }
+  options: { doNotFollow: { path: 'node_modules' }, exclude: '(^|/)node_modules/|/test/', includeOnly: '^(index[.]ts$|' + root + ')', tsPreCompilationDeps: true }
 }

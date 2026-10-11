@@ -34,8 +34,8 @@ Status: implemented
 
 ## Verification
 
-- `tests/shell-path.test.ts`（21 例）钉住标记解析、前置噪音、相对项过滤、去重、只探一次、非 darwin no-op、超时、shell 缺失，以及 `resolveDeclaredCommand` 的每个分支——基础解析、追加后重试、追加后仍失败、探针失败、显式 `PATH`、缺少 seam、非查找类错误。
-- `tests/mcp-bridge.test.ts` 与 `tests/lsp-mounts.test.ts` 新增 10 例：健康环境的 `PATH` 逐字节不变、扩展进入挂载 env 与日志、显式 `PATH` 原样透传、失败事实进入 cause 链、非 stdio 传输不做解析。
+- `packages/market-runtime/test/shell-path.test.ts`（21 例）钉住标记解析、前置噪音、相对项过滤、去重、只探一次、非 darwin no-op、超时、shell 缺失，以及 `resolveDeclaredCommand` 的每个分支——基础解析、追加后重试、追加后仍失败、探针失败、显式 `PATH`、缺少 seam、非查找类错误。
+- `packages/market-bundle/test/integration/mcp-bridge.test.ts` 与 `packages/market-bundle/test/integration/lsp-mounts.test.ts` 新增 10 例：健康环境的 `PATH` 逐字节不变、扩展进入挂载 env 与日志、显式 `PATH` 原样透传、失败事实进入 cause 链、非 stdio 传输不做解析。
 - 在宿主自身的短 `PATH` 下实测探针：194ms、30 项、含 `/opt/homebrew/bin`，按序追加 26 个目录。
 - 用解析器自己的输出真启动：`npx --prefix … chrome-devtools-mcp@1.10.1` 成功启动（status 0，npm 报出运行信息），而同一命令配宿主 `PATH` 则是 `ENOENT`。
 - 全部门禁通过：typecheck、eslint、prettier、dependency-cruiser，以及 98 文件 / 881 用例。

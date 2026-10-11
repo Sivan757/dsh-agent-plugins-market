@@ -43,7 +43,21 @@ function schemasDirectory(): string {
   let directory = dirname(fileURLToPath(import.meta.url))
   while (true) {
     const manifest = join(directory, 'package.json')
-    if (existsSync(manifest) && (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string }).name === 'dsh-agent-plugins-market') return join(directory, 'schemas')
+    if (!existsSync(manifest)) {
+      const parent = dirname(directory)
+      if (parent === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
+      directory = parent
+      continue
+    }
+    const name = (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string }).name
+    // The workspace package and the packed artifact expose the library at the
+    // same two relative spots: beside the catalog package, or under the
+    // packages/ path preserved by the npm files entry.
+    if (name === '@dsh-market/catalog') return join(directory, 'schemas')
+    if (name === 'dsh-agent-plugins-market') return join(directory, 'packages/market-catalog/schemas')
+    const parentDir = dirname(directory)
+    if (parentDir === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
+    directory = parentDir
     const parent = dirname(directory)
     if (parent === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
     directory = parent

@@ -32,7 +32,7 @@ ctx.inject(['settings'], settingsCtx => {
 
 复查这条读取时，它下面还压着第二个缺陷。`readHostLocalePreference` 调用的是 `settings.get('locale')`，而这条被固定的宿主发布线上没有这个方法：harness `601d6761e4`（2026-09-21，包含在 `dsh-v0.1.7-rc.1` 及之后）把命名空间读取换成配置表单投影，`SettingsForms` 现在只暴露 `configure`、`describe`、`update`、`replace`、`prepareDocument`、`schema`。可选调用 `settings?.get?.(…)` 于是在本插件面向的每一台宿主上都返回 `undefined`，而 `$DSH_HOME/settings.yaml` 这条兜底也是空的：加载器完成之后，`SettingsForms.importLegacyDocument()` 会把该文件改名为 `settings.yaml.imported`。面向宿主的文案对所有语言偏好都停留在中文，而模块文档、开发标准与这份记录都把它写成了可用的设置服务读取。
 
-两个测试用同一种方式漏掉了这两个缺陷。`tests/host-service-seam.test.ts` 挂的是真实 Cordis 树，但它提供的设置服务凭空多了一个 `get(namespace)`；`tests/host-locale.test.ts` 传进去的手工对象带着同一个不存在的方法。测试保持全绿，生产环境什么也读不到。
+两个测试用同一种方式漏掉了这两个缺陷。`packages/market-bundle/test/integration/host-service-seam.test.ts` 挂的是真实 Cordis 树，但它提供的设置服务凭空多了一个 `get(namespace)`；`packages/market-runtime/test/host-locale.test.ts` 传进去的手工对象带着同一个不存在的方法。测试保持全绿，生产环境什么也读不到。
 
 ## Decision
 
@@ -85,6 +85,6 @@ ctx.effect(
 
 ## Testing
 
-`tests/host-service-seam.test.ts` 挂载真实 Cordis 树，`skills`、`commands`、`settings` 三个服务来自兄弟 fiber，设置服务按被固定宿主的投影形状书写（`describe()` 返回 `locale` 条目）。它覆盖三件事：入口卸载后再次应用仍能读到语言，且整个过程没有未处理的失败；入口卸载时接线被清除；其他条目的 `settings/document-updated` 不触发重读，`locale` 条目自己的变更触发重读。把 `src/` 还原到本条记录取代的那个版本，两个测试文件都会失败，并报出生产环境那条 `cannot get required service "settings" in inactive context`，位置是 `Fiber._reload` 期间的 `apply`。
+`packages/market-bundle/test/integration/host-service-seam.test.ts` 挂载真实 Cordis 树，`skills`、`commands`、`settings` 三个服务来自兄弟 fiber，设置服务按被固定宿主的投影形状书写（`describe()` 返回 `locale` 条目）。它覆盖三件事：入口卸载后再次应用仍能读到语言，且整个过程没有未处理的失败；入口卸载时接线被清除；其他条目的 `settings/document-updated` 不触发重读，`locale` 条目自己的变更触发重读。把 `src/` 还原到本条记录取代的那个版本，两个测试文件都会失败，并报出生产环境那条 `cannot get required service "settings" in inactive context`，位置是 `Fiber._reload` 期间的 `apply`。
 
-`tests/host-locale.test.ts` 覆盖投影解析（locale 条目、条目缺失、值不是字符串、没有服务）、未接线时的答案，以及身份判断：旧接线迟到的清理不会移除新装上的读函数。
+`packages/market-runtime/test/host-locale.test.ts` 覆盖投影解析（locale 条目、条目缺失、值不是字符串、没有服务）、未接线时的答案，以及身份判断：旧接线迟到的清理不会移除新装上的读函数。

@@ -4,12 +4,12 @@ Status: implemented
 
 ## 问题
 
-[README.md](../../../../README.md) 的兼容性表格列出了十种插件布局，但仓库只为其中一种钉住了字段级契约：`schemas/1.0.0/` 下内置的 agent-plugins.org v1.0.0 schema。其余全部——Claude Code、Codex、Cursor、Kimi、`.plugin/` 通用约定，以及新调研的 ZCode、Qoder CLI、GitHub Copilot CLI——都只以 README 表格中的散文和 `docs/developer/discussion/` 里零散事实的形式存在。这不足以回答方言变更真正会提出的问题：同时存在多个 manifest 时哪个优先、客户端读哪个 MCP 文件名、`source` 对象是否接受 `github`、以及任何一条事实的上游出处是什么。一次新增三种方言让缺口变得尖锐：其中两种（ZCode、Qoder）根本不发布 schema，第三种（GitHub Copilot）发布的 schema 属于另一个相邻格式。
+[README.md](../../../../README.md) 的兼容性表格列出了十种插件布局，但仓库只为其中一种钉住了字段级契约：`packages/market-catalog/schemas/1.0.0/` 下内置的 agent-plugins.org v1.0.0 schema。其余全部——Claude Code、Codex、Cursor、Kimi、`.plugin/` 通用约定，以及新调研的 ZCode、Qoder CLI、GitHub Copilot CLI——都只以 README 表格中的散文和 `docs/developer/discussion/` 里零散事实的形式存在。这不足以回答方言变更真正会提出的问题：同时存在多个 manifest 时哪个优先、客户端读哪个 MCP 文件名、`source` 对象是否接受 `github`、以及任何一条事实的上游出处是什么。一次新增三种方言让缺口变得尖锐：其中两种（ZCode、Qoder）根本不发布 schema，第三种（GitHub Copilot）发布的 schema 属于另一个相邻格式。
 
 ## 决策
 
-- **`schemas/` 下放两类文件，且这个区分必须显式。** `schemas/1.0.0/*.schema.json` 是唯一的**内置（vendored）** schema：由 `packages/market-catalog/src/scanning/validate.ts` 在运行时加载，并从上游整体替换。其他每个目录放的都是扫描器**不读取**的**自撰参考契约**。`schemas/README.md` 在第一段和出处政策一节都写明这一点，避免维护者把参考 schema 误当成门禁。
-- **每个方言一个目录，形态固定。** `<dialect>/plugin.schema.json`、`<dialect>/marketplace.schema.json`、`<dialect>/spec.md`。`agent-plugins/spec.md` 与 `skill-collection/spec.md` 不带 schema，前者复用 `1.0.0/`，后者没有 manifest 可校验。`tests/schemas.test.ts` 强制这一配对，避免将来新增方言时只落一半文档。
+- **`schemas/` 下放两类文件，且这个区分必须显式。** `packages/market-catalog/schemas/1.0.0/*.schema.json` 是唯一的**内置（vendored）** schema：由 `packages/market-catalog/src/scanning/validate.ts` 在运行时加载，并从上游整体替换。其他每个目录放的都是扫描器**不读取**的**自撰参考契约**。`packages/market-catalog/schemas/README.md` 在第一段和出处政策一节都写明这一点，避免维护者把参考 schema 误当成门禁。
+- **每个方言一个目录，形态固定。** `<dialect>/plugin.schema.json`、`<dialect>/marketplace.schema.json`、`<dialect>/spec.md`。`agent-plugins/spec.md` 与 `skill-collection/spec.md` 不带 schema，前者复用 `1.0.0/`，后者没有 manifest 可校验。`packages/market-catalog/test/schemas.test.ts` 强制这一配对，避免将来新增方言时只落一半文档。
 - **出处写在产物里，而不只写在散文里。** 每个自撰 schema 都带 `$comment`，写明来源与核对日期；每份 `spec.md` 开头列出核对日期、证据清单、上游 schema 状态，结尾列证据缺口。缺口是刻意保留的：ZCode 与 Qoder 的实机运行时与已发布文档在若干点上互相矛盾，掩盖这一点的契约比没有契约更糟。
 - **自撰 schema 默认开放。** 客户端会忽略或剥离未知 manifest 字段，因此除上游封闭的 agent-plugins.org schema 之外，一律 `additionalProperties: true`。必填项与 `pattern` 只镜像已有文档或实现验证过的规则。
 - **自撰 schema 不接入运行时校验。** 让扫描器按这些文件校验 Claude Code 或 Qoder manifest，会改变所有既有源的 fail-closed 行为，那是另一个决定，有自己的兼容面。这些 schema 描述客户端接受什么，扫描器保持原有的策略链规则。

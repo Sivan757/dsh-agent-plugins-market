@@ -50,7 +50,7 @@ Status: implemented
 
 ## Testing
 
-[文档分块测试](../../../../tests/document-chunks.test.ts)覆盖描述限额、分隔符保留与正文 AST 处理。[文档翻译测试](../../../../tests/translation-document.test.ts)驱动 catalog 和 store 路径。[缓存测试](../../../../tests/translation-cache.test.ts)约束角色键兼容；[本地化器测试](../../../../tests/translation-localizer.test.ts)覆盖批次上限。这些是覆盖位置，不代表本次文档修改执行过测试集。
+[文档分块测试](../../../../packages/market-translation/test/document-chunks.test.ts)覆盖描述限额、分隔符保留与正文 AST 处理。[文档翻译测试](../../../../packages/market-bundle/test/integration/translation-document.test.ts)驱动 catalog 和 store 路径。[缓存测试](../../../../packages/market-translation/test/translation-cache.test.ts)约束角色键兼容；[本地化器测试](../../../../packages/market-translation/test/translation-localizer.test.ts)覆盖批次上限。这些是覆盖位置，不代表本次文档修改执行过测试集。
 
 ## Related
 

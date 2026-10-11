@@ -8,7 +8,7 @@ docs-site/node_modules/
 docs-site/.vitepress/cache/
 # generated from docs/user by docs-site/scripts/copy-guide.mjs before each build
 docs-site/guide/
-tests/fixtures/
+packages/market-bundle/test/integration/fixtures/
 pnpm-lock.yaml
 *.tgz
 # release-please maintains this file in its own format

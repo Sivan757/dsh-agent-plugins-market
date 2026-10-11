@@ -2,7 +2,7 @@
 
 - Date: 2026-10-05
 - Subject: how Claude Code implements `output-style` / the `outputStyle` setting, and the design principles behind it.
-- Why it is here: this repository declares `output-styles/` in the Claude Code dialect contract ([spec.md](../../../schemas/claude-code/spec.md)) but mounts no output-style surface at runtime. This note records what the upstream surface actually does, so a later decision to mount it (or not) starts from evidence.
+- Why it is here: this repository declares `output-styles/` in the Claude Code dialect contract ([spec.md](../../../packages/market-catalog/schemas/claude-code/spec.md)) but mounts no output-style surface at runtime. This note records what the upstream surface actually does, so a later decision to mount it (or not) starts from evidence.
 - Evidence classes used below:
   - **BINARY** — read from the shipped Claude Code 2.1.284 bundle (`/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe`), the authoritative implementation.
   - **LIVE** — captured from real Anthropic API request bodies by pointing Claude Code at a local mock endpoint and reading the JSON it sent.
@@ -203,7 +203,7 @@ A recurring third-party convention is worth recording because it mirrors what th
 
 ## What this means for this repository
 
-`output-styles/` is already part of the Claude Code dialect contract ([spec.md](../../../schemas/claude-code/spec.md) lists it as a replaced-by-manifest component directory), and the Qoder and Zcode dialects declare the same directory. No runtime surface mounts it: a search of `src/` finds no output-style handling. A suite shipping output styles therefore has its files recognized by the scanner and its styles inert in a dsh session.
+`output-styles/` is already part of the Claude Code dialect contract ([spec.md](../../../packages/market-catalog/schemas/claude-code/spec.md) lists it as a replaced-by-manifest component directory), and the Qoder and Zcode dialects declare the same directory. No runtime surface mounts it: a search of `src/` finds no output-style handling. A suite shipping output styles therefore has its files recognized by the scanner and its styles inert in a dsh session.
 
 Whether to mount it is a separate decision, and the upstream mechanism sets the constraints: a mount has to pick a delivery channel (the style body is conversation-layer text, while the identity line is a system-prompt edit that dsh has no equivalent slot for), decide what to do about the per-turn reminder, and treat `force-for-plugin` as an override the user cannot see in a picker. A style body is instruction text aimed at the model — the same trust question every other injected surface already answers. `PerryLink/dsh-output-styles` is the existing precedent to evaluate against before building anything.
 

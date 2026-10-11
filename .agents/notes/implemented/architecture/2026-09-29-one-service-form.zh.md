@@ -39,6 +39,6 @@ MCP 与 LSP 的新建弹窗各自搭了一套外壳：自己持有文档、名�
 
 ## Testing
 
-- `tests/client-server-config-policy.test.ts` —— 新建弹窗显示编辑弹窗的字段、不发起读取、以名称与可用文档作为新建动作的门槛，并把 `{ type: 'stdio', command: … }` 挂在输入的名称下提交。
-- `tests/client-detail-editors.test.ts` —— 没有声明键的编辑器编辑定义本身，绝不组出空键 wrapper；高级设置折叠区只在表单视图渲染。
+- `packages/market-bundle/test/integration/client-server-config-policy.test.ts` —— 新建弹窗显示编辑弹窗的字段、不发起读取、以名称与可用文档作为新建动作的门槛，并把 `{ type: 'stdio', command: … }` 挂在输入的名称下提交。
+- `packages/market-ui/test/client-detail-editors.test.ts` —— 没有声明键的编辑器编辑定义本身，绝不组出空键 wrapper；高级设置折叠区只在表单视图渲染。
 - 编辑流程的保存载荷、策略往返与表单 / JSON 往返沿用既有覆盖，未改动。

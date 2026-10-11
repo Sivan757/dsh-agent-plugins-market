@@ -35,4 +35,4 @@ Status: implemented
 
 ## Testing
 
-`tests/client-hooks-status-panel.test.ts` 断言概览网格的标签、对话框静止时的命令出现次数、被拒绝声明不提供运行区，以及试运行的请求体与结果。`tests/client-hook-resource-card.test.ts` 断言「跟随套件」标签且没有开关，并断言 `resourceSelected` 镜像所属套件。服务端测试覆盖行来源与标记。
+`packages/market-bundle/test/integration/client-hooks-status-panel.test.ts` 断言概览网格的标签、对话框静止时的命令出现次数、被拒绝声明不提供运行区，以及试运行的请求体与结果。`packages/market-bundle/test/integration/client-hook-resource-card.test.ts` 断言「跟随套件」标签且没有开关，并断言 `resourceSelected` 镜像所属套件。服务端测试覆盖行来源与标记。

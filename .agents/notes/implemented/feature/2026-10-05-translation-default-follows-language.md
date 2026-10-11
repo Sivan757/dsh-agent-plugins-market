@@ -62,7 +62,7 @@ The target is normalized to `zh` or `en`, not the raw preference tag, so `zh`, `
 
 ## Testing
 
-[Schema tests](../../../../tests/mcp-backend.test.ts) cover absence versus explicit false; [settings namespace tests](../../../../tests/settings-namespace.test.ts) cover language defaults and overrides. [Target-consistency tests](../../../../tests/translation-gate-consistency.test.ts) distinguish default-off English from an explicitly enabled English target. [Client setting tests](../../../../tests/client-translation-settings.test.ts), [card tests](../../../../tests/client-plugin-card.test.ts) and [setting item tests](../../../../tests/client-plugins-item-views.test.ts) cover bindings, effective-value projection and the reset control. These identify coverage owners, not behavior tests rerun by this documentation edit.
+[Schema tests](../../../../packages/market-bundle/test/integration/mcp-backend.test.ts) cover absence versus explicit false; [settings namespace tests](../../../../packages/market-bundle/test/settings-namespace.test.ts) cover language defaults and overrides. [Target-consistency tests](../../../../packages/market-bundle/test/integration/translation-gate-consistency.test.ts) distinguish default-off English from an explicitly enabled English target. [Client setting tests](../../../../packages/market-bundle/test/integration/client-translation-settings.test.ts), [card tests](../../../../packages/market-bundle/test/integration/client-plugin-card.test.ts) and [setting item tests](../../../../packages/market-bundle/test/integration/client-plugins-item-views.test.ts) cover bindings, effective-value projection and the reset control. These identify coverage owners, not behavior tests rerun by this documentation edit.
 
 ## Related
 

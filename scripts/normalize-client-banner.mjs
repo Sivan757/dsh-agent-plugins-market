@@ -14,7 +14,7 @@
  * plain module id anyway.
  *
  * The root defaults to this checkout and can be passed as the first argument,
- * which is how `tests/client-banner.test.ts` drives it against a fixture.
+ * which is how `packages/market-bundle/test/repo/client-banner.test.ts` drives it against a fixture.
  */
 import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'

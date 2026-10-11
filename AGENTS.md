@@ -7,7 +7,8 @@
 ```
 index.ts        public installation entry: re-exports the bundle package. The published package name and
                 artifact are unchanged; the workspace packages stay private.
-packages/       eight private workspace packages consumed by that one artifact:
+packages/       eight private workspace packages consumed by that one artifact; each owns its own
+                test/ tree, and market-catalog owns schemas/ (the vendored spec library):
   market-bundle/       composition root and HTTP surface: src/index.ts (plugin entry), routes*.ts,
                        runtime-adapters.ts, application/, platform/
   market-catalog/      pure source scanning (scanning/) and the catalog use cases (application/)
@@ -21,10 +22,6 @@ packages/       eight private workspace packages consumed by that one artifact:
   market-translation/  translation engine, provider chain and translators (application/, runtime/)
   market-ui/           Web market page: src/index.ts, api.ts, locales.ts and i18n.ts, features/,
                        workspace/, ui/
-schemas/        the layout specification library: vendored 1.0.0/ and 1.1.0/ agent-plugins schemas, one
-                reference contract directory per dialect (plugin/marketplace schema + spec.md), and this
-                manager's own com.deepseek.harness/ namespace — see schemas/README.md
-tests/          vitest suites for the whole workspace; fixtures under tests/fixtures
 docs/           user/, reference/, developer/{decisions,design,discussion,release,upstream-proposal}/, scratch/ — see docs/AGENTS.md
 docs-site/      VitePress docs site
 scripts/        build and verification helpers: client banner, lifecycle verification, host-alignment
@@ -35,7 +32,7 @@ scripts/        build and verification helpers: client banner, lifecycle verific
 
 ```sh
 pnpm run typecheck           # the four TypeScript projects: server, client and both test projects
-pnpm run lint                # eslint index.ts packages tests
+pnpm run lint                # eslint index.ts packages
 pnpm run check:quick         # typecheck + lint — also runs before test and build
 pnpm run format:check        # prettier — tracked text except the paths in .prettierignore
 pnpm run test                # vitest run (full suite)

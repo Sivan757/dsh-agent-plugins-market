@@ -8,7 +8,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['index.ts', 'packages/**/*.ts', 'packages/**/*.tsx', 'tests/**/*.ts'],
+    files: ['index.ts', 'packages/**/*.ts', 'packages/**/*.tsx', 'packages/*/test/**/*.ts'],
     languageOptions: {
       parserOptions: {
         // Type-aware rules need to know which program a file belongs to. The four

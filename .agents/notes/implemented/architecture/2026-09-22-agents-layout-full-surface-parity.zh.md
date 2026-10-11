@@ -52,4 +52,4 @@ Status: implemented
 
 ## 验证
 
-`tests/project-mcp.test.ts` 钉住归属划分：`.agents/mcp.json` 解析到 `.agents` 原生套件，ZCode 只读自己的文件，两者可各自声明服务器而互不重叠，畸形的 `.agents/mcp.json` 让该套件失败关闭。`tests/user-hooks.test.ts` 覆盖规范化、合并、去重、畸形文件失败关闭、套件形状，以及一次 `HooksMountRegistry` 挂载断言桥收到 `pluginRoot` 且没有 `projectDir`。`tests/mcp-direct-config.test.ts` 覆盖不带 `$schema` 的读取、被拒文件报出的点名原因，以及它保留的写入路径拒绝。`tests/user-panels.test.ts` 与 `tests/user-commands.test.ts` 覆盖嵌套列出、寻址、新建、删除、名字守卫，以及带重名诊断的压平注册。
+`packages/market-bundle/test/integration/project-mcp.test.ts` 钉住归属划分：`.agents/mcp.json` 解析到 `.agents` 原生套件，ZCode 只读自己的文件，两者可各自声明服务器而互不重叠，畸形的 `.agents/mcp.json` 让该套件失败关闭。`packages/market-runtime/test/user-hooks.test.ts` 覆盖规范化、合并、去重、畸形文件失败关闭、套件形状，以及一次 `HooksMountRegistry` 挂载断言桥收到 `pluginRoot` 且没有 `projectDir`。`packages/market-bundle/test/integration/mcp-direct-config.test.ts` 覆盖不带 `$schema` 的读取、被拒文件报出的点名原因，以及它保留的写入路径拒绝。`packages/market-runtime/test/user-panels.test.ts` 与 `packages/market-runtime/test/user-commands.test.ts` 覆盖嵌套列出、寻址、新建、删除、名字守卫，以及带重名诊断的压平注册。

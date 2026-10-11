@@ -31,7 +31,7 @@ MCP 与 LSP 两套服务弹窗共用同一个顺序：身份带（状态点、�
 
 ## Testing
 
-`tests/client-mcp-detail.test.ts` 锁定顺序（能力区在连接定义之上）、唯一一个启用开关、以及工具清单的截断、搜索与展开路径。`tests/client-server-config-policy.test.ts` 与 `tests/client-detail-editors.test.ts` 会先展开折叠的连接定义再编辑，这正是弹窗现在要求的操作路径。
+`packages/market-bundle/test/integration/client-mcp-detail.test.ts` 锁定顺序（能力区在连接定义之上）、唯一一个启用开关、以及工具清单的截断、搜索与展开路径。`packages/market-bundle/test/integration/client-server-config-policy.test.ts` 与 `packages/market-ui/test/client-detail-editors.test.ts` 会先展开折叠的连接定义再编辑，这正是弹窗现在要求的操作路径。
 
 ## Related
 

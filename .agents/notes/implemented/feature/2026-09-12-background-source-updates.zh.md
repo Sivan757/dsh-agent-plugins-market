@@ -26,4 +26,4 @@ Status: implemented
 
 ## 验证
 
-`tests/source-auto-update.test.ts` 用假定时器覆盖默认关闭、周期、重复开关的幂等、进行中跳过与失败日志；`tests/plugin-apply.test.ts` 与 `tests/mcp-backend.test.ts` 覆盖命名空间接线。
+`packages/market-runtime/test/source-auto-update.test.ts` 用假定时器覆盖默认关闭、周期、重复开关的幂等、进行中跳过与失败日志；`packages/market-bundle/test/integration/plugin-apply.test.ts` 与 `packages/market-bundle/test/integration/mcp-backend.test.ts` 覆盖命名空间接线。

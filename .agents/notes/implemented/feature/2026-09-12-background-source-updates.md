@@ -26,4 +26,4 @@ With the switch on, checkout contents can change without any user action, which 
 
 ## Verification
 
-`tests/source-auto-update.test.ts` covers off-by-default, the interval, idempotent enable/disable, the in-flight skip and the logged failure using fake timers; `tests/plugin-apply.test.ts` and `tests/mcp-backend.test.ts` cover the namespace wiring.
+`packages/market-runtime/test/source-auto-update.test.ts` covers off-by-default, the interval, idempotent enable/disable, the in-flight skip and the logged failure using fake timers; `packages/market-bundle/test/integration/plugin-apply.test.ts` and `packages/market-bundle/test/integration/mcp-backend.test.ts` cover the namespace wiring.

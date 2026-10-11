@@ -2,7 +2,7 @@
 
 Generated 2026-09-17 by `node scripts/compat-report.mjs`. Samples are pinned in `scripts/compat-sources.json`.
 
-Every schema in `schemas/` is exercised against one real GitHub repository: the highest-starred candidate that ships the layout, found with GitHub code search on the selection date. Each row answers two independent questions — does the repository satisfy the schema, and what does this plugin actually do when it reads the checkout.
+Every schema in `packages/market-catalog/schemas/` is exercised against one real GitHub repository: the highest-starred candidate that ships the layout, found with GitHub code search on the selection date. Each row answers two independent questions — does the repository satisfy the schema, and what does this plugin actually do when it reads the checkout.
 
 ## Summary
 
@@ -20,7 +20,7 @@ Every schema in `schemas/` is exercised against one real GitHub repository: the 
 
 ## Method
 
-- **Schema.** Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored schemas/1.0.0/plugin.schema.json.
+- **Schema.** Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored packages/market-catalog/schemas/1.0.0/plugin.schema.json.
 - **Scanner.** Each checkout is scanned by the shipped catalog scanner (lib/catalog/suite-scanner.js scanSource) after a sparse depth-1 clone, so the row records what this plugin actually does with the repository.
 - **Marketplace.** The scanner marketplace lookup order is `.plugin/marketplace.json` then `.claude-plugin/marketplace.json` then `.cursor-plugin/marketplace.json` then `.kimi-plugin/marketplace.json` then `.agents/plugins/marketplace.json` then `.agents/plugins/api_marketplace.json` then `.qoder-plugin/marketplace.json` then `.github/plugin/marketplace.json` then `marketplace.json`; other dialects' marketplace files are listed for context but are not read.
 - **Selection.** GitHub code search for the layout's manifest path, then a batched GraphQL star lookup over the first 40 candidates; the highest-starred candidate was verified file-by-file to ship the manifest before being pinned here. This is the highest-starred candidate the search returned, not an exhaustive ranking of every repository on GitHub. Metric: stargazers, checked 2026-09-08.
@@ -34,7 +34,7 @@ Verdicts: **integrated** — The scanner read this dialect’s own manifest as t
 - **Repository:** [grafana/mcp-grafana](https://github.com/grafana/mcp-grafana) @ `9ad4c230e7f15e96719273e364f053450b7679c6` (branch `main`, 3433 stars at selection).
 - **Dialect manifest:** `.claude-plugin/plugin.json`
 - **Verdict:** **integrated** — The scanner read `.claude-plugin/plugin.json` as the suite identity.
-- **Schema (plugin):** `.claude-plugin/plugin.json` against `schemas/claude-code/plugin.schema.json` — valid
+- **Schema (plugin):** `.claude-plugin/plugin.json` against `packages/market-catalog/schemas/claude-code/plugin.schema.json` — valid
 - **Scanner:** 1 suite(s); layouts `claude-code`.
 - **Surfaces:** skills 0, commands 0, agents 0, mcp 1, hooks 0, lsp 0.
 - **Marketplace files present:** none; productive marketplace reported by the scanner: none.
@@ -54,8 +54,8 @@ Verdicts: **integrated** — The scanner read this dialect’s own manifest as t
 - **Repository:** [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) @ `082c83e0537c803ac1d927daafc2e6eb6962dedf` (branch `main`, 24956 stars at selection).
 - **Dialect manifest:** `.cursor-plugin/plugin.json` · marketplace `.cursor-plugin/marketplace.json`
 - **Verdict:** **shadowed** — The scanner discovered 1 suite(s) but not through `.cursor-plugin/plugin.json`; the winning layout was claude-code.
-- **Schema (plugin):** `.cursor-plugin/plugin.json` against `schemas/cursor/plugin.schema.json` — valid
-- **Schema (marketplace):** `.cursor-plugin/marketplace.json` against `schemas/cursor/marketplace.schema.json` — valid
+- **Schema (plugin):** `.cursor-plugin/plugin.json` against `packages/market-catalog/schemas/cursor/plugin.schema.json` — valid
+- **Schema (marketplace):** `.cursor-plugin/marketplace.json` against `packages/market-catalog/schemas/cursor/marketplace.schema.json` — valid
 - **Scanner:** 1 suite(s); layouts `claude-code`.
 - **Surfaces:** skills 35, commands 0, agents 0, mcp 0, hooks 0, lsp 0.
 - **Marketplace files present:** `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, `.cursor-plugin/marketplace.json`, `.kimi-plugin/marketplace.json`; productive marketplace reported by the scanner: `.claude-plugin/marketplace.json`.
@@ -82,7 +82,7 @@ Verdicts: **integrated** — The scanner read this dialect’s own manifest as t
 - **Repository:** [saadeghi/daisyui](https://github.com/saadeghi/daisyui) @ `dd0a94a20ae35c7587017766cef9f0c109ff819b` (branch `master`, 42328 stars at selection).
 - **Dialect manifest:** `plugin.json`
 - **Verdict:** **integrated** — The scanner read `plugin.json` as the suite identity.
-- **Schema (plugin):** `plugin.json` against `schemas/1.0.0/plugin.schema.json` — valid
+- **Schema (plugin):** `plugin.json` against `packages/market-catalog/schemas/1.0.0/plugin.schema.json` — valid
 - **Scanner:** 1 suite(s); layouts `agent-plugin-v1`.
 - **Surfaces:** skills 1, commands 0, agents 0, mcp 0, hooks 0, lsp 0.
 - **Marketplace files present:** `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, `.cursor-plugin/marketplace.json`; productive marketplace reported by the scanner: `.claude-plugin/marketplace.json`.
@@ -90,15 +90,15 @@ Verdicts: **integrated** — The scanner read this dialect’s own manifest as t
   - `daisyui` — layout `agent-plugin-v1`, identity from `plugin.json`, surfaces skills 1, mcp 0, hooks 0, commands 0, agents 0, lsp 0.
 - **Scan notes:**
   - marketplace entry "daisyui-blueprint": path "./packages/blueprint" is missing or unreadable
-- **Why this repository:** Root plugin.json declares the agent-plugins.org v1.0.0 $schema; validated with the vendored schemas/1.0.0/plugin.schema.json.
+- **Why this repository:** Root plugin.json declares the agent-plugins.org v1.0.0 $schema; validated with the vendored packages/market-catalog/schemas/1.0.0/plugin.schema.json.
 
 ### zcode
 
 - **Repository:** [zenstory-ai/oh-story-claudecode](https://github.com/zenstory-ai/oh-story-claudecode) @ `fe1c133167ae758663c69bd9e5198543958c8b35` (branch `main`, 6665 stars at selection).
 - **Dialect manifest:** `.zcode-plugin/plugin.json` · marketplace `marketplace.json`
 - **Verdict:** **shadowed** — The scanner discovered 1 suite(s) but not through `.zcode-plugin/plugin.json`; the winning layout was claude-code.
-- **Schema (plugin):** `.zcode-plugin/plugin.json` against `schemas/zcode/plugin.schema.json` — valid
-- **Schema (marketplace):** `marketplace.json` against `schemas/zcode/marketplace.schema.json` — valid
+- **Schema (plugin):** `.zcode-plugin/plugin.json` against `packages/market-catalog/schemas/zcode/plugin.schema.json` — valid
+- **Schema (marketplace):** `marketplace.json` against `packages/market-catalog/schemas/zcode/marketplace.schema.json` — valid
 - **Scanner:** 1 suite(s); layouts `claude-code`.
 - **Surfaces:** skills 13, commands 0, agents 0, mcp 0, hooks 0, lsp 0.
 - **Marketplace files present:** `.claude-plugin/marketplace.json`, `marketplace.json`; productive marketplace reported by the scanner: `.claude-plugin/marketplace.json`.
@@ -111,7 +111,7 @@ Verdicts: **integrated** — The scanner read this dialect’s own manifest as t
 - **Repository:** [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) @ `e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156` (branch `main`, 131816 stars at selection).
 - **Dialect manifest:** `.qoder-plugin/plugin.json`
 - **Verdict:** **shadowed** — The scanner discovered 1 suite(s) but not through `.qoder-plugin/plugin.json`; the winning layout was claude-code.
-- **Schema (plugin):** `.qoder-plugin/plugin.json` against `schemas/qoder/plugin.schema.json` — valid
+- **Schema (plugin):** `.qoder-plugin/plugin.json` against `packages/market-catalog/schemas/qoder/plugin.schema.json` — valid
 - **Scanner:** 1 suite(s); layouts `claude-code`.
 - **Surfaces:** skills 6, commands 0, agents 0, mcp 0, hooks 3, lsp 0.
 - **Marketplace files present:** `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, `.github/plugin/marketplace.json`; productive marketplace reported by the scanner: `.claude-plugin/marketplace.json`.
@@ -124,7 +124,7 @@ Verdicts: **integrated** — The scanner read this dialect’s own manifest as t
 - **Repository:** [headroomlabs-ai/headroom](https://github.com/headroomlabs-ai/headroom) @ `2c56a1b3a7b991a42858543f6086e0a4936dbf2b` (branch `main`, 70594 stars at selection).
 - **Dialect manifest:** `—` · marketplace `.github/plugin/marketplace.json`
 - **Verdict:** **shadowed** — The scanner discovered 1 suite(s) but not through `.github/plugin/marketplace.json`; the winning layout was claude-code.
-- **Schema (marketplace):** `.github/plugin/marketplace.json` against `schemas/github-copilot/marketplace.schema.json` — valid
+- **Schema (marketplace):** `.github/plugin/marketplace.json` against `packages/market-catalog/schemas/github-copilot/marketplace.schema.json` — valid
 - **Scanner:** 1 suite(s); layouts `claude-code`.
 - **Surfaces:** skills 0, commands 0, agents 0, mcp 0, hooks 2, lsp 0.
 - **Marketplace files present:** `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`; productive marketplace reported by the scanner: `.claude-plugin/marketplace.json`.
@@ -140,4 +140,4 @@ node scripts/compat-report.mjs --refresh  # re-clone every sample
 node scripts/compat-report.mjs --dialect zcode
 ```
 
-Checkouts are cached under `node_modules/.cache/compat-report/<dialect>`; acquisition is a sparse, blobless, depth-1 clone, so a multi-gigabyte repository costs under a megabyte. The report is a point-in-time measurement: `tests/compat-report.test.ts` keeps it structurally valid and covered, but it does not re-fetch the repositories.
+Checkouts are cached under `node_modules/.cache/compat-report/<dialect>`; acquisition is a sparse, blobless, depth-1 clone, so a multi-gigabyte repository costs under a megabyte. The report is a point-in-time measurement: `packages/market-bundle/test/repo/compat-report.test.ts` keeps it structurally valid and covered, but it does not re-fetch the repositories.

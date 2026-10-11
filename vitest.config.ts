@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.ts'],
+    include: ['packages/*/test/**/*.test.ts'],
     environment: 'node',
     testTimeout: 30_000,
     // Serial execution: several tests share fixture directories and global

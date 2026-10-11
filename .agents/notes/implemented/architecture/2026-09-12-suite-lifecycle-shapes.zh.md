@@ -39,11 +39,11 @@ export interface Suite extends DiscoveredSuite {
 
 ## Consequences
 
-**边界立刻抓到了一个潜在缺陷。** `tests/real-layouts.test.ts` 用 `as never` 伪造了一个 `Catalog`，把**扫描态**套件交给了消费方，而消费方按投影态读取——现在它在 `src/runtime/project-runtime.ts` 抛错。这正是上面说的"静默挂载全部"失败模式，而由于那个 cast，它一直对 `tsc` 不可见。测试里的 host cast 仍然存在，所以 cast 依然可以藏住这一类错误；不要把类型检查全绿读成"没有任何 cast 藏得住东西"。
+**边界立刻抓到了一个潜在缺陷。** `packages/market-bundle/test/integration/real-layouts.test.ts` 用 `as never` 伪造了一个 `Catalog`，把**扫描态**套件交给了消费方，而消费方按投影态读取——现在它在 `src/runtime/project-runtime.ts` 抛错。这正是上面说的"静默挂载全部"失败模式，而由于那个 cast，它一直对 `tsc` 不可见。测试里的 host cast 仍然存在，所以 cast 依然可以藏住这一类错误；不要把类型检查全绿读成"没有任何 cast 藏得住东西"。
 
 **两个合成套件需要一份真实的集合。** `loadUserMcpSuite` 与直连 LSP 的套件字面量是在 `project()` 之外构造的，现在它们带上 `effectiveSurfaces(undefined)`——六个 surface 全开，这与字段缺失时每一处读取所得到的结果按位相同。
 
-**一个测试 helper 复述了规则的一小部分。** `tests/helpers/projected-suite.ts` 为那些直接从扫描驱动消费方的测试提供默认集合，同时保留套件自身的启用状态。把这些测试改走 `project()` 会更忠实，但 `project()` 会依据安装状态重算 `enabled`——没有安装条目时它设为 `enabled: false`，会破坏这些测试存在的意义。helper 里已写明这一点。
+**一个测试 helper 复述了规则的一小部分。** `packages/market-bundle/test/integration/helpers/projected-suite.ts` 为那些直接从扫描驱动消费方的测试提供默认集合，同时保留套件自身的启用状态。把这些测试改走 `project()` 会更忠实，但 `project()` 会依据安装状态重算 `enabled`——没有安装条目时它设为 `enabled: false`，会破坏这些测试存在的意义。helper 里已写明这一点。
 
 **`applyLspOverrides` 与 `buildLspStatus` 保持投影类型**，这是逐个检查调用方之后得出的结论，而不是照着签名做模式匹配：所有调用方传入的都是投影态套件，两个函数又都是保形映射，所以这条契约现在是强制的而非假设的。
 

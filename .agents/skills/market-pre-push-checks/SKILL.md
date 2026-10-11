@@ -16,7 +16,7 @@ Run evidence matched to the outgoing diff once, then report only the commands ru
 | --- | --- |
 | `src/**` or `tests/**` | `check:refactor` + the vitest files mirroring the touched areas (`tests/<area>.test.ts`) |
 | `src/client/**` or `locales.ts` | above + every `tests/client-*.test.ts` |
-| `schemas/**` | above + `tests/mcp-config.test.ts` + `tests/lsp-spec.test.ts` |
+| `schemas/**` | above + `packages/market-bundle/test/integration/mcp-config.test.ts` + `packages/market-catalog/test/lsp-spec.test.ts` |
 | `docs/**`, `README*`, `docs-site/**` | `format:check` + `pnpm --dir docs-site run check:guide && pnpm --dir docs-site run build && pnpm --dir docs-site run check:links` (the build+link pair only when site or guide sources changed) |
 | `package.json` / lockfile | `pnpm install --frozen-lockfile` + `check:refactor` + `check:host-alignment` |
 | a new `import('@deepseek-ai/dsh-*')` | above + `check:host-alignment` (an undeclared host import is a surface that degrades silently) |

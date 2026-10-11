@@ -220,7 +220,7 @@ jobs:
 1. **启动**：`spawn('dsh', ['--profile', profile, 'web', '--no-open', '--port', '0'])`（v2 修正：绝不用 `dsh web` 别名）。每阶段独立 timeout + `AbortController`；失败或超时升级 SIGKILL，对进程组清理（`detached: true` + `process.kill(-pid)`），并等待真实退出，防 MCP/LSP 子进程残留。
 2. **认证交换（兜底实现）**：解析 stdout 启动 URL（含 `?token=`）；先 `GET /?token=...`（`redirect: 'manual'`）取 `Set-Cookie`，带 Cookie 调 API。若实测证明裸调即可 200，此交换也无害。token/cookie 仅存内存，**不进日志、不进 artifact**。
 3. **Layer 2a 端点探活**：`overview` / `mcp-status` / `lsp-status` / `config` 各 GET，断言 200 + JSON 类型。评审指出 mcp/lsp-status 只投影已安装启用的 suite，200+object 只证「空状态可序列化」——定位为**启动可证**，功能证明靠 2b。
-4. **Layer 2b 功能断言（v2 新增，硬门）**：POST 添加 local source 指向 `tests/fixtures/cc-marketplace`，等待 catalog ready 后拉 overview，断言：该 source 出现且 `cloned: true`；已知 `suiteIds` 齐全；`scanNotes` 无该 fixture 的 error 级诊断。评审确认 fixture 含 skills/commands/LSP 声明可支撑 discovery 断言；MCP/hooks/commands 的**安装启用级**验证列为后续增强（需各自 fixture），本期不做。
+4. **Layer 2b 功能断言（v2 新增，硬门）**：POST 添加 local source 指向 `packages/market-bundle/test/integration/fixtures/cc-marketplace`，等待 catalog ready 后拉 overview，断言：该 source 出现且 `cloned: true`；已知 `suiteIds` 齐全；`scanNotes` 无该 fixture 的 error 级诊断。评审确认 fixture 含 skills/commands/LSP 声明可支撑 discovery 断言；MCP/hooks/commands 的**安装启用级**验证列为后续增强（需各自 fixture），本期不做。
 5. **证据落盘**：各阶段输出写 `probe-log.txt`，写盘前脱敏（token、cookie、credentials 内容、home 绝对路径），供失败时 artifact 上传。
 
 ### 4.2 失败时的证据

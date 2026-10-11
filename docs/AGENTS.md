@@ -1,6 +1,6 @@
 # AGENTS.md — Documentation
 
-Markdown under `docs/` is organized by the reader it serves. A page states its own subject; lower-level detail belongs to the owning descendant, reached by link. Product contracts live beside the code that owns them ([README.md](../README.md), [schemas/README.md](../schemas/README.md), `src/` JSDoc); decision rationale lives in [.agents/notes/](../.agents/notes/README.md).
+Markdown under `docs/` is organized by the reader it serves. A page states its own subject; lower-level detail belongs to the owning descendant, reached by link. Product contracts live beside the code that owns them ([README.md](../README.md), [packages/market-catalog/schemas/README.md](../packages/market-catalog/schemas/README.md), `src/` JSDoc); decision rationale lives in [.agents/notes/](../.agents/notes/README.md).
 
 ## Tree
 
@@ -28,7 +28,7 @@ The [docs site](../docs-site/.vitepress/config.mts) renders every `user/` page, 
 
 ## Generated artifacts
 
-[compat-report.md](reference/compat-report.md) and `compat-report.json` come from `node scripts/compat-report.mjs`; do not hand-edit them. Both are in `.prettierignore`. Moving or renaming one means updating the generator, [tests/compat-report.test.ts](../tests/compat-report.test.ts), and every inbound link in the same change.
+[compat-report.md](reference/compat-report.md) and `compat-report.json` come from `node scripts/compat-report.mjs`; do not hand-edit them. Both are in `.prettierignore`. Moving or renaming one means updating the generator, [compat-report.test.ts](../packages/market-bundle/test/repo/compat-report.test.ts), and every inbound link in the same change.
 
 The `docs-site/guide/` directory is the same kind of artifact: generated from `user/` by `copy-guide.mjs`, gitignored, and never edited by hand.
 

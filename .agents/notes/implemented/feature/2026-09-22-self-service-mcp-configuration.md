@@ -26,7 +26,7 @@ Configuring an MCP service was one-way: a save either succeeded or produced a si
 
 ## Testing
 
-`tests/client-mcp-detail.test.ts` covers the parameter disclosure and the guidance classifier; `tests/mcp-status.test.ts` pins schema transport and the size bound; `tests/server-config.test.ts` asserts that a rejected save names its field.
+`packages/market-bundle/test/integration/client-mcp-detail.test.ts` covers the parameter disclosure and the guidance classifier; `packages/market-bundle/test/integration/mcp-status.test.ts` pins schema transport and the size bound; `packages/market-bundle/test/integration/server-config.test.ts` asserts that a rejected save names its field.
 
 ## Related
 

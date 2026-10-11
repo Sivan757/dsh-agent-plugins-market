@@ -30,4 +30,4 @@ Throughput on a legitimate archive is unaffected in practice — the writes are 
 
 ## Testing
 
-`tests/zip-bomb.test.ts` builds a 20,010-entry zip and asserts the entry-limit rejection; that is the test that failed on Windows before this change. Its sibling cases cover the post-extraction tar walk. `tests/source-acquisition.test.ts` covers whole-archive installs end to end, including the staging-directory swap and the single-wrapper-directory normalization, so the settle-then-report order is exercised on the success path too.
+`packages/market-catalog/test/zip-bomb.test.ts` builds a 20,010-entry zip and asserts the entry-limit rejection; that is the test that failed on Windows before this change. Its sibling cases cover the post-extraction tar walk. `packages/market-bundle/test/integration/source-acquisition.test.ts` covers whole-archive installs end to end, including the staging-directory swap and the single-wrapper-directory normalization, so the settle-then-report order is exercised on the success path too.

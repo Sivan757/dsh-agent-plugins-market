@@ -31,6 +31,6 @@ State compatibility: `kind`, `sha256`, and `adopted` are optional `state.json` f
 
 ## Verification
 
-- `tests/source-acquisition.test.ts`: kind inference, id derivation for archive URLs, codeload URL mapping, state round-trip, download/verify/extract/unwrap/zip-slip/tar.gz/symlink-capable pipeline over a local HTTP server, adoption listing/idempotent adoption/git+local registration/removal keeps user directories.
-- `tests/routes.test.ts` covers the route table; `tests/skills-provider.test.ts` pins the local-source persisted shape.
+- `packages/market-bundle/test/integration/source-acquisition.test.ts`: kind inference, id derivation for archive URLs, codeload URL mapping, state round-trip, download/verify/extract/unwrap/zip-slip/tar.gz/symlink-capable pipeline over a local HTTP server, adoption listing/idempotent adoption/git+local registration/removal keeps user directories.
+- `packages/market-bundle/test/integration/routes.test.ts` covers the route table; `packages/market-bundle/test/integration/skills-provider.test.ts` pins the local-source persisted shape.
 - `pnpm run check:refactor` and the full vitest suite are green.

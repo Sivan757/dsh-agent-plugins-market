@@ -58,7 +58,7 @@ Service creation policy and editor spacing are specified in [shared service crea
 ## Verification
 
 - `pnpm run check:refactor` (typecheck, lint, format, routes+contracts tests, dependency-cruiser) green.
-- New tests: `tests/user-panels.test.ts` (store CRUD, disable round-trip, provider discovery, frontmatter helpers), `tests/feedback-tool.test.ts` (filing paths, cooldown, body rendering), route tests for conditional panel routes and `deleteCheckout` pass-through, and a source-acquisition case proving an adopted `.sources` checkout is removed under `deleteCheckout: true` while an external `local` directory survives.
+- New tests: `packages/market-runtime/test/user-panels.test.ts` (store CRUD, disable round-trip, provider discovery, frontmatter helpers), `packages/market-bundle/test/feedback-tool.test.ts` (filing paths, cooldown, body rendering), route tests for conditional panel routes and `deleteCheckout` pass-through, and a source-acquisition case proving an adopted `.sources` checkout is removed under `deleteCheckout: true` while an external `local` directory survives.
 - Full `pnpm run test`: 46 files, 300+ tests green.
 
 ## Related

@@ -56,7 +56,7 @@ MCP 详情移除启用控件，将重试与 OAuth 重置分开。后端能力决
 ## 验证
 
 - `pnpm run check:refactor`（typecheck、lint、format、routes+contracts 测试、dependency-cruiser）全绿。
-- 新增测试：`tests/user-panels.test.ts`（存储 CRUD、禁用往返、提供者发现、frontmatter 助手）、`tests/feedback-tool.test.ts`（提交路径、冷却、正文渲染）、条件面板路由与 `deleteCheckout` 透传的路由测试，以及证明收编的 `.sources` 检出在 `deleteCheckout: true` 下被删除、而外部 `local` 目录存活下来的 source-acquisition 用例。
+- 新增测试：`packages/market-runtime/test/user-panels.test.ts`（存储 CRUD、禁用往返、提供者发现、frontmatter 助手）、`packages/market-bundle/test/feedback-tool.test.ts`（提交路径、冷却、正文渲染）、条件面板路由与 `deleteCheckout` 透传的路由测试，以及证明收编的 `.sources` 检出在 `deleteCheckout: true` 下被删除、而外部 `local` 目录存活下来的 source-acquisition 用例。
 - 全量 `pnpm run test`：46 个文件、300+ 测试全绿。
 
 ## 关联

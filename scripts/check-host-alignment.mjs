@@ -118,6 +118,7 @@ function scanHostSurface(dir) {
       return
     }
     for (const entry of entries) {
+      if (entry === 'node_modules') continue
       const path = join(current, entry)
       if (statSync(path).isDirectory()) walk(path)
       else if (/\.[cm]?[jt]sx?$/.test(entry)) files.push(path)
@@ -129,8 +130,11 @@ function scanHostSurface(dir) {
     const source = readFileSync(path, 'utf8')
     const record = (name, kind) => {
       if (isClientPackage(name)) return
-      const entry = found.get(name) ?? { reference: relative(ROOT, path), static: false, dynamic: false }
+      const isTest = /(^|\/)test\//.test(relative(ROOT, path))
+      const entry = found.get(name) ?? { reference: relative(ROOT, path), static: false, dynamic: false, inSrc: false, inTest: false }
       entry[kind] = true
+      if (isTest) entry.inTest = true
+      else entry.inSrc = true
       found.set(name, entry)
     }
     for (const match of source.matchAll(/(?:from|require\s*\()\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'static')
@@ -244,6 +248,9 @@ function inspect(manifest, surface, baseline, exclusions) {
     }
     if (peer[name] !== undefined && peer[name] !== expectedPeer) {
       violations.push({ code: 'peer-stale', message: `peerDependencies["${name}"] is ${peer[name]}, expected ${expectedPeer}` })
+    } else if (!isDevOnlyClient && !isDevOnlyTest && entry !== undefined && !entry.inSrc && entry.inTest && !selfProvisioned && peer[name] === undefined) {
+      // A package imported only from a test/ tree supports this repository's own builds and
+      // tests; the exact dev mirror below pins it, and no consumer peer is imposed.
     } else if (!isDevOnlyClient && !isDevOnlyTest && !selfProvisioned && peer[name] === undefined) {
       violations.push({
         code: 'undeclared',

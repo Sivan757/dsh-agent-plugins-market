@@ -39,6 +39,6 @@ The MCP and LSP add dialogs each built their own shell: their own state for the 
 
 ## Testing
 
-- `tests/client-server-config-policy.test.ts` — the new-service dialog shows the fields the edit dialog shows, fetches nothing, gates its create action on a name and a usable document, and posts `{ type: 'stdio', command: … }` under the typed name.
-- `tests/client-detail-editors.test.ts` — an editor with no declaration key edits the definition itself and never composes the empty-key wrapper; the advanced disclosure is rendered in the form view only.
+- `packages/market-bundle/test/integration/client-server-config-policy.test.ts` — the new-service dialog shows the fields the edit dialog shows, fetches nothing, gates its create action on a name and a usable document, and posts `{ type: 'stdio', command: … }` under the typed name.
+- `packages/market-ui/test/client-detail-editors.test.ts` — an editor with no declaration key edits the definition itself and never composes the empty-key wrapper; the advanced disclosure is rendered in the form view only.
 - The edit flow's save payloads, the policy round trips and the form/JSON round trips keep their existing coverage unchanged.

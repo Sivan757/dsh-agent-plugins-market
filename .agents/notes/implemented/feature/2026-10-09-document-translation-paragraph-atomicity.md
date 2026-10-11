@@ -64,9 +64,9 @@ The 1,600-unit source bound includes AST markers but not later masking expansion
 
 ## Testing
 
-[Document chunk tests](../../../../tests/document-chunks.test.ts) cover intact short paragraphs, sentence grouping, markers, emoji and oversized sentences. [Localizer tests](../../../../tests/translation-localizer.test.ts) cover hidden partial results, completed aggregates, restart reuse, strategy separation and targeted retry. [Service tests](../../../../tests/translation-document.test.ts) cover failed paragraphs and retry without deleting successes.
+[Document chunk tests](../../../../packages/market-translation/test/document-chunks.test.ts) cover intact short paragraphs, sentence grouping, markers, emoji and oversized sentences. [Localizer tests](../../../../packages/market-translation/test/translation-localizer.test.ts) cover hidden partial results, completed aggregates, restart reuse, strategy separation and targeted retry. [Service tests](../../../../packages/market-bundle/test/integration/translation-document.test.ts) cover failed paragraphs and retry without deleting successes.
 
-[Reader tests](../../../../tests/client-document-translation.test.ts) cover header controls, selected-icon loading, failures and retry requests. These references name coverage owners. This documentation change does not claim a live-provider quality result or a completed browser validation.
+[Reader tests](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts) cover header controls, selected-icon loading, failures and retry requests. These references name coverage owners. This documentation change does not claim a live-provider quality result or a completed browser validation.
 
 ## Related
 

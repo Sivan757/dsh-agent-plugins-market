@@ -14,7 +14,7 @@ The composer skill menu refreshes after a committed extension selection without 
 
 ## Server and model
 
-Preset selection enters the session transaction through [extension-runtime.ts:338–385](../../packages/market-runtime/src/runtime/host/extension-runtime.ts#L338-L385). A busy session records intent without replacing active grants. The next request uses the selection promoted at the safe turn boundary. [The held-turn regression](../../tests/extension-next-turn.test.ts#L141-L170) asserts that ordering.
+Preset selection enters the session transaction through [extension-runtime.ts:338–385](../../packages/market-runtime/src/runtime/host/extension-runtime.ts#L338-L385). A busy session records intent without replacing active grants. The next request uses the selection promoted at the safe turn boundary. [The held-turn regression](../../packages/market-bundle/test/integration/extension-next-turn.test.ts#L141-L170) asserts that ordering.
 
 The committed callback calls [scoped-contributors.ts:307–313](../../packages/market-runtime/src/runtime/host/scoped-contributors.ts#L307-L313), which invalidates its registered skill providers. The published [registry:376–411](../../node_modules/@deepseek-ai/dsh-skill/lib/index.js#L376-L411) increments its revision, clears catalogs, and emits `skills/change`. The registry cache has no time-based expiry. `refreshInventory` updates resource availability, not the browser skill cache.
 
@@ -34,7 +34,7 @@ The [plugin adapter](../../packages/market-ui/src/ui/skill-catalog-refresh.ts#L8
 
 The Lead recorded one live save with the query `/fresh` unchanged. The save completed in 44.9 ms. The stationary menu replaced `fresh-one` with `fresh-two` at 54.1 ms from the measurement start. [The final measurement](skill-detail-2026-10-09-evidence/menu-latency.json#L3-L14) records the rows, times, and revision. This single observation is not a latency percentile or service-level guarantee.
 
-Executed adapter regression runs cover editor-only subscribers, closed menus, reversed responses, scope replacement, source ordering, and disposal. See [client-skill-refresh.test.ts](../../tests/client-skill-refresh.test.ts) and [commit notification tests](../../tests/client-selection-skill-notifications.test.ts). The actual published input controller also passed in-memory tests with the adapter installed before and after controller creation. The [React hook regression](../../tests/client-extension-presets.test.ts#L92-L132) confirms that reversed reads retain the newest revision and leave no polling timer after unmount. No full-suite result is asserted by this reference.
+Executed adapter regression runs cover editor-only subscribers, closed menus, reversed responses, scope replacement, source ordering, and disposal. See [client-skill-refresh.test.ts](../../packages/market-ui/test/client-skill-refresh.test.ts) and [commit notification tests](../../packages/market-ui/test/client-selection-skill-notifications.test.ts). The actual published input controller also passed in-memory tests with the adapter installed before and after controller creation. The [React hook regression](../../packages/market-bundle/test/integration/client-extension-presets.test.ts#L92-L132) confirms that reversed reads retain the newest revision and leave no polling timer after unmount. No full-suite result is asserted by this reference.
 
 ## Detail audit
 

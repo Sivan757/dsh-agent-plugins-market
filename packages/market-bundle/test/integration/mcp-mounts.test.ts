@@ -1,0 +1,551 @@
+import { describe, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { McpMountRegistry } from '../../../../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
+import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
+import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { required } from './helpers/fixture.js'
+
+const CC_COMMANDS_ROOT = fileURLToPath(new URL('./fixtures/cc-commands', import.meta.url))
+
+it('does not pass native tool restrictions to a host backend that cannot enforce them', async () => {
+  const { ctx, mounts } = fakeContext()
+  const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+  registry.setBackendProvider(async () => 'host')
+  const source = suite('filtered', 'server')
+  const mcp = required(source.mcp, 'the filtered fixture suite to declare mcp servers')
+  const declared = required(mcp.servers['server'], 'a server named "server" on the filtered suite')
+  declared.enabledTools = []
+  try {
+    const diagnostics = await registry.reconcile([source])
+    expect(mounts.size).toBe(0)
+    expect(diagnostics).toEqual([expect.objectContaining({ code: 'mount-failed' })])
+    expect(diagnostics[0]).toHaveProperty('reason', expect.stringContaining('cannot enforce'))
+  } finally {
+    await registry.disposeAll()
+  }
+})
+
+interface MountedPlugin {
+  config: Record<string, unknown>
+  disposed: boolean
+}
+
+function fakeContext(): { ctx: Record<string, unknown>; mounts: Map<string, MountedPlugin> } {
+  const mounts = new Map<string, MountedPlugin>()
+  const ctx: Record<string, unknown> = {
+    plugin: (plugin: unknown, config: Record<string, unknown>) => {
+      const serverName = config['serverName'] as string
+      const mounted: MountedPlugin = { config, disposed: false }
+      mounts.set(serverName, mounted)
+      return {
+        await: async () => {},
+        dispose: async () => {
+          mounted.disposed = true
+        }
+      }
+    },
+    logger: { warn: () => {} }
+  }
+  return { ctx, mounts }
+}
+
+function suite(id: string, serverKey: string): Suite {
+  return {
+    sourceId: 'demo',
+    id,
+    root: `/tmp/${id}`,
+    manifest: { layout: 'agent-plugin-v1', path: `/tmp/${id}/plugin.json`, id, name: id },
+    skills: [],
+    mcp: {
+      schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+      servers: { [serverKey]: { type: 'stdio', command: 'tool' } }
+    },
+    surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
+    dimension: 'user',
+    enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
+    errors: []
+  }
+}
+
+describe('McpMountRegistry', () => {
+  it('mounts enabled suites and unmounts removed ones through ctx.plugin', async () => {
+    const { ctx, mounts } = fakeContext()
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const diagnostics = await registry.reconcile([suite('alpha', 'db')])
+    expect(diagnostics).toEqual([])
+    expect(mounts.size).toBe(1)
+    const mounted = required([...mounts.values()][0], 'the alpha suite to mount one MCP server')
+    expect(mounted.config['transport']).toBe('stdio')
+    expect(mounted.config['serverName']).toBe('alpha__db')
+
+    await registry.reconcile([])
+    expect(mounted.disposed).toBe(true)
+    expect(mounts.size).toBe(1)
+
+    await registry.disposeAll()
+  })
+
+  it('serializes overlapping reconcile calls so disable cannot race an in-flight mount', async () => {
+    let releaseReady!: () => void
+    const ready = new Promise<void>(resolve => {
+      releaseReady = resolve
+    })
+    let mountStarted!: () => void
+    const started = new Promise<void>(resolve => {
+      mountStarted = resolve
+    })
+    const mounted = { disposed: false }
+    const ctx = {
+      plugin: () => {
+        mountStarted()
+        return {
+          await: async () => ready,
+          dispose: async () => {
+            mounted.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const enabling = registry.reconcile([suite('race', 'db')])
+    await started
+    const disabling = registry.reconcile([])
+    let disableSettled = false
+    void disabling.then(() => {
+      disableSettled = true
+    })
+    await Promise.resolve()
+    expect(disableSettled).toBe(false)
+    expect(mounted.disposed).toBe(false)
+
+    releaseReady()
+    await enabling
+    await disabling
+    expect(mounted.disposed).toBe(true)
+    await registry.disposeAll()
+  })
+
+  it('skips the second mount of a derived serverName another source already mounted', async () => {
+    // Two sources shipping the same suite/server pair derive ONE serverName —
+    // deriveServerName is deliberately not source-qualified — so the later
+    // arrival must report the redundancy instead of registering a shadow copy
+    // of a namespace the model already sees.
+    const mounted: string[] = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config['serverName'] as string)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const fromA = suite('codex', 'app')
+    fromA.sourceId = 'source-a'
+    const fromB = suite('codex', 'app')
+    fromB.sourceId = 'source-b'
+
+    await expect(registry.reconcile([fromA])).resolves.toEqual([])
+    const diagnostics = await registry.reconcile([fromA, fromB])
+
+    // Exactly one live mount, owned by the source that arrived first.
+    expect(mounted).toEqual(['codex__app'])
+    expect(registry.serverOwner('codex__app')).toEqual({ suiteId: 'source-a/codex', serverKey: 'app' })
+    expect(diagnostics).toEqual([
+      {
+        suiteId: 'source-b/codex',
+        serverKey: 'app',
+        code: 'duplicate-mount',
+        // Regression: this used to interpolate the registry's raw
+        // `${suiteId}\u0000${serverKey}` map value instead of the owner it
+        // parses, so a NUL byte and a repeated server key reached a
+        // model-facing diagnostic. Nothing caught it because the only other
+        // consumer feeds a hand-written reason into `buildMcpStatus`.
+        reason: 'server "codex__app" is already mounted from source-a/codex — this suite\'s copy is redundant and was skipped'
+      }
+    ])
+    await registry.disposeAll()
+  })
+
+  it('surfaces a failed startup as `failed` and leaves no orphan child behind', async () => {
+    const disposed: string[] = []
+    const ctx = {
+      plugin: () => ({
+        // `dsh-mcp-client` rejects on startup failure because mounts are
+        // created with failOnStartupError, so the real error reaches us.
+        await: async () => {
+          throw new Error('connection refused')
+        },
+        dispose: async () => {
+          disposed.push('disposed')
+        }
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const broken = suite('broken', 'service')
+
+    const diagnostics = await registry.reconcile([broken])
+
+    // The connection error is reported with its real message, not swallowed
+    // into a silent "degraded" row.
+    expect(diagnostics).toContainEqual({
+      suiteId: 'demo/broken',
+      serverKey: 'service',
+      code: 'mount-failed',
+      reason: 'mount failed: connection refused'
+    })
+    // The half-mounted handle is disposed so no child process survives.
+    expect(disposed).toEqual(['disposed'])
+    await registry.disposeAll()
+  })
+
+  it('carries the messages under a wrapper sentence onto the diagnostic', async () => {
+    const ctx = {
+      plugin: () => ({
+        // The shape a real failed startup has: one fixed sentence, with the
+        // spawn or handshake error that caused it underneath.
+        await: async () => {
+          throw new Error('mcp-client(broken__service): initial connection or tool synchronization failed', { cause: new Error('spawn npx ENOENT') })
+        },
+        dispose: async () => {}
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const diagnostics = await registry.reconcile([suite('broken', 'service')])
+
+    expect(diagnostics).toContainEqual({
+      suiteId: 'demo/broken',
+      serverKey: 'service',
+      code: 'mount-failed',
+      reason: 'mount failed: mcp-client(broken__service): initial connection or tool synchronization failed',
+      causes: ['spawn npx ENOENT']
+    })
+    await registry.disposeAll()
+  })
+
+  it('retains a mount after failed disposal so a later reconcile can retry cleanup', async () => {
+    let disposeAttempts = 0
+    const ctx = {
+      plugin: () => ({
+        await: async () => {},
+        dispose: async () => {
+          disposeAttempts++
+          if (disposeAttempts === 1) throw new Error('busy')
+        }
+      }),
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const mountedSuite = suite('retry', 'service')
+
+    await registry.reconcile([mountedSuite])
+    const first = await registry.reconcile([])
+    const second = await registry.reconcile([])
+
+    expect(first).toContainEqual({ suiteId: 'demo/retry', serverKey: 'service', code: 'unmount-failed', reason: 'unmount failed: busy' })
+    expect(second).toEqual([])
+    expect(disposeAttempts).toBe(2)
+  })
+
+  it('does not spawn a server when an environment credential is missing', async () => {
+    const mounted: Array<Record<string, unknown>> = []
+    const ctx = {
+      get: (name: string) => (name === 'credentials' ? { resolve: async () => undefined } : undefined),
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const authSuite = suite('auth', 'service')
+    const authMcp = required(authSuite.mcp, 'the auth fixture suite to declare mcp servers')
+    authMcp.servers['service'] = { type: 'stdio', command: 'tool', env: { API_TOKEN: '${API_TOKEN}' } }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    const diagnostics = await registry.reconcile([authSuite])
+
+    expect(mounted).toHaveLength(0)
+    expect(diagnostics).toContainEqual({
+      suiteId: 'demo/auth',
+      serverKey: 'service',
+      code: 'missing-credential',
+      credentialRefs: ['API_TOKEN'],
+      reason: 'missing credential reference API_TOKEN'
+    })
+  })
+
+  it('mounts with a credential supplied by the host resolver', async () => {
+    const mounted: Array<{ config: Record<string, unknown>; disposed: boolean }> = []
+    const ctx = {
+      get: (name: string) => (name === 'credentials' ? { resolve: async (ref: string) => (ref === 'API_TOKEN' ? { value: 'secret', source: 'file' } : undefined) } : undefined),
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const row = { config, disposed: false }
+        mounted.push(row)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            row.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const authSuite = suite('auth', 'service')
+    const authMcp = required(authSuite.mcp, 'the auth fixture suite to declare mcp servers')
+    authMcp.servers['service'] = { type: 'stdio', command: 'tool', env: { API_TOKEN: '${API_TOKEN}' } }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+
+    await expect(registry.reconcile([authSuite])).resolves.toEqual([])
+
+    expect(mounted).toHaveLength(1)
+    const row = required(mounted[0], 'the auth suite to mount one MCP server')
+    expect((row.config['env'] as Record<string, string>).API_TOKEN).toBe('secret')
+    await registry.disposeAll()
+    expect(row.disposed).toBe(true)
+  })
+
+  it('rebuilds a live mount flagged by forceRemount even when the config is unchanged', async () => {
+    // Regression: re-authorize drops a grant without changing any resolved
+    // config field, so a fingerprint-only reconcile kept the live bridge —
+    // with its in-memory tokens — and the re-authorization never ran.
+    const mounted: Array<Record<string, unknown> & { disposed?: boolean }> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const record: Record<string, unknown> & { disposed?: boolean } = { ...config, disposed: false }
+        mounted.push(record)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            record.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const authSuite = suite('auth', 'service')
+    const authMcp = required(authSuite.mcp, 'the auth fixture suite to declare mcp servers')
+    authMcp.servers['service'] = { type: 'stdio', command: 'tool', env: { API_TOKEN: 'token-v1' } }
+
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(1)
+    // No remount without a flag: identical config, live bridge stays.
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(1)
+    // Force-remount (re-authorize): same config, but the bridge is rebuilt.
+    registry.forceRemount('demo/auth', 'service')
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(2)
+    expect(required(mounted[0], 'the first mount of the auth suite').disposed).toBe(true)
+    // A subsequent pass with no flag does not rebuild again.
+    await registry.reconcile([authSuite])
+    expect(mounted).toHaveLength(2)
+    await registry.disposeAll()
+  })
+
+  it('rebuilds every live mount flagged by forceRemountAll', async () => {
+    // Manual retry: a bridge whose server died underneath it still matches its
+    // own resolved config, so the fingerprint cannot tell it apart from a
+    // healthy mount — retrying has to rebuild what is live.
+    const mounted: Array<Record<string, unknown> & { disposed?: boolean }> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        const record: Record<string, unknown> & { disposed?: boolean } = { ...config, disposed: false }
+        mounted.push(record)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            record.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    const suites = [suite('alpha', 'db'), suite('beta', 'cache')]
+
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(2)
+    // An unflagged pass over identical config leaves both bridges live.
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(2)
+
+    registry.forceRemountAll()
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(4)
+    expect(mounted.slice(0, 2).every(record => record.disposed === true)).toBe(true)
+
+    // The flags are consumed: the next pass leaves the fresh bridges alone.
+    await registry.reconcile(suites)
+    expect(mounted).toHaveLength(4)
+    await registry.disposeAll()
+  })
+
+  it('resolves the owning mount key from a derived serverName', () => {
+    const registry = new McpMountRegistry({ logger: { warn: () => {} } } as never, '/tmp/data')
+    expect(registry.serverOwner('alpha__db')).toBeUndefined()
+  })
+
+  it('skips mounting when a foreign MCP client already owns the derived serverName namespace', async () => {
+    const mounted: Array<Record<string, unknown>> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push(config)
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new McpMountRegistry(ctx as never, '/tmp/data')
+    // A native host MCP client (or another plugin) already registered tools
+    // under this suite's derived namespace.
+    registry.setToolNamesProvider(() => ['mcp__alpha__db__query', 'other_tool'])
+
+    const diagnostics = await registry.reconcile([suite('alpha', 'db')])
+
+    expect(mounted).toHaveLength(0)
+    const foreign = diagnostics.find(diagnostic => diagnostic.suiteId === 'demo/alpha' && diagnostic.serverKey === 'db' && diagnostic.code === 'foreign-mount')
+    expect(foreign).toHaveProperty('reason', expect.stringContaining('already mounted by another MCP client'))
+
+    // Once the foreign owner goes away, a later reconcile mounts normally.
+    registry.setToolNamesProvider(() => [])
+    await expect(registry.reconcile([suite('alpha', 'db')])).resolves.toEqual([])
+    expect(mounted).toHaveLength(1)
+    expect(required(mounted[0], 'the alpha suite to mount one MCP server')['serverName']).toBe('alpha__db')
+    await registry.disposeAll()
+  })
+})
+
+describe('CommandMountRegistry (CC commands compat)', () => {
+  it('registers commands/*.md and forwards the template as a model follow-up', async () => {
+    const registered: Array<{ name: string; description: string; input?: { hint: string }; handler: (inv: { agent: unknown; rawInput: string }) => unknown }> = []
+    const ctx = {
+      // No optional service resolves here, so the template's placeholders stay literal.
+      get: () => undefined,
+      commands: {
+        register: (def: { name: string; description: string; input?: { hint: string }; handler: (inv: { agent: unknown; rawInput: string }) => unknown }) => {
+          registered.push(def)
+          return () => {
+            registered.splice(registered.indexOf(def), 1)
+          }
+        }
+      }
+    }
+    const registry = new (await import('../../../../packages/market-runtime/src/runtime/surfaces/commands-mounts.js')).CommandMountRegistry(ctx as never)
+    const scanned = await (await import('../../../../packages/market-catalog/src/scanning/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
+    const diagnostics = await registry.reconcile(suites)
+    expect(diagnostics).toEqual([])
+    // Role definitions are catalog entries, never generated slash commands.
+    expect(registered.map(def => def.name)).toEqual(['review'])
+    const review = required(registered[0], 'the cc-commands fixture to register one review command')
+    expect(review.description).toBe('[cc-commands] Run a challenge review')
+    let followup: { content: Array<{ type: string; text: string }> } | undefined
+    const result = await review.handler({
+      agent: {
+        followup: (message: { content: Array<{ type: string; text: string }> }) => {
+          followup = message
+        }
+      },
+      rawInput: '--wait focus'
+    })
+    expect(result).toMatchObject({ kind: 'success' })
+    const forwarded = required(followup, 'the review command handler to forward a follow-up')
+    // The authored template verbatim — no plugin or suite decorator line, and
+    // the file's own trailing newline intact.
+    expect(required(forwarded.content[0], 'the forwarded follow-up to carry one content part').text).toBe('Run an adversarial review. Raw arguments: `--wait focus`.\n')
+    registry.disposeAll()
+    expect(registered.length).toBe(0)
+  })
+})
+
+describe('agent definitions stay separate from skills', () => {
+  it('keeps installed roles out of skill candidates while retaining ordinary skills', async () => {
+    const { Catalog } = await import('../../../../packages/market-bundle/src/application/catalog.js')
+    const { mkdtemp } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const userRoot = await mkdtemp(`${tmpdir()}/dsh-agent-plugins-agents-`)
+    const manager = new Catalog({ userRoot, dataRoot: `${userRoot}/data`, agentsRoot: `${userRoot}/agents`, onChanged: () => {} })
+    await manager.load()
+    await manager.mergeSources([{ id: 'cc', url: CC_COMMANDS_ROOT, local: true }])
+    await manager.install('cc', 'cc-commands')
+    await manager.setEnabled('cc', 'cc-commands', true)
+    const provider = new (await import('../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js')).SuiteSkillProvider(manager)
+    const candidates = await provider.list({})
+    const names = candidates.map(candidate => candidate.name)
+    expect(names).not.toContain('agent-codex-rescue')
+    expect(names).toContain('plain')
+  })
+})
+
+describe('HooksMountRegistry (CC hooks compat)', () => {
+  it('mounts one bridge per suite with the suite hook config path', async () => {
+    const mounted: Array<{ config: Record<string, unknown> }> = []
+    const ctx = {
+      plugin: (_plugin: unknown, config: Record<string, unknown>) => {
+        mounted.push({ config })
+        return { await: async () => {}, dispose: async () => {} }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new (await import('../../../../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
+    const scanned = await (await import('../../../../packages/market-catalog/src/scanning/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
+    const diagnostics = await registry.reconcile(suites)
+    expect(diagnostics).toEqual([])
+    expect(mounted).toHaveLength(1)
+    const bridge = required(mounted[0], 'the cc-commands suite to mount one hooks bridge')
+    expect(bridge.config['configPath']).toContain('hooks.json')
+    expect(bridge.config['pluginRoot']).toContain('cc-commands')
+    await registry.disposeAll()
+    expect(mounted).toHaveLength(1)
+  })
+
+  it('disposes the bridge a suite loses, whether from leaving the list or its hooks surface turning off', async () => {
+    const handles: Array<{ disposed: boolean }> = []
+    const ctx = {
+      plugin: () => {
+        const handle = { disposed: false }
+        handles.push(handle)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            handle.disposed = true
+          }
+        }
+      },
+      logger: { warn: () => {} }
+    }
+    const registry = new (await import('../../../../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js')).HooksMountRegistry(ctx as never)
+    const scanned = await (await import('../../../../packages/market-catalog/src/scanning/suite-scanner.js')).discoverSuitesInSource(CC_COMMANDS_ROOT, 'cc', 'user')
+    const suites = scanned.map(suite => withDefaultSurfaces({ ...suite, enabled: true }))
+    const ccSuite = required(suites[0], 'the cc-commands fixture to yield one suite')
+
+    // Mounted while the suite is listed with its hooks surface on.
+    await registry.reconcile(suites)
+    expect(handles).toHaveLength(1)
+    const first = required(handles[0], 'the listed suite to mount one hooks bridge')
+    expect(first.disposed).toBe(false)
+
+    // Its hooks surface off, the suite still listed: the registry owns this
+    // decision, and drops the bridge rather than leaving it mounted.
+    await registry.reconcile([{ ...ccSuite, activeSurfaces: { ...ccSuite.activeSurfaces, hooks: false } }])
+    expect(first.disposed).toBe(true)
+
+    // Surface back on: a fresh bridge.
+    await registry.reconcile(suites)
+    expect(handles).toHaveLength(2)
+    const second = required(handles[1], 'the suite to remount one hooks bridge')
+    expect(second.disposed).toBe(false)
+
+    // Absent from the list — the caller passes the enabled suites only, so an
+    // installed entry that was disabled or uninstalled never appears here.
+    // The registry cannot tell those two apart, and does not need to.
+    await registry.reconcile([])
+    expect(second.disposed).toBe(true)
+  })
+})

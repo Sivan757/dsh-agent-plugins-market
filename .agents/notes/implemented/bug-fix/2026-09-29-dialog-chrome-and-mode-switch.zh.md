@@ -50,7 +50,7 @@ Status: implemented
 - 在一个复现页里量几何：加载宿主的 `Modal.module.css` 与 `SegmentedControl.module.css`（0.2.0-rc.1）以及本仓库的 `detail.module.css` 与 `form.module.css`。修复前 592px 的轨道里，290px 的指示块压着 44px 的标签；修复后 145px 的轨道里，67px 的指示块正好压在 67px 的标签上，标题到控件的间距实测 14px（此前 34px）。
 - 同一个复现页里量高度，浮层 1000px：高大的弹窗在两个视图里都是 758px，JSON 字段长到 338px，而详情类弹窗保持按内容定高的 387px。
 - 同一页的矮窗用例量溢出：浮层 520px 时，198px 的正文里滚动着 501px 的内容，编辑器保持完整的 477px 高；此前的链条把它压到 174px，并把表单切出了滚动范围。
-- `tests/client-detail-editors.test.ts` 与 `tests/client-server-config-policy.test.ts` —— 切换控件两个方向仍然驱动同一份文档。
+- `packages/market-ui/test/client-detail-editors.test.ts` 与 `packages/market-bundle/test/integration/client-server-config-policy.test.ts` —— 切换控件两个方向仍然驱动同一份文档。
 - 两处修复都无法被 jsdom 测试看见：本仓库的客户端测试把 CSS modules 打桩成 `{}`，被测的类名根本到不了 DOM。
 
 ## Related

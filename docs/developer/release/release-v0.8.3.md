@@ -20,7 +20,7 @@
 ## 二、验证证据
 
 - **CodeQL 自证**：PR 合并引用的分析上传报告为 **0 条结果**；合并到 main 后 main 上的分析复跑，三条告警状态转为已关闭。当前 open 的代码扫描告警与依赖告警都是 **0**。
-- **新增回归**：`tests/mcp-redaction.test.ts` 增加边界用例（`${}`、`${}}`、`${`、`$ {A}`、`${}${A}`）与 15 万字符恶意输入；`tests/client-banner.test.ts` 用夹具驱动横幅脚本，覆盖导入替换、含 `</script>`／引号／反斜杠／行分隔符样式表的逐字节送达、无样式表分支、非法包名拒绝、产物中不留 CSS 文本。
+- **新增回归**：`packages/market-bundle/test/integration/mcp-redaction.test.ts` 增加边界用例（`${}`、`${}}`、`${`、`$ {A}`、`${}${A}`）与 15 万字符恶意输入；`packages/market-bundle/test/repo/client-banner.test.ts` 用夹具驱动横幅脚本，覆盖导入替换、含 `</script>`／引号／反斜杠／行分隔符样式表的逐字节送达、无样式表分支、非法包名拒绝、产物中不留 CSS 文本。
 - **真实构建往返**：51 376 字节样式表进、51 376 字节出，逐字节相同。
 - **已发布产物复核**：`0.8.3` tarball 237 个文件，`lib/application/mcp/mcp-redaction.js` 含扫描实现，`client/client.js` 中 `import './style.css'` 已被替换。
 - 门禁：`check:refactor` + `check:reuse` ✅ · 894 测试 / 101 文件 ✅ · build ✅ · docs-site ✅ · 宿主基线 0.1.7-rc.2（21 个包）✅ · prettier ✅，均在隔离 worktree 的已提交 tip 上验证。

@@ -26,4 +26,4 @@ Status: implemented
 
 ## Testing
 
-`tests/plugin-apply.test.ts` 验证后端事件合并及销毁后不再协调。`tests/runtime-reconciler.test.ts` 保持 MCP 启动等待并验证本地 surface 已完成，同时覆盖各 surface 的保序、失败隔离与销毁顺序。
+`packages/market-bundle/test/integration/plugin-apply.test.ts` 验证后端事件合并及销毁后不再协调。`packages/market-bundle/test/integration/runtime-reconciler.test.ts` 保持 MCP 启动等待并验证本地 surface 已完成，同时覆盖各 surface 的保序、失败隔离与销毁顺序。

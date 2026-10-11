@@ -84,7 +84,7 @@ Provider 可能改变技术文本。发送前，遮蔽层用占位符替换行�
 
 ## Testing
 
-[翻译链测试](../../../../tests/translation-chain.test.ts)覆盖顺序、超时、失败与取消；[本地化器测试](../../../../tests/translation-localizer.test.ts)覆盖同文复用、目标隔离、限额与恢复；[缓存测试](../../../../tests/translation-cache.test.ts)覆盖持久键。文档结构与关闭/重置竞态的覆盖归属见[生命周期决策](2026-10-06-translation-reading-and-lifecycle.zh.md)。本节列出可追溯用例，不沿用历史撤回验证或性能数字。
+[翻译链测试](../../../../packages/market-bundle/test/integration/translation-chain.test.ts)覆盖顺序、超时、失败与取消；[本地化器测试](../../../../packages/market-translation/test/translation-localizer.test.ts)覆盖同文复用、目标隔离、限额与恢复；[缓存测试](../../../../packages/market-translation/test/translation-cache.test.ts)覆盖持久键。文档结构与关闭/重置竞态的覆盖归属见[生命周期决策](2026-10-06-translation-reading-and-lifecycle.zh.md)。本节列出可追溯用例，不沿用历史撤回验证或性能数字。
 
 ## Related
 

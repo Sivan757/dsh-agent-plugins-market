@@ -1,0 +1,408 @@
+// @vitest-environment jsdom
+import { act, createElement as h } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { stubTranslate as t } from './helpers/translate.js'
+import { parse } from 'yaml'
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true
+const api = vi.hoisted(() => {
+  const fetchUserPanel = vi.fn()
+  return {
+    fetchModelCatalog: vi.fn(),
+    fetchUserPanel,
+    // The surface reads through `readUserPanel`, which carries the translation
+    // count it polls on; these fixtures serve settled text, so the count is
+    // zero and one read is the whole exchange.
+    //
+    // Both mocks mirror the real routes: the list ships rows without their
+    // documents, and the entry read is the one that carries the document.
+    readUserPanel: vi.fn(async (...args: unknown[]) => {
+      const rows = (await fetchUserPanel(...args)) as Array<Record<string, unknown>>
+      return {
+        entries: rows.map(row => {
+          const wire = { ...row }
+          delete wire['rawText']
+          return wire
+        }),
+        translationPending: 0
+      }
+    }),
+    fetchUserPanelEntry: vi.fn(async (kind: string, name: string) => {
+      const rows = (await fetchUserPanel(kind)) as Array<Record<string, unknown>>
+      const entry = rows.find(row => (row['id'] ?? row['name']) === name)
+      if (entry?.['rawText'] === undefined) throw new Error(`no entry named "${name}"`)
+      return entry
+    }),
+    createUserPanelEntry: vi.fn(),
+    updateUserPanelEntry: vi.fn(),
+    deleteUserPanelEntry: vi.fn()
+  }
+})
+vi.mock('../../../packages/market-ui/src/api.js', () => api)
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async importOriginal => ({
+  ...(await importOriginal<typeof import('@deepseek-ai/dsh-client-ui-primitives')>()),
+  Button: (props: Record<string, unknown>) => h('button', props),
+  Input: ({ icon: _icon, ...props }: Record<string, unknown>) => h('input', props),
+  Modal: ({ children, footer, title }: { children: React.ReactNode; footer: React.ReactNode; title: string }) =>
+    h('section', { role: 'dialog' }, h('h2', null, title), children, footer)
+}))
+import { UserPanelSurface } from '../../../packages/market-ui/src/ui/UserPanelSurface.js'
+let root: Root
+let host: HTMLDivElement
+const plugin = {
+  id: 'plugin:suite:reviewer',
+  name: 'reviewer',
+  description: 'Review implementation',
+  origin: 'plugin',
+  suiteName: 'Review suite',
+  metadata: { model: 'provider/model', tools: ['Read'] },
+  rawText: '---\nmodel: provider/model\ntools: [Read]\n---\nReview code',
+  content: 'Review code',
+  path: '/plugins/reviewer.md',
+  disabled: false
+}
+const user = { ...plugin, id: 'user:reviewer', origin: 'user', path: '/user/reviewer.md' }
+/** Click by visible text, or by accessible name for an icon-only control. */
+async function click(text: string) {
+  const button = [...host.querySelectorAll('button')].find(item => item.textContent?.includes(text) || item.getAttribute('aria-label') === text)
+  expect(button, text).toBeDefined()
+  await act(async () => button!.click())
+}
+/** Mount the panel into a fresh host; both cases start from a blank document. */
+async function mountPanel() {
+  host = document.createElement('div')
+  document.body.append(host)
+  root = createRoot(host)
+  await act(async () => root.render(h(UserPanelSurface, { t, kind: 'agents' })))
+}
+afterEach(async () => {
+  await act(async () => root?.unmount())
+  host?.remove()
+  vi.clearAllMocks()
+})
+
+describe('unified Markdown resource panel', () => {
+  it('loads provider models on demand and saves the selected pair into the original frontmatter', async () => {
+    api.fetchUserPanel.mockResolvedValue([user])
+    const providers = [
+      { id: 'provider', name: 'Provider' },
+      { id: 'second', name: 'Second' }
+    ]
+    api.fetchModelCatalog.mockImplementation(async (provider?: string) => ({
+      providers,
+      models: provider === 'second' ? [{ id: 'model-b', name: 'Model B' }] : [{ id: 'model', name: 'Model' }]
+    }))
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    await mountPanel()
+    expect(api.fetchModelCatalog).not.toHaveBeenCalled()
+    await click('panelEditTitle')
+    const select = async (index: number, value: string) => {
+      await act(async () => {
+        const input = host.querySelectorAll('select')[index]
+        if (input === undefined) throw new Error(`expected a select at index ${index}`)
+        input.value = value
+        input.dispatchEvent(new Event('change', { bubbles: true }))
+      })
+    }
+    await select(0, 'second')
+    expect(api.fetchModelCatalog).toHaveBeenLastCalledWith('second', expect.any(AbortSignal))
+    await click('panelSave')
+    expect(api.updateUserPanelEntry).not.toHaveBeenCalled()
+    await select(1, 'model-b')
+    await click('panelSave')
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', user.id, expect.stringContaining('provider: second'))
+    const [saveCall] = api.updateUserPanelEntry.mock.calls
+    if (saveCall === undefined) throw new Error('expected the panel save to post the changed entry')
+    const raw = saveCall[2] as string
+    expect(raw).toContain('model: model-b')
+    const [, frontmatterBlock] = raw.split('---\n')
+    if (frontmatterBlock === undefined) throw new Error('expected the posted body to keep its frontmatter block')
+    const frontmatter: unknown = parse(frontmatterBlock)
+    expect(frontmatter).toHaveProperty('tools', ['Read'])
+    expect(raw).toContain('Review code')
+  })
+
+  it('opens a routing-only editor from a plugin persona card, with no document surface', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin])
+    api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    await mountPanel()
+    // The pencil on a plugin persona card opens the structured routing form.
+    await click('panelEditTitle')
+    const dialog = () => host.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialog()).toContain('personaRuntimeConfig')
+    // The suite owns the document: no raw Markdown surface, only the routing
+    // controls — the textarea content the raw editor would carry is absent.
+    expect(host.querySelector('textarea')).toBeNull()
+    // Saving posts the raw document to the same update route; the server's
+    // allowlist is what actually confines the diff.
+    await click('panelSave')
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', plugin.id, plugin.rawText)
+  })
+
+  it('offers edit and delete only on user-authored entries', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin, user])
+    api.fetchModelCatalog.mockResolvedValue({ providers: [{ id: 'provider', name: 'Provider' }], models: [{ id: 'model', name: 'Model' }] })
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    await mountPanel()
+    // The tab row already names this panel, so the header carries only the
+    // description that says something the tab does not.
+    expect(host.querySelector('[data-panel-header] h2')).toBeNull()
+    expect(host.textContent).toContain('personasPanelDescription')
+    expect(host.querySelectorAll('input').length).toBeGreaterThan(0)
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="switchToList"]')!.click())
+    await click('panelSourcePlugin')
+    // An agent persona card carries the pencil: it opens the routing editor.
+    expect(host.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+    await click('panelSourceUser')
+    // The pencil opens the filtered entry's own document; its path is a detail
+    // read-out, not an editor field, so the editor never repeats it.
+    await click('panelEditTitle')
+    const dialog = host.querySelector('[role="dialog"]')?.textContent ?? ''
+    expect(dialog).toContain('Review code')
+    expect(dialog).not.toContain('/user/reviewer.md')
+    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('personaRuntimeConfig')
+    expect([...host.querySelectorAll('select')].map(select => select.value)).toEqual(['provider', 'model', ''])
+    await click('panelSave')
+    // The panel entry and the suite entry share the name 'reviewer'; the save
+    // rides the stable id, so it cannot land on the plugin's file.
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith('agents', user.id, user.rawText)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
+    expect(host.textContent).toContain('reviewer')
+    expect(host.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('renders a nested command under its flattened call name in the card and the detail', async () => {
+    const command = {
+      ...user,
+      id: 'user:git/commit',
+      name: 'git/commit',
+      description: 'Commit staged work',
+      path: '/user/commands/git/commit.md',
+      rawText: '---\ndescription: Commit staged work\n---\nCommit: $ARGUMENTS',
+      content: 'Commit: $ARGUMENTS'
+    }
+    api.fetchUserPanel.mockResolvedValue([command])
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'commands' })))
+
+    // The slash menu only accepts `git-commit`, so the card shows that name —
+    // without the slash the user never types — rather than the `git/commit`
+    // path the panel addresses the document by.
+    expect([...host.querySelectorAll('span')].some(span => span.textContent === 'git-commit')).toBe(true)
+
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    expect(card).not.toBeNull()
+    await act(async () => card!.click())
+    expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('git-commit')
+  })
+
+  it('offers edit and delete only on user-authored entries', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin, user])
+    await mountPanel()
+    const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
+    // Suite-owned files uninstall with their suite and their content stays
+    // suite-authored, so there is no delete affordance at all — not even a
+    // disabled one. The persona's pencil edits routing only; the next test
+    // covers the document surface it leaves out.
+    expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    expect(pluginCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+    expect(userCard?.querySelector('button[aria-label="panelDelete"]')).not.toBeNull()
+    expect(userCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+  })
+
+  it('gives plugin skill and command cards no edit affordance', async () => {
+    const pluginSkill = { ...plugin, name: 'review-skill', path: '/plugins/skills/review.md' }
+    const pluginCommand = { ...plugin, name: 'review-cmd', path: '/plugins/commands/review.md' }
+    for (const [kind, entry] of [
+      ['skills', pluginSkill],
+      ['commands', pluginCommand]
+    ] as const) {
+      api.fetchUserPanel.mockResolvedValue([entry])
+      host = document.createElement('div')
+      document.body.append(host)
+      root = createRoot(host)
+      await act(async () => root.render(h(UserPanelSurface, { t, kind })))
+      expect(host.querySelector('button[aria-label="panelEditTitle"]'), kind).toBeNull()
+      expect(host.querySelector('button[aria-label="panelDelete"]'), kind).toBeNull()
+    }
+  })
+
+  it('shows persona routing frontmatter as its own rows in the detail', async () => {
+    api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: { model: 'inherit', provider: 'vendor', reasoning_effort: 'high', tools: ['Read'] } }])
+    await mountPanel()
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    await act(async () => card!.click())
+    const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
+    // The same three words the routing editor labels these fields with.
+    expect(dialog).toContain('personaProvider')
+    expect(dialog).toContain('vendor')
+    expect(dialog).toContain('personaModel')
+    expect(dialog).toContain('inherit')
+    expect(dialog).toContain('personaReasoningEffort')
+    expect(dialog).toContain('high')
+    // Routing keys are the panel's own domain, so the dialog states them as
+    // their own labelled rows rather than folding them into a metadata row.
+    expect(dialog).toContain('detailToolsLabel')
+    expect(dialog).toContain('Read')
+    expect(dialog).not.toContain('model: inherit')
+    expect(dialog).not.toContain('reasoning_effort')
+  })
+
+  it('states the route a persona inherits when it declares none of its own', async () => {
+    api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: {} }])
+    await mountPanel()
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    await act(async () => card!.click())
+    const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
+    // A missing row cannot answer "what will this agent run on", so the three
+    // route rows stay and name what they fall back to.
+    expect(dialog).toContain('personaProvider')
+    expect(dialog).toContain('personaModel')
+    expect(dialog).toContain('personaReasoningEffort')
+    expect(dialog).toContain('personaInherit')
+    expect(dialog).toContain('personaEffortAutomatic')
+  })
+
+  it('switches a skill through the harness invocation pair, never the panel key', async () => {
+    const on = {
+      ...user,
+      id: 'user:notes',
+      name: 'notes',
+      path: '/user/notes.md',
+      rawText: '---\nname: notes\ndescription: take notes\n---\nBody',
+      content: 'Body',
+      disabled: false
+    }
+    let mounted = false
+    const mountSkills = async (entries: unknown[]): Promise<void> => {
+      api.fetchUserPanel.mockResolvedValue(entries)
+      if (mounted) {
+        await act(async () => root.unmount())
+        host.remove()
+      }
+      host = document.createElement('div')
+      document.body.append(host)
+      root = createRoot(host)
+      await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
+      mounted = true
+    }
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+
+    const switchButton = (): HTMLButtonElement => {
+      const found = host.querySelector<HTMLButtonElement>('button[role="switch"]')
+      expect(found).not.toBeNull()
+      return found!
+    }
+
+    await mountSkills([on])
+    expect(switchButton().title).toBe('disable')
+    await act(async () => switchButton().click())
+    const [offCall] = api.updateUserPanelEntry.mock.calls
+    expect(offCall?.[0]).toBe('skills')
+    expect(offCall?.[1]).toBe('user:notes')
+    const offText = offCall?.[2] as string
+    expect(offText).toContain('disable-model-invocation: true')
+    expect(offText).toContain('user-invocable: false')
+    expect(offText).not.toContain('disabled:')
+    expect(offText).toContain('Body')
+
+    // The reverse direction restores both controls and drops the legacy key.
+    api.updateUserPanelEntry.mockClear()
+    await mountSkills([{ ...on, disabled: true, rawText: '---\nname: notes\ndescription: take notes\ndisabled: true\n---\nBody' }])
+    await act(async () => switchButton().click())
+    const onText = api.updateUserPanelEntry.mock.calls[0]?.[2] as string
+    expect(onText).toContain('disable-model-invocation: false')
+    expect(onText).toContain('user-invocable: true')
+    expect(onText).not.toContain('disabled:')
+  })
+
+  it.each(['skills', 'commands', 'agents'] as const)('keeps plugin %s switches available without exposing document edits or deletion', async kind => {
+    const on = { ...plugin, rawText: '---\nname: reviewer\ndescription: Review implementation\n---\nReview code' }
+    let entry = on
+    api.fetchUserPanel.mockImplementation(async () => [entry])
+    api.updateUserPanelEntry.mockImplementation(async (_kind: string, _id: string, text: string) => {
+      entry = { ...entry, rawText: text, disabled: !entry.disabled }
+    })
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind })))
+    const control = (): HTMLButtonElement => host.querySelector<HTMLButtonElement>('button[role="switch"]')!
+    expect(control().disabled).toBe(false)
+    await act(async () => control().click())
+    const text = api.updateUserPanelEntry.mock.calls[0]?.[2] as string
+    expect(api.updateUserPanelEntry).toHaveBeenCalledWith(kind, on.id, text)
+    expect(text).toContain(kind === 'skills' ? 'disable-model-invocation: true' : 'disabled: true')
+    if (kind === 'skills') expect(text).toContain('user-invocable: false')
+    expect(text).toContain('Review code')
+    expect(control().getAttribute('aria-checked')).toBe('false')
+    expect(host.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    if (kind !== 'agents') expect(host.querySelector('button[aria-label="panelEditTitle"]')).toBeNull()
+    await act(async () => control().click())
+    const restored = api.updateUserPanelEntry.mock.calls[1]?.[2] as string
+    expect(restored).toContain(kind === 'skills' ? 'disable-model-invocation: false' : 'disabled: false')
+    if (kind === 'skills') expect(restored).toContain('user-invocable: true')
+    expect(control().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('reads an entry document when its detail opens, not with the list', async () => {
+    api.fetchUserPanel.mockResolvedValue([user])
+    api.fetchUserPanelEntry.mockResolvedValue({ ...user, rawText: '---\ndescription: Review implementation\n---\nFRESHDOCBODY' })
+    await mountPanel()
+    const card = host.querySelector<HTMLElement>('[role="button"]')
+    await act(async () => card!.click())
+    // The dialog opens on the document, so that read rides the open rather than
+    // a second click. The list read still carries no document of its own.
+    expect(api.fetchUserPanelEntry).toHaveBeenCalledWith('agents', user.id)
+    expect(host.textContent).toContain('FRESHDOCBODY')
+  })
+
+  it('fetches the document before flipping an enable switch', async () => {
+    const row = { ...user, id: 'user:notes', name: 'notes', path: '/user/notes.md' }
+    // The list read carries no document (the mock strips it, as the route
+    // does), so the rewrite can only come from the entry read.
+    api.fetchUserPanel.mockResolvedValue([row])
+    api.fetchUserPanelEntry.mockResolvedValue({ ...row, rawText: '---\nname: notes\ndescription: take notes\n---\nFETCHEDBODY' })
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
+    await act(async () => host.querySelector<HTMLButtonElement>('button[role="switch"]')!.click())
+    expect(api.fetchUserPanelEntry).toHaveBeenCalledWith('skills', 'user:notes')
+    const text = api.updateUserPanelEntry.mock.calls[0]?.[2] as string
+    expect(text).toContain('disable-model-invocation: true')
+    expect(text).toContain('user-invocable: false')
+    expect(text).toContain('FETCHEDBODY')
+  })
+
+  it('refuses to switch a document whose frontmatter failed validation', async () => {
+    api.fetchUserPanel.mockResolvedValue([{ ...user, id: 'user:broken', name: 'broken', disabled: true, metadata: { validationError: 'missing YAML frontmatter' } }])
+    api.updateUserPanelEntry.mockResolvedValue(undefined)
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root.render(h(UserPanelSurface, { t, kind: 'skills' })))
+    const switchButton = host.querySelector<HTMLButtonElement>('button[role="switch"]')
+    expect(switchButton?.disabled).toBe(true)
+  })
+
+  it('asks for a genuine re-read when the user presses Refresh', async () => {
+    api.fetchUserPanel.mockResolvedValue([user])
+    await mountPanel()
+    // The panel's own load is an ordinary read: the host's row cache is what
+    // keeps repeated reads cheap while translations land.
+    expect(api.readUserPanel).toHaveBeenCalledWith('agents', false)
+
+    api.readUserPanel.mockClear()
+    await click('refresh')
+    // Refresh is the user asking for the working tree as it stands, so it must
+    // never be answered from that cache.
+    expect(api.readUserPanel).toHaveBeenCalledWith('agents', true)
+    expect(api.readUserPanel.mock.calls.every(call => call[1] === true)).toBe(true)
+  })
+})

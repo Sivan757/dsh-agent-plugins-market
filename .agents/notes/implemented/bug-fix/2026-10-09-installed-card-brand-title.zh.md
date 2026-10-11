@@ -24,7 +24,7 @@ Status: implemented
 
 ## Consequences
 
-- 已安装卡片、其开关标签与卸载确认按界面语言显示 `Agent 扩展` 或 `Agent Plugins`。两种语言都由 `tests/package-branding.test.ts` 固定。
+- 已安装卡片、其开关标签与卸载确认按界面语言显示 `Agent 扩展` 或 `Agent Plugins`。两种语言都由 `packages/market-ui/test/package-branding.test.ts` 固定。
 - 包详情页继续打印 npm 包名，因此卡片与详情页各显示一次品牌名与技术标识。
 - 不引入运行时依赖、设置存储或 profile 改动。宿主在不执行插件代码的情况下读取随包语言资源，因此插件停用时标题仍可用。
 - 包详情页里 bundle 自身那一行会重新打印技术标识。行 id 与模块名都是 `dsh-agent-plugins-market`，而宿主会打印每一个与标题不同的值，因此该行在品牌标题下方把这串名字显示两次。改行 id 可以避免，但行 id 就是配置键（`<包名>#<行 id>`）与 profile 覆盖地址，改名会让已保存设置失联。这一行重复是品牌标题被接受的代价。
@@ -32,4 +32,4 @@ Status: implemented
 
 ## Testing
 
-`tests/package-branding.test.ts` 断言两种语言的 `meta.title` 等于本地化 `nav` 标签，`meta.description` 等于 `marketCardDesc`。已用桌面 profile 运行安装版宿主校验器，返回 `{"en":"Agent Plugins","zh":"Agent 扩展"}` 且没有元信息错误。
+`packages/market-ui/test/package-branding.test.ts` 断言两种语言的 `meta.title` 等于本地化 `nav` 标签，`meta.description` 等于 `marketCardDesc`。已用桌面 profile 运行安装版宿主校验器，返回 `{"en":"Agent Plugins","zh":"Agent 扩展"}` 且没有元信息错误。

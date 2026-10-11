@@ -30,4 +30,4 @@ Status: implemented
 
 ## Testing
 
-`tests/teammate-role.test.ts` 固定了活跃名册行与成员自身 options、`restore()` 路径，以及 options 被冻结时的降级行为（请求仍使用角色模型）。已用变异确认：关闭写入会让名册与恢复断言失败。
+`packages/market-runtime/test/teammate-role.test.ts` 固定了活跃名册行与成员自身 options、`restore()` 路径，以及 options 被冻结时的降级行为（请求仍使用角色模型）。已用变异确认：关闭写入会让名册与恢复断言失败。

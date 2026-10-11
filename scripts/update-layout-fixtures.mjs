@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const config = JSON.parse(await readFile(join(root, 'scripts/compat-sources.json'), 'utf8'))
-const output = join(root, 'tests/fixtures/real-layouts')
+const output = join(root, 'packages/market-bundle/test/integration/fixtures/real-layouts')
 await mkdir(output, { recursive: true })
 const index = []
 for (const sample of config.samples) {

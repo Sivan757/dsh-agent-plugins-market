@@ -32,4 +32,4 @@ This is a decision about the plugin's **own** state. It does not contradict usin
 
 ## Status
 
-Implemented as "no change": persistence remains on the harness file utilities. No plugin code reads or writes `ctx.storageDomain`. `tests/state.test.ts` continues to pin the properties this decision depends on — a write creating two missing directory levels, successive writes leaving one file with the last content, and `0o600` on the replacement.
+Implemented as "no change": persistence remains on the harness file utilities. No plugin code reads or writes `ctx.storageDomain`. `packages/market-catalog/test/state.test.ts` continues to pin the properties this decision depends on — a write creating two missing directory levels, successive writes leaving one file with the last content, and `0o600` on the replacement.
