@@ -68,7 +68,7 @@ resolveFavoriteInput reuses resolveSurfaceToggles instead of repeating its fallb
 
 ## Delivery slices and ownership
 
-The native Agent Teams board is the task tracker. Existing tasks/plan.md belongs to an earlier completed initiative and is not overwritten. New implementation tasks link this design and record exact file scopes before claim.
+The native Agent Teams board is the task tracker. New implementation tasks link this design and record exact file scopes before claim.
 
 | Slice | Responsibility | Dependency |
 | --- | --- | --- |
