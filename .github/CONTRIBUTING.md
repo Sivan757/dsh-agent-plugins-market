@@ -64,15 +64,15 @@ pnpm install --frozen-lockfile
 ### Repository map / 目录结构
 
 - `index.ts` — the published entry point; it re-exports the bundle package / 发布入口，转发到 bundle 包
-- `packages/` — the eight private workspace packages behind that one published artifact, mapped in [AGENTS.md](AGENTS.md) / 唯一发布产物背后的八个私有工作区包，对应关系见 [AGENTS.md](AGENTS.md)
+- `packages/` — the eight private workspace packages behind that one published artifact, mapped in [AGENTS.md](../AGENTS.md) / 唯一发布产物背后的八个私有工作区包，对应关系见 [AGENTS.md](../AGENTS.md)
 - `tests/` — Vitest tests and discovery fixtures / Vitest 测试与发现 fixture
-- `docs/` — user guides, reference material, and developer structure and decisions; placement rules live in [docs/AGENTS.md](docs/AGENTS.md) / 用户指南、参考资料与开发者结构与决策；归属规则见 [docs/AGENTS.md](docs/AGENTS.md)
+- `docs/` — user guides, reference material, and developer structure and decisions; placement rules live in [docs/AGENTS.md](../docs/AGENTS.md) / 用户指南、参考资料与开发者结构与决策；归属规则见 [docs/AGENTS.md](../docs/AGENTS.md)
 - `docs-site/` — VitePress documentation website / VitePress 文档网站
 - `.github/` — issue forms, pull request templates, ownership, and automation / issue 表单、PR 模板、代码所有者与自动化
 
-The domain glossary in [CONTEXT.md](CONTEXT.md) and the staged architecture plan in [`docs/developer/design/engineering-refactor-plan.md`](docs/developer/design/engineering-refactor-plan.md) describe the project vocabulary and module boundaries.
+The domain glossary in [CONTEXT.md](../CONTEXT.md) and the staged architecture plan in [`docs/developer/design/engineering-refactor-plan.md`](../docs/developer/design/engineering-refactor-plan.md) describe the project vocabulary and module boundaries.
 
-[CONTEXT.md](CONTEXT.md) 中的领域词汇表，以及 [`docs/developer/design/engineering-refactor-plan.md`](docs/developer/design/engineering-refactor-plan.md) 中的分阶段架构计划，说明了项目术语和模块边界。
+[CONTEXT.md](../CONTEXT.md) 中的领域词汇表，以及 [`docs/developer/design/engineering-refactor-plan.md`](../docs/developer/design/engineering-refactor-plan.md) 中的分阶段架构计划，说明了项目术语和模块边界。
 
 ## Quality gates / 质量门禁
 
@@ -133,7 +133,7 @@ PR 工作流会自动运行重构门禁、完整测试和构建。任何必需�
 
 ## Commit types / 提交类型
 
-Conventional commit types drive automated versioning and the CHANGELOG through [release-please](https://github.com/googleapis/release-please). The full policy is [ADR-0002](docs/developer/decisions/0002-versioning-and-release-policy.md); the short version:
+Conventional commit types drive automated versioning and the CHANGELOG through [release-please](https://github.com/googleapis/release-please). The full policy is [ADR-0002](../docs/developer/decisions/0002-versioning-and-release-policy.md); the short version:
 
 - **`feat:` / `fix:`** — user-visible behavior changes only. These bump the version and appear in the CHANGELOG, so they open a release PR.
 - **`refactor:` / `test:` / `ci:` / `docs:` / `chore:` / `build:`** — everything else. Never write `fix(ci):` or `feat(ci):`: a scoped `fix` still bumps patch.
@@ -141,7 +141,7 @@ Conventional commit types drive automated versioning and the CHANGELOG through [
 
 If a commit message would look wrong in the CHANGELOG, it has the wrong type.
 
-Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-please](https://github.com/googleapis/release-please) 驱动）。完整规则见 [ADR-0002](docs/developer/decisions/0002-versioning-and-release-policy.md)，简版：
+Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-please](https://github.com/googleapis/release-please) 驱动）。完整规则见 [ADR-0002](../docs/developer/decisions/0002-versioning-and-release-policy.md)，简版：
 
 - **`feat:` / `fix:`** — 仅限用户可见的行为变化。会升级版本并出现在 CHANGELOG 中，因此会打开 release PR。
 - **`refactor:` / `test:` / `ci:` / `docs:` / `chore:` / `build:`** — 其余一切变更。不要写 `fix(ci):` 或 `feat(ci):`：带 scope 的 `fix` 仍会 bump patch。
@@ -154,14 +154,14 @@ Conventional Commit 类型决定自动化版本号和 CHANGELOG（由 [release-p
 - Create a branch from `main` and keep the branch focused.
 - Implement the change with tests and documentation where needed.
 - Run the local quality gates listed above.
-- Fill in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md), including the motivation, validation commands, and any compatibility or security impact.
+- Fill in [`.github/PULL_REQUEST_TEMPLATE.md`](PULL_REQUEST_TEMPLATE.md), including the motivation, validation commands, and any compatibility or security impact.
 - Open the PR and respond to automated checks and reviewer feedback.
 - Squash or otherwise tidy fix-up commits when requested by the maintainer; do not rewrite a branch that someone else is actively reviewing without coordination.
 
 - 从 `main` 创建分支并保持分支目标单一。
 - 实现改动，并在需要时补充测试和文档。
 - 在本地运行上面的质量门禁。
-- 填写 [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)，说明动机、验证命令以及兼容性或安全影响。
+- 填写 [`.github/PULL_REQUEST_TEMPLATE.md`](PULL_REQUEST_TEMPLATE.md)，说明动机、验证命令以及兼容性或安全影响。
 - 创建 PR，并处理自动检查与审查意见。
 - 维护者要求时再整理修复提交；未经沟通不要重写他人正在审查的分支。
 
@@ -179,6 +179,6 @@ Do not report vulnerabilities in a public issue. Use [SECURITY.md](SECURITY.md) 
 
 ## Questions / 问题
 
-For a usage question, first check the [README](README.md), [Chinese README](README.zh.md), and the [documentation site](https://sivan757.github.io/dsh-agent-plugins-market/). If the answer is not covered, open the appropriate issue form with a minimal reproducible example.
+For a usage question, first check the [README](../README.md), [Chinese README](../README.zh.md), and the [documentation site](https://sivan757.github.io/dsh-agent-plugins-market/). If the answer is not covered, open the appropriate issue form with a minimal reproducible example.
 
-使用问题请先查看 [README](README.md)、[中文 README](README.zh.md) 和[文档站](https://sivan757.github.io/dsh-agent-plugins-market/)。如果仍未解决，请使用对应 issue 表单，并提供最小可复现示例。
+使用问题请先查看 [README](../README.md)、[中文 README](../README.zh.md) 和[文档站](https://sivan757.github.io/dsh-agent-plugins-market/)。如果仍未解决，请使用对应 issue 表单，并提供最小可复现示例。

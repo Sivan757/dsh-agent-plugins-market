@@ -128,7 +128,7 @@
 - [使用指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/)：按任务分页，从安装到工作区行为。
 - [兼容的插件市场](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/)：布局、优先级与抽样验证。
 - [插件规范](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/README.md)：各布局的参考 schema，以及 [`com.deepseek.harness`](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/schemas/com.deepseek.harness/spec.md) 扩展命名空间。
-- [贡献指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTRIBUTING.md) · [安全策略](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/SECURITY.md) · [更新日志](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [MIT 许可](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)。
+- [贡献指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/.github/CONTRIBUTING.md) · [安全策略](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/.github/SECURITY.md) · [更新日志](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [MIT 许可](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)。
 - [领域词汇表](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [代理角色](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/agent-roles/) · [发布流程](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md)。
 
 ## 交流群
