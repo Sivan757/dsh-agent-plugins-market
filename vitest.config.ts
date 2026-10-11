@@ -13,6 +13,13 @@ export default defineConfig({
       deps: {
         inline: [/@deepseek-ai\/dsh-client-ui-primitives/]
       }
+    },
+    // The HTML report is build output. node_modules/.cache is where this
+    // repository's other generated material (compat-report, host-alignment
+    // caches) already lives, and no packages/* walker ever sees it.
+    coverage: {
+      reportsDirectory: 'node_modules/.cache/coverage',
+      include: ['packages/*/src/**']
     }
   }
 })
