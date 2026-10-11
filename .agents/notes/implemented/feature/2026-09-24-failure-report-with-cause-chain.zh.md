@@ -43,4 +43,4 @@ MCP 服务详情直接把挂载流程记下的诊断原文印在弹窗里。那�
 ## Related
 
 - [服务详情先当档案来读](./2026-09-21-service-detail-skeleton.zh.md) —— 这个区块所处的弹窗顺序；本记录细化的正是它的状态行。
-- [MCP 身份不带会话命名空间](./2026-09-13-mcp-identity-without-session-namespace.zh.md) —— 记录的原文里为什么会出现 `套件__服务` 这样的名字。
+- [MCP 身份不带会话命名空间](../bug-fix/2026-09-13-mcp-identity-without-session-namespace.zh.md) —— 记录的原文里为什么会出现 `套件__服务` 这样的名字。

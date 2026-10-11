@@ -1,7 +1,7 @@
 # 0003 — Agent Plugins v1 conformance floor and the client extension namespace
 
 - Status: accepted (2026-09-17)
-- Related: [Agent Note](../../.agents/notes/implemented/architecture/2026-09-17-agent-plugins-v1-conformance-and-harness-namespace.md), [namespace contract](../../schemas/com.deepseek.harness/spec.md), [0001-catalog-centered-modular-refactor](0001-catalog-centered-modular-refactor.md)
+- Related: [Agent Note](../../../.agents/notes/implemented/architecture/2026-09-17-agent-plugins-v1-conformance-and-harness-namespace.md), [namespace contract](../../../schemas/com.deepseek.harness/spec.md), [0001-catalog-centered-modular-refactor](0001-catalog-centered-modular-refactor.md)
 
 ## Context
 

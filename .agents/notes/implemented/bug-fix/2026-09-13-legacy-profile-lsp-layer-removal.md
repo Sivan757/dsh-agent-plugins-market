@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-LSP became self-provisioned after 0.6.2 shipped ([self-provisioned LSP capability](../../architecture/2026-09-11-self-provisioned-lsp-capability.md)), and that change has a migration cliff that no amount of code inside the plugin can remove.
+LSP became self-provisioned after 0.6.2 shipped ([self-provisioned LSP capability](../architecture/2026-09-11-self-provisioned-lsp-capability.md)), and that change has a migration cliff that no amount of code inside the plugin can remove.
 
 Before it, the README said the profile had to expose the LSP tool, so a user who wanted language servers added the layer by hand: profile dependencies on `@deepseek-ai/dsh-lsp` and `@deepseek-ai/dsh-tool-lsp` plus two `insert` rows in the profile's own `cordis.patch.yml`. `LspMountRegistry` now mounts both seams from this package's own copies, so on upgrade that leftover layer registers `service "lsp"` first and every mount fails with `seam-conflict` — the feature the user already had stops working.
 
@@ -33,7 +33,7 @@ The panel's action is per-profile even when several profiles carry the layer: it
 - **Ship a two-release deprecation instead** (warn this release, fail next). Rejected: it leaves the broken state in place for a release with no repair path, then makes it worse. The conflict is being introduced by this change, so this change carries the fix.
 - **Rewrite the profile's `cordis.patch.yml` automatically at startup.** Rejected: silently editing a file in the user's Harness home, on a profile the plugin cannot even name for certain, is exactly the kind of side effect that should need a click. The banner is the click.
 - **Remove the stale profile dependencies too.** Rejected: it needs pnpm, and the plugin cannot know the profile's lockfile state. Removing the rows is sufficient — a dependency with no row registers nothing.
-- **Drop the layer through the plugin's own bundle patch.** Rejected: impossible by construction, as the [self-provisioned LSP capability](../../architecture/2026-09-11-self-provisioned-lsp-capability.md) note already records. A bundle patch is applied first, so a `disabled:` row it writes is overwritten by the profile's later layer.
+- **Drop the layer through the plugin's own bundle patch.** Rejected: impossible by construction, as the [self-provisioned LSP capability](../architecture/2026-09-11-self-provisioned-lsp-capability.md) note already records. A bundle patch is applied first, so a `disabled:` row it writes is overwritten by the profile's later layer.
 
 ## Consequences
 

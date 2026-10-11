@@ -18,11 +18,11 @@
 
 ## 二、本轮发现并修复的问题
 
-**对齐门禁在发版第一步就挂了**：`check:host-alignment` 报 `fetch failed`，与 registry 连通性无关——逐请求探测 20 次全过，但脚本一次性 fan out 约 18 个 dist-tag 请求时，本网络在 TLS 握手阶段重置其中约三分之一。修复：改为串行遍历请求（[脚本内注释](../../scripts/check-host-alignment.mjs)），整个 run 只需几秒，连跑 7 次全部通过。`fix(alignment)` 已提交并随本次发布。
+**对齐门禁在发版第一步就挂了**：`check:host-alignment` 报 `fetch failed`，与 registry 连通性无关——逐请求探测 20 次全过，但脚本一次性 fan out 约 18 个 dist-tag 请求时，本网络在 TLS 握手阶段重置其中约三分之一。修复：改为串行遍历请求（[脚本内注释](../../../scripts/check-host-alignment.mjs)），整个 run 只需几秒，连跑 7 次全部通过。`fix(alignment)` 已提交并随本次发布。
 
 ## 三、0.8.0 内容
 
-- **dsh 0.1.7-rc.1 宿主对齐**（`chore(host)`，见 [next-channel-baseline 决策](../../.agents/notes/implemented/process/2026-09-23-next-channel-baseline.md)）：消息来源改为 merge-extensible（插件声明 `plugin-market` source）、`agent/session-start` 并入 `agent/created`、session header version 4、客户端设置服务 `configForms` + `plugins.item` 卡片 slot、图标 `*Medium` 后缀、三个新增浏览器依赖进 devDependencies
+- **dsh 0.1.7-rc.1 宿主对齐**（`chore(host)`，见 [next-channel-baseline 决策](../../../.agents/notes/implemented/process/2026-09-23-next-channel-baseline.md)）：消息来源改为 merge-extensible（插件声明 `plugin-market` source）、`agent/session-start` 并入 `agent/created`、session header version 4、客户端设置服务 `configForms` + `plugins.item` 卡片 slot、图标 `*Medium` 后缀、三个新增浏览器依赖进 devDependencies
 - **feat(agents)**：读取 `.agents` 布局携带的全部 surface
 - **fix(catalog)**：项目 LSP 诊断按 POSIX 分隔符报告；skill 目录读取为一个技能
 - **docs**：项目重定位为一站式 skills / subagent / MCP / LSP 管理器，README 增加微信群二维码

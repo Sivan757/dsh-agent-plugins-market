@@ -30,5 +30,5 @@ The new-MCP-service dialog carried three ways in: two shortcut buttons (template
 
 ## Related
 
-- [The document carries every setting](./2026-09-22-document-carries-every-setting.md) — why the JSON view makes the shortcuts redundant.
-- [MCP configuration answers back](./2026-09-22-self-service-mcp-configuration.md) — the per-entry import report this change retires; the field-naming and guidance decisions there stand.
+- [The document carries every setting](../feature/2026-09-22-document-carries-every-setting.md) — why the JSON view makes the shortcuts redundant.
+- [MCP configuration answers back](../feature/2026-09-22-self-service-mcp-configuration.md) — the per-entry import report this change retires; the field-naming and guidance decisions there stand.
