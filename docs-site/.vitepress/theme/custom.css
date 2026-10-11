@@ -1,0 +1,51 @@
+/* Dark-first brand colors carried over from the Astro site, mapped onto the
+   default theme's variables so both appearances stay readable. */
+:root {
+  --vp-c-brand-1: #4c8dff;
+  --vp-c-brand-2: #6ba1ff;
+  --vp-c-brand-3: #3a7ae0;
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #4c8dff, #9cc2ff);
+}
+
+.VPHome {
+  padding-bottom: 3rem;
+}
+
+.vp-doc img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.guideLang {
+  padding: 0 24px 12px;
+  font-size: 0.86rem;
+}
+.guideLang .label {
+  color: var(--vp-c-text-3);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+.guideLang ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.guideLang li {
+  margin: 0.2rem 0;
+}
+.guideLang a {
+  color: var(--vp-c-text-2);
+  text-decoration: none;
+}
+.guideLang a:hover {
+  color: var(--vp-c-brand-1);
+}
+.guideLang .current {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+}

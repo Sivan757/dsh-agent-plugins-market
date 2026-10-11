@@ -3,7 +3,11 @@ node_modules/
 # matched source under a nested `src/lib/`, which skipped it silently.
 /lib/
 /client/
-docs-site/
+docs-site/dist/
+docs-site/node_modules/
+docs-site/.vitepress/cache/
+# generated from docs/user by docs-site/scripts/copy-guide.mjs before each build
+docs-site/guide/
 tests/fixtures/
 pnpm-lock.yaml
 *.tgz
@@ -25,5 +29,8 @@ docs/reference/compat-report.json
 # scratch: review artifacts kept byte-for-byte so the rendered bytes match what was approved
 docs/scratch/hook-detail-prototypes/
 docs/scratch/agent-teams-lead-rca-2026-10-09.html
+
+# search-engine verification: must stay byte-for-byte as issued
+docs-site/public/googlede2463be9a1dd823.html
 
 .pnpm-store/

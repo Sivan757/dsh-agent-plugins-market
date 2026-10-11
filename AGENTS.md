@@ -26,7 +26,7 @@ schemas/        the layout specification library: vendored 1.0.0/ and 1.1.0/ age
                 manager's own com.deepseek.harness/ namespace — see schemas/README.md
 tests/          vitest suites for the whole workspace; fixtures under tests/fixtures
 docs/           user/, reference/, developer/{decisions,design,discussion,release,upstream-proposal}/, scratch/ — see docs/AGENTS.md
-docs-site/      Astro docs site
+docs-site/      VitePress docs site
 scripts/        build and verification helpers: client banner, lifecycle verification, host-alignment
                 and reuse gates, compatibility report, fixture updates, git-hook setup
 ```

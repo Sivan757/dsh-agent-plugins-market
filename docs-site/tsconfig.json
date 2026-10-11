@@ -1,5 +1,15 @@
 {
-  "extends": "astro/tsconfigs/strict",
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "types": ["vitepress", "node"]
+  },
+  "include": ["**/*.mts", "**/*.ts", ".vitepress/**/*.ts", ".vitepress/**/*.vue"],
+  "exclude": ["node_modules", "dist", "guide"]
 }

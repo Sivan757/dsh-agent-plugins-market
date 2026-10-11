@@ -10,15 +10,15 @@ Status: implemented
 
 ## Decision
 
-站点直接渲染指南文件。内容集合（`docs-site/src/content.config.ts`）以 `../docs/user` 为根做 glob，`docs-site/src/pages/docs/[...slug].astro` 渲染每个条目。仓库仍是唯一真源：改动 `docs/user/` 会同时更新 GitHub 视图与已发布站点，不存在会漂移的第二份副本。
+站点直接渲染指南文件。`docs-site/scripts/copy-guide.mjs` 把 `docs/user/*.md` 复制进站点，由 VitePress 按 `docs-site/.vitepress/config.mts` 的 `rewrites` 映射渲染副本（机制原为 Astro 内容集合，已被 [VitePress 重建](2026-10-11-docs-site-vitepress-rebuild.zh.md) 取代）。仓库仍是唯一真源：改动 `docs/user/` 会同时更新 GitHub 视图与已发布站点，不存在会漂移的第二份副本。
 
-路由取自源文件名，而不是集合 id。glob loader 会把 `entry.id` 转成 slug 并去掉点号（`usage.zh` 变成 `usagezh`），因此 `guideSlug` 改为读取 `entry.filePath`。英文页位于 `/docs/<名称>/`，中文页位于 `/docs/zh/<名称>/`，语言切换因此有了真实落点：每个指南页都链到紧邻的对应语言页。
+路由取自源文件名。英文页位于 `/docs/<名称>/`，中文页位于 `/docs/zh/<名称>/`，语言切换因此有了真实落点：每个指南页都链到紧邻的对应语言页。
 
-链接在迁移后仍然可用。渲染出的指南保留作者写的 Markdown 链接，`rewriteLinks` 逐一映射：目标仍留在 `docs/user/` 内的转为站点路由，其余（README、`schemas/`、源码、测试）转为 GitHub 的 `blob/main/` 地址。站点不发布这些文件，因此不假装发布。
+链接在迁移后仍然可用。`copy-guide.mjs` 逐一改写作者写下的 Markdown 链接：目标仍留在 `docs/user/` 内的转为站点路由，其余（README、`schemas/`、源码、测试）转为 GitHub 的 `blob/main/` 地址。站点不发布这些文件，因此不假装发布。
 
-仓库根目录通过从工作目录向上查找 `docs/user/install.md` 确定。用 `import.meta.url` 推导路径会在 Astro 把模块打包进 `dist/.prerender/` 后失效，首次构建已经证实这一点。该辅助模块位于 `docs-site/src/guide/guide.ts`，刻意不放 `lib/` 目录：原因见[后果](#consequences)一节。
+阅读顺序现在位于 `docs-site/.vitepress/guide.ts`（`GUIDES`，即原 `NAV_ORDER`，与 `SECTIONS`）；Astro 时期在 `docs-site/src/guide/guide.ts`，刻意不放 `lib/` 目录：原因见[后果](#consequences)一节。
 
-**指南改为一页一任务。** 223 行的那一对拆成七对：`install`、`sources`、`resources`、`services`、`translation`、`settings`、`workspace`。每页只负责一个主题，读者一进来就能看到自己要找的内容，也能直接链接到它。原先作为旧页面各部分子节的章节（`Project layouts`、`MCP configuration`、`Hooks and LSP`、`Resource detail editing`）上升为新页面的顶层章节，阅读顺序记在指南库中：`NAV_ORDER` 列出页面，`SECTIONS` 把它们归入 `Get started`、`Content`、`Capabilities`、`Workspace`、`Reference`。
+**指南改为一页一任务。** 223 行的那一对拆成七对：`install`、`sources`、`resources`、`services`、`translation`、`settings`、`workspace`。每页只负责一个主题，读者一进来就能看到自己要找的内容，也能直接链接到它。原先作为旧页面各部分子节的章节（`Project layouts`、`MCP configuration`、`Hooks and LSP`、`Resource detail editing`）上升为新页面的顶层章节，阅读顺序记在指南库中：`GUIDES`（时为 `NAV_ORDER`）列出页面，`SECTIONS` 把它们归入 `Get started`、`Content`、`Capabilities`、`Workspace`、`Reference`。
 
 拆分是机械操作，不是重写：脚本按行区间切片并把文本原样重新写出。只有两处是刻意的：旧文件第 9 行重复了 `Project layouts` 一节已经完整覆盖的内容，作为重复项删除，其中唯一独有的从句并入本就负责该事实的句子；容器标题 `## Format details and development` 与 `## 格式细节与开发` 随容器一并消失。
 

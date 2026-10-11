@@ -27,19 +27,19 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: Install docs-site deps
-        run: pnpm install --no-frozen-lockfile
-        working-directory: .
-      # A page missing from the guide library renders nowhere and reports
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # A guide page missing from the routing table renders nowhere and reports
       # nothing, so the guide's completeness and bilingual parity are checked
       # before anything is built from it.
       - run: pnpm --dir docs-site run check:guide
-      # The root tsconfig projects do not cover .astro files, so the site's own
-      # type check is the only thing that reads them.
-      - run: pnpm --dir docs-site run check
+      # The build copies docs/user into the site with its links rewritten for
+      # the site, then emits <route>/index.html for GitHub Pages trailing-slash
+      # URLs, and fails on a dead internal link between pages.
       - run: pnpm --dir docs-site run build
-      # The guide renders repository markdown and rewrites its links at build
-      # time, so a wrong target is invisible until a reader follows it.
+      # The READMEs publish trailing-slash deep links, including two anchors in
+      # Chinese, so the emitted output is resolved against every href and id.
       - run: pnpm --dir docs-site run check:links
       - uses: actions/upload-pages-artifact@v5
         with:

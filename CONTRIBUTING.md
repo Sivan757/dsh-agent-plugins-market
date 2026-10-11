@@ -67,7 +67,7 @@ pnpm install --frozen-lockfile
 - `packages/` — the eight private workspace packages behind that one published artifact, mapped in [AGENTS.md](AGENTS.md) / 唯一发布产物背后的八个私有工作区包，对应关系见 [AGENTS.md](AGENTS.md)
 - `tests/` — Vitest tests and discovery fixtures / Vitest 测试与发现 fixture
 - `docs/` — user guides, reference material, and developer structure and decisions; placement rules live in [docs/AGENTS.md](docs/AGENTS.md) / 用户指南、参考资料与开发者结构与决策；归属规则见 [docs/AGENTS.md](docs/AGENTS.md)
-- `docs-site/` — Astro documentation website / Astro 文档网站
+- `docs-site/` — VitePress documentation website / VitePress 文档网站
 - `.github/` — issue forms, pull request templates, ownership, and automation / issue 表单、PR 模板、代码所有者与自动化
 
 The domain glossary in [CONTEXT.md](CONTEXT.md) and the staged architecture plan in [`docs/developer/design/engineering-refactor-plan.md`](docs/developer/design/engineering-refactor-plan.md) describe the project vocabulary and module boundaries.
