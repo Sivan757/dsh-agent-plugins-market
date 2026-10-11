@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.9.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.9.1...dsh-agent-plugins-market-v0.9.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **roles:** fail closed when a role directory is unreadable ([ee7281f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ee7281fabb2f60fa8c59016d6280d6966cab362b))
+* **roles:** read a missing child of a file as unreadable ([8fe0885](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8fe0885c8f6b278c0e02531dd89471e403412917))
+
 ## [0.9.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.9.0...dsh-agent-plugins-market-v0.9.1) (2026-10-10)
 
 
