@@ -22,6 +22,9 @@ packages/       eight private workspace packages consumed by that one artifact; 
   market-translation/  translation engine, provider chain and translators (application/, runtime/)
   market-ui/           Web market page: src/index.ts, api.ts, locales.ts and i18n.ts, features/,
                        workspace/, ui/
+plugins/        the first-party Agent Plugins v1 collection (plugin-dev, toolkit, engineering), authored
+                here and laid out exactly as the preset dsh-agent-plugins source scans it; conformance is
+                guarded by packages/market-catalog/test/first-party-plugins.test.ts
 docs/           user/, reference/, developer/{decisions,design,discussion,release,upstream-proposal}/, scratch/ — see docs/AGENTS.md
 docs-site/      VitePress docs site
 scripts/        build and verification helpers: client banner, lifecycle verification, host-alignment

@@ -30,6 +30,9 @@ docs/reference/compat-report.json
 docs/scratch/hook-detail-prototypes/
 docs/scratch/agent-teams-lead-rca-2026-10-09.html
 
+# first-party plugin collection: content ships as authored, not reformatted
+plugins/
+
 # search-engine verification: must stay byte-for-byte as issued
 docs-site/public/googlede2463be9a1dd823.html
 

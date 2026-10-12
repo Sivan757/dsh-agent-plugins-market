@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "plugin-dev",
+  "version": "0.1.1",
+  "description": "Plugin development toolkit ported and adapted for DeepSeek Harness: skills for agent, command, hook, MCP and settings development, plugin structure guidance, the skill-creator with its evaluation tooling, and plugin eval suites with graders and a no-plugin baseline.",
+  "author": { "name": "dsh-agent-plugins contributors" },
+  "license": "MIT",
+  "keywords": ["dsh", "plugin-dev", "skill", "command", "agent", "hook", "mcp", "evals", "creator"],
+  "extensions": {
+    "com.deepseek.harness": {
+      "schemaVersion": "1.0.0"
+    }
+  }
+}

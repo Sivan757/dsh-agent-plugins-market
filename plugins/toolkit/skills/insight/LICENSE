@@ -1,0 +1,65 @@
+MIT License
+
+Copyright (c) 2026 dsh-agent-plugins contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Vendored code
+
+The analysis and report code in `engine/` and the dashboard template in
+`assets/dashboard.html` are vendored from the dsh-session-insights project and
+remain under its MIT license:
+
+- Upstream project: dsh-session-insights, https://github.com/GreenLv/dsh-session-insights
+- Copyright (c) 2026 Gerui Lv
+- License: MIT
+
+`engine/reader.js` (host session-log discovery and snapshot selection) and
+`engine/facet-cache.js` (the cross-run facet cache) are maintained by this
+skill, not vendored, and carry this license.
+
+The report schema in `engine/report.schema.json` is the upstream report schema
+v1 with this skill's product and schema identifiers:
+
+- Upstream file: docs/schema/report-v1.schema.json
+
+Adaptations made for this skill: the report's product and schema identifiers,
+the run-directory marker product id, the dashboard template path, the
+branding strings in the dashboard template, and the meta-analysis detection
+patterns that recognize this skill. Analysis behaviour is unchanged.
+
+The closed facet vocabulary in `engine/rules.js` (the goal categories, outcome,
+satisfaction, helpfulness, session type, friction and success sets, together
+with their wording) is shared with Claude Code's `/insights` facet schema,
+Copyright (c) Anthropic PBC, used here under the MIT license of the
+claude-code source distribution. Vendor words in that vocabulary are renamed to
+this runtime's assistant terms in shipped code.
+
+## Host libraries
+
+The engine reads session logs through the DeepSeek Harness host libraries at
+run time, which are MIT licensed:
+
+- `@deepseek-ai/dsh-session-query` — https://github.com/deepseek-ai/deepseek-harness
+- `@deepseek-ai/dsh-session-persistence` — https://github.com/deepseek-ai/deepseek-harness
+- `@deepseek-ai/dsh-session-persistence-jsonl` — https://github.com/deepseek-ai/deepseek-harness
+- `@deepseek-ai/dsh-session` — https://github.com/deepseek-ai/deepseek-harness
+- `@deepseek-ai/cordis` — https://github.com/deepseek-ai/deepseek-harness

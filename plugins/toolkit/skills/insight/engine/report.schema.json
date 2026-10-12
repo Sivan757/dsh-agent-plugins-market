@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsh-agent-plugins/dsh-agent-plugins/blob/main/plugins/toolkit/skills/insight/engine/report.schema.json",
+  "title": "dsh-agent-plugins-insight report schema v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema", "schema_version", "analyzer_version", "product", "runtime", "generated_at",
+    "scope", "coverage", "totals", "measurement_contract", "projects", "task_families",
+    "session_summaries", "excerpts", "warnings"
+  ],
+  "properties": {
+    "schema": {"const": "dsh-agent-plugins-insight/1"},
+    "schema_version": {"const": 1},
+    "product": {"const": "dsh-agent-plugins-insight"},
+    "runtime": {"const": "dsh"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "scope": {
+      "type": "object",
+      "required": ["runtime", "privacy_mode", "analysis_privacy_mode", "analysis_depth"],
+      "properties": {
+        "runtime": {"const": "dsh"},
+        "privacy_mode": {"enum": ["metrics_only", "redacted_sample", "local_content"]},
+        "analysis_privacy_mode": {"enum": ["metrics", "redacted", "local"]},
+        "analysis_depth": {"enum": ["conversation", "evidence"]},
+        "locale": {"enum": ["zh-CN", "en"]}
+      }
+    },
+    "coverage": {"type": "object"},
+    "totals": {
+      "type": "object",
+      "required": ["sessions", "turns", "tool_calls", "tokens"],
+      "properties": {
+        "sessions": {"type": "integer", "minimum": 0},
+        "turns": {"type": "integer", "minimum": 0},
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "tokens": {
+          "type": "object",
+          "required": ["uncached_input_tokens", "cached_input_tokens", "output_tokens", "total_tokens"],
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "projects": {"type": "array"},
+    "task_families": {"type": "array"},
+    "session_summaries": {"type": "array"},
+    "excerpts": {"type": "array"},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "semantic_analysis": {"type": "object"},
+    "semantic_evidence": {"type": "array"},
+    "semantic_facets": {"type": "array"}
+  }
+}
