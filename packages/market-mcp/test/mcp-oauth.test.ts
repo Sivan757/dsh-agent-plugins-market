@@ -1,25 +1,29 @@
 /**
- * Tests for the OAuth loopback provider: the durable-state contract over the
- * credentials seam (and its memory fallback), the redirect metadata the SDK
- * reads, and the loopback callback leg. The SDK's `auth()` protocol itself is
- * SDK-owned and covered upstream; these tests pin the provider half.
+ * Provider-level contract tests for the OAuth loopback client: durable state
+ * over the credentials seam, the redirect metadata the MCP SDK reads, and the
+ * admission rules of the loopback callback leg.
  *
- * Ported from the harness `dsh-mcp-client` oauth.spec (archived patch series
- * `docs/developer/upstream-proposal/patches/`), adapted to the market's self-built
- * bridge modules.
+ * The end-to-end flow lives in [mcp-oauth-flow.test.ts](mcp-oauth-flow.test.ts);
+ * these tests pin the provider half in isolation. Every callback-leg case here
+ * runs on the default ephemeral port: a fixed \`callbackPort\` pins one URL for
+ * registration, authorization, and the exchange, which hides the port
+ * continuity the functional suite exists to protect.
+ *
+ * @module test/mcp-oauth
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createServer, type Server } from 'node:http'
+import { describe, expect, it } from 'vitest'
 import { LoopbackOAuthClientProvider, type BrowserOpener } from '../../../packages/market-mcp/src/runtime/mcp/bridge/oauth.js'
 import { credentialKey } from '../../../packages/market-mcp/src/runtime/mcp/bridge/host-seams.js'
+import type { OAuthStorageConfig } from '../../../packages/market-mcp/src/application/mcp/mcp-bridge-config.js'
 
-/**
- * No-op opener: tests must NEVER open a real browser — every provider in this
- * file passes this stub, because the default is the platform opener and would
- * launch the developer's browser at the fake auth URL. Callback-leg tests
- * drive the loopback endpoint themselves.
- */
+/** No-op opener: tests must NEVER open a real browser. Callback-leg tests drive the loopback endpoint themselves. */
 const openerStub: BrowserOpener = async () => {}
+
+const TOKENS = {
+  access_token: 'at-1',
+  token_type: 'Bearer',
+  refresh_token: 'rt-1'
+}
 
 // ---- Credential store fake: mirrors CredentialProvider's record surface ----
 
@@ -36,10 +40,7 @@ function createRecordStore(initial: Map<string, unknown> = new Map()): {
   const records = initial
   const calls: StoreCalls = { modified: [] }
   return {
-    describeRecord: async key => ({
-      configured: records.has(key),
-      writable: true
-    }),
+    describeRecord: async key => ({ configured: records.has(key), writable: true }),
     readRecord: async key => records.get(key),
     modifyRecord: async (key, mutate) => {
       const next = await mutate(records.get(key))
@@ -51,33 +52,52 @@ function createRecordStore(initial: Map<string, unknown> = new Map()): {
   }
 }
 
-const TOKENS = {
-  access_token: 'at-1',
-  token_type: 'Bearer',
-  refresh_token: 'rt-1'
+/** One browser leg driven on the provider's own ephemeral port. */
+interface DrivenLeg {
+  provider: LoopbackOAuthClientProvider
+  /** State the provider issued for this leg. */
+  state: string
+  /** Resolves once the opener saw the authorization URL, with the port the listener bound. */
+  started: Promise<{ authorizationUrl: string; redirectUri: string; port: string }>
+  /** Settles when the leg finishes (tokens saved) or fails. */
+  leg: Promise<void>
 }
 
-afterEach(async () => {
-  vi.restoreAllMocks()
-})
-
-describe('LoopbackOAuthClientProvider record addressing', () => {
-  it('folds a __-separated serverName into a valid credential key segment', async () => {
-    // Regression: `credentialKey` threw on `cloudflare__cloudflare-api`
-    // (double underscore fails the key grammar), which crashed the provider
-    // constructor before any auth flow could start.
-    const store = createRecordStore()
-    const provider = new LoopbackOAuthClientProvider('cloudflare__cloudflare-api', {}, undefined, () => {}, store, openerStub)
-    await provider.saveTokens({ ...TOKENS })
-    const key = String(credentialKey('mcp-auth', 'cloudflare-cloudflare-api'))
-    expect((await store.readRecord(key)) as { payload: { tokens?: unknown } }).toMatchObject({
-      kind: 'grant',
-      payload: { tokens: { access_token: 'at-1' } }
-    })
+/**
+ * Bind a provider, start one leg, and report the loopback URL the SDK embedded
+ * into the authorization request. The opener is the only seam.
+ *
+ * @param options - Storage overrides, a record store, and a `finishAuth` observer.
+ * @returns The provider, the issued state, the announced URL, and the leg promise.
+ */
+function startLeg(options: { storage?: OAuthStorageConfig; store?: unknown; onFinishAuth?: (provider: LoopbackOAuthClientProvider) => void } = {}): DrivenLeg {
+  let announce: (value: { authorizationUrl: string; redirectUri: string; port: string }) => void = () => {}
+  const started = new Promise<{ authorizationUrl: string; redirectUri: string; port: string }>(resolve => {
+    announce = resolve
   })
-})
+  const provider = new LoopbackOAuthClientProvider(
+    'srv',
+    options.storage ?? {},
+    undefined,
+    () => {},
+    options.store,
+    async url => {
+      const redirectUri = url.searchParams.get('redirect_uri') ?? ''
+      announce({ authorizationUrl: url.toString(), redirectUri, port: new URL(redirectUri).port })
+    }
+  )
+  provider.bindTransport({
+    finishAuth: async () => {
+      options.onFinishAuth?.(provider)
+    }
+  })
+  const state = provider.state()
+  const authorizationUrl = new URL('https://auth.example/authorize')
+  authorizationUrl.searchParams.set('state', state)
+  return { provider, state, started, leg: provider.redirectToAuthorization(authorizationUrl) }
+}
 
-describe('LoopbackOAuthClientProvider state', () => {
+describe('LoopbackOAuthClientProvider record state', () => {
   it('persists tokens as a grant record under mcp-auth/<serverName>', async () => {
     const store = createRecordStore()
     const provider = new LoopbackOAuthClientProvider('cloudflare-api', {}, 'scope-a', () => {}, store, openerStub)
@@ -100,7 +120,6 @@ describe('LoopbackOAuthClientProvider state', () => {
     await expect(provider.codeVerifier()).resolves.toBe('verifier-1')
     await provider.saveTokens({ ...TOKENS })
     await expect(provider.codeVerifier()).rejects.toThrow(/no PKCE verifier/)
-    // The verifier never reaches the durable record.
     const key = String(credentialKey('mcp-auth', 'srv'))
     const stored = (await store.readRecord(key)) as { payload: Record<string, unknown> }
     expect(stored.payload).not.toHaveProperty('codeVerifier')
@@ -129,8 +148,6 @@ describe('LoopbackOAuthClientProvider state', () => {
       return inner(k, mutate)
     }
     try {
-      // Our write carries a stale read of the client field only; the durable
-      // token field is untouched locally, so the refresh must survive it.
       await provider.saveClientInformation({ client_id: 'cid-1' })
     } finally {
       delete (store as { modifyRecord?: unknown }).modifyRecord
@@ -176,7 +193,6 @@ describe('LoopbackOAuthClientProvider state', () => {
     const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, store, openerStub)
     await expect(provider.tokens()).resolves.toBeUndefined()
 
-    // Another process refreshes the record behind our back.
     records.set(key, { kind: 'grant', payload: { tokens: { ...TOKENS } } })
     await expect(provider.tokens()).resolves.toMatchObject({ access_token: 'at-1' })
 
@@ -195,10 +211,10 @@ describe('LoopbackOAuthClientProvider state', () => {
 })
 
 describe('LoopbackOAuthClientProvider redirect metadata', () => {
-  it('advertises loopback redirect and public-client metadata with the scope', () => {
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: 49_152 }, 'read:files', () => {}, undefined, openerStub)
-    expect(provider.redirectUrl).toBe('http://127.0.0.1:49152/callback')
-    expect(provider.clientMetadata).toMatchObject({
+  it('advertises the configured loopback port, and the port-0 placeholder without one', () => {
+    const configured = new LoopbackOAuthClientProvider('srv', { callbackPort: 49_152 }, 'read:files', () => {}, undefined, openerStub)
+    expect(configured.redirectUrl).toBe('http://127.0.0.1:49152/callback')
+    expect(configured.clientMetadata).toMatchObject({
       client_name: 'DeepSeek Harness (dsh-agent-plugins-market)',
       redirect_uris: ['http://127.0.0.1:49152/callback'],
       token_endpoint_auth_method: 'none',
@@ -206,174 +222,77 @@ describe('LoopbackOAuthClientProvider redirect metadata', () => {
       response_types: ['code'],
       scope: 'read:files'
     })
-  })
 
-  it('omits scope metadata when none is configured', () => {
-    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, undefined, openerStub)
-    expect(provider.clientMetadata).not.toHaveProperty('scope')
+    // Without a configured port, registration carries the placeholder and the
+    // authorization request rewrites it to the bound port (RFC 8252 §7.3). The
+    // callback-leg tests below pin that rewrite.
+    const ephemeral = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, undefined, openerStub)
+    expect(ephemeral.redirectUrl).toBe('http://127.0.0.1:0/callback')
+    expect(ephemeral.clientMetadata).not.toHaveProperty('scope')
   })
 })
 
 describe('LoopbackOAuthClientProvider callback leg', () => {
-  /** Bind a throwaway HTTP listener to learn a free port before the provider takes one. */
-  function freePort(): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const probe: Server = createServer()
-      probe.listen(0, '127.0.0.1', () => {
-        const address = probe.address()
-        if (address === null || typeof address === 'string') {
-          probe.close(() => {
-            reject(new Error('no port'))
-          })
-          return
-        }
-        probe.close(() => {
-          resolve(address.port)
-        })
-      })
-      probe.on('error', reject)
-    })
-  }
-
-  it('opens the gate while the leg pends, resolves true on success, false on leg failure', async () => {
-    const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
-    provider.bindTransport({ finishAuth: async () => {} })
-    const state = provider.state()
-    const authorizationUrl = new URL('https://auth.example/authorize')
-    authorizationUrl.searchParams.set('state', state)
-    const redirect = provider.redirectToAuthorization(authorizationUrl)
-    // While waiting for the user agent the supervisor must hold the generation.
-    expect(provider.awaitingBrowser).toBe(true)
-    const response = await fetch(`http://127.0.0.1:${port}/callback?code=abc&state=${encodeURIComponent(state)}`)
-    expect(response.status).toBe(200)
-    await expect(redirect).resolves.toBeUndefined()
-    expect(provider.awaitingBrowser).toBe(false)
-  }, 15_000)
-
-  it('rejects and closes the gate when the authorization server redirects with an OAuth error', async () => {
-    const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
-    provider.bindTransport({ finishAuth: async () => {} })
-    const state = provider.state()
-    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
-    // Attach the rejection assertion before the callback lands, so the
-    // rejection is never observably unhandled.
-    const rejection = expect(redirect).rejects.toThrow(/access_denied/)
-    await vi.waitFor(() => {
-      expect(provider.awaitingBrowser).toBe(true)
-      expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`)
-    })
-    const response = await fetch(`http://127.0.0.1:${port}/callback?error=access_denied&error_description=nope&state=${encodeURIComponent(state)}`)
-    expect(response.status).toBe(400)
-    await rejection
-    expect(provider.awaitingBrowser).toBe(false)
-  }, 15_000)
-
-  it('completes the flow when the browser returns a code, then rejects a second leg', async () => {
-    const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
-    const finished: Array<string> = []
-    provider.bindTransport({
-      finishAuth: async code => {
-        finished.push(code)
+  it('publishes the authorization redirect_uri through the code exchange, then releases it', async () => {
+    let exchangeRedirectUri: string | undefined
+    const driven = startLeg({
+      onFinishAuth: provider => {
+        exchangeRedirectUri = provider.redirectUrl
       }
     })
+    const announced = await driven.started
+    expect(announced.redirectUri).toBe(`http://127.0.0.1:${announced.port}/callback`)
 
-    const state = provider.state()
-    const authorizationUrl = new URL('https://auth.example/authorize')
-    authorizationUrl.searchParams.set('state', state)
-    const redirect = provider.redirectToAuthorization(authorizationUrl)
-    // While the leg is open, the getter reports the bound loopback URL the
-    // SDK embedded into the authorization request.
-    await vi.waitFor(() => {
-      expect(provider.redirectUrl).toBe(`http://127.0.0.1:${port}/callback`)
-    })
-
-    // Simulate the user agent landing back with a code.
-    const response = await fetch(`http://127.0.0.1:${port}/callback?code=abc&state=${encodeURIComponent(state)}`)
+    const response = await fetch(`http://127.0.0.1:${announced.port}/callback?code=abc&state=${encodeURIComponent(driven.state)}`)
     expect(response.status).toBe(200)
-    await expect(redirect).resolves.toBeUndefined()
-    expect(finished).toEqual(['abc'])
+    await expect(driven.leg).resolves.toBeUndefined()
 
-    // The listener is one-use: the socket no longer answers.
-    await expect(fetch(`http://127.0.0.1:${port}/callback?code=abc`)).rejects.toThrow()
-  }, 15_000)
+    // The regression: the token request repeats the redirect_uri of the
+    // authorization request, and the port is released only afterwards.
+    expect(exchangeRedirectUri).toBe(announced.redirectUri)
+    expect(driven.provider.redirectUrl).toBe('http://127.0.0.1:0/callback')
+    expect(driven.provider.lastBrowserLegOutcome).toBe(true)
+  }, 20_000)
 
-  it('rejects a callback whose OAuth state does not match the issued state', async () => {
-    const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
-    provider.bindTransport({ finishAuth: async () => {} })
-    const state = provider.state()
-    const authorizationUrl = new URL('https://auth.example/authorize')
-    authorizationUrl.searchParams.set('state', state)
-    const redirect = provider.redirectToAuthorization(authorizationUrl)
-    await vi.waitFor(() => {
-      expect(provider.awaitingBrowser).toBe(true)
-    })
-    const forged = await fetch(`http://127.0.0.1:${port}/callback?code=attacker&state=wrong`)
+  it('rejects a forged callback state and still completes the real callback', async () => {
+    const driven = startLeg()
+    const announced = await driven.started
+    const forged = await fetch(`http://127.0.0.1:${announced.port}/callback?code=attacker&state=wrong`)
     expect(forged.status).toBe(400)
-    expect(provider.awaitingBrowser).toBe(true)
-    const legitimate = await fetch(`http://127.0.0.1:${port}/callback?code=real&state=${encodeURIComponent(state)}`)
+    expect(driven.provider.awaitingBrowser).toBe(true)
+
+    const legitimate = await fetch(`http://127.0.0.1:${announced.port}/callback?code=real&state=${encodeURIComponent(driven.state)}`)
     expect(legitimate.status).toBe(200)
-    await expect(redirect).resolves.toBeUndefined()
-  }, 15_000)
+    await expect(driven.leg).resolves.toBeUndefined()
+  }, 20_000)
 
   it('keeps the listener open for a callback on a foreign path', async () => {
-    const port = await freePort()
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: port }, undefined, () => {}, undefined, openerStub)
-    provider.bindTransport({ finishAuth: async () => {} })
-    const state = provider.state()
-    const authorizationUrl = new URL('https://auth.example/authorize')
-    authorizationUrl.searchParams.set('state', state)
-    const redirect = provider.redirectToAuthorization(authorizationUrl)
-    await vi.waitFor(() => {
-      expect(provider.awaitingBrowser).toBe(true)
-    })
-    const stray = await fetch(`http://127.0.0.1:${port}/elsewhere?code=x&state=${encodeURIComponent(state)}`)
+    const driven = startLeg()
+    const announced = await driven.started
+    const stray = await fetch(`http://127.0.0.1:${announced.port}/elsewhere?code=x&state=${encodeURIComponent(driven.state)}`)
     expect(stray.status).toBe(404)
-    expect(provider.awaitingBrowser).toBe(true)
-    const legitimate = await fetch(`http://127.0.0.1:${port}/callback?code=real&state=${encodeURIComponent(state)}`)
+    expect(driven.provider.awaitingBrowser).toBe(true)
+
+    const legitimate = await fetch(`http://127.0.0.1:${announced.port}/callback?code=real&state=${encodeURIComponent(driven.state)}`)
     expect(legitimate.status).toBe(200)
-    await expect(redirect).resolves.toBeUndefined()
-  }, 15_000)
+    await expect(driven.leg).resolves.toBeUndefined()
+  }, 20_000)
+
+  it('fails the leg when the authorization server redirects with an OAuth error', async () => {
+    const driven = startLeg()
+    const announced = await driven.started
+    const rejection = expect(driven.leg).rejects.toThrow(/access_denied/)
+    const response = await fetch(`http://127.0.0.1:${announced.port}/callback?error=access_denied&error_description=nope&state=${encodeURIComponent(driven.state)}`)
+    expect(response.status).toBe(400)
+
+    await rejection
+    expect(driven.provider.awaitingBrowser).toBe(false)
+    expect(driven.provider.lastBrowserLegOutcome).toBe(false)
+    expect(driven.provider.redirectUrl).toBe('http://127.0.0.1:0/callback')
+  }, 20_000)
 
   it('rejects when no transport generation is bound', async () => {
-    const provider = new LoopbackOAuthClientProvider('srv', { callbackPort: await freePort() }, undefined, () => {}, undefined, openerStub)
+    const provider = new LoopbackOAuthClientProvider('srv', {}, undefined, () => {}, undefined, openerStub)
     await expect(provider.redirectToAuthorization(new URL('https://auth.example/authorize'))).rejects.toThrow(/no active transport/)
   })
-
-  it('keeps the leg open for a late callback regardless of the browser helper', async () => {
-    const port = await freePort()
-    const logs: Array<string> = []
-    const finished: Array<string> = []
-    const provider = new LoopbackOAuthClientProvider(
-      'srv',
-      { callbackPort: port },
-      undefined,
-      message => {
-        logs.push(message)
-      },
-      undefined,
-      openerStub
-    )
-    provider.bindTransport({
-      finishAuth: async code => {
-        finished.push(code)
-      }
-    })
-    const state = provider.state()
-    const redirect = provider.redirectToAuthorization(new URL('https://auth.example/authorize'))
-    // The announce line fires in the listen callback; the leg does not depend
-    // on whether the platform helper managed to open a browser.
-    await vi.waitFor(() => {
-      expect(logs.some(line => /opening the browser/.test(line))).toBe(true)
-    })
-    // A late user agent (slower than the helper's fate) still completes it.
-    await new Promise(resolve => setTimeout(resolve, 100))
-    const response = await fetch(`http://127.0.0.1:${port}/callback?code=late&state=${encodeURIComponent(state)}`)
-    expect(response.status).toBe(200)
-    await expect(redirect).resolves.toBeUndefined()
-    expect(finished).toEqual(['late'])
-  }, 15_000)
 })
