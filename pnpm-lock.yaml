@@ -188,7 +188,7 @@ importers:
         version: 10.0.1(eslint@10.11.0(supports-color@7.2.0))
       '@shikijs/langs':
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.5.0
       '@tsdown/css':
         specifier: ^0.22.14
         version: 0.22.14(postcss@8.5.29)(tsdown@0.22.14)(yaml@2.9.1)
