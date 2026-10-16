@@ -263,7 +263,7 @@ importers:
         version: 4.4.3
       simple-icons:
         specifier: ^16.31.0
-        version: 16.33.0
+        version: 16.35.0
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(@tsdown/css@0.22.14)(@volar/typescript@2.4.28)(typescript@5.9.3)
@@ -3954,8 +3954,8 @@ packages:
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
 
-  simple-icons@16.33.0:
-    resolution: {integrity: sha512-z14u6A8ngAg9mgERRsNO8YkjIMefehIpBk7A8Dz3Gd91945qFP19MLPSHgV4z8P5u/MRYd5e07OTzaDoB4d6qA==}
+  simple-icons@16.35.0:
+    resolution: {integrity: sha512-TCfl/2+GTrx0nCo4pEWGvxhOb8c6NsqOU1OpwjtF4lwJAthB8IYVD0fuIMjLMg6JFuG1YBO0t1iETQqJLqkoJA==}
     engines: {node: '>=0.12.18'}
 
   sisteransi@1.0.5:
@@ -8307,7 +8307,7 @@ snapshots:
 
   siginfo@2.0.0: {}
 
-  simple-icons@16.33.0: {}
+  simple-icons@16.35.0: {}
 
   sisteransi@1.0.5: {}
 
