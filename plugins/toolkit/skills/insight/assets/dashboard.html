@@ -944,7 +944,8 @@
         const family = familyById.get(familyId);
         const item = document.createElement("li");
         const link = document.createElement("a");
-        link.href = `#family-${familyId}`;
+        // Encode the fragment: an id from the report is data, not markup or a URL.
+        link.href = `#${encodeURIComponent(`family-${familyId}`)}`;
         link.textContent = family ? `${family.date} · ${family.project} · ${family.title}` : familyId;
         link.addEventListener("click", (event) => revealTaskFamily(event, familyId));
         item.append(link);

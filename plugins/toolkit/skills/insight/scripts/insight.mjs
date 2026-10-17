@@ -256,8 +256,11 @@ function emitReport(store, run, built, selection, values) {
 }
 
 function openInDefaultApplication(path) {
-  const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open'
-  const args = process.platform === 'win32' ? ['/c', 'start', '', path] : [path]
+  // Launch the platform opener directly. Routing through `cmd /c start` would hand the
+  // report path to a command interpreter, so a path with shell metacharacters could run
+  // a command; explorer.exe takes the path as one argv item instead.
+  const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer.exe' : 'xdg-open'
+  const args = [path]
   try {
     spawn(command, args, { detached: true, stdio: 'ignore' }).unref()
   } catch {
