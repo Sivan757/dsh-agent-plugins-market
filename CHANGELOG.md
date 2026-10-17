@@ -9,6 +9,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.10.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.9.2...dsh-agent-plugins-market-v0.10.0) (2026-10-17)
+
+
+### Features
+
+* **plugins:** author the first-party collection in this repository ([b84559f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b84559fab9e0efff78a50a6b6b6bf8f3c0462b4a))
+
+
+### Bug Fixes
+
+* **catalog:** refuse an oversized zip before decompressing it ([2545245](https://github.com/Sivan757/dsh-agent-plugins-market/commit/254524509c1c9142c08545401c89a110ee4da22d))
+* **deps:** align to the 0.2.1-rc.2 host line with a support window ([de32f32](https://github.com/Sivan757/dsh-agent-plugins-market/commit/de32f32dfd57c1e7d78032137c80af59e50338a7))
+* **deps:** declare a host support window instead of a caret anchor ([2ab0bef](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2ab0bef075a8ab3df9b66096f841acb671bba60f))
+* **mcp:** keep the OAuth loopback redirect_uri through the code exchange ([325a49c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/325a49c0b743ccce7f082233d253f59fea70904f))
+* **prompt:** render suite instruction text literally ([dce2695](https://github.com/Sivan757/dsh-agent-plugins-market/commit/dce269537726ce96851ec3ba2e784eabf15e1b83))
+* **runtime:** keep host calls working across the 0.2.1 release line ([5809c95](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5809c955da7b4224e1042ce20fce4857d8584c01))
+* **toolkit:** close the two CodeQL findings in the insight skill ([8fcae6b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8fcae6ba0ea9b35a134b2d002fb50308e7b65504))
+
 ## [0.9.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.9.1...dsh-agent-plugins-market-v0.9.2) (2026-10-11)
 
 
