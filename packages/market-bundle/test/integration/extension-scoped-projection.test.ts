@@ -13,7 +13,14 @@ import type { UserPanelStore } from '../../../../packages/market-runtime/src/run
 import type { SuiteSkillProviderOptions } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
 
-const observed = vi.hoisted(() => ({ skills: [] as unknown[], commandPolicies: [] as unknown[][], commands: [] as unknown[], mcp: [] as unknown[], overrides: [] as unknown[] }))
+const observed = vi.hoisted(() => ({
+  skills: [] as unknown[],
+  commandPolicies: [] as unknown[][],
+  commands: [] as unknown[],
+  mcp: [] as unknown[],
+  overrides: [] as unknown[],
+  sections: [] as Array<{ name: string; order: number; interpolate?: boolean; text(): string }>
+}))
 vi.mock('../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js', () => ({
   SuiteSkillProvider: class {
     constructor(_catalog: unknown, options: unknown) {
@@ -98,7 +105,12 @@ function fixture() {
         return () => {}
       }
     },
-    systemPrompt: { section() {} },
+    systemPrompt: {
+      section(value: { name: string; order: number; interpolate?: boolean; text(): string }) {
+        observed.sections.push(value)
+        return () => {}
+      }
+    },
     effect() {},
     logger: { warn() {} },
     inject(_deps: string[], apply: (scope: unknown) => void) {
@@ -164,6 +176,36 @@ it('uses pending projections for preparation while execution callbacks consult o
   expect(overrides.get('source/project')?.denied).toEqual(original.denied)
   expect(original.selected?.enabled).toBe(false)
   await contributors.disposeAll()
+})
+
+it('registers suite instructions as literal text so a {{...}} in a suite file cannot fail assembly', async () => {
+  const agent = fixture()
+  const catalog = {
+    enabledUserSuites: async () => [],
+    readProjectCatalog: async () => ({ enabledSuites: [] }),
+    allMcpOverrides: async () => new Map(),
+    mcpBackend: async () => 'builtin'
+  } as unknown as Catalog
+  const contributors = new ScopedExtensionContributors({
+    mcpMounts: createMcpMount,
+    dataRoot: '/unused',
+    catalog,
+    shell: () => undefined,
+    suites: async () => [suite('user')],
+    allows: () => true,
+    registrationAllows: () => true,
+    panels: { commands: {} as UserPanelStore }
+  })
+  try {
+    await contributors.reconcile(agent, captureExtensionSelection(null, ['market:source/user']))
+    const instructions = observed.sections.filter(section => section.name === 'agent-plugins:instructions')
+    expect(instructions.length).toBeGreaterThan(0)
+    // The host interpolates a section by default and refuses an unknown `{{name}}`.
+    // Suite files are third-party Markdown, so they must reach the prompt verbatim.
+    for (const section of instructions) expect(section.interpolate).toBe(false)
+  } finally {
+    await contributors.disposeAll()
+  }
 })
 
 it('loads a disabled skill through the actual provider using projected suites and live policy', async () => {
