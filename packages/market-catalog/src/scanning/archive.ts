@@ -163,8 +163,39 @@ export async function archiveInstall(url: string, dest: string, options: Archive
  * within fflate's synchronous push recursion overflows the stack); the
  * chunked feed halts at the next slice.
  */
+/**
+ * Entry count declared by a zip's end-of-central-directory record.
+ *
+ * The stream cannot always reach its per-entry guard: fflate parses a
+ * whole-archive central directory recursively, and a zip with tens of thousands
+ * of tiny members overflows the stack inside one `push()` before `onfile` can
+ * count them. Reading the declared count first refuses such an archive before
+ * any decompression, and the streaming guard still covers what the record
+ * understates.
+ * @param bytes - the complete archive.
+ * @returns the declared total entry count, or undefined when unreadable or zip64.
+ */
+function zipDeclaredEntryCount(bytes: Uint8Array): number | undefined {
+  const EOCD_SIGNATURE = 0x06_05_4b_50
+  const EOCD_MIN_BYTES = 22
+  const MAX_COMMENT_BYTES = 0xffff
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const lowest = Math.max(0, bytes.byteLength - EOCD_MIN_BYTES - MAX_COMMENT_BYTES)
+  for (let offset = bytes.byteLength - EOCD_MIN_BYTES; offset >= lowest; offset -= 1) {
+    if (view.getUint32(offset, true) !== EOCD_SIGNATURE) continue
+    const declared = view.getUint16(offset + 10, true)
+    // 0xffff defers to zip64, whose real count lives in a different record.
+    return declared === 0xffff ? undefined : declared
+  }
+  return undefined
+}
+
 async function extractZip(archiveFile: string, dest: string): Promise<void> {
   const compressed = await readFile(archiveFile)
+  const declared = zipDeclaredEntryCount(compressed)
+  if (declared !== undefined && declared > ARCHIVE_MAX_ENTRIES) {
+    throw new Error(`archive exceeds the ${ARCHIVE_MAX_ENTRIES} entry limit`)
+  }
   let totalBytes = 0
   let entryCount = 0
   let failure: Error | undefined
