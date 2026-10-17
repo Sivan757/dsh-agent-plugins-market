@@ -21,8 +21,8 @@ Nothing detected either one: `check:refactor` reads the tree, and the tree was i
 
 | Rule | Checks |
 | --- | --- |
-| `dependency-stale` | a host package this plugin provisions itself carries `^<baseline>` |
-| `peer-stale` / `dev-stale` | a host package the deployment supplies carries peer `^<baseline>` and exact dev `<baseline>` |
+| `dependency-stale` | a host package this plugin provisions itself carries the support window |
+| `peer-stale` / `dev-stale` | a host package the deployment supplies carries the peer support window and exact dev `<baseline>` |
 | `undeclared` / `dev-missing` | every host package referenced from `src/` is declared in `dependencies` or `peerDependencies`, and every peer has a dev mirror |
 | `optional-undeclared` | a host-supplied package reached _only_ through `import(...)` is an optional peer — a static import carries a compile-time contract and stays required, while a self-provisioned package needs no optional marker because nothing can go missing |
 | `cordis-mirror` | `@deepseek-ai/cordis` carries one identical range in peer and dev, since it tracks its own 4.x line |

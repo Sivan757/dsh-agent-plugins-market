@@ -12,7 +12,7 @@ release-please 内嵌在 `.github/workflows/npm-publish.yml`（无独立 workflo
 
 ## 宿主依赖对齐门禁
 
-发布产物携带的是打 tag 那个 commit 上的 `package.json`。宿主发布线推进后若 pin 未跟上，tarball 里的 peer 范围会把消费方实际运行的宿主版本排除在外（prerelease 范围只匹配自己的 `major.minor.patch`），而只被动态 `import()` 却未声明的宿主包会让该 surface 静默降级。`scripts/check-host-alignment.mjs` 从 registry 的 `next` dist-tag 解析基线（`latest` 长期滞后，不能用），逐项核对 peer/dev pin、dev 镜像、`minimumReleaseAgeExclude` 与源码里的动态 import，任一不符即以退出码 1 失败。
+发布产物携带的是打 tag 那个 commit 上的 `package.json`。宿主会强制执行插件声明的版本范围：不满足时插件管理页把该行标为异常。因此 peer 与自供 dependency 携带一个支持窗口 `>=0.2.0-rc.2 <0.3.0-0`，而不是指向单个基线的 caret——caret 加在 prerelease 上会把同一条线的更早候选（如 `0.2.1-rc.1`）排除在外。`devDependencies` 仍是 `next` 解析出的精确基线，本仓库只对它构建与测试。只被动态 `import()` 却未声明的宿主包会让该 surface 静默降级，同样拦下。`scripts/check-host-alignment.mjs` 从 `next` dist-tag 解析基线（`latest` 长期滞后，不能用），逐项核对窗口、dev 镜像、`minimumReleaseAgeExclude` 与源码里的动态 import，基线落在窗口外也失败，任一不符即以退出码 1 失败。
 
 三处拦截，缺一不可：
 
