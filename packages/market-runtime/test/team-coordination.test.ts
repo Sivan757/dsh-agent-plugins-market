@@ -30,7 +30,8 @@ import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import * as TeamTools from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { startContinuableChild } from '../../../packages/market-runtime/src/runtime/agents/subagent-seam.js'
+import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
@@ -70,7 +71,8 @@ async function setup() {
   cleanups.push(() => rm(root, { recursive: true, force: true }))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
-  await mountAgentLoopTestDependencies(ctx)
+  // 0.2.1 mounts the subagent service behind the working-directory service.
+  await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
   await ctx.plugin(Persistence, { root })
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(Subagents)
@@ -149,14 +151,15 @@ async function startPlainSubagent(ctx: Context, parent: Agent): Promise<SessionI
   const ended = Promise.withResolvers<void>()
   const off = ctx.on('subagent/end', () => ended.resolve())
   try {
-    const started = await ctx.subagents.startContinuable({
+    const started = await startContinuableChild(ctx.subagents, {
       provider: SPAWN_PROVIDER,
       label: 'plain subagent',
       request: { parent, prompt: [{ type: 'text', text: 'Work outside the Team.' }] },
       signal: new AbortController().signal
     })
     await ended.promise
-    return started.childId
+    // The seam forwards the host value; the host brands it as a SessionId.
+    return started.childId as SessionId
   } finally {
     off()
   }

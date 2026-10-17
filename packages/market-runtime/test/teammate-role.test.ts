@@ -9,8 +9,19 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import { LlmAdapter, ToolCallId, createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
-import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
+import { startContinuableChild } from '../../../packages/market-runtime/src/runtime/agents/subagent-seam.js'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
+
+/**
+ * Whether the host took a Team message. 0.2.0-rc.2 reports `accepted` or `queued`;
+ * 0.2.1-alpha.4 delivers straight to the target inbox and returns only the id.
+ * @param receipt - the host's send result.
+ * @returns true when the host accepted the message.
+ */
+function accepted(receipt: { readonly messageId?: unknown; readonly status?: string }): boolean {
+  return receipt.status === undefined ? receipt.messageId !== undefined : receipt.status === 'accepted'
+}
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -100,7 +111,9 @@ async function setup(withTeam = true, savedRoot?: string) {
   if (savedRoot === undefined) cleanups.push(() => rm(root, { recursive: true, force: true }))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
-  await mountAgentLoopTestDependencies(ctx)
+  // 0.2.1 mounts the subagent service behind the working-directory service, so the
+  // test dependencies must provide it before `ctx.plugin(Subagents)` can activate.
+  await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
   await ctx.plugin(Persistence, { root })
   await ctx.plugin(TestQuery)
   await ctx.plugin(AgentLoop, { agents: [] })
@@ -220,8 +233,8 @@ describe('role teammates on published Agent Teams', () => {
     const resumed = Promise.withResolvers<void>()
     second.ctx.once('subagent/end', () => resumed.resolve())
     expect(
-      (await second.ctx.agentTeams.sendMessage(second.lead, { target: 'durable', content: [{ type: 'text', text: 'resume task' }], signal: new AbortController().signal })).status
-    ).toBe('accepted')
+      accepted(await second.ctx.agentTeams.sendMessage(second.lead, { target: 'durable', content: [{ type: 'text', text: 'resume task' }], signal: new AbortController().signal }))
+    ).toBe(true)
     await resumed.promise
     const request = second.adapter.requests.find(request => request.model === 'durable-model')
     expect(JSON.stringify(request)).toContain('DURABLE_ROLE')
@@ -390,7 +403,7 @@ describe('role teammates on published Agent Teams', () => {
       runtime.spawn(lead, { name: 'aborted', description: 'test', prompt: 'test' }, { roleId: 'x', persona: 'x', route: { provider: 'mock', model: 'x' } }, signal.signal)
     ).toThrow()
     await expect(
-      ctx.subagents.startContinuable({
+      startContinuableChild(ctx.subagents, {
         provider: 'market-role-team',
         label: 'bypass',
         request: { parent: lead, prompt: [{ type: 'text', text: 'bypass' }] },
@@ -413,7 +426,7 @@ describe('role teammates on published Agent Teams', () => {
     )
     await done.promise
     const child = await ctx.agentTeams.sendMessage(lead, { target: 'worker', content: [{ type: 'text', text: 'wake' }], signal: new AbortController().signal })
-    expect(child.status).toBe('accepted')
+    expect(accepted(child)).toBe(true)
     const childAgent = ctx.agentTeams.listMembers(lead).find(candidate => candidate.name === 'worker')!
     const agent = ctx.agents.get(childAgent.id)
     if (agent === undefined) throw new Error('expected the worker to be resident for the permission probe')
@@ -525,8 +538,8 @@ describe('role teammates on published Agent Teams', () => {
     const memberRequests = () => adapter.requests.filter(request => request.sessionId === memberId)
     const resumed = Promise.withResolvers<void>()
     ctx.once('subagent/end', () => resumed.resolve())
-    expect((await ctx.agentTeams.sendMessage(lead, { target: 'persisted', content: [{ type: 'text', text: 'follow up' }], signal: new AbortController().signal })).status).toBe(
-      'accepted'
+    expect(accepted(await ctx.agentTeams.sendMessage(lead, { target: 'persisted', content: [{ type: 'text', text: 'follow up' }], signal: new AbortController().signal }))).toBe(
+      true
     )
     await resumed.promise
     expect(memberRequests()).toHaveLength(2)
@@ -556,8 +569,8 @@ describe('role teammates on published Agent Teams', () => {
     const stored = await ctx.sessionQuery.readSession(row!.id)
     expect(JSON.stringify(stored.events)).toContain(TEAM_ROLE_SOURCE)
     expect(
-      (await ctx.agentTeams.sendMessage(lead, { target: result.target, content: [{ type: 'text', text: 'Review again.' }], signal: new AbortController().signal })).status
-    ).toBe('accepted')
+      accepted(await ctx.agentTeams.sendMessage(lead, { target: result.target, content: [{ type: 'text', text: 'Review again.' }], signal: new AbortController().signal }))
+    ).toBe(true)
     await continued.promise
     const memberRequests = adapter.requests.filter(request => request.sessionId === row!.id)
     expect(memberRequests.at(-1)?.model).toBe('review-model')
@@ -657,8 +670,8 @@ describe('role teammates on published Agent Teams', () => {
     expect(systemForMember()).not.toContain('You are the Team Lead')
     const resumed = Promise.withResolvers<void>()
     ctx.once('subagent/end', () => resumed.resolve())
-    expect((await ctx.agentTeams.sendMessage(lead, { target: result.target, content: [{ type: 'text', text: 'Again.' }], signal: new AbortController().signal })).status).toBe(
-      'accepted'
+    expect(accepted(await ctx.agentTeams.sendMessage(lead, { target: result.target, content: [{ type: 'text', text: 'Again.' }], signal: new AbortController().signal }))).toBe(
+      true
     )
     await resumed.promise
     const restored = await ctx.sessionQuery.readSession(row!.id)
@@ -744,16 +757,16 @@ describe('role teammates on published Agent Teams', () => {
 
     const plainEnded = Promise.withResolvers<void>()
     ctx.once('subagent/end', () => plainEnded.resolve())
-    const plain = await ctx.subagents.startContinuable({
+    const plain = await startContinuableChild(ctx.subagents, {
       provider: 'spawn',
       label: 'plain',
       request: { parent: lead, prompt: [{ type: 'text', text: 'Outside the Team.' }] },
       signal: new AbortController().signal
     })
     await plainEnded.promise
-    expect(createdSchemas.get(plain.childId)).toBeDefined()
-    expect(createdSchemas.get(plain.childId)).not.toContain(NAME)
-    expect(requestToolNames(adapter, plain.childId)).not.toContain(NAME)
+    expect(createdSchemas.get(plain.childId as SessionId)).toBeDefined()
+    expect(createdSchemas.get(plain.childId as SessionId)).not.toContain(NAME)
+    expect(requestToolNames(adapter, plain.childId as SessionId)).not.toContain(NAME)
 
     await dispose()
     expect(ctx.tools.schemas(lead).map(schema => schema.name)).not.toContain(NAME)

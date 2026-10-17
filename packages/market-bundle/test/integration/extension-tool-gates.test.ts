@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -52,11 +55,17 @@ class BindingRuntime extends Service {
 async function setup() {
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
-  await mountAgentLoopTestDependencies(ctx)
+  // 0.2.1 gates `run_code` with an agent on the working-directory service, so the
+  // test dependencies must provide it before the harness creates Agents.
+  await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
   await ctx.plugin(BindingRuntime)
   const harness = await mountAgentLoopTestHarness(ctx)
-  const a = await harness.create(SessionId('extension-tools-a'), {}, { cwd: '/same/workspace' })
-  const b = await harness.create(SessionId('extension-tools-b'), {}, { cwd: '/same/workspace' })
+  // Both Agents share one real directory: 0.2.1 validates a working directory on use,
+  // so the fixture cannot point at a path that does not exist.
+  const workspace = await mkdtemp(join(tmpdir(), 'extension-tool-gates-'))
+  cleanups.push(() => rm(workspace, { recursive: true, force: true }))
+  const a = await harness.create(SessionId('extension-tools-a'), {}, { cwd: workspace })
+  const b = await harness.create(SessionId('extension-tools-b'), {}, { cwd: workspace })
   const chosen = new Map<Agent, Set<string>>([
     [a, new Set()],
     [b, new Set()]

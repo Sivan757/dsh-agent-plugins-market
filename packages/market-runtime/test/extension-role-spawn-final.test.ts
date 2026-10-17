@@ -10,7 +10,7 @@ import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import * as TeamTools from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import { LlmAdapter, ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
@@ -124,7 +124,8 @@ describe('a role revoked during model route validation never spawns', () => {
     cleanups.push(() => rm(root, { recursive: true, force: true }))
     const ctx = new Context()
     cleanups.push(() => ctx.fiber.dispose())
-    await mountAgentLoopTestDependencies(ctx)
+    // 0.2.1 mounts the subagent service behind the working-directory service.
+    await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
     await ctx.plugin(Persistence, { root })
     await ctx.plugin(TestQuery)
     await ctx.plugin(AgentLoop, { agents: [] })

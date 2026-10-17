@@ -10,7 +10,7 @@ import { LlmAdapter, ToolCallId, createUserMessage, type GenerateOptions, type S
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { registerOwnedBridgeTool } from '../../../../packages/market-mcp/src/runtime/mcp/bridge/tool-ownership.js'
 import { attachExtensionToolGates } from '../../../../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
-import Persistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtime/host/extension-runtime.js'
 import { ExtensionPresetStore, extensionPresetLibraryPath } from '../../../../packages/market-runtime/src/application/state/extension-presets.js'

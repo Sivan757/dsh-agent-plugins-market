@@ -22,7 +22,7 @@ function hostFixture(terminal: { stopReason?: string; diagnostic?: string; outpu
   // tuple; an untyped spy records `[]` and the argument assertions below are unchecked.
   // The spies are returned alongside the host because a host method read as a
   // value detaches from its receiver, and these assertions need the mock itself.
-  const startContinuable = vi.fn<AgentRoleHost['subagents']['startContinuable']>(async () => ({ childId: 'child-1', messageId: 'message-1' }))
+  const startContinuable = vi.fn<NonNullable<AgentRoleHost['subagents']['startContinuable']>>(async () => ({ childId: 'child-1', messageId: 'message-1' }))
   const disposeRun = vi.fn(async () => {})
   const start = vi.fn<AgentRoleHost['subagents']['start']>(async () => ({
     id: 'child-1',
@@ -339,6 +339,6 @@ describe('agent role metadata and runtime routing', () => {
     expect(summaries.find(role => role.name === 'alias')).not.toHaveProperty('model')
     const { host, startContinuable } = hostFixture()
     await executeAgentRole(host, async () => [inline], 'inline', 'Review', parent, {}, 'continuable', signalValue)
-    expect(startContinuable.mock.calls[0]?.[0].request.persona).toBe('Inline persona')
+    expect((startContinuable.mock.calls[0]?.[0].request as { persona?: string }).persona).toBe('Inline persona')
   })
 })
