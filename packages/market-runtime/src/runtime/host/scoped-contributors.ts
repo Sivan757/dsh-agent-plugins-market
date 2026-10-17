@@ -156,6 +156,10 @@ export class ScopedExtensionContributors {
       scope.systemPrompt.section({
         name: 'agent-plugins:instructions',
         order: 500,
+        // Suite-authored Markdown is literal text, never a template: the host
+        // interpolates by default and refuses an unknown `{{name}}`, so a suite
+        // that quotes `{{cwd}}` would fail prompt assembly before any request.
+        interpolate: false,
         text: () =>
           mount.active
             ? mount.instructions

@@ -74,8 +74,13 @@ export function mountSuiteInstructions(
     'systemPrompt',
     (scope, agent) => {
       let text = ''
-      const host = scope as unknown as { systemPrompt: { section(value: { name: string; order: number; text(): string }): () => void } }
-      const dispose = host.systemPrompt.section({ name: 'agent-plugins:instructions', order: 500, text: () => text })
+      const host = scope as unknown as {
+        systemPrompt: { section(value: { name: string; order: number; text(): string; interpolate?: boolean }): () => void }
+      }
+      // Suite-authored Markdown is literal text, never a template: the host
+      // interpolates by default and refuses an unknown `{{name}}`, so a suite that
+      // quotes `{{cwd}}` would fail prompt assembly before any model request.
+      const dispose = host.systemPrompt.section({ name: 'agent-plugins:instructions', order: 500, interpolate: false, text: () => text })
       return {
         async reconcile(projectSuites) {
           const projectDir = agent.session.header.cwd

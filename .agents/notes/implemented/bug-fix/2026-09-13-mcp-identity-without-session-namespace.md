@@ -40,10 +40,10 @@ The suffix also made a project server unrecognizable in its own tool names, and 
 
 ## Testing
 
-- `tests/native-project-cwd.test.ts` — a home cwd reads as an empty project catalog while the user catalog still lists the install, and a `.git`-rooted cwd still resolves to its own dimension.
-- `tests/project-mcp.test.ts` — two agents mount their own project configs under one shared derived name, and switching project layouts off unmounts both.
-- `tests/mcp-status.test.ts` — `oauthDefault` is set for a remote server without an `auth` declaration and absent for `stdio` or a declared one.
-- `tests/client-mcp-detail.test.ts` — the authorization note renders for that row only.
+- `packages/market-bundle/test/integration/native-project-cwd.test.ts` — a home cwd reads as an empty project catalog while the user catalog still lists the install, and a `.git`-rooted cwd still resolves to its own dimension.
+- `packages/market-bundle/test/integration/project-mcp.test.ts` — two agents mount their own project configs under one shared derived name, and switching project layouts off unmounts both.
+- `packages/market-bundle/test/integration/mcp-status.test.ts` — `oauthDefault` is set for a remote server without an `auth` declaration and absent for `stdio` or a declared one.
+- `packages/market-bundle/test/integration/client-mcp-detail.test.ts` — the authorization note renders for that row only.
 
 ## Related
 

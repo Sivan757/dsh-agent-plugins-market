@@ -40,7 +40,7 @@ Adding a document kind requires updating validation and client readers for both 
 
 ## Testing
 
-[Cross-surface tests](../../../../tests/surface-translations.test.ts) cover cache reuse, disk re-reads and invalid names. [Route tests](../../../../tests/routes.test.ts) cover identity validation and refusal to forward extra text. [Market document tests](../../../../tests/market-detail-document-translation.test.ts) and [user entry tests](../../../../tests/client-user-entry-detail-translation.test.ts) cover expanded reads. [Shared reader tests](../../../../tests/client-document-translation.test.ts) own three-mode interaction. These identify coverage, not a full test rerun by this documentation edit.
+[Cross-surface tests](../../../../packages/market-bundle/test/integration/surface-translations.test.ts) cover cache reuse, disk re-reads and invalid names. [Route tests](../../../../packages/market-bundle/test/integration/routes.test.ts) cover identity validation and refusal to forward extra text. [Market document tests](../../../../packages/market-ui/test/market-detail-document-translation.test.ts) and [user entry tests](../../../../packages/market-ui/test/client-user-entry-detail-translation.test.ts) cover expanded reads. [Shared reader tests](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts) own three-mode interaction. These identify coverage, not a full test rerun by this documentation edit.
 
 ## Related
 

@@ -64,9 +64,9 @@ Status: implemented
 
 ## Testing
 
-[文档分块测试](../../../../tests/document-chunks.test.ts)覆盖短段完整发送、句子分组、标记、emoji 与超长句。[本地化器测试](../../../../tests/translation-localizer.test.ts)覆盖隐藏部分结果、完整聚合、重启复用、策略隔离与定向重试。[服务测试](../../../../tests/translation-document.test.ts)覆盖失败段落和保留成功结果的重试。
+[文档分块测试](../../../../packages/market-translation/test/document-chunks.test.ts)覆盖短段完整发送、句子分组、标记、emoji 与超长句。[本地化器测试](../../../../packages/market-translation/test/translation-localizer.test.ts)覆盖隐藏部分结果、完整聚合、重启复用、策略隔离与定向重试。[服务测试](../../../../packages/market-bundle/test/integration/translation-document.test.ts)覆盖失败段落和保留成功结果的重试。
 
-[阅读器测试](../../../../tests/client-document-translation.test.ts)覆盖标题栏控件、选中图标加载状态、失败和重试请求。这些引用指明覆盖归属。本次文档修改不声称真实 provider 的质量结果，也不声称浏览器验证已经完成。
+[阅读器测试](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts)覆盖标题栏控件、选中图标加载状态、失败和重试请求。这些引用指明覆盖归属。本次文档修改不声称真实 provider 的质量结果，也不声称浏览器验证已经完成。
 
 ## Related
 

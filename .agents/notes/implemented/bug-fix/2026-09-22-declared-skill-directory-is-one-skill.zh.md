@@ -30,4 +30,4 @@ Status: implemented
 
 ## 验证
 
-`tests/discovery.test.ts` 扫描 `tests/fixtures/declared-skill-dirs/`：这是 mattpocock 形态的测试样本，两个声明技能目录各自带着参考文档，其中一份带合法的 `name` 与 `description` frontmatter。测试钉住发现到的技能集合正是那两个声明的名字、诊断列表为空，以及那份带 frontmatter 的参考文档不在其中。本次改动之前扫描十四份已配置来源报出 22 条此类诊断，全部来自 mattpocock checkout；改动之后一条也没有。
+`packages/market-bundle/test/integration/discovery.test.ts` 扫描 `packages/market-bundle/test/integration/fixtures/declared-skill-dirs/`：这是 mattpocock 形态的测试样本，两个声明技能目录各自带着参考文档，其中一份带合法的 `name` 与 `description` frontmatter。测试钉住发现到的技能集合正是那两个声明的名字、诊断列表为空，以及那份带 frontmatter 的参考文档不在其中。本次改动之前扫描十四份已配置来源报出 22 条此类诊断，全部来自 mattpocock checkout；改动之后一条也没有。

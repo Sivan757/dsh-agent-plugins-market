@@ -31,6 +31,6 @@ Status: implemented
 
 ## Verification
 
-- `tests/source-acquisition.test.ts`：kind 推断、压缩包 URL 的 id 派生、codeload URL 映射、状态往返、经本地 HTTP 服务器的下载/校验/解压/剥壳/zip-slip/tar.gz 管线、收编列举/幂等收编/git+local 登记/移除保留用户目录。
-- `tests/routes.test.ts` 覆盖路由表；`tests/skills-provider.test.ts` 钉住 local 源的持久化形态。
+- `packages/market-bundle/test/integration/source-acquisition.test.ts`：kind 推断、压缩包 URL 的 id 派生、codeload URL 映射、状态往返、经本地 HTTP 服务器的下载/校验/解压/剥壳/zip-slip/tar.gz 管线、收编列举/幂等收编/git+local 登记/移除保留用户目录。
+- `packages/market-bundle/test/integration/routes.test.ts` 覆盖路由表；`packages/market-bundle/test/integration/skills-provider.test.ts` 钉住 local 源的持久化形态。
 - `pnpm run check:refactor` 与全量 vitest 均绿。

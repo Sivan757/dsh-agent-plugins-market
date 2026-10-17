@@ -64,7 +64,7 @@ An interaction survey of the same corpus (598 logs, deduplicated) reconstructed 
 
 ## Testing
 
-`tests/subagent-catalog.test.ts` asserts the escaped role line carries a name and a description and no route, that a description or route change re-publishes while a title rename does not, that two renders under different host locales are byte-identical, that the three guidance sections and the mid-run question rule are present, and that the removed channel inventory stays out. `tests/host-locale.test.ts` asserts the interface strings translate in both languages and that the model-facing catalog is no longer part of that dictionary. `tests/agent-role-router.test.ts` asserts the registered `subagent_role` parameter surface, call-over-card route precedence, the continuable request shape, the refusal cases, and the foreground path's output and disposal.
+`packages/market-bundle/test/integration/subagent-catalog.test.ts` asserts the escaped role line carries a name and a description and no route, that a description or route change re-publishes while a title rename does not, that two renders under different host locales are byte-identical, that the three guidance sections and the mid-run question rule are present, and that the removed channel inventory stays out. `packages/market-runtime/test/host-locale.test.ts` asserts the interface strings translate in both languages and that the model-facing catalog is no longer part of that dictionary. `packages/market-runtime/test/agent-role-router.test.ts` asserts the registered `subagent_role` parameter surface, call-over-card route precedence, the continuable request shape, the refusal cases, and the foreground path's output and disposal.
 
 ## Related decisions
 

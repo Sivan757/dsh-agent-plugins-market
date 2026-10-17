@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Compatibility report: validate every schema in `schemas/` against a real
+ * Compatibility report: validate every schema in `packages/market-catalog/schemas/` against a real
  * repository, then scan that repository with the real catalog scanner.
  *
  * The report answers two separate questions, because they fail separately:
@@ -121,8 +121,8 @@ function validate(schemaCache, schemaRelative, document) {
 
 /** Which schema files back a dialect, and whether it is vendored upstream. */
 function schemaPaths(schema) {
-  if (schema === 'agent-plugins') return { plugin: 'schemas/1.0.0/plugin.schema.json', marketplace: null }
-  return { plugin: `schemas/${schema}/plugin.schema.json`, marketplace: `schemas/${schema}/marketplace.schema.json` }
+  if (schema === 'agent-plugins') return { plugin: 'packages/market-catalog/schemas/1.0.0/plugin.schema.json', marketplace: null }
+  return { plugin: `packages/market-catalog/schemas/${schema}/plugin.schema.json`, marketplace: `packages/market-catalog/schemas/${schema}/marketplace.schema.json` }
 }
 
 /** Relative, POSIX-style path of `target` under `base`. */
@@ -254,7 +254,7 @@ async function main() {
     selection: config.selection,
     method: {
       schema:
-        'Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored schemas/1.0.0/plugin.schema.json.',
+        'Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored packages/market-catalog/schemas/1.0.0/plugin.schema.json.',
       scanner:
         'Each checkout is scanned by the shipped catalog scanner (lib/packages/market-catalog/src/scanning/suite-scanner.js scanSource) after a sparse depth-1 clone, so the row records what this plugin actually does with the repository.',
       marketplace: `The scanner marketplace lookup order is ${scannerMarketplaces.map(path => `\`${path}\``).join(' then ')}; other dialects' marketplace files are listed for context but are not read.`,
@@ -281,7 +281,7 @@ function renderMarkdown(report) {
   lines.push(`Generated ${report.generatedAt} by \`node scripts/compat-report.mjs\`. Samples are pinned in \`scripts/compat-sources.json\`.`)
   lines.push('')
   lines.push(
-    'Every schema in `schemas/` is exercised against one real GitHub repository: the highest-starred candidate that ships the layout, found with GitHub code search on the selection date. Each row answers two independent questions — does the repository satisfy the schema, and what does this plugin actually do when it reads the checkout.'
+    'Every schema in `packages/market-catalog/schemas/` is exercised against one real GitHub repository: the highest-starred candidate that ships the layout, found with GitHub code search on the selection date. Each row answers two independent questions — does the repository satisfy the schema, and what does this plugin actually do when it reads the checkout.'
   )
   lines.push('')
   lines.push('## Summary')
@@ -385,7 +385,7 @@ function renderMarkdown(report) {
   lines.push('```')
   lines.push('')
   lines.push(
-    'Checkouts are cached under `node_modules/.cache/compat-report/<dialect>`; acquisition is a sparse, blobless, depth-1 clone, so a multi-gigabyte repository costs under a megabyte. The report is a point-in-time measurement: `tests/compat-report.test.ts` keeps it structurally valid and covered, but it does not re-fetch the repositories.'
+    'Checkouts are cached under `node_modules/.cache/compat-report/<dialect>`; acquisition is a sparse, blobless, depth-1 clone, so a multi-gigabyte repository costs under a megabyte. The report is a point-in-time measurement: `packages/market-bundle/test/repo/compat-report.test.ts` keeps it structurally valid and covered, but it does not re-fetch the repositories.'
   )
   lines.push('')
   return `${lines.join('\n')}\n`

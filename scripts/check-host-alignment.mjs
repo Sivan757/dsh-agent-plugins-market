@@ -22,10 +22,10 @@
  * lockstep to `next`, while their own `latest` tags still sit on early placeholders, so they
  * cannot decide the baseline.
  *
- * - a `dependencies` entry carries `^<baseline>`: this plugin provisions that capability itself,
+ * - a `dependencies` entry carries the support range: this plugin provisions that capability itself,
  *   so pnpm installs it into the consuming profile (a dsh profile sets `autoInstallPeers: false`,
  *   which makes a peer contract a declaration the host has to satisfy on its own);
- * - a `peerDependencies` entry carries `^<baseline>` and an exact `<baseline>` dev mirror;
+ * - a `peerDependencies` entry carries the support range and an exact `<baseline>` dev mirror;
  * - anything `src/` imports is declared in one of the two sections above;
  * - a package reached only through `import(...)` is an optional peer, because it is mounted
  *   lazily and must degrade instead of failing — unless this plugin provisions it itself;
@@ -69,6 +69,21 @@ const HOST_PREFIX = '@deepseek-ai/dsh-'
  * the only family member that can answer which version has actually shipped.
  */
 const HOST_ANCHOR = '@deepseek-ai/dsh'
+/**
+ * The support window every consumer-facing host pin must carry.
+ *
+ * A caret range is an anchor, not a contract: `^0.2.1-rc.2` excludes the 0.2.1-rc.1 candidate
+ * the host shipped the day before, and a host that refuses an unmet peer range marks the plugin
+ * incompatible on its own plugin page. The window states the two facts a consumer needs — the
+ * oldest host release this code runs on, and the major line it never crosses — so a candidate
+ * between them keeps working without a release here.
+ *
+ * The floor moves only when the plugin drops a release line on purpose; `baselineFrom` still
+ * decides which exact version this repository builds and tests against.
+ */
+const HOST_SUPPORT_FLOOR = '0.2.0-rc.2'
+const HOST_SUPPORT_CEILING = '0.3.0-0'
+const HOST_SUPPORT_RANGE = `>=${HOST_SUPPORT_FLOOR} <${HOST_SUPPORT_CEILING}`
 /** Client modules are host-supplied bundle externals, not installable capabilities. */
 const CLIENT_PREFIX = '@deepseek-ai/dsh-client-'
 /** Cordis is the plugin container; it tracks its own 4.x line, not the dsh family version. */
@@ -118,6 +133,7 @@ function scanHostSurface(dir) {
       return
     }
     for (const entry of entries) {
+      if (entry === 'node_modules') continue
       const path = join(current, entry)
       if (statSync(path).isDirectory()) walk(path)
       else if (/\.[cm]?[jt]sx?$/.test(entry)) files.push(path)
@@ -129,8 +145,11 @@ function scanHostSurface(dir) {
     const source = readFileSync(path, 'utf8')
     const record = (name, kind) => {
       if (isClientPackage(name)) return
-      const entry = found.get(name) ?? { reference: relative(ROOT, path), static: false, dynamic: false }
+      const isTest = /(^|\/)test\//.test(relative(ROOT, path))
+      const entry = found.get(name) ?? { reference: relative(ROOT, path), static: false, dynamic: false, inSrc: false, inTest: false }
       entry[kind] = true
+      if (isTest) entry.inTest = true
+      else entry.inSrc = true
       found.set(name, entry)
     }
     for (const match of source.matchAll(/(?:from|require\s*\()\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'static')
@@ -203,7 +222,7 @@ function requiredExclusions(manifest, baseline, hostNames) {
   const required = new Set()
   for (const name of hostNames) {
     if (manifest.devDependencies?.[name] === baseline) required.add(name)
-    else if (manifest.dependencies?.[name] === `^${baseline}`) required.add(name)
+    else if (manifest.dependencies?.[name] === HOST_SUPPORT_RANGE) required.add(name)
   }
   return required
 }
@@ -221,7 +240,7 @@ function inspect(manifest, surface, baseline, exclusions) {
 
   const names = new Set([...Object.keys(peer).filter(isHostPackage), ...Object.keys(dev).filter(isHostPackage), ...Object.keys(deps).filter(isHostPackage), ...surface.keys()])
   const hostNames = [...names].sort()
-  const expectedPeer = `^${baseline}`
+  const expectedPeer = HOST_SUPPORT_RANGE
 
   for (const name of hostNames) {
     const entry = surface.get(name)
@@ -244,6 +263,9 @@ function inspect(manifest, surface, baseline, exclusions) {
     }
     if (peer[name] !== undefined && peer[name] !== expectedPeer) {
       violations.push({ code: 'peer-stale', message: `peerDependencies["${name}"] is ${peer[name]}, expected ${expectedPeer}` })
+    } else if (!isDevOnlyClient && !isDevOnlyTest && entry !== undefined && !entry.inSrc && entry.inTest && !selfProvisioned && peer[name] === undefined) {
+      // A package imported only from a test/ tree supports this repository's own builds and
+      // tests; the exact dev mirror below pins it, and no consumer peer is imposed.
     } else if (!isDevOnlyClient && !isDevOnlyTest && !selfProvisioned && peer[name] === undefined) {
       violations.push({
         code: 'undeclared',
@@ -346,7 +368,7 @@ function repair(manifest, surface, baseline, exclusionText) {
   const meta = (manifest.peerDependenciesMeta ??= {})
   const deps = manifest.dependencies ?? {}
   const names = new Set([...Object.keys(peer).filter(isHostPackage), ...Object.keys(dev).filter(isHostPackage), ...Object.keys(deps).filter(isHostPackage), ...surface.keys()])
-  const expected = `^${baseline}`
+  const expected = HOST_SUPPORT_RANGE
 
   for (const name of names) {
     // Repair never moves a package between sections: declaring a capability as a dependency is an
@@ -379,6 +401,22 @@ function render({ baseline, channel, violations, hostNames, repaired }) {
   return lines.join('\n')
 }
 
+/**
+ * Whether the resolved baseline still sits inside the declared support window.
+ *
+ * Only `major.minor` decides: the window names release lines, and every candidate version inside
+ * one shares them. A baseline outside the window means the gate would pin a dev mirror the shipped
+ * range refuses, so the maintainer must move the floor and ceiling deliberately.
+ * @param baseline - the version resolved from the channel.
+ * @returns true when the baseline belongs to the declared window.
+ */
+function baselineInWindow(baseline) {
+  const line = version => version.split('-')[0].split('.').slice(0, 2).map(Number)
+  const compare = (left, right) => left[0] - right[0] || left[1] - right[1]
+  const current = line(baseline)
+  return compare(current, line(HOST_SUPPORT_FLOOR)) >= 0 && compare(current, line(HOST_SUPPORT_CEILING)) < 0
+}
+
 async function main() {
   const manifestText = await read(MANIFEST_PATH)
   const manifest = JSON.parse(manifestText)
@@ -389,6 +427,9 @@ async function main() {
 
   const tags = await resolveDistTags([...candidates, HOST_ANCHOR])
   const baseline = baselineFrom(tags)
+  if (!baselineInWindow(baseline)) {
+    throw new Error(`resolved baseline ${baseline} is outside the declared support window ${HOST_SUPPORT_RANGE}; move HOST_SUPPORT_FLOOR/HOST_SUPPORT_CEILING before releasing`)
+  }
 
   let workspaceText = await read(WORKSPACE_PATH)
   let { violations, hostNames } = inspect(manifest, surface, baseline, parseExclusions(workspaceText))

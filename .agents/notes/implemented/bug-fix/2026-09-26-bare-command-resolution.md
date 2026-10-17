@@ -34,8 +34,8 @@ The host does not cover this: `dsh-mcp-client` hands `command` to the MCP SDK un
 
 ## Verification
 
-- `tests/shell-path.test.ts` (21 cases) pins marker parsing, banner noise, relative-entry filtering, de-duplication, the single probe, non-darwin no-op, timeout, missing shell, and each `resolveDeclaredCommand` branch — base resolution, append-and-retry, still-failing, probe failure, explicit `PATH`, missing seam, and non-lookup errors.
-- `tests/mcp-bridge.test.ts` and `tests/lsp-mounts.test.ts` add 10 cases: a healthy environment keeps its `PATH` byte-identical, an extension reaches the mount env and the log, an explicit `PATH` is passed through untouched, a failure fact reaches the cause chain, and non-stdio transports never resolve.
+- `packages/market-runtime/test/shell-path.test.ts` (21 cases) pins marker parsing, banner noise, relative-entry filtering, de-duplication, the single probe, non-darwin no-op, timeout, missing shell, and each `resolveDeclaredCommand` branch — base resolution, append-and-retry, still-failing, probe failure, explicit `PATH`, missing seam, and non-lookup errors.
+- `packages/market-bundle/test/integration/mcp-bridge.test.ts` and `packages/market-bundle/test/integration/lsp-mounts.test.ts` add 10 cases: a healthy environment keeps its `PATH` byte-identical, an extension reaches the mount env and the log, an explicit `PATH` is passed through untouched, a failure fact reaches the cause chain, and non-stdio transports never resolve.
 - Live probe from the host's own short `PATH`: 194 ms, 30 entries, `/opt/homebrew/bin` among them, 26 directories appended in order.
 - Real spawn with the resolver's own output: `npx --prefix … chrome-devtools-mcp@1.10.1` starts (status 0, npm reporting the run) where the same spawn with the host `PATH` fails with `ENOENT`.
 - Full gates green: typecheck, eslint, prettier, dependency-cruiser, and 98 files / 881 cases.

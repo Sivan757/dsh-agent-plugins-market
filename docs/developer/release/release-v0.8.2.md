@@ -22,7 +22,7 @@
 
 ## 三、Windows / Linux CI 修复（本轮的核心发现）
 
-新增的 `tests/shell-path.test.ts` 在 Linux 与 Windows 上大面积失败，两处原因，都在测试侧：
+新增的 `packages/market-runtime/test/shell-path.test.ts` 在 Linux 与 Windows 上大面积失败，两处原因，都在测试侧：
 
 1. **平台未限定。** 产品的登录 shell 探测刻意只对 `darwin` 生效（决策见 [bare-command-resolution](../../../.agents/notes/implemented/bug-fix/2026-09-26-bare-command-resolution.md)），而期望探测真的运行的 8 个用例没有限定平台，在其他 runner 上探测直接返回 `undefined`。改为逐用例 `withPlatform('darwin')` 固定平台，与该文件里既有的「非 darwin 时不做任何事」用例保持一致。
 2. **分隔符写成 POSIX 的 `:`。** 产品用 `node:path` 的 `delimiter` 拆分与拼接 `PATH`，Windows 上是 `;`，所以按 `:` 拼出的多段 `PATH` 在 Windows 上只是一个条目，解析、追加、扩展后缀三处断言都落空。改为全部经 `delimiter` 构造，与仓库其他跨平台用例同一规则。

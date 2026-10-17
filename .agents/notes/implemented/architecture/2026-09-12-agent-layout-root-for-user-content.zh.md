@@ -40,4 +40,4 @@ Status: implemented
 
 ## 验证
 
-`tests/storage-migration.test.ts` 覆盖面板与服务声明的迁移、搬空目录、冲突与重复执行；`tests/user-panels.test.ts`、`tests/mcp-direct-config.test.ts`、`tests/lsp-direct-config.test.ts` 与 `tests/server-config.test.ts` 覆盖新根目录下的增删改与校验；`tests/panel-resources.test.ts` 覆盖已安装套件的编辑包含性。`tests/user-panels.test.ts` 还钉住面板 provider 的 rank 低于宿主读取器的 500——一旦优先级被悄悄改动，这条断言会失败。
+`packages/market-catalog/test/storage-migration.test.ts` 覆盖面板与服务声明的迁移、搬空目录、冲突与重复执行；`packages/market-runtime/test/user-panels.test.ts`、`packages/market-bundle/test/integration/mcp-direct-config.test.ts`、`packages/market-bundle/test/integration/lsp-direct-config.test.ts` 与 `packages/market-bundle/test/integration/server-config.test.ts` 覆盖新根目录下的增删改与校验；`packages/market-bundle/test/integration/panel-resources.test.ts` 覆盖已安装套件的编辑包含性。`packages/market-runtime/test/user-panels.test.ts` 还钉住面板 provider 的 rank 低于宿主读取器的 500——一旦优先级被悄悄改动，这条断言会失败。

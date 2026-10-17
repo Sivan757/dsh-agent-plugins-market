@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.ts'],
+    include: ['packages/*/test/**/*.test.ts'],
     environment: 'node',
     testTimeout: 30_000,
     // Serial execution: several tests share fixture directories and global
@@ -13,6 +13,13 @@ export default defineConfig({
       deps: {
         inline: [/@deepseek-ai\/dsh-client-ui-primitives/]
       }
+    },
+    // The HTML report is build output. node_modules/.cache is where this
+    // repository's other generated material (compat-report, host-alignment
+    // caches) already lives, and no packages/* walker ever sees it.
+    coverage: {
+      reportsDirectory: 'node_modules/.cache/coverage',
+      include: ['packages/*/src/**']
     }
   }
 })

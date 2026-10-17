@@ -30,4 +30,4 @@ Status: implemented
 
 ## Testing
 
-`tests/client-user-entry-detail-translation.test.ts` 挂载弹窗，断言文档行初始即为展开且正文已读取、提示随状态翻转，以及收起后重新展开能恢复正文。同一文件保留阅读模式覆盖，其中包括打开时不发起翻译读取。`tests/client-locales.test.ts` 让两份词典保持同步，覆盖新增的提示键。
+`packages/market-ui/test/client-user-entry-detail-translation.test.ts` 挂载弹窗，断言文档行初始即为展开且正文已读取、提示随状态翻转，以及收起后重新展开能恢复正文。同一文件保留阅读模式覆盖，其中包括打开时不发起翻译读取。`packages/market-ui/test/client-locales.test.ts` 让两份词典保持同步，覆盖新增的提示键。

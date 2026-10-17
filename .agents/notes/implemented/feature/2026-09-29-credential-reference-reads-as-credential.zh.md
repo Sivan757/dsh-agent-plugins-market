@@ -52,6 +52,6 @@ Status: implemented
 
 ## Testing
 
-- `tests/client-detail-editors.test.ts` —— 请求头引用渲染成携带引用名、以原文作 title 的 chip，激活前不存在值输入框；被脱敏的值渲染成隐藏 chip 且没有输入框；区块把字面座位与引用并排列出，其替换控件把新值写进文档；文档用到的引用在表单视图出现该区块，在 JSON 视图让位。
-- `tests/mcp-status-render.test.ts` —— 详情弹窗陈述引用，其只写控件在那一行展开后才出现。
-- 写一次路径未变：`tests/client-credentials.test.ts` 继续覆盖线适配器。
+- `packages/market-ui/test/client-detail-editors.test.ts` —— 请求头引用渲染成携带引用名、以原文作 title 的 chip，激活前不存在值输入框；被脱敏的值渲染成隐藏 chip 且没有输入框；区块把字面座位与引用并排列出，其替换控件把新值写进文档；文档用到的引用在表单视图出现该区块，在 JSON 视图让位。
+- `packages/market-ui/test/mcp-status-render.test.ts` —— 详情弹窗陈述引用，其只写控件在那一行展开后才出现。
+- 写一次路径未变：`packages/market-ui/test/client-credentials.test.ts` 继续覆盖线适配器。

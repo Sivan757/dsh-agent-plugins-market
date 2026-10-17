@@ -45,4 +45,4 @@ git/压缩包获取可通过宿主配置调优：
 
 一个来源可以包含多种布局方言。套件清单与 Marketplace 目录索引遵循[同一布局优先级](https://sivan757.github.io/dsh-agent-plugins-market/compatible-plugins/#shared-layout-precedence)。清单按优先级逐个尝试：读不出或校验不通过的会给出诊断并尝试下一项，全部失败则拒绝该套件。索引扫描采用第一个能产出套件的索引，并按支持的规则补充发现；无效或空索引允许继续尝试后续候选。根 `marketplace.json` 是最后的共享回退。远程引用卡片不能直接安装，需要先添加对应仓库为来源。
 
-`schemas/1.0.0/` 的 schema 内置自 [agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)，校验时不在线下载。领域用语和开发检查见[领域词汇](../../CONTEXT.md)与[贡献指南](../../CONTRIBUTING.md)。
+`packages/market-catalog/schemas/1.0.0/` 的 schema 内置自 [agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec)，校验时不在线下载。领域用语和开发检查见[领域词汇](../../CONTEXT.md)与[贡献指南](../../.github/CONTRIBUTING.md)。

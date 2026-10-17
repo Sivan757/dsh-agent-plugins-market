@@ -52,6 +52,6 @@ One header secret had two surfaces and they disagreed. The detail dialog showed 
 
 ## Testing
 
-- `tests/client-detail-editors.test.ts` — a header reference renders as a chip carrying the reference name and the raw text as its title, with no value input until the chip is activated; a redacted value renders as the hidden chip and no input; the block lists a literal seat beside a reference and its replace control writes the new value into the document; the block appears for the references a document spends in the form view and stands aside in the JSON view.
-- `tests/mcp-status-render.test.ts` — the detail dialog states the reference and its write-only control appears when the row is opened, not before.
-- The write-once path is unchanged: `tests/client-credentials.test.ts` keeps covering the wire adapter.
+- `packages/market-ui/test/client-detail-editors.test.ts` — a header reference renders as a chip carrying the reference name and the raw text as its title, with no value input until the chip is activated; a redacted value renders as the hidden chip and no input; the block lists a literal seat beside a reference and its replace control writes the new value into the document; the block appears for the references a document spends in the form view and stands aside in the JSON view.
+- `packages/market-ui/test/mcp-status-render.test.ts` — the detail dialog states the reference and its write-only control appears when the row is opened, not before.
+- The write-once path is unchanged: `packages/market-ui/test/client-credentials.test.ts` keeps covering the wire adapter.

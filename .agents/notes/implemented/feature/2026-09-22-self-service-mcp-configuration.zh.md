@@ -26,7 +26,7 @@ Status: implemented
 
 ## Testing
 
-`tests/client-mcp-detail.test.ts` 覆盖参数展开与建议分类；`tests/mcp-status.test.ts` 锁定 schema 传递与大小上限；`tests/server-config.test.ts` 断言被拒绝的保存点名字段。
+`packages/market-bundle/test/integration/client-mcp-detail.test.ts` 覆盖参数展开与建议分类；`packages/market-bundle/test/integration/mcp-status.test.ts` 锁定 schema 传递与大小上限；`packages/market-bundle/test/integration/server-config.test.ts` 断言被拒绝的保存点名字段。
 
 ## Related
 

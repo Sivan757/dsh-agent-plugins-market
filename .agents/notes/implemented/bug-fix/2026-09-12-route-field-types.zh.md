@@ -28,4 +28,4 @@ Status: implemented
 
 ## Testing
 
-`tests/routes.test.ts` 把每种错误类型形状发到对应路由，断言点名的 400 以及空的存储记录——没有任何 `addSource`、`updateSource`、`refreshSource`、`setLspServerEnabled` 或面板调用被触达。随后断言缺省仍然报 `missing source url`，以及同一字段以字符串形式仍能抵达存储。把 `textField` 的函数体换回 `return String(value)`，第一个用例就会变回 `ok: true`，这正是本记录所记载的失败；把 `refreshSource` 的回退逻辑还原，它的用例同样会变回 `ok: true`。
+`packages/market-bundle/test/integration/routes.test.ts` 把每种错误类型形状发到对应路由，断言点名的 400 以及空的存储记录——没有任何 `addSource`、`updateSource`、`refreshSource`、`setLspServerEnabled` 或面板调用被触达。随后断言缺省仍然报 `missing source url`，以及同一字段以字符串形式仍能抵达存储。把 `textField` 的函数体换回 `return String(value)`，第一个用例就会变回 `ok: true`，这正是本记录所记载的失败；把 `refreshSource` 的回退逻辑还原，它的用例同样会变回 `ok: true`。

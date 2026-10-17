@@ -24,7 +24,13 @@ import { execSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
-const files = execSync('git ls-files "*.md"', { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+const files = execSync('git ls-files "*.md"', { encoding: 'utf8' })
+  .trim()
+  .split('\n')
+  .filter(Boolean)
+  // The first-party collection ships as authored (see .prettierignore); its
+  // internal references are not rewritten or policed by this checker.
+  .filter(file => !file.startsWith('plugins/'))
 
 const isLineAnchor = f => /^L\d+(-L\d+)?$/.test(f)
 /** GitHub heading slug: lowercase, drop punctuation except letters, digits, spaces, hyphens. */

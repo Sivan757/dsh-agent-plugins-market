@@ -26,7 +26,7 @@ Status: implemented
 
 ## Testing
 
-`tests/mcp-status-render.test.ts` 断言弹窗打开后没有快捷按钮；`tests/routes.test.ts` 移除导入转发；`tests/mcp-direct-config.test.ts` 与 `tests/client-detail-editors.test.ts` 移除粘贴解析用例，后者保留 `rowsFromPastedText` 向 env/headers 行整块粘贴的用例。
+`packages/market-ui/test/mcp-status-render.test.ts` 断言弹窗打开后没有快捷按钮；`packages/market-bundle/test/integration/routes.test.ts` 移除导入转发；`packages/market-bundle/test/integration/mcp-direct-config.test.ts` 与 `packages/market-ui/test/client-detail-editors.test.ts` 移除粘贴解析用例，后者保留 `rowsFromPastedText` 向 env/headers 行整块粘贴的用例。
 
 ## Related
 

@@ -31,8 +31,8 @@ Status: implemented
 - 对话框把一条声明当成一条记录来展示。行给出事件名并预览命令，JSON 陈述每一项已声明的事实。
 - 静止状态下命令读到两次。数出现次数的读者会看到状态卡与行预览，展开树后变成三次。
 - 被拒绝的声明在同一个块里显示它的诊断，因为扫描记录带 `diagnostic` 时组装出的 JSON 也带它。
-- `tests/client-hooks-status-panel.test.ts` 固定静止计数为二、行的折叠状态、展开树自己的事实，以及地址字段的缺席。
+- `packages/market-bundle/test/integration/client-hooks-status-panel.test.ts` 固定静止计数为二、行的折叠状态、展开树自己的事实，以及地址字段的缺席。
 
 ## Testing
 
-`tests/client-hooks-status-panel.test.ts` 断言分区标题、带事件名与命令预览的折叠行、带标签与已声明事实的展开 `role="tree"`，以及树中 `sourceId`、`suiteId`、`provenance`、`support`、`hookIndex` 与 `sessionId` 的缺席。
+`packages/market-bundle/test/integration/client-hooks-status-panel.test.ts` 断言分区标题、带事件名与命令预览的折叠行、带标签与已声明事实的展开 `role="tree"`，以及树中 `sourceId`、`suiteId`、`provenance`、`support`、`hookIndex` 与 `sessionId` 的缺席。

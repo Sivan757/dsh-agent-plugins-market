@@ -54,4 +54,4 @@ Claude Code 的契约（Plugins reference 的 "Environment variables" 表与 Ski
 
 ## Testing
 
-`tests/plugin-variables.test.ts` 覆盖四组变量的展开与缺失值保留、`project-native` 守卫、命令转发、子代理 persona 与目录描述、技能正文（含技能目录与项目目录）、启动指令、LSP 挂载前展开与声明原文保留。`tests/dynamic-context.test.ts` 覆盖行首/空白后/非空白后三种识别、围栏多行、输出不再扫描、多占位符顺序、双流合并、截断、失败/超时/取消三种报错、退出码 1 的白名单，以及命令与技能两条注入路径（含没有 shell seam 时保持字面量）。`tests/extension-hooks.test.ts` 断言 hook 子进程环境只拿到三个 claude-code 名字，以及套件没有插件根时不留插件变量。既有 `tests/mcp-mounts.test.ts`、`tests/project-commands.test.ts` 已改为 await 异步处理器。
+`packages/market-bundle/test/integration/plugin-variables.test.ts` 覆盖四组变量的展开与缺失值保留、`project-native` 守卫、命令转发、子代理 persona 与目录描述、技能正文（含技能目录与项目目录）、启动指令、LSP 挂载前展开与声明原文保留。`packages/market-bundle/test/integration/dynamic-context.test.ts` 覆盖行首/空白后/非空白后三种识别、围栏多行、输出不再扫描、多占位符顺序、双流合并、截断、失败/超时/取消三种报错、退出码 1 的白名单，以及命令与技能两条注入路径（含没有 shell seam 时保持字面量）。`packages/market-bundle/test/integration/extension-hooks.test.ts` 断言 hook 子进程环境只拿到三个 claude-code 名字，以及套件没有插件根时不留插件变量。既有 `packages/market-bundle/test/integration/mcp-mounts.test.ts`、`packages/market-bundle/test/integration/project-commands.test.ts` 已改为 await 异步处理器。

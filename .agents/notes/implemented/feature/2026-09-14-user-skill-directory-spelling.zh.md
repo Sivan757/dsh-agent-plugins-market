@@ -62,4 +62,4 @@ Status: implemented
 
 ## 验证
 
-`tests/user-panels.test.ts` 覆盖目录形态技能的列出、编辑、删除，搬空后目录的删除，两种写法并存时的优先级，扁平新建，仅扁平的面板，按写法区分的 `resourceBase`，以文档声明的名字命名条目并由编辑/删除把该名字解析回文件，把 invocation 开关对读作停用状态且只关其中一个仍算开启，以及每一条被拒绝文档的路径（YAML 无法解析、展示名、缺 description、缺 frontmatter）都留在列表里显示为已停用并给出原因。`tests/user-panel-surface.test.ts` 覆盖开关写出这对开关并删掉 `disabled`，以及拒绝校验失败的文档。`tests/panel-resources.test.ts` 覆盖通过 HTTP 层使用的名字 id 访问同一条目。
+`packages/market-runtime/test/user-panels.test.ts` 覆盖目录形态技能的列出、编辑、删除，搬空后目录的删除，两种写法并存时的优先级，扁平新建，仅扁平的面板，按写法区分的 `resourceBase`，以文档声明的名字命名条目并由编辑/删除把该名字解析回文件，把 invocation 开关对读作停用状态且只关其中一个仍算开启，以及每一条被拒绝文档的路径（YAML 无法解析、展示名、缺 description、缺 frontmatter）都留在列表里显示为已停用并给出原因。`packages/market-ui/test/user-panel-surface.test.ts` 覆盖开关写出这对开关并删掉 `disabled`，以及拒绝校验失败的文档。`packages/market-bundle/test/integration/panel-resources.test.ts` 覆盖通过 HTTP 层使用的名字 id 访问同一条目。

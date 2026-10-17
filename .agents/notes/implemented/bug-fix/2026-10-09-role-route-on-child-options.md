@@ -30,4 +30,4 @@ The idle case stays host-owned: once the member's Agent is released, `TeamMember
 
 ## Testing
 
-`tests/teammate-role.test.ts` pins the live roster row and the member's own options, the `restore()` path, and the frozen-options degradation, where the request still uses the role model. Confirmed by mutation: disabling the options write fails the roster and restore assertions.
+`packages/market-runtime/test/teammate-role.test.ts` pins the live roster row and the member's own options, the `restore()` path, and the frozen-options degradation, where the request still uses the role model. Confirmed by mutation: disabling the options write fails the roster and restore assertions.

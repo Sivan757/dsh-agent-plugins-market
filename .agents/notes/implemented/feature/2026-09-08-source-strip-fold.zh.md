@@ -39,7 +39,7 @@ Status: implemented
 
 ## 验证
 
-- `tests/market-section-render.test.ts` 固定：收编源与普通源同样渲染、不渲染收编徽标、无法测量时（jsdom）保持全展开且保留全部胶囊，以及点选源后它被移到 `全部` 之后、其余胶囊保持 id 顺序。
+- `packages/market-ui/test/market-section-render.test.ts` 固定：收编源与普通源同样渲染、不渲染收编徽标、无法测量时（jsdom）保持全展开且保留全部胶囊，以及点选源后它被移到 `全部` 之后、其余胶囊保持 id 顺序。
 - `pnpm run check:refactor` 与 `pnpm run test`。
 
 ## 关联

@@ -24,4 +24,4 @@ Status: implemented
 
 ## 验证
 
-`tests/layouts.test.ts` 覆盖 v1 清单被 schema 校验拒绝、下层 Claude 清单胜出、回退说明，以及全部候选无效时的拒绝；`tests/real-layouts.test.ts` 与 `tests/compat-report.test.ts` 确认抽样仓库保持已记录的结论。
+`packages/market-bundle/test/integration/layouts.test.ts` 覆盖 v1 清单被 schema 校验拒绝、下层 Claude 清单胜出、回退说明，以及全部候选无效时的拒绝；`packages/market-bundle/test/integration/real-layouts.test.ts` 与 `packages/market-bundle/test/repo/compat-report.test.ts` 确认抽样仓库保持已记录的结论。

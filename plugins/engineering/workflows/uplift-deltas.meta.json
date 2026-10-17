@@ -1,0 +1,9 @@
+{
+  "name": "modernize-uplift-deltas",
+  "description": "Same-stack uplift delta catalog: one finder per delta category (intersecting known version breaking-changes with this code), each verified against the cited source",
+  "whenToUse": "Invoked by /modernize-uplift when the Workflow tool is available. Requires args {system, source, target, projectPattern?}. Returns structured delta cards — the calling session writes DELTA_CATALOG.md and runs the migration (build/dual-run are HITL, not in this workflow).",
+  "phases": [
+    { "title": "Find", "detail": "one finder per delta category + ecosystem-tool report" },
+    { "title": "Verify", "detail": "one referee per delta — does this code really hit it?" }
+  ]
+}

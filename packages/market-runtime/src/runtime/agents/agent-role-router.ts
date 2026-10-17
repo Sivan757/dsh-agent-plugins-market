@@ -7,6 +7,7 @@ import { isAbsentPath } from '../../application/fs-probe.js'
 import { namedAgentRoles } from './agent-role-names.js'
 import { expandPluginPaths } from '../../../../market-catalog/src/index.js'
 import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../../application/agent-roles.js'
+import { startContinuableChild, type ContinuableSubagentSeam } from './subagent-seam.js'
 
 export { parseAgentRole }
 export type { AgentRoleEntry, AgentRolePolicy }
@@ -48,8 +49,7 @@ export interface AgentRoleHost {
   llm: {
     resolveCallConfig(config: { provider: string; model: string; reasoningEffort?: string }, signal?: AbortSignal): Promise<unknown>
   }
-  subagents: {
-    startContinuable(spec: { provider: string; label: string; request: AgentRoleDelegation; signal: AbortSignal }): Promise<{ childId: string; messageId: string }>
+  subagents: ContinuableSubagentSeam & {
     /** One-shot foreground run: the host settles it and hands back the child's output. */
     start(provider: string, request: AgentRoleRunRequest): Promise<AgentRoleRun>
   }
@@ -317,7 +317,7 @@ export async function executeAgentRole(
     ...(agentOptions === undefined ? {} : { agentOptions })
   }
   if (mode === 'continuable') {
-    const started = await host.subagents.startContinuable({ provider: 'spawn', label: agentName, request, signal })
+    const started = await startContinuableChild(host.subagents, { provider: 'spawn', label: agentName, request, signal })
     return { kind: 'continuable', subagentId: started.childId }
   }
   const run = await host.subagents.start('spawn', { ...request, signal })

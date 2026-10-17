@@ -1,0 +1,292 @@
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { deriveServerName, effectiveMcpServers, resolveMcpPolicy, toMcpMounts } from '../../../../packages/market-mcp/src/application/mcp/mcp-config.js'
+import { expectTransport } from './helpers/bridge-config.js'
+import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
+import type { McpServerOverride } from '../../../../packages/market-mcp/src/application/mcp/mcp-overrides.js'
+
+function suite(overrides: Partial<Suite> = {}): Suite {
+  return {
+    sourceId: 'demo',
+    id: 'my-suite',
+    root: '/tmp/my-suite',
+    manifest: { layout: 'agent-plugin-v1', path: '/tmp/my-suite/plugin.json', id: 'my-suite', name: 'My Suite' },
+    skills: [],
+    surfaces: { skills: 0, mcp: 1, hooks: 0, commands: 0, agents: 0, lsp: 0 },
+    dimension: 'user',
+    enabled: true,
+    activeSurfaces: effectiveSurfaces(undefined),
+    errors: [],
+    mcp: {
+      schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+      servers: {
+        db: { type: 'stdio', command: './bin/db', args: ['--root', '${PLUGIN_ROOT}'], env: { CACHE: '${PLUGIN_DATA}/cache' }, cwd: './data' },
+        web: { type: 'streamable-http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer ${MCP_TOKEN}' } },
+        legacy: { type: 'sse', url: 'https://example.com/sse' }
+      }
+    },
+    ...overrides
+  }
+}
+
+/** A resolver that satisfies every reference, for tests of the mapping itself. */
+const alwaysResolves = { resolve: async () => ({ value: 'resolved' }) } as const
+
+describe('mcp-config: suite mcp.json → bridge rows', () => {
+  it('maps stdio, streamable-http, and legacy SSE servers', async () => {
+    const { mounts, failures } = await toMcpMounts(suite(), '/tmp/data', {}, alwaysResolves)
+    expect(mounts.map(mount => mount.config.serverName)).toEqual(['my-suite__db', 'my-suite__web', 'my-suite__legacy'])
+    expect(failures).toEqual([])
+    const [db, web, legacy] = mounts.map(mount => mount.config)
+    if (db === undefined || web === undefined || legacy === undefined) throw new Error('expected the fixture to map its stdio, streamable-http and SSE servers')
+    expectTransport(db, 'stdio')
+    expect(db.command).toBe('/tmp/my-suite/bin/db')
+    expect(db.args).toEqual(['--root', '/tmp/my-suite'])
+    // §9.1: the client injects PLUGIN_ROOT and PLUGIN_DATA into the child
+    // environment after the configured env overlay.
+    expect(db.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/demo/my-suite' })
+    // `cwd` is resolved against the suite root, so it carries the host's spelling.
+    expect(db.cwd).toBe(resolve('/tmp/my-suite', 'data'))
+    expectTransport(web, 'streamable-http')
+    expect(web.headers).toEqual({ Authorization: 'Bearer resolved' })
+    expectTransport(legacy, 'sse')
+    expect(legacy.url).toBe('https://example.com/sse')
+  })
+})
+
+describe('mcp-config: credential references', () => {
+  it.each(['ZCODE', 'QODER'])('expands %s plugin variables without treating them as credentials', async dialect => {
+    const source = suite({
+      mcp: {
+        schema: '',
+        servers: {
+          server: {
+            type: 'stdio',
+            command: 'server',
+            args: [`\${${dialect}_PLUGIN_ROOT}`],
+            env: { DATA: `\${${dialect}_PLUGIN_DATA}` }
+          }
+        }
+      }
+    })
+    const { mounts, failures } = await toMcpMounts(source, '/tmp/data')
+    expect(failures).toEqual([])
+    const [mount] = mounts.map(candidate => candidate.config)
+    if (mount === undefined) throw new Error(`expected ${dialect} plugin variables to mount one server`)
+    expect(mount).toMatchObject({ args: ['/tmp/my-suite'], env: { DATA: '/tmp/data/demo/my-suite' } })
+  })
+  it('resolves env and header placeholders through the credential resolver', async () => {
+    const result = await toMcpMounts(
+      suite(),
+      '/tmp/data',
+      {},
+      {
+        resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'resolved-secret', source: 'file' } : undefined)
+      }
+    )
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config
+    expectTransport(web, 'streamable-http')
+    expect(web.headers['Authorization']).toBe('Bearer resolved-secret')
+    expect(result.failures).toEqual([])
+  })
+
+  it('reports missing credential references before a mount can start', async () => {
+    const result = await toMcpMounts(suite(), '/tmp/data', {}, { resolve: async () => undefined })
+    expect(result.mounts.some(mount => mount.serverKey === 'web')).toBe(false)
+    expect(result.failures).toContainEqual({
+      serverKey: 'web',
+      code: 'missing-credential',
+      credentialRefs: ['MCP_TOKEN'],
+      reason: 'missing credential reference MCP_TOKEN'
+    })
+  })
+
+  it('resolves credential placeholders inside a streamable-http url', async () => {
+    const target = suite()
+    target.mcp!.servers.web = { type: 'streamable-http', url: 'https://example.com/mcp?key=${MCP_TOKEN}' }
+    const result = await toMcpMounts(target, '/tmp/data', {}, { resolve: async ref => (ref === 'MCP_TOKEN' ? { value: 'abc123' } : undefined) })
+    const web = result.mounts.find(mount => mount.serverKey === 'web')!.config
+    expectTransport(web, 'streamable-http')
+    expect(web.url).toBe('https://example.com/mcp?key=abc123')
+  })
+
+  it('honors an explicit non-empty fallback but still fails closed on an empty one', async () => {
+    const target = suite()
+    // Isolate to the stdio server: the shared fixture's http server carries an
+    // unsatisfied ${MCP_TOKEN}, which is meant to fail closed here.
+    target.mcp!.servers = {
+      db: { type: 'stdio', command: 'db', args: ['--root', '${MISSING:-/default}'] }
+    }
+    const resolved = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
+    const db = resolved.mounts.find(mount => mount.serverKey === 'db')!.config
+    expectTransport(db, 'stdio')
+    expect(db.args).toEqual(['--root', '/default'])
+    expect(resolved.failures).toEqual([])
+
+    // `${REF:-}` supplies an empty fallback, so an unresolved value stays empty
+    // and is reported missing rather than silently passing an empty flag.
+    target.mcp!.servers = { db: { type: 'stdio', command: 'db', args: ['--tag', '${ALSO_MISSING:-}'] } }
+    const emptyFallback = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
+    expect(emptyFallback.mounts).toEqual([])
+    expect(emptyFallback.failures).toContainEqual({
+      serverKey: 'db',
+      code: 'missing-credential',
+      credentialRefs: ['ALSO_MISSING'],
+      reason: 'missing credential reference ALSO_MISSING'
+    })
+  })
+
+  it('fails closed when a reference has neither a value nor a fallback', async () => {
+    const target = suite()
+    target.mcp!.servers = { db: { type: 'stdio', command: 'db', args: ['--root', '${NOPE}'] } }
+    const result = await toMcpMounts(target, '/tmp/data', {}, { resolve: async () => undefined })
+    expect(result.mounts).toEqual([])
+    expect(result.failures).toEqual([{ serverKey: 'db', code: 'missing-credential', credentialRefs: ['NOPE'], reason: 'missing credential reference NOPE' }])
+  })
+
+  it('deduplicates repeated references so one credential is fetched once', async () => {
+    const target = suite()
+    target.mcp!.servers = { db: { type: 'stdio', command: 'db', args: ['${T}', '${T}'] } }
+    let lookups = 0
+    const result = await toMcpMounts(
+      target,
+      '/tmp/data',
+      {},
+      {
+        resolve: async ref => {
+          if (ref !== 'T') return undefined
+          lookups++
+          return { value: 'v' }
+        }
+      }
+    )
+    const [db] = result.mounts.map(candidate => candidate.config)
+    if (db === undefined) throw new Error('expected the repeated placeholder to resolve to one stdio mount')
+    expectTransport(db, 'stdio')
+    expect(db.args).toEqual(['v', 'v'])
+    expect(lookups).toBe(1)
+  })
+})
+
+describe('mcp-config: suite declaration meets the user override', () => {
+  /** The shared fixture plus a namespace policy on its `web` server. */
+  function policySuite(): Suite {
+    const base = suite()
+    return {
+      ...base,
+      manifest: {
+        ...base.manifest,
+        harness: {
+          schemaVersion: '1.0.0',
+          mcpServers: { web: { enabledTools: ['alpha', 'beta'], disabledTools: ['gamma'], toolCallTimeoutMs: 30_000, startupTimeoutMs: 5_000 } }
+        }
+      }
+    }
+  }
+
+  it('lets the user timeout win over the suite declaration', () => {
+    const [, web] = effectiveMcpServers(policySuite(), { web: { toolCallTimeoutMs: 90_000 } })
+    if (web === undefined) throw new Error('expected the fixture to project its web server')
+    expect(web.server.toolCallTimeoutMs).toBe(90_000)
+    expect(web.policy.toolCallTimeout).toEqual({ user: 90_000, suite: 30_000, effective: 90_000, source: 'user' })
+    // The startup timeout the user did not touch keeps the declared value.
+    expect(web.server.startupTimeoutMs).toBe(5_000)
+    expect(web.policy.startupTimeout).toEqual({ user: null, suite: 5_000, effective: 5_000, source: 'suite' })
+  })
+
+  it('falls back to the built-in defaults and leaves an undeclared startup timeout absent', () => {
+    const rows = effectiveMcpServers(policySuite())
+    const web = rows.find(row => row.serverKey === 'web')
+    const db = rows.find(row => row.serverKey === 'db')
+    if (web === undefined || db === undefined) throw new Error('expected the fixture to project its web and db servers')
+    expect(web.policy.toolCallTimeout.source).toBe('suite')
+    // The built-in bridge applies its own startup default at connect time; an
+    // undeclared value stays absent so host compatibility mode still mounts.
+    expect(db.server.toolCallTimeoutMs).toBe(60_000)
+    expect(db.server.startupTimeoutMs).toBeUndefined()
+    expect(db.policy.startupTimeout).toEqual({ user: null, suite: null, effective: 10_000, source: 'default' })
+  })
+
+  it('unions the deny lists and never widens the suite allow-list', () => {
+    const rows = effectiveMcpServers(policySuite(), { web: { disabledTools: ['delta'] } })
+    const web = rows.find(row => row.serverKey === 'web')
+    if (web === undefined) throw new Error('expected the fixture to project its web server')
+    expect(web.server.disabledTools).toEqual(['gamma', 'delta'])
+    expect(web.server.enabledTools).toEqual(['alpha', 'beta'])
+    // A tool the suite left out of its allow-list stays out whatever the user
+    // stores: the deny list is the only tool field an override can carry.
+    const widened = resolveMcpPolicy({ enabledTools: ['alpha', 'beta'] }, { enabledTools: ['zeta'] } as McpServerOverride)
+    expect(widened.enabledTools).toEqual(['alpha', 'beta'])
+  })
+
+  it('sends the resolved policy into the mount config', async () => {
+    const { mounts } = await toMcpMounts(policySuite(), '/tmp/data', { web: { toolCallTimeoutMs: 90_000, disabledTools: ['delta'] } }, alwaysResolves)
+    const web = mounts.find(mount => mount.serverKey === 'web')?.config
+    if (web === undefined) throw new Error('expected the fixture to mount its web server')
+    expect(web).toMatchObject({ toolCallTimeoutMs: 90_000, startupTimeoutMs: 5_000, enabledTools: ['alpha', 'beta'], disabledTools: ['gamma', 'delta'] })
+  })
+})
+
+describe('mcp-config: serverName derivation', () => {
+  it('joins sanitized ids with __', () => {
+    expect(deriveServerName({ sourceId: 'demo', id: 'my-suite' }, 'db')).toBe('my-suite__db')
+    expect(deriveServerName({ sourceId: 'demo', id: 'My Suite!' }, 'DB 1')).toBe('My_Suite__DB_1')
+    // Two sources' same suite/server pair derive ONE name: the second
+    // mount is skipped as a duplicate instead of shadow-registering.
+    expect(deriveServerName({ sourceId: 'demo', id: 'context7' }, 'context7')).toBe('context7__context7')
+    expect(deriveServerName({ sourceId: 'other', id: 'context7' }, 'context7')).toBe('context7__context7')
+  })
+
+  it('mounts the user’s own declarations under their bare server key', () => {
+    // The user's own mcp.json is not a package: its servers own the top-level
+    // namespace, so the model reads the name every other MCP client gives them.
+    expect(deriveServerName({ sourceId: '@user-mcp', id: 'user-mcp' }, 'kuboard')).toBe('kuboard')
+    expect(deriveServerName({ sourceId: '@user-mcp', id: 'user-mcp' }, 'My Server!')).toBe('My_Server')
+    // A marketplace suite that happens to be called user-mcp is still a
+    // package: it keeps its namespace.
+    expect(deriveServerName({ sourceId: 'demo', id: 'user-mcp' }, 'kuboard')).toBe('user-mcp__kuboard')
+  })
+
+  it('truncates over-budget names with a deterministic hash suffix', () => {
+    const long = deriveServerName({ sourceId: 'demo', id: 'a'.repeat(40) }, 'b'.repeat(40))
+    expect(long.length).toBe(32)
+    expect(long.endsWith('-')).toBe(false)
+    expect(deriveServerName({ sourceId: 'demo', id: 'a'.repeat(40) }, 'b'.repeat(40))).toBe(long)
+    // The write path accepts user server keys up to 64 characters, so a long
+    // one is clamped the same way instead of reaching the bridge unmountably.
+    expect(deriveServerName({ sourceId: '@user-mcp', id: 'user-mcp' }, 's'.repeat(64))).toHaveLength(32)
+  })
+})
+
+describe('mcp-config: source-scoped identity', () => {
+  it('qualifies the suite id so same-named suites from two sources keep separate mounts and data dirs', async () => {
+    // Regression: mount requests keyed by the bare suite id let two sources'
+    // same-named suites shadow each other's mounts, data dirs, and status.
+    const a = suite()
+    const b = { ...suite(), sourceId: 'other' }
+    const first = await toMcpMounts(a, '/tmp/data', {}, alwaysResolves)
+    const second = await toMcpMounts(b, '/tmp/data', {}, alwaysResolves)
+    const firstNames = first.mounts.map(mount => mount.config.serverName)
+    const secondNames = second.mounts.map(mount => mount.config.serverName)
+    // The derived serverName is deliberately source-independent: the same
+    // suite/server pair in two sources resolves to ONE name, and the mount
+    // registry skips the second as a duplicate-mount. What stays per-source is
+    // the registry key and the data dir, asserted below.
+    expect(firstNames.some(name => secondNames.includes(name))).toBe(true)
+    expect(firstNames.every(name => name.startsWith('my-suite__'))).toBe(true)
+    expect(secondNames.every(name => name.startsWith('my-suite__'))).toBe(true)
+    // The request's suiteId — the mount registry key — is qualified on both.
+    expect(first.mounts.every(mount => mount.suiteId === 'demo/my-suite')).toBe(true)
+    expect(second.mounts.every(mount => mount.suiteId === 'other/my-suite')).toBe(true)
+    // Per-suite PLUGIN_DATA directories are qualified too (§9.1 injects both
+    // variables into the child environment).
+    const [dbA] = first.mounts.map(mount => mount.config)
+    if (dbA === undefined) throw new Error('expected the demo source to mount its stdio server')
+    expectTransport(dbA, 'stdio')
+    expect(dbA.env).toEqual({ CACHE: '/tmp/data/demo/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/demo/my-suite' })
+    const [dbB] = second.mounts.map(mount => mount.config)
+    if (dbB === undefined) throw new Error('expected the other source to mount its stdio server')
+    expectTransport(dbB, 'stdio')
+    expect(dbB.env).toEqual({ CACHE: '/tmp/data/other/my-suite/cache', PLUGIN_ROOT: '/tmp/my-suite', PLUGIN_DATA: '/tmp/data/other/my-suite' })
+  })
+})

@@ -154,6 +154,14 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
   private expectedState: string | undefined
   /** Resolves `true` when the leg saved tokens, `false` when it failed; undefined while no leg is open. */
   private browserLegSettled: PromiseWithResolvers<boolean> | undefined
+  /**
+   * Outcome of the most recently finished browser leg, `true` when the code
+   * exchange saved tokens. The pending-leg promise disappears when the leg
+   * settles, and a leg that finishes inside the `connect` that raised the
+   * `401` leaves nothing pending for a supervisor to observe — this field is
+   * how the supervisor still learns that the authorization succeeded.
+   */
+  private lastLegOutcome: boolean | undefined
   private callbackServer: Server | undefined
   private callbackTimer: NodeJS.Timeout | undefined
   private boundPort: number | undefined
@@ -175,7 +183,10 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
   get redirectUrl(): string {
     // RFC 8252 §7.3: loopback redirects may vary the port per request, so the
     // bound port is filled in when the listener starts and registration
-    // metadata always reflects the current attempt's URL.
+    // metadata always reflects the current attempt's URL. The value must keep
+    // reading as the bound port until the code exchange finishes: the token
+    // request repeats this exact URL (RFC 6749 §4.1.3), and an authorization
+    // server that compares it with the authorization request rejects port `0`.
     return `http://127.0.0.1:${this.boundPort ?? this.storage.callbackPort ?? 0}/callback`
   }
 
@@ -246,6 +257,12 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
       succeeded = true
       return
     } finally {
+      // The loopback URL stays published until here. Clearing the port when
+      // the callback arrives would hand the token endpoint `redirect_uri =
+      // http://127.0.0.1:0/callback` while the authorization request carried
+      // the real port, which RFC 6749 §4.1.3 forbids and servers enforce.
+      this.boundPort = undefined
+      this.lastLegOutcome = succeeded
       this.browserLegSettled?.resolve(succeeded)
       this.browserLegSettled = undefined
     }
@@ -265,6 +282,15 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
    */
   get browserLeg(): Promise<boolean> | undefined {
     return this.browserLegSettled?.promise
+  }
+
+  /**
+   * The most recent finished leg's outcome; `undefined` until one finishes.
+   * The supervisor reads it after a failed attempt: a leg that settled inside
+   * the attempt itself leaves no pending {@link browserLeg} behind.
+   */
+  get lastBrowserLegOutcome(): boolean | undefined {
+    return this.lastLegOutcome
   }
 
   /**
@@ -466,7 +492,9 @@ export class LoopbackOAuthClientProvider implements OAuthClientProvider {
     }
     this.clearCallbackTimer()
     this.callbackServer = undefined
-    this.boundPort = undefined
+    // The bound port deliberately survives this callback: the code exchange
+    // runs a moment later and must present the same `redirect_uri` the
+    // authorization request used. An aborted leg clears it in resetCallback.
     this.expectedState = undefined
     if (oauthError !== null) {
       const description = redactErrorMessage(url.searchParams.get('error_description') ?? '')

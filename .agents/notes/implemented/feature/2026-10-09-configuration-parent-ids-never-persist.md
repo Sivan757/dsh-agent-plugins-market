@@ -32,4 +32,4 @@ A preset, a copy, and a new session's captured selection contain only ids a card
 
 ## Testing
 
-`tests/extension-configuration-parents.test.ts` pins the id enumeration, the transfer and capture strips, both derived-grant shapes, the unchanged real-suite contract, and child-only projection. `tests/extension-suite-inventory.test.ts` now asserts the hooks suite publishes no market row, granted or rejected. The scoped-effects acceptance still runs a granted user hook through the public routes with child ids only.
+`packages/market-bundle/test/integration/extension-configuration-parents.test.ts` pins the id enumeration, the transfer and capture strips, both derived-grant shapes, the unchanged real-suite contract, and child-only projection. `packages/market-bundle/test/integration/extension-suite-inventory.test.ts` now asserts the hooks suite publishes no market row, granted or rejected. The scoped-effects acceptance still runs a granted user hook through the public routes with child ids only.

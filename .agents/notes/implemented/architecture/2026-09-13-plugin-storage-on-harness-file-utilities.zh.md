@@ -32,4 +32,4 @@ Status: implemented
 
 ## Testing
 
-`tests/state.test.ts` 钉住插件现在依赖的性质：写入两层不存在的目录会创建它们；连续两次写入只留下一个文件、内容是第二次的；并且（在 POSIX 上）替换后的文件带 `0o600`。`tests/paths.test.ts` 覆盖宿主展开的各种波浪号形式、配置过的 harness home，以及两个根的空覆盖规则。套件其余部分端到端跑过迁移后的调用点：`mcp-direct-config`、`lsp-direct-config`、`mcp-overrides`、`storage-migration`、`user-store`、`panel-resources` 与 `state` 都会把自己写出去的内容读回来。
+`packages/market-catalog/test/state.test.ts` 钉住插件现在依赖的性质：写入两层不存在的目录会创建它们；连续两次写入只留下一个文件、内容是第二次的；并且（在 POSIX 上）替换后的文件带 `0o600`。`packages/market-catalog/test/paths.test.ts` 覆盖宿主展开的各种波浪号形式、配置过的 harness home，以及两个根的空覆盖规则。套件其余部分端到端跑过迁移后的调用点：`mcp-direct-config`、`lsp-direct-config`、`mcp-overrides`、`storage-migration`、`user-store`、`panel-resources` 与 `state` 都会把自己写出去的内容读回来。

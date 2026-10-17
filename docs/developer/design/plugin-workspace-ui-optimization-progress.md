@@ -36,7 +36,7 @@ Agent Plugins 工作台 UI 优化 — 落地进度
 | C8 | 卸载走风险确认 | `MarketSection.tsx` 用宿主 `RiskConfirmation`（勾选后主操作可用）；移除来源保留「删除／保留文件」选择框 | 见 Agent Note 的 Alternatives |
 | C9 | 宿主组件替换 | `Switch`、`StateDot`、`Tag`、`Pill`、`DisclosureRow`、`JsonTree`、`RiskConfirmation` 全部接入；新增 `ui/json-tree-labels.ts` | `JsonTree` 十项文案中英成对 |
 | C11 | 文案与双语 | `locales.ts` 新增 29 组中英 key | `client-locales` 测试通过 |
-| C12 | 测试与门禁 | 更新 `tests/user-panel-surface.test.ts`、`tests/filter-toolbar.test.ts` | `check:refactor` 绿；`pnpm run test` 81 文件 / 634 用例绿；`pnpm run build` 成功 |
+| C12 | 测试与门禁 | 更新 `packages/market-ui/test/user-panel-surface.test.ts`、`packages/market-ui/test/filter-toolbar.test.ts` | `check:refactor` 绿；`pnpm run test` 81 文件 / 634 用例绿；`pnpm run build` 成功 |
 
 ## 二、收尾轮次（R1–R5）
 
@@ -108,7 +108,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 新增：`packages/market-ui/src/ui/UserEntryDetail.tsx`、`packages/market-ui/src/ui/json-tree-labels.ts`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`、本文件。
 
-修改：`src/client/LspStatusPanel.tsx`、`MarketSection.tsx`、`McpStatusPanel.tsx`、`SearchFilterToolbar.tsx`、`SearchFilterToolbar.module.css`、`SuiteDetail.tsx`、`features/market/SuiteCard.tsx`、`features/market/SourceTabsRow.tsx`、`locales.ts`、`market.module.css`、`mcp-status.module.css`、`ui/DetailModal.tsx`、`ui/detail.module.css`、`ui/UserPanelSurface.tsx`、`ui/panel.tsx`、`ui/panel.module.css`、`ui/resource-card.module.css`、`tests/user-panel-surface.test.ts`、`tests/filter-toolbar.test.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-02-market-card-platform-affordances.md` + `.zh.md`。
+修改：`src/client/LspStatusPanel.tsx`、`MarketSection.tsx`、`McpStatusPanel.tsx`、`SearchFilterToolbar.tsx`、`SearchFilterToolbar.module.css`、`SuiteDetail.tsx`、`features/market/SuiteCard.tsx`、`features/market/SourceTabsRow.tsx`、`locales.ts`、`market.module.css`、`mcp-status.module.css`、`ui/DetailModal.tsx`、`ui/detail.module.css`、`ui/UserPanelSurface.tsx`、`ui/panel.tsx`、`ui/panel.module.css`、`ui/resource-card.module.css`、`packages/market-ui/test/user-panel-surface.test.ts`、`packages/market-ui/test/filter-toolbar.test.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-02-market-card-platform-affordances.md` + `.zh.md`。
 
 删除：`src/client/ui/ToggleSwitch.tsx`、`src/client/ui/StatusIcon.tsx`。
 
@@ -135,7 +135,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 | E13 | 来源条折叠态裁剪与抬层 | `market.module.css`：折叠态 `clip-path: inset(-6px …)`，hover 撤裁剪并 `z-index: 20`；选中来源后保持裁剪 | 展开浮层盖住工具栏与首行卡片，折叠态不越过「未纳入来源」那行 |
 | E14 | 工具栏换行阈值 | 700px → 480px | 面板 564px 下搜索框与两段控件同一行（与原型一致），只有真窄容器才换行 |
 | E15 | 减少动效偏好 | `resource-card.module.css` 的过渡在 `prefers-reduced-motion: reduce` 下关闭 | 原型同款 |
-| E16 | 测试与文案 | 更新 `tests/filter-toolbar.test.ts`、`tests/client-view-models.test.ts`、`tests/user-panel-surface.test.ts`、`tests/routes.test.ts`；新增 `mcpFilterDisabledHint` / `lspFilterDisabledHint` / `switchToGrid` / `switchToList` 中英 | 门禁与全量测试见下 |
+| E16 | 测试与文案 | 更新 `packages/market-ui/test/filter-toolbar.test.ts`、`packages/market-bundle/test/integration/client-view-models.test.ts`、`packages/market-ui/test/user-panel-surface.test.ts`、`packages/market-bundle/test/integration/routes.test.ts`；新增 `mcpFilterDisabledHint` / `lspFilterDisabledHint` / `switchToGrid` / `switchToList` 中英 | 门禁与全量测试见下 |
 
 ### 与原型不同、有意为之的两处
 
@@ -162,7 +162,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 
 新增：`.agents/notes/implemented/feature/2026-09-16-workspace-live-card-affordances.md` + `.zh.md`。
 
-修改：`packages/market-ui/src/features/market/SuiteCard.tsx`、`src/client/features/market/SourceTabsRow.tsx`（注释之外无行为改动）、`src/client/MarketSection.tsx`、`src/client/McpStatusPanel.tsx`、`src/client/LspStatusPanel.tsx`、`src/client/SuiteDetail.tsx`、`packages/market-ui/src/ui/UserPanelSurface.tsx`、`packages/market-ui/src/ui/panel.tsx`、`packages/market-ui/src/ui/ResourceCard.tsx`、`packages/market-ui/src/ui/resource-card.module.css`、`src/client/SearchFilterToolbar.tsx`、`src/client/SearchFilterToolbar.module.css`、`src/client/market.module.css`、`packages/market-ui/src/api.ts`、`packages/market-ui/src/locales.ts`、`src/client/features/mcp-status/mcp-status-view-model.ts`、`src/client/features/lsp-status/lsp-status-view-model.ts`、`packages/market-contracts/src/contracts/market.ts`、`packages/market-bundle/src/routes.ts`、`packages/market-bundle/src/application/catalog.ts`、`packages/market-contracts/src/ports/queries.ts`、`packages/market-mcp/src/application/mcp-service.ts`、`tests/filter-toolbar.test.ts`、`tests/client-view-models.test.ts`、`tests/user-panel-surface.test.ts`、`tests/routes.test.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`。
+修改：`packages/market-ui/src/features/market/SuiteCard.tsx`、`src/client/features/market/SourceTabsRow.tsx`（注释之外无行为改动）、`src/client/MarketSection.tsx`、`src/client/McpStatusPanel.tsx`、`src/client/LspStatusPanel.tsx`、`src/client/SuiteDetail.tsx`、`packages/market-ui/src/ui/UserPanelSurface.tsx`、`packages/market-ui/src/ui/panel.tsx`、`packages/market-ui/src/ui/ResourceCard.tsx`、`packages/market-ui/src/ui/resource-card.module.css`、`src/client/SearchFilterToolbar.tsx`、`src/client/SearchFilterToolbar.module.css`、`src/client/market.module.css`、`packages/market-ui/src/api.ts`、`packages/market-ui/src/locales.ts`、`src/client/features/mcp-status/mcp-status-view-model.ts`、`src/client/features/lsp-status/lsp-status-view-model.ts`、`packages/market-contracts/src/contracts/market.ts`、`packages/market-bundle/src/routes.ts`、`packages/market-bundle/src/application/catalog.ts`、`packages/market-contracts/src/ports/queries.ts`、`packages/market-mcp/src/application/mcp-service.ts`、`packages/market-ui/test/filter-toolbar.test.ts`、`packages/market-bundle/test/integration/client-view-models.test.ts`、`packages/market-ui/test/user-panel-surface.test.ts`、`packages/market-bundle/test/integration/routes.test.ts`、`docs/user/usage.md`、`docs/user/usage.zh.md`、`.agents/notes/implemented/feature/2026-09-14-workspace-card-anatomy-and-host-affordances.md` + `.zh.md`。
 
 ## 九、编辑页复刻（截图 40–49）
 
@@ -218,7 +218,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 | I2 | 三处调用点改用它 | `SuiteDetail.row()`、`ui/UserEntryDetail.tsx` 的文档行、`LspStatusPanel` 的扩展名行 | 三处同一形态；LSP 扩展名行作为不可展开的静态带渲染 |
 | I3 | frontmatter 按原文展示 | `MarkdownDocument`：`frontmatter()` 新增 `raw`（匹配到的原文块），预览里改为等宽 + 边框 + `markdown-code-block` 底色的 `pre`，位于渲染正文之上 | 走查中展开行正文以 `---` 原块开头，编辑器预览同步生效 |
 | I4 | 用户条目详情概览按原型 | 新增 `diskPathLabel`（磁盘路径）、`updatedLabel`（最近变更）与 `docSectionSkill/Command/Persona`（技能文档 / 命令文档 / 角色定义）；`UserPanelEntry.updatedAt` 由 `panel-resources.ts` 在列表组装处对每个条目文件统一 stat 得到；`ui/last-change.ts` 抽出 `lastChangeLabel` 供两处详情共用 | 走查中读作 `来源套件 用户 / 类型 用户 / 磁盘路径 … / 最近变更 29 分钟前`，分组标题 `技能文档` |
-| I5 | 清理 | 删除 `panel.module.css` 的 `.docs`/`.docsBody`、`market.module.css` 的 `.rowSummary`、`detail.module.css` 的 `.metadata`/`.values`/`.value`/`.section`/`.heading`；`tests/client-detail-editors.test.ts` 的断言由 `<dl` 改为 `<pre` | dependency-cruiser 151 模块 / 538 依赖无违规 |
+| I5 | 清理 | 删除 `panel.module.css` 的 `.docs`/`.docsBody`、`market.module.css` 的 `.rowSummary`、`detail.module.css` 的 `.metadata`/`.values`/`.value`/`.section`/`.heading`；`packages/market-ui/test/client-detail-editors.test.ts` 的断言由 `<dl` 改为 `<pre` | dependency-cruiser 151 模块 / 538 依赖无违规 |
 
 > 注意：详情行现在用的是插件自己的 `DetailRow`，不再是宿主 `DisclosureRow`；理由是宿主那条 24px 流式行改不出原型的三列带（箭头位置、行高、两层底色都是它自己的决定）。取舍写在 `2026-09-16-detail-row-and-document-body` 的 Alternatives 里。
 
@@ -257,7 +257,7 @@ DSH_AGENTS_HOME=/tmp/dsh-ui-check/agents dsh --profile ui-check --port 3099 --no
 | K1 | 删除所有编辑器的副行 | `ui/panel.tsx` 去掉 `subtitle`；`LspStatusPanel` / `McpStatusPanel` / `SourceEditorModal` 去掉 `description`；`editorTarget*`（10 项）与 `editorSourceSubtitle` 从 locales 删除 | 六个编辑器都只有标题 |
 | K2 | 删除所有字段提示 | 删除 `editorDocHint*`、`detailJsonHint`、`personaModelHint`，以及来源编辑器的 `urlGitHint`/`urlArchiveHint`/`urlLocalHint`/`branchHint`/`sha256Hint`；示例改由 placeholder 承担（新增 `sourceUrlEg*`、`branchEg`） | 弹窗内 `[class*=hint]` 计数为 0；保留 `personaRouteIgnored`（校验反馈）与底部 `editorFooter*`（保存后果） |
 | K3 | 编辑器内只用样式表的控件 | MCP / LSP 的 `nameField.control` 与来源编辑器的 URL / 分支 / SHA256 由平台 `Input` 改为原生 `input` | 服务名称输入框 `border-width: 1px`，字段包裹层 `0px`（此前两层） |
-| K4 | 行列表新增动作移到 label 行 | `ServerConfigEditor.StringRows` 自己渲染字段：`.rowHead`（label + 扁平 `addIcon` 20px）＋ `.rows`；`form.module.css` 删除 `.addRow`，新增 `.rowHead`/`.addIcon`；无障碍名称保持 `<添加> <对象>` | 参数 / 环境变量 / 语言扩展名映射各一个 `addIcon`；`tests/client-detail-editors.test.ts` 的 `panelAdd detailEnv`、`panelAdd detailArgs` 断言不变 |
+| K4 | 行列表新增动作移到 label 行 | `ServerConfigEditor.StringRows` 自己渲染字段：`.rowHead`（label + 扁平 `addIcon` 20px）＋ `.rows`；`form.module.css` 删除 `.addRow`，新增 `.rowHead`/`.addIcon`；无障碍名称保持 `<添加> <对象>` | 参数 / 环境变量 / 语言扩展名映射各一个 `addIcon`；`packages/market-ui/test/client-detail-editors.test.ts` 的 `panelAdd detailEnv`、`panelAdd detailArgs` 断言不变 |
 | K5 | 新建态的 markdown 与预览对齐 | 身份行（名称，及命令的「参数提示」）从左侧窗格移到 `.panes` 之上，两个窗格都只剩「头部 + 框」 | 新建：编辑框与预览框均 `240×408`，top 241 / bottom 481；编辑：均 `240×408`，top 215 / bottom 455 |
 
 > 取舍写在 `2026-09-16-workspace-editor-chrome-cleanup` 的 Alternatives 里：字段提示是**删除**而不是搬进 tooltip；行下方的带边框添加按钮虽与原型一致，但按本项目「行内动作用扁平图标」的既有规范有意偏离。

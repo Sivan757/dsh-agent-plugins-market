@@ -30,7 +30,7 @@ Status: implemented
 
 ## 测试
 
-[聚合测试](../../../../tests/skill-source-aggregation.test.ts)覆盖用户和项目发现、旧 ID 冲突、同名去重、诊断、安装、重新加载及运行时资源路径。八个专项测试文件的 164 项测试通过，仓库重构门禁也通过。
+[聚合测试](../../../../packages/market-bundle/test/integration/skill-source-aggregation.test.ts)覆盖用户和项目发现、旧 ID 冲突、同名去重、诊断、安装、重新加载及运行时资源路径。八个专项测试文件的 164 项测试通过，仓库重构门禁也通过。
 
 在 macOS 上，`jeecgboot/skills` 的 `12760b936b0a083ce70905021ea82149f36537d4` 真实 checkout 产出一个套件、14 个技能，无诊断。上游两个文件使用小写 `skill.md`，因此区分大小写的文件系统可能得到不同数量。本次改动保留现有文件名处理行为。
 

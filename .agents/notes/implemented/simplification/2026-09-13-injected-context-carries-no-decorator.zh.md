@@ -40,7 +40,7 @@ Status: implemented
 
 ## Testing
 
-`tests/mcp-mounts.test.ts` 断言套件转发的文本等于替换 `$ARGUMENTS` 后的作者模板，逐字节一致、包括 fixture 文件自带的末尾换行；`tests/user-commands.test.ts` 对用户面板命令做同样的断言，并固定条目自身的 `description` 抵达斜杠菜单。`tests/skills-provider.test.ts` 与 `tests/native-project.test.ts` 断言套件技能候选的描述是作者的描述，`tests/user-panels.test.ts` 对用户条目同样如此，`tests/host-locale.test.ts` 固定不含套件的回执。加回任何装饰都会让两处转发断言在开头的标题行上失败。
+`packages/market-bundle/test/integration/mcp-mounts.test.ts` 断言套件转发的文本等于替换 `$ARGUMENTS` 后的作者模板，逐字节一致、包括 fixture 文件自带的末尾换行；`packages/market-runtime/test/user-commands.test.ts` 对用户面板命令做同样的断言，并固定条目自身的 `description` 抵达斜杠菜单。`packages/market-bundle/test/integration/skills-provider.test.ts` 与 `packages/market-bundle/test/integration/native-project.test.ts` 断言套件技能候选的描述是作者的描述，`packages/market-runtime/test/user-panels.test.ts` 对用户条目同样如此，`packages/market-runtime/test/host-locale.test.ts` 固定不含套件的回执。加回任何装饰都会让两处转发断言在开头的标题行上失败。
 
 ## Related
 

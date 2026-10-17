@@ -1,13 +1,14 @@
 # AGENTS.md
 
-`dsh-agent-plugins-market` is the DeepSeek Harness plugin that installs Claude Code / Codex / Cursor / Kimi marketplace suites in place — zero conversion, zero file copying — and injects skills, MCP servers, hooks, commands, agents, and LSP servers into dsh sessions at runtime. Domain vocabulary lives in [CONTEXT.md](CONTEXT.md) (source, dialect, suite, surface, install state); use those terms exactly. Human onboarding and PR flow live in [CONTRIBUTING.md](CONTRIBUTING.md) — do not restate them here.
+`dsh-agent-plugins-market` is the DeepSeek Harness plugin that installs Claude Code / Codex / Cursor / Kimi marketplace suites in place — zero conversion, zero file copying — and injects skills, MCP servers, hooks, commands, agents, and LSP servers into dsh sessions at runtime. Domain vocabulary lives in [CONTEXT.md](CONTEXT.md) (source, dialect, suite, surface, install state); use those terms exactly. Human onboarding and PR flow live in [CONTRIBUTING.md](.github/CONTRIBUTING.md) — do not restate them here.
 
 ## Repository layout
 
 ```
 index.ts        public installation entry: re-exports the bundle package. The published package name and
                 artifact are unchanged; the workspace packages stay private.
-packages/       eight private workspace packages consumed by that one artifact:
+packages/       eight private workspace packages consumed by that one artifact; each owns its own
+                test/ tree, and market-catalog owns schemas/ (the vendored spec library):
   market-bundle/       composition root and HTTP surface: src/index.ts (plugin entry), routes*.ts,
                        runtime-adapters.ts, application/, platform/
   market-catalog/      pure source scanning (scanning/) and the catalog use cases (application/)
@@ -21,12 +22,11 @@ packages/       eight private workspace packages consumed by that one artifact:
   market-translation/  translation engine, provider chain and translators (application/, runtime/)
   market-ui/           Web market page: src/index.ts, api.ts, locales.ts and i18n.ts, features/,
                        workspace/, ui/
-schemas/        the layout specification library: vendored 1.0.0/ and 1.1.0/ agent-plugins schemas, one
-                reference contract directory per dialect (plugin/marketplace schema + spec.md), and this
-                manager's own com.deepseek.harness/ namespace — see schemas/README.md
-tests/          vitest suites for the whole workspace; fixtures under tests/fixtures
+plugins/        the first-party Agent Plugins v1 collection (plugin-dev, toolkit, engineering), authored
+                here and laid out exactly as the preset dsh-agent-plugins source scans it; conformance is
+                guarded by packages/market-catalog/test/first-party-plugins.test.ts
 docs/           user/, reference/, developer/{decisions,design,discussion,release,upstream-proposal}/, scratch/ — see docs/AGENTS.md
-docs-site/      Astro docs site
+docs-site/      VitePress docs site
 scripts/        build and verification helpers: client banner, lifecycle verification, host-alignment
                 and reuse gates, compatibility report, fixture updates, git-hook setup
 ```
@@ -35,7 +35,7 @@ scripts/        build and verification helpers: client banner, lifecycle verific
 
 ```sh
 pnpm run typecheck           # the four TypeScript projects: server, client and both test projects
-pnpm run lint                # eslint index.ts packages tests
+pnpm run lint                # eslint index.ts packages
 pnpm run check:quick         # typecheck + lint — also runs before test and build
 pnpm run format:check        # prettier — tracked text except the paths in .prettierignore
 pnpm run test                # vitest run (full suite)
@@ -52,6 +52,7 @@ pnpm run build               # tsc emits lib/, tsdown bundles client/
 
 ## Conventions
 
+- **The repository root holds only files a platform or tool consumes at the package root**: the npm entry (`index.ts`, `cordis.patch.yml`), package metadata and lockfile, changelog and license, the README pair, tool-discovered configs, plus `AGENTS.md` and `CONTEXT.md`. Community health files (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`) live in `.github/`; placement rationale is in [the governance discussion](docs/developer/discussion/github-governance.md). A new root file needs a statement of why no other location works.
 - **Reuse the host's own capability before building one.** A setting, a persisted store, a timer, a browser-side store, a config card, a listing API — when the harness already provides it, use the harness's. A local implementation needs a stated reason the host's does not fit, recorded as an `## Alternatives considered` entry in the change's Agent Note or ADR. Verify the **published package**, never the checkout: `npm view <pkg>@<baseline> dist.tarball`, then inspect that tarball's `files`/`exports` — a package present in the harness monorepo is not necessarily published, and one that publishes only `lib/*.js` plus `.d.ts` has no importable `src/`. Declare whatever is imported by the peer-vs-dependency rule in [the plugin development standard](docs/reference/dsh-plugin-development-standard.md) §2.1, and clear `pnpm run check:host-alignment`. Worked examples, and the deviations that survived a deliberate look, are in the [settings-and-card note](.agents/notes/implemented/architecture/2026-09-13-settings-and-card-ride-the-host.md).
 - **Non-trivial changes include an Agent Note** in the same PR — a decision a maintainer may reasonably revisit is recorded under [.agents/notes/](.agents/notes/README.md) (proposed/implemented/rejected by class), and a new note triggers a supersession check of active notes on the same decision. Mechanical or local edits are exempt.
 - **Commit types drive releases.** `feat:`/`fix:` in conventional-commit subjects are parsed by release-please into the next version and the changelog; a misclassified subject ships a wrong version. Scope the subject to the surface (`feat(mcp):`, `fix(lsp-status):`) and keep the body carrying the rationale.

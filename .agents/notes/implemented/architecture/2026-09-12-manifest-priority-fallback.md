@@ -24,4 +24,4 @@ A repository can scan as a layout other than the one its most prominent manifest
 
 ## Verification
 
-`tests/layouts.test.ts` covers a v1 manifest rejected by schema validation with a Claude manifest winning underneath, the fallback note, and the all-candidates-invalid rejection; `tests/real-layouts.test.ts` and `tests/compat-report.test.ts` confirm the sampled repositories keep their recorded verdicts.
+`packages/market-bundle/test/integration/layouts.test.ts` covers a v1 manifest rejected by schema validation with a Claude manifest winning underneath, the fallback note, and the all-candidates-invalid rejection; `packages/market-bundle/test/integration/real-layouts.test.ts` and `packages/market-bundle/test/repo/compat-report.test.ts` confirm the sampled repositories keep their recorded verdicts.

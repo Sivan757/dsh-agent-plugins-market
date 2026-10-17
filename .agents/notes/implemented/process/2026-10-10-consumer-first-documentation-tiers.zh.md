@@ -30,7 +30,7 @@ Status: implemented
 
 文档站从此承接兼容性参考及其入站链接。本次改动当时，`.github/workflows/docs-pages.yml` 只监听 `docs-site/**`，因此 `docs/` 下的改动不会重建已部署站点，站点改用 GitHub 绝对地址链接这类页面而不是渲染它们。[文档站直接渲染使用指南](2026-10-11-docs-site-renders-the-user-guide.md) 随后把 `docs/user/**` 加入触发路径，并让站点直接渲染指南页面，因此本记录关于 GitHub 外链的后果已不再描述现状。
 
-有三条入站链接指向被移走的 README 表格：`docs/user/usage.md` 及其中文版，以及 `schemas/README.md`。三条现已指向站点锚点 `compatible-plugins/#shared-layout-precedence`。[文档站直接渲染使用指南](2026-10-11-docs-site-renders-the-user-guide.md) 随后把该指南拆成七个任务页，因此 `docs/user/usage.md` 已不存在。
+有三条入站链接指向被移走的 README 表格：`docs/user/usage.md` 及其中文版，以及 `packages/market-catalog/schemas/README.md`。三条现已指向站点锚点 `compatible-plugins/#shared-layout-precedence`。[文档站直接渲染使用指南](2026-10-11-docs-site-renders-the-user-guide.md) 随后把该指南拆成七个任务页，因此 `docs/user/usage.md` 已不存在。
 
 `CONTRIBUTING.md` 仍在描述已被移除的 `src/` 目录。本次改动把它的目录结构更正为 `index.ts` 加上 `packages/`。
 
@@ -40,4 +40,4 @@ Status: implemented
 
 ## Testing
 
-`pnpm run format:check` 与 `tsconfig.json`、`tsconfig.client.json` 两个 TypeScript 项目均通过。全量 vitest 在 Node 24 上通过：213 个文件、2048 个测试。`tests/compat-report.test.ts` 仍能从两个 README 中找到 `docs/reference/compat-report.md` 与 `docs/user/layout-coverage` 链接。Astro 构建产出四个页面，线上路由与优先级锚点均返回 200。
+`pnpm run format:check` 与 `tsconfig.json`、`tsconfig.client.json` 两个 TypeScript 项目均通过。全量 vitest 在 Node 24 上通过：213 个文件、2048 个测试。`packages/market-bundle/test/repo/compat-report.test.ts` 仍能从两个 README 中找到 `docs/reference/compat-report.md` 与 `docs/user/layout-coverage` 链接。Astro 构建产出四个页面，线上路由与优先级锚点均返回 200。

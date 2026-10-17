@@ -34,4 +34,4 @@ The file-mode assertion is the one guarantee Windows cannot observe at all; it s
 
 ## Testing
 
-The job is its own test: it fails on `windows-latest` for every `/tmp` root, POSIX assertion, and CRLF-dependent fixture listed above, which is how each was found. `tests/paths.test.ts` keeps the separator rules themselves covered on every host, so the win32 behavior stays pinned even when a change is only exercised on Linux.
+The job is its own test: it fails on `windows-latest` for every `/tmp` root, POSIX assertion, and CRLF-dependent fixture listed above, which is how each was found. `packages/market-catalog/test/paths.test.ts` keeps the separator rules themselves covered on every host, so the win32 behavior stays pinned even when a change is only exercised on Linux.

@@ -54,7 +54,7 @@ The cache grows until reset and is written as one document. Reset prevents old r
 
 ## Verification ownership
 
-[Chain tests](../../../tests/translation-chain.test.ts), [localizer tests](../../../tests/translation-localizer.test.ts) and [cache tests](../../../tests/translation-cache.test.ts) cover fallback, cancellation, reuse and persistence. [Document tests](../../../tests/translation-document.test.ts) cover the shared catalog path. These references identify coverage and do not assert a test run by this documentation edit.
+[Chain tests](../../../packages/market-bundle/test/integration/translation-chain.test.ts), [localizer tests](../../../packages/market-translation/test/translation-localizer.test.ts) and [cache tests](../../../packages/market-translation/test/translation-cache.test.ts) cover fallback, cancellation, reuse and persistence. [Document tests](../../../packages/market-bundle/test/integration/translation-document.test.ts) cover the shared catalog path. These references identify coverage and do not assert a test run by this documentation edit.
 
 ## Revisit when
 

@@ -34,4 +34,4 @@ Hooks 两个界面只说声明写了什么，从不说它能不能跑。用户�
 
 ## Testing
 
-客户端覆盖在 `tests/client-hooks-status-panel.test.ts`：无页签列表、页脚阶段标签、试运行请求体与渲染结果。服务端覆盖在 `tests/extension-hook-run.test.ts`：按声明位置解析、未知地址、被拒绝声明没有命令、用假 shell 跑运行路径（目录、stdin、超时、截断、信号、执行器拒绝），以及路由（仅 POST、跨源拒绝、服务不可用、地址非法，且命令与目录都不经线路传输）。
+客户端覆盖在 `packages/market-bundle/test/integration/client-hooks-status-panel.test.ts`：无页签列表、页脚阶段标签、试运行请求体与渲染结果。服务端覆盖在 `packages/market-bundle/test/integration/extension-hook-run.test.ts`：按声明位置解析、未知地址、被拒绝声明没有命令、用假 shell 跑运行路径（目录、stdin、超时、截断、信号、执行器拒绝），以及路由（仅 POST、跨源拒绝、服务不可用、地址非法，且命令与目录都不经线路传输）。

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "toolkit",
+  "version": "0.6.1",
+  "description": "Built-in toolset for DeepSeek Harness sessions: project init, codebase exploration, runtime verification, code simplification with the code-simplifier agent, offline session-history reviews with a self-contained dashboard, code review with the code-reviewer agent and command, AGENTS.md auditing and session-learnings capture, and automation recommendations for a codebase.",
+  "author": { "name": "dsh-agent-plugins contributors" },
+  "license": "MIT",
+  "keywords": ["dsh", "init", "explore", "verify", "simplify", "insight", "code-review", "agents-md", "automation"],
+  "extensions": {
+    "com.deepseek.harness": {
+      "schemaVersion": "1.0.0"
+    }
+  }
+}

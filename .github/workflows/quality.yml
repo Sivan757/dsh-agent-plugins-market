@@ -51,14 +51,14 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # The root tsconfig projects do not include .astro files, so these three
-      # steps are the only verification the site gets. They live here as well as
-      # in docs-pages.yml because that workflow runs on push to main only: a
-      # broken site change would otherwise pass review and fail after merge.
+      # These steps are the only verification the site gets. They live here as
+      # well as in docs-pages.yml because that workflow runs on push to main
+      # only: a broken site change would otherwise pass review and fail after
+      # merge. VitePress fails its own build on a dead internal link, so
+      # check:guide proves the copy is fresh and check:links proves the
+      # READMEs' deep links and fragments resolve in the emitted output.
       - name: Check the guide is complete and bilingual
         run: pnpm --dir docs-site run check:guide
-      - name: Type-check the site
-        run: pnpm --dir docs-site run check
       - name: Build the site
         run: pnpm --dir docs-site run build
       - name: Check every link in the built site

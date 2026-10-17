@@ -19,9 +19,9 @@ on:
       - '.release-please-*'
       - 'README.md'
       - 'README.zh.md'
-      - 'CONTRIBUTING.md'
-      - 'CODE_OF_CONDUCT.md'
-      - 'SECURITY.md'
+      - '.github/CONTRIBUTING.md'
+      - '.github/CODE_OF_CONDUCT.md'
+      - '.github/SECURITY.md'
 
 permissions:
   contents: write

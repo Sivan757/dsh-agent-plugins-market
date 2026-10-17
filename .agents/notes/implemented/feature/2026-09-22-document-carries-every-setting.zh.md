@@ -28,7 +28,7 @@ Status: implemented
 
 ## Testing
 
-`tests/mcp-direct-config.test.ts` 让用户文件里的未知键留存；`tests/server-config.test.ts` 保存一个带未知键的用户自有服务，同时仍然拒绝分发包上的未知键；`tests/client-detail-editors.test.ts` 证明一次表单编辑会保留表单没有控件的键；`tests/client-server-config-policy.test.ts` 提交写进文档的策略，且只提交改动过的项。
+`packages/market-bundle/test/integration/mcp-direct-config.test.ts` 让用户文件里的未知键留存；`packages/market-bundle/test/integration/server-config.test.ts` 保存一个带未知键的用户自有服务，同时仍然拒绝分发包上的未知键；`packages/market-ui/test/client-detail-editors.test.ts` 证明一次表单编辑会保留表单没有控件的键；`packages/market-bundle/test/integration/client-server-config-policy.test.ts` 提交写进文档的策略，且只提交改动过的项。
 
 ## Related
 

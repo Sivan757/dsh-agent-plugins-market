@@ -5,10 +5,12 @@ node_modules/
 client/*.js
 client/*.map
 client/*.css
+# docs-site build output and the guide copies generated before each build
+/docs-site/dist/
+/docs-site/guide/
 *.tgz
 .DS_Store
 scripts/npm-token-setup.sh
-coverage/
 # playwright-cli capture state
 .playwright-cli/
 # IDE state

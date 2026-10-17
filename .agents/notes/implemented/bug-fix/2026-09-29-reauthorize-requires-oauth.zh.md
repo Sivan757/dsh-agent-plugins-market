@@ -28,5 +28,5 @@ Status: implemented
 
 ## Testing
 
-- `tests/mcp-status.test.ts` —— `declaresAuthHeader` 不分大小写地识别 `Authorization`，忽略其它请求头名，请求头表缺席时返回 false。
-- `tests/client-mcp-detail-actions.test.ts` —— 弹窗的动作列表仍按它拿到的标志判定。
+- `packages/market-bundle/test/integration/mcp-status.test.ts` —— `declaresAuthHeader` 不分大小写地识别 `Authorization`，忽略其它请求头名，请求头表缺席时返回 false。
+- `packages/market-bundle/test/integration/client-mcp-detail-actions.test.ts` —— 弹窗的动作列表仍按它拿到的标志判定。

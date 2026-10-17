@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering",
+  "version": "0.1.0",
+  "description": "Engineering workflows for DeepSeek Harness: guided feature development with codebase exploration, architecture and review agents, legacy-system modernization driven by workflow scripts, interactive HTML playgrounds, frontend design direction, and a security-reviewer agent.",
+  "author": { "name": "dsh-agent-plugins contributors" },
+  "license": "MIT",
+  "keywords": ["dsh", "engineering", "feature", "modernization", "security", "design", "playground"],
+  "extensions": {
+    "com.deepseek.harness": {
+      "schemaVersion": "1.0.0"
+    }
+  }
+}

@@ -30,4 +30,4 @@ Two facts stay as they were. The reading mode still starts at original, so openi
 
 ## Testing
 
-`tests/client-user-entry-detail-translation.test.ts` mounts the dialog and asserts the row arrives expanded with its body read, that the hint flips with the state, and that collapsing and reopening the row restores the body. The same file keeps the reading-mode coverage, including that no translation read starts on open. `tests/client-locales.test.ts` holds the two dictionaries in lockstep, which covers the new hint key.
+`packages/market-ui/test/client-user-entry-detail-translation.test.ts` mounts the dialog and asserts the row arrives expanded with its body read, that the hint flips with the state, and that collapsing and reopening the row restores the body. The same file keeps the reading-mode coverage, including that no translation read starts on open. `packages/market-ui/test/client-locales.test.ts` holds the two dictionaries in lockstep, which covers the new hint key.

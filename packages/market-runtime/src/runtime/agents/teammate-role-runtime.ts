@@ -9,6 +9,7 @@ import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import { foldSubagentDescriptor, type SubagentRuntime } from '@deepseek-ai/dsh-subagent'
 import type { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { z } from 'zod'
+import { drainContinuableChildIds, type ContinuableSubagentSeam } from './subagent-seam.js'
 
 const PROVIDER = 'market-role-team'
 export const TEAM_ROLE_SOURCE = 'teammate-role-binding'
@@ -122,11 +123,16 @@ export class TeammateRoleRuntime {
   constructor(private readonly ctx: Context) {
     this.teams = ctx.get('agentTeams') as TeamService
     this.subagents = ctx.get('subagents') as SubagentRuntime
+    // The 0.2.1-alpha.4 host removed `toolFilter` and `persona` from the capability
+    // record and added `agentPreset`; the 0.2.0-rc.2 baseline types require the first
+    // two. One variable satisfies both shapes because the host reads only the flags
+    // it knows, while an object literal would fail the newer excess-property check.
+    const capabilities = { agentOptions: false, agentPreset: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false }
     this.registrations.push(
       this.subagents.registerProvider({
         name: PROVIDER,
         inheritsParentContext: false,
-        capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
+        capabilities,
         start: () => Promise.reject(new Error('role teammates require Team continuation')),
         prepareContinuable: request => {
           const pending = this.pending.getStore()
@@ -269,7 +275,7 @@ export class TeammateRoleRuntime {
       if (parent !== undefined) byParent.set(parent, [...(byParent.get(parent) ?? []), agent.id])
     }
     try {
-      await Promise.all([...byParent].map(([parent, ids]) => this.subagents.drainContinuableChildren(parent, ids)))
+      await Promise.all([...byParent].map(([parent, ids]) => drainContinuableChildIds(this.subagents as ContinuableSubagentSeam, parent, ids)))
     } finally {
       for (const off of this.registrations.splice(0).reverse()) off()
       for (const off of this.compositions.values()) off()

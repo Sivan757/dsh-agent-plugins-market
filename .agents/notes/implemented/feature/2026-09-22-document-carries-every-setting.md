@@ -28,7 +28,7 @@ The configuration editor is a form, so anything the form has no control for is u
 
 ## Testing
 
-`tests/mcp-direct-config.test.ts` keeps unknown keys in a user file; `tests/server-config.test.ts` stores a user-owned service carrying one and still refuses unknown keys on a package; `tests/client-detail-editors.test.ts` proves a form edit keeps a key it has no control for; `tests/client-server-config-policy.test.ts` submits a policy written into the document, and only the entry that changed.
+`packages/market-bundle/test/integration/mcp-direct-config.test.ts` keeps unknown keys in a user file; `packages/market-bundle/test/integration/server-config.test.ts` stores a user-owned service carrying one and still refuses unknown keys on a package; `packages/market-ui/test/client-detail-editors.test.ts` proves a form edit keeps a key it has no control for; `packages/market-bundle/test/integration/client-server-config-policy.test.ts` submits a policy written into the document, and only the entry that changed.
 
 ## Related
 

@@ -17,7 +17,7 @@
 ## 后果
 
 - 未声明命名空间的 v1 套件只贡献技能与 MCP——这是设计使然。本仓库自己的套件样本已声明命名空间。
-- vendored schema 的更新重新变回纯粹的上游复制；`schemas/com.deepseek.harness/` 按自己的 `schemaVersion` 演进。
+- vendored schema 的更新重新变回纯粹的上游复制；`packages/market-catalog/schemas/com.deepseek.harness/` 按自己的 `schemaVersion` 演进。
 - `PLUGIN_DATA` 在任何 stdio 启动前创建，两个变量在配置 env 叠加之后注入（§9.1），数据目录的 `cwd`/`args` 引用首次启动即可用。
 
 ## 相关

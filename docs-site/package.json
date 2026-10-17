@@ -3,20 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "astro build && node scripts/generate-sitemap.mjs",
-    "check": "astro check",
+    "dev": "node scripts/copy-guide.mjs && vitepress dev",
+    "precheck:guide": "node scripts/copy-guide.mjs",
     "check:guide": "node scripts/check-guide.mjs",
+    "build": "node scripts/copy-guide.mjs && vitepress build && node scripts/directories.mjs && node scripts/generate-sitemap.mjs",
+    "preview": "vitepress preview",
+    "typecheck": "tsc --noEmit",
     "check:links": "node scripts/check-links.mjs"
   },
-  "dependencies": {
-    "@astrojs/check": "^0.9.10",
-    "astro": "^7.3.5",
-    "typescript": "^5.8.3"
+  "devDependencies": {
+    "vitepress": "2.0.0-alpha.20",
+    "vue": "^3.5.13"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp"
-    ]
-  }
+  "pnpm": {}
 }

@@ -1,6 +1,6 @@
 # AGENTS.md — Documentation
 
-Markdown under `docs/` is organized by the reader it serves. A page states its own subject; lower-level detail belongs to the owning descendant, reached by link. Product contracts live beside the code that owns them ([README.md](../README.md), [schemas/README.md](../schemas/README.md), `src/` JSDoc); decision rationale lives in [.agents/notes/](../.agents/notes/README.md).
+Markdown under `docs/` is organized by the reader it serves. A page states its own subject; lower-level detail belongs to the owning descendant, reached by link. Product contracts live beside the code that owns them ([README.md](../README.md), [packages/market-catalog/schemas/README.md](../packages/market-catalog/schemas/README.md), `src/` JSDoc); decision rationale lives in [.agents/notes/](../.agents/notes/README.md).
 
 ## Tree
 
@@ -22,13 +22,15 @@ Place a new page in the directory of its reader. Choose `reference/` over `scrat
 
 `user/` pages ship English and Simplified Chinese as one edit: `install.md` with `install.zh.md`. Keep headings, lists, tables, code fences, and link targets aligned one for one, and keep the physical line count equal. The English side keeps its own link when no counterpart exists. Developer, reference, and scratch material stays English-only.
 
-Each `user/` page owns one task, and the reading order lives in [the guide library](../docs-site/src/guide/guide.ts): `NAV_ORDER` lists the pages and `SECTIONS` groups them. Add a page to both, or the site will not route it. A page carries a `**Guide:**` line of sibling links, so the sequence survives on GitHub where the site sidebar does not exist.
+Each `user/` page owns one task, and the reading order lives in [the guide library](../docs-site/.vitepress/guide.ts): `GUIDES` lists the pages and `SECTIONS` groups them. Add a page to both, or the site will not route it. A page carries a `**Guide:**` line of sibling links, so the sequence survives on GitHub where the site sidebar does not exist.
 
-The [docs site](../docs-site/src/guide/guide.ts) renders every `user/` page, so a guide edit is also a site edit: the pair becomes `/docs/<name>/` and `/docs/zh/<name>/`, and the site's language switch needs both files. `docs-pages.yml` watches `docs/user/**` and `docs-site/**` for that reason. Links inside a rendered page are rewritten at build time: a target under `user/` becomes a site route, and anything else (README, `schemas/`, sources) becomes a GitHub URL.
+The [docs site](../docs-site/.vitepress/config.mts) renders every `user/` page, so a guide edit is also a site edit: the pair becomes `/docs/<name>/` and `/docs/zh/<name>/`. `docs-pages.yml` watches `docs/user/**` and `docs-site/**` for that reason. `docs-site/scripts/copy-guide.mjs` copies the pages into the site before each build and rewrites their links: a target inside `user/` becomes a site route, and anything else (README, `schemas/`, sources) becomes a GitHub URL. `docs-site/scripts/check-guide.mjs` recomputes the rewrite, so an out-of-date copy fails the check.
 
 ## Generated artifacts
 
-[compat-report.md](reference/compat-report.md) and `compat-report.json` come from `node scripts/compat-report.mjs`; do not hand-edit them. Both are in `.prettierignore`. Moving or renaming one means updating the generator, [tests/compat-report.test.ts](../tests/compat-report.test.ts), and every inbound link in the same change.
+[compat-report.md](reference/compat-report.md) and `compat-report.json` come from `node scripts/compat-report.mjs`; do not hand-edit them. Both are in `.prettierignore`. Moving or renaming one means updating the generator, [compat-report.test.ts](../packages/market-bundle/test/repo/compat-report.test.ts), and every inbound link in the same change.
+
+The `docs-site/guide/` directory is the same kind of artifact: generated from `user/` by `copy-guide.mjs`, gitignored, and never edited by hand.
 
 ## Moving a page
 

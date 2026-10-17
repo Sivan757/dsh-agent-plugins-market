@@ -31,8 +31,8 @@ The command now reads twice while the row stays folded. The status card states i
 - The dialog shows one declaration as one record. The row names the event and previews the command, and the JSON states every declared fact.
 - The command reads twice at rest. A reader who counts occurrences sees the status card and the row preview, and the expanded tree makes it three.
 - A rejected declaration shows its diagnostic inside the same block, because the assembled JSON carries `diagnostic` when the scanned record has one.
-- `tests/client-hooks-status-panel.test.ts` pins the resting count at two, the row's folded state, the expanded tree's own facts, and the absence of address fields.
+- `packages/market-bundle/test/integration/client-hooks-status-panel.test.ts` pins the resting count at two, the row's folded state, the expanded tree's own facts, and the absence of address fields.
 
 ## Testing
 
-`tests/client-hooks-status-panel.test.ts` asserts the section heading, the folded row with its event name and command preview, the expanded `role="tree"` with its label and declared facts, and the absence of `sourceId`, `suiteId`, `provenance`, `support`, `hookIndex` and `sessionId` in the tree.
+`packages/market-bundle/test/integration/client-hooks-status-panel.test.ts` asserts the section heading, the folded row with its event name and command preview, the expanded `role="tree"` with its label and declared facts, and the absence of `sourceId`, `suiteId`, `provenance`, `support`, `hookIndex` and `sessionId` in the tree.

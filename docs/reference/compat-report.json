@@ -7,7 +7,7 @@
     "checkedOn": "2026-09-08"
   },
   "method": {
-    "schema": "Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored schemas/1.0.0/plugin.schema.json.",
+    "schema": "Each sample dialect manifest is parsed and validated with Ajv 2020-12 against the schema named in the row. The agent-plugins sample uses the vendored packages/market-catalog/schemas/1.0.0/plugin.schema.json.",
     "scanner": "Each checkout is scanned by the shipped catalog scanner (lib/catalog/suite-scanner.js scanSource) after a sparse depth-1 clone, so the row records what this plugin actually does with the repository.",
     "marketplace": "The scanner marketplace lookup order is `.plugin/marketplace.json` then `.claude-plugin/marketplace.json` then `.cursor-plugin/marketplace.json` then `.kimi-plugin/marketplace.json` then `.agents/plugins/marketplace.json` then `.agents/plugins/api_marketplace.json` then `.qoder-plugin/marketplace.json` then `.github/plugin/marketplace.json` then `marketplace.json`; other dialects' marketplace files are listed for context but are not read.",
     "verdicts": {
@@ -32,7 +32,7 @@
         "vendored": false,
         "plugin": {
           "file": ".claude-plugin/plugin.json",
-          "schema": "schemas/claude-code/plugin.schema.json",
+          "schema": "packages/market-catalog/schemas/claude-code/plugin.schema.json",
           "present": true,
           "valid": true,
           "errors": []
@@ -121,14 +121,14 @@
         "vendored": false,
         "plugin": {
           "file": ".cursor-plugin/plugin.json",
-          "schema": "schemas/cursor/plugin.schema.json",
+          "schema": "packages/market-catalog/schemas/cursor/plugin.schema.json",
           "present": true,
           "valid": true,
           "errors": []
         },
         "marketplace": {
           "file": ".cursor-plugin/marketplace.json",
-          "schema": "schemas/cursor/marketplace.schema.json",
+          "schema": "packages/market-catalog/schemas/cursor/marketplace.schema.json",
           "present": true,
           "valid": true,
           "errors": []
@@ -219,7 +219,7 @@
       "repo": "saadeghi/daisyui",
       "branch": "master",
       "stars": 42328,
-      "note": "Root plugin.json declares the agent-plugins.org v1.0.0 $schema; validated with the vendored schemas/1.0.0/plugin.schema.json.",
+      "note": "Root plugin.json declares the agent-plugins.org v1.0.0 $schema; validated with the vendored packages/market-catalog/schemas/1.0.0/plugin.schema.json.",
       "pluginManifest": "plugin.json",
       "marketplaceManifest": null,
       "commit": "dd0a94a20ae35c7587017766cef9f0c109ff819b",
@@ -227,7 +227,7 @@
         "vendored": true,
         "plugin": {
           "file": "plugin.json",
-          "schema": "schemas/1.0.0/plugin.schema.json",
+          "schema": "packages/market-catalog/schemas/1.0.0/plugin.schema.json",
           "present": true,
           "valid": true,
           "errors": []
@@ -304,14 +304,14 @@
         "vendored": false,
         "plugin": {
           "file": ".zcode-plugin/plugin.json",
-          "schema": "schemas/zcode/plugin.schema.json",
+          "schema": "packages/market-catalog/schemas/zcode/plugin.schema.json",
           "present": true,
           "valid": true,
           "errors": []
         },
         "marketplace": {
           "file": "marketplace.json",
-          "schema": "schemas/zcode/marketplace.schema.json",
+          "schema": "packages/market-catalog/schemas/zcode/marketplace.schema.json",
           "present": true,
           "valid": true,
           "errors": []
@@ -384,7 +384,7 @@
         "vendored": false,
         "plugin": {
           "file": ".qoder-plugin/plugin.json",
-          "schema": "schemas/qoder/plugin.schema.json",
+          "schema": "packages/market-catalog/schemas/qoder/plugin.schema.json",
           "present": true,
           "valid": true,
           "errors": []
@@ -460,7 +460,7 @@
         "plugin": null,
         "marketplace": {
           "file": ".github/plugin/marketplace.json",
-          "schema": "schemas/github-copilot/marketplace.schema.json",
+          "schema": "packages/market-catalog/schemas/github-copilot/marketplace.schema.json",
           "present": true,
           "valid": true,
           "errors": []

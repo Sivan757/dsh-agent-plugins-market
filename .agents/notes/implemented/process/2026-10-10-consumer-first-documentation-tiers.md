@@ -30,7 +30,7 @@ Compatibility leaves the README. The `docs-site/src/pages/compatible-plugins.ast
 
 The site now owns the compatibility reference and its inbound links. At the time of this change `.github/workflows/docs-pages.yml` watched only `docs-site/**`, so an edit under `docs/` did not rebuild the deployed site and the site linked such pages by absolute GitHub URL instead of rendering them. [The docs site renders the user guide](2026-10-11-docs-site-renders-the-user-guide.md) later added `docs/user/**` to that trigger and made the site render the guide pages directly, so this note's GitHub-link consequence no longer describes the site.
 
-Three inbound links pointed at the moved README table: `docs/user/usage.md` and its Chinese counterpart, and `schemas/README.md`. All three now point at the site anchor `compatible-plugins/#shared-layout-precedence`. [The docs site renders the user guide](2026-10-11-docs-site-renders-the-user-guide.md) later split that guide into seven task pages, so `docs/user/usage.md` no longer exists.
+Three inbound links pointed at the moved README table: `docs/user/usage.md` and its Chinese counterpart, and `packages/market-catalog/schemas/README.md`. All three now point at the site anchor `compatible-plugins/#shared-layout-precedence`. [The docs site renders the user guide](2026-10-11-docs-site-renders-the-user-guide.md) later split that guide into seven task pages, so `docs/user/usage.md` no longer exists.
 
 `CONTRIBUTING.md` still described a removed `src/` directory. The same change corrects its repository map to `index.ts` plus `packages/`.
 
@@ -40,4 +40,4 @@ This note partially supersedes [README information structure](2026-09-08-readme-
 
 ## Testing
 
-`pnpm run format:check` and the TypeScript projects in `tsconfig.json` and `tsconfig.client.json` pass. The full vitest suite passes on Node 24: 213 files and 2048 tests. `tests/compat-report.test.ts` still finds `docs/reference/compat-report.md` and `docs/user/layout-coverage` linked from both READMEs. The Astro build emits four pages, and the live routes and the precedence anchor return 200.
+`pnpm run format:check` and the TypeScript projects in `tsconfig.json` and `tsconfig.client.json` pass. The full vitest suite passes on Node 24: 213 files and 2048 tests. `packages/market-bundle/test/repo/compat-report.test.ts` still finds `docs/reference/compat-report.md` and `docs/user/layout-coverage` linked from both READMEs. The Astro build emits four pages, and the live routes and the precedence anchor return 200.

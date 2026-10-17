@@ -28,5 +28,5 @@ The detail dialog offered **re-authorize** for two remote servers that carry the
 
 ## Testing
 
-- `tests/mcp-status.test.ts` — `declaresAuthHeader` reads `Authorization` in any casing, ignores other header names, and answers false for a missing headers map.
-- `tests/client-mcp-detail-actions.test.ts` — the dialog's action list still keys off the flag it is given.
+- `packages/market-bundle/test/integration/mcp-status.test.ts` — `declaresAuthHeader` reads `Authorization` in any casing, ignores other header names, and answers false for a missing headers map.
+- `packages/market-bundle/test/integration/client-mcp-detail-actions.test.ts` — the dialog's action list still keys off the flag it is given.

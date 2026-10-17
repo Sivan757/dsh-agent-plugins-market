@@ -35,4 +35,4 @@ Rows carry one new fact. `ExtensionResource.followsSuite` marks a resource that 
 
 ## Testing
 
-`tests/client-hooks-status-panel.test.ts` asserts the overview grid labels, the command occurrence count the dialog rests at, that a rejected declaration offers no run section, and the dry-run body and result. `tests/client-hook-resource-card.test.ts` asserts the follows-suite tag with no switch and that `resourceSelected` mirrors the owning suite. Server tests cover the row source and the stamp.
+`packages/market-bundle/test/integration/client-hooks-status-panel.test.ts` asserts the overview grid labels, the command occurrence count the dialog rests at, that a rejected declaration offers no run section, and the dry-run body and result. `packages/market-bundle/test/integration/client-hook-resource-card.test.ts` asserts the follows-suite tag with no switch and that `resourceSelected` mirrors the owning suite. Server tests cover the row source and the stamp.

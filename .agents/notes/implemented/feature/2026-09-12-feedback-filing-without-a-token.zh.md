@@ -26,4 +26,4 @@ gh 不存在、未登录、网络失败一律同等处理（返回 undefined 或
 
 ## 验证
 
-`tests/feedback-tool.test.ts` 覆盖 gh 路径、预填页面路径（URL、已打开页面、完整 issue 文本）、只在真实提交后推进限流，以及注入离线端口后拒绝空标题。
+`packages/market-bundle/test/feedback-tool.test.ts` 覆盖 gh 路径、预填页面路径（URL、已打开页面、完整 issue 文本）、只在真实提交后推进限流，以及注入离线端口后拒绝空标题。

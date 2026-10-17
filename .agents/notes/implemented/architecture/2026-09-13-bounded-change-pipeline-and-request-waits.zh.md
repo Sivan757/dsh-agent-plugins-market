@@ -32,4 +32,4 @@ Status: implemented
 
 ## Testing
 
-`tests/catalog.test.ts` 固定了：变更在变更回调仍被 gate 住时就 resolve、`refreshSettled` 能报告执行中的 pass、被拒绝的 pass 不会阻止后续刷新。`tests/deadline.test.ts` 固定有界等待，包括截止时间过后工作仍会完成。`tests/mcp-mounts.test.ts` 固定每个存活挂载都会被强制重建。`tests/client-busy-overlay.test.ts` 固定长时间等待提示与 lease 释放。`tests/project-commands.test.ts` 与 `tests/project-mcp.test.ts` 在切换项目布局后 await `refreshSettled`，这就是任何断言派生状态的测试所要遵守的契约。
+`packages/market-bundle/test/catalog.test.ts` 固定了：变更在变更回调仍被 gate 住时就 resolve、`refreshSettled` 能报告执行中的 pass、被拒绝的 pass 不会阻止后续刷新。`packages/market-catalog/test/deadline.test.ts` 固定有界等待，包括截止时间过后工作仍会完成。`packages/market-bundle/test/integration/mcp-mounts.test.ts` 固定每个存活挂载都会被强制重建。`packages/market-ui/test/client-busy-overlay.test.ts` 固定长时间等待提示与 lease 释放。`packages/market-bundle/test/integration/project-commands.test.ts` 与 `packages/market-bundle/test/integration/project-mcp.test.ts` 在切换项目布局后 await `refreshSettled`，这就是任何断言派生状态的测试所要遵守的契约。

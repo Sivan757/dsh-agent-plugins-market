@@ -30,11 +30,11 @@ Status: implemented
 
 ## Consequences
 
-回归夹具的载荷从 656,671 字节降到 1,151 字节——六条 120 KiB 的快捷指令与四个 90 KiB 的专家，合计 1,105,920 个作者字节（`tests/suite-detail-document-payload.test.ts`）。展开一条快捷指令或一个专家的读者现在看到整份文件，无论多长，并为此付一次读取；这次读取与技能行本来就要付的是同一次。可见的代价是：快捷指令或专家行在读取期间显示加载行，而它过去是立即渲染的；每展开一行会向宿主多发一个请求。
+回归夹具的载荷从 656,671 字节降到 1,151 字节——六条 120 KiB 的快捷指令与四个 90 KiB 的专家，合计 1,105,920 个作者字节（`packages/market-bundle/test/integration/suite-detail-document-payload.test.ts`）。展开一条快捷指令或一个专家的读者现在看到整份文件，无论多长，并为此付一次读取；这次读取与技能行本来就要付的是同一次。可见的代价是：快捷指令或专家行在读取期间显示加载行，而它过去是立即渲染的；每展开一行会向宿主多发一个请求。
 
 ## Testing
 
-`tests/suite-detail-document-payload.test.ts` 守住线上契约：没有条目带正文，文档合计超过一兆字节的套件其载荷依然很小，按需读取拿到整份文件、包括超过 64 KiB 的尾巴。`tests/market-detail-document-lazy.test.ts` 挂载弹窗：挂载时不读任何文档，三种面各自在展开时按 kind 与名字读自己的文档，超过旧上限的快捷指令会渲染出尾巴，失败的读取把同一份失败写进行内。`tests/market-detail-document-translation.test.ts` 守住三个面上翻译区的惰性契约，`tests/routes.test.ts` 演练读取路由、它的 kind 校验与 404。
+`packages/market-bundle/test/integration/suite-detail-document-payload.test.ts` 守住线上契约：没有条目带正文，文档合计超过一兆字节的套件其载荷依然很小，按需读取拿到整份文件、包括超过 64 KiB 的尾巴。`packages/market-ui/test/market-detail-document-lazy.test.ts` 挂载弹窗：挂载时不读任何文档，三种面各自在展开时按 kind 与名字读自己的文档，超过旧上限的快捷指令会渲染出尾巴，失败的读取把同一份失败写进行内。`packages/market-ui/test/market-detail-document-translation.test.ts` 守住三个面上翻译区的惰性契约，`packages/market-bundle/test/integration/routes.test.ts` 演练读取路由、它的 kind 校验与 404。
 
 ## Related
 

@@ -33,10 +33,10 @@ The service detail drops its mount-name row when the mount name equals the serve
 
 ## Testing
 
-- `tests/mcp-config.test.ts` — derivation: `__`-joined for a package, the bare key for `@user-mcp`, unchanged for another source's suite called `user-mcp`, and clamped for a 64-character user key.
-- `tests/mcp-direct-config.test.ts` — the real `mcp.json` round trip produces mounts whose `serverName` is the declared key.
-- `tests/mcp-status.test.ts` — a user row reads its bare name and collects the tools observed under it.
-- `tests/client-mcp-detail.test.ts` — the mount-name row is absent when it would only repeat the server key.
+- `packages/market-bundle/test/integration/mcp-config.test.ts` — derivation: `__`-joined for a package, the bare key for `@user-mcp`, unchanged for another source's suite called `user-mcp`, and clamped for a 64-character user key.
+- `packages/market-bundle/test/integration/mcp-direct-config.test.ts` — the real `mcp.json` round trip produces mounts whose `serverName` is the declared key.
+- `packages/market-bundle/test/integration/mcp-status.test.ts` — a user row reads its bare name and collects the tools observed under it.
+- `packages/market-bundle/test/integration/client-mcp-detail.test.ts` — the mount-name row is absent when it would only repeat the server key.
 
 ## Related
 

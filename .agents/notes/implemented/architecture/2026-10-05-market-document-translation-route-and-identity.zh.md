@@ -40,7 +40,7 @@ Status: implemented
 
 ## Testing
 
-[跨面翻译测试](../../../../tests/surface-translations.test.ts)覆盖缓存复用、磁盘重读与非法名称。[路由测试](../../../../tests/routes.test.ts)覆盖身份校验与不转发多余文本。[市场正文测试](../../../../tests/market-detail-document-translation.test.ts)与[用户条目测试](../../../../tests/client-user-entry-detail-translation.test.ts)覆盖展开读取。[共享阅读器测试](../../../../tests/client-document-translation.test.ts)拥有三态交互。这些是覆盖归属，不是本次文档编辑重跑全部测试的声明。
+[跨面翻译测试](../../../../packages/market-bundle/test/integration/surface-translations.test.ts)覆盖缓存复用、磁盘重读与非法名称。[路由测试](../../../../packages/market-bundle/test/integration/routes.test.ts)覆盖身份校验与不转发多余文本。[市场正文测试](../../../../packages/market-ui/test/market-detail-document-translation.test.ts)与[用户条目测试](../../../../packages/market-ui/test/client-user-entry-detail-translation.test.ts)覆盖展开读取。[共享阅读器测试](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts)拥有三态交互。这些是覆盖归属，不是本次文档编辑重跑全部测试的声明。
 
 ## Related
 

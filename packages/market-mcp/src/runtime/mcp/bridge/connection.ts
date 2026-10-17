@@ -27,6 +27,7 @@ import { MAX_TIMER_DELAY_MS } from './host-seams.js'
 import { redactErrorMessage } from '../../../../../market-contracts/src/redaction.js'
 import { PLUGIN_NAME, PLUGIN_VERSION } from './plugin-identity.js'
 import { createTransport } from './transport.js'
+import type { BrowserOpener } from './oauth.js'
 import { syncTools } from './tools.js'
 import type { ToolBridgeOptions, ToolDisposers, ToolHost } from './tools.js'
 import type { Config } from '../../../application/mcp/mcp-bridge-config.js'
@@ -119,9 +120,11 @@ export interface ConnectionHandle {
  * @param policy - Resolved reconnect policy from {@link resolveReconnectPolicy}.
  * @param credentials - The composition's credential store, when mounted; OAuth
  *   state persists only when it is.
+ * @param opener - Browser opener for the OAuth human leg; the platform browser
+ *   by default.
  * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
  */
-export function startConnection(host: ToolHost, config: Config, policy: ResolvedReconnectPolicy, credentials?: unknown): ConnectionHandle {
+export function startConnection(host: ToolHost, config: Config, policy: ResolvedReconnectPolicy, credentials?: unknown, opener?: BrowserOpener): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
   const opts: ToolBridgeOptions = {
     registrationFailure: 'contain',
@@ -295,9 +298,37 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
         `${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`
       )
     }
-    const { transport, oauthProvider } = createTransport(config, credentials, (message: string) => {
-      host.logger.info(message)
-    })
+    /**
+     * Retire the generation that raised the `401` and re-establish in place.
+     *
+     * The SDK aborts that generation's handshake the moment the human leg
+     * returns: the initialize that triggered the authorization is gone, so the
+     * saved tokens only ever reach the server on a fresh call. Running that
+     * call here — instead of scheduling a backoff retry — lets `ready` report
+     * the mount's real outcome rather than a failure the caller has to count on
+     * a retry to repair after the user already approved.
+     */
+    async function reestablishAfterAuthorization(): Promise<void> {
+      attemptSettled = true
+      client = undefined
+      clientClosed = undefined
+      try {
+        await generation.close()
+      } catch {
+        /* transport already gone */
+      }
+      if (disposed) return
+      await connectGeneration(false)
+    }
+
+    const { transport, oauthProvider } = createTransport(
+      config,
+      credentials,
+      (message: string) => {
+        host.logger.info(message)
+      },
+      opener
+    )
     try {
       await generation.connect(transport, { timeout: opts.startupTimeoutMs })
       if (hasClosed()) {
@@ -321,28 +352,24 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
         const legSettled = await leg
         attemptSettled = true
         if (!isCurrent(generation)) return
-        // The leg failed, or the transport closed while it ran: no generation
-        // is left to finish establishing.
-        if (hasClosed() || !legSettled) {
+        // A failed leg leaves nothing to establish. A successful one always
+        // needs a fresh generation: the SDK closes this one as soon as the
+        // initialize that raised the `401` fails, whether that was the request
+        // timeout the human approval outlived or the redirect the leg returns.
+        if (!legSettled) {
           generationDown(generation)
           return
         }
-        // The exchange succeeded inside this generation: finish establishing
-        // it (tool sync + connected bookkeeping) instead of respawning.
-        try {
-          await enqueueSync(generation, startup ? startupOpts : opts)
-        } catch (syncError) {
-          if (isCurrent(generation)) host.logger.warn(`${label}: tool sync after authorization failed: ${String(syncError)}`)
-          await teardownFailedAttempt()
-          return
-        }
-        if (hasClosed()) {
-          generationDown(generation)
-          return
-        }
+        await reestablishAfterAuthorization()
+        return
+      }
+      // A leg that finished inside this attempt leaves no pending promise: the
+      // SDK aborts the connect that raised the `401` as soon as the browser leg
+      // returns. The tokens are saved either way, so no handshake on this
+      // generation can carry them.
+      if (oauthProvider?.lastBrowserLegOutcome === true) {
         if (!isCurrent(generation)) return
-        connectedAt = Date.now()
-        if (failedAttempts > 0) host.logger.info(`${label}: authorized and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
+        await reestablishAfterAuthorization()
         return
       }
       await teardownFailedAttempt()

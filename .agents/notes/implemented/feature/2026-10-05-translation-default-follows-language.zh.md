@@ -62,7 +62,7 @@ node 半把它本就为自身文案持有的那份缓存 `locale.preference`（`
 
 ## Testing
 
-[Schema 测试](../../../../tests/mcp-backend.test.ts)覆盖缺席与显式 false 的区别；[设置命名空间测试](../../../../tests/settings-namespace.test.ts)覆盖语言默认值与手动覆盖。[目标一致性测试](../../../../tests/translation-gate-consistency.test.ts)区分默认关闭与显式开启的英文目标。[客户端设置测试](../../../../tests/client-translation-settings.test.ts)、[设置卡测试](../../../../tests/client-plugin-card.test.ts)与[设置条目测试](../../../../tests/client-plugins-item-views.test.ts)覆盖绑定、生效值投影与缓存重置控件。这些是测试归属，不声明本次文档修改重跑过行为测试。
+[Schema 测试](../../../../packages/market-bundle/test/integration/mcp-backend.test.ts)覆盖缺席与显式 false 的区别；[设置命名空间测试](../../../../packages/market-bundle/test/settings-namespace.test.ts)覆盖语言默认值与手动覆盖。[目标一致性测试](../../../../packages/market-bundle/test/integration/translation-gate-consistency.test.ts)区分默认关闭与显式开启的英文目标。[客户端设置测试](../../../../packages/market-bundle/test/integration/client-translation-settings.test.ts)、[设置卡测试](../../../../packages/market-bundle/test/integration/client-plugin-card.test.ts)与[设置条目测试](../../../../packages/market-bundle/test/integration/client-plugins-item-views.test.ts)覆盖绑定、生效值投影与缓存重置控件。这些是测试归属，不声明本次文档修改重跑过行为测试。
 
 ## Related
 

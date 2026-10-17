@@ -33,7 +33,7 @@ PR #96 的 CodeQL 检查报出 **6 条新的 high 告警**，全部是多项式�
 - **`${NAME}` 匹配**（`mcp-config.ts`）：原模式让引擎从每个 `$` 重试 fallback 段，改为单游标扫描，两个调用点改用 `{ index, text, name, fallback }`。
 - **测试**：改为比较解析后的主机名，而不是子串。
 
-修复过程中用差分校验对照被替换的旧模式，覆盖对抗性语料；期间发现并修正了 4 处我自己引入的语义偏差（字面 `-` 与生成 `-` 的区分、`_` 的折叠、前导分隔符、重复声明）。回归测试 `tests/scan-folds.test.ts` 覆盖 200 000 字符的分隔符串与 100 000 字符的 `${{A:-` 串。
+修复过程中用差分校验对照被替换的旧模式，覆盖对抗性语料；期间发现并修正了 4 处我自己引入的语义偏差（字面 `-` 与生成 `-` 的区分、`_` 的折叠、前导分隔符、重复声明）。回归测试 `packages/market-bundle/test/integration/scan-folds.test.ts` 覆盖 200 000 字符的分隔符串与 100 000 字符的 `${{A:-` 串。
 
 修复后 CodeQL 转绿，6 条告警全部消失。
 
@@ -69,5 +69,5 @@ Windows 作业在本次发布中先是 6 个测试失败。逐条核对后：
 
 - npm 传播延迟：日志报成功后约 10 分钟内 registry 仍无该版本，第 11 分钟复查时 `latest` 已是 `0.9.1`，版本出现在列表中。与 0.8.3、0.9.0 一致，属传播延迟。
 - **新发布的 4 条 dependabot 告警**（均为 2026-10-10 新建，针对既有版本，非本次引入）：`@modelcontextprotocol/client` 2.0.0（high，修补 2.2.0，折叠前即存在于 88643af）、`source-map-js` 1.2.1（high，修补 1.2.2，锁文件中已有 1.2.2）、`katex`（low ×2，修补 0.18.2，但本仓库需镜像宿主的 `^0.16.47`，不能自行上调）。
-- **`tests/subagent-catalog.test.ts` 的 Windows 失败**需要单独一轮修复，本机无 Windows 环境，须靠 CI 验证。
+- **`packages/market-bundle/test/integration/subagent-catalog.test.ts` 的 Windows 失败**需要单独一轮修复，本机无 Windows 环境，须靠 CI 验证。
 - issue #69（项目目录下的 `.agents` 未被扫描）仍未处理：项目目录扫描存在但受 `scanProjectLayouts` 门控，默认关闭，是否改默认值属产品决定。

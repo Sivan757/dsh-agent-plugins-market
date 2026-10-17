@@ -40,7 +40,7 @@ pnpm run build
 
 ## Checklist / 检查清单
 
-- [ ] I read [CONTRIBUTING.md](../CONTRIBUTING.md). / 我已阅读 [CONTRIBUTING.md](../CONTRIBUTING.md)。
+- [ ] I read [CONTRIBUTING.md](CONTRIBUTING.md). / 我已阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 - [ ] I searched existing issues and PRs. / 我已搜索现有 issue 和 PR。
 - [ ] I added or updated tests for behavior changes. / 我已为行为改动新增或更新测试。
 - [ ] I updated documentation or explained why it is not needed. / 我已更新文档，或说明无需更新的原因。

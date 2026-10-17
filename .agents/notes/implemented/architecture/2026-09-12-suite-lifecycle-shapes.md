@@ -39,11 +39,11 @@ The eleven optional chains become plain property access. **None of the condition
 
 ## Consequences
 
-**The boundary immediately caught a latent bug.** `tests/real-layouts.test.ts` faked a `Catalog` with `as never` and handed it a _scanned_ suite, which the consumer then read as projected — it now throws at `src/runtime/project-runtime.ts`. That is the silent-mounts-everything failure mode above, and it had been invisible to `tsc` because of the cast. The test projects in the fakes remain, so a cast can still hide this class of mistake; do not read a green typecheck as "no cast hides anything".
+**The boundary immediately caught a latent bug.** `packages/market-bundle/test/integration/real-layouts.test.ts` faked a `Catalog` with `as never` and handed it a _scanned_ suite, which the consumer then read as projected — it now throws at `src/runtime/project-runtime.ts`. That is the silent-mounts-everything failure mode above, and it had been invisible to `tsc` because of the cast. The test projects in the fakes remain, so a cast can still hide this class of mistake; do not read a green typecheck as "no cast hides anything".
 
 **Two synthetic suites needed a truthful set.** `loadUserMcpSuite` and the direct-LSP suite literal are built outside `project()`, so they now carry `effectiveSurfaces(undefined)` — all six surfaces enabled, which is bit-for-bit what the absent field evaluated to at every check that read it.
 
-**One test helper restates a piece of the rule.** `tests/helpers/projected-suite.ts` supplies the default set for tests that drive a consumer straight from a scan, keeping the suite's own enablement. Routing those tests through `project()` instead would have been more faithful but would have recomputed `enabled` from install state — with no install entry it sets `enabled: false`, which breaks the assertions the tests exist for. The helper says so.
+**One test helper restates a piece of the rule.** `packages/market-bundle/test/integration/helpers/projected-suite.ts` supplies the default set for tests that drive a consumer straight from a scan, keeping the suite's own enablement. Routing those tests through `project()` instead would have been more faithful but would have recomputed `enabled` from install state — with no install entry it sets `enabled: false`, which breaks the assertions the tests exist for. The helper says so.
 
 **`applyLspOverrides` and `buildLspStatus` keep the projected type**, decided by inspecting their callers rather than by pattern-matching the signature: every caller passes projected suites, and both are shape-preserving maps, so the contract is now enforced rather than assumed.
 

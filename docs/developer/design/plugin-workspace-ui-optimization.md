@@ -166,7 +166,7 @@
 
 ### C12 测试、文档与门禁
 
-- 需要同步的测试：`tests/component-declarations.test.ts`、`tests/market-section-render.test.ts`、`tests/filter-toolbar.test.ts`、`tests/client-detail-editors.test.ts`、`tests/client-role-reasoning.test.ts`、`tests/client-workspace-view.test.ts`、`tests/lsp-seam-render.test.ts`、`tests/markdown-crash.test.ts`。
+- 需要同步的测试：`packages/market-bundle/test/integration/component-declarations.test.ts`、`packages/market-ui/test/market-section-render.test.ts`、`packages/market-ui/test/filter-toolbar.test.ts`、`packages/market-ui/test/client-detail-editors.test.ts`、`packages/market-bundle/test/integration/client-role-reasoning.test.ts`、`packages/market-ui/test/client-workspace-view.test.ts`、`packages/market-ui/test/lsp-seam-render.test.ts`、`packages/market-bundle/test/repo/markdown-crash.test.ts`。
 - 文档：`docs/user/usage.md` 与 `usage.zh.md` 的面板走查；若截图或文案变化，`README.md` 与 `README.zh.md` 同步。
 - Agent Note：记录 C9 的复用取舍、C1 的截断取舍、C4 的注释修正。
 - 门禁：`pnpm run check:refactor`，随后 `pnpm run test` 与 `pnpm run build`。

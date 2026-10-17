@@ -23,7 +23,7 @@ Status: implemented
 
 **保存配置替换连接字段，保留策略字段。** 提交的文档已经涵盖 `url`/`headers`/`env`/`args`，因此这几个覆盖字段从记录中清除，而 `enabled`、`auth`、`disabledTools`、两个超时与连接文档全部保留。残留的连接字段会盖过刚刚保存的配置，因为 `applyOverride` 把它叠在已存的 `config` 之上。
 
-**可移植文档保持可移植。** `schemas/1.0.0|1.1.0/mcp.schema.json` 给每个服务定义都加了 `additionalProperties: false`，因此超时走覆盖记录，绝不进入 `mcp.json` 正文或编辑器的 JSON 文本；编辑器文档是去掉策略字段之后的连接形状。
+**可移植文档保持可移植。** `packages/market-catalog/schemas/1.0.0|1.1.0/mcp.schema.json` 给每个服务定义都加了 `additionalProperties: false`，因此超时走覆盖记录，绝不进入 `mcp.json` 正文或编辑器的 JSON 文本；编辑器文档是去掉策略字段之后的连接形状。
 
 **折叠区承载可选输入。** MCP 表单的主体保留必填与承载凭据的字段——传输协议、命令、参数、环境变量、URL 与请求头。**高级设置**折叠区承载 stdio 服务的工作目录、两个超时，以及说明远程服务在服务端 401 挑战时自行协商 OAuth 的一行文字，常用路径因此保持简短，少用的输入也有唯一归属。
 
@@ -61,7 +61,7 @@ Status: implemented
 
 ## Testing
 
-`tests/mcp-overrides.test.ts` 覆盖新字段的清洗、超时越界的丢弃、`parseTimeoutPatch` 的拒绝、合并语义与 `withoutPolicyFields`。`tests/mcp-config.test.ts` 钉住优先级：用户超时覆盖套件、拒绝列表取并集、套件白名单不被放宽、未声明的启动超时不出现在挂载配置里。`tests/server-config.test.ts` 通过真实文件系统驱动保存：报告已存超时及其来源、清除连接残留、保留 `enabled`/`auth`/`disabledTools`、`null` 清除、越界拒绝、工具勾选写入与字段删除，以及宿主后端拒绝启动超时与工具勾选。`tests/routes.test.ts` 检查线上解析，`tests/mcp-status.test.ts` 检查上报的列表。`tests/client-server-config-policy.test.ts` 渲染折叠区、占位值、非法状态与保存后的重新读取，并驱动保存请求体：只发送发生变化的超时、清空字段发出 `null`、host 后端下只改工具调用超时时不带上已存的启动超时、以及清除操作在该后端移除启动超时。`tests/client-mcp-detail.test.ts` 渲染三种勾选状态、宿主后端的禁用与只读的外部挂载行。
+`packages/market-bundle/test/integration/mcp-overrides.test.ts` 覆盖新字段的清洗、超时越界的丢弃、`parseTimeoutPatch` 的拒绝、合并语义与 `withoutPolicyFields`。`packages/market-bundle/test/integration/mcp-config.test.ts` 钉住优先级：用户超时覆盖套件、拒绝列表取并集、套件白名单不被放宽、未声明的启动超时不出现在挂载配置里。`packages/market-bundle/test/integration/server-config.test.ts` 通过真实文件系统驱动保存：报告已存超时及其来源、清除连接残留、保留 `enabled`/`auth`/`disabledTools`、`null` 清除、越界拒绝、工具勾选写入与字段删除，以及宿主后端拒绝启动超时与工具勾选。`packages/market-bundle/test/integration/routes.test.ts` 检查线上解析，`packages/market-bundle/test/integration/mcp-status.test.ts` 检查上报的列表。`packages/market-bundle/test/integration/client-server-config-policy.test.ts` 渲染折叠区、占位值、非法状态与保存后的重新读取，并驱动保存请求体：只发送发生变化的超时、清空字段发出 `null`、host 后端下只改工具调用超时时不带上已存的启动超时、以及清除操作在该后端移除启动超时。`packages/market-bundle/test/integration/client-mcp-detail.test.ts` 渲染三种勾选状态、宿主后端的禁用与只读的外部挂载行。
 
 ## Related
 

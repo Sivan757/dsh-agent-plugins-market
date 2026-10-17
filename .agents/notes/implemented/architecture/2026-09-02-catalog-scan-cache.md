@@ -15,7 +15,7 @@ Two layered caches in the catalog, both bounded and both preserving the mutation
 - **Discovery scan cache** (`SnapshotCache`, fed by `CatalogContext`): scan results keyed by a fingerprint of `[dimension, dimensionRoot, state.sources, scanProjectLayouts]`, TTL 30 s, ≤8 entries. Snapshot derivation always re-runs from cached discovery. State-only mutations pass `keepScanCache = true` through `notifyChanged` and re-derive from cache. Content mutations and project-scan setting changes clear all entries and increment a generation; older in-flight scans cannot repopulate the cache. Concurrent identical scans share one promise. The invalidation mechanism is partially superseded by [selective runtime discovery](../performance/2026-09-07-runtime-selective-discovery.md); bounded caching and frontmatter reuse remain active.
 - **Skill frontmatter parse cache** (`surfaces.ts`): `SKILL.md` parse verdicts keyed by path, stamped by `mtimeMs`+`size`, capped at 20 000 entries with a wholesale reset. Rescans after TTL expiry re-stat files but skip re-reading and re-parsing thousands of frontmatters; a measured post-refresh rescan dropped ~1.1 s → ~0.44 s.
 
-Staleness contract: local sources are still read in place, but working-tree edits become visible on the next cache refresh — any source mutation, the refresh button, or the 30 s TTL. Project-dimension snapshots with TTL 0 (`projectSnapshotTtlMs <= 0`, caching explicitly disabled) bypass the scan cache entirely, keeping their observe-every-read semantics (pinned by `tests/native-project.test.ts`).
+Staleness contract: local sources are still read in place, but working-tree edits become visible on the next cache refresh — any source mutation, the refresh button, or the 30 s TTL. Project-dimension snapshots with TTL 0 (`projectSnapshotTtlMs <= 0`, caching explicitly disabled) bypass the scan cache entirely, keeping their observe-every-read semantics (pinned by `packages/market-bundle/test/integration/native-project.test.ts`).
 
 ## Alternatives considered
 
@@ -31,5 +31,5 @@ Staleness contract: local sources are still read in place, but working-tree edit
 
 ## Verification
 
-- `tests/native-project.test.ts` pins the TTL-0 bypass; the full suite (277 tests) stays green; `check:refactor` green.
+- `packages/market-bundle/test/integration/native-project.test.ts` pins the TTL-0 bypass; the full suite (277 tests) stays green; `check:refactor` green.
 - Measured on the live `~/.dsh/agent-plugins` catalog (~2,650 suites): cold overview ~1.2 s (once per boot/content change), post-toggle overview ~26 ms (was ~1.1 s), warm MCP status ~55 ms, LSP status ~1 ms, post-refresh rescan ~0.44 s (parse cache warm).

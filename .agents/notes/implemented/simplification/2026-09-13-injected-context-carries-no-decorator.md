@@ -40,7 +40,7 @@ Five locale keys, one constructor parameter, and two decorator emissions are gon
 
 ## Testing
 
-`tests/mcp-mounts.test.ts` asserts a suite forward equals the authored template with `$ARGUMENTS` substituted, byte-exact including the fixture file's trailing newline, and `tests/user-commands.test.ts` asserts the same for a user-panel command while pinning that the entry's own `description` reaches the slash menu. `tests/skills-provider.test.ts` and `tests/native-project.test.ts` assert a suite skill candidate's description is the author's, `tests/user-panels.test.ts` does the same for a user entry, and `tests/host-locale.test.ts` pins the receipt without a suite. Re-adding a decorator makes the two forward assertions fail on the leading title line.
+`packages/market-bundle/test/integration/mcp-mounts.test.ts` asserts a suite forward equals the authored template with `$ARGUMENTS` substituted, byte-exact including the fixture file's trailing newline, and `packages/market-runtime/test/user-commands.test.ts` asserts the same for a user-panel command while pinning that the entry's own `description` reaches the slash menu. `packages/market-bundle/test/integration/skills-provider.test.ts` and `packages/market-bundle/test/integration/native-project.test.ts` assert a suite skill candidate's description is the author's, `packages/market-runtime/test/user-panels.test.ts` does the same for a user entry, and `packages/market-runtime/test/host-locale.test.ts` pins the receipt without a suite. Re-adding a decorator makes the two forward assertions fail on the leading title line.
 
 ## Related
 
