@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, IconEditOutlineMedium, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
-import { PanelActions, PanelHeader } from '../../ui/panel.js'
+import { Button, IconEditOutlineMedium, IconTrashOutlineMedium, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
 import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
-import { fetchMcpStatus, reauthorizeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
+import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
 import { CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
@@ -46,6 +46,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<McpStatusEntry | undefined>(undefined)
   const [editing, setEditing] = useState<McpStatusEntry>()
+  const [confirmDelete, setConfirmDelete] = useState<PanelConfirmState>()
   const [adding, setAdding] = useState(false)
   // One reading mode for the whole panel: the switch lifts to this surface so a
   // single click re-reads every card and the detail dialog under it.
@@ -119,6 +120,38 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   }
 
   useTranslationRefresh(t, refresh)
+
+  /**
+   * Delete one user-owned server. A suite-declared server belongs to its
+   * source, so the backend refuses it and the card offers no such action; the
+   * row disappears from the re-read list because its declaration is gone.
+   * The failure is reported in the panel rather than thrown, so the shared
+   * confirmation closes the same way whether or not the request succeeded.
+   */
+  const remove = async (entry: McpStatusEntry): Promise<void> => {
+    const suiteId = entry.suiteId
+    const serverKey = entry.serverKey
+    if (suiteId === undefined || serverKey === undefined) return
+    setError(undefined)
+    try {
+      await removeMcpServer(suiteId, serverKey)
+      setPayload(await fetchMcpStatus())
+      // A deleted row must not stay open behind the list.
+      setSelected(current => (current?.id === entry.id ? undefined : current))
+    } catch (caught) {
+      setError(clientErrorMessage(t, caught))
+    }
+  }
+
+  /** Deleting is irreversible, so the card asks through the shared confirmation. */
+  const askDelete = (entry: McpStatusEntry): void => {
+    const name = mcpDisplayName(entry)
+    setConfirmDelete({
+      title: t('mcpDeleteTitle', { name }),
+      description: t('mcpDeleteDesc', { name }),
+      onConfirm: () => remove(entry)
+    })
+  }
 
   // Written through the suite's override record, so the suite's own `mcp.json`
   // stays source-owned. Disabled servers are not mounted at all.
@@ -202,7 +235,8 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
                   t,
                   onClick: () => setSelected(entry),
                   onToggle: () => toggle(entry),
-                  onEdit: () => setEditing(entry)
+                  onEdit: () => setEditing(entry),
+                  ...(deletable(entry) ? { onDelete: () => askDelete(entry) } : {})
                 })
               )
             ),
@@ -242,8 +276,24 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           credentials,
           onClose: () => setEditing(undefined),
           onSaved: refresh
-        })
+        }),
+    // The shared danger confirmation: the card's delete and nothing else opens it.
+    h(ConfirmModal, {
+      state: confirmDelete,
+      confirmLabel: t('mcpDeleteConfirm'),
+      cancelLabel: t('cancel'),
+      onClose: () => setConfirmDelete(undefined)
+    })
   )
+}
+
+/**
+ * Whether this row is the user's own declaration. A suite declares its servers
+ * in its own `mcp.json`, and an observed mount has no declaration here at all,
+ * so only a user-owned direct server is this panel's to delete.
+ */
+function deletable(entry: McpStatusEntry): boolean {
+  return entry.kind === 'direct' && entry.suiteId !== undefined && entry.serverKey !== undefined
 }
 
 /**
@@ -254,7 +304,21 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
  * configuration) live in the detail dialog, so a wall of failing cards stays
  * scannable.
  */
-function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntry; t: Translate; onClick: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
+function McpCard({
+  entry,
+  t,
+  onClick,
+  onToggle,
+  onEdit,
+  onDelete
+}: {
+  entry: McpStatusEntry
+  t: Translate
+  onClick: () => void
+  onToggle: () => void
+  onEdit: () => void
+  onDelete?: () => void
+}): ReactNode {
   const interactive = interactiveCardProps(onClick)
   const toolCount = entry.tools.length === 1 ? t('mcpTool') : t('mcpTools')
   // A foreign mount belongs to another MCP client, so this plugin cannot
@@ -295,6 +359,24 @@ function McpCard({ entry, t, onClick, onToggle, onEdit }: { entry: McpStatusEntr
             h(IconEditOutlineMedium)
           )
         : null,
+      // Deleting is destructive, so it reads in the danger hover and stays
+      // behind the same event stop the edit action uses.
+      onDelete === undefined
+        ? null
+        : h(
+            'button',
+            {
+              type: 'button',
+              className: `${rc.iconBtn} ${rc.iconBtnDanger}`,
+              title: t('mcpDelete'),
+              'aria-label': `${t('mcpDelete')} ${displayName}`,
+              onClick: (event: { stopPropagation(): void }) => {
+                event.stopPropagation()
+                onDelete()
+              }
+            },
+            h(IconTrashOutlineMedium)
+          ),
       h(
         'span',
         { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },

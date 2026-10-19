@@ -18,6 +18,7 @@ import {
   composeServerDocument,
   parseServerConfig,
   parseServerDocument,
+  readDraftServerDocument,
   rowsFromPastedText,
   serverFormCompatible,
   timeoutMsFromText,
@@ -52,6 +53,11 @@ export function ServerConfigEditor(props: {
   backend?: 'builtin' | 'host'
   /** The declaration key this service carries; MCP documents are keyed by it. */
   serverKey?: string
+  /**
+   * Create mode: the document has no declared key yet, so a pasted keyed
+   * document supplies its own and a bare definition is read under `serverKey`.
+   */
+  create?: boolean
   /** Reasons the API rejected a save, keyed by the editor field they belong to. */
   fieldErrors?: Record<string, string>
   /**
@@ -69,7 +75,9 @@ export function ServerConfigEditor(props: {
   let parseError: string | undefined
   try {
     if (props.kind === 'mcp') {
-      const document = parseServerDocument(props.text, props.serverKey ?? '')
+      // Creating a service reads the document it was given: the pasted key is
+      // the key of the service being created, and a bare definition carries none.
+      const document = props.create === true ? readDraftServerDocument(props.text, props.serverKey ?? '') : parseServerDocument(props.text, props.serverKey ?? '')
       parsed = document.config
       policy = document.policy
     } else {

@@ -10,7 +10,7 @@ MCP details offer retry only for failed managed services or residual mounts, and
 
 ## MCP configuration
 
-Open **MCP services** for service configuration, credentials, overrides, authorization and retry actions. Suite details are read-only previews.
+Open **MCP services** for service configuration, credentials, overrides, authorization and retry actions. Suite details are read-only previews. A service you declared yourself also offers deleting it; a service a suite declares offers only the switch, because a refresh would restore its file. A service switched off while your active session preset selects it stays mounted and reports that cause instead of a failure, and calls to it stay denied.
 
 Remote services authorize on demand: a declaration that says nothing about `auth` still runs OAuth, and only when the server challenges the connection. Service details mark those rows **OAuth on by default**.
 

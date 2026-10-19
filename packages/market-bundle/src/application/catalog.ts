@@ -473,6 +473,15 @@ export class Catalog implements MarketService {
   }
 
   /**
+   * Remove one user-owned MCP service, its override record, and its OAuth
+   * grant. A server a suite declares is refused: that declaration is
+   * source-owned, so disabling it is the supported operation.
+   */
+  async removeMcpServer(suiteKey: string, serverKey: string): Promise<void> {
+    await this.mcp.removeServer(suiteKey, serverKey)
+  }
+
+  /**
    * Read a service without credential literals, or an unsaved template when
    * `create` is true. The two transports have separate owners, so this facade
    * only routes the request to the module that owns the declaration.

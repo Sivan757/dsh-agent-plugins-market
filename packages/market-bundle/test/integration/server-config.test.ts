@@ -365,3 +365,33 @@ describe('MCP service policy', () => {
     expect((await catalog.mcpStatus()).backend).toBe('host')
   })
 })
+
+describe('MCP status: session demand through the catalog port', () => {
+  // One live tool on the user's own server, as the host registry would report it.
+  const observed = [{ name: 'mcp__demo__read_file', description: 'Read a file' }]
+
+  it('reports a switch-off that session demand overrules as disabled by preset demand', async () => {
+    const { catalog } = await setup({
+      mcpToolSnapshot: () => observed,
+      mcpDemandedMounts: () => [{ suiteId: '@user-mcp/user-mcp', serverKey: 'demo' }]
+    })
+    await directServer(catalog)
+    await catalog.setMcpServerEnabled('@user-mcp/user-mcp', 'demo', false)
+    const demo = (await catalog.mcpStatus()).entries.find(entry => entry.serverKey === 'demo')!
+    expect(demo.state).toBe('disabled')
+    expect(demo.code).toBe('preset-demand')
+    expect(demo.reason).toContain('selected by the active session preset')
+    expect(demo.tools.map(tool => tool.name)).toEqual(['read_file'])
+  })
+
+  it('keeps the orphaned report when no selection demands the same server', async () => {
+    // The default port demands nothing, so the pre-existing behavior is intact:
+    // tools left behind a stored switch-off read as orphaned.
+    const { catalog } = await setup({ mcpToolSnapshot: () => observed })
+    await directServer(catalog)
+    await catalog.setMcpServerEnabled('@user-mcp/user-mcp', 'demo', false)
+    const demo = (await catalog.mcpStatus()).entries.find(entry => entry.serverKey === 'demo')!
+    expect(demo.state).toBe('orphaned')
+    expect(demo.code).toBe('orphaned-tools')
+  })
+})

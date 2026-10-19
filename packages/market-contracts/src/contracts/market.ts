@@ -10,6 +10,7 @@ export const MARKET_ROUTES = {
   setSurfaceToggle: `${MARKET_API_PREFIX}surface-toggles/set`,
   mcpStatus: `${MARKET_API_PREFIX}mcp-status`,
   addMcpServer: `${MARKET_API_PREFIX}mcp-servers/add`,
+  removeMcpServer: `${MARKET_API_PREFIX}mcp-servers/remove`,
   lspStatus: `${MARKET_API_PREFIX}lsp-status`,
   lspServers: `${MARKET_API_PREFIX}lsp-servers`,
   addLspServer: `${MARKET_API_PREFIX}lsp-servers/add`,

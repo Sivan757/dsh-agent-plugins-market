@@ -332,6 +332,9 @@ export async function apply(
     mcpRemount: (suiteId, serverKey) => runtime.forceMcpRemount(suiteId, serverKey),
     mcpRemountAll: () => runtime.forceMcpRemountAll(),
     mcpServerOwner: serverName => runtime.mcpServerOwner(serverName),
+    // Read per call: the set is rebuilt by every mount pass, so a snapshot here
+    // would report the demand of whichever pass happened to run at apply time.
+    mcpDemandedMounts: () => runtime.demandedMcpMounts(),
     lspStatusSource: runtime.lsp,
     mcpBackend: () => settings.backend(),
     setMcpBackend: backend => settings.setBackend(backend),

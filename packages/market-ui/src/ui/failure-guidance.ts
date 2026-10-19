@@ -33,6 +33,7 @@ export type FailureGuidanceKey =
   | 'unmount'
   | 'orphanedTools'
   | 'disabledOverride'
+  | 'presetDemand'
   | 'modifiedOverride'
   | 'foreignMount'
   | 'duplicateMount'
@@ -58,6 +59,7 @@ export const FAILURE_GUIDANCE_LABEL: Record<FailureGuidanceKey, LocaleKey> = {
   unmount: 'failureGuideUnmount',
   orphanedTools: 'failureGuideOrphanedTools',
   disabledOverride: 'failureGuideDisabledOverride',
+  presetDemand: 'failureGuidePresetDemand',
   modifiedOverride: 'failureGuideModifiedOverride',
   foreignMount: 'mcpForeignHint',
   duplicateMount: 'mcpDuplicateHint'
@@ -84,6 +86,7 @@ export function failureGuidanceKey(diagnostic: FailureDiagnostic): FailureGuidan
   if (code === 'duplicate-mount') return 'duplicateMount'
   if (code === 'orphaned-tools') return 'orphanedTools'
   if (code === 'disabled-override') return 'disabledOverride'
+  if (code === 'preset-demand') return 'presetDemand'
   if (code === 'modified-override') return 'modifiedOverride'
   const text = [diagnostic.reason, ...(diagnostic.causes ?? [])].filter(line => line !== undefined).join('\n')
   if (/does not support dynamic plugin mounting/i.test(text)) return 'hostUnsupported'

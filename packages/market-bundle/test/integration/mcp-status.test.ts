@@ -188,6 +188,60 @@ describe('MCP status aggregation', () => {
     expect(payload.totals).toMatchObject({ all: 2, disabled: 1 })
   })
 
+  it('names session demand as the cause of live tools under a stored switch-off', () => {
+    // The mount pass merges session demand in as `enabled: true`, so a server
+    // the user switched off in this panel stays live while their own preset
+    // selects it. Reporting that as orphaned tools accused a working server of
+    // a failed teardown and painted the row red.
+    const overrides = new Map([['codex-plugin/codex', { app: { enabled: false } }]])
+    const observed = [{ name: 'mcp__codex__app__read_file', description: 'Read a file' }]
+    const demanded = [{ suiteId: 'codex-plugin/codex', serverKey: 'app' }]
+    const payload = buildMcpStatus([suite()], [], observed, overrides, undefined, demanded)
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.state).toBe('disabled')
+    expect(app.code).toBe('preset-demand')
+    expect(app.reason).toContain('selected by the active session preset')
+    expect(app.reason).toContain('cannot unmount it')
+    // The tools are live, so they stay on the row: the demand is the reason they
+    // are, not an excuse to hide them.
+    expect(app.tools.map(tool => tool.name)).toEqual(['read_file'])
+    expect(payload.totals).toMatchObject({ orphaned: 0, disabled: 1 })
+    // The server beside it is untouched by another server's demand.
+    expect(payload.entries.find(entry => entry.serverKey === 'docs')!.state).toBe('degraded')
+  })
+
+  it('keeps calling the same tools an orphan when no session demands the server', () => {
+    // Same override and the same live tools, no demand: this really is a
+    // teardown that left registrations behind, and the row must say so.
+    const overrides = new Map([['codex-plugin/codex', { app: { enabled: false } }]])
+    const observed = [{ name: 'mcp__codex__app__read_file', description: 'Read a file' }]
+    const payload = buildMcpStatus([suite()], [], observed, overrides, undefined, [{ suiteId: 'codex-plugin/codex', serverKey: 'docs' }])
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.state).toBe('orphaned')
+    expect(app.code).toBe('orphaned-tools')
+    expect(payload.totals.orphaned).toBe(1)
+  })
+
+  it('never explains a mount diagnostic away as session demand', () => {
+    // A diagnostic is evidence about the mount itself, so demand must not turn
+    // it into a quiet "disabled by preset" row. The disabled-with-tools case
+    // keeps its existing precedence; what this pins is that the new note and
+    // code never displace a diagnostic.
+    const overrides = new Map([['codex-plugin/codex', { app: { enabled: false } }]])
+    const observed = [{ name: 'mcp__codex__app__read_file', description: 'Read a file' }]
+    const payload = buildMcpStatus(
+      [suite()],
+      [{ suiteId: 'codex-plugin/codex', serverKey: 'app', code: 'mount-failed', reason: 'mount failed: connection refused' }],
+      observed,
+      overrides,
+      undefined,
+      [{ suiteId: 'codex-plugin/codex', serverKey: 'app' }]
+    )
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.code).not.toBe('preset-demand')
+    expect(app.reason).not.toContain('selected by the active session preset')
+  })
+
   it('reports the suite and user tool lists behind the checkbox states', () => {
     // A denied tool leaves the live registry, so the stored lists are what let
     // the panel keep it on screen and switchable.

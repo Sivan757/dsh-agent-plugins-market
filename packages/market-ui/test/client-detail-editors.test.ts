@@ -2,14 +2,45 @@
 import { act, createElement as h, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ServerConfigEditor } from '../../../packages/market-ui/src/ui/ServerConfigEditor.js'
 import { composeServerDocument, rowsFromPastedText } from '../../../packages/market-ui/src/ui/server-form.js'
 import type { CredentialApi } from '../../../packages/market-ui/src/credentials.js'
+import type { ServerConfigPayload } from '../../../packages/market-contracts/src/contracts/market.js'
 import { MarkdownDocument } from '../../../packages/market-ui/src/ui/MarkdownDocument.js'
 import { EntryEditorModal, type PanelEditorState } from '../../../packages/market-ui/src/ui/panel.js'
 import { typeInto } from './helpers/dom-events.js'
 import { stubTranslate as t } from './helpers/translate.js'
+
+/** The backend defaults one create dialog reads before it can render. */
+const CREATE_DEFAULTS: ServerConfigPayload = {
+  kind: 'mcp',
+  id: '',
+  key: '',
+  editable: true,
+  config: { type: 'stdio', command: '' },
+  backend: 'builtin',
+  policy: {
+    toolCallTimeout: { user: null, suite: null, effective: 60000, source: 'default' },
+    startupTimeout: { user: null, suite: null, effective: 10000, source: 'default' },
+    deniedTools: { user: null, suite: null, effective: [] },
+    auth: { user: null, suite: null, effective: true }
+  }
+}
+
+// The create dialog reads its defaults and posts its declaration through the
+// API module; only those calls are replaced, so the modal is the real one.
+vi.mock('../../../packages/market-ui/src/api.js', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../packages/market-ui/src/api.js')>()),
+  fetchServerConfigDefaults: vi.fn(async () => CREATE_DEFAULTS),
+  fetchServerConfig: vi.fn(async () => ({ ...CREATE_DEFAULTS, id: 'direct:kuboard', key: 'kuboard', config: { type: 'streamable-http', url: 'https://example.test/mcp' } })),
+  addMcpServer: vi.fn(async () => {}),
+  saveServerConfig: vi.fn(async () => {})
+}))
+
+import { McpAddModal } from '../../../packages/market-ui/src/features/mcp/McpAddModal.js'
+import { ServerConfigModal } from '../../../packages/market-ui/src/ui/ServerConfigModal.js'
+import * as api from '../../../packages/market-ui/src/api.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let root: Root | undefined
@@ -18,6 +49,7 @@ afterEach(async () => {
   await act(async () => root?.unmount())
   root = undefined
   host?.remove()
+  vi.clearAllMocks()
 })
 
 /** A credentials wire that reports every reference configured and writable. */
@@ -279,5 +311,94 @@ describe('pasted server definitions', () => {
     Object.defineProperty(event, 'clipboardData', { value: { getData: () => '"Authorization": "Bearer x"\nX-Api-Key: abc' } })
     await act(async () => target!.dispatchEvent(event))
     expect(value().headers).toEqual({ Authorization: 'Bearer x', 'X-Api-Key': 'abc' })
+  })
+})
+
+/**
+ * The create dialog is the surface the JSON add flow goes through: its name
+ * field supplies the declaration key, and a pasted document decides whether
+ * that key is kept, adopted, or renamed. These cases drive the real modal so
+ * the deadlock — a pasted key the form refused to accept — cannot return.
+ */
+describe('MCP service creation from a pasted document', () => {
+  const field = (label: string): HTMLInputElement | HTMLTextAreaElement => document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[aria-label="${label}"]`)!
+  const control = (label: string): HTMLButtonElement | undefined => [...document.querySelectorAll('button')].find(node => node.textContent?.includes(label))
+  const settle = async (): Promise<void> => {
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+  }
+  async function openCreate(): Promise<void> {
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(McpAddModal, { t, onClose: () => {}, onSaved: () => {} })))
+    await settle()
+    await act(async () => control('detailJson')!.click())
+  }
+
+  it('wraps a pasted bare definition under the draft name key', async () => {
+    await openCreate()
+    const pasted = { type: 'streamable-http', url: 'https://example.test/mcp' }
+    await act(async () => typeInto(field('detailJson') as HTMLTextAreaElement, JSON.stringify(pasted)))
+    // The pasted object is the service itself, so the name field keeps deciding
+    // the key and nothing reports a key mismatch.
+    expect(field('mcpServerName').value).toBe('my-mcp-server')
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+    await act(async () => control('editorCreate')!.click())
+    await settle()
+    expect(api.addMcpServer).toHaveBeenCalledWith('my-mcp-server', pasted)
+  })
+
+  it('adopts the key and the policy of a pasted keyed document', async () => {
+    await openCreate()
+    const keyed = composeServerDocument('kuboard', { type: 'streamable-http', url: 'https://example.test/mcp' }, { toolCallTimeoutMs: 120000 })
+    await act(async () => typeInto(field('detailJson') as HTMLTextAreaElement, keyed))
+    // The document is the source of truth while creating: its key names the new
+    // service, so the name mirrors it and the pasted text stays untouched.
+    expect(field('mcpServerName').value).toBe('kuboard')
+    expect((field('detailJson') as HTMLTextAreaElement).value).toBe(keyed)
+    await act(async () => control('editorCreate')!.click())
+    await settle()
+    expect(api.addMcpServer).toHaveBeenCalledWith('kuboard', { type: 'streamable-http', url: 'https://example.test/mcp' }, { toolCallTimeoutMs: 120000 })
+  })
+
+  it('renames the document key when the name is edited', async () => {
+    await openCreate()
+    await act(async () => typeInto(field('detailJson') as HTMLTextAreaElement, composeServerDocument('kuboard', { type: 'stdio', command: 'node' }, { startupTimeoutMs: 25000 })))
+    await act(async () => typeInto(field('mcpServerName'), 'kuboard-renamed'))
+    const documentText = JSON.parse((field('detailJson') as HTMLTextAreaElement).value) as Record<string, Record<string, unknown>>
+    expect(Object.keys(documentText['mcpServers']!)).toEqual(['kuboard-renamed'])
+    // The policy half follows the same key, so the timeout stays attached.
+    const namespace = documentText['com.deepseek.harness'] as { mcpServers: Record<string, unknown> }
+    expect(Object.keys(namespace.mcpServers)).toEqual(['kuboard-renamed'])
+  })
+
+  it('keeps the name field usable and the document intact while the JSON is invalid', async () => {
+    await openCreate()
+    await act(async () => typeInto(field('detailJson') as HTMLTextAreaElement, '{broken'))
+    // An unreadable document blocks the create, but it never locks the name
+    // field: the user can repair the document or the name and continue.
+    expect(field('mcpServerName').disabled).toBe(false)
+    expect((field('detailJson') as HTMLTextAreaElement).value).toBe('{broken')
+    expect(control('editorCreate')!.disabled).toBe(true)
+    expect(api.addMcpServer).not.toHaveBeenCalled()
+  })
+
+  it('still refuses a renamed key when editing an existing service', async () => {
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root!.render(h(ServerConfigModal, { kind: 'mcp', id: 'direct:kuboard', t, onClose: () => {}, onSaved: () => {} })))
+    await settle()
+    await act(async () => control('detailJson')!.click())
+    const renamed = composeServerDocument('custom', { type: 'stdio', command: 'node' }, {})
+    await act(async () => typeInto(field('detailJson') as HTMLTextAreaElement, renamed))
+    // An existing declaration is edited at the key it is stored under: a
+    // document naming another service is an error, not a silent rename.
+    expect(field('mcpServerName').value).toBe('kuboard')
+    expect(field('mcpServerName').readOnly).toBe(true)
+    expect(document.querySelector('[role="alert"]')).not.toBeNull()
+    expect(control('save')!.disabled).toBe(true)
   })
 })

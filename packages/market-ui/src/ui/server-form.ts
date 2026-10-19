@@ -192,6 +192,43 @@ export function parseServerDocument(text: string, key: string): ServerDocument {
 }
 
 /**
+ * Read one document while a service is being created.
+ *
+ * Creating a service has no declaration key yet, so the pasted document decides
+ * it: a keyed document names its own service and its key is adopted, while a
+ * bare definition — the server object itself, no `mcpServers` seat — is read
+ * under the draft key the name field carries. The strict reader above refuses
+ * any document whose key differs from the declared one, which would trap the
+ * create flow: the pasted key could never become the key of the new service.
+ * The policy half is read the same way in both shapes.
+ *
+ * @param text - the document as the editor holds it.
+ * @param draftKey - the key the name field currently carries, used by a bare definition.
+ * @returns the service's key, definition, and policy.
+ */
+export function readDraftServerDocument(text: string, draftKey: string): ServerDocument & { key: string; keyed: boolean } {
+  const parsed: unknown = JSON.parse(text)
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Configuration must be a JSON object')
+  const record = parsed as Record<string, unknown>
+  const namespace = asRecord(record[HARNESS_NAMESPACE])
+  const policies = asRecord(namespace?.['mcpServers'])
+  if (!('mcpServers' in record)) {
+    // A bare definition is the service itself. This client's policy seat still
+    // rides the document, so it is read away rather than saved as a server field.
+    const config = { ...record }
+    if (policies !== undefined) delete config[HARNESS_NAMESPACE]
+    return { key: draftKey, keyed: false, config, policy: asRecord(policies?.[draftKey]) ?? {} }
+  }
+  const servers = asRecord(record['mcpServers'])
+  const keys = servers === undefined ? [] : Object.keys(servers)
+  const key = keys[0]
+  if (key === undefined || keys.length !== 1) throw new Error('mcpServers must name exactly one service while a service is being created')
+  const config = asRecord(servers?.[key])
+  if (config === undefined) throw new Error(`mcpServers must name a JSON object for the service key "${key}"`)
+  return { key, keyed: true, config, policy: asRecord(policies?.[key]) ?? {} }
+}
+
+/**
  * Write the document back in the shape the specification seats it in. Without a
  * declaration key the definition is the whole document: wrapping it under an
  * empty `mcpServers` key would store a nested document as the service.

@@ -85,25 +85,30 @@ describe('service editor create and edit parity', () => {
     expect(api.addMcpServer).toHaveBeenCalledWith('renamed', { type: 'sse', url: 'https://example.test/mcp' }, { startupTimeoutMs: 25000 })
   })
 
-  it('keeps invalid JSON intact and disables name changes until repaired', async () => {
+  it('keeps invalid JSON intact and blocks the create without locking the name field', async () => {
     await renderCreate()
     await act(async () => button('detailJson')!.click())
     await act(async () => typeInto(input('detailJson'), '{broken'))
-    expect(input('mcpServerName').disabled).toBe(true)
+    // The document is unreadable, so the create stays disabled; the name field
+    // remains editable, because a repair must not depend on it.
+    expect(input('mcpServerName').disabled).toBe(false)
     expect(input('detailJson').value).toBe('{broken')
     expect(button('editorCreate')?.disabled).toBe(true)
     expect(api.addMcpServer).not.toHaveBeenCalled()
   })
 
-  it('preserves JSON with a renamed key and blocks name rewriting until repaired', async () => {
+  it('adopts the pasted service key when creating a service', async () => {
     await renderCreate()
     await act(async () => button('detailJson')!.click())
     const renamed = composeServerDocument('custom', { type: 'stdio', command: 'node' }, { startupTimeoutMs: 25000 })
     await act(async () => typeInto(input('detailJson'), renamed))
-    expect(input('mcpServerName').disabled).toBe(true)
+    // The pasted document names the new service, so its key becomes the name
+    // and the create can go through with the text exactly as pasted.
+    expect(input('mcpServerName').value).toBe('custom')
+    expect(input('mcpServerName').disabled).toBe(false)
     expect(input('detailJson').value).toBe(renamed)
-    expect(button('editorCreate')?.disabled).toBe(true)
-    expect(document.querySelector('[role="alert"]')).not.toBeNull()
+    expect(button('editorCreate')?.disabled).toBe(false)
+    expect(document.querySelector('[role="alert"]')).toBeNull()
   })
 
   it('rejects extra service keys without discarding their configuration', async () => {
@@ -111,9 +116,13 @@ describe('service editor create and edit parity', () => {
     await act(async () => button('detailJson')!.click())
     const multiple = JSON.stringify({ mcpServers: { 'my-mcp-server': { type: 'stdio', command: 'node' }, extra: { type: 'stdio', command: 'other' } } })
     await act(async () => typeInto(input('detailJson'), multiple))
-    expect(input('mcpServerName').disabled).toBe(true)
+    // Two declared services are genuinely ambiguous, so the create is refused
+    // and the text is retained; the name field keeps working so a repair stays
+    // possible.
+    expect(input('mcpServerName').disabled).toBe(false)
     expect(input('detailJson').value).toBe(multiple)
     expect(button('editorCreate')?.disabled).toBe(true)
+    expect(document.querySelector('[role="alert"]')).not.toBeNull()
   })
 
   it('preserves the full draft when a create request is rejected', async () => {

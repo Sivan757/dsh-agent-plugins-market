@@ -346,6 +346,21 @@ export async function addMcpServer(name: string, config: Record<string, unknown>
   })
 }
 
+/**
+ * Remove one user-owned MCP server from its declaration file.
+ *
+ * A suite-declared server belongs to its source, so the backend refuses it;
+ * only the `@user-mcp` declaration is the user's to delete.
+ *
+ * @param suiteId - the source-qualified suite id the status row carries.
+ * @param serverKey - the server key inside that suite's declaration.
+ */
+export async function removeMcpServer(suiteId: string, serverKey: string): Promise<void> {
+  return withBusyOperation(async () => {
+    await postAction('mcp-servers/remove', { suiteId, serverKey })
+  })
+}
+
 /** Drop one server's OAuth grant so its next mount re-runs browser authorization. */
 export async function reauthorizeMcpServer(serverName: string): Promise<void> {
   return withBusyOperation(async () => {
