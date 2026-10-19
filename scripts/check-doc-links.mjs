@@ -14,7 +14,10 @@
  *   - line-range anchors such as #L22-L28, a GitHub viewer convention,
  *   - targets starting with a slash, which a repository cannot resolve,
  *   - the path template in the Agent Note rules, which carries an ellipsis
- *     placeholder by design.
+ *     placeholder by design,
+ *   - archived Agent Notes, which are frozen snapshots: their inbound links are
+ *     what the archival change repairs, so a link left broken inside one is not
+ *     a current authority to follow or fix.
  *
  * Usage: node scripts/check-doc-links.mjs
  *
@@ -31,6 +34,9 @@ const files = execSync('git ls-files "*.md"', { encoding: 'utf8' })
   // The first-party collection ships as authored (see .prettierignore); its
   // internal references are not rewritten or policed by this checker.
   .filter(file => !file.startsWith('plugins/'))
+  // Archived notes are frozen: [the archival rules](.agents/notes/archived/AGENTS.md)
+  // forbid repairing a link out of one, so this checker must not demand it.
+  .filter(file => !file.startsWith('.agents/notes/archived/'))
 
 const isLineAnchor = f => /^L\d+(-L\d+)?$/.test(f)
 /** GitHub heading slug: lowercase, drop punctuation except letters, digits, spaces, hyphens. */
