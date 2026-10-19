@@ -60,6 +60,6 @@ Status: implemented
 ## Related
 
 - [宿主 locale 来源读取 settings 投影，并与它的 fiber 同生命周期](../bug-fix/2026-09-24-host-locale-source-read-and-lifetime.zh.md)持有投影读、服务解析与接线生命周期。本记录持有该接线之上的成本上界与新鲜度契约；两者互不取代。
-- [翻译开关默认跟随界面语言](../feature/2026-10-05-translation-default-follows-language.zh.md)持有同一个偏好所决定的东西——按语言推导的默认值、schema 里承重的「不声明」、以及设置卡显示的生效值。本记录持有这个偏好怎么读、活多久；两者互不取代。
+- [设置开关默认开启且不带实验性标签](../feature/2026-10-19-settings-defaults-on-and-unlabelled.zh.md)持有插件默认值、schema 里承重的「不声明」、以及设置卡显示的生效值。本记录持有这个语言偏好怎么读、活多久；两者互不取代。
 - [横跨六个面的通用翻译层](../feature/2026-10-04-universal-translation-layer.zh.md)是这些上界所服务的翻译层的读路径。
 - [为当前语言本地化套件描述](../feature/2026-10-03-description-localization.zh.md)是范围更窄的前身：它的模块路径、`descriptionTranslator` seam 与 `descriptionPending` 计数已被上一条记录的翻译层取代，而它所依赖的读路径上界由本记录持有。

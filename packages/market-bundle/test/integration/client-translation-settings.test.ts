@@ -3,13 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement as h } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MARKET_SETTINGS_DEFAULTS, resolveTranslationTarget } from '../../../../packages/market-contracts/src/contracts/settings.js'
-import {
-  bindInterfaceLanguage,
-  bindTranslationEnabled,
-  translationEnabled,
-  useTranslationEnabled,
-  useTranslationRefresh
-} from '../../../../packages/market-ui/src/ui/translation-enabled.js'
+import { bindTranslationEnabled, translationEnabled, useTranslationEnabled, useTranslationRefresh } from '../../../../packages/market-ui/src/ui/translation-enabled.js'
 
 import { useDisplayText } from '../../../../packages/market-ui/src/ui/translated-text.js'
 import type { Translate } from '../../../../packages/market-ui/src/index.js'
@@ -29,26 +23,6 @@ function form(initial?: { translationEnabled?: boolean }) {
     },
     update(next?: { translationEnabled?: boolean }) {
       value = next
-      for (const listener of listeners) listener()
-    },
-    listeners
-  }
-}
-
-/** A locale row double: the stored preference the interface language is read from. */
-function localeRow(preference?: string) {
-  let value: { preference?: string } | undefined = preference === undefined ? undefined : { preference }
-  const listeners = new Set<() => void>()
-  return {
-    getSnapshot: () => ({ value }),
-    subscribe(listener: () => void) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    update(next?: string) {
-      value = next === undefined ? undefined : { preference: next }
       for (const listener of listeners) listener()
     },
     listeners
@@ -114,7 +88,7 @@ describe('shared translation setting', () => {
     expect(refresh).toHaveBeenCalledTimes(2)
   })
 
-  it('holds the declared default until the host answers and resolves the section after', () => {
+  it('holds the pre-answer default until the host answers and resolves the section after', () => {
     // No binding at all is the pre-answer state: the declared default withholds
     // the control rather than flashing it.
     expect(translationEnabled.getSnapshot()).toBe(MARKET_SETTINGS_DEFAULTS.translationEnabled)
@@ -122,23 +96,21 @@ describe('shared translation setting', () => {
     releases.push(bindTranslationEnabled(source))
     // The binding is in place, but the form has not answered: an absent value is
     // not yet a section the document deliberately left open, so the switch holds
-    // the declared default instead of taking the language's answer.
-    expect(translationEnabled.getSnapshot()).toBe(false)
-    // The host answers with a section that says nothing about the field, so the
-    // interface language decides it — and a binding wired without one takes the
-    // host's own absence rule, which reads as zh.
-    source.update({})
+    // the declared default.
     expect(translationEnabled.getSnapshot()).toBe(true)
-    source.update({ translationEnabled: true })
+    // The host answers with a section that says nothing about the field, so the
+    // plugin default decides it.
+    source.update({})
     expect(translationEnabled.getSnapshot()).toBe(true)
     source.update({ translationEnabled: false })
     expect(translationEnabled.getSnapshot()).toBe(false)
+    source.update({ translationEnabled: true })
+    expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
   it('notifies only when the effective boolean changes', () => {
-    const row = localeRow('en')
     const source = form({ translationEnabled: true })
-    releases.push(bindTranslationEnabled(source, bindInterfaceLanguage(row)))
+    releases.push(bindTranslationEnabled(source))
     const changed = vi.fn()
     releases.push(translationEnabled.subscribe(changed))
     source.update({ translationEnabled: true })
@@ -146,104 +118,48 @@ describe('shared translation setting', () => {
     expect(changed).not.toHaveBeenCalled()
     source.update({ translationEnabled: false })
     expect(changed).toHaveBeenCalledOnce()
-    // The section now says nothing, so the English interface answers: off, the
-    // value already in force, and no notification.
+    // The section now says nothing, so the plugin default answers: on, a change
+    // back from the stored off.
     source.update({})
-    expect(changed).toHaveBeenCalledOnce()
-    row.update('zh')
     expect(changed).toHaveBeenCalledTimes(2)
     expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
   it('keeps subscribers connected across replacement and disposal', () => {
-    const first = form({ translationEnabled: true })
+    const first = form({ translationEnabled: false })
     const stopFirst = bindTranslationEnabled(first)
     releases.push(stopFirst)
     const changed = vi.fn()
     releases.push(translationEnabled.subscribe(changed))
-    const second = form({ translationEnabled: true })
+    const second = form({ translationEnabled: false })
     const stopSecond = bindTranslationEnabled(second)
     releases.push(stopSecond)
     expect(first.listeners.size).toBe(0)
     expect(second.listeners.size).toBe(1)
     expect(changed).not.toHaveBeenCalled()
     stopFirst()
-    first.update({ translationEnabled: false })
-    expect(translationEnabled.getSnapshot()).toBe(true)
+    first.update({ translationEnabled: true })
+    expect(translationEnabled.getSnapshot()).toBe(false)
     stopSecond()
     expect(second.listeners.size).toBe(0)
-    expect(translationEnabled.getSnapshot()).toBe(false)
+    // Disposal hands the shared read back to the plugin default instead of
+    // leaving the last stored value standing.
+    expect(translationEnabled.getSnapshot()).toBe(true)
     expect(changed).toHaveBeenCalledOnce()
-    second.update({ translationEnabled: true })
-    expect(translationEnabled.getSnapshot()).toBe(false)
-  })
-
-  it('holds the declared default until the host answers, then takes the Chinese default', () => {
-    // The locale row already answers zh, but the market form has not: the
-    // pre-answer state holds the declared default rather than flashing the
-    // language's answer, which would read "on" for a user who stored off.
-    const source = form()
-    releases.push(bindTranslationEnabled(source, bindInterfaceLanguage(localeRow('zh'))))
-    expect(translationEnabled.getSnapshot()).toBe(MARKET_SETTINGS_DEFAULTS.translationEnabled)
-    // The host answers an empty section, so the field is open and the language
-    // default takes over.
-    source.update({})
+    second.update({ translationEnabled: false })
     expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
-  it.each(['en', 'en-US'])('leaves translation off for the %s interface', preference => {
-    releases.push(bindTranslationEnabled(form({}), bindInterfaceLanguage(localeRow(preference))))
-    expect(translationEnabled.getSnapshot()).toBe(false)
-  })
-
-  it('turns translation on for a language the host renders with its Chinese dictionary', () => {
-    // `bindHostLocale` answers every non-English preference with Chinese, so the
-    // switch and the text it describes agree on `ja` as well as on `zh`.
-    releases.push(bindTranslationEnabled(form({}), bindInterfaceLanguage(localeRow('ja'))))
-    expect(translationEnabled.getSnapshot()).toBe(true)
-  })
-
-  it('reads a language row holding nothing as zh, the rule every host-facing read gives it', () => {
-    releases.push(bindTranslationEnabled(form({}), bindInterfaceLanguage(localeRow())))
-    expect(translationEnabled.getSnapshot()).toBe(true)
-  })
-
-  it('reads a binding wired without a language source the way the host reads an absent preference', () => {
-    // `bindHostLocale` answers an absent preference with the Chinese dictionary,
-    // so a composition that wires no language source follows that reading rather
-    // than silently disabling what the host would call a Chinese interface.
+  it('turns translation on for a section the document leaves open', () => {
+    // The default no longer follows the interface language: an empty section
+    // resolves to the plugin default in every interface.
     releases.push(bindTranslationEnabled(form({})))
     expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
-  it('keeps a stored value across a language switch, in both directions', () => {
-    const row = localeRow('zh')
-    const source = form({ translationEnabled: false })
-    releases.push(bindTranslationEnabled(source, bindInterfaceLanguage(row)))
+  it('keeps a stored false off', () => {
+    releases.push(bindTranslationEnabled(form({ translationEnabled: false })))
     expect(translationEnabled.getSnapshot()).toBe(false)
-    row.update('en')
-    expect(translationEnabled.getSnapshot()).toBe(false)
-    source.update({ translationEnabled: true })
-    row.update('zh')
-    expect(translationEnabled.getSnapshot()).toBe(true)
-  })
-
-  it('moves a field the document says nothing about with the language', () => {
-    const row = localeRow('en')
-    const source = form({})
-    releases.push(bindTranslationEnabled(source, bindInterfaceLanguage(row)))
-    expect(translationEnabled.getSnapshot()).toBe(false)
-    row.update('zh')
-    expect(translationEnabled.getSnapshot()).toBe(true)
-    // A stored off stands against the language; clearing it hands the field back.
-    source.update({ translationEnabled: false })
-    expect(translationEnabled.getSnapshot()).toBe(false)
-    row.update('en')
-    expect(translationEnabled.getSnapshot()).toBe(false)
-    source.update({})
-    expect(translationEnabled.getSnapshot()).toBe(false)
-    row.update('zh')
-    expect(translationEnabled.getSnapshot()).toBe(true)
   })
 
   it('updates a mounted hook when the host binds late and is re-served', async () => {
@@ -252,23 +168,23 @@ describe('shared translation setting', () => {
     document.body.append(container)
     root = createRoot(container)
     await act(async () => root!.render(h(Probe)))
-    expect(container.textContent).toBe('false')
-    const source = form({ translationEnabled: true })
+    expect(container.textContent).toBe('true')
+    const source = form({ translationEnabled: false })
     let unbind!: () => void
     await act(async () => {
       unbind = bindTranslationEnabled(source)
     })
     releases.push(unbind)
-    expect(container.textContent).toBe('true')
-    await act(async () => source.update({ translationEnabled: false }))
     expect(container.textContent).toBe('false')
     await act(async () => source.update({ translationEnabled: true }))
     expect(container.textContent).toBe('true')
-    await act(async () => unbind())
+    await act(async () => source.update({ translationEnabled: false }))
     expect(container.textContent).toBe('false')
+    await act(async () => unbind())
+    expect(container.textContent).toBe('true')
     await act(async () => {
       releases.push(bindTranslationEnabled(source))
     })
-    expect(container.textContent).toBe('true')
+    expect(container.textContent).toBe('false')
   })
 })

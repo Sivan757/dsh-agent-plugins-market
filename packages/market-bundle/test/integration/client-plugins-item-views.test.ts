@@ -80,7 +80,7 @@ describe('installed bundle configuration', () => {
   it.each([true, false])('shares one preference across service lifetimes (menu first: %s)', async menuFirst => {
     const load = vi.spyOn(api, 'fetchMenuRowFaces').mockResolvedValue([])
     const source = scopeDouble({ translationEnabled: false })
-    /** The locale row's form: the interface language the translation default follows. */
+    /** The locale row's form the market's own copy follows. */
     const localeSource = { getSnapshot: () => ({ value: { preference: 'en' } }), subscribe: () => () => {} }
     const get = vi.fn((id: string) => (id === 'locale' ? localeSource : source))
     const children = new Map<string, (scope: Record<string, unknown>) => unknown>()
@@ -127,7 +127,11 @@ describe('installed bundle configuration', () => {
       expect(get.mock.calls.filter(([id]) => id === MARKET_SETTINGS_NAMESPACE)).toHaveLength(1)
       expect(source.listeners.size).toBe(FORM_BINDINGS)
       expect(menu.candidates).toBe(candidates)
-      expect(load).not.toHaveBeenCalled()
+      // The pre-answer default is on, so a menu mounted before the settings form
+      // binds already wraps: the wrap needs no user flip. A menu mounted after it
+      // reads the stored off, so nothing wraps yet.
+      expect(load).toHaveBeenCalledTimes(menuFirst ? 1 : 0)
+      const wrappedBeforeFlip = load.mock.calls.length
       const update = (enabled: boolean) => {
         source.getSnapshot().value.translationEnabled = enabled
         for (const listener of source.listeners) listener()
@@ -135,9 +139,10 @@ describe('installed bundle configuration', () => {
       update(true)
       expect(translationEnabled.getSnapshot()).toBe(true)
       expect(menu.candidates).not.toBe(candidates)
-      expect(load).toHaveBeenCalledOnce()
+      // The stored off becoming an on is one wrap, in either mount order.
+      expect(load).toHaveBeenCalledTimes(wrappedBeforeFlip + 1)
       update(true)
-      expect(load).toHaveBeenCalledOnce()
+      expect(load).toHaveBeenCalledTimes(wrappedBeforeFlip + 1)
       // The settings page stops being served. The preference does not: surfaces
       // outside it — the composer entry opens the same detail dialog — ask
       // whether a translation is shown, so the switch keeps its value and the
@@ -158,7 +163,11 @@ describe('installed bundle configuration', () => {
       mount('menu')
       mount('settings')
       expect(source.listeners.size).toBe(FORM_BINDINGS)
-      expect(load).toHaveBeenCalledTimes(3)
+      // One wrap per menu mount while the preference stays on. The settings-first
+      // order never wrapped at its first menu mount (the stored off), and the
+      // default being on now means no off-to-on transition adds a refresh here,
+      // so the menu-first order totals one wrap more.
+      expect(load).toHaveBeenCalledTimes(menuFirst ? 3 : 2)
       await Promise.resolve()
     } finally {
       for (const stop of childReleases.reverse()) stop()

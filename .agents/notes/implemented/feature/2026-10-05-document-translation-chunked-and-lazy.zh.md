@@ -54,4 +54,4 @@ Status: implemented
 
 ## Related
 
-[通用翻译层](2026-10-04-universal-translation-layer.zh.md)拥有 provider 顺序与持久键。[语言默认值](2026-10-05-translation-default-follows-language.zh.md)拥有设置缺席时的规则。本记录的阅读模式部分已被取代，工作限额与身份规则的理由仍然有效。
+[通用翻译层](2026-10-04-universal-translation-layer.zh.md)拥有 provider 顺序与持久键。[设置默认值](2026-10-19-settings-defaults-on-and-unlabelled.zh.md)拥有设置缺席时的规则。本记录的阅读模式部分已被取代，工作限额与身份规则的理由仍然有效。

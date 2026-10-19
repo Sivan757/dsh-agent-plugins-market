@@ -8,9 +8,7 @@
  * Every consumer reads through {@link MarketSettingsNamespace.settings} so
  * "the field is absent" has exactly one answer —
  * {@link resolveMarketSettings} — instead of each caller inventing its own
- * fallback for the window before the host applies its first value. That reader
- * also takes the interface language, because one field's default follows it
- * rather than a constant.
+ * fallback for the window before the host applies its first value.
  *
  * @module runtime/settings-namespace
  */
@@ -60,13 +58,7 @@ export class MarketSettingsNamespace {
     refs: MarketSettingRefs,
     private readonly dataRoot: string,
     private readonly locale: { t: HostTranslate },
-    private readonly host: SettingsNamespaceHost,
-    /**
-     * The host interface language, read per call. It is a reader rather than a
-     * captured string because a language switch must move the translation
-     * default without rebuilding this namespace.
-     */
-    private readonly localePreference: () => string
+    private readonly host: SettingsNamespaceHost
   ) {
     // A caller may hand in a partial ref set (a test, or a config written
     // before this field existed); an absent switch reads as its default.
@@ -96,12 +88,6 @@ export class MarketSettingsNamespace {
       this.syncFeedbackTool()
     })
     this.watchers.push(watcher)
-    // A locale edit can change the default without changing this plugin's refs.
-    this.watchers.push(
-      this.ctx.on('settings/document-updated' as Parameters<Context['on']>[0], () => {
-        previousTranslation = this.syncTranslationProviders(previousTranslation)
-      })
-    )
   }
 
   /** Release every watcher and unmount the feedback tool. */
@@ -113,21 +99,18 @@ export class MarketSettingsNamespace {
 
   /**
    * The resolved settings, from the volatile references the host updates in
-   * place and the interface language they resolve over.
+   * place. A field whose reference has no value yet takes the contract default.
    */
   private settings(): MarketSettings {
-    return resolveMarketSettings(
-      {
-        mcpEnhanced: this.refs.mcpEnhanced.get(),
-        scanProjectLayouts: this.refs.scanProjectLayouts.get(),
-        downloadRegion: this.refs.downloadRegion.get(),
-        feedbackEnabled: this.refs.feedbackEnabled.get(),
-        autoUpdateSources: this.refs.autoUpdateSources.get(),
-        translationEnabled: this.refs.translationEnabled.get(),
-        agentPresetsEnabled: this.refs.agentPresetsEnabled.get()
-      },
-      this.localePreference()
-    )
+    return resolveMarketSettings({
+      mcpEnhanced: this.refs.mcpEnhanced.get(),
+      scanProjectLayouts: this.refs.scanProjectLayouts.get(),
+      downloadRegion: this.refs.downloadRegion.get(),
+      feedbackEnabled: this.refs.feedbackEnabled.get(),
+      autoUpdateSources: this.refs.autoUpdateSources.get(),
+      translationEnabled: this.refs.translationEnabled.get(),
+      agentPresetsEnabled: this.refs.agentPresetsEnabled.get()
+    })
   }
 
   /** The persisted MCP backend choice; the built-in client until the host applies a value. */
@@ -151,7 +134,7 @@ export class MarketSettingsNamespace {
 
   /**
    * Read the live translation switch: the stored preference while the user has
-   * one, the interface language's default otherwise.
+   * one, the plugin default (on) otherwise.
    */
   translationEnabled(): boolean {
     return this.settings().translationEnabled

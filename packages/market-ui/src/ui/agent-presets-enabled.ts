@@ -1,8 +1,8 @@
 /**
  * Read-only agent-preset-manager preference shared by the composer slot. The
  * host form owns persistence; this projection carries the resolved boolean —
- * the experimental capability is hidden until the user turns it on, and a
- * flip shows the entry without a reload.
+ * the entry shows by default and a stored false hides it, and a flip shows or
+ * hides the entry without a reload.
  * @module client/ui/agent-presets-enabled
  */
 import { useSyncExternalStore } from 'react'
@@ -24,7 +24,7 @@ export const agentPresetsEnabled = {
 
 /**
  * Follow the host form without adding persistence or polling. A form that has
- * not answered yet keeps the pre-answer default (off) rather than resolving
+ * not answered yet keeps the pre-answer default (on) rather than resolving
  * the absent section: only a defined value is resolved through the contract.
  * @param next - the host form for this plugin's settings namespace.
  * @returns an idempotent disposer; an older disposer cannot clear a newer binding.

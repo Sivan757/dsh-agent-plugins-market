@@ -1,10 +1,10 @@
-/** Language chooses a target; only the resolved display preference enables translation. */
+/** Language chooses the translation target; whether translations show is a separate setting, on by default. */
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
-import { interfaceLanguageTranslates, resolveMarketSettings, resolveTranslationTarget } from '../../../../packages/market-contracts/src/contracts/settings.js'
+import { resolveMarketSettings, resolveTranslationTarget } from '../../../../packages/market-contracts/src/contracts/settings.js'
 import { bindHostLocale } from '../../../../packages/market-runtime/src/runtime/host/host-locale.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../../../../packages/market-translation/src/application/translation/chain.js'
 
@@ -45,7 +45,7 @@ async function fixture(locale: string, stored: boolean | undefined) {
       localePreference: () => locale,
       translationProviders: [provider],
       translationProviderIdentity: () => 'test-chain',
-      translationEnabled: () => resolveMarketSettings({ translationEnabled: stored }, locale).translationEnabled
+      translationEnabled: () => resolveMarketSettings({ translationEnabled: stored }).translationEnabled
     }
   })
   catalogs.push(catalog)
@@ -54,13 +54,31 @@ async function fixture(locale: string, stored: boolean | undefined) {
 }
 
 describe('translation target and display preference', () => {
-  it.each(locales)('derives only the default from %s', locale => {
-    const chinese = hostRendersChinese(locale)
-    expect(interfaceLanguageTranslates(locale)).toBe(chinese)
-    expect(resolveTranslationTarget(locale)).toBe(chinese ? 'zh' : 'en')
-    expect(resolveMarketSettings({}, locale).translationEnabled).toBe(chinese)
-    expect(resolveMarketSettings({ translationEnabled: true }, locale).translationEnabled).toBe(true)
-    expect(resolveMarketSettings({ translationEnabled: false }, locale).translationEnabled).toBe(false)
+  it.each(locales)('keeps the target with what the %s interface renders', locale => {
+    expect(resolveTranslationTarget(locale)).toBe(hostRendersChinese(locale) ? 'zh' : 'en')
+  })
+
+  it('turns translation on for a section that says nothing, whatever the interface language', () => {
+    // The switch no longer follows the language: an untouched English settings
+    // document translates, and a stored answer still decides.
+    expect(resolveMarketSettings({}).translationEnabled).toBe(true)
+    expect(resolveMarketSettings(undefined).translationEnabled).toBe(true)
+    expect(resolveMarketSettings({ translationEnabled: true }).translationEnabled).toBe(true)
+    expect(resolveMarketSettings({ translationEnabled: false }).translationEnabled).toBe(false)
+  })
+
+  it.each(['zh', 'en'] as const)('translates descriptions and documents into %s when the section says nothing', async locale => {
+    const { catalog, targets } = await fixture(locale, undefined)
+    const source = locale === 'zh' ? 'Read files from disk' : '读取磁盘文件'
+    const description = () => catalog.translateFields('skills', 'description', { description: source }, locale)
+    const document = () => catalog.translateDocument('skills', 'document', source, locale)
+    expect(description().pending).toBeGreaterThan(0)
+    expect(document().pending).toBeGreaterThan(0)
+    await catalog.settleDescriptions()
+    expect(description().fields.translatedDescription).toBeDefined()
+    expect(document().text).not.toBe(source)
+    expect(targets.length).toBeGreaterThan(0)
+    expect(targets.every(target => target === locale)).toBe(true)
   })
 
   it.each(['zh', 'en'] as const)('translates descriptions and documents into %s when explicitly on', async locale => {
@@ -82,14 +100,6 @@ describe('translation target and display preference', () => {
     const source = locale === 'zh' ? 'Read files from disk' : '读取磁盘文件'
     expect(catalog.translateFields('skills', 'description', { description: source }, locale)).toEqual({ fields: {}, pending: 0 })
     expect(catalog.translateDocument('skills', 'document', source, locale)).toMatchObject({ text: source, pending: 0 })
-    await catalog.settleDescriptions()
-    expect(targets).toEqual([])
-  })
-
-  it('keeps an untouched English setting off without removing its target', async () => {
-    const { catalog, targets } = await fixture('en', undefined)
-    expect(resolveTranslationTarget('en')).toBe('en')
-    expect(catalog.translateDocument('skills', 'doc', '读取磁盘文件', 'en').pending).toBe(0)
     await catalog.settleDescriptions()
     expect(targets).toEqual([])
   })

@@ -1,6 +1,7 @@
 # Agent Note: 翻译开关默认跟随界面语言
 
 Status: implemented
+Archived: 2026-10-19
 
 ## Problem
 

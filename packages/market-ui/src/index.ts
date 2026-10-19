@@ -23,7 +23,7 @@ import { resourcesEn, resourcesZh } from './locales-resources.js'
 import { PluginWorkspace } from './workspace/PluginWorkspace.js'
 import { McpPluginCard } from './features/settings-card/McpPluginCard.js'
 import { bindMarketCardForm, type MarketCardFace } from './features/settings-card/market-card-form.js'
-import { bindInterfaceLanguage, bindTranslationEnabled, translationEnabled, LOCALE_SETTINGS_ENTRY } from './ui/translation-enabled.js'
+import { bindTranslationEnabled, translationEnabled } from './ui/translation-enabled.js'
 import { bindAgentPresetsEnabled, useAgentPresetsEnabled } from './ui/agent-presets-enabled.js'
 import { createElement as slotH } from 'react'
 import { ExtensionDetailView } from './workspace/ExtensionResourceDetail.js'
@@ -79,8 +79,8 @@ export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Toolti
 export const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
 
 /**
- * The slot's payload, behind the experimental switch: nothing renders while
- * the setting is off, and a flip shows the entry without a reload.
+ * The slot's payload, behind the preset switch: nothing renders while the
+ * setting is off, and a flip shows the entry without a reload.
  */
 function PresetEntrySlot(props: { sessionId?: string; t: ExtensionTranslate; observer: ExtensionWindowObserver }): ReactNode {
   const enabled = useAgentPresetsEnabled()
@@ -165,7 +165,7 @@ export function apply(ctx: SuiteClientContext): void {
     }
   })
   // No additive top entry exists; this seat supplies the materialized session identity beside Permissions.
-  // The capability is experimental: the entry renders only while the setting is on, and a flip shows it without a reload.
+  // The preset switch owns the entry: it renders only while the setting is on, and a flip shows it without a reload.
   ctx.slots.inject(COMPOSER_TOGGLE_SLOT, () => {
     const dispose = ctx.slots.register(
       { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-resources', order: 60, label: () => (ctx.locale.bind(NS) as ExtensionTranslate)('epTitle') },
@@ -231,16 +231,14 @@ export function apply(ctx: SuiteClientContext): void {
     // the watch would tie the preference to a surface-scoped lifetime that is
     // not its own.
     const form = service.get<MarketSettings>(NS)
-    // The translation default follows the interface language, so the read-only
-    // preference and the card both resolve it off the locale row's own form —
-    // the same `locale.preference` the node half reads.
-    const language = bindInterfaceLanguage(service.get<{ preference?: string }>(LOCALE_SETTINGS_ENTRY))
-    const unbindTranslation = bindTranslationEnabled(form, language)
-    // The preset manager is experimental: the same form drives its visibility.
+    // The read-only preference and the card resolve the same stored value
+    // through the contract, so neither needs a second form.
+    const unbindTranslation = bindTranslationEnabled(form)
+    // The preset switch drives the composer entry's visibility from the same form.
     const unbindPresets = bindAgentPresetsEnabled(form)
     const stopServed = service.whileServed([NS], () => {
       if (slots === undefined) return () => {}
-      const bound = bindMarketCardForm(form, fetchMcpBackend, language)
+      const bound = bindMarketCardForm(form, fetchMcpBackend)
       card = bound.face
       const dispose = slots.register(
         {

@@ -44,6 +44,6 @@ Adding a document kind requires updating validation and client readers for both 
 
 ## Related
 
-[The chunking note](../feature/2026-10-05-document-translation-chunked-and-lazy.md) retains the request-budget and document-role rationale. [The language-default note](../feature/2026-10-05-translation-default-follows-language.md) owns the absent setting. [The universal layer](../feature/2026-10-04-universal-translation-layer.md) owns provider order and persistent keys.
+[The chunking note](../feature/2026-10-05-document-translation-chunked-and-lazy.md) retains the request-budget and document-role rationale. [The settings defaults note](../feature/2026-10-19-settings-defaults-on-and-unlabelled.md) owns the absent setting. [The universal layer](../feature/2026-10-04-universal-translation-layer.md) owns provider order and persistent keys.
 
 [The reading and lifecycle decision](../feature/2026-10-06-translation-reading-and-lifecycle.md) updates the shared reader and language controls without superseding this note's separate routes and shared identity; that rationale remains active.

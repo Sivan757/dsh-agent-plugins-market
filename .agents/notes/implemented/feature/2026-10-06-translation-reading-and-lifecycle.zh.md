@@ -92,6 +92,6 @@ Provider 可以忽略取消信号并完成远端计算。链将 provider 工作�
 
 ## Related
 
-本记录部分取代[折叠阅读决策](2026-10-05-document-translation-chunked-and-lazy.zh.md)与[语言作为门禁的决策](2026-10-05-translation-default-follows-language.zh.md)。它们保留请求限额、角色兼容与未设置值区分的理由，继续有效。旧记录对「用户选择折叠区」的归因不能作为本决策的证据。
+本记录部分取代[折叠阅读决策](2026-10-05-document-translation-chunked-and-lazy.zh.md)与[语言作为门禁的决策](../../archived/feature/2026-10-05-translation-default-follows-language.zh.md)。它们保留请求限额、角色兼容与未设置值区分的理由，继续有效。旧记录对「用户选择折叠区」的归因不能作为本决策的证据。
 
 [自然段策略](2026-10-09-document-translation-paragraph-atomicity.zh.md)部分取代本记录的切片发布与缓存规则，本记录仍拥有标题栏交互、目标/开关独立和生命周期。[通用层](2026-10-04-universal-translation-layer.zh.md)保留 provider 顺序与模型隔离。[市场路由](../architecture/2026-10-05-market-document-translation-route-and-identity.zh.md)保留独立查找范围与共享文档身份。这些记录没有被完全取代或归档。

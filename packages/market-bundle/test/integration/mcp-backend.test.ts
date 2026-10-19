@@ -70,8 +70,8 @@ describe('MCP backend persistence', () => {
 
   it('declares no default for the translation switch, keeping "never set" apart from "turned off"', () => {
     // A declared default is materialized into the live config reference, where
-    // both states would read false; the language-derived default needs the
-    // difference, so the schema leaves the field absent.
+    // both states would read the same boolean; the card's customized badge and
+    // its reset path need the difference, so the schema leaves the field absent.
     const unset = MarketSettingsSchema({}) as { translationEnabled?: boolean }
     expect(unset.translationEnabled).toBeUndefined()
     const off = MarketSettingsSchema({ translationEnabled: false }) as { translationEnabled?: boolean }

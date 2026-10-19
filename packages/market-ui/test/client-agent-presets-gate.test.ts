@@ -37,8 +37,8 @@ function Probe(): { enabled: boolean } {
   return { enabled }
 }
 
-describe('the agent presets experimental gate', () => {
-  it('reads off before the form answers and follows a flip without remount', async () => {
+describe('the agent presets gate', () => {
+  it('reads the default on before the form answers and follows a flip without remount', async () => {
     const f = form()
     const seen: boolean[] = []
     const host = document.createElement('div')
@@ -51,23 +51,26 @@ describe('the agent presets experimental gate', () => {
     }
     const unbind = bindAgentPresetsEnabled(f)
     await act(async () => root!.render(h(Capture)))
+    expect(agentPresetsEnabled.getSnapshot()).toBe(true)
+    await act(async () => f.update({ agentPresetsEnabled: false }))
     expect(agentPresetsEnabled.getSnapshot()).toBe(false)
+    expect(seen[seen.length - 1]).toBe(false)
     await act(async () => f.update({ agentPresetsEnabled: true }))
     expect(agentPresetsEnabled.getSnapshot()).toBe(true)
     expect(seen[seen.length - 1]).toBe(true)
-    await act(async () => f.update({ agentPresetsEnabled: false }))
-    expect(agentPresetsEnabled.getSnapshot()).toBe(false)
     unbind()
+    // Disposal hands the read back to the default: the entry shows again.
+    expect(agentPresetsEnabled.getSnapshot()).toBe(true)
   })
 
-  it('answers the stored value when the form has one, off when the document is empty', async () => {
-    const f = form({ agentPresetsEnabled: true })
+  it('answers the stored value when the form has one, the default when the document is empty', async () => {
+    const f = form({ agentPresetsEnabled: false })
     const unbind = bindAgentPresetsEnabled(f)
-    expect(agentPresetsEnabled.getSnapshot()).toBe(true)
+    expect(agentPresetsEnabled.getSnapshot()).toBe(false)
     unbind()
     const empty = form()
     const unbind2 = bindAgentPresetsEnabled(empty)
-    expect(agentPresetsEnabled.getSnapshot()).toBe(false)
+    expect(agentPresetsEnabled.getSnapshot()).toBe(true)
     unbind2()
   })
 })

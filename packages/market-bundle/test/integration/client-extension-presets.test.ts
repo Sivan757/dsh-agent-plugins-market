@@ -146,7 +146,9 @@ describe('extension preset state', () => {
     })
     expect(register).toHaveBeenCalledTimes(1)
     const component = register.mock.calls[0]![1] as unknown as (props: { sessionId?: string }) => ReturnType<typeof h>
-    // The gate element renders nothing while the experimental setting is off.
+    // The gate element renders nothing while the preset setting is off.
+    const offForm = { getSnapshot: () => ({ value: { agentPresetsEnabled: false } }), subscribe: () => () => {} }
+    const unbindOff = bindAgentPresetsEnabled(offForm)
     const gate = component({ sessionId: 'actual-session' })
     const gateHost = document.createElement('div')
     document.body.append(gateHost)
@@ -155,14 +157,14 @@ describe('extension preset state', () => {
     expect(gateHost.textContent).toBe('')
     await act(async () => gateRoot.unmount())
     gateHost.remove()
+    unbindOff()
     // The gate element carries the session and translator for the inner entry.
     const rendered = component({ sessionId: 'actual-session' })
     expect(rendered.props).toMatchObject({ sessionId: 'actual-session' })
     expect(typeof (rendered.props as { t?: unknown }).t).toBe('function')
     expect(dictionary.mock.calls[0]![1]).toMatchObject({ en: { epTitle: 'Extension presets' }, zh: { epTitle: '扩展预设' } })
-    // With the setting on, the gate renders the real entry and hands it the session.
-    const onForm = { getSnapshot: () => ({ value: { agentPresetsEnabled: true } }), subscribe: () => () => {} }
-    const unbind = bindAgentPresetsEnabled(onForm)
+    // With nothing stored the setting defaults on, so the gate renders the real
+    // entry and hands it the session.
     const onHost = document.createElement('div')
     document.body.append(onHost)
     const onRoot = createRoot(onHost)
@@ -171,7 +173,6 @@ describe('extension preset state', () => {
     // the session and renderer through, which the element assertions above pin).
     await act(async () => onRoot.unmount())
     onHost.remove()
-    unbind()
   })
   it('keeps globally managed resources out of session edits', () => {
     const globalRow = externalMcp
