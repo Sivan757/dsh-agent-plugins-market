@@ -110,7 +110,6 @@
     "@deepseek-ai/dsh-credentials": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-experimental-agent-team": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-experimental-tool-agent-team": ">=0.2.0-rc.2 <0.3.0-0",
-    "@deepseek-ai/dsh-hook-protocol": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-hooks-claude-code": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-mcp-client": ">=0.2.0-rc.2 <0.3.0-0",
@@ -149,6 +148,7 @@
   "dependencies": {
     "@deepseek-ai/dsh-atomic-write": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-home-paths": ">=0.2.0-rc.2 <0.3.0-0",
+    "@deepseek-ai/dsh-hook-protocol": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-lsp": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-lsp-stdio": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-tool-lsp": ">=0.2.0-rc.2 <0.3.0-0",
@@ -187,7 +187,6 @@
     "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
     "@deepseek-ai/dsh-experimental-agent-team": "0.2.1-rc.2",
     "@deepseek-ai/dsh-experimental-tool-agent-team": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-hook-protocol": "0.2.1-rc.2",
     "@deepseek-ai/dsh-hooks-claude-code": "0.2.1-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
     "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.2",
