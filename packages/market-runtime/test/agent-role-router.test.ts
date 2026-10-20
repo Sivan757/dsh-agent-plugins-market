@@ -27,8 +27,9 @@ function compositionFixture() {
   const requirePersistence = vi.fn<RoleChildComposition['requirePersistence']>()
   const reserve = vi.fn<RoleChildComposition['reserve']>()
   const release = vi.fn<RoleChildComposition['release']>()
-  const roleComposition: RoleChildComposition = { requirePersistence, reserve, release }
-  return { roleComposition, requirePersistence, reserve, release }
+  const abandon = vi.fn<RoleChildComposition['abandon']>(async () => {})
+  const roleComposition: RoleChildComposition = { requirePersistence, reserve, release, abandon }
+  return { roleComposition, requirePersistence, reserve, release, abandon }
 }
 
 function hostFixture(terminal: { stopReason?: string; diagnostic?: string; output?: unknown[] } = {}) {
@@ -431,7 +432,9 @@ describe('agent role metadata and runtime routing', () => {
     )
     const reservedId = composition.reserve.mock.calls[0]?.[0]
     expect(reservedId).toMatch(/^[0-9a-f-]{36}$/)
-    // The failed call leaves no reservation behind.
+    // The child the host published is released, not left resident without its
+    // instructions, and the failed call leaves no reservation behind.
+    expect(composition.abandon).toHaveBeenCalledWith('host-generated')
     expect(composition.release).toHaveBeenCalledWith(reservedId)
   })
 

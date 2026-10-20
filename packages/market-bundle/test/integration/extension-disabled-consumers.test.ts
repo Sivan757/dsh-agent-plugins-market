@@ -188,7 +188,7 @@ describe('explicit session overrides for ordinary disabled consumers', () => {
           throw new Error('unexpected')
         }
       },
-      roleComposition: { requirePersistence: () => {}, reserve: () => {}, release: () => {} }
+      roleComposition: { requirePersistence: () => {}, reserve: () => {}, release: () => {}, abandon: async () => {} }
     }
     let selected = true
     const roles = async (): Promise<AgentRoleEntry[]> => [

@@ -50,7 +50,7 @@ const card = (name = 'reviewer'): AgentRoleEntry => ({
 })
 const parent = { session: { requestHeader: () => ({ config: { provider: 'mock', model: 'parent-model' } }), header: { cwd: '/workspace' } } } as unknown as AgentRoleParent
 /** The composition the section channel needs; the older line never calls it. */
-const composition = (): RoleChildComposition => ({ requirePersistence: () => {}, reserve: () => {}, release: () => {} })
+const composition = (): RoleChildComposition => ({ requirePersistence: () => {}, reserve: () => {}, release: () => {}, abandon: async () => {} })
 
 function host(entered: () => void, release: Promise<void>) {
   const spawns: Array<Record<string, unknown>> = []

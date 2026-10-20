@@ -346,7 +346,19 @@ export async function executeAgentRole(
   try {
     if (mode === 'continuable') {
       const started = await startContinuableChild(host.subagents, { provider: 'spawn', label: agentName, request, signal, childId })
-      if (composition !== undefined) requirePublished(started.childId)
+      if (composition !== undefined) {
+        try {
+          requirePublished(started.childId)
+        } catch (error) {
+          // The child exists, but it is not the one this call reserved, so it
+          // carries no role instructions. The foreground channel releases its run
+          // in the finally below; this channel has no such handle, so it releases
+          // the published child through the seam's drain member instead of
+          // leaving an uninstructed child resident.
+          await composition.abandon(started.childId)
+          throw error
+        }
+      }
       return { kind: 'continuable', subagentId: started.childId }
     }
     const run = await startOneShotChild(host.subagents, { provider: 'spawn', label: agentName, request, signal, childId })

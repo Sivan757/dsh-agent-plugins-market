@@ -21,7 +21,7 @@ import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { PERSONA_PREFIX_SECTION } from '@deepseek-ai/dsh-system-prompt'
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import { mountAgentRoleTool } from '../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
-import { ROLE_CHILD_SOURCE } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
+import { ROLE_CHILD_SOURCE, RoleComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
 import type { AgentRoleEntry } from '../../../packages/market-runtime/src/application/agent-roles.js'
 
 class TestQuery extends SessionQueryEngine {
@@ -35,11 +35,24 @@ class TestQuery extends SessionQueryEngine {
 
 class RecordingAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
+  /** Hold the first stream open, so a child stays live while the test releases it. */
+  hold = false
+  private releaseHeld?: () => void
+  /** Release a held stream. */
+  release(): void {
+    this.releaseHeld?.()
+  }
   override resolveModel(provider: string, model: string) {
     return Promise.resolve({ provider, id: model, name: model })
   }
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     this.requests.push(options)
+    if (this.hold) {
+      await new Promise<void>(resolve => {
+        this.releaseHeld = resolve
+      })
+      this.releaseHeld = undefined
+    }
     yield { type: 'block-start', index: 0, blockType: 'text' }
     yield { type: 'text-delta', index: 0, text: 'done' }
     yield { type: 'block-end', index: 0, block: { type: 'text', text: 'done' } }
@@ -215,6 +228,22 @@ describe('one role child receives its card body from the plugin composition', ()
     expect(failed.error.message).toContain('agent "reviewer" cannot run without its role instructions')
     expect(adapter.requests).toHaveLength(0)
     off()
+  })
+
+  it('releases a live child through the seam drain member when an identity cannot be composed', async () => {
+    const { ctx, lead, adapter } = await setup()
+    adapter.hold = true
+    const result = await invoke(ctx, lead, {})
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error(result.error.message)
+    const childId = (result.value as { subagentId: string }).subagentId
+    // The continuable call returns once the child starts, so the child is live and
+    // mid-turn here. abandon is the release path a mismatched identity takes, so it
+    // must genuinely free the child rather than only drop a reservation.
+    expect(ctx.agents.get(SessionId(childId))).toBeDefined()
+    await new RoleComposition(ctx).abandon(childId)
+    expect(ctx.agents.get(SessionId(childId))).toBeUndefined()
+    adapter.release()
   })
 
   it('restores the card body from the durable binding after a full context restart', async () => {

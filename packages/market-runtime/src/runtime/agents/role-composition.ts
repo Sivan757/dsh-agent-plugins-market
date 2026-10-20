@@ -22,6 +22,7 @@ import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import { PERSONA_PREFIX_SECTION, type SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { z } from 'zod'
 import { optionalService } from '../core/context.js'
+import { drainContinuableChildIds, type SubagentSeam } from './subagent-seam.js'
 
 /** Plugin-owned message source that makes one role child's instructions replayable. */
 export const ROLE_CHILD_SOURCE = 'agent-role-child-binding'
@@ -63,6 +64,11 @@ export interface RoleChildComposition {
    * @param childId - the reserved identity.
    */
   release(childId: string): void
+  /**
+   * Release a child the host published under an identity this plugin could not compose.
+   * @param childId - the identity the host published.
+   */
+  abandon(childId: string): Promise<void>
 }
 
 /** Add the role card body as the child's own persona section. */
@@ -211,6 +217,36 @@ export class RoleComposition implements RoleChildComposition {
 
   release(childId: string): void {
     this.pending.delete(childId)
+  }
+
+  /**
+   * Release one child the host published under an identity this plugin could not compose.
+   *
+   * A host that ignores the reserved id leaves a live child with no role
+   * instructions. The caller raises the refusal; this method releases the child
+   * through the seam's drain member, using the child's own recorded parent, so an
+   * uncomposed child does not stay resident until the parent tears down. A host
+   * without a drain member, or a child with no live parent, is reported and then
+   * left to the host's own parent teardown, which still owns it.
+   * @param childId - the identity the host published.
+   */
+  async abandon(childId: string): Promise<void> {
+    try {
+      const seam = optionalService(this.ctx, 'subagents') as SubagentSeam | undefined
+      const agents = optionalService(this.ctx, 'agents') as { get(id: SessionId): Agent | undefined } | undefined
+      const child = agents?.get(SessionId(childId))
+      const parentId = child?.session.header.parentSession
+      const parent = parentId === undefined ? undefined : agents?.get(parentId)
+      if (seam === undefined || parent === undefined) {
+        this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and has no live parent to release it; the host owns its teardown`)
+        return
+      }
+      await drainContinuableChildIds(seam, parent, [SessionId(childId)])
+    } catch (error) {
+      // The refusal is already on its way out. A release failure must not replace
+      // it, and the child still belongs to the host parent's teardown.
+      this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and could not be released: ${describe(error)}`)
+    }
   }
 
   private async compose(agent: Agent, signal?: AbortSignal): Promise<void> {
