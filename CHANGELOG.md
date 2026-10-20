@@ -9,6 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.11.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.10.0...dsh-agent-plugins-market-v0.11.0) (2026-10-20)
+
+
+### Features
+
+* **settings:** default both gated switches on and drop their label ([5795c6e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5795c6ee87eff88f758ea94d66b5dc36202cb0ba))
+
+
+### Bug Fixes
+
+* **mcp:** remove a declared service, adopt a pasted key, name preset demand ([b758b3e](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b758b3ea78ab366eede6f43777ff2e7add3b4cda))
+
 ## [0.10.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.9.2...dsh-agent-plugins-market-v0.10.0) (2026-10-17)
 
 
