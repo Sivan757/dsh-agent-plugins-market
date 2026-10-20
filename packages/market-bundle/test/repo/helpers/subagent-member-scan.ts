@@ -9,17 +9,23 @@
  *
  * The scan parses, it does not type-check: there is no Program and no checker
  * here, because the same scan must run over fixture samples that have no
- * project. A receiver therefore counts as a seam when the seam type is WRITTEN,
- * in one of these forms: a variable or parameter type annotation, a seam-typed
- * class field, an `as` or `satisfies` assertion, a derivation from the host
- * subagent service, or a call to a local function whose declared return type is
- * the seam.
+ * project. It resolves four things, and only these: a variable, parameter or
+ * class field with a written annotation naming a seam type; an `as`,
+ * `satisfies` or angle-bracket assertion on a value that is then bound to a name
+ * or read directly in the receiver position; a derivation from the host
+ * subagent service, including a lookup and a destructuring pattern; and the
+ * declared return type of a function declaration or a method.
  *
- * Two shapes stay out of scope, named so this comment is not read as a proof.
- * A receiver whose seam type is only INFERRED and never written is not resolved,
- * and neither is the service carried inside an object literal and read back
- * through its property. Running the checker would close both at the cost of a
- * Program over the whole project, which the fixture samples cannot join.
+ * Four shapes stay out of scope, named so this comment is not read as a proof.
+ * A receiver whose seam type is only INFERRED and never written is not resolved.
+ * Neither is the service carried inside an object literal and read back through
+ * its property. Neither is an arrow function or function expression assigned to
+ * a const, even when its return type is written on it, because only a function
+ * declaration or a method contributes a declared return type. Neither is a class
+ * field without a written annotation, even when the value assigned to it is
+ * asserted, because a field resolves from its annotation alone. Running the
+ * checker would close all four at the cost of a Program over the whole project,
+ * which the fixture samples cannot join.
  *
  * @module packages/market-bundle/test/repo/helpers/subagent-member-scan
  */

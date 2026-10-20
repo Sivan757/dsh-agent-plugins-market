@@ -17,15 +17,21 @@
  * a typed field, or a chain split across lines.
  *
  * The boundary, stated rather than implied: the scan parses, it does not
- * type-check. The seam type counts only when it is WRITTEN: a variable or
- * parameter annotation, a seam-typed field, an `as` or `satisfies` assertion, a
- * derivation from the host subagent service, or a call to a local function whose
- * declared return type is the seam. Two shapes stay out of scope: a receiver
- * whose seam type is only inferred and never written, and the service carried
- * inside an object literal and read back through its property. The out-of-scope
- * samples below record both as a known gap rather than as a silent one. Running
- * the checker would close them at the cost of a Program over the whole project,
- * which the fixture samples cannot join.
+ * type-check, and it resolves four things only. A variable, parameter or class
+ * field with a written annotation naming a seam type. An `as`, `satisfies` or
+ * angle-bracket assertion on a value that is then bound to a name or read
+ * directly in the receiver position. A derivation from the host subagent
+ * service, including a lookup and a destructuring pattern. The declared return
+ * type of a function declaration or a method.
+ *
+ * Four shapes stay out of scope, and the samples below record two of them as a
+ * known gap rather than a silent one: a receiver whose seam type is only
+ * inferred and never written, the service carried inside an object literal and
+ * read back through its property, an arrow function or function expression
+ * assigned to a const even when its return type is written on it, and a class
+ * field without a written annotation even when the value assigned to it is
+ * asserted. Running the checker would close all four at the cost of a Program
+ * over the whole project, which the fixture samples cannot join.
  */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -134,13 +140,15 @@ const SHAPES: Record<string, { source: string; shape: ReadShape; member: string 
 }
 
 /**
- * Shapes the scan does not resolve, recorded so the boundary is tested rather
- * than only claimed.
+ * Samples of the shapes the scan does not resolve, recorded so part of the
+ * boundary is tested rather than only claimed.
  *
- * A receiver whose seam type is only inferred, and the service carried inside an
- * object literal, both stay out of scope because neither writes a type the
- * parser can attribute to the receiver. If a later change closes one of these,
- * the assertions below fail and the boundary statement moves with it.
+ * These two are the cases with a runnable sample: a receiver whose seam type is
+ * only inferred, and the service carried inside an object literal. The other
+ * two out-of-scope shapes, an arrow function assigned to a const and a class
+ * field without a written annotation, are named in the module doc and in the
+ * header above without a sample here. If a later change closes one of these
+ * samples, the assertion below fails and the boundary statement moves with it.
  */
 const OUT_OF_SCOPE: Record<string, string> = {
   'inferred seam type': 'export function makeSeam(ctx: Ctx) { return ctx.subagents }\nexport function f(ctx: Ctx) {\n  const seam = makeSeam(ctx)\n  seam.start("spawn", {})\n}',
