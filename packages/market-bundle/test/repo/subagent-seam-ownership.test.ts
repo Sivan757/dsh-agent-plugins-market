@@ -7,125 +7,29 @@
  * outside the seam module that reaches a member of the subagent service fails
  * this test.
  *
- * The scan is textual, so it covers the spellings a defensive author writes: dot
- * access, optional chaining, bracket access, destructuring, a local alias bound
- * to the service, and a service lookup through `ctx.get`.
- */
-import { readdir, readFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
-
-const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
-/** The one module allowed to name a host subagent member. */
-const SEAM_MODULE = 'packages/market-runtime/src/runtime/agents/subagent-seam.ts'
-/** Host members this plugin drives; naming one outside the seam is the defect. */
-const HOST_MEMBERS = [
-  'start',
-  'startContinuable',
-  'startActivation',
-  'drainChildren',
-  'drainContinuableChildren',
-  'registerProvider',
-  'getProvider',
-  'waitForChildren',
-  'sendMessage',
-  'drainDescendants'
-]
-/** The service whose members stay behind the seam. */
-const SERVICE = 'subagents'
-
-/** One way a source text can reach a host subagent member. */
-export interface MemberRead {
-  /** The spelling that matched, so a failure says which shape got through. */
-  shape: 'service member' | 'optional chaining' | 'bracket access' | 'local alias' | 'destructuring' | 'service lookup'
-  /** The host member named. */
-  member: string
-}
-
-/** Escape one literal for a regular expression. */
-function escape(value: string): string {
-  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-/** Remove comments so prose that names a member is not a finding. */
-function code(source: string): string {
-  return source.replaceAll(/\/\*[\s\S]*?\*\//g, ' ').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1')
-}
-
-/** Every local bound to the subagent service, so a later read through it is found. */
-function aliases(source: string): string[] {
-  const pattern = new RegExp('(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*[^;\\n]*?(?:\\b' + SERVICE + '\\b|\\.get\\(\\s*[\'"`]' + SERVICE + '[\'"`]\\s*\\))', 'g')
-  return [...source.matchAll(pattern)].flatMap(match => (match[1] === undefined ? [] : [match[1]]))
-}
-
-/** The member alternation, so one pattern covers every host member. */
-const MEMBERS = HOST_MEMBERS.map(escape).join('|')
-
-/**
- * Find every read of a host subagent member in one source text.
+ * The scan walks the syntax tree and resolves the receiver by type, so it is not
+ * a list of spellings. A receiver is a seam when its written type annotation
+ * names the seam type (`SubagentSeam`, `ContinuableSubagentSeam`,
+ * `SubagentRuntime`), or when it is derived from the host subagent service. Any
+ * host-member read on that receiver is a finding, whatever the surrounding
+ * syntax: dot access, optional chaining, bracket access, a local alias, a
+ * destructuring pattern, a service lookup, a typed variable, a typed parameter,
+ * a typed field, or a chain split across lines.
  *
- * Each shape is checked separately so the failure names the spelling, and every
- * value name here is either the service itself or a local bound to it.
- * @param source - one TypeScript source file's text.
- * @returns one entry per spelling that reaches a host member.
+ * The boundary, stated rather than implied: the scan parses, it does not
+ * type-check. A receiver whose seam type is only INFERRED and never written (for
+ * example `const seam = makeSeam()` where `makeSeam` has no declared return
+ * type) is not resolved. Written annotations, service derivations, and declared
+ * return types are. Running the checker would close that last case at the cost
+ * of a Program over the whole project, which the fixture samples cannot join.
  */
-export function findMemberReads(source: string): MemberRead[] {
-  const text = code(source)
-  const findings: MemberRead[] = []
-  const names = new Set([SERVICE, ...aliases(text)])
-  for (const name of names) {
-    const quoted = escape(name)
-    // A dot or optional-chained read, with or without a `this.` prefix.
-    const dot = new RegExp('(?:^|[^\\w$])(?:this\\s*\\.\\s*)?' + quoted + '\\s*(\\?\\.|\\.)\\s*(' + MEMBERS + ')\\b', 'g')
-    for (const match of text.matchAll(dot)) {
-      // A read through a local bound to the service is the same violation, one
-      // indirection away, and the label says which spelling got through.
-      const shape: MemberRead['shape'] = name !== SERVICE ? 'local alias' : match[1] === '?.' ? 'optional chaining' : 'service member'
-      findings.push({ shape, member: match[2]! })
-    }
-    // A bracket read of one member name.
-    const bracket = new RegExp('(?:^|[^\\w$])(?:this\\s*\\.\\s*)?' + quoted + '\\s*\\[\\s*[\'"`](' + MEMBERS + ')[\'"`]\\s*\\]', 'g')
-    for (const match of text.matchAll(bracket)) findings.push({ shape: 'bracket access', member: match[1]! })
-    // Destructuring one or more members out of the service or an alias of it.
-    const destructure = new RegExp('\\{([^}]*)\\}\\s*=\\s*[^;\\n]*\\b' + quoted + '\\b', 'g')
-    for (const match of text.matchAll(destructure)) {
-      const body = match[1] ?? ''
-      for (const member of HOST_MEMBERS) {
-        if (new RegExp('\\b' + escape(member) + '\\b').test(body)) findings.push({ shape: 'destructuring', member })
-      }
-    }
-  }
-  // A member read straight off a service lookup chain.
-  const lookup = new RegExp('\\.get\\(\\s*[\'"`]' + SERVICE + '[\'"`]\\s*\\)\\s*(?:\\?\\.|\\.)\\s*(' + MEMBERS + ')\\b', 'g')
-  for (const match of text.matchAll(lookup)) findings.push({ shape: 'service lookup', member: match[1]! })
-  // One entry per spelling and member, so a file reports each violation once.
-  const unique = new Map(findings.map(finding => [finding.shape + ':' + finding.member, finding]))
-  return [...unique.values()]
-}
-
-/** Every TypeScript source file under packages/<pkg>/src, relative to the repository root. */
-async function sourceFiles(): Promise<string[]> {
-  const visit = async (directory: string): Promise<string[]> => {
-    const entries = await readdir(directory, { withFileTypes: true })
-    const found = await Promise.all(
-      entries.map(async entry => {
-        const path = join(directory, entry.name)
-        if (entry.isDirectory()) return visit(path)
-        return /[.]tsx?$/.test(entry.name) ? [path] : []
-      })
-    )
-    return found.flat()
-  }
-  const packagesDirectory = join(ROOT, 'packages')
-  const names = (await readdir(packagesDirectory, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name)
-  const files = (await Promise.all(names.map(name => visit(join(packagesDirectory, name, 'src'))))).flat()
-  expect(files.length).toBeGreaterThan(0)
-  return files.map(file => relative(ROOT, file).replaceAll('\\', '/'))
-}
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { DRIVEN_MEMBERS, findMemberReads, ROOT, SEAM_MODULE, SERVICE, sourceFiles, type ReadShape } from './helpers/subagent-member-scan.js'
 
 /** The spellings a source file can use to reach a host member, one sample each. */
-const SHAPES: Record<string, { source: string; shape: MemberRead['shape']; member: string }> = {
+const SHAPES: Record<string, { source: string; shape: ReadShape; member: string }> = {
   'dot access on a ctx receiver': { source: 'export const f = (ctx: Ctx) => ctx.subagents.start("spawn", {})', shape: 'service member', member: 'start' },
   'dot access on another receiver': { source: 'export const f = (runtime: Runtime) => runtime.subagents.start("spawn", {})', shape: 'service member', member: 'start' },
   'dot access on the owning field': {
@@ -134,7 +38,8 @@ const SHAPES: Record<string, { source: string; shape: MemberRead['shape']; membe
     member: 'registerProvider'
   },
   'optional chaining': { source: 'export const f = (ctx: Ctx) => ctx.subagents?.start("spawn", {})', shape: 'optional chaining', member: 'start' },
-  'optional chaining on a lookup': { source: 'export const f = (ctx: Ctx) => ctx.get("subagents")?.startActivation({})', shape: 'service lookup', member: 'startActivation' },
+  'optional chaining on a lookup': { source: 'export const f = (ctx: Ctx) => ctx.get("subagents")?.startActivation({})', shape: 'optional chaining', member: 'startActivation' },
+  'lookup without optional chaining': { source: 'export const f = (ctx: Ctx) => ctx.get("subagents").startActivation({})', shape: 'service lookup', member: 'startActivation' },
   'local alias': { source: 'export const f = (ctx: Ctx) => {\n  const sub = ctx.subagents\n  return sub.start("spawn", {})\n}', shape: 'local alias', member: 'start' },
   'local alias of a lookup': {
     source: 'export const f = (ctx: Ctx) => {\n  const service = ctx.get("subagents")\n  return service?.startActivation({})\n}',
@@ -157,15 +62,57 @@ const SHAPES: Record<string, { source: string; shape: MemberRead['shape']; membe
     shape: 'destructuring',
     member: 'startActivation'
   },
-  'bracket access': { source: 'export const f = (ctx: Ctx) => ctx.subagents["start"]("spawn", {})', shape: 'bracket access', member: 'start' }
+  'bracket access': { source: 'export const f = (ctx: Ctx) => ctx.subagents["start"]("spawn", {})', shape: 'bracket access', member: 'start' },
+  // The shapes a review round slipped past the earlier, name-based scan.
+  'typed variable': {
+    source: 'export function f(ctx: Ctx) {\n  const seam: SubagentSeam = ctx.subagents as SubagentSeam\n  seam.start("spawn", {})\n}',
+    shape: 'typed variable',
+    member: 'start'
+  },
+  'typed parameter': { source: 'export function f(seam: SubagentSeam) {\n  seam.start("spawn", {})\n}', shape: 'typed parameter', member: 'start' },
+  'typed field': {
+    source: 'export class Host {\n  private readonly seam: SubagentSeam\n  run() { this.seam.start("spawn", {}) }\n}',
+    shape: 'typed field',
+    member: 'start'
+  },
+  'typed constructor parameter property': {
+    source: 'export class Host {\n  constructor(private readonly seam: SubagentSeam) {}\n  run() { this.seam.start("spawn", {}) }\n}',
+    shape: 'typed field',
+    member: 'start'
+  },
+  'service in brackets, optional chained': {
+    source: 'export function f(ctx: Ctx) {\n  ctx["subagents"]?.start("spawn", {})\n}',
+    shape: 'optional chaining',
+    member: 'start'
+  },
+  'renamed service destructuring': {
+    source: 'export function f(ctx: Ctx) {\n  const { subagents: service } = ctx\n  service?.start("spawn", {})\n}',
+    shape: 'destructuring',
+    member: 'start'
+  },
+  'chain split across lines': {
+    source: 'export function f(ctx: Ctx) {\n  ctx\n    .subagents\n    ?.start("spawn", {})\n}',
+    shape: 'optional chaining',
+    member: 'start'
+  },
+  'declared return type': {
+    source:
+      'export function seamOf(ctx: Ctx): SubagentSeam { return ctx.subagents as SubagentSeam }\nexport function f(ctx: Ctx) {\n  const seam = seamOf(ctx)\n  seam.start("spawn", {})\n}',
+    shape: 'typed variable',
+    member: 'start'
+  }
 }
 
 /** Source shapes that must stay clean, so the scan does not flag legitimate use. */
 const CLEAN: Record<string, string> = {
   'passing the seam to a helper': 'export const f = (ctx: Ctx) => registerSubagentProvider(this.subagents, provider)',
   'a comment naming a removed member': '// never call ctx.subagents.start here\nexport const ok = 1',
+  'a comment inside a body': 'export function f(ctx: Ctx) {\n  // ctx.subagents.start is gone\n  return ctx\n}',
   'binding the service without reading it': 'export class S { m(ctx: Ctx) { this.subagents = ctx.get("subagents") as SubagentSeam } }',
-  'a similarly named service': 'export const f = (ctx: Ctx) => ctx.subagentCatalog.start()'
+  'returning a typed seam without a member read': 'export function f(seam: SubagentSeam) {\n  return seam\n}',
+  'a similarly named service': 'export const f = (ctx: Ctx) => ctx.subagentCatalog.start()',
+  'a local named like the service': 'export function f(ctx: Ctx) {\n  const subagents = new Map()\n  return subagents.get("spawn")\n}',
+  'a member read on an unrelated typed value': 'export function f(prompt: SystemPrompt) {\n  return prompt.getSectionOrder("DEPLOYMENT_PERSONA_PREFIX")\n}'
 }
 
 describe('host subagent member ownership', () => {
@@ -180,8 +127,10 @@ describe('host subagent member ownership', () => {
   })
 
   it('reaches no subagent member from a file outside the seam module', async () => {
+    const files = await sourceFiles()
+    expect(files.length).toBeGreaterThan(0)
     const offenders: string[] = []
-    for (const file of await sourceFiles()) {
+    for (const file of files) {
       if (file === SEAM_MODULE) continue
       const reads = findMemberReads(await readFile(join(ROOT, file), 'utf8'))
       for (const read of reads) offenders.push(file + ' reads ' + read.member + ' through ' + read.shape)
@@ -191,6 +140,9 @@ describe('host subagent member ownership', () => {
 
   it('names every driven host member in the seam module only', async () => {
     const seam = await readFile(join(ROOT, SEAM_MODULE), 'utf8')
-    for (const member of HOST_MEMBERS.slice(0, 6)) expect(seam, member).toContain(member)
+    // The seam module is the one exception, and it must carry every member the
+    // table drives; a member it stopped naming is a member the guard cannot see.
+    for (const member of DRIVEN_MEMBERS) expect(seam, member).toContain(member)
+    expect(SERVICE).toBe('subagents')
   })
 })
