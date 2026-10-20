@@ -8,7 +8,7 @@ import { namedAgentRoles } from './agent-role-names.js'
 import { expandPluginPaths } from '../../../../market-catalog/src/index.js'
 import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../../application/agent-roles.js'
 import { roleInstructionChannel, startContinuableChild, startOneShotChild, type SubagentSeam } from './subagent-seam.js'
-import { mintRoleChildId, RoleComposition, type RoleChildComposition } from './role-composition.js'
+import { mintRoleChildId, requireReservedChild, roleInstructionsError, RoleComposition, type RoleChildComposition } from './role-composition.js'
 
 export { parseAgentRole }
 export type { AgentRoleEntry, AgentRolePolicy }
@@ -48,8 +48,14 @@ export interface AgentRoleHost {
   }
   /** Host subagent seam; the seam module owns every member spelling this plugin drives. */
   subagents: SubagentSeam
-  /** Role-instruction composition the mount installs; absent in unit hosts that do not compose children. */
-  roleComposition?: RoleChildComposition
+  /**
+   * Role-instruction composition. Required, because the section channel cannot
+   * compose a role child without it: an absent composition would start an
+   * uninstructed child and report success, which is the failure this tool exists
+   * to prevent. The runtime refuses too, for a host built outside the compiler's
+   * view.
+   */
+  roleComposition: RoleChildComposition
 }
 
 /**
@@ -274,6 +280,21 @@ export type AgentRoleRunMode = 'continuable' | 'foreground'
 export type AgentRoleResult = { kind: 'continuable'; subagentId: string } | { kind: 'foreground'; runId: string; output: AgentRoleJson[] }
 
 /**
+ * The composition the section channel needs, or a named refusal.
+ *
+ * The type requires the field, but the mount reaches the host through a cast and
+ * this executor is exported, so the runtime keeps its own guard: a missing
+ * composition must refuse rather than silently skip the child's instructions.
+ * @param host - the exact live seams this call owns.
+ * @param role - role name used in the refusal.
+ * @returns the composition to install and reserve with.
+ */
+function requireRoleComposition(host: AgentRoleHost, role: string): RoleChildComposition {
+  if (host.roleComposition === undefined) throw roleInstructionsError(role, new Error('the role composition is not mounted'))
+  return host.roleComposition
+}
+
+/**
  * Run one role child through the requested channel.
  * @param host - the exact live seams this executor owns: tools, llm and subagents.
  * @param mode - which channel the call asked for.
@@ -303,10 +324,13 @@ export async function executeAgentRole(
   // the request shape and the composition stay one decision.
   const channel = roleInstructionChannel(host.subagents)
   const childId = mintRoleChildId()
-  const composition = host.roleComposition
   const sectionChannel = channel === 'prompt-section'
-  // A section channel needs a durable binding before the child can be composed.
-  if (sectionChannel) composition?.requirePersistence(agentName)
+  // A section channel composes the child itself. An absent composition refuses
+  // here, before the start call, instead of skipping the instructions silently.
+  const composition = sectionChannel ? requireRoleComposition(host, agentName) : undefined
+  if (composition !== undefined) {
+    composition.requirePersistence(agentName)
+  }
   const request: AgentRoleDelegation = {
     prompt: [{ type: 'text', text: prompt }],
     parent,
@@ -314,14 +338,20 @@ export async function executeAgentRole(
     ...(sectionChannel ? {} : { persona: policy.content }),
     ...(agentOptions === undefined ? {} : { agentOptions })
   }
-  if (sectionChannel) composition?.reserve(childId, { roleId: entry.name, role: agentName, persona: policy.content })
+  composition?.reserve(childId, { roleId: entry.name, role: agentName, persona: policy.content })
+  // The composition is keyed by the reserved id, so the host must publish that
+  // id. The older line's one-shot start allocates its own identity, which is why
+  // the guard is scoped to the channel that composes.
+  const requirePublished = (returned: string): void => requireReservedChild(agentName, childId, returned)
   try {
     if (mode === 'continuable') {
       const started = await startContinuableChild(host.subagents, { provider: 'spawn', label: agentName, request, signal, childId })
+      if (composition !== undefined) requirePublished(started.childId)
       return { kind: 'continuable', subagentId: started.childId }
     }
     const run = await startOneShotChild(host.subagents, { provider: 'spawn', label: agentName, request, signal, childId })
     try {
+      if (composition !== undefined) requirePublished(run.runId)
       const result = await run.result
       if (result.stopReason !== 'completed') {
         const detail = result.diagnostic === undefined ? '' : `: ${result.diagnostic}`
@@ -334,8 +364,8 @@ export async function executeAgentRole(
       await run.dispose()
     }
   } catch (error) {
-    // A start that never produced a child leaves no reservation behind.
-    if (sectionChannel) composition?.release(childId)
+    // A call that fails before or after the start leaves no reservation behind.
+    composition?.release(childId)
     throw error
   }
 }

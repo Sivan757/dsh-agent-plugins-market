@@ -11,11 +11,25 @@ import {
   type AgentRoleHost
 } from '../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import type { Context } from '@deepseek-ai/cordis'
+import type { RoleChildComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
 
 const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
+
+/**
+ * The role composition the section channel needs. The router refuses without
+ * one, so every fixture supplies it and the section cases can assert what was
+ * reserved and released.
+ */
+function compositionFixture() {
+  const requirePersistence = vi.fn<RoleChildComposition['requirePersistence']>()
+  const reserve = vi.fn<RoleChildComposition['reserve']>()
+  const release = vi.fn<RoleChildComposition['release']>()
+  const roleComposition: RoleChildComposition = { requirePersistence, reserve, release }
+  return { roleComposition, requirePersistence, reserve, release }
+}
 
 function hostFixture(terminal: { stopReason?: string; diagnostic?: string; output?: unknown[] } = {}) {
   // Typed against the host contract so `mock.calls` records the real argument
@@ -35,12 +49,14 @@ function hostFixture(terminal: { stopReason?: string; diagnostic?: string; outpu
   }))
   const resolveCallConfig = vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config)
   const register = vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn())
+  const composition = compositionFixture()
   const host: AgentRoleHost = {
     tools: { register },
     llm: { resolveCallConfig },
-    subagents: { startContinuable, start }
+    subagents: { startContinuable, start },
+    roleComposition: composition.roleComposition
   }
-  return { host, startContinuable, start, disposeRun, resolveCallConfig, register }
+  return { host, startContinuable, start, disposeRun, resolveCallConfig, register, composition }
 }
 
 /**
@@ -52,8 +68,10 @@ function activationHostFixture(terminal: { stopReason?: string; diagnostic?: str
   // Typed against the host contract so `mock.calls` records the real argument
   // tuple; an untyped spy records `[]` and the argument assertions below are unchecked.
   const disposeActivation = vi.fn(async () => {})
-  const startActivation = vi.fn<NonNullable<AgentRoleHost['subagents']['startActivation']>>(async () => ({
-    childId: 'child-1',
+  // A real activation publishes the identity the caller reserved. A fixture with
+  // a fixed id would hide the router's identity guard on this line.
+  const startActivation = vi.fn<NonNullable<AgentRoleHost['subagents']['startActivation']>>(async spec => ({
+    childId: spec.childId ?? 'host-generated',
     messageId: 'message-1',
     result: Promise.resolve({
       output: terminal.output ?? [{ type: 'text', text: 'Looks correct.' }],
@@ -64,12 +82,14 @@ function activationHostFixture(terminal: { stopReason?: string; diagnostic?: str
   }))
   const resolveCallConfig = vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config)
   const register = vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn())
+  const composition = compositionFixture()
   const host: AgentRoleHost = {
     tools: { register },
     llm: { resolveCallConfig },
-    subagents: { startActivation }
+    subagents: { startActivation },
+    roleComposition: composition.roleComposition
   }
-  return { host, startActivation, disposeActivation, resolveCallConfig, register }
+  return { host, startActivation, disposeActivation, resolveCallConfig, register, composition }
 }
 
 async function roleFile(text: string) {
@@ -281,7 +301,8 @@ describe('agent role metadata and runtime routing', () => {
     const call = signal()
     expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review my diff', parent, {}, 'foreground', call)).toEqual({
       kind: 'foreground',
-      runId: 'child-1',
+      // The host published the id this call reserved, which is the run identity.
+      runId: startActivation.mock.calls[0]?.[0].childId,
       output: [{ type: 'text', text: 'Looks correct.' }]
     })
     expect(startActivation).toHaveBeenCalledWith(expect.objectContaining({ provider: 'spawn', label: entry.name, delivery: 'caller', signal: call }))
@@ -307,7 +328,8 @@ describe('agent role metadata and runtime routing', () => {
     const host: AgentRoleHost = {
       tools: { register },
       llm: { resolveCallConfig: vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config) },
-      subagents: {}
+      subagents: {},
+      roleComposition: compositionFixture().roleComposition
     }
     const entry = await roleFile('---\nmodel: inherit\n---\nReview.')
     await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow('no start or startActivation member')
@@ -344,10 +366,12 @@ describe('agent role metadata and runtime routing', () => {
       result: Promise.resolve({ output: [], stopReason: 'completed' }),
       dispose: disposeActivation
     }))
+    const composition = compositionFixture()
     const host: AgentRoleHost = {
       tools: { register: vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn()) },
       llm: { resolveCallConfig: vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config) },
-      subagents: { startActivation }
+      subagents: { startActivation },
+      roleComposition: composition.roleComposition
     }
     const continuable = await executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'continuable', signal())
     const reserved = startActivation.mock.calls[0]?.[0].childId
@@ -367,12 +391,77 @@ describe('agent role metadata and runtime routing', () => {
     const host: AgentRoleHost = {
       tools: { register: vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn()) },
       llm: { resolveCallConfig: vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config) },
-      subagents: { startContinuable }
+      subagents: { startContinuable },
+      roleComposition: compositionFixture().roleComposition
     }
     const result = await executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'continuable', signal())
     const reserved = startContinuable.mock.calls[0]?.[0].childId
     expect(reserved).toBeDefined()
     expect(result).toEqual({ kind: 'continuable', subagentId: reserved })
+  })
+
+  it('refuses the section channel when the role composition is not mounted', async () => {
+    // The mount reaches the host through a cast, so the required field is a
+    // compile-time guarantee only. A host built outside that view must refuse
+    // rather than start a child with no role instructions.
+    const { host, startActivation, composition } = activationHostFixture()
+    const bare = { ...host, roleComposition: undefined } as unknown as AgentRoleHost
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
+    await expect(executeAgentRole(bare, async () => [entry], entry.name, 'Review', parent, {}, 'continuable', signal())).rejects.toThrow(
+      'agent "source/suite/reviewer" cannot run without its role instructions: the role composition is not mounted'
+    )
+    expect(startActivation).not.toHaveBeenCalled()
+    expect(composition.reserve).not.toHaveBeenCalled()
+  })
+
+  it('refuses a host that publishes its own identity on the composed continuable channel', async () => {
+    const { host, startActivation, composition } = activationHostFixture()
+    // A host that accepts the spec and allocates another id leaves the child
+    // uncomposed: the reservation and the durable binding are keyed by the
+    // reserved id.
+    startActivation.mockImplementationOnce(async () => ({
+      childId: 'host-generated',
+      messageId: 'message-1',
+      result: Promise.resolve({ output: [], stopReason: 'completed' }),
+      dispose: async () => {}
+    }))
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'continuable', signal())).rejects.toThrow(
+      'agent "source/suite/reviewer" cannot run without its role instructions: the host published child "host-generated" for the reserved child "'
+    )
+    const reservedId = composition.reserve.mock.calls[0]?.[0]
+    expect(reservedId).toMatch(/^[0-9a-f-]{36}$/)
+    // The failed call leaves no reservation behind.
+    expect(composition.release).toHaveBeenCalledWith(reservedId)
+  })
+
+  it('refuses a host that publishes its own identity on the composed foreground channel and still disposes the run', async () => {
+    const { host, startActivation, disposeActivation, composition } = activationHostFixture()
+    startActivation.mockImplementationOnce(async () => ({
+      childId: 'host-generated',
+      messageId: 'message-1',
+      result: Promise.resolve({ output: [], stopReason: 'completed' }),
+      dispose: disposeActivation
+    }))
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow(
+      'the host published child "host-generated" for the reserved child "'
+    )
+    // The guard runs inside the try, so the run is still released once.
+    expect(disposeActivation).toHaveBeenCalledOnce()
+    expect(composition.release).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the older line host-allocated foreground identity', async () => {
+    // The older one-shot start allocates its own id and cannot take the reserved
+    // one, so the identity guard belongs to the composed channel only.
+    const { host, start } = hostFixture()
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
+    expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).toMatchObject({
+      kind: 'foreground',
+      runId: 'child-1'
+    })
+    expect(start).toHaveBeenCalledOnce()
   })
 
   it('rejects disabled, missing and ambiguous roles before starting a child', async () => {
@@ -460,8 +549,12 @@ describe('agent role metadata and runtime routing', () => {
     expect(olderForeground.fixture.startContinuable).not.toHaveBeenCalled()
 
     const newerForeground = await invoke({ agent: entry.name, prompt: 'Review', run_in_background: false }, 'newer')
-    expect(newerForeground.result).toEqual({ kind: 'foreground', runId: 'child-1', output: [{ type: 'text', text: 'Looks correct.' }] })
     if (!('startActivation' in newerForeground.fixture)) throw new Error('expected the newer fixture')
+    expect(newerForeground.result).toEqual({
+      kind: 'foreground',
+      runId: newerForeground.fixture.startActivation.mock.calls[0]?.[0].childId,
+      output: [{ type: 'text', text: 'Looks correct.' }]
+    })
     expect(newerForeground.fixture.startActivation).toHaveBeenCalledWith(expect.objectContaining({ delivery: 'caller' }))
   })
 

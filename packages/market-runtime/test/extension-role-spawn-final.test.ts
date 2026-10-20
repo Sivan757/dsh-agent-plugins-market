@@ -17,6 +17,7 @@ import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { executeAgentRole, type AgentRoleHost, type AgentRoleParent } from '../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import { mountTeammateRoleTool } from '../../../packages/market-runtime/src/runtime/agents/teammate-role-tool.js'
 import type { AgentRoleEntry } from '../../../packages/market-runtime/src/application/agent-roles.js'
+import type { RoleChildComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -48,6 +49,8 @@ const card = (name = 'reviewer'): AgentRoleEntry => ({
   rawText: '---\nprovider: mock\nmodel: card-model\n---\nCARD_PERSONA'
 })
 const parent = { session: { requestHeader: () => ({ config: { provider: 'mock', model: 'parent-model' } }), header: { cwd: '/workspace' } } } as unknown as AgentRoleParent
+/** The composition the section channel needs; the older line never calls it. */
+const composition = (): RoleChildComposition => ({ requirePersistence: () => {}, reserve: () => {}, release: () => {} })
 
 function host(entered: () => void, release: Promise<void>) {
   const spawns: Array<Record<string, unknown>> = []
@@ -69,7 +72,8 @@ function host(entered: () => void, release: Promise<void>) {
         spawns.push({ provider, request })
         return { id: 'run-1', result: Promise.resolve({ output: [], stopReason: 'completed' }), dispose: async () => {} }
       }
-    }
+    },
+    roleComposition: composition()
   }
   return { fake, spawns }
 }
@@ -128,15 +132,16 @@ describe('a role revoked during model route validation never spawns', () => {
       subagents: {
         startActivation: async spec => {
           spawns.push({ ...spec })
-          return { childId: 'child-1', result: Promise.resolve({ output: [], stopReason: 'completed' }), dispose: async () => {} }
+          // The composed channel publishes the reserved identity.
+          return { childId: spec.childId ?? 'host-generated', result: Promise.resolve({ output: [], stopReason: 'completed' }), dispose: async () => {} }
         }
-      }
+      },
+      roleComposition: composition()
     }
-    await expect(executeAgentRole(activationHost, async () => roles, 'reviewer', 'Review it', parent, {}, 'continuable', new AbortController().signal)).resolves.toEqual({
-      kind: 'continuable',
-      subagentId: 'child-1'
-    })
-    const started = spawns[0] as { label: string; request: Record<string, unknown> }
+    const outcome = await executeAgentRole(activationHost, async () => roles, 'reviewer', 'Review it', parent, {}, 'continuable', new AbortController().signal)
+    const started = spawns[0] as { label: string; request: Record<string, unknown>; childId?: string }
+    // The host publishes the identity this call reserved.
+    expect(outcome).toEqual({ kind: 'continuable', subagentId: started.childId })
     expect(started.label).toBe('reviewer')
     // The card body travels as the child's own prompt section on this line,
     // never as the removed request field.

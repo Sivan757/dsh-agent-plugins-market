@@ -124,10 +124,32 @@ function roleChildNotice(role: string): string {
   return [`You are the role child "${role}".`, 'The role instructions from the delegation snapshot are applied to your system prompt and restored on resume.'].join('\n')
 }
 
-/** One named refusal for a role child that could not receive its instructions. */
-function instructionsError(role: string, cause?: unknown): Error {
+/**
+ * One named refusal for a role child that could not receive its instructions.
+ * @param role - role name the refusal names.
+ * @param cause - the failure the refusal wraps, when there is one.
+ * @returns the error to throw.
+ */
+export function roleInstructionsError(role: string, cause?: unknown): Error {
   const detail = cause === undefined ? '' : `: ${describe(cause)}`
   return new Error(`agent "${role}" cannot run without its role instructions${detail}`, cause === undefined ? undefined : { cause })
+}
+
+/**
+ * Prove the host published the child identity this call reserved.
+ *
+ * The durable binding and the in-flight reservation are both keyed by the
+ * reserved id. A host that accepts the spec and publishes another identity would
+ * leave the child uncomposed while the call reported success, so a mismatch is
+ * a named refusal instead.
+ * @param role - role name the refusal names.
+ * @param reserved - the identity this call reserved.
+ * @param returned - the identity the host published.
+ * @throws when the two differ.
+ */
+export function requireReservedChild(role: string, reserved: string, returned: string): void {
+  if (reserved === returned) return
+  throw roleInstructionsError(role, new Error(`the host published child "${returned}" for the reserved child "${reserved}"`))
 }
 
 /** Render one thrown value without trusting its stringification. */
@@ -179,8 +201,8 @@ export class RoleComposition implements RoleChildComposition {
   }
 
   requirePersistence(role: string): void {
-    if (optionalService(this.ctx, 'sessionQuery') === undefined) throw instructionsError(role, new Error('the session-query service is unavailable'))
-    if (optionalService(this.ctx, 'sessions') === undefined) throw instructionsError(role, new Error('the session service is unavailable'))
+    if (optionalService(this.ctx, 'sessionQuery') === undefined) throw roleInstructionsError(role, new Error('the session-query service is unavailable'))
+    if (optionalService(this.ctx, 'sessions') === undefined) throw roleInstructionsError(role, new Error('the session service is unavailable'))
   }
 
   reserve(childId: string, input: PendingRoleChild): void {
@@ -198,7 +220,7 @@ export class RoleComposition implements RoleChildComposition {
       const query = optionalService(this.ctx, 'sessionQuery') as SessionQueryEngine | undefined
       if (query === undefined) {
         if (pending === undefined) return
-        throw instructionsError(pending.role, new Error('the session-query service is unavailable'))
+        throw roleInstructionsError(pending.role, new Error('the session-query service is unavailable'))
       }
       const observation = await query.observeSession(agent.id, { projectionMode: 'none', ...(signal === undefined ? {} : { signal }) })
       let records: DurableBinding[]
@@ -207,10 +229,10 @@ export class RoleComposition implements RoleChildComposition {
       } finally {
         observation[Symbol.dispose]()
       }
-      if (records.length > 1) throw instructionsError(pending?.role ?? String(agent.id), new Error('the child has multiple role bindings'))
+      if (records.length > 1) throw roleInstructionsError(pending?.role ?? String(agent.id), new Error('the child has multiple role bindings'))
       const durable = records[0]
       if (durable !== undefined) {
-        if (durable.childId !== agent.id) throw instructionsError(durable.roleId, new Error('the role binding belongs to another child'))
+        if (durable.childId !== agent.id) throw roleInstructionsError(durable.roleId, new Error('the role binding belongs to another child'))
         this.composeSection(agent, durable.roleId, durable.persona)
         return
       }
@@ -235,28 +257,28 @@ export class RoleComposition implements RoleChildComposition {
         })
       )
       const sessions = optionalService(this.ctx, 'sessions') as { flush(session: Session): Promise<boolean> } | undefined
-      if (sessions === undefined) throw instructionsError(pending.role, new Error('the session service is unavailable'))
+      if (sessions === undefined) throw roleInstructionsError(pending.role, new Error('the session service is unavailable'))
       // The binding survives a restart only when a durability listener commits it.
-      if (!(await sessions.flush(agent.session))) throw instructionsError(pending.role, new Error('session persistence did not commit the role binding'))
+      if (!(await sessions.flush(agent.session))) throw roleInstructionsError(pending.role, new Error('session persistence did not commit the role binding'))
     } catch (error) {
       if (off !== undefined) {
         off()
         this.compositions.delete(agent)
       }
-      throw error instanceof Error && error.message.startsWith('agent "') ? error : instructionsError(pending.role, error)
+      throw error instanceof Error && error.message.startsWith('agent "') ? error : roleInstructionsError(pending.role, error)
     }
   }
 
   /** Install the section for one child and keep its disposer on the composition map. */
   private composeSection(agent: Agent, role: string, persona: string): () => void {
     const prompt = optionalService(agent.ctx, 'systemPrompt') as SystemPrompt | undefined
-    if (prompt === undefined) throw instructionsError(role, new Error('the system-prompt service is unavailable'))
+    if (prompt === undefined) throw roleInstructionsError(role, new Error('the system-prompt service is unavailable'))
     try {
       const off = installPersonaSection(prompt, persona)
       this.compositions.set(agent, off)
       return off
     } catch (error) {
-      throw instructionsError(role, error)
+      throw roleInstructionsError(role, error)
     }
   }
 }
