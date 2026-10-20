@@ -7,7 +7,7 @@ import { isAbsentPath } from '../../application/fs-probe.js'
 import { namedAgentRoles } from './agent-role-names.js'
 import { expandPluginPaths } from '../../../../market-catalog/src/index.js'
 import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../../application/agent-roles.js'
-import { startContinuableChild, type ContinuableSubagentSeam } from './subagent-seam.js'
+import { startContinuableChild, startOneShotChild, type ContinuableSubagentSeam } from './subagent-seam.js'
 
 export { parseAgentRole }
 export type { AgentRoleEntry, AgentRolePolicy }
@@ -39,20 +39,13 @@ export interface AgentRoleDelegation {
   agentOptions?: AgentRoleOptions
 }
 
-/** A one-shot foreground run carries its own cancellation signal on the request. */
-export interface AgentRoleRunRequest extends AgentRoleDelegation {
-  signal: AbortSignal
-}
-
 export interface AgentRoleHost {
   tools: { register(definition: unknown): () => void }
   llm: {
     resolveCallConfig(config: { provider: string; model: string; reasoningEffort?: string }, signal?: AbortSignal): Promise<unknown>
   }
-  subagents: ContinuableSubagentSeam & {
-    /** One-shot foreground run: the host settles it and hands back the child's output. */
-    start(provider: string, request: AgentRoleRunRequest): Promise<AgentRoleRun>
-  }
+  /** Host subagent seam; the seam module owns every member spelling this plugin drives. */
+  subagents: ContinuableSubagentSeam
 }
 
 /**
@@ -61,13 +54,6 @@ export interface AgentRoleHost {
  * lossless snapshot of the child's content blocks on the way out.
  */
 export type AgentRoleJson = null | boolean | number | string | AgentRoleJson[] | { [key: string]: AgentRoleJson }
-
-/** One settled foreground role run; `result` resolves with the child's terminal output. */
-export interface AgentRoleRun {
-  id: string
-  result: Promise<{ output: unknown[]; stopReason: string; diagnostic?: string }>
-  dispose(): Promise<void>
-}
 
 /**
  * The calling Agent as this plugin reads it: the route it would use and the
@@ -320,7 +306,7 @@ export async function executeAgentRole(
     const started = await startContinuableChild(host.subagents, { provider: 'spawn', label: agentName, request, signal })
     return { kind: 'continuable', subagentId: started.childId }
   }
-  const run = await host.subagents.start('spawn', { ...request, signal })
+  const run = await startOneShotChild(host.subagents, { provider: 'spawn', label: agentName, request, signal })
   try {
     const result = await run.result
     if (result.stopReason !== 'completed') {
@@ -329,7 +315,7 @@ export async function executeAgentRole(
     }
     // The registry performs the authoritative lossless snapshot of the child's
     // output blocks on the way out, exactly as the host's own delegation tool does.
-    return { kind: 'foreground', runId: run.id, output: result.output as unknown as AgentRoleJson[] }
+    return { kind: 'foreground', runId: run.runId, output: result.output as unknown as AgentRoleJson[] }
   } finally {
     await run.dispose()
   }

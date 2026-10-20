@@ -24,7 +24,7 @@ function hostFixture(terminal: { stopReason?: string; diagnostic?: string; outpu
   // value detaches from its receiver, and these assertions need the mock itself.
   const startContinuable = vi.fn<NonNullable<AgentRoleHost['subagents']['startContinuable']>>(async () => ({ childId: 'child-1', messageId: 'message-1' }))
   const disposeRun = vi.fn(async () => {})
-  const start = vi.fn<AgentRoleHost['subagents']['start']>(async () => ({
+  const start = vi.fn<NonNullable<AgentRoleHost['subagents']['start']>>(async () => ({
     id: 'child-1',
     result: Promise.resolve({
       output: terminal.output ?? [{ type: 'text', text: 'Looks correct.' }],
@@ -41,6 +41,35 @@ function hostFixture(terminal: { stopReason?: string; diagnostic?: string; outpu
     subagents: { startContinuable, start }
   }
   return { host, startContinuable, start, disposeRun, resolveCallConfig, register }
+}
+
+/**
+ * The 0.2.1 host line: one activation member and no one-shot start at all. A
+ * fixture that carries both members cannot report the foreground crash this
+ * suite exists to prevent.
+ */
+function activationHostFixture(terminal: { stopReason?: string; diagnostic?: string; output?: unknown[] } = {}) {
+  // Typed against the host contract so `mock.calls` records the real argument
+  // tuple; an untyped spy records `[]` and the argument assertions below are unchecked.
+  const disposeActivation = vi.fn(async () => {})
+  const startActivation = vi.fn<NonNullable<AgentRoleHost['subagents']['startActivation']>>(async () => ({
+    childId: 'child-1',
+    messageId: 'message-1',
+    result: Promise.resolve({
+      output: terminal.output ?? [{ type: 'text', text: 'Looks correct.' }],
+      stopReason: terminal.stopReason ?? 'completed',
+      ...(terminal.diagnostic === undefined ? {} : { diagnostic: terminal.diagnostic })
+    }),
+    dispose: disposeActivation
+  }))
+  const resolveCallConfig = vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config)
+  const register = vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn())
+  const host: AgentRoleHost = {
+    tools: { register },
+    llm: { resolveCallConfig },
+    subagents: { startActivation }
+  }
+  return { host, startActivation, disposeActivation, resolveCallConfig, register }
 }
 
 async function roleFile(text: string) {
@@ -229,7 +258,7 @@ describe('agent role metadata and runtime routing', () => {
     expect(startContinuable.mock.calls[0]?.[0].request).not.toHaveProperty('toolFilter')
   })
 
-  it('runs one foreground child, returns its report and always disposes the run', async () => {
+  it('runs one foreground child on the older line through start and never touches the activation member', async () => {
     const { host, start, disposeRun, startContinuable } = hostFixture()
     const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
     expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review my diff', parent, {}, 'foreground', signal())).toEqual({
@@ -242,13 +271,42 @@ describe('agent role metadata and runtime routing', () => {
     expect(disposeRun).toHaveBeenCalledOnce()
   })
 
-  it('reports a foreground child that did not complete and still disposes it', async () => {
-    const { host, disposeRun } = hostFixture({ stopReason: 'max-tokens', diagnostic: 'ran out of room', output: [] })
+  it('runs one foreground child on the 0.2.1 line through startActivation and disposes it once', async () => {
+    const { host, startActivation, disposeActivation } = activationHostFixture()
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
+    const call = signal()
+    expect(await executeAgentRole(host, async () => [entry], entry.name, 'Review my diff', parent, {}, 'foreground', call)).toEqual({
+      kind: 'foreground',
+      runId: 'child-1',
+      output: [{ type: 'text', text: 'Looks correct.' }]
+    })
+    expect(startActivation).toHaveBeenCalledWith(expect.objectContaining({ provider: 'spawn', label: entry.name, delivery: 'caller', signal: call }))
+    expect(disposeActivation).toHaveBeenCalledOnce()
+  })
+
+  it('reports a foreground child that did not complete, on both host lines, and still disposes it', async () => {
     const entry = await roleFile('---\nmodel: inherit\n---\nReview.')
-    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow(
+    const older = hostFixture({ stopReason: 'max-tokens', diagnostic: 'ran out of room', output: [] })
+    await expect(executeAgentRole(older.host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow(
       'did not complete (max-tokens): ran out of room'
     )
-    expect(disposeRun).toHaveBeenCalledOnce()
+    expect(older.disposeRun).toHaveBeenCalledOnce()
+    const newer = activationHostFixture({ stopReason: 'max-tokens', diagnostic: 'ran out of room', output: [] })
+    await expect(executeAgentRole(newer.host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow(
+      'did not complete (max-tokens): ran out of room'
+    )
+    expect(newer.disposeActivation).toHaveBeenCalledOnce()
+  })
+
+  it('refuses a host that exposes neither foreground start member before creating a child', async () => {
+    const register = vi.fn<AgentRoleHost['tools']['register']>(() => vi.fn())
+    const host: AgentRoleHost = {
+      tools: { register },
+      llm: { resolveCallConfig: vi.fn<AgentRoleHost['llm']['resolveCallConfig']>(async config => config) },
+      subagents: {}
+    }
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview.')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow('neither start nor startActivation')
   })
 
   it('rejects disabled, missing and ambiguous roles before starting a child', async () => {
@@ -289,19 +347,20 @@ describe('agent role metadata and runtime routing', () => {
     expect(disposeListener).toHaveBeenCalledOnce()
   })
 
-  it('maps run_in_background to the two channels: omitted and true keep the durable child, false runs one foreground child', async () => {
+  it('maps run_in_background to the two channels on both host lines', async () => {
     // The parameter keeps the host tool's own two-value semantics, so the
     // mapping is asserted through the registered tool rather than by calling
     // the executor with a mode the model cannot actually select.
     const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
-    const invoke = async (args: Record<string, unknown>) => {
-      const { host, startContinuable, start, register } = hostFixture()
-      const dispose = mountAgentRoleTool({ ...host, on: vi.fn(() => vi.fn()) } as unknown as Context, async () => [entry])
+    const invoke = async (args: Record<string, unknown>, line: 'older' | 'newer') => {
+      const fixture = line === 'older' ? hostFixture() : activationHostFixture()
+      const { register } = fixture
+      const dispose = mountAgentRoleTool({ ...fixture.host, on: vi.fn(() => vi.fn()), get: () => undefined } as unknown as Context, async () => [entry])
       try {
         const [call] = register.mock.calls
         if (call === undefined) throw new Error('expected the agent role tool to register exactly once')
         const definition = call[0] as { execute(args: Record<string, unknown>, exec: { agent: unknown; signal: AbortSignal }): Promise<unknown> }
-        return { result: await definition.execute(args, { agent: parent, signal: signal() }), startContinuable, start, dispose }
+        return { result: await definition.execute(args, { agent: parent, signal: signal() }), fixture, dispose }
       } finally {
         dispose()
       }
@@ -311,16 +370,23 @@ describe('agent role metadata and runtime routing', () => {
       { agent: entry.name, prompt: 'Review' },
       { agent: entry.name, prompt: 'Review', run_in_background: true }
     ]) {
-      const { result, startContinuable, start } = await invoke(args)
+      const { result, fixture } = await invoke(args, 'older')
       expect(result).toEqual({ kind: 'continuable', subagentId: 'child-1' })
-      expect(startContinuable).toHaveBeenCalledOnce()
-      expect(start).not.toHaveBeenCalled()
+      if (!('startContinuable' in fixture)) throw new Error('expected the older fixture')
+      expect(fixture.startContinuable).toHaveBeenCalledOnce()
+      expect(fixture.start).not.toHaveBeenCalled()
     }
 
-    const { result, startContinuable, start } = await invoke({ agent: entry.name, prompt: 'Review', run_in_background: false })
-    expect(result).toEqual({ kind: 'foreground', runId: 'child-1', output: [{ type: 'text', text: 'Looks correct.' }] })
-    expect(start).toHaveBeenCalledOnce()
-    expect(startContinuable).not.toHaveBeenCalled()
+    const olderForeground = await invoke({ agent: entry.name, prompt: 'Review', run_in_background: false }, 'older')
+    expect(olderForeground.result).toEqual({ kind: 'foreground', runId: 'child-1', output: [{ type: 'text', text: 'Looks correct.' }] })
+    if (!('start' in olderForeground.fixture)) throw new Error('expected the older fixture')
+    expect(olderForeground.fixture.start).toHaveBeenCalledOnce()
+    expect(olderForeground.fixture.startContinuable).not.toHaveBeenCalled()
+
+    const newerForeground = await invoke({ agent: entry.name, prompt: 'Review', run_in_background: false }, 'newer')
+    expect(newerForeground.result).toEqual({ kind: 'foreground', runId: 'child-1', output: [{ type: 'text', text: 'Looks correct.' }] })
+    if (!('startActivation' in newerForeground.fixture)) throw new Error('expected the newer fixture')
+    expect(newerForeground.fixture.startActivation).toHaveBeenCalledWith(expect.objectContaining({ delivery: 'caller' }))
   })
 
   it('catalogs roles with exact routes only and reads inline definitions', async () => {
