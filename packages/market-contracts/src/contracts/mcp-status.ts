@@ -32,10 +32,27 @@ export type McpStatusCode =
   | 'duplicate-mount'
   /** Tools are still registered although the surface that declared them is gone. */
   | 'orphaned-tools'
+  /** Switched off through an override record, and still mounted because the active session selection demands it. */
+  | 'preset-demand'
   /** Switched off through this plugin's own override record. */
   | 'disabled-override'
   /** A stored override changed the configuration the suite declares. */
   | 'modified-override'
+
+/**
+ * One MCP suite/server pair a live session's selection keeps mounted.
+ *
+ * The mount pass merges session demand into the overrides as `enabled: true`,
+ * so a pair listed here is live whatever its stored switch says. The status
+ * surface reads the list to name that cause instead of reporting orphaned
+ * tools.
+ */
+export interface McpDemandedMount {
+  /** Source-qualified suite id, as the status rows carry it. */
+  suiteId: string
+  /** The server's key inside that suite's declaration. */
+  serverKey: string
+}
 
 /** One MCP service row for the status surface. */
 export interface McpStatusEntry {

@@ -14,8 +14,8 @@ import type { ServerConfigPayload, ServerPolicyPayload } from '../../../market-c
 import type { DiscoveredSuite, Suite } from '../../../market-contracts/src/model/types.js'
 import type { McpBackend } from '../../../market-contracts/src/contracts/mcp.js'
 import { probeHostMcpClient } from './mcp/mcp-backend.js'
-import { declaredMcpPolicy, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp/mcp-config.js'
-import { prepareUserMcpServer, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from './mcp/mcp-direct-config.js'
+import { declaredMcpPolicy, deriveServerName, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp/mcp-config.js'
+import { prepareUserMcpServer, prepareUserMcpServerRemoval, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from './mcp/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../../../market-contracts/src/contracts/mcp.js'
 import {
   applyOverride,
@@ -73,7 +73,11 @@ export class McpService {
     // configuration, so resolving it per entity made this status — one MCP server
     // with many tools especially — scale with the tool count.
     const localization: Localization = { locale: this.ports.localePreference(), localizeFields: this.localizeFields }
-    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), localization)
+    // A server this switch turned off can still be mounted by the session's own
+    // preset selection. The builder needs the demand to name that cause instead
+    // of reporting tools the switch never managed to stop.
+    const demanded = this.ports.mcpDemandedMounts?.() ?? []
+    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), localization, demanded)
     for (const entry of payload.entries)
       if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
         entry.kind = 'direct'
@@ -130,6 +134,43 @@ export class McpService {
         }
       }
       await this.context.notifyChanged(true)
+    })
+  }
+
+  /**
+   * Remove one user-owned server from the declaration file and drop everything
+   * the plugin stored about it: the override record (edited config, enablement,
+   * policy) and the OAuth grant. Only the user's own declaration may be removed
+   * — a suite's `mcp.json` is source-owned, so a refresh would restore a server
+   * deleted from it, and disabling is the supported operation there.
+   *
+   * The declaration is written first. An interruption can then leave an inert
+   * override or grant record behind, never a live server whose stored policy was
+   * silently dropped.
+   */
+  async removeServer(suiteKey: string, serverKey: string): Promise<void> {
+    return this.context.enqueue(async () => {
+      const { sourceId, suiteId } = splitSuiteKey(suiteKey)
+      if (!isUserOwnedMcp(suiteKey)) throw new Error(`server "${serverKey}" belongs to suite "${suiteKey}"; disable it instead of removing it`)
+      const publish = await prepareUserMcpServerRemoval(this.context.agentsRoot, serverKey)
+      await publish()
+      // The record would otherwise outlive its declaration: it carries the
+      // user's edited config and policy, and a later server of the same name
+      // would inherit both.
+      const overrides = await loadSuiteOverrides(this.context.dataRoot, suiteKey)
+      if (Object.hasOwn(overrides, serverKey)) {
+        delete overrides[serverKey]
+        await saveSuiteOverrides(this.context.dataRoot, suiteKey, overrides)
+      }
+      // A removed server must not keep its OAuth grant: the bridge folds the
+      // record by the same derived mount name a future server could reuse.
+      await this.ports.credentialsStore?.deleteGrantRecord(deriveServerName({ sourceId, id: suiteId }, serverKey))
+      await this.context.notifyChanged(true)
+      // The status surface reads the live tool registry, so an immediate read
+      // races the reconciler's teardown and would still show the removed server.
+      // Joining the pass here is bounded — one stuck mount costs the request its
+      // deadline, never the plugin.
+      await this.context.refreshSettled()
     })
   }
 

@@ -45,6 +45,8 @@ export interface MarketQueries {
 export interface MarketMutations {
   saveServerConfig(kind: 'mcp' | 'lsp', id: string, config: unknown, policy?: unknown): Promise<void>
   addMcpServer(name: string, server: unknown, policy?: unknown): Promise<void>
+  /** Remove one user-owned MCP server declaration; a suite-owned server is refused. */
+  removeMcpServer(suiteKey: string, serverKey: string): Promise<void>
   addLspServer(name: string, config: unknown): Promise<void>
   addSource(input: SourceInput): Promise<SourceRef>
   updateSource(sourceId: string, patch: SourcePatch): Promise<void>

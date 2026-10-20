@@ -1,7 +1,7 @@
 import type { TranslationFields } from '../../../../market-contracts/src/contracts/translation.js'
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
-import type { McpStatusEntry, McpStatusCode, McpStatusPayload, McpStatusState, McpStatusTool } from '../../../../market-contracts/src/contracts/mcp-status.js'
+import type { McpDemandedMount, McpStatusEntry, McpStatusCode, McpStatusPayload, McpStatusState, McpStatusTool } from '../../../../market-contracts/src/contracts/mcp-status.js'
 import type { Localization, McpToolSnapshot } from '../../../../market-contracts/src/ports/ports.js'
 import { redactMcpConfig, redactUrl } from '../../../../market-contracts/src/redaction.js'
 import { qualifiedSuiteId } from '../../../../market-catalog/src/index.js'
@@ -47,6 +47,12 @@ export function declaresAuthHeader(config: Record<string, unknown> | undefined):
  * resolver bound to it, when the deployment translates at all. Resolved once by
  * the caller: a server and each of its tools is localized from this one value,
  * never from a fresh read of the host preference.
+ * @param demanded - the suite/server pairs a live session's selection keeps
+ * mounted. The mount pass merged them in as `enabled: true`, so a stored
+ * `enabled: false` beside live tools has two possible causes: this demand, or
+ * a teardown that failed. Only the caller knows the demand, so it travels
+ * here; an omitted list means nothing is demanded and every such row keeps
+ * reading as an orphan.
  * @returns the status payload with every translatable field carrying its translation.
  */
 export function buildMcpStatus(
@@ -54,7 +60,8 @@ export function buildMcpStatus(
   diagnostics: McpDiagnostic[],
   observed: readonly McpToolSnapshot[],
   overrides: Map<string, McpSuiteOverrides> = new Map(),
-  localization?: Localization
+  localization?: Localization,
+  demanded: readonly McpDemandedMount[] = []
 ): McpStatusPayload {
   const entries: McpStatusEntry[] = []
   // Counted so a caller can re-read until the translated text lands, exactly as
@@ -81,6 +88,9 @@ export function buildMcpStatus(
     }
   }
   const diagnosticsByKey = new Map(diagnostics.map(diagnostic => [`${diagnostic.suiteId}\u0000${diagnostic.serverKey}`, diagnostic]))
+  // One demand identity per suite/server, joined the same way diagnostics are:
+  // suite ids carry a slash, so the separator cannot be one.
+  const demandedKeys = new Set(demanded.map(mount => `${mount.suiteId}\u0000${mount.serverKey}`))
   const observedByServer = groupObservedTools(observed, knownServerNames)
 
   for (const suite of suites) {
@@ -97,7 +107,13 @@ export function buildMcpStatus(
       // The declaration stays on the inventory when an override disables it:
       // the panel shows what the suite ships and how the user changed it.
       const disabled = !enabled || suite.activeSurfaces.mcp === false
-      const orphaned = disabled && tools.length > 0
+      // Live tools under a stored switch-off are the observed truth either way.
+      // What differs is the cause: session demand keeps the mount, which is the
+      // user's own selection speaking, not a teardown that left registrations
+      // behind. A real diagnostic still wins, so a failed mount underneath the
+      // demand is never explained away as demand.
+      const presetDemand = disabled && tools.length > 0 && diagnostic === undefined && demandedKeys.has(`${suiteKey}\u0000${serverKey}`)
+      const orphaned = disabled && tools.length > 0 && !presetDemand
       // A duplicate copy shares the live serverName, so observed tools land
       // on it too — that does not make it connected: its own diagnostic says
       // another source's mount is the one serving.
@@ -117,14 +133,25 @@ export function buildMcpStatus(
                   : 'degraded'
       // A diagnostic's reason keeps the code the mount pipeline gave it. The
       // notes this builder adds describe the declaration's own state — an
-      // override switched it off, an override rewrote it, or its surface is
-      // gone while its tools remain — so each carries the matching state code
-      // for the panel to localize.
+      // override switched it off, an override rewrote it, its surface is gone
+      // while its tools remain, or the session's own selection keeps it
+      // mounted — so each carries the matching state code for the panel to
+      // localize.
       const orphanNote = orphaned ? 'MCP tools remain after this plugin surface was disabled' : undefined
+      // The switch was honoured in the configuration and overruled at mount
+      // time, so the row says which of the two won. The tools stay listed: they
+      // are live, and hiding them would hide the demand too.
+      const presetDemandNote = presetDemand
+        ? 'this service is selected by the active session preset, which keeps it mounted; the panel switch cannot unmount it while that preset is active'
+        : undefined
       const overrideNote = override === undefined || (state !== 'disabled' && tools.length > 0) ? undefined : disabled ? 'disabled by override' : 'modified by override'
-      const reason = orphanNote ?? diagnostic?.reason ?? overrideNote
+      const reason = orphanNote ?? presetDemandNote ?? diagnostic?.reason ?? overrideNote
       const code: McpStatusCode | undefined =
-        orphanNote !== undefined ? 'orphaned-tools' : (diagnostic?.code ?? (overrideNote === undefined ? undefined : disabled ? 'disabled-override' : 'modified-override'))
+        orphanNote !== undefined
+          ? 'orphaned-tools'
+          : presetDemandNote !== undefined
+            ? 'preset-demand'
+            : (diagnostic?.code ?? (overrideNote === undefined ? undefined : disabled ? 'disabled-override' : 'modified-override'))
       entries.push({
         id: `plugin:${suiteKey}/${serverKey}`,
         name: serverName,
@@ -136,7 +163,9 @@ export function buildMcpStatus(
         transport: effective.type,
         endpoint: endpointOf(effective),
         config: redactMcpConfig(effective) as Record<string, unknown>,
-        tools: disabled && !orphaned ? [] : observedTools(tools, serverName, localization === undefined ? undefined : localize),
+        // A demanded server keeps its tools on the row: they are live, and the
+        // row says why. Only a plain override-off server has none to show.
+        tools: disabled && !orphaned && !presetDemand ? [] : observedTools(tools, serverName, localization === undefined ? undefined : localize),
         ...(localization === undefined ? {} : localize(serverName, { name: serverName })),
         advertisedTools: tools.length > 0,
         retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',

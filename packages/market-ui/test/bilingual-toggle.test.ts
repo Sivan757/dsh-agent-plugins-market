@@ -435,17 +435,17 @@ describe('the switch follows the auto-translate setting', () => {
 
   it('assumes the declared default before the host answers', async () => {
     // No binding at all is the pre-answer state, and the declared default is
-    // off: an unread namespace withholds the control rather than flashing it.
+    // on: the control shows from the first render.
     api.fetchUserPanel.mockResolvedValue([ENTRY])
     await mount(h(UserPanelSurface, { t: zhT, kind: 'skills' }))
-    expect(toggle()).toBeNull()
+    expect(toggle()).not.toBeNull()
   })
 
   it('drops the binding on dispose, falling back to the default', async () => {
-    const unbind = bindTranslationEnabled(binding(true))
+    const unbind = bindTranslationEnabled(binding(false))
     unbind()
     api.fetchUserPanel.mockResolvedValue([ENTRY])
     await mount(h(UserPanelSurface, { t: zhT, kind: 'skills' }))
-    expect(toggle()).toBeNull()
+    expect(toggle()).not.toBeNull()
   })
 })

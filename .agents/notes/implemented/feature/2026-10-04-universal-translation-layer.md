@@ -89,6 +89,6 @@ What it costs:
 ## Related
 
 - [The document-translation note](2026-10-05-document-translation-chunked-and-lazy.md) adds the `document` role and the batch ceiling to this layer's units.
-- [The translation-default note](2026-10-05-translation-default-follows-language.md) owns the absent setting's language default; [the reading and lifecycle note](2026-10-06-translation-reading-and-lifecycle.md) owns target independence from the switch.
+- [The settings defaults note](2026-10-19-settings-defaults-on-and-unlabelled.md) owns the absent setting's default; [the reading and lifecycle note](2026-10-06-translation-reading-and-lifecycle.md) owns target independence from the switch.
 - [The read-path note](../architecture/2026-10-05-read-path-cost-bounds-and-locale-freshness.md) owns how this layer's reads resolve the locale and how long that value lives.
 - [The market-route note](../architecture/2026-10-05-market-document-translation-route-and-identity.md) gives a market detail page its own identity for reaching the document path.

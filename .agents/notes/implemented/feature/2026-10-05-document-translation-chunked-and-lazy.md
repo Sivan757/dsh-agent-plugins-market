@@ -54,4 +54,4 @@ The translated view covers the body without frontmatter and can normalize Markdo
 
 ## Related
 
-[The universal layer](2026-10-04-universal-translation-layer.md) owns provider order and persistent keys. [Language-derived defaults](2026-10-05-translation-default-follows-language.md) owns the absent-setting rule. The reading-mode portion of this note is partially superseded; the bounded-work and identity rationale remains active.
+[The universal layer](2026-10-04-universal-translation-layer.md) owns provider order and persistent keys. [The settings defaults](2026-10-19-settings-defaults-on-and-unlabelled.md) owns the absent-setting rule. The reading-mode portion of this note is partially superseded; the bounded-work and identity rationale remains active.

@@ -40,10 +40,8 @@ type MarketCopyKey =
   | 'feedbackToggleDesc'
   | 'translationToggleLabel'
   | 'translationToggleDesc'
-  | 'translationToggleExperimental'
   | 'agentPresetsToggleLabel'
   | 'agentPresetsToggleDesc'
-  | 'agentPresetsToggleExperimental'
   | 'translationReset'
   | 'translationResetDone'
   | 'mcpCardReadonly'
@@ -81,17 +79,9 @@ function OverrideBadge(props: { t: CardTranslate; disabled: boolean; onReset: ()
   )
 }
 
-/** The head of one field row: its label, a standing marker, and the override state. */
-function FieldHead(props: { label: string; overridden: boolean; badge: ReactNode; tag?: ReactNode }): ReactNode {
-  return h(
-    'div',
-    { className: css.pluginFieldHead },
-    h('div', { className: css.pluginCardRowLabel }, props.label),
-    // A standing marker is part of the label, not of the override state, so it
-    // shows whether or not the field has been touched.
-    props.tag === undefined ? null : h('span', { className: css.pluginFieldBadges }, props.tag),
-    props.overridden ? props.badge : null
-  )
+/** The head of one field row: its label and the override state. */
+function FieldHead(props: { label: string; overridden: boolean; badge: ReactNode }): ReactNode {
+  return h('div', { className: css.pluginFieldHead }, h('div', { className: css.pluginCardRowLabel }, props.label), props.overridden ? props.badge : null)
 }
 
 /**
@@ -159,13 +149,6 @@ function SwitchRow(props: {
       h(FieldHead, {
         label,
         overridden: props.state.overridden,
-        // The translation chain reaches third-party providers, and the preset
-        // manager is experimental: both rows say so before a user turns them on.
-        ...(props.field === 'translationEnabled'
-          ? { tag: h(Tag, { tone: 'neutral' }, props.t('translationToggleExperimental')) }
-          : props.field === 'agentPresetsEnabled'
-            ? { tag: h(Tag, { tone: 'neutral' }, props.t('agentPresetsToggleExperimental')) }
-            : {}),
         badge: h(OverrideBadge, {
           t: props.t,
           disabled: props.disabled,

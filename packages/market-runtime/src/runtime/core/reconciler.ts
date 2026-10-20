@@ -184,6 +184,19 @@ export class RuntimeReconciler {
     return this.mcp.serverOwner(serverName)
   }
 
+  /**
+   * The suite/server pairs a live session's selection keeps mounted.
+   *
+   * This is the demand the mount pass merged in as `enabled: true`, so a server
+   * listed here stays live however its stored override reads. The MCP status
+   * surface needs it to tell a server its user switched off — kept mounted by
+   * that user's own preset — from one whose teardown genuinely failed.
+   * @returns the demanded pairs, in suite-then-server order.
+   */
+  demandedMcpMounts(): ReadonlyArray<{ suiteId: string; serverKey: string }> {
+    return [...this.demandedMcp].flatMap(([suiteId, keys]) => [...keys].map(serverKey => ({ suiteId, serverKey })))
+  }
+
   /** Publish fresh immutable authority without mounting or waiting behind network work. */
   setCatalogAuthority(candidates: readonly ExtensionSuiteCandidate[], global: readonly Suite[]): void {
     if (this.disposed) return

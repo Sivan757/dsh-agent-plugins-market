@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { failureGuidanceKey } from '../../../packages/market-ui/src/ui/failure-guidance.js'
+import { FAILURE_GUIDANCE_LABEL, failureGuidanceKey } from '../../../packages/market-ui/src/ui/failure-guidance.js'
+import { en, zh } from '../../../packages/market-ui/src/locales.js'
 
 describe('failure guidance', () => {
   it('reads a recorded code before the wording', () => {
@@ -14,7 +15,20 @@ describe('failure guidance', () => {
     expect(failureGuidanceKey({ code: 'duplicate-mount', reason: 'anything' })).toBe('duplicateMount')
     expect(failureGuidanceKey({ code: 'orphaned-tools', reason: 'anything' })).toBe('orphanedTools')
     expect(failureGuidanceKey({ code: 'disabled-override', reason: 'anything' })).toBe('disabledOverride')
+    // A service a session preset keeps mounted is switched off yet still live,
+    // and the code is what localizes the sentence the band shows.
+    expect(failureGuidanceKey({ code: 'preset-demand', reason: 'anything' })).toBe('presetDemand')
     expect(failureGuidanceKey({ code: 'modified-override', reason: 'anything' })).toBe('modifiedOverride')
+  })
+
+  it('has a bilingual sentence for every classified code', () => {
+    // A classification with no dictionary entry would render a bare key — or,
+    // worse, the raw English reason — in a Chinese panel.
+    const sentence = FAILURE_GUIDANCE_LABEL.presetDemand
+    expect(sentence).toBe('failureGuidePresetDemand')
+    expect(zh[sentence]).toContain('当前会话的预设')
+    expect(en[sentence]).toContain('active session preset')
+    expect(zh[sentence]).not.toBe(en[sentence])
   })
 
   it('classifies a wrapper sentence by the messages under it', () => {

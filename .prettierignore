@@ -33,6 +33,10 @@ docs/scratch/agent-teams-lead-rca-2026-10-09.html
 # first-party plugin collection: content ships as authored, not reformatted
 plugins/
 
+# archived Agent Notes are frozen historical snapshots; reformatting one would
+# edit a sealed artifact
+.agents/notes/archived/
+
 # search-engine verification: must stay byte-for-byte as issued
 docs-site/public/googlede2463be9a1dd823.html
 

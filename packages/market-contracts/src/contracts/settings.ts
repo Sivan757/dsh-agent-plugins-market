@@ -9,11 +9,10 @@
  * resolved values off the settings snapshot it is handed. Changing a default is
  * therefore a one-line edit in this module.
  *
- * One default is not a constant: `translationEnabled` follows the interface
- * language, so its reader takes the language as an argument and
- * {@link interfaceLanguageTranslates} answers that default only. An explicit
- * preference is independent of language. {@link resolveTranslationTarget}
- * selects the language of displayed translations, including English.
+ * Every default is a plain boolean or word, so this module alone answers a
+ * section that says nothing. {@link resolveTranslationTarget} still selects the
+ * language translations are written in; that choice is independent of whether
+ * translations are displayed.
  *
  * @module contracts/settings
  */
@@ -36,13 +35,9 @@ export interface MarketSettings {
   feedbackEnabled: boolean
   /** ON = every configured source refreshes in the background. */
   autoUpdateSources: boolean
-  /**
-   * ON = suite, skill, command, agent, MCP and LSP text is localized for the
-   * host locale. The stored value while the user has one, the interface
-   * language's default otherwise.
-   */
+  /** ON = suite, skill, command, agent, MCP and LSP text is localized for the host locale. */
   translationEnabled: boolean
-  /** ON = the composer carries the Agent preset manager entry (experimental). */
+  /** ON = the composer carries the Agent preset manager entry. */
   agentPresetsEnabled: boolean
 }
 
@@ -52,14 +47,11 @@ export interface MarketSettings {
  * These are user-visible behavior: a flip here is a behavior change that ships
  * with its documentation, not a private implementation detail.
  *
- * `translationEnabled` is the one exception: the interface language decides it
- * (see {@link interfaceLanguageTranslates}), so this constant is not where its
- * effective default lives. It is what the browser store holds before the host
- * answers, and that pre-answer state deliberately withholds the translation
- * control rather than flashing it. The namespace schema declares no default for
- * the field at all, an absence that is load-bearing: a schema default would
- * reach the live config reference and erase the difference between "the user
- * never set this" and "the user turned it off".
+ * `translationEnabled` is the one field the namespace schema declares no
+ * default for. The field stays absent until the user writes it, which is what
+ * lets the card tell "never set" from an explicit value, and this constant
+ * answers the absent case. A schema default would reach the live config
+ * reference and erase that difference.
  */
 export const MARKET_SETTINGS_DEFAULTS: MarketSettings = {
   mcpEnhanced: true,
@@ -67,13 +59,12 @@ export const MARKET_SETTINGS_DEFAULTS: MarketSettings = {
   downloadRegion: 'auto',
   feedbackEnabled: true,
   autoUpdateSources: false,
-  // The browser-side value before the effective one is known — not the
-  // effective default, which interfaceLanguageTranslates derives from the
-  // interface language. Off here keeps a fresh install from spending a provider
-  // request before the host has answered.
-  translationEnabled: false,
-  // Experimental capability: the manager stays hidden until the user opts in.
-  agentPresetsEnabled: false
+  // On for every interface language: a fresh install translates without
+  // visiting the settings page, and a stored false turns it off.
+  translationEnabled: true,
+  // On by default: the preset manager entry shows without an opt-in step, and a
+  // stored false hides it.
+  agentPresetsEnabled: true
 }
 
 /** Every field name the market's settings section carries. */
@@ -92,23 +83,6 @@ export function narrowDownloadRegion(value: unknown, fallback: DownloadRegionSet
 /** One boolean field: a stored boolean, else the field's default. */
 function narrowBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
-}
-
-/**
- * Whether one interface language renders the market's Chinese dictionary.
- *
- * This is the host's own rule rather than a second reading of it:
- * `bindHostLocale` (`runtime/host/host-locale.ts`) answers every preference
- * that is not English with the Chinese dictionary, so as far as the interface is
- * concerned everything that is not English is Chinese — an absent preference
- * included, which the host reads as zh.
- *
- * This determines only the default display preference: Chinese starts on and
- * English starts off. It must not gate an explicitly enabled translation.
- * @param localePreference - the host `locale.preference`, or undefined while nothing supplies one.
- */
-export function interfaceLanguageTranslates(localePreference: string | undefined): boolean {
-  return localePreference === undefined || !localePreference.toLowerCase().startsWith('en')
 }
 
 /**
@@ -144,14 +118,12 @@ export function resolveTranslationTarget(localePreference: string | undefined): 
  * function is what keeps a second reading of "what does missing mean" from
  * growing somewhere else.
  *
- * A stored boolean always wins: the user's own answer is never overridden by
- * the language. Only a section that says nothing about the field takes the
- * language's answer, which is what makes a language switch move the default for
- * a user who never set the field and leave every other user alone.
+ * A stored value always wins: the user's own answer is never overridden by a
+ * default. Only a section that says nothing about the field takes the value in
+ * {@link MARKET_SETTINGS_DEFAULTS}.
  * @param section - the stored (or absent) namespace section, untrusted.
- * @param localePreference - the host `locale.preference` the language-derived default follows.
  */
-export function resolveMarketSettings(section: unknown, localePreference?: string): MarketSettings {
+export function resolveMarketSettings(section: unknown): MarketSettings {
   const stored = (typeof section === 'object' && section !== null ? section : {}) as Record<string, unknown>
   return {
     mcpEnhanced: narrowBoolean(stored['mcpEnhanced'], MARKET_SETTINGS_DEFAULTS.mcpEnhanced),
@@ -159,7 +131,7 @@ export function resolveMarketSettings(section: unknown, localePreference?: strin
     downloadRegion: narrowDownloadRegion(stored['downloadRegion']),
     feedbackEnabled: narrowBoolean(stored['feedbackEnabled'], MARKET_SETTINGS_DEFAULTS.feedbackEnabled),
     autoUpdateSources: narrowBoolean(stored['autoUpdateSources'], MARKET_SETTINGS_DEFAULTS.autoUpdateSources),
-    translationEnabled: narrowBoolean(stored['translationEnabled'], interfaceLanguageTranslates(localePreference)),
+    translationEnabled: narrowBoolean(stored['translationEnabled'], MARKET_SETTINGS_DEFAULTS.translationEnabled),
     agentPresetsEnabled: narrowBoolean(stored['agentPresetsEnabled'], MARKET_SETTINGS_DEFAULTS.agentPresetsEnabled)
   }
 }

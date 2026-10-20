@@ -4,7 +4,7 @@ English | [简体中文](translation.zh.md) | [README](../../README.md)
 
 **Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md)
 
-Turn **Translation** on in the plugin configuration card to read descriptions and document prose in the interface language: Simplified Chinese or English. Chinese defaults to on and English to off; your saved choice takes priority until **Use default** restores the language-derived default. An English interface can translate Chinese text when you enable it. Names and keywords remain unchanged for searching, sorting, copying and invocation.
+Turn **Translation** on in the plugin configuration card to read descriptions and document prose in the interface language: Simplified Chinese or English. It is on by default in both interface languages; your saved choice takes priority until **Use default** restores the default. An English interface translates Chinese text into English. Names and keywords remain unchanged for searching, sorting, copying and invocation.
 
 | Tab            | Description                        |
 | -------------- | ---------------------------------- |

@@ -235,6 +235,19 @@ export function mountSuiteRoutes(
     return {}
   })
 
+  // Remove one user-owned MCP server. Addressed by the same source-qualified
+  // suite id the status rows carry, so the card names the server it shows. A
+  // suite-declared server is refused by the service, not by this parser: the
+  // rule lives with the code that owns the declaration file.
+  post(MARKET_ROUTES.removeMcpServer, async body => {
+    const suiteKey = textField(body['suiteId'] ?? '', 'MCP suite id')
+    const serverKey = textField(body['serverKey'] ?? '', 'MCP server key')
+    if (suiteKey === '') throw new Error('missing MCP suite id')
+    if (serverKey === '') throw new Error('missing MCP server key')
+    await manager.removeMcpServer(suiteKey, serverKey)
+    return {}
+  })
+
   get(MARKET_ROUTES.lspStatus, async (request, response) => {
     const source = readSource(request)
     if ('error' in source) {

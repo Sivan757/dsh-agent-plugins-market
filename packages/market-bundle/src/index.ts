@@ -105,7 +105,7 @@ export interface Config {
   autoUpdateSources: Volatile<boolean | undefined>
   /** UI translation switch; updated live through the host settings service. */
   translationEnabled: Volatile<boolean | undefined>
-  /** Agent preset manager switch (experimental); updated live through the host settings service. */
+  /** Agent preset manager switch; updated live through the host settings service. */
   agentPresetsEnabled: Volatile<boolean | undefined>
 }
 
@@ -286,25 +286,16 @@ export async function apply(
   // Background source updates: off until the settings switch says otherwise.
   const autoUpdate = new SourceAutoUpdater(ctx, () => catalog.refreshSource())
 
-  const settings = new MarketSettingsNamespace(
-    ctx,
-    config,
-    dataRoot,
-    hostLocale,
-    {
-      setScanProjectLayouts: enabled => catalog.setScanProjectLayouts(enabled),
-      refreshMcpMounts: () => {
-        void onChanged().catch(() => {})
-      },
-      setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled),
-      syncTranslationEnabled: () => {
-        catalog.syncTranslationEnabled()
-      }
+  const settings = new MarketSettingsNamespace(ctx, config, dataRoot, hostLocale, {
+    setScanProjectLayouts: enabled => catalog.setScanProjectLayouts(enabled),
+    refreshMcpMounts: () => {
+      void onChanged().catch(() => {})
     },
-    // The cached preference above, not a fresh host read: the translation default
-    // follows the language, and this reader is called on every settings read.
-    () => localePreference
-  )
+    setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled),
+    syncTranslationEnabled: () => {
+      catalog.syncTranslationEnabled()
+    }
+  })
 
   // Legacy surface and entry routes share one committed workspace policy.
   const resourceFilters = new ResourceFilterService(dataRoot, process.cwd(), { onFiltersChanged: onChanged })
@@ -332,6 +323,9 @@ export async function apply(
     mcpRemount: (suiteId, serverKey) => runtime.forceMcpRemount(suiteId, serverKey),
     mcpRemountAll: () => runtime.forceMcpRemountAll(),
     mcpServerOwner: serverName => runtime.mcpServerOwner(serverName),
+    // Read per call: the set is rebuilt by every mount pass, so a snapshot here
+    // would report the demand of whichever pass happened to run at apply time.
+    mcpDemandedMounts: () => runtime.demandedMcpMounts(),
     lspStatusSource: runtime.lsp,
     mcpBackend: () => settings.backend(),
     setMcpBackend: backend => settings.setBackend(backend),

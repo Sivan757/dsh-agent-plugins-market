@@ -1,6 +1,7 @@
 # Agent Note: The translation switch defaults to the interface language
 
 Status: implemented
+Archived: 2026-10-19
 
 ## Problem
 

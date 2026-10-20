@@ -73,6 +73,50 @@ const failedPayload = vi.hoisted(() => ({
   directObservationOnly: true
 }))
 
+/** A switched-off row a session preset keeps mounted: the band shows its own sentence. */
+const presetDemandPayload = vi.hoisted(() => ({
+  entries: [
+    {
+      id: 'plugin:demo/service',
+      name: 'demo__service',
+      kind: 'plugin' as const,
+      state: 'disabled' as const,
+      code: 'preset-demand' as const,
+      source: 'Demo Suite',
+      suiteId: 'demo',
+      serverKey: 'service',
+      transport: 'stdio',
+      endpoint: 'node server.js',
+      reason: 'this service is selected by the active session preset, which keeps it mounted; the panel switch cannot unmount it while that preset is active',
+      tools: []
+    }
+  ],
+  observedAt: '',
+  totals: { all: 1, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 1, foreign: 0 },
+  directObservationOnly: true
+}))
+
+/** A user-owned declaration: the one kind of row the panel may delete. */
+const directPayload = vi.hoisted(() => ({
+  entries: [
+    {
+      id: 'direct:kuboard',
+      name: 'kuboard',
+      kind: 'direct' as const,
+      managed: true,
+      state: 'connected' as const,
+      suiteId: '@user-mcp/user-mcp',
+      serverKey: 'kuboard',
+      transport: 'streamable-http',
+      endpoint: 'https://example.test/mcp',
+      tools: []
+    }
+  ],
+  observedAt: '',
+  totals: { all: 1, connected: 1, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
+  directObservationOnly: true
+}))
+
 /** A switched-off row: the band edge and the card both read neutral here. */
 const disabledPayload = vi.hoisted(() => ({
   entries: [
@@ -106,7 +150,8 @@ vi.mock('../../../packages/market-ui/src/api.js', () => ({
   fetchSuiteDetail: vi.fn(),
   fetchSuiteDocument: vi.fn(),
   postAction: vi.fn(),
-  retryMcpMounts: vi.fn()
+  retryMcpMounts: vi.fn(),
+  removeMcpServer: vi.fn()
 }))
 
 import { McpStatusPanel } from '../../../packages/market-ui/src/features/mcp/StatusPanel.js'
@@ -249,6 +294,20 @@ describe('MCP status actions', () => {
     expect(document.body.textContent).toContain('mcpEditTitle')
   })
 
+  it('localizes the preset-demand reason instead of echoing it in English', async () => {
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(presetDemandPayload)
+    const el = await mountPanel()
+    await act(async () => {
+      el.querySelector('[data-resource-surface="mcp"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    // The band's lead is the classified sentence; the runtime's own words stay
+    // behind the disclosure, so a Chinese panel never shows the English reason.
+    expect(document.querySelector('[data-status-band]')?.textContent).toContain('failureGuidePresetDemand')
+    expect(document.querySelector('[data-status-band]')?.textContent).not.toContain('selected by the active session preset')
+  })
+
   it('reads the same state colour on the card edge and in the detail band', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
@@ -273,5 +332,85 @@ describe('MCP status actions', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(document.querySelector('[data-status-band]')?.getAttribute('data-band-tone')).toBe('neutral')
+  })
+})
+
+/** The delete path: only the user's own declaration, always confirmed, then re-read. */
+describe('MCP delete actions', () => {
+  const byText = (label: string): HTMLButtonElement | undefined => [...document.querySelectorAll('button')].find(node => node.textContent === label)
+  async function openCard(el: HTMLDivElement): Promise<void> {
+    await act(async () => {
+      el.querySelector('[data-resource-surface="mcp"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+  }
+  async function mountDirect(): Promise<HTMLDivElement> {
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(directPayload)
+    return mountPanel()
+  }
+
+  it('offers the card delete only for a user-owned declaration', async () => {
+    // A suite declares its servers in its own `mcp.json`, so its card offers the
+    // editor but never a delete.
+    const pluginPanel = await mountPanel()
+    expect(pluginPanel.querySelector('[aria-label="panelEdit service"]')).not.toBeNull()
+    expect(pluginPanel.querySelector('[aria-label^="mcpDelete"]')).toBeNull()
+    await act(async () => root?.unmount())
+    document.body.replaceChildren()
+
+    const direct = await mountDirect()
+    expect(direct.querySelector('[aria-label="mcpDelete kuboard"]')).not.toBeNull()
+  })
+
+  it('confirms a card delete, then removes the declaration and re-reads the list', async () => {
+    const api = await import('../../../packages/market-ui/src/api.js')
+    const el = await mountDirect()
+    await act(async () => {
+      el.querySelector<HTMLButtonElement>('[aria-label="mcpDelete kuboard"]')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    // The card opens the shared danger confirmation rather than deleting on one
+    // click, and that is not the detail dialog.
+    expect(document.body.textContent).toContain('mcpDeleteTitle')
+    expect(document.body.textContent).not.toContain('overviewSection')
+    expect(api.removeMcpServer).not.toHaveBeenCalled()
+    const reads = vi.mocked(api.fetchMcpStatus).mock.calls.length
+    await act(async () => {
+      byText('mcpDeleteConfirm')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(api.removeMcpServer).toHaveBeenCalledWith('@user-mcp/user-mcp', 'kuboard')
+    expect(vi.mocked(api.fetchMcpStatus).mock.calls.length).toBeGreaterThan(reads)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('keeps the detail dialog free of a delete action', async () => {
+    // Deleting belongs to the card's action row: the detail dialog reports the
+    // service and offers recovery, so a destructive button in its footer would
+    // sit beside the read-only facts it describes.
+    const el = await mountDirect()
+    await openCard(el)
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(byText('mcpDelete')).toBeUndefined()
+  })
+
+  it('reports a failed delete in the panel without dropping the row', async () => {
+    const api = await import('../../../packages/market-ui/src/api.js')
+    const el = await mountDirect()
+    const reads = vi.mocked(api.fetchMcpStatus).mock.calls.length
+    vi.mocked(api.removeMcpServer).mockRejectedValueOnce(new Error('cannot remove kuboard'))
+    await act(async () => {
+      el.querySelector<HTMLButtonElement>('[aria-label="mcpDelete kuboard"]')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      byText('mcpDeleteConfirm')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    // The failure is the panel's one error line, and nothing is re-read: the
+    // declaration is still there, so the next refresh reports it as it stands.
+    expect(document.body.textContent).toContain('cannot remove kuboard')
+    expect(vi.mocked(api.fetchMcpStatus).mock.calls.length).toBe(reads)
   })
 })

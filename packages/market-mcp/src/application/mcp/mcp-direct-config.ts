@@ -99,6 +99,32 @@ export async function prepareUserMcpServer(agentsRoot: string, name: string, ser
   return () => writeJsonDocument(userMcpPath(agentsRoot), document)
 }
 
+/**
+ * Validate a removal without publishing it. Call the returned atomic write once,
+ * within the same serialized mutation, after the plan is settled.
+ *
+ * The file is re-read rather than rebuilt from the parsed suite: rebuilding
+ * would drop top-level keys this client does not model and rewrite the other
+ * declarations into the parsed shape, while a removal must change exactly one
+ * key. A file the loader rejected is refused here for the same reason creation
+ * refuses it — the write would otherwise discard a declaration nothing could
+ * read.
+ */
+export async function prepareUserMcpServerRemoval(agentsRoot: string, name: string): Promise<() => Promise<void>> {
+  const suite = await loadUserMcpSuite(agentsRoot)
+  if (suite.errors.length > 0) throw new Error(suite.errors.join('; '))
+  if (!Object.hasOwn(suite.mcp.servers, name)) throw new Error(`MCP server "${name}" is not declared`)
+  const raw = await readJsonFile(userMcpPath(agentsRoot))
+  if (!isRecord(raw) || !isRecord(raw['mcpServers'])) throw new Error('mcp.json is not a JSON object')
+  const servers = { ...raw['mcpServers'] }
+  delete servers[name]
+  const document = { ...raw, mcpServers: servers }
+  // The remaining document is validated before the write: a removal must not
+  // publish a file the next scan would reject and disable wholesale.
+  await validateUserMcp(agentsRoot, document)
+  return () => writeJsonDocument(userMcpPath(agentsRoot), document)
+}
+
 /** The user's hand-written MCP declaration file: `<agentsRoot>/mcp.json`. */
 export function userMcpPath(agentsRoot: string): string {
   return join(agentsRoot, 'mcp.json')

@@ -14,6 +14,7 @@ import type { MenuRowSource } from '../contracts/market.js'
 export type { McpBackendInfo } from '../contracts/market.js'
 import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../contracts/mcp.js'
+import type { McpDemandedMount } from '../contracts/mcp-status.js'
 import type { LspMountDiagnostic } from '../contracts/lsp.js'
 import type { DocumentTranslation, TranslationFields, TranslationProvider, TranslationSurfaceKind } from '../contracts/translation.js'
 
@@ -146,6 +147,16 @@ export interface CatalogPorts {
   mcpRemountAll(): void
   /** Resolves the mount key owning one derived serverName; undefined when not mounted. */
   mcpServerOwner(serverName: string): { suiteId: string; serverKey: string } | undefined
+  /**
+   * The suite/server pairs a live session's selection keeps mounted.
+   *
+   * Session demand is merged into the mount pass as `enabled: true`, so these
+   * servers stay live whatever their stored override says. The status surface
+   * reads them to report such a server as disabled and demanded rather than as
+   * tools left behind by a failed teardown. Optional: a composition with no
+   * session layer demands nothing, and the status reads exactly as before.
+   */
+  mcpDemandedMounts?: (() => readonly McpDemandedMount[]) | undefined
   /** Latest LSP mount diagnostics. */
   lspStatusSource: LspMountStatusSource
   /** The persisted MCP mount backend choice. */
@@ -197,6 +208,7 @@ export const defaultCatalogPorts: CatalogPorts = {
   mcpRemount: () => {},
   mcpRemountAll: () => {},
   mcpServerOwner: () => undefined,
+  mcpDemandedMounts: () => [],
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
   mcpBackend: async () => 'builtin',
   localePreference: () => 'zh',

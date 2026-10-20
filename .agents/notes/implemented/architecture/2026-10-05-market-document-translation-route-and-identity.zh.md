@@ -44,6 +44,6 @@ Status: implemented
 
 ## Related
 
-[文档分块记录](../feature/2026-10-05-document-translation-chunked-and-lazy.zh.md)保留请求限额与正文角色的理由。[语言默认值记录](../feature/2026-10-05-translation-default-follows-language.zh.md)拥有未设置开关时的规则。[通用翻译层](../feature/2026-10-04-universal-translation-layer.zh.md)拥有 provider 顺序与持久键。
+[文档分块记录](../feature/2026-10-05-document-translation-chunked-and-lazy.zh.md)保留请求限额与正文角色的理由。[设置默认值记录](../feature/2026-10-19-settings-defaults-on-and-unlabelled.zh.md)拥有未设置开关时的规则。[通用翻译层](../feature/2026-10-04-universal-translation-layer.zh.md)拥有 provider 顺序与持久键。
 
 [阅读与生命周期决策](../feature/2026-10-06-translation-reading-and-lifecycle.zh.md)更新共享阅读器与语言控制，但不取代本记录的双路由与共同身份决策；这些理由仍然有效。

@@ -89,6 +89,6 @@ Provider 可能改变技术文本。发送前，遮蔽层用占位符替换行�
 ## Related
 
 - [文档翻译那份记录](2026-10-05-document-translation-chunked-and-lazy.md)为本层的单元加上了 `document` 角色与批次上限。
-- [翻译默认值记录](2026-10-05-translation-default-follows-language.zh.md)拥有未设置开关时的语言默认值；[阅读与生命周期记录](2026-10-06-translation-reading-and-lifecycle.zh.md)拥有目标与开关独立的规则。
+- [设置默认值记录](2026-10-19-settings-defaults-on-and-unlabelled.zh.md)拥有未设置开关时的默认值；[阅读与生命周期记录](2026-10-06-translation-reading-and-lifecycle.zh.md)拥有目标与开关独立的规则。
 - [读路径那份记录](../architecture/2026-10-05-read-path-cost-bounds-and-locale-freshness.md)拥有本层读取如何解析 locale、以及这个值能活多久。
 - [市场路由那份记录](../architecture/2026-10-05-market-document-translation-route-and-identity.md)给市场详情页一条通往文档路径的自己的标识。

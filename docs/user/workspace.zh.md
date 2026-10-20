@@ -4,7 +4,7 @@
 
 **Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [服务](services.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md)
 
-设置页是版式的准绳，预设管理器渲染同一套部件：所有页面共用同一条页签行（等宽列、绝不横向滚动，标签放不下时用省略号截断），并共用同一套卡片与详情结构（hooks 同样如此），以及工具条尾部同一个原文/译文开关：管理器上的开关会同时翻转卡片与卡片背后的详情。 工作区 Tab 共用持久化的卡片/列表偏好，搜索与筛选按资源独立。新增、刷新统一位于页头。每张卡片都带启用开关（MCP 与 LSP 服务同样），不必进详情就能停掉一个服务。市场按安装状态筛选；其余五页按归属（用户 / 插件）与已停用条目筛选，标签上的计数就是点开后看到的条数。MCP 新增入口校验 JSON 服务配置，写入 `~/.agents/mcp.json`，再通过插件自己的 bridge 挂载；LSP 新增写入 `~/.agents/lsp.json`。非法配置和重名服务会被拒绝。宿主自行管理的 MCP 服务仍只读观察。
+设置页是版式的准绳，预设管理器渲染同一套部件：所有页面共用同一条页签行（等宽列、绝不横向滚动，标签放不下时用省略号截断），并共用同一套卡片与详情结构（hooks 同样如此），以及工具条尾部同一个原文/译文开关：管理器上的开关会同时翻转卡片与卡片背后的详情。 工作区 Tab 共用持久化的卡片/列表偏好，搜索与筛选按资源独立。新增、刷新统一位于页头。每张卡片都带启用开关（MCP 与 LSP 服务同样），不必进详情就能停掉一个服务。市场按安装状态筛选；其余五页按归属（用户 / 插件）与已停用条目筛选，标签上的计数就是点开后看到的条数。MCP 新增入口校验 JSON 服务配置，写入 `~/.agents/mcp.json`，再通过插件自己的 bridge 挂载；LSP 新增写入 `~/.agents/lsp.json`。非法配置和重名服务会被拒绝。你自己声明的服务可在卡片上删除；新建时 JSON 视图会采用粘贴文档里写明的服务键，名称字段跟随文档而不是卡住流程。宿主自行管理的 MCP 服务仍只读观察。
 
 ## 资源详情编辑
 
@@ -12,7 +12,7 @@
 
 MCP 服务详情为每个工具列出一个勾选框。勾选表示允许；取消勾选会写入一条拒绝，让该工具在实时注册表丢弃它之后仍然留在列表中，因此可以再次勾选。被套件声明限定的工具显示为未勾选且不可修改，并注明原因来自套件。公布了参数结构的工具，点击名称就能展开它的参数列表。列表默认显示前八行并给出其余数量，服务公布的工具超过八个时提供按名称过滤，需要时再展开。宿主观测到的服务，以及由其它 MCP 客户端挂载的服务，这份列表保持只读。服务详情只用一个状态带承载全部状态：状态点与标签，以及该状态唯一的恢复操作（重试、重新授权）；上一次操作的结果；一句话说明插件识别出的失败类型（缺少凭据、连接被拒绝、找不到命令、接缝已被占用等）；记录下来的诊断原文及其下面的底层消息，收在「诊断详情」折叠项里；最后是端点或命令。状态带的前缘取与卡片相同的状态色，标题用可读的服务名——插件服务用服务键、自建服务用名称——挂载名与它不同时在概览里紧挨服务键显示。插件识别不出的原因按原文显示；重试结果只说这次操作有没有重新连上；失败且没有注册到工具的服务，工具区会说明需要连接后才能读到清单。
 
-`GET /api/agent-plugins/server-config?kind=mcp|lsp&id=...` 获取完整可编辑配置，对 MCP 还返回策略视图与挂载后端；`POST /api/agent-plugins/server-config/save` 替换对应服务配置，并接受可选的 `policy: { toolCallTimeoutMs, startupTimeoutMs }`，数值表示设置超时，`null` 表示清除并恢复继承。`POST /api/agent-plugins/set-mcp-server-tool` 接收 `{ suiteId, serverKey, tool, enabled }`，把工具拒绝写入覆盖记录。插件 MCP 配置写入已有覆盖文件，插件 LSP 配置写入 `data/lsp-overrides.json`，不会修改 checkout。未修改的 `[redacted]` 字段保留原凭据。配置修改通过插件运行时重新挂载。宿主自行管理的 MCP 服务保持只读。`GET /api/agent-plugins/server-config?kind=mcp|lsp&create=true` 返回未保存的模板，包括当前 MCP 后端与默认超时。`POST /api/agent-plugins/mcp-servers/add` 接收 `{ name, config, policy? }`，先校验两部分，保存策略后再发布声明；声明发布失败时恢复原策略。两个文件不是跨文件事务：中断可能留下未被使用的策略，但不会发布缺少所请求策略的服务。`POST /api/agent-plugins/lsp-servers/add` 独立新增一个服务，不覆盖其他服务。
+`GET /api/agent-plugins/server-config?kind=mcp|lsp&id=...` 获取完整可编辑配置，对 MCP 还返回策略视图与挂载后端；`POST /api/agent-plugins/server-config/save` 替换对应服务配置，并接受可选的 `policy: { toolCallTimeoutMs, startupTimeoutMs }`，数值表示设置超时，`null` 表示清除并恢复继承。`POST /api/agent-plugins/set-mcp-server-tool` 接收 `{ suiteId, serverKey, tool, enabled }`，把工具拒绝写入覆盖记录。插件 MCP 配置写入已有覆盖文件，插件 LSP 配置写入 `data/lsp-overrides.json`，不会修改 checkout。未修改的 `[redacted]` 字段保留原凭据。配置修改通过插件运行时重新挂载。宿主自行管理的 MCP 服务保持只读。`GET /api/agent-plugins/server-config?kind=mcp|lsp&create=true` 返回未保存的模板，包括当前 MCP 后端与默认超时。`POST /api/agent-plugins/mcp-servers/add` 接收 `{ name, config, policy? }`，先校验两部分，保存策略后再发布声明；声明发布失败时恢复原策略。两个文件不是跨文件事务：中断可能留下未被使用的策略，但不会发布缺少所请求策略的服务。`POST /api/agent-plugins/mcp-servers/remove` 接收 `{ suiteId, serverKey }`，从用户自己的声明里删除一个服务，连同它的覆盖记录与 OAuth 授权；套件声明的服务会被拒绝，因为那个文件属于套件，此处支持的操作是停用。`POST /api/agent-plugins/lsp-servers/add` 独立新增一个服务，不覆盖其他服务。
 
 ## 操作遮罩
 

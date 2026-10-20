@@ -43,6 +43,7 @@ function service(): MarketService {
     setMcpServerEnabled: async () => {},
     setMcpServerToolEnabled: async () => {},
     addMcpServer: async () => {},
+    removeMcpServer: async () => {},
     saveServerConfig: async () => {},
     addLspServer: async () => {},
     setLspServers: async () => ({}),
@@ -241,6 +242,45 @@ describe('market HTTP routes', () => {
 
     dispose()
     expect(routes.size).toBe(0)
+  })
+
+  it('forwards an MCP server removal and rejects a body without both names', async () => {
+    const routes: RouteTable = new Map()
+    const removals: string[][] = []
+    const manager = {
+      ...service(),
+      removeMcpServer: async (suiteKey: string, serverKey: string) => {
+        removals.push([suiteKey, serverKey])
+      }
+    }
+    const dispose = mountSuiteRoutes({ webServer: strictWebServer(routes) }, manager)
+    try {
+      const output = response()
+      await routes.get(MARKET_ROUTES.removeMcpServer)!(postRequest(MARKET_ROUTES.removeMcpServer, { suiteId: '@user-mcp/user-mcp', serverKey: 'kuboard' }), output)
+      await settle()
+      expect(output.value()).toMatchObject({ ok: true })
+      expect(removals).toEqual([['@user-mcp/user-mcp', 'kuboard']])
+
+      // Each field is required and must be a string: an empty suite id or a
+      // non-string key is a client bug, not a removal of something unnamed.
+      for (const body of [
+        {},
+        { suiteId: '@user-mcp/user-mcp' },
+        { serverKey: 'kuboard' },
+        { suiteId: '', serverKey: 'kuboard' },
+        { suiteId: '@user-mcp/user-mcp', serverKey: '' },
+        { suiteId: {}, serverKey: 'kuboard' },
+        { suiteId: '@user-mcp/user-mcp', serverKey: 7 }
+      ]) {
+        const rejected = response()
+        await routes.get(MARKET_ROUTES.removeMcpServer)!(postRequest(MARKET_ROUTES.removeMcpServer, body), rejected)
+        await settle()
+        expect(rejected.value()).toMatchObject({ ok: false })
+      }
+      expect(removals).toHaveLength(1)
+    } finally {
+      dispose()
+    }
   })
 
   it('registers user-panel routes only when panel stores are provided', async () => {

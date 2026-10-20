@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { addUserMcpServer, loadUserMcpSuite, prepareUserMcpServer } from '../../../../packages/market-mcp/src/application/mcp/mcp-direct-config.js'
+import { addUserMcpServer, loadUserMcpSuite, prepareUserMcpServer, prepareUserMcpServerRemoval } from '../../../../packages/market-mcp/src/application/mcp/mcp-direct-config.js'
 import { CommandMountRegistry } from '../../../../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
 import { toMcpMounts } from '../../../../packages/market-mcp/src/application/mcp/mcp-config.js'
 
@@ -104,6 +104,46 @@ describe('user MCP persistence', () => {
     const suite = await loadUserMcpSuite(path)
     expect(suite.mcp.servers).toEqual({})
     expect(suite.errors).toEqual(['mcp.json: invalid MCP configuration: server "broken": remote servers require a url'])
+  })
+
+  it('prepares a validated removal that drops exactly one key and keeps the rest of the file', async () => {
+    const path = await root()
+    await writeFile(
+      join(path, 'mcp.json'),
+      JSON.stringify({
+        $schema: 'https://agent-plugins.org/schemas/1.1.0/mcp.schema.json',
+        // A top-level key this client does not model: a removal must not rewrite
+        // the user's file into the parsed shape and drop it.
+        comment: 'kept',
+        mcpServers: { one: { type: 'stdio', command: 'node' }, gone: { type: 'stdio', command: 'npx' } }
+      })
+    )
+    const before = await readFile(join(path, 'mcp.json'), 'utf8')
+    const publish = await prepareUserMcpServerRemoval(path, 'gone')
+    expect(await readFile(join(path, 'mcp.json'), 'utf8')).toBe(before)
+    await publish()
+    const written = JSON.parse(await readFile(join(path, 'mcp.json'), 'utf8')) as Record<string, unknown>
+    expect(written).toEqual({
+      $schema: 'https://agent-plugins.org/schemas/1.1.0/mcp.schema.json',
+      comment: 'kept',
+      mcpServers: { one: { type: 'stdio', command: 'node' } }
+    })
+  })
+
+  it('refuses an unknown server, a corrupt file, and a removal that would invalidate the rest', async () => {
+    const path = await root()
+    await addUserMcpServer(path, 'one', { type: 'stdio', command: 'node' })
+    const before = await readFile(join(path, 'mcp.json'), 'utf8')
+    await expect(prepareUserMcpServerRemoval(path, 'absent')).rejects.toThrow('is not declared')
+    expect(await readFile(join(path, 'mcp.json'), 'utf8')).toBe(before)
+
+    // A hand-written server the loader skipped leaves the whole document
+    // rejected, so a removal cannot be prepared from it either.
+    await writeFile(join(path, 'mcp.json'), JSON.stringify({ mcpServers: { broken: { type: 'streamable-http' } } }))
+    await expect(prepareUserMcpServerRemoval(path, 'broken')).rejects.toThrow('invalid MCP configuration')
+
+    await writeFile(join(path, 'mcp.json'), 'broken')
+    await expect(prepareUserMcpServerRemoval(path, 'one')).rejects.toThrow('mcp.json')
   })
 
   it('enables the MCP surface only, so the command registry never re-reads the Agent layout root', async () => {

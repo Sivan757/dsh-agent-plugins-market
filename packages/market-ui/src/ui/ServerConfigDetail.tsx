@@ -10,10 +10,12 @@ import {
   fieldErrorsOf,
   parseServerConfig,
   parseServerDocument,
+  readDraftServerDocument,
   policyDocumentOfDraft,
   policyDraftOfDocument,
   policyRequestOfDocuments,
   serverPolicyDocument,
+  type ServerDocument,
   type ServerKind,
   type ServerPolicyDraft
 } from './server-form.js'
@@ -83,23 +85,56 @@ export function ServerConfigDetail({
     onDirtyChange?.(dirty)
   }, [dirty, onDirtyChange])
 
+  /**
+   * Read the document in the mode this editor is in. Creating adopts the key
+   * the document names — the document is the source of truth there — while
+   * editing keeps the declared key, because a renamed seat would silently
+   * point the save at a different service.
+   */
+  const readDocument = (source: string): ServerDocument => (create && kind === 'mcp' ? readDraftServerDocument(source, serverKey) : parseServerDocument(source, serverKey))
+
   /** The document's policy half, as the string drafts the timeout fields edit. */
   const policyDraft = (): ServerPolicyDraft => {
     if (kind !== 'mcp' || text === undefined) return { toolCallTimeoutMs: '', startupTimeoutMs: '' }
     try {
-      return policyDraftOfDocument(parseServerDocument(text, serverKey).policy)
+      return policyDraftOfDocument(readDocument(text).policy)
     } catch {
       return { toolCallTimeoutMs: '', startupTimeoutMs: '' }
     }
   }
-  /** Write the timeout drafts back into the document's policy half. */
+  /**
+   * Write the timeout drafts back into the document's policy half. The rewrite
+   * composes under the current key and keeps the definition as read, so a bare
+   * definition becomes keyed here rather than losing the policy seat.
+   */
   const updatePolicy = (draft: ServerPolicyDraft): void => {
     if (text === undefined) return
     try {
-      const document = parseServerDocument(text, serverKey)
+      const document = readDocument(text)
       setText(composeServerDocument(serverKey, document.config, policyDocumentOfDraft(document.policy, draft)))
     } catch {
       /* an unparsable document stays as typed; the save reports why */
+    }
+  }
+
+  /**
+   * Take the document the editor just produced. While creating a service the
+   * document names its own key: a pasted keyed document decides the name, so
+   * the name field mirrors it instead of keeping a draft key the document no
+   * longer uses. The document stays exactly as typed.
+   */
+  const changeText = (next: string): void => {
+    setText(next)
+    if (!(create && kind === 'mcp')) return
+    try {
+      const draft = readDraftServerDocument(next, serverKey)
+      // A form edit under the key already in force changes nothing here; only a
+      // document that names a different service moves the key and the name.
+      if (!draft.keyed || draft.key === serverKey) return
+      setServerKey(draft.key)
+      setName(draft.key)
+    } catch {
+      /* An unreadable document keeps the key it was already being edited under. */
     }
   }
 
@@ -152,7 +187,7 @@ export function ServerConfigDetail({
     setFieldErrors(undefined)
     try {
       if (kind === 'mcp') {
-        const document = parseServerDocument(text ?? '', serverKey)
+        const document = readDocument(text ?? '')
         if (create) {
           const policy = policyRequestOfDocuments({}, document.policy)
           if (Object.keys(policy).length === 0) await addMcpServer(name.trim(), document.config)
@@ -181,19 +216,20 @@ export function ServerConfigDetail({
   // blocks the save; editing needs a change to save, as it always did.
   const saveable = valid && (create ? name.trim() !== '' : dirty)
   const nameCopy = NAME_COPY[kind]
-  let nameEditable = true
-  if (create && kind === 'mcp') {
-    try {
-      parseServerDocument(text ?? '', serverKey)
-    } catch {
-      nameEditable = false
-    }
-  }
   const changeName = (next: string): void => {
-    if (kind === 'mcp' && next.trim() !== '' && text !== undefined) {
-      const document = parseServerDocument(text, serverKey)
-      setText(composeServerDocument(next.trim(), document.config, document.policy))
-      setServerKey(next.trim())
+    const key = next.trim()
+    // Renaming writes the new key into a keyed document. A bare definition has
+    // no seat to rename, so there the field only decides the key the save
+    // declares; either way an unreadable document keeps its text and the save
+    // reports why, so the field never locks the editor.
+    if (kind === 'mcp' && key !== '' && text !== undefined) {
+      setServerKey(key)
+      try {
+        const document = readDraftServerDocument(text, key)
+        if (document.keyed) setText(composeServerDocument(key, document.config, document.policy))
+      } catch {
+        /* The editor already reports the document as it stands. */
+      }
     }
     setName(next)
   }
@@ -210,6 +246,7 @@ export function ServerConfigDetail({
             text,
             t,
             serverKey,
+            create,
             disabled: busy || !editable,
             onValidityChange: setValid,
             ...(credentials === undefined ? {} : { credentials }),
@@ -220,7 +257,7 @@ export function ServerConfigDetail({
                 placeholder: t(nameCopy.placeholder),
                 'aria-label': t(nameCopy.label),
                 readOnly: !create,
-                disabled: busy || !nameEditable,
+                disabled: busy,
                 onChange: (event: { target: { value: string } }) => {
                   if (create) changeName(event.target.value)
                 }
@@ -231,7 +268,7 @@ export function ServerConfigDetail({
             onPolicyDraftChange: updatePolicy,
             ...(backend === undefined ? {} : { backend }),
             ...(fieldErrors === undefined ? {} : { fieldErrors }),
-            onChange: setText
+            onChange: changeText
           }),
     loading || (error && text === undefined)
       ? null

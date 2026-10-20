@@ -92,6 +92,6 @@ Tables still use whole-table comparison. Sentence grouping reduces cross-sentenc
 
 ## Related
 
-This note partially supersedes [the disclosure-reading decision](2026-10-05-document-translation-chunked-and-lazy.md) and [the language-as-gate decision](2026-10-05-translation-default-follows-language.md). They remain active for bounded requests, role compatibility and the absent-setting distinction. The earlier attribution of the disclosure choice to the user is not evidence for this decision.
+This note partially supersedes [the disclosure-reading decision](2026-10-05-document-translation-chunked-and-lazy.md) and [the archived language-as-gate note](../../archived/feature/2026-10-05-translation-default-follows-language.md). They remain active for bounded requests, role compatibility and the absent-setting distinction. The earlier attribution of the disclosure choice to the user is not evidence for this decision.
 
 [The paragraph strategy](2026-10-09-document-translation-paragraph-atomicity.md) partially supersedes this note’s slice publication and caching rules. This note retains header interaction, independent target and display controls, and lifecycle ownership. [The universal layer](2026-10-04-universal-translation-layer.md) retains provider order and model isolation. [The Market route](../architecture/2026-10-05-market-document-translation-route-and-identity.md) retains lookup scopes and shared identity. None is fully superseded or archived.

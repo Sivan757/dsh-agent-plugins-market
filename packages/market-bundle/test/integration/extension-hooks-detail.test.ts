@@ -97,6 +97,7 @@ function marketService(catalog: Catalog): MarketService {
     setMcpServerEnabled: async () => {},
     setMcpServerToolEnabled: async () => {},
     addMcpServer: async () => {},
+    removeMcpServer: async () => {},
     saveServerConfig: async () => {},
     addLspServer: async () => {},
     setLspServers: async () => ({}),
