@@ -26,12 +26,18 @@ export interface ContinuableChildStart {
   readonly messageId?: string
 }
 
-/** One continuable start as this plugin issues it, in the older release's spelling. */
+/** One child start as this plugin issues it, in the older release's spelling. */
 export interface ContinuableStartInput {
   readonly provider: string
   readonly label: string
   readonly request: unknown
   readonly signal: AbortSignal
+  /**
+   * Reserved child identity. Both start members accept it, so the plugin can
+   * compose the child before the host publishes it. The older one-shot `start`
+   * allocates its own identity and cannot take this field.
+   */
+  readonly childId?: SessionId
 }
 
 /** One foreground run's settled outcome, identical on both release lines. */
@@ -81,6 +87,25 @@ export interface ContinuableSubagentSeam {
   startActivation?(spec: ContinuableStartInput & { readonly delivery?: 'parent' | 'caller' }): Promise<ActivationChildStart>
   drainContinuableChildren?(parent: Agent, childIds: readonly SessionId[]): Promise<void>
   drainChildren?(parent: Agent, childIds: readonly SessionId[]): Promise<void>
+}
+
+/**
+ * Which mechanism carries the role instructions on the host line this seam serves.
+ *
+ * The 0.2.1 line removed the request `persona` field, so from
+ * `0.2.1-alpha.2` on the plugin installs the child's own prompt section. The
+ * member spelling is the line discriminator: `startContinuable` exists exactly
+ * on the releases that still honor `persona`.
+ */
+export type RoleInstructionChannel = 'request-persona' | 'prompt-section'
+
+/**
+ * Resolve the role-instruction mechanism for the live host line.
+ * @param seam - the live `ctx.subagents` service.
+ * @returns the mechanism the plugin must use for this host.
+ */
+export function roleInstructionChannel(seam: ContinuableSubagentSeam): RoleInstructionChannel {
+  return typeof seam.startContinuable === 'function' ? 'request-persona' : 'prompt-section'
 }
 
 /**

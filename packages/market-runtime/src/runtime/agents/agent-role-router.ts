@@ -7,7 +7,8 @@ import { isAbsentPath } from '../../application/fs-probe.js'
 import { namedAgentRoles } from './agent-role-names.js'
 import { expandPluginPaths } from '../../../../market-catalog/src/index.js'
 import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../../application/agent-roles.js'
-import { startContinuableChild, startOneShotChild, type ContinuableSubagentSeam } from './subagent-seam.js'
+import { roleInstructionChannel, startContinuableChild, startOneShotChild, type ContinuableSubagentSeam } from './subagent-seam.js'
+import { mintRoleChildId, RoleComposition, type RoleChildComposition } from './role-composition.js'
 
 export { parseAgentRole }
 export type { AgentRoleEntry, AgentRolePolicy }
@@ -35,7 +36,8 @@ export interface AgentRoleDelegation {
   prompt: { type: 'text'; text: string }[]
   parent: unknown
   maxDepth: number
-  persona: string
+  /** Only the older host line still honors this field; the 0.2.1 line gets a prompt section instead. */
+  persona?: string
   agentOptions?: AgentRoleOptions
 }
 
@@ -46,6 +48,8 @@ export interface AgentRoleHost {
   }
   /** Host subagent seam; the seam module owns every member spelling this plugin drives. */
   subagents: ContinuableSubagentSeam
+  /** Role-instruction composition the mount installs; absent in unit hosts that do not compose children. */
+  roleComposition?: RoleChildComposition
 }
 
 /**
@@ -295,29 +299,44 @@ export async function executeAgentRole(
   // before either channel creates a child.
   await requireCurrentRole(listRoles, entry, parent)
   signal.throwIfAborted()
+  // The seam decides the instruction mechanism from the live member spelling, so
+  // the request shape and the composition stay one decision.
+  const channel = roleInstructionChannel(host.subagents)
+  const childId = mintRoleChildId()
+  const composition = host.roleComposition
+  const sectionChannel = channel === 'prompt-section'
+  // A section channel needs a durable binding before the child can be composed.
+  if (sectionChannel) composition?.requirePersistence(agentName)
   const request: AgentRoleDelegation = {
     prompt: [{ type: 'text', text: prompt }],
     parent,
     maxDepth: MAX_AGENT_ROLE_DEPTH,
-    persona: policy.content,
+    ...(sectionChannel ? {} : { persona: policy.content }),
     ...(agentOptions === undefined ? {} : { agentOptions })
   }
-  if (mode === 'continuable') {
-    const started = await startContinuableChild(host.subagents, { provider: 'spawn', label: agentName, request, signal })
-    return { kind: 'continuable', subagentId: started.childId }
-  }
-  const run = await startOneShotChild(host.subagents, { provider: 'spawn', label: agentName, request, signal })
+  if (sectionChannel) composition?.reserve(childId, { roleId: entry.name, role: agentName, persona: policy.content })
   try {
-    const result = await run.result
-    if (result.stopReason !== 'completed') {
-      const detail = result.diagnostic === undefined ? '' : `: ${result.diagnostic}`
-      throw new Error(`agent "${agentName}" did not complete (${result.stopReason})${detail}`)
+    if (mode === 'continuable') {
+      const started = await startContinuableChild(host.subagents, { provider: 'spawn', label: agentName, request, signal, childId })
+      return { kind: 'continuable', subagentId: started.childId }
     }
-    // The registry performs the authoritative lossless snapshot of the child's
-    // output blocks on the way out, exactly as the host's own delegation tool does.
-    return { kind: 'foreground', runId: run.runId, output: result.output as unknown as AgentRoleJson[] }
-  } finally {
-    await run.dispose()
+    const run = await startOneShotChild(host.subagents, { provider: 'spawn', label: agentName, request, signal, childId })
+    try {
+      const result = await run.result
+      if (result.stopReason !== 'completed') {
+        const detail = result.diagnostic === undefined ? '' : `: ${result.diagnostic}`
+        throw new Error(`agent "${agentName}" did not complete (${result.stopReason})${detail}`)
+      }
+      // The registry performs the authoritative lossless snapshot of the child's
+      // output blocks on the way out, exactly as the host's own delegation tool does.
+      return { kind: 'foreground', runId: run.runId, output: result.output as unknown as AgentRoleJson[] }
+    } finally {
+      await run.dispose()
+    }
+  } catch (error) {
+    // A start that never produced a child leaves no reservation behind.
+    if (sectionChannel) composition?.release(childId)
+    throw error
   }
 }
 
@@ -352,7 +371,23 @@ export function roleSnapshot(observation: AgentRoleObservation): AgentRoleSnapsh
 }
 
 export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) => Promise<AgentRoleObservation>): () => void {
-  const host = ctx as unknown as AgentRoleHost
+  const surface = ctx as unknown as AgentRoleHost
+  // The role-instruction composition is this mount's own effect: one reservation
+  // map and one `agent/created` subscription per mounted role tool. Reads stay
+  // live, because the host services may not exist yet when the tool mounts.
+  const composition = new RoleComposition(ctx)
+  const host: AgentRoleHost = {
+    get tools() {
+      return surface.tools
+    },
+    get llm() {
+      return surface.llm
+    },
+    get subagents() {
+      return surface.subagents
+    },
+    roleComposition: composition
+  }
   const entries = async (parent?: unknown) => roleSnapshot(await listRoles(parent)).entries
   const tool = defineTool({
     name: AGENT_ROLE_TOOL_NAME,
@@ -441,9 +476,11 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
       )
     }
   })
-  const disposeTool = host.tools.register(tool)
-  let disposeCatalog: () => void
+  const disposeComposition = composition.install()
+  let disposeTool: (() => void) | undefined
+  let disposeCatalog: (() => void) | undefined
   try {
+    disposeTool = host.tools.register(tool)
     disposeCatalog = mountSubagentCatalog(ctx, tool, async (agent, signal) => {
       const observation = roleSnapshot(await listRoles(agent))
       return {
@@ -452,11 +489,13 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
       }
     })
   } catch (error) {
-    disposeTool()
+    disposeTool?.()
+    disposeComposition()
     throw error
   }
   return () => {
-    disposeCatalog()
-    disposeTool()
+    disposeCatalog?.()
+    disposeTool?.()
+    disposeComposition()
   }
 }

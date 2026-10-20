@@ -29,6 +29,8 @@ tools: [read_file, search_files]
 
 未启用 Agent Teams 时，调用 `subagent_role`，提供目录中的准确 `agent` 与独立完整的 `prompt`。省略或传 true 的 `run_in_background` 立即返回 `{ kind: 'continuable', subagentId }`；false 等待 `{ kind: 'foreground', runId, output }`。没有受跟踪作业通道或 action 参数，子代理不继承父对话。
 
+子代理以自身的 `deployment:persona-prefix` 系统提示词段接收角色卡正文。创建时记录一条插件自有的上下文消息；重启后恢复时，从该记录重建这个段，而不是读取后来编辑的卡片。该通道失败即关闭：段无法安装或记录无法持久化时不会产生子代理，错误信息点名该角色。
+
 启用 Agent Teams 后，调用 `spawn_teammate_role(agent, name, description, prompt)`。可选 `provider`、`model`、`reasoning_effort` 沿用调用优先于卡片的路由规则；provider 指 LLM 路由而非 Team 传输后端。只有 Lead 在用户明确要求 Team 工作后才能创建成员。成员始终从全新上下文启动，没有前台／fork 参数。结果包含 `target`、角色身份与有效模型路由；通信、中断、名册和共享任务由原生 Team 工具管理。后续任务复用成员；同一角色可用于多个成员，但成员名称不可复用。
 
 两种模式下模型可见的目录标题都为 `subagent-catalog`，角色工具参数明确引用这个标题。Team 模式下目录继续作为精简的发现与选择列表：先匹配专业角色再用增强入口，无匹配或需要 fork 时使用原生创建。目录和增强创建工具仅对 Lead 可见，成员及非 Team 子代理不可见也不可调用该工具，执行时仍保留 Lead 身份检查；即使角色名称不变，模式或指导文案变化也会在下一步发布一次替代说明，保留此前历史。Team 服务后到时撤下独立入口；增强创建仍需要 sessions、会话查询与系统提示词服务。缺少依赖时不回退到 Team 看不见的独立子代理。

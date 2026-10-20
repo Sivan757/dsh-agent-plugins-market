@@ -419,7 +419,7 @@ export async function apply(
   // enhanced entry's member identities and all subsequent collaboration.
   const listRoles = sessionExtensions.roles
 
-  ctx.inject(['tools', 'llm', 'subagents', 'agents'], hostCtx => {
+  ctx.inject(['tools', 'llm', 'subagents', 'agents', 'systemPrompt'], hostCtx => {
     hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
   })
 

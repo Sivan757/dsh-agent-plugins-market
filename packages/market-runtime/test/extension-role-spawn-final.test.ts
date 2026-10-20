@@ -119,6 +119,30 @@ describe('a role revoked during model route validation never spawns', () => {
     expect(started.request.agentOptions).toMatchObject({ provider: 'mock', model: 'card-model' })
   })
 
+  it('drops the request persona on the activation line, the same call site that keeps it on the deferring line', async () => {
+    const roles: AgentRoleEntry[] = [card()]
+    const spawns: Array<Record<string, unknown>> = []
+    const activationHost: AgentRoleHost = {
+      tools: { register: () => () => {} },
+      llm: { resolveCallConfig: async () => ({}) },
+      subagents: {
+        startActivation: async spec => {
+          spawns.push({ ...spec })
+          return { childId: 'child-1', result: Promise.resolve({ output: [], stopReason: 'completed' }), dispose: async () => {} }
+        }
+      }
+    }
+    await expect(executeAgentRole(activationHost, async () => roles, 'reviewer', 'Review it', parent, {}, 'continuable', new AbortController().signal)).resolves.toEqual({
+      kind: 'continuable',
+      subagentId: 'child-1'
+    })
+    const started = spawns[0] as { label: string; request: Record<string, unknown> }
+    expect(started.label).toBe('reviewer')
+    // The card body travels as the child's own prompt section on this line,
+    // never as the removed request field.
+    expect(started.request).not.toHaveProperty('persona')
+  })
+
   it('keeps the teammate path closed when the role is revoked mid-validation', async () => {
     const root = await mkdtemp(join(tmpdir(), 'market-role-final-'))
     cleanups.push(() => rm(root, { recursive: true, force: true }))
