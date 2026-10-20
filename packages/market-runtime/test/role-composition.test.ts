@@ -141,8 +141,10 @@ describe('one role child receives its card body from the plugin composition', ()
 
   it('fails closed when the role section cannot be installed and leaves no reservation behind', async () => {
     const { ctx, lead, adapter } = await setup()
-    // A scoped duplicate of the persona section shadows the same slot, so the
-    // plugin's own registration must throw instead of silently replacing it.
+    // Registering the persona section in the child's OWN scope collides with the
+    // plugin's registration, which lands in the same layer, so the install must
+    // throw instead of silently replacing it. A preset's persona sits one layer
+    // up and is shadowed rather than collided with.
     const off = ctx.on(
       'agent/created',
       ({ agent }) => {
