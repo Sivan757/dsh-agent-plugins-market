@@ -17,11 +17,15 @@
  * a typed field, or a chain split across lines.
  *
  * The boundary, stated rather than implied: the scan parses, it does not
- * type-check. A receiver whose seam type is only INFERRED and never written (for
- * example `const seam = makeSeam()` where `makeSeam` has no declared return
- * type) is not resolved. Written annotations, service derivations, and declared
- * return types are. Running the checker would close that last case at the cost
- * of a Program over the whole project, which the fixture samples cannot join.
+ * type-check. The seam type counts only when it is WRITTEN: a variable or
+ * parameter annotation, a seam-typed field, an `as` or `satisfies` assertion, a
+ * derivation from the host subagent service, or a call to a local function whose
+ * declared return type is the seam. Two shapes stay out of scope: a receiver
+ * whose seam type is only inferred and never written, and the service carried
+ * inside an object literal and read back through its property. The out-of-scope
+ * samples below record both as a known gap rather than as a silent one. Running
+ * the checker would close them at the cost of a Program over the whole project,
+ * which the fixture samples cannot join.
  */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -100,7 +104,47 @@ const SHAPES: Record<string, { source: string; shape: ReadShape; member: string 
       'export function seamOf(ctx: Ctx): SubagentSeam { return ctx.subagents as SubagentSeam }\nexport function f(ctx: Ctx) {\n  const seam = seamOf(ctx)\n  seam.start("spawn", {})\n}',
     shape: 'typed variable',
     member: 'start'
+  },
+  // The written forms that assert the seam type instead of annotating a binding.
+  satisfies: {
+    source: 'export function f(ctx: Ctx) {\n  const seam = ctx.subagents satisfies SubagentSeam\n  seam.start("spawn", {})\n}',
+    shape: 'typed assertion',
+    member: 'start'
+  },
+  'as on an opaque call': {
+    source: 'declare function makeSeam(ctx: Ctx): unknown\nexport function f(ctx: Ctx) {\n  const seam = makeSeam(ctx) as SubagentSeam\n  seam.start("spawn", {})\n}',
+    shape: 'typed assertion',
+    member: 'start'
+  },
+  'assertion on a parameter': {
+    source: 'export function f(raw: unknown) {\n  const seam = raw as SubagentSeam\n  seam.start("spawn", {})\n}',
+    shape: 'typed assertion',
+    member: 'start'
+  },
+  'assertion in the receiver position': {
+    source: 'declare function makeSeam(ctx: Ctx): unknown\nexport function f(ctx: Ctx) {\n  ;(makeSeam(ctx) as SubagentSeam).start("spawn", {})\n}',
+    shape: 'typed assertion',
+    member: 'start'
+  },
+  'satisfies inside parentheses': {
+    source: 'export function f(ctx: Ctx) {\n  const seam = (ctx.subagents satisfies SubagentSeam)!\n  seam.start("spawn", {})\n}',
+    shape: 'typed assertion',
+    member: 'start'
   }
+}
+
+/**
+ * Shapes the scan does not resolve, recorded so the boundary is tested rather
+ * than only claimed.
+ *
+ * A receiver whose seam type is only inferred, and the service carried inside an
+ * object literal, both stay out of scope because neither writes a type the
+ * parser can attribute to the receiver. If a later change closes one of these,
+ * the assertions below fail and the boundary statement moves with it.
+ */
+const OUT_OF_SCOPE: Record<string, string> = {
+  'inferred seam type': 'export function makeSeam(ctx: Ctx) { return ctx.subagents }\nexport function f(ctx: Ctx) {\n  const seam = makeSeam(ctx)\n  seam.start("spawn", {})\n}',
+  'service held in an object literal': 'export function f(ctx: Ctx) {\n  const holder = { seam: ctx.subagents }\n  holder.seam.start("spawn", {})\n}'
 }
 
 /** Source shapes that must stay clean, so the scan does not flag legitimate use. */
@@ -124,6 +168,12 @@ describe('host subagent member ownership', () => {
 
   it('leaves legitimate seam use alone', () => {
     for (const [name, source] of Object.entries(CLEAN)) expect(findMemberReads(source), name).toEqual([])
+  })
+
+  it('records the shapes it does not resolve instead of implying completeness', () => {
+    // Documenting a gap, not blessing it: each sample must stay unresolved until a
+    // change closes it, and that change fails this case and updates the comment.
+    for (const [name, source] of Object.entries(OUT_OF_SCOPE)) expect(findMemberReads(source), name).toEqual([])
   })
 
   it('reaches no subagent member from a file outside the seam module', async () => {

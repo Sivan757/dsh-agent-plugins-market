@@ -9,9 +9,17 @@
  *
  * The scan parses, it does not type-check: there is no Program and no checker
  * here, because the same scan must run over fixture samples that have no
- * project. That places one boundary on it, stated in the test that uses it: a
- * receiver whose seam type is only INFERRED, never written, is out of scope.
- * Every written form is in scope, which is the class this gate exists to close.
+ * project. A receiver therefore counts as a seam when the seam type is WRITTEN,
+ * in one of these forms: a variable or parameter type annotation, a seam-typed
+ * class field, an `as` or `satisfies` assertion, a derivation from the host
+ * subagent service, or a call to a local function whose declared return type is
+ * the seam.
+ *
+ * Two shapes stay out of scope, named so this comment is not read as a proof.
+ * A receiver whose seam type is only INFERRED and never written is not resolved,
+ * and neither is the service carried inside an object literal and read back
+ * through its property. Running the checker would close both at the cost of a
+ * Program over the whole project, which the fixture samples cannot join.
  *
  * @module packages/market-bundle/test/repo/helpers/subagent-member-scan
  */
@@ -51,7 +59,16 @@ const SEAM_TYPES = new Set(['SubagentSeam', 'ContinuableSubagentSeam', 'Subagent
 
 /** How one source text reached a host member; the label is the spelling that got through. */
 export type ReadShape =
-  'service member' | 'optional chaining' | 'bracket access' | 'local alias' | 'destructuring' | 'service lookup' | 'typed variable' | 'typed parameter' | 'typed field'
+  | 'service member'
+  | 'optional chaining'
+  | 'bracket access'
+  | 'local alias'
+  | 'destructuring'
+  | 'service lookup'
+  | 'typed variable'
+  | 'typed parameter'
+  | 'typed field'
+  | 'typed assertion'
 
 /** One host member read: the member and the spelling that reached it. */
 export interface MemberRead {
@@ -68,10 +85,42 @@ interface SeamNames {
 /** Strip parentheses, assertions, and non-null wrappers so the receiver shape is reachable. */
 function unwrap(node: ts.Expression): ts.Expression {
   let current = node
-  while (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isNonNullExpression(current) || ts.isTypeAssertionExpression(current)) {
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isTypeAssertionExpression(current)
+  ) {
     current = current.expression
   }
   return current
+}
+
+/**
+ * Whether an expression asserts the seam type in writing, through `as`,
+ * `satisfies`, or an angle-bracket assertion, at any depth of wrapping.
+ *
+ * The assertion is a written form even when the value under it is opaque: a call
+ * to a function with no declared return type says nothing until its result is
+ * asserted, and that assertion is what names the receiver.
+ * @param expression - the expression to inspect.
+ * @returns true when some wrapper names the seam type.
+ */
+function assertedSeamType(expression: ts.Expression): boolean {
+  let current: ts.Expression = expression
+  for (;;) {
+    if (ts.isAsExpression(current) || ts.isSatisfiesExpression(current) || ts.isTypeAssertionExpression(current)) {
+      if (isSeamType(current.type)) return true
+      current = current.expression
+      continue
+    }
+    if (ts.isParenthesizedExpression(current) || ts.isNonNullExpression(current)) {
+      current = current.expression
+      continue
+    }
+    return false
+  }
 }
 
 /** The literal text of a string argument, when the argument is a plain literal. */
@@ -120,6 +169,10 @@ function collectSeamNames(source: ts.SourceFile): SeamNames {
       const name = declaration.name.text
       // A written seam type is the strongest signal, whatever the initializer is.
       if (isSeamType(declaration.type)) values.set(name, 'typed variable')
+      // An `as` or `satisfies` assertion is the next strongest: it names the seam
+      // even when the value under it is opaque, and it is checked before the
+      // service derivation so the assertion is what the failure reports.
+      else if (declaration.initializer !== undefined && assertedSeamType(declaration.initializer)) values.set(name, 'typed assertion')
       else if (declaration.initializer !== undefined && isServiceAccess(declaration.initializer)) values.set(name, 'local alias')
       else if (declaration.initializer !== undefined && ts.isCallExpression(unwrap(declaration.initializer))) {
         const callee = unwrap((unwrap(declaration.initializer) as ts.CallExpression).expression)
@@ -156,6 +209,8 @@ function collectSeamNames(source: ts.SourceFile): SeamNames {
 
 /** The spelling that binds `expression` to a seam receiver, or undefined when it is not one. */
 function receiverShape(expression: ts.Expression, names: SeamNames): ReadShape | undefined {
+  // A receiver asserted in place, as in `(makeSeam(ctx) as SubagentSeam).start(...)`.
+  if (assertedSeamType(expression)) return 'typed assertion'
   const node = unwrap(expression)
   if (ts.isIdentifier(node)) return names.values.get(node.text)
   if (ts.isPropertyAccessExpression(node)) {
