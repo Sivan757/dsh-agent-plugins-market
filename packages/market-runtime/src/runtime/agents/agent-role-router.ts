@@ -7,7 +7,7 @@ import { isAbsentPath } from '../../application/fs-probe.js'
 import { namedAgentRoles } from './agent-role-names.js'
 import { expandPluginPaths } from '../../../../market-catalog/src/index.js'
 import { parseAgentRole, type AgentRoleEntry, type AgentRolePolicy } from '../../application/agent-roles.js'
-import { roleInstructionChannel, startContinuableChild, startOneShotChild, type ContinuableSubagentSeam } from './subagent-seam.js'
+import { roleInstructionChannel, startContinuableChild, startOneShotChild, type SubagentSeam } from './subagent-seam.js'
 import { mintRoleChildId, RoleComposition, type RoleChildComposition } from './role-composition.js'
 
 export { parseAgentRole }
@@ -47,7 +47,7 @@ export interface AgentRoleHost {
     resolveCallConfig(config: { provider: string; model: string; reasoningEffort?: string }, signal?: AbortSignal): Promise<unknown>
   }
   /** Host subagent seam; the seam module owns every member spelling this plugin drives. */
-  subagents: ContinuableSubagentSeam
+  subagents: SubagentSeam
   /** Role-instruction composition the mount installs; absent in unit hosts that do not compose children. */
   roleComposition?: RoleChildComposition
 }

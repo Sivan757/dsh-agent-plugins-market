@@ -49,4 +49,6 @@ zod 一行是副本问题，不是版本偏好。插件 schema 会跨进宿主�
 
 ## Related decisions
 
+被[宿主子代理成员名只由一个模块拥有](2026-10-20-subagent-seam-member-ownership.md)部分取代：该记录覆盖归属规则与契约测试，本记录仍是改名表、受守卫成员与 zod pin 的权威来源。
+
 在通道问题上继续执行[从 prerelease 候选线解析对齐基线](../process/2026-09-23-next-channel-baseline.md)，并补上该决定隐含留白的代码侧容忍。

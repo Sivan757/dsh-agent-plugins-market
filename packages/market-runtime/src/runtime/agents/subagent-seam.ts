@@ -9,15 +9,17 @@
  * whichever member the live service exposes and keeps one source tree working on
  * both releases.
  *
- * Every member is optional and every call is guarded, per the plugin standard's
- * rule for a host capability the declared types do not carry. A host exposing
- * neither name is unsupported, and the refusal names both members rather than
- * failing with a property access on undefined.
+ * This is the only module in the repository that names a host subagent member.
+ * The table below is the single source the runtime guards and the contract test
+ * read, so the two cannot drift apart. A host exposing no spelling of an
+ * operation is refused with a message naming every alternative, never with a
+ * property access on undefined.
  *
  * @module runtime/agents/subagent-seam
  */
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
 
 /** The child identity both releases return once the child accepts its first prompt. */
 export interface ContinuableChildStart {
@@ -74,6 +76,20 @@ export interface ActivationChildStart extends ContinuableChildStart {
 }
 
 /**
+ * Every host subagent member this plugin drives, named by the operation it
+ * performs and listed in the order the seam prefers the spellings.
+ */
+export const SEAM_MEMBER_ALTERNATIVES = {
+  oneShotChild: ['start', 'startActivation'],
+  continuableChild: ['startContinuable', 'startActivation'],
+  drainChildren: ['drainContinuableChildren', 'drainChildren'],
+  registerProvider: ['registerProvider']
+} as const
+
+/** One logical subagent operation the seam performs. */
+export type SeamOperation = keyof typeof SEAM_MEMBER_ALTERNATIVES
+
+/**
  * The host subagent members this plugin drives, across both release lines.
  *
  * The 0.2.1-alpha.4 activation additionally requires `delivery`; the older
@@ -81,12 +97,43 @@ export interface ActivationChildStart extends ContinuableChildStart {
  * value explicitly, and the older one-shot start instead takes its cancellation
  * signal inside the request.
  */
-export interface ContinuableSubagentSeam {
+export interface SubagentSeam {
   start?(provider: string, request: unknown): Promise<LegacyOneShotRun>
   startContinuable?(spec: ContinuableStartInput): Promise<ContinuableChildStart>
   startActivation?(spec: ContinuableStartInput & { readonly delivery?: 'parent' | 'caller' }): Promise<ActivationChildStart>
   drainContinuableChildren?(parent: Agent, childIds: readonly SessionId[]): Promise<void>
   drainChildren?(parent: Agent, childIds: readonly SessionId[]): Promise<void>
+  registerProvider?(provider: SubagentProvider): () => void
+}
+
+/** One resolved member spelling and a caller that keeps the service as its receiver. */
+interface ResolvedMember {
+  readonly name: string
+  readonly call: (...args: never[]) => unknown
+}
+
+/**
+ * Resolve the first live spelling for one operation from the member table.
+ *
+ * The returned caller applies the member with the seam as its receiver: a host
+ * service method reads its own context from `this`, and a detached reference
+ * loses it.
+ */
+function resolveMember(seam: SubagentSeam | undefined, operation: SeamOperation): ResolvedMember | undefined {
+  const members = seam as unknown as Record<string, unknown> | undefined
+  for (const name of SEAM_MEMBER_ALTERNATIVES[operation]) {
+    const member = members?.[name]
+    if (typeof member !== 'function') continue
+    const call = (...args: never[]): unknown => Reflect.apply(member as (...values: never[]) => unknown, seam, args)
+    return { name, call }
+  }
+  return undefined
+}
+
+/** The refusal for a host that exposes no spelling of one operation. */
+function missingMember(operation: SeamOperation): Error {
+  const alternatives = SEAM_MEMBER_ALTERNATIVES[operation]
+  return new Error(`the host subagent service exposes no ${alternatives.join(' or ')} member`)
 }
 
 /**
@@ -104,8 +151,8 @@ export type RoleInstructionChannel = 'request-persona' | 'prompt-section'
  * @param seam - the live `ctx.subagents` service.
  * @returns the mechanism the plugin must use for this host.
  */
-export function roleInstructionChannel(seam: ContinuableSubagentSeam): RoleInstructionChannel {
-  return typeof seam.startContinuable === 'function' ? 'request-persona' : 'prompt-section'
+export function roleInstructionChannel(seam: SubagentSeam): RoleInstructionChannel {
+  return resolveMember(seam, 'continuableChild')?.name === 'startContinuable' ? 'request-persona' : 'prompt-section'
 }
 
 /**
@@ -115,10 +162,14 @@ export function roleInstructionChannel(seam: ContinuableSubagentSeam): RoleInstr
  * @returns the child identity the host reserved.
  * @throws when the host exposes neither start member.
  */
-export function startContinuableChild(seam: ContinuableSubagentSeam, input: ContinuableStartInput): Promise<ContinuableChildStart> {
-  if (typeof seam.startContinuable === 'function') return seam.startContinuable(input)
-  if (typeof seam.startActivation === 'function') return seam.startActivation({ ...input, delivery: 'parent' })
-  return Promise.reject(new Error('the host subagent service exposes neither startContinuable nor startActivation'))
+export function startContinuableChild(seam: SubagentSeam, input: ContinuableStartInput): Promise<ContinuableChildStart> {
+  const resolved = resolveMember(seam, 'continuableChild')
+  if (resolved?.name === 'startContinuable') return (resolved.call as (spec: ContinuableStartInput) => Promise<ContinuableChildStart>)(input)
+  if (resolved?.name === 'startActivation') {
+    const spec = { ...input, delivery: 'parent' as const }
+    return (resolved.call as (spec: ContinuableStartInput & { readonly delivery: 'parent' }) => Promise<ContinuableChildStart>)(spec)
+  }
+  return Promise.reject(missingMember('continuableChild'))
 }
 
 /**
@@ -133,20 +184,24 @@ export function startContinuableChild(seam: ContinuableSubagentSeam, input: Cont
  * @returns one normalized run carrying the durable child identity.
  * @throws when the host exposes neither one-shot start member.
  */
-export function startOneShotChild(seam: ContinuableSubagentSeam, input: ContinuableStartInput): Promise<OneShotChildRun> {
-  if (typeof seam.start === 'function') {
+export function startOneShotChild(seam: SubagentSeam, input: ContinuableStartInput): Promise<OneShotChildRun> {
+  const resolved = resolveMember(seam, 'oneShotChild')
+  if (resolved?.name === 'start') {
+    type OneShotStart = (provider: string, request: unknown) => Promise<LegacyOneShotRun>
     // The older one-shot start reads cancellation from its request object.
     const request = { ...(input.request as Record<string, unknown>), signal: input.signal }
-    return seam.start(input.provider, request).then(run => ({ runId: run.id, result: run.result, dispose: () => run.dispose() }))
+    return (resolved.call as OneShotStart)(input.provider, request).then(run => ({ runId: run.id, result: run.result, dispose: () => run.dispose() }))
   }
-  if (typeof seam.startActivation === 'function') {
-    return seam.startActivation({ ...input, delivery: 'caller' }).then(activation => ({
+  if (resolved?.name === 'startActivation') {
+    type ActivationStart = (spec: ContinuableStartInput & { readonly delivery: 'caller' }) => Promise<ActivationChildStart>
+    const spec = { ...input, delivery: 'caller' as const }
+    return (resolved.call as ActivationStart)(spec).then(activation => ({
       runId: activation.childId,
       result: activation.result,
       dispose: () => activation.dispose()
     }))
   }
-  return Promise.reject(new Error('the host subagent service exposes neither start nor startActivation'))
+  return Promise.reject(missingMember('oneShotChild'))
 }
 
 /**
@@ -157,8 +212,34 @@ export function startOneShotChild(seam: ContinuableSubagentSeam, input: Continua
  * @param childIds - durable direct-child ids to release when resident.
  * @throws when the host exposes neither drain member.
  */
-export function drainContinuableChildIds(seam: ContinuableSubagentSeam, parent: Agent, childIds: readonly SessionId[]): Promise<void> {
-  if (typeof seam.drainContinuableChildren === 'function') return seam.drainContinuableChildren(parent, childIds)
-  if (typeof seam.drainChildren === 'function') return seam.drainChildren(parent, childIds)
-  return Promise.reject(new Error('the host subagent service exposes neither drainContinuableChildren nor drainChildren'))
+export function drainContinuableChildIds(seam: SubagentSeam, parent: Agent, childIds: readonly SessionId[]): Promise<void> {
+  const resolved = resolveMember(seam, 'drainChildren')
+  if (resolved === undefined) return Promise.reject(missingMember('drainChildren'))
+  return (resolved.call as (parent: Agent, childIds: readonly SessionId[]) => Promise<void>)(parent, childIds)
 }
+
+/**
+ * Register one subagent provider on the host service.
+ * @param seam - the live `ctx.subagents` service.
+ * @param provider - the provider implementation this plugin supplies.
+ * @returns the host registration disposer.
+ * @throws when the host exposes no provider registry.
+ */
+export function registerSubagentProvider(seam: SubagentSeam, provider: SubagentProvider): () => void {
+  const resolved = resolveMember(seam, 'registerProvider')
+  if (resolved === undefined) throw missingMember('registerProvider')
+  return (resolved.call as (provider: SubagentProvider) => () => void)(provider)
+}
+
+/**
+ * One guarded adapter per table operation.
+ *
+ * The contract test reads this map, so a member added to the table without an
+ * adapter fails there instead of in a user session.
+ */
+export const SEAM_ADAPTERS = {
+  oneShotChild: startOneShotChild,
+  continuableChild: startContinuableChild,
+  drainChildren: drainContinuableChildIds,
+  registerProvider: registerSubagentProvider
+} as const satisfies Record<SeamOperation, unknown>

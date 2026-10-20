@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { drainContinuableChildIds, startContinuableChild, startOneShotChild } from '../../../packages/market-runtime/src/runtime/agents/subagent-seam.js'
+import { drainContinuableChildIds, registerSubagentProvider, startContinuableChild, startOneShotChild } from '../../../packages/market-runtime/src/runtime/agents/subagent-seam.js'
 
 const signal = new AbortController().signal
 const parent = { id: 'lead' } as never
@@ -25,7 +25,7 @@ describe('subagent seam across host release lines', () => {
   })
 
   it('refuses a host that exposes neither start member', async () => {
-    await expect(startContinuableChild({}, input)).rejects.toThrow('neither startContinuable nor startActivation')
+    await expect(startContinuableChild({}, input)).rejects.toThrow('no startContinuable or startActivation member')
   })
 
   it('drains through the member the live release exposes', async () => {
@@ -41,7 +41,28 @@ describe('subagent seam across host release lines', () => {
   })
 
   it('refuses a host that exposes neither drain member', async () => {
-    await expect(drainContinuableChildIds({}, parent, childIds())).rejects.toThrow('neither drainContinuableChildren nor drainChildren')
+    await expect(drainContinuableChildIds({}, parent, childIds())).rejects.toThrow('no drainContinuableChildren or drainChildren member')
+  })
+
+  it('calls every host member with the service as its receiver', async () => {
+    // A host service method reads its own context from `this`; a detached
+    // reference throws. Every seam adapter must preserve the receiver.
+    const seam = {
+      owner: 'live-service',
+      async startContinuable(this: { owner: string }) {
+        return { childId: this.owner }
+      },
+      async drainChildren(this: { owner: string }) {
+        if (this.owner !== 'live-service') throw new Error('receiver lost')
+      },
+      registerProvider(this: { owner: string }) {
+        if (this.owner !== 'live-service') throw new Error('receiver lost')
+        return () => {}
+      }
+    }
+    await expect(startContinuableChild(seam, input)).resolves.toEqual({ childId: 'live-service' })
+    await expect(drainContinuableChildIds(seam, parent, childIds())).resolves.toBeUndefined()
+    expect(() => registerSubagentProvider(seam, { name: 'probe', capabilities: {} as never, inheritsParentContext: false })).not.toThrow()
   })
 })
 
@@ -85,6 +106,6 @@ describe('one-shot foreground seam across host release lines', () => {
   })
 
   it('refuses a host that exposes neither one-shot start member', async () => {
-    await expect(startOneShotChild({}, input)).rejects.toThrow('neither start nor startActivation')
+    await expect(startOneShotChild({}, input)).rejects.toThrow('no start or startActivation member')
   })
 })

@@ -6,10 +6,10 @@ import type { TeamService } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
-import { foldSubagentDescriptor, type SubagentRuntime } from '@deepseek-ai/dsh-subagent'
+import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import type { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { z } from 'zod'
-import { drainContinuableChildIds, type ContinuableSubagentSeam } from './subagent-seam.js'
+import { drainContinuableChildIds, registerSubagentProvider, type SubagentSeam } from './subagent-seam.js'
 import { applyRoleRoute, installPersonaSection } from './role-composition.js'
 
 const PROVIDER = 'market-role-team'
@@ -68,7 +68,7 @@ function memberIdentity(member: string, role: string): string {
 /** Creation and replay keep role data out of task text and never mutate the Lead's route. */
 export class TeammateRoleRuntime {
   private readonly teams: TeamService
-  private readonly subagents: SubagentRuntime
+  private readonly subagents: SubagentSeam
   private readonly pending = new AsyncLocalStorage<PendingRole>()
   private readonly stop = new AbortController()
   private readonly registrations: Array<() => void> = []
@@ -79,14 +79,14 @@ export class TeammateRoleRuntime {
 
   constructor(private readonly ctx: Context) {
     this.teams = ctx.get('agentTeams') as TeamService
-    this.subagents = ctx.get('subagents') as SubagentRuntime
+    this.subagents = ctx.get('subagents') as SubagentSeam
     // The 0.2.1-alpha.4 host removed `toolFilter` and `persona` from the capability
     // record and added `agentPreset`; the 0.2.0-rc.2 baseline types require the first
     // two. One variable satisfies both shapes because the host reads only the flags
     // it knows, while an object literal would fail the newer excess-property check.
     const capabilities = { agentOptions: false, agentPreset: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false }
     this.registrations.push(
-      this.subagents.registerProvider({
+      registerSubagentProvider(this.subagents, {
         name: PROVIDER,
         inheritsParentContext: false,
         capabilities,
@@ -232,7 +232,7 @@ export class TeammateRoleRuntime {
       if (parent !== undefined) byParent.set(parent, [...(byParent.get(parent) ?? []), agent.id])
     }
     try {
-      await Promise.all([...byParent].map(([parent, ids]) => drainContinuableChildIds(this.subagents as ContinuableSubagentSeam, parent, ids)))
+      await Promise.all([...byParent].map(([parent, ids]) => drainContinuableChildIds(this.subagents, parent, ids)))
     } finally {
       for (const off of this.registrations.splice(0).reverse()) off()
       for (const off of this.compositions.values()) off()

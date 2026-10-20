@@ -310,7 +310,7 @@ describe('agent role metadata and runtime routing', () => {
       subagents: {}
     }
     const entry = await roleFile('---\nmodel: inherit\n---\nReview.')
-    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow('neither start nor startActivation')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())).rejects.toThrow('no start or startActivation member')
   })
 
   it('builds one request shape per host line from the same call site', async () => {

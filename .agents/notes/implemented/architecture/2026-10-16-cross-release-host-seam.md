@@ -49,4 +49,6 @@ The provider capability record is one variable carrying both spellings. The host
 
 ## Related decisions
 
+Partially superseded by [one module owns the host subagent member names](2026-10-20-subagent-seam-member-ownership.md): that note covers the ownership rule and the contract tests, while this note remains authority for the rename table, the guarded members, and the zod pin.
+
 Keeps [resolve the alignment baseline from the prerelease candidate line](../process/2026-09-23-next-channel-baseline.md) in force on the channel question and adds the code-side tolerance that decision left implicit.
