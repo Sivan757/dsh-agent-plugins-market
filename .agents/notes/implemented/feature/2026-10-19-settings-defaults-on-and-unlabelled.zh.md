@@ -32,7 +32,7 @@ Status: implemented Date: 2026-10-19
 - 英文安装现在默认会因翻译消耗模型额度。关掉它只需一个开关，翻译缓存的重置入口也仍然存在。
 - 存下的 `false` 对两个字段仍然优先，回答过这个问题的用户保留自己的答案。
 - 卡片与指南里的实验性措辞已移除；没有任何代码路径再为决定设置默认值去读语言。
-- [翻译默认值记录](../archived/feature/2026-10-05-translation-default-follows-language.md)已归档：它以语言推导默认值的决定在此被反转。
+- [翻译默认值记录](../../archived/feature/2026-10-05-translation-default-follows-language.md)已归档：它以语言推导默认值的决定在此被反转。
 
 ## Testing
 

@@ -32,7 +32,7 @@ Both switches are on by default, and neither row carries a tag.
 - An English installation now spends provider requests on translation by default. Turning it off is one switch, and the translation cache reset still exists.
 - A stored `false` wins for both fields, so a user who answered the question keeps that answer.
 - The experimental wording is gone from the card and the guides; no code path reads a language to decide a settings default.
-- The [translation default note](../archived/feature/2026-10-05-translation-default-follows-language.md) is archived: its language-derived default is reversed here.
+- The [translation default note](../../archived/feature/2026-10-05-translation-default-follows-language.md) is archived: its language-derived default is reversed here.
 
 ## Testing
 
