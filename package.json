@@ -19,7 +19,7 @@
   "files": [
     "lib",
     "client",
-    "schemas",
+    "packages/market-catalog/schemas",
     "locale",
     "assets/dsh-agent-plugins.png",
     "cordis.patch.yml",
