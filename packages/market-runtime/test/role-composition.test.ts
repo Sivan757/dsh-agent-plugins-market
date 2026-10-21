@@ -277,6 +277,56 @@ describe('one role child receives its card body from the plugin composition', ()
     }
   })
 
+  it('places the card body in the host persona-prefix slot, not somewhere else', async () => {
+    // The implementation claims the host's own DEPLOYMENT_PERSONA_PREFIX position.
+    // Order is load-bearing: a wrong getSectionOrder argument still renders the card
+    // body somewhere in the prompt, so only a placement assertion catches it. Two
+    // probe sections bracket the slot by one order unit on each side, which pins the
+    // registration to that exact position instead of merely "somewhere after identity".
+    const { ctx, lead, adapter } = await setup()
+    const off = ctx.on(
+      'agent/created',
+      ({ agent }): undefined => {
+        if (agent.session.header.parentSession !== lead.id) return undefined
+        const prompt = agent.ctx.get('systemPrompt') as SystemPrompt
+        const slot = prompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX')
+        prompt.section({ name: 'probe:below-persona', order: slot - 1, text: 'PROBE_BELOW' })
+        prompt.section({ name: 'probe:above-persona', order: slot + 1, text: 'PROBE_ABOVE' })
+        return undefined
+      },
+      { prepend: true }
+    )
+    try {
+      adapter.hold = true
+      const result = await invoke(ctx, lead, {})
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error(result.error.message)
+      const childId = (result.value as { subagentId: string }).subagentId
+      const child = ctx.agents.get(SessionId(childId))
+      expect(child).toBeDefined()
+      const prompt = (child as unknown as { ctx: { get(name: string): unknown } }).ctx.get('systemPrompt') as SystemPrompt
+      const assembly = await prompt.assemble(assembleContextFor(child as never))
+      const names = assembly.sections.map(section => section.name)
+      const personaIndex = names.indexOf(PERSONA_PREFIX_SECTION)
+      expect(personaIndex, names.join(' -> ')).toBeGreaterThan(-1)
+      // The card body sits strictly between the two probes, so the registered order
+      // is inside (slot - 1, slot + 1).
+      expect(personaIndex).toBe(names.indexOf('probe:below-persona') + 1)
+      expect(personaIndex).toBe(names.indexOf('probe:above-persona') - 1)
+      // And the slot itself is the host's persona-prefix position: after identity,
+      // before the next central allocation.
+      expect(prompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX')).toBeLessThan(prompt.getSectionOrder('PLAN_POLICY'))
+      expect(prompt.getSectionOrder('HARNESS_IDENTITY')).toBeLessThan(prompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX'))
+      const persona = assembly.sections[personaIndex]
+      expect(persona?.text).toBe('CARD_PERSONA')
+      // interpolate false keeps a card body with template braces literal.
+      expect(persona?.interpolate).toBe(false)
+      adapter.release()
+    } finally {
+      off()
+    }
+  })
+
   it('restores the card body from the durable binding after a full context restart', async () => {
     const first = await setup()
     const done = Promise.withResolvers<void>()
