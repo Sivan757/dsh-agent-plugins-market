@@ -253,9 +253,18 @@ export class RoleComposition implements RoleChildComposition {
         return
       }
       // Bounded, because this runs while a refusal is on its way out: a host drain
-      // that stalls must not hold the error the caller needs.
-      if (!(await settlesWithin(drainContinuableChildIds(seam, parent, [SessionId(childId)]), ROLE_ABANDON_DEADLINE_MS))) {
+      // that stalls must not hold the error the caller needs. The rejection is captured
+      // rather than left to the bounded wait, which counts a rejection as settled: a
+      // host that refuses the release, or exposes no drain member, must still be
+      // reported instead of passing as a release.
+      let rejection: unknown
+      const release = drainContinuableChildIds(seam, parent, [SessionId(childId)]).catch((error: unknown) => {
+        rejection = error
+      })
+      if (!(await settlesWithin(release, ROLE_ABANDON_DEADLINE_MS))) {
         this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and the host did not release within ${ROLE_ABANDON_DEADLINE_MS}ms; the host owns its teardown`)
+      } else if (rejection !== undefined) {
+        this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and could not be released: ${describe(rejection)}`)
       }
     } catch (error) {
       // The refusal is already on its way out. A release failure must not replace

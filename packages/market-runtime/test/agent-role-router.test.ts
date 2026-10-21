@@ -455,7 +455,7 @@ describe('agent role metadata and runtime routing', () => {
     expect(composition.release).toHaveBeenCalledOnce()
   })
 
-  it('surfaces the identity refusal even when the release stalls', async () => {
+  it('awaits the release before it surfaces the identity refusal', async () => {
     const { host, startActivation, composition } = activationHostFixture()
     startActivation.mockImplementationOnce(async () => ({
       childId: 'host-generated',
@@ -463,8 +463,10 @@ describe('agent role metadata and runtime routing', () => {
       result: Promise.resolve({ output: [], stopReason: 'completed' }),
       dispose: async () => {}
     }))
-    // The real composition bounds its release; this asserts the caller does not
-    // wait on that bound to learn the call failed.
+    // This fixture's abandon resolves at once, so this case shows the ordering the
+    // router owns: the release call runs before the refusal reaches the caller, and
+    // the caller still receives the refusal afterwards. The release's own time bound
+    // is covered by the fake-timer case in role-composition.test.ts.
     let releaseResolved = false
     composition.abandon.mockImplementation(async () => {
       releaseResolved = true
