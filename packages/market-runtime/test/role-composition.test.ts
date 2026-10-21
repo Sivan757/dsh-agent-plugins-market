@@ -9,8 +9,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { LlmAdapter, ToolCallId, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -18,10 +19,10 @@ import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
-import { PERSONA_PREFIX_SECTION } from '@deepseek-ai/dsh-system-prompt'
+import { PERSONA_PREFIX_SECTION, type SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import { mountAgentRoleTool } from '../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
-import { ROLE_CHILD_SOURCE, RoleComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
+import { ROLE_ABANDON_DEADLINE_MS, ROLE_CHILD_SOURCE, RoleComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
 import type { AgentRoleEntry } from '../../../packages/market-runtime/src/application/agent-roles.js'
 
 class TestQuery extends SessionQueryEngine {
@@ -244,6 +245,36 @@ describe('one role child receives its card body from the plugin composition', ()
     await new RoleComposition(ctx).abandon(childId)
     expect(ctx.agents.get(SessionId(childId))).toBeUndefined()
     adapter.release()
+  })
+
+  it('bounds the release so a stalled host drain cannot delay the refusal', async () => {
+    // The refusal path awaits abandon() before it surfaces, so an unbounded drain
+    // would hang the error the caller needs. The bound is the composition's own,
+    // armed through the host deadline primitive the rest of the plugin uses.
+    const warn = vi.fn()
+    const child = { id: 'stalled-child', session: { header: { parentSession: 'parent-1' } } }
+    const parent = { id: 'parent-1' }
+    const services: Record<string, unknown> = {
+      subagents: { drainChildren: () => new Promise<void>(() => {}) },
+      agents: { get: (id: string) => (id === 'parent-1' ? parent : id === 'stalled-child' ? child : undefined) }
+    }
+    const composition = new RoleComposition({ get: (name: string) => services[name], logger: { warn } } as unknown as Context)
+    vi.useFakeTimers()
+    try {
+      let released = false
+      const running = composition.abandon('stalled-child').then(() => {
+        released = true
+      })
+      // Let the stage past the bound run; a stalled drain must not keep it pending.
+      await vi.advanceTimersByTimeAsync(ROLE_ABANDON_DEADLINE_MS + 1)
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(released).toBe(true)
+      await expect(running).resolves.toBeUndefined()
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('did not release within'))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('restores the card body from the durable binding after a full context restart', async () => {

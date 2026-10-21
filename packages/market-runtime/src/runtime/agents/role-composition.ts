@@ -21,11 +21,22 @@ import { SessionId, type Session, type SessionEvent } from '@deepseek-ai/dsh-ses
 import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import { PERSONA_PREFIX_SECTION, type SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { z } from 'zod'
+import { settlesWithin } from '../../../../market-catalog/src/index.js'
 import { optionalService } from '../core/context.js'
 import { drainContinuableChildIds, type SubagentSeam } from './subagent-seam.js'
 
 /** Plugin-owned message source that makes one role child's instructions replayable. */
 export const ROLE_CHILD_SOURCE = 'agent-role-child-binding'
+
+/**
+ * How long a refusal waits for the child it releases.
+ *
+ * The release is a courtesy on a path that has already failed, so it must never
+ * decide when the caller learns about the failure. A host drain that has not
+ * released one child within this bound is treated as the host's own parent
+ * teardown problem, and the caller gets its refusal immediately after.
+ */
+export const ROLE_ABANDON_DEADLINE_MS = 5_000
 
 const bindingSchema = z.object({ version: z.literal(1), roleId: z.string().min(1), persona: z.string() }).strict()
 const durableBindingSchema = bindingSchema.extend({ childId: z.string().min(1) }).strict()
@@ -241,7 +252,13 @@ export class RoleComposition implements RoleChildComposition {
         this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and has no live parent to release it; the host owns its teardown`)
         return
       }
-      await drainContinuableChildIds(seam, parent, [SessionId(childId)])
+      // Bounded, because this runs while a refusal is on its way out: a host drain
+      // that stalls must not hold the error the caller needs.
+      if (!(await settlesWithin(drainContinuableChildIds(seam, parent, [SessionId(childId)]), ROLE_ABANDON_DEADLINE_MS))) {
+        this.ctx.logger?.warn(
+          `role child "${childId}" carries no role instructions and the host did not release within ${ROLE_ABANDON_DEADLINE_MS}ms; the host owns its teardown`
+        )
+      }
     } catch (error) {
       // The refusal is already on its way out. A release failure must not replace
       // it, and the child still belongs to the host parent's teardown.

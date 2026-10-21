@@ -455,6 +455,26 @@ describe('agent role metadata and runtime routing', () => {
     expect(composition.release).toHaveBeenCalledOnce()
   })
 
+  it('surfaces the identity refusal even when the release stalls', async () => {
+    const { host, startActivation, composition } = activationHostFixture()
+    startActivation.mockImplementationOnce(async () => ({
+      childId: 'host-generated',
+      messageId: 'message-1',
+      result: Promise.resolve({ output: [], stopReason: 'completed' }),
+      dispose: async () => {}
+    }))
+    // The real composition bounds its release; this asserts the caller does not
+    // wait on that bound to learn the call failed.
+    let releaseResolved = false
+    composition.abandon.mockImplementation(async () => {
+      releaseResolved = true
+    })
+    const entry = await roleFile('---\nmodel: inherit\n---\nReview carefully.')
+    await expect(executeAgentRole(host, async () => [entry], entry.name, 'Review', parent, {}, 'continuable', signal())).rejects.toThrow('the host published child')
+    expect(releaseResolved).toBe(true)
+    expect(composition.release).toHaveBeenCalledOnce()
+  })
+
   it('keeps the older line host-allocated foreground identity', async () => {
     // The older one-shot start allocates its own id and cannot take the reserved
     // one, so the identity guard belongs to the composed channel only.
