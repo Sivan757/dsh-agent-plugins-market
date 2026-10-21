@@ -29,7 +29,7 @@ tools: [read_file, search_files]
 
 未启用 Agent Teams 时，调用 `subagent_role`，提供目录中的准确 `agent` 与独立完整的 `prompt`。省略或传 true 的 `run_in_background` 立即返回 `{ kind: 'continuable', subagentId }`；false 等待 `{ kind: 'foreground', runId, output }`。没有受跟踪作业通道或 action 参数，子代理不继承父对话。
 
-子代理以自身的 `deployment:persona-prefix` 系统提示词段接收角色卡正文。创建时记录一条插件自有的上下文消息；重启后恢复时，从该记录重建这个段，而不是读取后来编辑的卡片。该通道失败即关闭：段无法安装或记录无法持久化时不会产生子代理，错误信息点名该角色。
+子代理以自身的 `deployment:persona-prefix` 系统提示词段接收角色卡正文。创建时记录一条插件自有的上下文消息；重启后恢复时，从该记录重建这个段，而不是读取后来编辑的卡片。该通道失败即关闭：段无法安装或记录无法持久化时不会产生子代理，错误信息点名该角色。 在旧宿主发布线上创建的子代理已在描述符中携带指令，插件识别这份副本而不再安装第二份，因此宿主升级后子代理继续运行；若当前角色卡与这些已记录指令不再一致，调用会被拒绝并点名旧发布线。
 
 启用 Agent Teams 后，调用 `spawn_teammate_role(agent, name, description, prompt)`。可选 `provider`、`model`、`reasoning_effort` 沿用调用优先于卡片的路由规则；provider 指 LLM 路由而非 Team 传输后端。只有 Lead 在用户明确要求 Team 工作后才能创建成员。成员始终从全新上下文启动，没有前台／fork 参数。结果包含 `target`、角色身份与有效模型路由；通信、中断、名册和共享任务由原生 Team 工具管理。后续任务复用成员；同一角色可用于多个成员，但成员名称不可复用。
 

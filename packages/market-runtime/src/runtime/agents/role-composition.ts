@@ -15,7 +15,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId, type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
@@ -255,9 +255,7 @@ export class RoleComposition implements RoleChildComposition {
       // Bounded, because this runs while a refusal is on its way out: a host drain
       // that stalls must not hold the error the caller needs.
       if (!(await settlesWithin(drainContinuableChildIds(seam, parent, [SessionId(childId)]), ROLE_ABANDON_DEADLINE_MS))) {
-        this.ctx.logger?.warn(
-          `role child "${childId}" carries no role instructions and the host did not release within ${ROLE_ABANDON_DEADLINE_MS}ms; the host owns its teardown`
-        )
+        this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and the host did not release within ${ROLE_ABANDON_DEADLINE_MS}ms; the host owns its teardown`)
       }
     } catch (error) {
       // The refusal is already on its way out. A release failure must not replace
@@ -286,7 +284,7 @@ export class RoleComposition implements RoleChildComposition {
       const durable = records[0]
       if (durable !== undefined) {
         if (durable.childId !== agent.id) throw roleInstructionsError(durable.roleId, new Error('the role binding belongs to another child'))
-        this.composeSection(agent, durable.roleId, durable.persona)
+        await this.composeSection(agent, durable.roleId, durable.persona)
         return
       }
       // A plain host child that this plugin never created has no binding and no reservation.
@@ -302,7 +300,7 @@ export class RoleComposition implements RoleChildComposition {
     const binding: DurableBinding = { version: 1, childId: agent.id, roleId: pending.roleId, persona: pending.persona }
     let off: (() => void) | undefined
     try {
-      off = this.composeSection(agent, pending.role, pending.persona)
+      off = await this.composeSection(agent, pending.role, pending.persona)
       agent.inject(
         createUserMessage({
           source: { kind: ROLE_CHILD_SOURCE, form: 'context', binding },
@@ -322,8 +320,18 @@ export class RoleComposition implements RoleChildComposition {
     }
   }
 
-  /** Install the section for one child and keep its disposer on the composition map. */
-  private composeSection(agent: Agent, role: string, persona: string): () => void {
+  /**
+   * Install the section for one child and keep its disposer on the composition map.
+   *
+   * A child created on the 0.2.0 line carries a descriptor persona the host
+   * re-applies into this same layer when it resumes the child on 0.2.1, so the
+   * registration collides. Refusing would break exactly the upgrade path this fix
+   * targets, so a colliding slot that holds the same instructions counts as
+   * already applied: the plugin owns nothing and the child keeps running. A slot
+   * that holds different instructions still refuses, because the child would
+   * otherwise run under someone else's persona.
+   */
+  private async composeSection(agent: Agent, role: string, persona: string): Promise<() => void> {
     const prompt = optionalService(agent.ctx, 'systemPrompt') as SystemPrompt | undefined
     if (prompt === undefined) throw roleInstructionsError(role, new Error('the system-prompt service is unavailable'))
     try {
@@ -331,7 +339,38 @@ export class RoleComposition implements RoleChildComposition {
       this.compositions.set(agent, off)
       return off
     } catch (error) {
+      const applied = await this.appliedPersona(agent)
+      if (applied === persona) {
+        this.ctx.logger?.info?.(`role child "${agent.id}" already carries its role instructions from the host descriptor; the upgrade path installs nothing`)
+        // Nothing is owned, so disposal has nothing to release, and the next
+        // creation of this same Agent does not attempt the registration again.
+        const off = (): void => {}
+        this.compositions.set(agent, off)
+        return off
+      }
+      if (applied !== undefined) {
+        throw roleInstructionsError(
+          role,
+          new Error(
+            `the child already carries different instructions in "${PERSONA_PREFIX_SECTION}"; a child created on an older host line keeps the persona recorded in its descriptor, and this role card no longer matches it`
+          )
+        )
+      }
       throw roleInstructionsError(role, error)
+    }
+  }
+
+  /** The persona text this child's own scope already renders, when a section occupies the slot. */
+  private async appliedPersona(agent: Agent): Promise<string | undefined> {
+    const prompt = optionalService(agent.ctx, 'systemPrompt') as SystemPrompt | undefined
+    if (prompt === undefined) return undefined
+    try {
+      const assembly = await prompt.assemble(assembleContextFor(agent))
+      return assembly.sections.find(section => section.name === PERSONA_PREFIX_SECTION)?.text
+    } catch {
+      // An unreadable assembly is not evidence that the slot is free; treat it as
+      // unknown so the caller reports the original registration failure.
+      return undefined
     }
   }
 }

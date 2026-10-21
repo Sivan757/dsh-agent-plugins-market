@@ -327,6 +327,59 @@ describe('one role child receives its card body from the plugin composition', ()
     }
   })
 
+  it('keeps an upgraded child running when the host already re-applied its persona', async () => {
+    // Cross-line resume: a child created on the 0.2.0 line carries a descriptor
+    // persona the host re-applies as a child-scope section on resume. On 0.2.1 the
+    // plugin also wants that slot. Refusing here would break the upgrade path for a
+    // child whose instructions are already in place, so the plugin recognises the
+    // host's copy and adds nothing.
+    const { ctx, lead, adapter } = await setup()
+    const off = ctx.on(
+      'agent/created',
+      ({ agent }): undefined => {
+        if (agent.session.header.parentSession !== lead.id) return undefined
+        ;(agent.ctx.get('systemPrompt') as SystemPrompt).section({ name: PERSONA_PREFIX_SECTION, order: 0, text: 'CARD_PERSONA' })
+        return undefined
+      },
+      { prepend: true }
+    )
+    try {
+      const ended = Promise.withResolvers<void>()
+      ctx.once('subagent/end', () => ended.resolve())
+      const result = await invoke(ctx, lead, {})
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error(result.error.message)
+      const childId = (result.value as { subagentId: string }).subagentId
+      await ended.promise
+      // The child ran with its instructions still applied, from the host's copy.
+      expect(systemOf(adapter.requests.find(request => request.sessionId === childId))).toContain('CARD_PERSONA')
+    } finally {
+      off()
+    }
+  })
+
+  it('refuses when the host persona slot holds different instructions', async () => {
+    const { ctx, lead } = await setup()
+    const off = ctx.on(
+      'agent/created',
+      ({ agent }): undefined => {
+        if (agent.session.header.parentSession !== lead.id) return undefined
+        ;(agent.ctx.get('systemPrompt') as SystemPrompt).section({ name: PERSONA_PREFIX_SECTION, order: 0, text: 'SOMEONE_ELSES_PERSONA' })
+        return undefined
+      },
+      { prepend: true }
+    )
+    try {
+      const failed = await invoke(ctx, lead, {})
+      expect(failed.isError).toBe(true)
+      if (!failed.isError) throw new Error('expected a refusal')
+      expect(failed.error.message).toContain('agent "reviewer" cannot run without its role instructions')
+      expect(failed.error.message).toContain('already carries different instructions')
+    } finally {
+      off()
+    }
+  })
+
   it('restores the card body from the durable binding after a full context restart', async () => {
     const first = await setup()
     const done = Promise.withResolvers<void>()
