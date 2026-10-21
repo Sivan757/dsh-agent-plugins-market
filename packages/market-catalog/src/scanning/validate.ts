@@ -52,12 +52,15 @@ function schemasDirectory(): string {
     const name = (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string }).name
     // The workspace package and the packed artifact expose the library at the
     // same two relative spots: beside the catalog package, or under the
-    // packages/ path preserved by the npm files entry.
+    // packages/ path preserved by the npm "files" entry
+    // "packages/market-catalog/schemas" in package.json. A tarball without that
+    // entry throws ENOENT on the first validation, so
+    // packages/market-bundle/test/repo/published-schemas.test.ts guards it.
     if (name === '@dsh-market/catalog') return join(directory, 'schemas')
     if (name === 'dsh-agent-plugins-market') return join(directory, 'packages/market-catalog/schemas')
-    const parentDir = dirname(directory)
-    if (parentDir === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
-    directory = parentDir
+    // One level per pass: a walk that skips a level could step over the package
+    // root the next manifest would have named, which is the only path this
+    // resolver can get wrong without also failing loudly.
     const parent = dirname(directory)
     if (parent === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
     directory = parent

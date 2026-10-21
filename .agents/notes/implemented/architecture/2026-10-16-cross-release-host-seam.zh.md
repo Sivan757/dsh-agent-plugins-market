@@ -8,14 +8,15 @@ Status: implemented
 
 宿主改名或删除了这次失败背后的每一个成员：
 
-| 消费的能力         | 0.2.0-rc.2                                        | 0.2.1-alpha.4                                          |
-| ------------------ | ------------------------------------------------- | ------------------------------------------------------ |
-| 启动一个可续子代理 | `subagents.startContinuable(spec)`                | `subagents.startActivation(spec)`，且必须给 `delivery` |
-| 释放常驻子代理     | `subagents.drainContinuableChildren(parent, ids)` | `subagents.drainChildren(parent, ids)`                 |
-| 提供方能力记录     | `toolFilter`、`persona`                           | 删除；新增 `agentPreset`                               |
-| Team 消息结果      | `{ messageId, status }`                           | `{ messageId }`                                        |
-| JSONL 持久化插件   | default 导出                                      | 具名 `apply`、`name`、`Config`                         |
-| zod                | 宿主范围 `^4.4.3`                                 | 宿主精确 pin `4.4.3`                                   |
+| 消费的能力         | 0.2.0-rc.2                                        | 0.2.1-alpha.4                                             |
+| ------------------ | ------------------------------------------------- | --------------------------------------------------------- |
+| 启动一个可续子代理 | `subagents.startContinuable(spec)`                | `subagents.startActivation(spec)`，且必须给 `delivery`    |
+| 启动一个前台子代理 | `subagents.start(provider, request)`              | `subagents.startActivation(spec)` 且 `delivery: 'caller'` |
+| 释放常驻子代理     | `subagents.drainContinuableChildren(parent, ids)` | `subagents.drainChildren(parent, ids)`                    |
+| 提供方能力记录     | `toolFilter`、`persona`                           | 删除；新增 `agentPreset`                                  |
+| Team 消息结果      | `{ messageId, status }`                           | `{ messageId }`                                           |
+| JSONL 持久化插件   | default 导出                                      | 具名 `apply`、`name`、`Config`                            |
+| zod                | 宿主范围 `^4.4.3`                                 | 宿主精确 pin `4.4.3`                                      |
 
 前两项改名见宿主升级指南 [`subagent-activations`](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/upgrade-guide/v0.2.1-alpha.1/subagent-activations/guide.zh.md) 与 [`subagent-preset-composition`](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/upgrade-guide/v0.2.1-alpha.1/subagent-preset-composition/guide.zh.md)。
 
@@ -25,7 +26,7 @@ zod 一行是副本问题，不是版本偏好。插件 schema 会跨进宿主�
 
 声明的基线留在 `next` 候选线(2026-10-17 起为 `0.2.1-rc.2`)，代码同时兼容该线与它的前一条线 `0.2.0-rc.2`。
 
-`packages/market-runtime/src/runtime/agents/subagent-seam.ts` 拥有这张改名表。每个成员都是可选的，每次调用都用 `typeof` 守卫，两个名字都不存在的宿主会被拒绝，错误信息同时点名两个成员。路由与角色运行时改调接缝，不再直接调宿主成员。
+`packages/market-runtime/src/runtime/agents/subagent-seam.ts` 拥有这张改名表。每个成员都是可选的，每次调用都用 `typeof` 守卫，两个名字都不存在的宿主会被拒绝，错误信息同时点名两个成员。路由的两条启动通道与角色运行时的释放调用都改调接缝，不再直接调宿主成员。前台路径也是接缝成员：`startOneShotChild` 把旧线的 `start` 与新线带 caller 投递的 `startActivation` 归一为一个阻塞式运行形状。
 
 提供方能力记录是一个同时带两种写法的变量。宿主只读它认识的标志，因此一份记录服务两条线；对象字面量会触发新线的多余属性检查。
 
@@ -41,11 +42,13 @@ zod 一行是副本问题，不是版本偏好。插件 schema 会跨进宿主�
 ## Consequences
 
 - 改名表集中在一个模块。下一次宿主改名只需在那里加一个受守卫的成员，而不是把条件分支散进运行时。
-- 两个名字都不存在的宿主会得到具名错误，而不是对 `undefined` 的属性访问。
+- 两个名字都不存在的宿主会得到具名错误，而不是对 `undefined` 的属性访问。前台通道同样如此：两个一次性启动成员都不存在时，调用在任何子代理出现前就按名字被拒绝。
 - zod pin 跟随宿主家族的精确 pin。宿主移动 zod 时这里必须同步移动，否则两份副本的类型失败会回来。
 - 插件在已钉住的 `0.2.1-rc.2` 基线上编译通过、整套测试通过；接缝让 `0.2.0-rc.2` 继续可用，因为开发机上仍安装着该宿主。
 - 0.2.1 还把子代理服务挂在 `workingDirectory` 之后，要求带 Agent 的 `run_code` 调用依赖它，因此每个挂载真实子代理服务的测试都改为向测试工具索取目录夹具。
 
 ## Related decisions
+
+被[宿主子代理成员名只由一个模块拥有](2026-10-20-subagent-seam-member-ownership.md)部分取代：该记录覆盖归属规则与契约测试，本记录仍是改名表、受守卫成员与 zod pin 的权威来源。
 
 在通道问题上继续执行[从 prerelease 候选线解析对齐基线](../process/2026-09-23-next-channel-baseline.md)，并补上该决定隐含留白的代码侧容忍。

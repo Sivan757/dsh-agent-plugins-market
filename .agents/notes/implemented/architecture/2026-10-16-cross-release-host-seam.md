@@ -11,6 +11,7 @@ The host renamed or removed every member behind that failure:
 | Consumed surface            | 0.2.0-rc.2                                        | 0.2.1-alpha.4                                                     |
 | --------------------------- | ------------------------------------------------- | ----------------------------------------------------------------- |
 | Start one continuable child | `subagents.startContinuable(spec)`                | `subagents.startActivation(spec)`, which also requires `delivery` |
+| Start one foreground child  | `subagents.start(provider, request)`              | `subagents.startActivation(spec)` with `delivery: 'caller'`       |
 | Release resident children   | `subagents.drainContinuableChildren(parent, ids)` | `subagents.drainChildren(parent, ids)`                            |
 | Provider capability record  | `toolFilter`, `persona`                           | removed; `agentPreset` added                                      |
 | Team message result         | `{ messageId, status }`                           | `{ messageId }`                                                   |
@@ -25,7 +26,7 @@ The zod row is a copy problem, not a version preference. A plugin schema crosses
 
 The declared baseline stays on the `next` candidate line — `0.2.1-rc.2` since 2026-10-17 — and the code works on both that line and its predecessor `0.2.0-rc.2`.
 
-`packages/market-runtime/src/runtime/agents/subagent-seam.ts` owns the rename table. Every member is optional, every call is guarded with `typeof`, and a host that exposes neither name is refused with a message naming both. The router and the role runtime call the seam instead of a host member directly.
+`packages/market-runtime/src/runtime/agents/subagent-seam.ts` owns the rename table. Every member is optional, every call is guarded with `typeof`, and a host that exposes neither name is refused with a message naming both. The router's continuable and foreground starts and the role runtime's drain call go through the seam instead of a host member directly. The foreground path is a seam member too: `startOneShotChild` maps the older `start` and the newer `startActivation` with caller delivery to one blocking run shape.
 
 The provider capability record is one variable carrying both spellings. The host reads only the flags it knows, so one record serves both lines; an object literal would fail the newer excess-property check.
 
@@ -41,11 +42,13 @@ The provider capability record is one variable carrying both spellings. The host
 ## Consequences
 
 - One module holds the host rename table. The next rename adds one guarded member there instead of spreading conditionals through the runtime.
-- A host exposing neither name fails with a named error instead of a property access on `undefined`.
+- A host exposing neither name fails with a named error instead of a property access on `undefined`. This holds for the foreground channel as well: a host exposing neither one-shot start member is refused by name before a child exists.
 - The zod pin tracks the host family's exact pin. A host that moves zod needs the same move here, or the two-copy type failure returns.
 - The plugin compiles and passes its full suite on the pinned `0.2.1-rc.2` baseline, and the seam keeps `0.2.0-rc.2` working because that host is still installed on the development machine.
 - 0.2.1 also mounts the subagent service behind `workingDirectory` and gates a `run_code` call with an Agent on it, so every test that mounts the real subagent service now asks the test kit for the directory fixture.
 
 ## Related decisions
+
+Partially superseded by [one module owns the host subagent member names](2026-10-20-subagent-seam-member-ownership.md): that note covers the ownership rule and the contract tests, while this note remains authority for the rename table, the guarded members, and the zod pin.
 
 Keeps [resolve the alignment baseline from the prerelease candidate line](../process/2026-09-23-next-channel-baseline.md) in force on the channel question and adds the code-side tolerance that decision left implicit.

@@ -129,6 +129,12 @@ export class ExtensionSessionState {
   private readonly unavailable = new Set<Agent>()
   /** The capture classification each attempt used, so an explicit recovery replays it exactly. */
   private readonly captureSources = new Map<Agent, string | undefined>()
+  /**
+   * Agents whose session start failed: the one state no explicit recovery can be
+   * relied on to heal. Cleared by any published state, so a failure recorded after
+   * a working session keeps the parking contract.
+   */
+  private readonly startFailures = new Set<Agent>()
   /** Durable requests waiting for a safe boundary; the last one received wins. */
   private readonly intents = new Map<Agent, Intent>()
   /** The turn each pending request was made in: a boundary only exists in a later turn. */
@@ -197,13 +203,24 @@ export class ExtensionSessionState {
           if (identityHeld) return Promise.resolve({ kind: 'reject' })
           return Promise.resolve({ kind: 'enter', messages: [] })
         }
-        if (this.status(event.agent).ready) {
+        const status = this.status(event.agent)
+        if (status.ready) {
           // The envelope's durable record is its inbox splice; the claimed copy is
           // filtered out before it can enter a request as placeholder user text.
           const decision = await next()
           if (decision.kind !== 'enter') return decision
           // The durable envelope and the recovery wake marker are plugin metadata:
           // neither may enter a request as placeholder user text.
+          return { ...decision, messages: decision.messages.filter(message => !isPluginMetadata(message.source.kind)) }
+        }
+        if (this.terminalFailure(event.agent)) {
+          // Nothing retries this failure, so rejecting would park the request
+          // forever. Let the turn run degraded instead. This grants nothing:
+          // status stays not ready, read() still refuses it, and every managed
+          // resource stays denied — the failure remains visible through
+          // status.error and the warn line {@link fail} writes.
+          const decision = await next()
+          if (decision.kind !== 'enter') return decision
           return { ...decision, messages: decision.messages.filter(message => !isPluginMetadata(message.source.kind)) }
         }
         // The host claims input before this hook; reject alone would discard it.
@@ -244,6 +261,7 @@ export class ExtensionSessionState {
         this.unavailable.delete(agent)
         this.initializing.delete(agent)
         this.captureSources.delete(agent)
+        this.startFailures.delete(agent)
         this.intents.delete(agent)
         this.promoting.delete(agent)
         this.intentTurns.delete(agent)
@@ -251,6 +269,32 @@ export class ExtensionSessionState {
         this.requests.delete(agent)
       })
     )
+  }
+  /**
+   * Whether this agent's recorded failure is terminal: nothing retries it and the
+   * attempt it came from was the session start itself, so a request parked for it
+   * would wait forever.
+   *
+   * The answer follows how the failure recovers, not which record survived. A
+   * capture that threw before recording anything and an apply that failed while
+   * replaying a committed selection share one shape: both ran inside
+   * {@link initialize}, so the session never reached a usable state, nothing
+   * retries the attempt, and an explicit recovery re-runs the same failing read.
+   * Two codes stay non-terminal because they own their recovery — a busy attach
+   * retries on idle in {@link attach}, and a corrupt record is an uncertain log
+   * the user must clear. A failure recorded after a working session, by contrast,
+   * keeps the established contract: the request waits for the explicit recovery
+   * that re-applies the committed selection.
+   *
+   * A step that enters on a terminal failure runs degraded. Nothing is granted,
+   * so the session keeps working while its diagnostics explain why its managed
+   * resources stay denied.
+   */
+  private terminalFailure(agent: Agent): boolean {
+    if (this.disposed || this.initializing.has(agent)) return false
+    const error = this.errors.get(agent)
+    if (error === undefined || !this.startFailures.has(agent)) return false
+    return error !== 'extension-session-busy' && error !== 'extension-session-corrupt'
   }
   /** Whether this service governs one agent; an undecidable answer stays governed. */
   private governs(agent: Agent): boolean {
@@ -339,6 +383,11 @@ export class ExtensionSessionState {
     this.unavailable.add(agent)
     const operation = this.initializeOnce(agent, source, signal ?? this.lifetime.signal)
       .catch(error => {
+        // A session start that never reached a usable state is where parking a
+        // request costs the whole session: nothing retries the attempt and an
+        // explicit recovery re-runs the same failing read. Record the origin so
+        // the pre-step handler can enter degraded instead of waiting.
+        this.startFailures.add(agent)
         this.fail(agent, error)
         throw error
       })
@@ -455,6 +504,9 @@ export class ExtensionSessionState {
         this.states.set(agent, { revision: latest.revision, selection: latest.selection })
         this.unavailable.delete(agent)
         this.errors.delete(agent)
+        // The session started. A later failure is a mid-session one again, so it
+        // keeps the parking contract instead of degrading the step.
+        this.startFailures.delete(agent)
         this.ports.committed?.(agent)
         if (this.intents.has(agent)) this.promoteAfterIdle(agent)
       } catch (error) {
@@ -766,7 +818,13 @@ export class ExtensionSessionState {
     if (!this.governs(agent)) return
     this.unavailable.add(agent)
     const code = error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : 'extension-session-apply-failed'
+    const recorded = this.errors.get(agent)
     this.errors.set(agent, code)
+    // The status is the panel's source of truth; the warn line is how the
+    // failure reaches a log reader once the session keeps running degraded. One
+    // line per transition: a path that reports through two layers must not warn
+    // twice for the same failure.
+    if (recorded !== code) this.ctx.logger.warn('extension session ' + agent.id + ' unavailable: ' + code)
     agent.cancel({ kind: 'disposed' }, { keepInbox: true })
   }
   private async persist(agent: Agent, binding: Binding): Promise<void> {
@@ -812,6 +870,9 @@ export class ExtensionSessionState {
       this.states.set(agent, structuredClone(state))
       this.unavailable.delete(agent)
       this.errors.delete(agent)
+      // A published selection is a working session. A failure recorded after this
+      // one is mid-session, so it keeps the parking contract instead of degrading.
+      this.startFailures.delete(agent)
       this.ports.committed?.(agent)
     } catch (error) {
       // Disk writes and resource effects have no shared transaction. Never acknowledge an
@@ -856,6 +917,7 @@ export class ExtensionSessionState {
     this.errors.clear()
     this.unavailable.clear()
     this.initializing.clear()
+    this.startFailures.clear()
     this.operations.clear()
   }
 }

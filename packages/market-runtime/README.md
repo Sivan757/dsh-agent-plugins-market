@@ -12,4 +12,6 @@ The workspace policy owner commits surface and entry choices together through th
 
 Explicit session recovery retries an unrecorded initial capture or restores its durable choice. Successful recovery resumes existing queued input without a second Send. Ordinary plugin loading does not automatically run restored input. Corrupt durable choices remain denied.
 
+A session start that fails with nothing retrying it does not block the session. The step enters degraded: the turn runs, every managed resource stays denied, and the error stays in the status and one warning line until an explicit recovery publishes a selection. A failure recorded after a working session keeps the stricter contract and parks the request for that recovery.
+
 Run validation from the repository root. The root test suite covers domain and integration behavior. See [the migration contract](../../docs/developer/design/domain-workspace-refactor.md).
