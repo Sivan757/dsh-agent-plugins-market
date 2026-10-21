@@ -58,9 +58,9 @@ function schemasDirectory(): string {
     // packages/market-bundle/test/repo/published-schemas.test.ts guards it.
     if (name === '@dsh-market/catalog') return join(directory, 'schemas')
     if (name === 'dsh-agent-plugins-market') return join(directory, 'packages/market-catalog/schemas')
-    const parentDir = dirname(directory)
-    if (parentDir === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
-    directory = parentDir
+    // One level per pass: a walk that skips a level could step over the package
+    // root the next manifest would have named, which is the only path this
+    // resolver can get wrong without also failing loudly.
     const parent = dirname(directory)
     if (parent === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
     directory = parent
