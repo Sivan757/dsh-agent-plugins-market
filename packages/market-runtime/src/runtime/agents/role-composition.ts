@@ -340,13 +340,25 @@ export class RoleComposition implements RoleChildComposition {
       return off
     } catch (error) {
       const applied = await this.appliedPersona(agent)
-      if (applied === persona) {
-        this.ctx.logger?.info?.(`role child "${agent.id}" already carries its role instructions from the host descriptor; the upgrade path installs nothing`)
-        // Nothing is owned, so disposal has nothing to release, and the next
-        // creation of this same Agent does not attempt the registration again.
-        const off = (): void => {}
-        this.compositions.set(agent, off)
-        return off
+      if (applied !== undefined && applied.text === persona) {
+        // Equal raw text is not enough. The host re-applies a descriptor persona with
+        // no interpolate flag, so a brace-bearing card body would be substituted (or
+        // fail to render) under the host's copy while this module's own writer keeps it
+        // literal. Accept the host's copy only when it means the same thing.
+        if (applied.interpolate === false || !applied.text.includes('{{')) {
+          this.ctx.logger?.info?.(`role child "${agent.id}" already carries its role instructions from the host descriptor; the upgrade path installs nothing`)
+          // Nothing is owned, so disposal has nothing to release, and the next
+          // creation of this same Agent does not attempt the registration again.
+          const off = (): void => {}
+          this.compositions.set(agent, off)
+          return off
+        }
+        throw roleInstructionsError(
+          role,
+          new Error(
+            `the host already applied this text in "${PERSONA_PREFIX_SECTION}" without preserving its template text, so the role instructions would be substituted or fail to render; a child created on an older host line keeps the persona recorded in its descriptor`
+          )
+        )
       }
       if (applied !== undefined) {
         throw roleInstructionsError(
@@ -360,13 +372,22 @@ export class RoleComposition implements RoleChildComposition {
     }
   }
 
-  /** The persona text this child's own scope already renders, when a section occupies the slot. */
-  private async appliedPersona(agent: Agent): Promise<string | undefined> {
+  /**
+   * The section this child's own scope already renders for the persona slot.
+   *
+   * The interpolate flag travels with the text because the two are one decision: the
+   * same raw text means different instructions depending on whether it is rendered
+   * literally.
+   * @param agent - the live child whose own scope is read.
+   * @returns the occupying section, or undefined when the slot is free or unreadable.
+   */
+  private async appliedPersona(agent: Agent): Promise<{ text: string; interpolate: boolean | undefined } | undefined> {
     const prompt = optionalService(agent.ctx, 'systemPrompt') as SystemPrompt | undefined
     if (prompt === undefined) return undefined
     try {
       const assembly = await prompt.assemble(assembleContextFor(agent))
-      return assembly.sections.find(section => section.name === PERSONA_PREFIX_SECTION)?.text
+      const section = assembly.sections.find(candidate => candidate.name === PERSONA_PREFIX_SECTION)
+      return section === undefined ? undefined : { text: section.text, interpolate: section.interpolate }
     } catch {
       // An unreadable assembly is not evidence that the slot is free; treat it as
       // unknown so the caller reports the original registration failure.

@@ -66,12 +66,12 @@ afterEach(async () => {
   for (const dispose of cleanups.splice(0).reverse()) await dispose()
 })
 
-const card = (): AgentRoleEntry => ({
+const card = (body = 'CARD_PERSONA'): AgentRoleEntry => ({
   name: 'reviewer',
   path: '/unused/reviewer.md',
   description: 'Review',
   disabled: false,
-  rawText: '---\nprovider: mock\nmodel: role-model\n---\nCARD_PERSONA'
+  rawText: '---\nprovider: mock\nmodel: role-model\n---\n' + body
 })
 
 /**
@@ -79,7 +79,7 @@ const card = (): AgentRoleEntry => ({
  * `persistence: false` leaves the session store without a durability listener,
  * which is the shape a host that cannot commit the role binding has.
  */
-async function setup(options: { persistence?: boolean; query?: boolean; savedRoot?: string } = {}) {
+async function setup(options: { persistence?: boolean; query?: boolean; savedRoot?: string; body?: string } = {}) {
   const root = options.savedRoot ?? (await mkdtemp(join(tmpdir(), 'market-role-child-')))
   if (options.savedRoot === undefined) cleanups.push(() => rm(root, { recursive: true, force: true }))
   const ctx = new Context()
@@ -97,7 +97,7 @@ async function setup(options: { persistence?: boolean; query?: boolean; savedRoo
     options.savedRoot === undefined
       ? await ctx.agentLoop.create(SessionId('lead'), { provider: 'mock', model: 'parent' })
       : (await ctx.agents.resume({ resumeSessionId: SessionId('lead') })).agent
-  const roles: AgentRoleEntry[] = [card()]
+  const roles: AgentRoleEntry[] = [card(options.body)]
   cleanups.push(mountAgentRoleTool(ctx, async () => roles))
   return { ctx, lead, adapter, root }
 }
@@ -375,6 +375,67 @@ describe('one role child receives its card body from the plugin composition', ()
       if (!failed.isError) throw new Error('expected a refusal')
       expect(failed.error.message).toContain('agent "reviewer" cannot run without its role instructions')
       expect(failed.error.message).toContain('already carries different instructions')
+    } finally {
+      off()
+    }
+  })
+
+  it('keeps the host copy only when it preserves a brace-bearing card body literally', async () => {
+    // The host's descriptor re-application and this module can hold the same raw
+    // text while meaning different things: the plugin writes interpolate: false so a
+    // card body containing {{braces}} stays literal, and the host writes no flag at
+    // all. This case is the keep path the fix must not break: a host copy that also
+    // preserves the text literally is accepted, and the child's own request carries
+    // the braces unsubstituted.
+    const body = 'CARD_PERSONA {{role_note}}'
+    const { ctx, lead, adapter } = await setup({ body })
+    const off = ctx.on(
+      'agent/created',
+      ({ agent }): undefined => {
+        if (agent.session.header.parentSession !== lead.id) return undefined
+        ;(agent.ctx.get('systemPrompt') as SystemPrompt).section({ name: PERSONA_PREFIX_SECTION, order: 0, text: body, interpolate: false })
+        return undefined
+      },
+      { prepend: true }
+    )
+    try {
+      const ended = Promise.withResolvers<void>()
+      ctx.once('subagent/end', () => ended.resolve())
+      const result = await invoke(ctx, lead, {})
+      expect(result.isError).toBe(false)
+      if (result.isError) throw new Error(result.error.message)
+      const childId = (result.value as { subagentId: string }).subagentId
+      await ended.promise
+      const system = systemOf(adapter.requests.find(request => request.sessionId === childId))
+      // A literal brace body survives only because the flag is false.
+      expect(system).toContain('{{role_note}}')
+    } finally {
+      off()
+    }
+  })
+
+  it('refuses a host copy that would interpolate a brace-bearing card body', async () => {
+    // Same raw text, no interpolate flag, which is exactly how the host re-applies a
+    // descriptor persona. Keeping it would silently substitute a registered variable
+    // or make the render throw with no model turn, so this must refuse instead.
+    const body = 'CARD_PERSONA {{role_note}}'
+    const { ctx, lead, adapter } = await setup({ body })
+    const off = ctx.on(
+      'agent/created',
+      ({ agent }): undefined => {
+        if (agent.session.header.parentSession !== lead.id) return undefined
+        ;(agent.ctx.get('systemPrompt') as SystemPrompt).section({ name: PERSONA_PREFIX_SECTION, order: 0, text: body })
+        return undefined
+      },
+      { prepend: true }
+    )
+    try {
+      const failed = await invoke(ctx, lead, {})
+      expect(failed.isError).toBe(true)
+      if (!failed.isError) throw new Error('expected a refusal')
+      expect(failed.error.message).toContain('agent "reviewer" cannot run without its role instructions')
+      expect(failed.error.message).toContain('without preserving its template text')
+      expect(adapter.requests).toHaveLength(0)
     } finally {
       off()
     }
