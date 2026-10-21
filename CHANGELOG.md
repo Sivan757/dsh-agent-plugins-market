@@ -9,6 +9,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.11.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.11.0...dsh-agent-plugins-market-v0.11.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **catalog:** walk one directory per pass when resolving the schema root ([fb516ba](https://github.com/Sivan757/dsh-agent-plugins-market/commit/fb516ba4414d30383b47bd4f6efdcf8c599876a9))
+* **install:** self-provision the hook protocol so the plugin can activate ([cb643d1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/cb643d187a94f19f823db0b3965263d6a34198af))
+* **install:** self-provision the hook protocol so the plugin can activate ([84e75c0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/84e75c026f87d3afb839f97255302954d331f775)), closes [#110](https://github.com/Sivan757/dsh-agent-plugins-market/issues/110)
+* **packaging:** ship the vendored schemas in the published artifact ([21e0383](https://github.com/Sivan757/dsh-agent-plugins-market/commit/21e0383ee02e73e22215a7b0d8103473c39c20bd))
+* **runtime:** bound the role-child release so a stalled drain cannot delay the refusal ([a65e694](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a65e694c0d230e0f25c0c046246a84c082649aeb))
+* **runtime:** compose role child instructions from the plugin ([3e71626](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3e71626f27534b416194740008c95b5fc4fc0db0))
+* **runtime:** degrade a terminal session-start failure instead of parking the turn ([3f2d932](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3f2d9325752acb2d7a6b1a157f5f15bd88f5bbb4))
+* **runtime:** fail closed when a role child cannot be composed ([c4c3384](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c4c338462ad305e343e071a3c8335122cb4bcc53))
+* **runtime:** give one module ownership of the host subagent member names ([e0e0e1f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e0e0e1f38f0f309302e744a97e0b41b4d5869e91))
+* **runtime:** keep a host persona copy only when it preserves the card body literally ([e714ed1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e714ed124610d577eb023f60615a1035f86ca54f))
+* **runtime:** keep an upgraded role child that already carries its instructions ([607ad10](https://github.com/Sivan757/dsh-agent-plugins-market/commit/607ad10f1762a699db22580265ffb647a754b4a0))
+* **runtime:** release the uncomposed child a mismatched identity leaves behind ([c64b70d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c64b70d43279479a95f4e4deec2c5f295d9ec7b8))
+* **runtime:** repair the role foreground channel and restore role child instructions ([1af39b9](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1af39b9a3e112dbf1165e46c56964b024ffba05f))
+* **runtime:** report a rejected role-child release again and align the upgrade wording ([06a134b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/06a134b770d4527fb3930dca67242e82976a3cda))
+* **runtime:** start the foreground role child through the host subagent seam ([143874d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/143874d63a59cbb9961969b757ecf0fe86468720))
+* ship the vendored schemas and degrade a terminal session-start failure ([#113](https://github.com/Sivan757/dsh-agent-plugins-market/issues/113)) ([232a660](https://github.com/Sivan757/dsh-agent-plugins-market/commit/232a6609bc40208fec7d4406f75f5c59b1df0791))
+
 ## [0.11.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.10.0...dsh-agent-plugins-market-v0.11.0) (2026-10-20)
 
 
