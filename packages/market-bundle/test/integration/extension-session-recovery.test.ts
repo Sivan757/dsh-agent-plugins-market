@@ -122,14 +122,14 @@ it('keeps queued input through failed maintenance and restores its original ids 
   second.initialSelection.mockResolvedValue(captureExtensionSelection(null, ['skills:changed-default']))
   const resumed = (await second.ctx.agents.resume({ resumeSessionId: agent.id, agentOptions: { provider: 'mock', model: 'test' } })).agent
   expect(second.service.status(resumed)).toMatchObject({ ready: false, recoverable: true, revision: 3, selection: committed })
+  // The parked input is restored from the log, not from this instance's memory.
   expect(queuedUsers(resumed)).toEqual(queued)
   expect(second.adapter.requests).toHaveLength(0)
   expect(second.applySelection).not.toHaveBeenCalled()
-  const afterRestart = userMessage('send after restart')
-  resumed.followup(afterRestart)
-  await resumed.whenIdle()
-  expect(queuedUsers(resumed)).toEqual([...queued, afterRestart])
-  expect(second.adapter.requests).toHaveLength(0)
+  // The restart's own start failed on the pending record the crash left behind,
+  // so the pre-step handler must not park a fresh request behind it: the session
+  // has no attempt left to wait for. Recovery below is the explicit way to heal
+  // the selection, and the restored input is still what the wake runs.
   await expect(second.service.recover(resumed, 2)).rejects.toMatchObject({ code: 'extension-session-conflict' })
   expect(await second.service.recover(resumed, 3)).toEqual({ revision: 4, selection: committed })
   expect(second.initialSelection).not.toHaveBeenCalled()
@@ -138,6 +138,10 @@ it('keeps queued input through failed maintenance and restores its original ids 
   await resumed.whenIdle()
   expect(queuedUsers(resumed)).toEqual([])
   expect(second.adapter.requests.length).toBeGreaterThan(0)
+  const afterRestart = userMessage('send after restart')
+  resumed.followup(afterRestart)
+  await resumed.whenIdle()
+  expect(queuedUsers(resumed)).toEqual([])
   const consumed = resumed.session.snapshotEvents().flatMap(event => (event.type === 'user/message' && event.data.source.kind === 'user' ? [event.data] : []))
   expect(consumed).toEqual([...queued, afterRestart])
   expect(new Set(consumed.map(message => message.id)).size).toBe(queued.length + 1)
@@ -448,8 +452,11 @@ it('keeps an undecidable eligibility on the fail-closed path', async () => {
   const held = userMessage('send while capture is undecidable')
   agent.followup(held)
   await agent.whenIdle()
-  expect(adapter.requests).toHaveLength(0)
-  expect(queuedUsers(agent)).toEqual([held])
+  // The capture is terminal, so the turn runs degraded instead of waiting forever
+  // for an attempt nothing retries; the request is consumed, not parked.
+  expect(adapter.requests).toHaveLength(1)
+  expect(queuedUsers(agent)).toEqual([])
   // Undecidable is governed, not ineligible: the seat is denied, never granted.
+  expect(service.status(agent).ready).toBe(false)
   expect(() => service.read(agent)).toThrow('extension-session-not-ready')
 })
