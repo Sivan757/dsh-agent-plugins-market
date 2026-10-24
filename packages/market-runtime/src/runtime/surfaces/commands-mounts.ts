@@ -16,7 +16,7 @@ import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { qualifiedSuiteId, suiteDataDir } from '../../../../market-catalog/src/index.js'
 import { expandPluginPaths, pluginRootOf } from '../../../../market-catalog/src/index.js'
 import type { Suite, SuiteMarkdownResource } from '../../../../market-contracts/src/model/types.js'
-import { defaultMarkdownResources, resourceText } from '../../../../market-catalog/src/index.js'
+import { defaultMarkdownResources, resourceCommandName, resourceText } from '../../../../market-catalog/src/index.js'
 import { parseCommandResource, readCommands, type CommandSpec } from '../../application/command-resources.js'
 export { readCommands } from '../../application/command-resources.js'
 import { bindHostLocale, type HostTranslate } from '../host/host-locale.js'
@@ -122,7 +122,16 @@ export class CommandMountRegistry {
       const resources = suite.activeSurfaces.commands === false ? [] : (suite.resources?.commands ?? (await defaultMarkdownResources(suite.root, 'commands')))
       for (const resource of resources) {
         const includeDisabled = this.allowDisabled && this.registrationPolicy?.(suite, resource.name) === true
-        for (const spec of await readCommands(suite.root, [resource], { includeDisabled })) specs.push({ ...spec, resource })
+        for (const spec of await readCommands(suite.root, [resource], {
+          includeDisabled,
+          onIssue: issue =>
+            diagnostics.push({
+              suiteId: qualifiedSuiteId(suite.sourceId, suite.id),
+              command: resourceCommandName(resource.name),
+              reason: issue.reason
+            })
+        }))
+          specs.push({ ...spec, resource })
       }
       const suiteRoot = pluginRootOf(suite)
       const suiteData = suiteRoot === undefined || this.dataRoot === undefined ? undefined : suiteDataDir(this.dataRoot, suite.sourceId, suite.id)
