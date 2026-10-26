@@ -289,6 +289,10 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                 ...(data.status?.recoverable ? [{ id: 'recover', label: t('epRecover'), disabled: data.busy || writes > 0 }] : [])
               ]
             : []),
+          // The session is ready but its catalog read is in flight, so its tools
+          // are hidden for a moment. Without this line the only report is the
+          // model saying a tool is gone.
+          ...(data?.status?.inventoryPending === true && !unready ? [{ type: 'label' as const, id: 'inventory-pending', text: t('epInventoryPending') }] : []),
           ...(error
             ? [
                 { type: 'label' as const, id: 'error', text: t('epLoadFailed') + ' ' + error },

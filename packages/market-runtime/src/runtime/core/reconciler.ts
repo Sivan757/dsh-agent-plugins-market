@@ -197,7 +197,29 @@ export class RuntimeReconciler {
     return [...this.demandedMcp].flatMap(([suiteId, keys]) => [...keys].map(serverKey => ({ suiteId, serverKey })))
   }
 
-  /** Publish fresh immutable authority without mounting or waiting behind network work. */
+  /**
+   * Seed authority from the catalog if no pass has published it yet.
+   *
+   * A session apply needs authority to project its own demand, but it must not
+   * REPLACE authority: what one session's declaration read returned would then
+   * decide which suites every other session still has mounted, and a read that
+   * raced a source update would unmount another session's servers. Only the
+   * catalog pipeline, which owns a fresh read on every change, may replace it.
+   * @param candidates - validated declarations this caller read.
+   * @param global - the enabled user-dimension suites the same read produced.
+   */
+  ensureCatalogAuthority(candidates: readonly ExtensionSuiteCandidate[], global: readonly Suite[]): void {
+    if (this.disposed || this.authority !== undefined) return
+    this.setCatalogAuthority(candidates, global)
+  }
+
+  /**
+   * Publish fresh immutable authority without mounting or waiting behind network work.
+   *
+   * Reserved for the catalog owner. A session-scoped caller uses
+   * {@link ensureCatalogAuthority} so one session cannot narrow what another
+   * session may mount.
+   */
   setCatalogAuthority(candidates: readonly ExtensionSuiteCandidate[], global: readonly Suite[]): void {
     if (this.disposed) return
     if (isDeepStrictEqual(this.authority, candidates) && isDeepStrictEqual(this.globalSuites, global)) return

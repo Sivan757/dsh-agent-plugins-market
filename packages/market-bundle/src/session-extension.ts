@@ -24,6 +24,7 @@ import {
   shellSeamOf,
   projectAgentRoles,
   type ExtensionToolGates,
+  type InventoryRetryPolicy,
   type ExtensionSuiteCandidate,
   type RuntimeReconciler,
   type HostTranslate,
@@ -50,6 +51,8 @@ interface SessionExtensionOptions {
   agentsRoot: string
   runtime: RuntimeReconciler
   hostLocale: { t: HostTranslate }
+  /** Resolved schedule for re-reading a session whose inventory read did not land. */
+  inventoryRetry?: InventoryRetryPolicy
 }
 
 interface SessionExtensionSources {
@@ -125,7 +128,7 @@ export async function resolveHookDeclaration(catalog: HooksOverviewCatalog, suit
  * Create the stable readers before catalog initialization. Mount only after its sources are loaded.
  * Call mount once. Host injection owns start and disposal; construction registers nothing.
  */
-export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: SessionExtensionOptions): SessionExtensions {
+export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, inventoryRetry }: SessionExtensionOptions): SessionExtensions {
   let extensionPresets: ExtensionRuntime | undefined
   let scopedContributors: ScopedExtensionContributors | undefined
   let selectedRoleSuites: ((agent: Agent) => Promise<Suite[]>) | undefined
@@ -157,7 +160,11 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
           },
           {
             ready: candidate => extensionRuntime.ready(candidate),
-            allows: (candidate, resourceId, suiteId) => extensionRuntime.allows(candidate, resourceId, suiteId)
+            allows: (candidate, resourceId, suiteId) => extensionRuntime.allows(candidate, resourceId, suiteId),
+            // A pending catalog read denies every managed capability, and the
+            // model's failure reason must say so rather than telling it to ask
+            // the user to enable a resource that is already enabled.
+            denialReason: candidate => extensionRuntime.denialReason(candidate)
           }
         )
         gates.set(agent, gate)
@@ -185,6 +192,7 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
       }
       const extensionRuntime = new ExtensionRuntime(hostCtx, {
         dataRoot,
+        ...(inventoryRetry === undefined ? {} : { inventoryRetry }),
         // Only an agent with a real absolute workspace is governed. Every other
         // agent keeps the host's own lifecycle: no selection, no gate, no delay.
         eligible,
@@ -275,7 +283,10 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
               selectedSuites(agent, selection),
               catalog.mcpBackend()
             ])
-            runtime.setCatalogAuthority(candidates, globalSuites)
+            // Seed only: this read belongs to one session, and publishing it as
+            // the process-wide authority would let it narrow what every other
+            // session still has mounted. The catalog pipeline owns replacement.
+            runtime.ensureCatalogAuthority(candidates, globalSuites)
             const shared = suites
               .filter(suite => suite.dimension === 'user')
               .map(suite => (backend === 'builtin' ? suite : { ...suite, mcp: undefined, activeSurfaces: { ...suite.activeSurfaces, mcp: false } }))
