@@ -30,9 +30,13 @@ export class TranslationService {
     return this.localizer.load()
   }
 
-  /** Cancel timers and drop queued work; in-flight calls finish and are persisted. */
-  dispose(): void {
-    this.localizer.dispose()
+  /**
+   * Cancel timers and drop queued work; in-flight calls finish and are persisted.
+   *
+   * @returns fulfillment once the localizer's pending cache write landed.
+   */
+  dispose(): Promise<void> {
+    return this.localizer.dispose()
   }
 
   /** Drop every cached translation, in memory and on disk. */

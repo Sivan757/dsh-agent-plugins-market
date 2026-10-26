@@ -1,4 +1,4 @@
-# Agent Note: 入口插件 fiber 的销毁会等待运行时收尾完成
+# Agent Note: 入口插件 fiber 的销毁会等待它启动的每一次收尾
 
 Status: implemented
 
@@ -20,15 +20,25 @@ Error: ENOTEMPTY: directory not empty, rmdir C:\Users\RUNNER~1\AppData\Local\Tem
 
 入口的生命周期 effect 返回异步销毁函数，并等待运行时的收尾。Cordis 会等待被收集的销毁函数返回的 promise（`Fiber._unload` 逐个 await），因此 fiber 只在挂载全部消失之后才进入已卸载状态。
 
-销毁函数按此顺序执行：置入口自己的 `disposed` 标志，停止 reconcile 调度器（它的标志同步改变，并返回仍在飞行中的那一趟），关闭后台源更新，释放 settings 命名空间与语料缓存状态，等待 `runtime.dispose()`，最后等待调度器那趟仍在跑的 pass。运行时排在调度器 join 之前，好让它自己的停止标志使排队中的 pass 提前退出，而不是阻塞那次 join。
+出口上的每个销毁函数都遵循同一条规则：必须同步停止的立即停止，并把它启动的那件工作的 promise 返回给调用方。等待它的调用方因此知道不会再有写入到来。
 
-检查后保持同步的三个同级销毁函数是 `MarketSettingsNamespace.dispose()`（释放 watcher）、`SourceAutoUpdater.dispose()`（解除定时器）与 `Catalog.dispose()`（转给翻译缓存与快照缓存，两者各自取消自己的定时器）。
+入口的生命周期 effect 把这条规则用在四件事上。置自己的 `disposed` 标志，停止 reconcile 调度器（标志同步改变，并返回仍在飞行中的那一趟），关闭后台源更新（同步解除，并返回已经在刷新的那一趟），释放 settings 命名空间，然后依次等待运行时的收尾、catalog 的收尾、调度器那趟 pass 与源更新那趟 pass。运行时排在最前，好让它自己的停止标志使排队中的 reconcile 提前退出，而不是让调度器的 join 等它。
+
+这份清单背后有三个写入者，各自把 promise 交给上一层：
+
+- `ReconcileScheduler.dispose()` 返回它在飞行中的那一趟。那一趟会创建每个 stdio 挂载的 `${PLUGIN_DATA}` 目录并挂载服务器。
+- `Catalog.dispose()` 等待 `TranslationService.dispose()`，后者等待 `TranslationLocalizer.dispose()`，而它返回 `flush()`。只要一次完成的 provider 调用把缓存标脏，这次 flush 就会在插件数据根下写 `translation-cache.json`。`SnapshotCache.dispose()` 保持同步：它只清除 keep-warm 定时器。
+- `SourceAutoUpdater.dispose()` 返回它发现仍在运行的刷新那一趟。那一趟会在 `<userRoot>/agent-plugins/.sources` 下克隆源检出并提交状态，所以先宣告已卸载的 fiber 会让它继续写在那里。
+
+只有 `MarketSettingsNamespace.dispose()` 保持同步且无可返回：它释放 watcher，也不安排任何东西。
 
 `os.tmpdir()` 下的测试临时根现在统一走 `packages/market-bundle/test/integration/helpers/temp-root.ts` 里的 `removeTempRoot`，它按 `packages/market-translation/test/translation-localizer.test.ts` 已有的做法向 `fs.rm` 传入 `maxRetries: 5, retryDelay: 20`。重试吸收的是已等待收尾之后句柄释放的滞后。它不是让收尾正确的原因：超出 fiber 生命周期的写入者仍会在预算耗尽后失败，而那正是测试应当给出的信号。
 
 ## Consequences
 
-profile 重载或宿主关闭现在会等待运行时挂载卸载完成，耗时受各桥接自身关闭路径约束，而不是立即返回。换来的是："已卸载"意味着该插件不能再写入数据根，因此下一个移除该根的调用方，无论是测试收尾、profile 重载还是卸载，都不会与插件竞争。
+profile 重载或宿主关闭现在会等待运行时挂载卸载完成，耗时受各桥接自身关闭路径约束，而不是立即返回。换来的是："已卸载"意味着该插件不能再写入数据根或用户根，因此下一个移除其中任一目录的调用方，无论是测试收尾、profile 重载还是卸载，都不会与插件竞争。
+
+本地化器与源更新器自己的调用方也一起改变了。`TranslationService.dispose()` 与 `Catalog.dispose()` 返回 promise，所以每个销毁 catalog 的调用方都会等待它；入口的收尾用 `ctx.logger` 报告失败的那一个，并继续排空其余，与它报告运行时收尾失败的方式相同。`SourceAutoUpdater.dispose()` 的定时器解除仍然同步，因此不等待地停掉更新器仍然能停掉 tick；新增的只是对在飞行中那一趟的 join。
 
 集成测试的临时根不再依赖 Windows 释放目录项的快慢。未等待的写入者仍算失败：5 次 20 ms 的重试覆盖不了一个永远不会结束的 fiber。
 
@@ -38,12 +48,21 @@ profile 重载或宿主关闭现在会等待运行时挂载卸载完成，耗时
 
 **在测试的 `afterEach` 里轮询或睡眠，直到目录树不再变化。** 对未指定的写入者等待，无法区分收尾慢和收尾泄漏；而且测试需要的这个顺序属于插件，不属于某一个测试的清理。
 
-**把入口的销毁函数也改成等待每个同级，方法是放宽它们的签名。** 先检查过：settings、自动更新与 catalog 的销毁函数都是同步的，也不留定时器，没有可等待的东西。
+**把入口的销毁函数也改成等待每个同级，方法是放宽它们的签名。** 在弄清真正启动异步写入的两个之后，由后续改动完成：本地化器的 flush 与源更新器在飞行中的刷新。settings 命名空间没有可等待的东西，因此保持同步。
+
+**因为写入罕见，就让本地化器与源更新器保持 fire-and-forget。** 它们恰好只在卸载时有一次调用或一次 tick 正在飞行中时才触发，而那正是收尾最可能与它们竞争的时机：一个翻译过的测试、一次发生在后台刷新期间的 profile 重载。罕见正是这种竞争表现为间歇而不是可复现的原因。
 
 **把等待运行时收尾放进 reconcile 调度器的 dispose，让入口保持立即返回。** 调度器并不拥有挂载；fiber 自身的卸载才是 Cordis、测试与 loader 都同意插件已完成的那个点。
 
 ## Testing
 
-`host-service-seam.test.ts` 新增 "finishes the runtime teardown before the entry fiber reports unloaded"。该用例用一道闸门把运行时的收尾挂住，并断言两件事：闸门关闭期间入口的 `dispose()` promise 尚未落定；`await entry.dispose()` 之后，收尾在临时数据根下做的写入已经落盘。把销毁函数退回 `void runtime.dispose()` 会在第一条断言上失败，所以造成该间歇失败的那种写法无法通过它。
+四个用例钉住这条规则，做法都是把工作挂在闸门后面，并断言闸门关闭期间调用方尚未落定。每一个都观察到在移除等待后失败、恢复后通过。
 
-这个用例抓不到的是：运行时内部本身是 fire-and-forget 的收尾路径，今天包括 `TranslationLocalizer.dispose()` 的 `void this.flush()` 与 `SourceAutoUpdater` 让飞行中的源刷新自行结束；以及已等待收尾之后 Windows 释放句柄的滞后，后者由重试预算吸收而不是证明。
+- `host-service-seam.test.ts` 的 "finishes the runtime teardown before the entry fiber reports unloaded" 挂住 `RuntimeReconciler.prototype.dispose`。把入口的销毁函数退回 `void runtime.dispose()` 会让它失败。
+- `host-service-seam.test.ts` 的 "finishes the catalog teardown before the entry fiber reports unloaded" 挂住 `Catalog.prototype.dispose`。把入口那一行退回 `void catalog.dispose()` 会让它失败，这证明的是接线，而不只是 catalog 自己的 promise。
+- `translation-dispose.test.ts` 的 "settles only after the cache write it started landed" 替换 `saveTranslationCache` 并把它挂住。把 `TranslationLocalizer.dispose()` 退回 `void this.flush()` 会让它失败。同文件的第二个用例钉住干净的本地化器根本不写缓存文件，因此第一个用例不是靠一次本来就会发生的写入通过的。
+- `source-auto-update.test.ts` 的 "settles only after the pass already running finished its write" 挂住一趟刷新，并同时断言定时器已停止。把 `SourceAutoUpdater.dispose()` 退回成 void 解除会让它失败。
+
+每个用例都用 `Promise.resolve(调用方())` 读取闸门，因此不返回任何东西的销毁函数按"返回即完成"处理，而不是在 `undefined.then` 上抛错。
+
+这些用例抓不到的是：在销毁已经落定之后才落地的一次翻译。`TranslationLocalizer` 会通过 `scheduleFlush` 的已销毁分支立即写入这样的答案，这是刻意的设计，好让已经付费的 provider 调用不会因卸载而丢失；没有任何所有者能等待在其收尾返回之后才开始的工作。因此剩下的未受观察的写入者是"卸载之后才完成的 provider 调用"，它属于该设计选择的性质，而不是某个销毁函数的性质。同样无法在此证明的是：已等待收尾之后 Windows 释放句柄的滞后，后者由重试预算吸收而不是证明。

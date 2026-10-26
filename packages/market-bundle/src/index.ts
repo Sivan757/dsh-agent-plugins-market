@@ -498,29 +498,40 @@ export async function apply(
     }, 'dsh-agent-plugins-market: http routes')
   })
 
+  /**
+   * Await one teardown, reporting its failure instead of failing the unload.
+   *
+   * Cordis awaits an async disposer, so this fiber reports unloaded only after
+   * every writer below finished. Each of them writes under the plugin data
+   * root or the user root — a translation cache, a source checkout, an MCP
+   * mount's plugin data — and returning before them let a caller that removes
+   * one of those roots, a test teardown, an uninstall or a profile reload,
+   * delete a tree this fiber was still writing to and emptying.
+   */
+  const drain = async (label: string, work: () => void | Promise<void>): Promise<void> => {
+    try {
+      await work()
+    } catch (error) {
+      ctx.logger.warn(`${label}: ` + String(error))
+    }
+  }
+
   ctx.effect(
     () => async () => {
       disposed = true
       const scheduleStopped = scheduler.dispose()
-      autoUpdate.dispose()
+      // Stopping the interval is synchronous; the promise joins a pass that was
+      // already refreshing sources under the user root.
+      const updateStopped = autoUpdate.dispose()
       settings.dispose()
-      catalog.dispose()
-      // Cordis awaits an async disposer, so this fiber reports unloaded only
-      // after the runtime tore its mounts down. Disposing an MCP server
-      // disposes the bridge and waits for the child it started, and the plugin
-      // data root under the mounts stays in use until that ends; returning
-      // before it did let a caller that removes that root, a test teardown or a
-      // profile reload, delete a tree this fiber was still writing to and
-      // emptying. The runtime goes first so its own stop flag makes a queued
-      // pass bail before the schedule join below waits for it.
-      try {
-        await runtime.dispose()
-      } catch (error) {
-        ctx.logger.warn('runtime disposal: ' + String(error))
-      }
-      // A pass that failed already reported through the change pipeline; the
-      // join only has to finish, not repeat the failure as a disposal error.
-      await scheduleStopped.catch(error => ctx.logger.warn('reconcile disposal: ' + String(error)))
+      // The runtime goes first so its own stop flag makes a queued reconcile
+      // bail instead of making the scheduler join below wait for it.
+      await drain('runtime disposal', () => runtime.dispose())
+      // The catalog write is a cache file under the plugin data root; the
+      // scheduler join and the source-update join are work already in flight.
+      await drain('translation cache disposal', () => catalog.dispose())
+      await drain('reconcile disposal', () => scheduleStopped)
+      await drain('source update disposal', () => updateStopped)
     },
     'dsh-agent-plugins-market: lifecycle'
   )
