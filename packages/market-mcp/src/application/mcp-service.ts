@@ -6,7 +6,7 @@
  * Server configuration is edited through saved overrides — a suite's own
  * `mcp.json` stays source-owned and is never rewritten.
  */
-import { qualifiedSuiteId } from '../../../market-catalog/src/index.js'
+import { qualifiedSuiteId, SWITCH_SETTLE_MS } from '../../../market-catalog/src/index.js'
 import { isDirectory } from '../../../market-catalog/src/index.js'
 import { discoverSuitesInSource } from '../../../market-catalog/src/index.js'
 import type { McpStatusPayload } from './mcp/mcp-status.js'
@@ -306,12 +306,11 @@ export class McpService {
       else overrides[serverKey] = next
       await saveSuiteOverrides(this.context.dataRoot, suiteKey, overrides)
       await this.context.notifyChanged(true)
-      // The status surface reads the live tool registry, so an immediate read
-      // races the reconciler's teardown: a just-disabled server still carries
-      // its observed tools and reports the orphaned state with its switch on
-      // until the pass finishes. Joining the pass here is bounded — one stuck
-      // mount costs the request its deadline, never the plugin.
-      await this.context.refreshSettled()
+      // The status surface reads the live tool registry, so a read taken
+      // before the pass settles reports the server in its previous state.
+      // The wait is one switch budget: past it the switch answers and the
+      // next read shows the pass's own outcome.
+      await this.context.refreshSettled(SWITCH_SETTLE_MS)
     })
   }
 

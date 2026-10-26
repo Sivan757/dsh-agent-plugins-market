@@ -31,10 +31,13 @@ import { createSharedMcpMount } from '../../../../packages/market-bundle/src/run
 import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import type { LspMountPort, SharedMcpMountPort } from '../../../../packages/market-runtime/src/adapter-contracts.js'
 import type { RuntimeDiagnostics } from '../../../../packages/market-runtime/src/runtime/core/reconciler.js'
+import { SWITCH_SETTLE_MS } from '../../../../packages/market-catalog/src/index.js'
 import { startFakeStreamableMcpServer, type FakeStreamableMcpServer } from './helpers/fake-streamable-mcp.js'
 
 const HANDSHAKE_MS = Number(process.env['MARKET_MCP_PERF_HANDSHAKE_MS'] ?? 300)
 const SERVER_COUNT = 3
+/** One server's whole startup budget in the hanging-server case. */
+const STARTUP_BUDGET_MS = 2_500
 /** Teardown a fixture bridge spends before its disposer returns. */
 const TEARDOWN_MS = 200
 
@@ -53,7 +56,7 @@ afterAll(() => {
 })
 
 describe('MCP surface switch', () => {
-  it('mounts every server of one pass exactly once', async () => {
+  it('mounts every server of one pass at the same time, each exactly once', async () => {
     const harness = await createHarness()
     try {
       const started = performance.now()
@@ -64,7 +67,12 @@ describe('MCP surface switch', () => {
       expect(harness.tools.size).toBe(SERVER_COUNT)
       for (const server of harness.servers) expect(server.initializes()).toBe(1)
 
-      void passMs
+      // The handshakes overlap: every server was asked before the first one
+      // answered. Serial mounting would space the arrivals by the delay.
+      const arrivals = harness.servers.map(server => server.initializeTimes()[0] ?? 0)
+      expect(Math.max(...arrivals) - Math.min(...arrivals)).toBeLessThan(HANDSHAKE_MS)
+      // One handshake deep, not one per server.
+      expect(passMs).toBeLessThan(HANDSHAKE_MS * 2)
 
       // A repeat pass over the same suites must not touch a live mount.
       const again = performance.now()
@@ -76,7 +84,7 @@ describe('MCP surface switch', () => {
     }
   })
 
-  it('unmounts every server when the suites go away', async () => {
+  it('unmounts a batch at the same time', async () => {
     const harness = await createHarness({ teardownDelayMs: TEARDOWN_MS })
     try {
       await harness.reconciler.reconcile(harness.suites)
@@ -88,7 +96,33 @@ describe('MCP surface switch', () => {
 
       expect(harness.tools.size).toBe(0)
       expect(harness.registry.toolOwnership()).toEqual([])
-      void passMs
+      // One teardown deep, not one per server.
+      expect(passMs).toBeLessThan(TEARDOWN_MS * 2)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('answers the switch before a server that spends its whole startup budget', async () => {
+    const harness = await createHarness({ hanging: true, startupTimeoutMs: STARTUP_BUDGET_MS })
+    try {
+      await harness.toggle('mcp', false)
+      expect(harness.tools.size).toBe(0)
+
+      const started = performance.now()
+      await harness.toggle('mcp', true)
+      const answerMs = record('surface-toggle route, mcp on, one server hangs for ' + String(STARTUP_BUDGET_MS) + 'ms', started)
+
+      // The switch answers on its own budget, not the server's.
+      expect(answerMs).toBeLessThan(SWITCH_SETTLE_MS + 800)
+      expect(harness.toggles.mcp).toBe(true)
+
+      // The pass it started keeps running and reports the failed server.
+      const diagnostics = await harness.passSettled()
+      expect(diagnostics.mcp).toContainEqual(expect.objectContaining({ code: 'mount-failed' }))
+      // The healthy servers are live, and the hung one left no tools behind.
+      expect(harness.tools.size).toBe(SERVER_COUNT - 1)
+      expect(harness.registry.toolOwnership().map(row => row.suiteId)).not.toContain('perf/suite' + String(SERVER_COUNT - 1))
     } finally {
       await harness.close()
     }

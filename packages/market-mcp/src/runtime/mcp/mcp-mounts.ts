@@ -187,17 +187,27 @@ export class McpMountRegistry {
         wanted.set(mountKey(mount.suiteId, mount.serverKey), { suite, serverKey: mount.serverKey, request: mount })
       }
     }
-    for (const [key, live] of [...this.live]) {
-      if (!wanted.has(key)) {
+    // Removals run as one bounded batch, then additions as another: a server
+    // is never mounted while the same pass is still tearing its own suite down,
+    // and one slow handshake no longer delays the servers queued behind it.
+    const removals = [...this.live].filter(([key]) => !wanted.has(key))
+    diagnostics.push(
+      ...(await mapBounded(removals, MOUNT_PASS_CONCURRENCY, async ([key, live]) => {
         const reason = await this.unmount(key, live)
-        diagnostics.push({
+        return {
           suiteId: live.suiteId,
           serverKey: live.serverKey,
           reason: reason ?? 'unmounted',
           ...(reason === undefined ? {} : { code: 'unmount-failed' as const })
-        })
-      }
-    }
+        }
+      }))
+    )
+    // Duplicate derived serverNames are settled here, in wanted order, before
+    // any handshake starts: two sources shipping the same suite/server pair
+    // derive one name, and the model only needs one copy. Settling before the
+    // batch keeps the winner independent of which handshake finishes first.
+    const claims = new Map<string, string>()
+    const additions: Array<{ key: string; entry: { suite: Suite; serverKey: string; request: McpMountRequest }; live: LiveMount | undefined }> = []
     for (const [key, entry] of wanted) {
       const live = this.live.get(key)
       // A forced remount (re-authorize) skips the fingerprint match on
@@ -206,45 +216,61 @@ export class McpMountRegistry {
       // the server's 401 restart the browser authorization.
       if (live !== undefined && !this.forcedRemounts.has(key) && live.configFingerprint === fingerprintOf(entry.request)) continue
       this.forcedRemounts.delete(key)
+      const serverName = entry.request.config.serverName
+      const owner = this.serverOwner(serverName)
+      // A remount owns its own name until its teardown runs, so only another
+      // suite holding it counts here.
+      const heldBy = owner === undefined || mountKey(owner.suiteId, owner.serverKey) === key ? claims.get(serverName) : owner.suiteId
+      if (heldBy !== undefined) {
+        diagnostics.push({
+          suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id),
+          serverKey: entry.serverKey,
+          reason: `server "${serverName}" is already mounted from ${heldBy} — this suite's copy is redundant and was skipped`,
+          code: 'duplicate-mount'
+        })
+        this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}` })
+        continue
+      }
+      claims.set(serverName, qualifiedSuiteId(entry.suite.sourceId, entry.suite.id))
+      additions.push({ key, entry, live })
+    }
+    const added = await mapBounded(additions, MOUNT_PASS_CONCURRENCY, async ({ key, entry, live }) => {
       // Either a fresh mount, or a remount because the resolved config moved
       // (a credential rotation rewrites the env/header/url values while the
       // suite stays enabled) — keeping the old mount would keep serving the
       // old token until disable or restart.
       if (live !== undefined) {
         const reason = await this.unmount(key, live)
-        if (reason !== undefined) {
-          diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKey, reason, code: 'unmount-failed' })
-          continue
-        }
+        if (reason !== undefined) return { suiteId: live.suiteId, serverKey: live.serverKey, reason, code: 'unmount-failed' as const }
       }
       // A retry attempt runs the same mount path; only the last failure is
       // reported so a transient error does not shadow the final state.
       const failure = await this.mountWith(entry.request)
-      if (failure !== undefined) {
-        diagnostics.push({
-          suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id),
-          serverKey: entry.serverKey,
-          reason: failure.reason,
-          code: failure.code,
-          ...(failure.causes === undefined || failure.causes.length === 0 ? {} : { causes: failure.causes })
-        })
-        // Foreign and duplicate skips are deterministic, not transient:
-        // retrying them just burns the attempt budget and log lines. The
-        // next full reconcile re-checks them anyway, so the self-heal path
-        // is intact.
-        const informational = failure.code === 'foreign-mount' || failure.code === 'duplicate-mount'
-        this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}`, ...(informational ? {} : { reason: failure.reason }) })
+      if (failure === undefined) return undefined
+      // Foreign and duplicate skips are deterministic, not transient:
+      // retrying them just burns the attempt budget and log lines. The
+      // next full reconcile re-checks them anyway, so the self-heal path
+      // is intact.
+      const informational = failure.code === 'foreign-mount' || failure.code === 'duplicate-mount'
+      this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}`, ...(informational ? {} : { reason: failure.reason }) })
+      return {
+        suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id),
+        serverKey: entry.serverKey,
+        reason: failure.reason,
+        code: failure.code,
+        ...(failure.causes === undefined || failure.causes.length === 0 ? {} : { causes: failure.causes })
       }
-    }
+    })
+    for (const row of added) if (row !== undefined) diagnostics.push(row)
     return diagnostics.filter(diagnostic => diagnostic.reason !== 'unmounted')
   }
 
   /** Dispose every live mount after queued reconciliation passes settle. */
   async disposeAll(): Promise<void> {
     await this.passes.run(async () => {
-      for (const [key, live] of [...this.live]) {
+      await mapBounded([...this.live], MOUNT_PASS_CONCURRENCY, async ([key, live]) => {
         await this.unmount(key, live)
-      }
+      })
     })
     this.retries.clear()
     this.credentialRefs.clear()
@@ -360,6 +386,43 @@ export class McpMountRegistry {
       return reason
     }
   }
+}
+
+/**
+ * Mounts and unmounts one pass may run at the same time.
+ *
+ * A pass pays one handshake or one teardown per server, so running them one
+ * after another made the switch cost the sum of every server's latency. The
+ * cap keeps a profile with many suites from opening every child and every
+ * remote connection at once, which would trade one kind of stall for another.
+ */
+const MOUNT_PASS_CONCURRENCY = 4
+
+/**
+ * Run `work` over `items` with at most `limit` calls in flight.
+ *
+ * Results keep input order, so diagnostics read the same on every pass however
+ * the servers interleave.
+ * @param items - the work items, already filtered by the caller.
+ * @param limit - how many calls may be in flight at once.
+ * @param work - one item's work; its rejection is the caller's to contain.
+ * @returns one result per item, in input order.
+ */
+async function mapBounded<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  const lanes = Math.min(Math.max(1, limit), items.length)
+  await Promise.all(
+    Array.from({ length: lanes }, async () => {
+      for (;;) {
+        const index = next
+        if (index >= items.length) return
+        next = index + 1
+        results[index] = await work(items[index] as T)
+      }
+    })
+  )
+  return results
 }
 
 function mountKey(suiteId: string, serverKey: string): string {

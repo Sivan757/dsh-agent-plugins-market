@@ -298,7 +298,13 @@ export async function apply(
   })
 
   // Legacy surface and entry routes share one committed workspace policy.
-  const resourceFilters = new ResourceFilterService(dataRoot, process.cwd(), { onFiltersChanged: onChanged })
+  const resourceFilters = new ResourceFilterService(dataRoot, process.cwd(), {
+    onFiltersChanged: onChanged,
+    // A switch answers once its policy write lands. The pass behind it keeps
+    // running, so whatever it does after the answer is reported here instead
+    // of being dropped with the response.
+    onPipelineReport: message => ctx.logger?.warn(`[dsh-agent-plugins-market] ${message}`)
+  })
   const surfaceToggles = new SurfaceToggleService(resourceFilters)
   void resourceFilters.reload().catch(error => ctx.logger.warn('workspace policy: ' + String(error)))
 

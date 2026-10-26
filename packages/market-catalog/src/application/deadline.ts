@@ -19,6 +19,17 @@ import { deadline } from '@deepseek-ai/dsh-timeout'
 export const MARKET_DEADLINE_CODE = 'MARKET_DEADLINE'
 
 /**
+ * How long a switch request waits for the mount pass it scheduled.
+ *
+ * A switch is durable once its policy write lands, and the pass it triggers
+ * mounts and unmounts servers over the network or as child processes. One
+ * server that spends its whole startup budget would otherwise hold the switch
+ * for that budget. The pass keeps running past this budget, and a value this
+ * small still covers a pass over a handful of healthy servers.
+ */
+export const SWITCH_SETTLE_MS = 1_000
+
+/**
  * Resolve `true` once `work` settles, or `false` when `deadlineMs` elapses.
  *
  * A rejection counts as settled: this helper only reports timing, so callers
