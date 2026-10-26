@@ -57,6 +57,12 @@ export interface CatalogOptions {
    */
   userSnapshotTtlMs?: number
   /**
+   * How long a switch request waits for the change pipeline it scheduled,
+   * already resolved by the composition root through `resolveSwitchSettleMs`.
+   * Omitted keeps the built-in default.
+   */
+  switchSettleMs?: number
+  /**
    * Clock seam for every TTL and window the snapshot cache keeps. Defaults to
    * `Date.now`; a test injects a hand-driven clock so freshness, the scan
    * cache, and the keep-warm window are asserted instead of waited for.

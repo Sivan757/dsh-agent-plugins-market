@@ -73,7 +73,7 @@ export class Catalog implements MarketService {
     // than reaching into the service, so the panel surfaces stay independent
     // of how the catalog stores them.
     const localizeFields: LocalizeFields = (surface, id, fields, locale) => this.translateFields(surface, id, fields, locale)
-    this.mcp = new McpService(this.context, this.ports, this.sourceStore, localizeFields)
+    this.mcp = new McpService(this.context, this.ports, this.sourceStore, localizeFields, options.switchSettleMs)
     this.lsp = new LspService(this.context, this.ports, localizeFields)
     this.translation = new TranslationService({
       dataRoot: this.context.dataRoot,

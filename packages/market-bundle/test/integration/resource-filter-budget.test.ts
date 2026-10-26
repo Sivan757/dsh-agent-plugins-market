@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { ResourceFilterService } from '../../../../packages/market-runtime/src/runtime/host/resource-filter-service.js'
 import { loadResourceFilters } from '../../../../packages/market-runtime/src/application/state/workspace-policy.js'
 import { ALL_SURFACES_ON } from '../../../../packages/market-contracts/src/contracts/surface-toggles.js'
-import { SWITCH_SETTLE_MS } from '../../../../packages/market-catalog/src/index.js'
+import { resolveSwitchSettleMs, SWITCH_SETTLE_MS } from '../../../../packages/market-catalog/src/index.js'
 
 describe('ResourceFilterService switch budget', () => {
   it('answers once the write lands when the pass is slower than the budget, and reports the overrun', async () => {
@@ -34,14 +34,10 @@ describe('ResourceFilterService switch budget', () => {
     // The write is durable before the answer, so a fresh read sees the switch off.
     expect((await loadResourceFilters(dataRoot, workspace)).toggles.mcp).toBe(false)
 
-    // The pass is never cancelled by the bound.
-    let settled = false
-    void pass.then(() => {
-      settled = true
-    })
+    // The pass is never cancelled by the bound: it still settles, and awaiting
+    // it is the fact, not a microtask-order guess.
     released()
-    await Promise.resolve()
-    expect(settled).toBe(true)
+    await pass
   })
 
   it('keeps reporting a pass that fails inside the budget to the caller', async () => {
@@ -99,5 +95,53 @@ describe('ResourceFilterService switch budget', () => {
     order.push('switch answered')
 
     expect(order).toEqual(['pass settled', 'switch answered'])
+  })
+})
+describe('resolveSwitchSettleMs', () => {
+  it('keeps the default when nothing is configured', () => {
+    expect(resolveSwitchSettleMs(undefined)).toBe(SWITCH_SETTLE_MS)
+  })
+
+  it('accepts zero, which means answer at once', () => {
+    expect(resolveSwitchSettleMs(0)).toBe(0)
+  })
+
+  it('fails loud on a value that is not a usable number of milliseconds', () => {
+    for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(() => resolveSwitchSettleMs(value)).toThrow('switchSettleMs must be a finite number of milliseconds that is zero or greater')
+  })
+
+  it('answers at once when a zero budget is in force, and still stores the choice', async () => {
+    const dataRoot = await mkdtemp(join(tmpdir(), 'resource-filter-budget-'))
+    const workspace = '/ws/budget-zero'
+    const reports: string[] = []
+    let settled = false
+    const service = new ResourceFilterService(
+      dataRoot,
+      workspace,
+      {
+        onFiltersChanged: async () => {
+          await new Promise(resolve => setTimeout(resolve, 50))
+          settled = true
+        },
+        onPipelineReport: message => reports.push(message)
+      },
+      resolveSwitchSettleMs(0)
+    )
+    await service.reload()
+
+    const started = performance.now()
+    const answered = await service.setSurface('lsp', false)
+    const waitedMs = performance.now() - started
+
+    expect(waitedMs).toBeLessThan(45)
+    expect(answered).toEqual({ ...ALL_SURFACES_ON, lsp: false })
+    expect(settled).toBe(false)
+    expect((await loadResourceFilters(dataRoot, workspace)).toggles.lsp).toBe(false)
+    // The pipeline keeps running; a zero budget only stops the waiting.
+    await new Promise(resolve => setTimeout(resolve, 80))
+    expect(settled).toBe(true)
+    // A zero budget never reports an overrun: waiting was never promised.
+    expect(reports).toEqual([])
   })
 })

@@ -57,11 +57,20 @@ export class McpService {
   /** Latest MCP mount diagnostics (suiteId -> reasons), fed by host reconcile. */
   diagnostics: McpMountDiagnostic[] = []
 
+  /**
+   * @param context - the catalog context every mutation is enqueued through.
+   * @param ports - host seams this service reads per call.
+   * @param sources - source store used to refresh a checkout before an override write.
+   * @param localizeFields - status builder's translation seam.
+   * @param switchSettleMs - how long one switch waits for the pass it scheduled,
+   *   as resolved by the composition root; omitted keeps the built-in default.
+   */
   constructor(
     private readonly context: CatalogContext,
     private readonly ports: CatalogPorts,
     private readonly sources: SourceStore,
-    private readonly localizeFields: LocalizeFields
+    private readonly localizeFields: LocalizeFields,
+    private readonly switchSettleMs: number = SWITCH_SETTLE_MS
   ) {}
 
   /** Build the flat MCP service inventory for the status surface. */
@@ -310,7 +319,7 @@ export class McpService {
       // before the pass settles reports the server in its previous state.
       // The wait is one switch budget: past it the switch answers and the
       // next read shows the pass's own outcome.
-      await this.context.refreshSettled(SWITCH_SETTLE_MS)
+      await this.context.refreshSettled(this.switchSettleMs)
     })
   }
 

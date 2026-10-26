@@ -8,7 +8,7 @@ Use [the entry](src/index.ts) for cross-domain access. Portable contracts expose
 
 ## Workspace policy and recovery
 
-The workspace policy owner commits surface and entry choices together through the host file lock. Legacy surface routes read the same live snapshot. Failed persistence leaves memory unchanged; failed refresh retains the committed state and reports its error. Complete preset/reset replacement is one write. Global favorites use their own locked document.
+The workspace policy owner commits surface and entry choices together through the host file lock. Legacy surface routes read the same live snapshot. Failed persistence leaves memory unchanged; failed refresh retains the committed state and reports its error. Complete preset/reset replacement is one write. Global favorites use their own locked document. A committed write answers within its switch budget (`switchSettleMs`, default one second, `0` meaning answer at once) and never waits on a mount past it: the pipeline keeps running, and an overrun or a failure that lands after the answer is reported through the service's own hook instead of failing a write that already landed.
 
 Explicit session recovery retries an unrecorded initial capture or restores its durable choice. Successful recovery resumes existing queued input without a second Send. Ordinary plugin loading does not automatically run restored input. Corrupt durable choices remain denied.
 

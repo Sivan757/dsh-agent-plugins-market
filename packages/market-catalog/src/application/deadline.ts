@@ -19,7 +19,7 @@ import { deadline } from '@deepseek-ai/dsh-timeout'
 export const MARKET_DEADLINE_CODE = 'MARKET_DEADLINE'
 
 /**
- * How long a switch request waits for the mount pass it scheduled.
+ * Default how long a switch request waits for the mount pass it scheduled.
  *
  * A switch is durable once its policy write lands, and the pass it triggers
  * mounts and unmounts servers over the network or as child processes. One
@@ -28,6 +28,23 @@ export const MARKET_DEADLINE_CODE = 'MARKET_DEADLINE'
  * small still covers a pass over a handful of healthy servers.
  */
 export const SWITCH_SETTLE_MS = 1_000
+
+/**
+ * Resolve a caller's switch budget, the one explicit step from configuration to
+ * the value in force.
+ *
+ * A profile may tune how long it makes someone wait, and `0` is the meaningful
+ * extreme: the switch answers as soon as its write lands and never waits for a
+ * mount. Anything else must be a finite non-negative number of milliseconds, so
+ * a typo fails loud here instead of turning into an accidental endless wait.
+ * @param value - the configured budget, or `undefined` to keep the default.
+ * @returns the budget in milliseconds, in force for this deployment.
+ */
+export function resolveSwitchSettleMs(value: number | undefined): number {
+  if (value === undefined) return SWITCH_SETTLE_MS
+  if (!Number.isFinite(value) || value < 0) throw new Error(`switchSettleMs must be a finite number of milliseconds that is zero or greater; received ${String(value)}`)
+  return value
+}
 
 /**
  * Resolve `true` once `work` settles, or `false` when `deadlineMs` elapses.

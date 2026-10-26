@@ -17,10 +17,20 @@ export class ResourceFilterService {
   private readonly workspace: string
   private tail: Promise<void> = Promise.resolve()
 
+  /**
+   * @param dataRoot - the plugin data root the workspace policy is stored under.
+   * @param workspace - the workspace this policy belongs to; empty means memory only.
+   * @param hooks - the change pipeline this service schedules and reports on.
+   * @param settleMs - how long one write waits for that pipeline before
+   *   answering anyway; `0` answers immediately. Resolved from configuration by
+   *   the composition root through `resolveSwitchSettleMs`, so this class never
+   *   decides a deployment's budget itself.
+   */
   constructor(
     private readonly dataRoot: string,
     workspace: string | undefined,
-    private readonly hooks: ResourceFilterHooks
+    private readonly hooks: ResourceFilterHooks,
+    private readonly settleMs: number = SWITCH_SETTLE_MS
   ) {
     this.workspace = workspace ?? ''
   }
@@ -76,7 +86,7 @@ export class ResourceFilterService {
   }
 
   /**
-   * Wait for the change pipeline this write scheduled, within one switch budget.
+   * Wait for the change pipeline this write scheduled, within the switch budget.
    *
    * The write above is the request's durability point: it is on disk and in the
    * published snapshot before this runs, and the pipeline cannot undo it.
@@ -98,15 +108,27 @@ export class ResourceFilterService {
           failure = { error }
         }
       )
-    if (await settlesWithin(pipeline, SWITCH_SETTLE_MS)) {
+    if (this.settleMs <= 0) {
+      // A zero budget is the explicit "never wait" setting, so the pipeline is
+      // observed only for reporting and its result never reaches the caller.
+      void pipeline.then(() => {
+        if (failure !== undefined) this.reportLateFailure(failure.error)
+      })
+      return
+    }
+    if (await settlesWithin(pipeline, this.settleMs)) {
       if (failure !== undefined) throw failure.error
       return
     }
-    this.hooks.onPipelineReport?.('the mount pass is still running after ' + String(SWITCH_SETTLE_MS) + 'ms; the switch answered and the pass continues')
+    this.hooks.onPipelineReport?.('the mount pass is still running after ' + String(this.settleMs) + 'ms; the switch answered and the pass continues')
     void pipeline.then(() => {
-      if (failure !== undefined)
-        this.hooks.onPipelineReport?.('the mount pass failed after the switch answered: ' + (failure.error instanceof Error ? failure.error.message : String(failure.error)))
+      if (failure !== undefined) this.reportLateFailure(failure.error)
     })
+  }
+
+  /** Report a pipeline failure that arrived after the switch already answered. */
+  private reportLateFailure(error: unknown): void {
+    this.hooks.onPipelineReport?.('the mount pass failed after the switch answered: ' + (error instanceof Error ? error.message : String(error)))
   }
 
   async setSurface(key: SurfaceToggleKey, enabled: boolean): Promise<SurfaceToggles> {

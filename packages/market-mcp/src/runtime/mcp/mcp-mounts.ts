@@ -191,23 +191,17 @@ export class McpMountRegistry {
     // is never mounted while the same pass is still tearing its own suite down,
     // and one slow handshake no longer delays the servers queued behind it.
     const removals = [...this.live].filter(([key]) => !wanted.has(key))
-    diagnostics.push(
-      ...(await mapBounded(removals, MOUNT_PASS_CONCURRENCY, async ([key, live]) => {
-        const reason = await this.unmount(key, live)
-        return {
-          suiteId: live.suiteId,
-          serverKey: live.serverKey,
-          reason: reason ?? 'unmounted',
-          ...(reason === undefined ? {} : { code: 'unmount-failed' as const })
-        }
-      }))
-    )
+    for (const slot of await runBounded(removals, MOUNT_PASS_CONCURRENCY, ([key, live]) => this.unmountThenReport(key, live))) {
+      if (slot.ok) diagnostics.push(slot.value)
+      else diagnostics.push({ suiteId: slot.item[1].suiteId, serverKey: slot.item[1].serverKey, reason: `unmount failed: ${messageOf(slot.error)}`, code: 'unmount-failed' })
+    }
     // Duplicate derived serverNames are settled here, in wanted order, before
     // any handshake starts: two sources shipping the same suite/server pair
     // derive one name, and the model only needs one copy. Settling before the
     // batch keeps the winner independent of which handshake finishes first.
     const claims = new Map<string, string>()
-    const additions: Array<{ key: string; entry: { suite: Suite; serverKey: string; request: McpMountRequest }; live: LiveMount | undefined }> = []
+    const additions: Addition[] = []
+    const claimants: Addition[] = []
     for (const [key, entry] of wanted) {
       const live = this.live.get(key)
       // A forced remount (re-authorize) skips the fingerprint match on
@@ -219,56 +213,98 @@ export class McpMountRegistry {
       const serverName = entry.request.config.serverName
       const owner = this.serverOwner(serverName)
       // A remount owns its own name until its teardown runs, so only another
-      // suite holding it counts here.
+      // suite holding it counts as a duplicate here.
       const heldBy = owner === undefined || mountKey(owner.suiteId, owner.serverKey) === key ? claims.get(serverName) : owner.suiteId
       if (heldBy !== undefined) {
-        diagnostics.push({
-          suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id),
-          serverKey: entry.serverKey,
-          reason: `server "${serverName}" is already mounted from ${heldBy} — this suite's copy is redundant and was skipped`,
-          code: 'duplicate-mount'
-        })
-        this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}` })
+        claimants.push({ key, entry, live })
         continue
       }
       claims.set(serverName, qualifiedSuiteId(entry.suite.sourceId, entry.suite.id))
       additions.push({ key, entry, live })
     }
-    const added = await mapBounded(additions, MOUNT_PASS_CONCURRENCY, async ({ key, entry, live }) => {
-      // Either a fresh mount, or a remount because the resolved config moved
-      // (a credential rotation rewrites the env/header/url values while the
-      // suite stays enabled) — keeping the old mount would keep serving the
-      // old token until disable or restart.
-      if (live !== undefined) {
-        const reason = await this.unmount(key, live)
-        if (reason !== undefined) return { suiteId: live.suiteId, serverKey: live.serverKey, reason, code: 'unmount-failed' as const }
-      }
-      // A retry attempt runs the same mount path; only the last failure is
-      // reported so a transient error does not shadow the final state.
-      const failure = await this.mountWith(entry.request)
-      if (failure === undefined) return undefined
-      // Foreign and duplicate skips are deterministic, not transient:
-      // retrying them just burns the attempt budget and log lines. The
-      // next full reconcile re-checks them anyway, so the self-heal path
-      // is intact.
-      const informational = failure.code === 'foreign-mount' || failure.code === 'duplicate-mount'
-      this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}`, ...(informational ? {} : { reason: failure.reason }) })
-      return {
-        suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id),
-        serverKey: entry.serverKey,
-        reason: failure.reason,
-        code: failure.code,
-        ...(failure.causes === undefined || failure.causes.length === 0 ? {} : { causes: failure.causes })
-      }
-    })
-    for (const row of added) if (row !== undefined) diagnostics.push(row)
+    const added = await runBounded(additions, MOUNT_PASS_CONCURRENCY, addition => this.mountThenReport(addition))
+    collect(added, diagnostics, (addition, error) => this.unexpectedFailure(addition, error))
+    // A skipped copy takes over the name its winner failed to claim, so a
+    // broken first arrival never leaves the server unmounted for good. The
+    // diagnostic below describes the final state, not the attempt order.
+    const takeover = claimants.filter(addition => this.serverOwner(addition.entry.request.config.serverName) === undefined)
+    const taken = await runBounded(takeover, MOUNT_PASS_CONCURRENCY, addition => this.mountThenReport(addition))
+    collect(taken, diagnostics, (addition, error) => this.unexpectedFailure(addition, error))
+    const takenKeys = new Set(takeover.map(addition => addition.key))
+    for (const addition of claimants) {
+      if (takenKeys.has(addition.key)) continue
+      const serverName = addition.entry.request.config.serverName
+      const owner = this.serverOwner(serverName)
+      diagnostics.push({
+        suiteId: qualifiedSuiteId(addition.entry.suite.sourceId, addition.entry.suite.id),
+        serverKey: addition.entry.serverKey,
+        reason: `server "${serverName}" is already mounted from ${owner?.suiteId ?? 'another suite'} — this suite's copy is redundant and was skipped`,
+        code: 'duplicate-mount'
+      })
+      // A deterministic skip: it drops this key's retry budget rather than
+      // arming a timer. The next pass re-checks the name.
+      this.retries.schedule({ key: addition.key, label: `${addition.entry.suite.id}/${addition.entry.serverKey}` })
+    }
     return diagnostics.filter(diagnostic => diagnostic.reason !== 'unmounted')
+  }
+
+  /** Unmount one row and report it, whichever way the teardown ends. */
+  private async unmountThenReport(key: string, live: LiveMount): Promise<McpMountDiagnostic> {
+    const reason = await this.unmount(key, live)
+    return {
+      suiteId: live.suiteId,
+      serverKey: live.serverKey,
+      reason: reason ?? 'unmounted',
+      ...(reason === undefined ? {} : { code: 'unmount-failed' as const })
+    }
+  }
+
+  /** Mount one addition and report it, so a bounded batch never rejects. */
+  private async mountThenReport({ key, entry, live }: Addition): Promise<McpMountDiagnostic | undefined> {
+    // Either a fresh mount, or a remount because the resolved config moved
+    // (a credential rotation rewrites the env/header/url values while the
+    // suite stays enabled) — keeping the old mount would keep serving the
+    // old token until disable or restart.
+    if (live !== undefined) {
+      const reason = await this.unmount(key, live)
+      if (reason !== undefined) return { suiteId: live.suiteId, serverKey: live.serverKey, reason, code: 'unmount-failed' }
+    }
+    // A retry attempt runs the same mount path; only the last failure is
+    // reported so a transient error does not shadow the final state.
+    const failure = await this.mountWith(entry.request)
+    if (failure === undefined) return undefined
+    // Foreign and duplicate skips are deterministic, not transient:
+    // retrying them just burns the attempt budget and log lines. The
+    // next full reconcile re-checks them anyway, so the self-heal path
+    // is intact.
+    const informational = failure.code === 'foreign-mount' || failure.code === 'duplicate-mount'
+    this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}`, ...(informational ? {} : { reason: failure.reason }) })
+    return {
+      suiteId: qualifiedSuiteId(entry.suite.sourceId, entry.suite.id),
+      serverKey: entry.serverKey,
+      reason: failure.reason,
+      code: failure.code,
+      ...(failure.causes === undefined || failure.causes.length === 0 ? {} : { causes: failure.causes })
+    }
+  }
+
+  /** Turn an unexpected throw inside one bounded slot into a reported failure. */
+  private unexpectedFailure({ key, entry, live }: Addition, error: unknown): McpMountDiagnostic {
+    const suiteId = qualifiedSuiteId(entry.suite.sourceId, entry.suite.id)
+    const reason = `mount failed: ${redactErrorMessage(messageOf(error))}`
+    this.ctx.logger?.warn(`[dsh-agent-plugins-market] ${reason} (${suiteId}/${entry.serverKey})`)
+    this.retries.schedule({ key, label: `${entry.suite.id}/${entry.serverKey}`, reason })
+    if (live === undefined && this.live.get(key) === undefined && bridgeToolRegistrations(this.ctx).every(row => row.serverName !== entry.request.config.serverName))
+      this.names.delete(entry.request.config.serverName)
+    return { suiteId, serverKey: entry.serverKey, reason, code: 'mount-failed', ...(causeMessages(error).length === 0 ? {} : { causes: causeMessages(error) }) }
   }
 
   /** Dispose every live mount after queued reconciliation passes settle. */
   async disposeAll(): Promise<void> {
     await this.passes.run(async () => {
-      await mapBounded([...this.live], MOUNT_PASS_CONCURRENCY, async ([key, live]) => {
+      // Teardown failures are already logged by unmount, and disposal has no
+      // caller to report them to, so the slots' outcomes are only drained.
+      await runBounded([...this.live], MOUNT_PASS_CONCURRENCY, async ([key, live]) => {
         await this.unmount(key, live)
       })
     })
@@ -306,8 +342,13 @@ export class McpMountRegistry {
     // diagnostic — a leftover of this plugin's own earlier mount (registry
     // record lost without a teardown) reads as an orphan here, and a Host
     // restart clears it; a genuinely foreign owner keeps the skip sticky.
+    // Only names this registry does not own count: derived serverNames contain
+    // `_`, so `a__x` prefixes every tool of `a__x__y`. Two sibling mounts
+    // whose handshakes overlap would otherwise each see the other's live tools
+    // as a foreign client and skip, depending on which connected first.
     const prefix = `mcp__${request.config.serverName}__`
-    const foreign = this.toolNamesProvider().filter(name => name.startsWith(prefix))
+    const owned = new Set(bridgeToolRegistrations(this.ctx).map(row => row.definition.name))
+    const foreign = this.toolNamesProvider().filter(name => name.startsWith(prefix) && !owned.has(name))
     if (foreign.length > 0) {
       return {
         reason: `serverName "${request.config.serverName}" is already mounted by another MCP client (native config or another plugin; matching tools: ${foreign.slice(0, 3).join(', ')}${foreign.length > 3 ? `, +${foreign.length - 3} more` : ''}) — skipped to avoid a duplicate mount; restart the Host if these tools are a leftover`,
@@ -398,18 +439,26 @@ export class McpMountRegistry {
  */
 const MOUNT_PASS_CONCURRENCY = 4
 
+/** One bounded-work outcome, carrying its item so the caller can report it. */
+type BoundedSlot<T, R> = { item: T; ok: true; value: R } | { item: T; ok: false; error: unknown }
+
 /**
- * Run `work` over `items` with at most `limit` calls in flight.
+ * Run `work` over `items` with at most `limit` calls in flight, total in one
+ * item's outcome.
  *
+ * A batch that rejects as soon as one lane fails would release the pass queue
+ * while its siblings keep mounting, which is the stale mount this registry
+ * exists to prevent. Every item therefore ends in an `ok` or a failed slot, the
+ * batch always resolves, and the caller decides what a failed slot reports.
  * Results keep input order, so diagnostics read the same on every pass however
  * the servers interleave.
  * @param items - the work items, already filtered by the caller.
  * @param limit - how many calls may be in flight at once.
- * @param work - one item's work; its rejection is the caller's to contain.
- * @returns one result per item, in input order.
+ * @param work - one item's work.
+ * @returns one slot per item, in input order, never rejected.
  */
-async function mapBounded<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length)
+async function runBounded<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<Array<BoundedSlot<T, R>>> {
+  const results = new Array<BoundedSlot<T, R>>(items.length)
   let next = 0
   const lanes = Math.min(Math.max(1, limit), items.length)
   await Promise.all(
@@ -418,11 +467,51 @@ async function mapBounded<T, R>(items: readonly T[], limit: number, work: (item:
         const index = next
         if (index >= items.length) return
         next = index + 1
-        results[index] = await work(items[index] as T)
+        const item = items[index] as T
+        try {
+          results[index] = { item, ok: true, value: await work(item) }
+        } catch (error) {
+          results[index] = { item, ok: false, error }
+        }
       }
     })
   )
   return results
+}
+
+/** One mount the pass still has to perform, and the live row it replaces. */
+interface Addition {
+  key: string
+  entry: { suite: Suite; serverKey: string; request: McpMountRequest }
+  live: LiveMount | undefined
+}
+
+/** The message of a thrown value, for a diagnostic that must stay a string. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Append one batch's diagnostics, turning a failed slot into a reported failure.
+ *
+ * A successful slot whose work returns `undefined` mounted cleanly and has
+ * nothing to report.
+ * @param slots - one bounded batch's outcomes.
+ * @param diagnostics - the pass's list, appended in input order.
+ * @param onError - the diagnostic a slot that threw becomes.
+ */
+function collect<T>(
+  slots: ReadonlyArray<BoundedSlot<T, McpMountDiagnostic | undefined>>,
+  diagnostics: McpMountDiagnostic[],
+  onError: (item: T, error: unknown) => McpMountDiagnostic
+): void {
+  for (const slot of slots) {
+    if (!slot.ok) {
+      diagnostics.push(onError(slot.item, slot.error))
+      continue
+    }
+    if (slot.value !== undefined) diagnostics.push(slot.value)
+  }
 }
 
 function mountKey(suiteId: string, serverKey: string): string {

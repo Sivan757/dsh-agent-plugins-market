@@ -3,24 +3,23 @@
  *
  * The owner's MCP servers are remote Streamable HTTP endpoints, so one mount
  * pass pays one network handshake per server. This file drives the real mount
- * registry, the real reconciler gates, and the real surface-toggle route
+ * registry, the real reconciler gates and the real surface-toggle route
  * against loopback endpoints that delay `initialize`, and states what the
- * switch must guarantee while it does so:
+ * switch must guarantee while it does so.
  *
- * - one pass mounts every server at the same time and never mounts one twice,
- * - a server that spends its whole startup budget does not hold the switch,
- * - flipping one surface leaves another surface's healthy mounts alone,
- * - a failed server is reported and leaves no mount behind.
+ * Concurrency is asserted from recorded spans, not from wall-clock thresholds:
+ * a pass that ran its servers one at a time peaks at one open handshake, and
+ * the tests below require more. Durations are printed as evidence, and only the
+ * switch budget is compared against time, because it is a time contract.
  *
  * The endpoint delay is `MARKET_MCP_PERF_HANDSHAKE_MS` (default 300), so the
- * measured numbers reproduce on a slower or faster machine. Every measured
- * value is printed once at the end of the run.
+ * numbers reproduce on a slower or faster machine.
  *
  * @module test/mcp-toggle-latency
  */
 import { afterAll, describe, expect, it } from 'vitest'
 import { Context, type Plugin } from '@deepseek-ai/cordis'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { RuntimeReconciler } from '../../../../packages/market-runtime/src/runtime/core/reconciler.js'
@@ -31,14 +30,13 @@ import { createSharedMcpMount } from '../../../../packages/market-bundle/src/run
 import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import type { LspMountPort, SharedMcpMountPort } from '../../../../packages/market-runtime/src/adapter-contracts.js'
 import type { RuntimeDiagnostics } from '../../../../packages/market-runtime/src/runtime/core/reconciler.js'
-import { SWITCH_SETTLE_MS } from '../../../../packages/market-catalog/src/index.js'
-import { startFakeStreamableMcpServer, type FakeStreamableMcpServer } from './helpers/fake-streamable-mcp.js'
+import { startFakeStreamableMcpServer, peakOverlap, type FakeStreamableMcpServer, type Span } from './helpers/fake-streamable-mcp.js'
 
 const HANDSHAKE_MS = Number(process.env['MARKET_MCP_PERF_HANDSHAKE_MS'] ?? 300)
 const SERVER_COUNT = 3
 /** One server's whole startup budget in the hanging-server case. */
 const STARTUP_BUDGET_MS = 2_500
-/** Teardown a fixture bridge spends before its disposer returns. */
+/** Teardown one fixture bridge spends before its disposer returns. */
 const TEARDOWN_MS = 200
 
 const measurements: Array<{ label: string; ms: number }> = []
@@ -59,26 +57,38 @@ describe('MCP surface switch', () => {
   it('mounts every server of one pass at the same time, each exactly once', async () => {
     const harness = await createHarness()
     try {
+      // One server's pass is the unit this harness costs, measured on the same
+      // machine moments earlier. A three-server pass that took three units
+      // would be serial; the assertion is a ratio, so it survives a slow host.
+      const baseline = performance.now()
+      await harness.reconciler.reconcile([harness.suites[0]!])
+      const baselineMs = performance.now() - baseline
+      await harness.reconciler.reconcile([])
+      record('one pass, mount 1 server (baseline)', baselineMs)
+      const before = harness.servers.map(server => server.initializes())
+
       const started = performance.now()
       const diagnostics = await harness.reconciler.reconcile(harness.suites)
       const passMs = record('one pass, mount ' + String(SERVER_COUNT) + ' servers', started)
 
       expect(diagnostics.mcp).toEqual([])
       expect(harness.tools.size).toBe(SERVER_COUNT)
-      for (const server of harness.servers) expect(server.initializes()).toBe(1)
+      // Each server was asked exactly once by this pass.
+      for (const [index, server] of harness.servers.entries()) expect(server.initializes() - (before[index] ?? 0)).toBe(1)
 
-      // The handshakes overlap: every server was asked before the first one
-      // answered. Serial mounting would space the arrivals by the delay.
-      const arrivals = harness.servers.map(server => server.initializeTimes()[0] ?? 0)
-      expect(Math.max(...arrivals) - Math.min(...arrivals)).toBeLessThan(HANDSHAKE_MS)
-      // One handshake deep, not one per server.
-      expect(passMs).toBeLessThan(HANDSHAKE_MS * 2)
+      // State, not timing: the handshakes genuinely overlapped. Serial work
+      // peaks at one open handshake however fast the machine is.
+      expect(peakOverlap(harness.spans())).toBeGreaterThan(1)
+      // And one unit of work, not three: the pass is not one handshake deep per
+      // server, whatever this host's constant cost is.
+      expect(passMs).toBeLessThan(baselineMs * 2)
 
       // A repeat pass over the same suites must not touch a live mount.
+      const settled = harness.servers.map(server => server.initializes())
       const again = performance.now()
       await harness.reconciler.reconcile(harness.suites)
       record('one pass, nothing to do', again)
-      for (const server of harness.servers) expect(server.initializes()).toBe(1)
+      expect(harness.servers.map(server => server.initializes())).toEqual(settled)
     } finally {
       await harness.close()
     }
@@ -90,21 +100,23 @@ describe('MCP surface switch', () => {
       await harness.reconciler.reconcile(harness.suites)
       expect(harness.tools.size).toBe(SERVER_COUNT)
 
+      harness.clearTeardowns()
       const started = performance.now()
       await harness.reconciler.reconcile([])
-      const passMs = record('one pass, unmount ' + String(SERVER_COUNT) + ' servers, ' + String(TEARDOWN_MS) + 'ms teardown each', started)
+      record('one pass, unmount ' + String(SERVER_COUNT) + ' servers, ' + String(TEARDOWN_MS) + 'ms teardown each', started)
 
       expect(harness.tools.size).toBe(0)
       expect(harness.registry.toolOwnership()).toEqual([])
-      // One teardown deep, not one per server.
-      expect(passMs).toBeLessThan(TEARDOWN_MS * 2)
+      // State, not timing: two teardowns were open at once. A serial unmount
+      // peaks at one however fast the host is.
+      expect(peakOverlap(harness.teardowns())).toBeGreaterThan(1)
     } finally {
       await harness.close()
     }
   })
 
   it('answers the switch before a server that spends its whole startup budget', async () => {
-    const harness = await createHarness({ hanging: true, startupTimeoutMs: STARTUP_BUDGET_MS })
+    const harness = await createHarness({ hang: SERVER_COUNT - 1, startupTimeoutMs: STARTUP_BUDGET_MS })
     try {
       await harness.toggle('mcp', false)
       expect(harness.tools.size).toBe(0)
@@ -113,11 +125,12 @@ describe('MCP surface switch', () => {
       await harness.toggle('mcp', true)
       const answerMs = record('surface-toggle route, mcp on, one server hangs for ' + String(STARTUP_BUDGET_MS) + 'ms', started)
 
-      // The switch answers on its own budget, not the server's.
-      expect(answerMs).toBeLessThan(SWITCH_SETTLE_MS + 800)
-      expect(harness.toggles.mcp).toBe(true)
+      // State: the route answered while the pass it started was still running.
+      expect(harness.passRunning()).toBe(true)
+      // Time: it answered on its own budget, not the server's.
+      expect(answerMs).toBeLessThan(STARTUP_BUDGET_MS)
 
-      // The pass it started keeps running and reports the failed server.
+      // The pass keeps running and reports the failed server.
       const diagnostics = await harness.passSettled()
       expect(diagnostics.mcp).toContainEqual(expect.objectContaining({ code: 'mount-failed' }))
       // The healthy servers are live, and the hung one left no tools behind.
@@ -173,20 +186,86 @@ describe('MCP surface switch', () => {
     }
   })
 
-  it('skips a duplicate serverName that arrives in the same pass, in wanted order', async () => {
+  it('turns an unexpected throw inside one mount into a diagnostic and still finishes the batch', async () => {
     const harness = await createHarness()
     try {
-      // Two sources shipping the same suite/server pair derive ONE serverName.
-      // Both arrive in this single pass, so the winner must not depend on
-      // which handshake finishes first.
-      const duplicate = { ...harness.suites[0]!, sourceId: 'other' }
-      const diagnostics = await harness.reconciler.reconcile([harness.suites[0]!, duplicate, ...harness.suites.slice(1)])
+      // A stdio mount creates its PLUGIN_DATA directory before connecting. A
+      // regular file where that directory belongs makes the creation fail with
+      // ENOTDIR, which throws inside mountWith rather than returning a failure
+      // the registry already knows how to report. That is the shape a batch
+      // lane can reject in, and no lane may take the pass with it.
+      const broken = stdioSuite('blocked')
+      await writeFile(join(harness.dataRoot, 'perf'), 'not a directory')
 
-      expect(diagnostics.mcp).toContainEqual(expect.objectContaining({ suiteId: 'other/suite0', code: 'duplicate-mount' }))
-      expect(harness.registry.serverOwner('suite0__remote')).toEqual({ suiteId: 'perf/suite0', serverKey: 'remote' })
-      // One server per derived name, and the first arrival kept it.
-      expect(harness.servers[0]?.initializes()).toBe(1)
+      const diagnostics = await harness.reconciler.reconcile([...harness.suites, broken])
+
+      expect(diagnostics.mcp).toContainEqual(expect.objectContaining({ suiteId: 'perf/blocked', code: 'mount-failed' }))
+      // The rest of the batch mounted: one throw did not abort its siblings.
       expect(harness.tools.size).toBe(SERVER_COUNT)
+      expect(harness.registry.serverOwner('blocked__local')).toBeUndefined()
+
+      // And the next pass still tears everything down, so no straggler left a
+      // live mount behind the failing pass.
+      await harness.reconciler.reconcile([])
+      expect(harness.tools.size).toBe(0)
+      expect(harness.registry.toolOwnership()).toEqual([])
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('mounts a duplicate that takes over a serverName its winner could not claim', async () => {
+    // The first claimant hangs for its whole budget, so the name is free after
+    // the additions batch. Settling the claim statically without a second
+    // attempt would leave the server unmounted for good.
+    const harness = await createHarness({ hang: 0, startupTimeoutMs: STARTUP_BUDGET_MS })
+    try {
+      const copy = await harness.startServer({ handshakeDelayMs: 10 })
+      const winner = harness.suites[0]!
+      const duplicate: Suite = { ...winner, sourceId: 'other', mcp: { ...winner.mcp!, servers: { remote: { type: 'streamable-http', url: copy.url, headers: {} } } } }
+
+      const diagnostics = await harness.reconciler.reconcile([winner, duplicate, ...harness.suites.slice(1)])
+
+      expect(diagnostics.mcp).toContainEqual(expect.objectContaining({ suiteId: 'perf/suite0', code: 'mount-failed' }))
+      // Exactly one copy ended up owning the name, and it is the one that answered.
+      expect(harness.registry.serverOwner('suite0__remote')).toEqual({ suiteId: 'other/suite0', serverKey: 'remote' })
+      expect(harness.tools.size).toBe(SERVER_COUNT)
+      expect(harness.servers[0]?.initializes()).toBe(1)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('mounts sibling servers of one suite in the same batch', async () => {
+    // The guard reads the live tool registry, so two servers of one suite must
+    // not be able to see each other there. Server names are
+    // `<suite>__<key>` after sanitization, and sanitizeToken collapses
+    // underscore runs, so no derived name is another derived name plus "__".
+    // That makes sibling namespaces disjoint and the batch order-independent.
+    const harness = await createHarness()
+    try {
+      const both = multiServerSuite({ x: harness.servers[0]!.url, x__y: harness.servers[1]!.url })
+
+      const diagnostics = await harness.reconciler.reconcile([both])
+
+      expect(diagnostics.mcp).toEqual([])
+      // "x__y" sanitizes to "x_y", so the two namespaces cannot prefix one another.
+      expect(harness.registry.serverOwner('a__x')).toEqual({ suiteId: 'perf/a', serverKey: 'x' })
+      expect(harness.registry.serverOwner('a__x_y')).toEqual({ suiteId: 'perf/a', serverKey: 'x__y' })
+      expect(harness.tools.size).toBe(2)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('still reports a namespace another MCP client owns', async () => {
+    const harness = await createHarness()
+    try {
+      harness.registry.setToolNamesProvider(() => ['mcp__suite0__remote__probe'])
+      const diagnostics = await harness.reconciler.reconcile([harness.suites[0]!])
+
+      expect(diagnostics.mcp).toContainEqual(expect.objectContaining({ code: 'foreign-mount' }))
+      expect(harness.tools.size).toBe(0)
     } finally {
       await harness.close()
     }
@@ -213,9 +292,9 @@ describe('MCP surface switch', () => {
 })
 
 interface HarnessOptions {
-  /** Accept `initialize` on the last server and never answer it. */
-  hanging?: boolean
-  /** Declared per-server startup timeout, which bounds the hanging handshake. */
+  /** Index of the server that accepts `initialize` and never answers it. */
+  hang?: number
+  /** Declared per-server startup timeout, which bounds a hanging handshake. */
   startupTimeoutMs?: number
   /** Teardown one fixture bridge spends before its disposer returns. */
   teardownDelayMs?: number
@@ -229,6 +308,17 @@ interface Harness {
   gates: { mcp: boolean; lsp: boolean }
   toggles: { mcp: boolean }
   tools: Map<string, unknown>
+  /** The plugin data root, for a test that needs to make one path unwritable. */
+  dataRoot: string
+  /** Start one more endpoint the harness closes with the rest. */
+  startServer(options?: { handshakeDelayMs?: number }): Promise<FakeStreamableMcpServer>
+  /** Every `initialize` span the suite's servers recorded. */
+  spans(): Span[]
+  /** Teardown spans recorded since the last {@link clearTeardowns}. */
+  teardowns(): Span[]
+  clearTeardowns(): void
+  /** Whether the pass the last switch scheduled is still running. */
+  passRunning(): boolean
   /** Flip one surface switch through the registered route handler. */
   toggle(key: 'mcp', enabled: boolean): Promise<void>
   /** Wait for the pass the last switch scheduled, and return its diagnostics. */
@@ -239,11 +329,11 @@ interface Harness {
 async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const servers: FakeStreamableMcpServer[] = []
   for (let index = 0; index < SERVER_COUNT; index += 1) {
-    const hangs = options.hanging === true && index === SERVER_COUNT - 1
-    servers.push(await startFakeStreamableMcpServer({ handshakeDelayMs: HANDSHAKE_MS, ...(hangs ? { hangHandshake: true } : {}) }))
+    servers.push(await startFakeStreamableMcpServer({ handshakeDelayMs: HANDSHAKE_MS, ...(options.hang === index ? { hangHandshake: true } : {}) }))
   }
 
-  const { ctx, tools } = mountContext(options.teardownDelayMs ?? 0)
+  const teardowns: Span[] = []
+  const { ctx, tools } = mountContext(options.teardownDelayMs ?? 0, teardowns)
   const dataRoot = await mkdtemp(join(tmpdir(), 'mcp-toggle-latency-'))
   const registry = createSharedMcpMount(ctx, dataRoot)
   const reconciler = new RuntimeReconciler(ctx, dataRoot, { mcp: registry, lsp: stubLsp() })
@@ -255,11 +345,17 @@ async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   // The composition root's chain: the policy write is the durable part, and
   // the hook is what reconciles the mounts against it.
   let pass: Promise<RuntimeDiagnostics> = Promise.resolve(emptyDiagnostics())
+  let running = false
   const filters = new ResourceFilterService(dataRoot, '/workspace/perf', {
     onFiltersChanged: async () => {
       gates.mcp = filters.currentToggles().mcp
+      running = true
       pass = reconciler.reconcile(suites)
-      await pass
+      try {
+        await pass
+      } finally {
+        running = false
+      }
     }
   })
   await filters.reload()
@@ -273,6 +369,18 @@ async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
     gates,
     toggles: gates,
     tools,
+    dataRoot,
+    startServer: async serverOptions => {
+      const started = await startFakeStreamableMcpServer({ handshakeDelayMs: serverOptions?.handshakeDelayMs ?? HANDSHAKE_MS })
+      servers.push(started)
+      return started
+    },
+    spans: () => servers.flatMap(server => server.initializeSpans()),
+    teardowns: () => [...teardowns],
+    clearTeardowns: () => {
+      teardowns.length = 0
+    },
+    passRunning: () => running,
     toggle: async (key, enabled) => {
       await postToggle(routes, { key, enabled })
     },
@@ -285,7 +393,7 @@ async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
 }
 
 /** A context whose dynamic mounts run the real bridge plugin. */
-function mountContext(teardownDelayMs: number): { ctx: Context; tools: Map<string, unknown> } {
+function mountContext(teardownDelayMs: number, teardowns: Span[]): { ctx: Context; tools: Map<string, unknown> } {
   const ctx = new Context()
   const tools = new Map<string, unknown>()
   ctx.provide('tools', {
@@ -304,8 +412,11 @@ function mountContext(teardownDelayMs: number): { ctx: Context; tools: Map<strin
         await fiber
       },
       dispose: async () => {
+        const span: Span = { start: performance.now(), end: Number.POSITIVE_INFINITY }
+        teardowns.push(span)
         if (teardownDelayMs > 0) await new Promise(resolve => setTimeout(resolve, teardownDelayMs))
         await fiber.dispose()
+        span.end = performance.now()
       }
     }
   }
@@ -349,6 +460,20 @@ function streamableSuite(id: string, serverKey: string, url: string, startupTime
     enabled: true,
     activeSurfaces: effectiveSurfaces(undefined),
     errors: []
+  }
+}
+
+/** One suite whose servers are the supplied loopback endpoints, keyed by declared server key. */
+function multiServerSuite(urls: Record<string, string>): Suite {
+  const servers = Object.fromEntries(Object.entries(urls).map(([key, url]) => [key, { type: 'streamable-http' as const, url, headers: {} }]))
+  return { ...streamableSuite('a', 'x', urls['x'] ?? ''), mcp: { schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json', servers } }
+}
+
+/** One stdio suite whose PLUGIN_DATA directory is created under the data root. */
+function stdioSuite(id: string): Suite {
+  return {
+    ...streamableSuite(id, 'local', 'unused'),
+    mcp: { schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json', servers: { local: { type: 'stdio', command: 'true' } } }
   }
 }
 
