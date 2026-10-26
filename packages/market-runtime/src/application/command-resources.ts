@@ -26,7 +26,26 @@ export interface CommandSpec {
 export interface CommandReadOptions {
   /** Preserve valid disabled declarations without changing their document or the default runtime policy. */
   includeDisabled?: boolean
+  /**
+   * Receives every resource this parser refuses, so a caller can report it.
+   * A skipped command is otherwise indistinguishable from a command the suite
+   * never shipped.
+   */
+  onIssue?: (issue: CommandParseIssue) => void
 }
+
+/** One command resource the parser refused, with a reason fit for a diagnostic. */
+export interface CommandParseIssue {
+  /** The resource name as authored, before call-name flattening. */
+  resourceName: string
+  reason: string
+}
+
+/** Render a thrown value without trusting its string coercion. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/
 
 /** Parse one declared resource; resourceName retains its identity before call-name flattening. */
@@ -36,12 +55,18 @@ export function parseCommandResource(entry: SuiteMarkdownResource, text: string,
   try {
     const metadata = parseFrontmatterRecord(text)
     if (metadata.disabled === true && !options.includeDisabled) return undefined
-  } catch {
+  } catch (error) {
+    // Deliberately still skipped — an invalid declaration is never half-mounted —
+    // but the caller has to be able to say which file and why.
+    options.onIssue?.({ resourceName: entry.name, reason: `invalid frontmatter: ${messageOf(error)}` })
     return undefined
   }
   const meta = commandMeta(text)
   const description = meta?.description ?? firstLine(text)
-  if (description === undefined) return undefined
+  if (description === undefined) {
+    options.onIssue?.({ resourceName: entry.name, reason: 'no description in frontmatter or body' })
+    return undefined
+  }
   return { name, description, hint: meta?.hint, body: stripFrontmatter(text), resourceName: entry.name }
 }
 
