@@ -25,6 +25,18 @@ describe('prompt frame', () => {
     expect(escapeFrameBody(once)).toBe(once)
   })
 
+  it('does not re-escape an already escaped marker when the frame is applied', () => {
+    // A body may already carry the escaped form, for example when a suite copied
+    // a framed block out of an earlier transcript. Framing it again must not turn
+    // one backslash into two: the text would drift on every re-injection.
+    const escaped = escapeFrameBody('text ' + SYSTEM_REMINDER_CLOSE)
+    const framed = frame(escaped)
+    expect(framed).toContain(escaped)
+    expect(framed).not.toContain('<\\\\/system-reminder>')
+    // Exactly one closing marker, the frame's own.
+    expect(framed.split(SYSTEM_REMINDER_CLOSE).length - 1).toBe(1)
+  })
+
   it('frames an assembled body with the familiar markers on their own lines', () => {
     expect(frame('body')).toBe([SYSTEM_REMINDER_OPEN, 'body', SYSTEM_REMINDER_CLOSE].join('\n'))
   })
