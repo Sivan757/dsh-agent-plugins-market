@@ -51,6 +51,28 @@ Before sending logs, remove tokens, cookies, private URLs, local paths, session 
 - 披露时间会与报告者协调；在修复或缓解措施可用前，请不要公开细节。
 - 只有在获得明确许可后，才会在发布说明中致谢报告者。
 
+## Accepted dependency risk / 已接受的依赖风险
+
+One open Dependabot alert is accepted, not fixed.
+
+有一条 Dependabot 告警属于已接受风险，不修复。
+
+| Advisory                                  | Required fix | Accepted at | Why                                                           |
+| ----------------------------------------- | ------------ | ----------- | ------------------------------------------------------------- |
+| zod high severity, versions below `4.6.6` | `4.6.6`      | `4.4.3`     | The host pins zod exactly, and one physical copy is required. |
+
+The DeepSeek Harness host family declares zod `4.4.3` exactly. Measured with `npm view <package>@0.2.1-rc.3 dependencies.zod` on 2026-10-26, every one of these packages reports `4.4.3`: `@deepseek-ai/dsh-agent-loop`, `@deepseek-ai/dsh-llm`, `@deepseek-ai/dsh-subagent`, `@deepseek-ai/dsh-session-projection`, `@deepseek-ai/dsh-client-ui-plugin-manager`, and `@deepseek-ai/dsh-experimental-agent-team`.
+
+DeepSeek Harness 宿主系列把 zod 精确锁定在 `4.4.3`。2026-10-26 用 `npm view <package>@0.2.1-rc.3 dependencies.zod` 实测，以下每个包都报告 `4.4.3`：`@deepseek-ai/dsh-agent-loop`、`@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-subagent`、`@deepseek-ai/dsh-session-projection`、`@deepseek-ai/dsh-client-ui-plugin-manager`、`@deepseek-ai/dsh-experimental-agent-team`。
+
+`pnpm-workspace.yaml` overrides zod to `4.4.3` on purpose. A plugin schema crosses into the host's `ProjectionDefinition`. A second physical zod copy makes the host's `ZodType` nominal, so the plugin's schema stops matching it.
+
+`pnpm-workspace.yaml` 有意把 zod override 为 `4.4.3`。插件 schema 会进入宿主的 `ProjectionDefinition`；第二份 zod 副本会让宿主的 `ZodType` 变成名义类型，插件 schema 将不再匹配。
+
+Raising this override to `4.6.6` breaks the host contract described above. Closing the alert needs a host release that moves the whole family to `4.6.6`, not a change in this repository.
+
+把该 override 提到 `4.6.6` 会破坏上述宿主契约。关闭这条告警需要宿主发布、把整个系列移到 `4.6.6`，而不是在本仓库改。
+
 ## Security scope / 安全范围
 
 Reports are especially valuable for issues involving source checkout isolation, path traversal, manifest parsing, HTTP route authorization, hook or MCP mounting, dependency supply chain risks, credential exposure, or generated release artifacts. Third-party marketplace content may be untrusted; review it before enabling a suite.
