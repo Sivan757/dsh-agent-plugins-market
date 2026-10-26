@@ -26,6 +26,8 @@ import type {
 import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-status.js'
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
+import { OUTPUT_STYLE_ROUTES } from '../../market-contracts/src/contracts/output-styles.js'
+import type { OutputStyleCaptureResult, OutputStylesPayload, OutputStyleSaveRequest } from '../../market-contracts/src/contracts/output-styles.js'
 import { resolveHiddenTabs, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
 import type { InstructionDeleteResult, InstructionsPayload, InstructionSaveRequest } from '../../market-contracts/src/contracts/instructions.js'
@@ -55,6 +57,7 @@ export type {
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../../market-contracts/src/contracts/mcp-status.js'
 export type { LspStatusEntry, LspStatusPayload, LspStatusState, LspLegacySeam, LspLegacySeamMigration } from '../../market-contracts/src/contracts/lsp-status.js'
 export type { McpBackendInfo }
+export type { OutputStyleCaptureResult, OutputStyleCaptured, OutputStyleRow, OutputStyleSource, OutputStylesPayload } from '../../market-contracts/src/contracts/output-styles.js'
 export type {
   InstructionDeleteResult,
   InstructionRow,
@@ -627,4 +630,88 @@ export async function deleteInstructionFile(request: Omit<InstructionSaveRequest
   const payload = await postOkJson<{ aliases?: unknown[]; targetIsLink?: boolean }>(sessionRoute(INSTRUCTION_ROUTES.remove, sessionId), { ...request }, 'delete failed')
   const aliases = Array.isArray(payload.aliases) ? payload.aliases.map(value => String(value)) : []
   return { aliases, targetIsLink: payload.targetIsLink === true }
+}
+/* ---- Output styles (the selected style's prompt section) ---- */
+
+/**
+ * Read every output style, the selection, and the exact text the prompt gets.
+ *
+ * @param sessionId - the live session whose workspace to describe; omitted
+ * means the host process working directory.
+ * @returns the styles, the selection and the injected section text.
+ */
+export async function fetchOutputStyles(sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(
+    async () => {
+      const response = await boundedFetch(sessionRoute(OUTPUT_STYLE_ROUTES.read, sessionId), { credentials: 'same-origin' }, READ_TIMEOUT_MS)
+      const payload = (await response.json()) as OutputStylesPayload & { error?: string }
+      if (!response.ok) throw new Error(payload.error ?? `output styles failed: ${response.status}`)
+      return payload
+    },
+    { blocking: false }
+  )
+}
+
+/**
+ * Select one style for this workspace.
+ *
+ * @param styleId - the style's stable id from the read.
+ * @param sessionId - the live session whose workspace to change.
+ * @returns the committed read, so the page renders the server's answer.
+ */
+export async function selectOutputStyle(styleId: string, sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(async () => {
+    const payload = await postOkJson<OutputStylesPayload>(sessionRoute(OUTPUT_STYLE_ROUTES.select, sessionId), { styleId }, 'select failed')
+    return {
+      styles: payload.styles,
+      selected: payload.selected,
+      workspace: payload.workspace,
+      injected: payload.injected,
+      ...(payload.captured === undefined ? {} : { captured: payload.captured })
+    }
+  })
+}
+
+/**
+ * Capture one suite style's text through its own SessionStart hook.
+ *
+ * The capture runs the suite's program once. The page calls this only when a
+ * person asks for it, and the captured text is what the prompt receives after.
+ * @param suiteKey - the suite address, `sourceId/suiteId`.
+ * @param sessionId - the live session whose workspace records the capture.
+ * @returns the captured text and the fingerprint it is bound to.
+ */
+export async function captureOutputStyle(suiteKey: string, sessionId?: string): Promise<OutputStyleCaptureResult> {
+  return withBusyOperation(async () => {
+    const payload = await postOkJson<OutputStyleCaptureResult>(sessionRoute(OUTPUT_STYLE_ROUTES.capture, sessionId), { suiteKey }, 'capture failed')
+    return { suiteKey: payload.suiteKey, fingerprint: payload.fingerprint, text: payload.text }
+  })
+}
+/**
+ * Create or replace one user-authored output style.
+ *
+ * The body names the style's own fields and never a path.
+ * @param request - the name, description and body.
+ * @param sessionId - the live session whose workspace read answers the change.
+ * @returns the committed read.
+ */
+export async function saveUserOutputStyle(request: OutputStyleSaveRequest, sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(async () => {
+    const payload = await postOkJson<OutputStylesPayload>(sessionRoute(OUTPUT_STYLE_ROUTES.saveUser, sessionId), { ...request }, 'save failed')
+    return payload
+  })
+}
+
+/**
+ * Remove one user-authored output style.
+ *
+ * @param name - the style's file stem.
+ * @param sessionId - the live session whose workspace read answers the change.
+ * @returns the committed read.
+ */
+export async function deleteUserOutputStyle(name: string, sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(async () => {
+    const payload = await postOkJson<OutputStylesPayload>(sessionRoute(OUTPUT_STYLE_ROUTES.deleteUser, sessionId), { name }, 'delete failed')
+    return payload
+  })
 }

@@ -23,6 +23,7 @@ import { McpStatusPanel } from '../features/mcp/StatusPanel.js'
 import { LspStatusPanel } from '../features/lsp/LspStatusPanel.js'
 import { HooksStatusPanel } from '../features/hooks/StatusPanel.js'
 import { InstructionsPanel } from '../features/instructions/InstructionsPanel.js'
+import { OutputStylesPanel } from '../features/output-styles/OutputStylesPanel.js'
 import { UserPanelSurface } from '../ui/UserPanelSurface.js'
 import css from './workspace.module.css'
 
@@ -105,6 +106,7 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
 
   const labelKeys: Record<WorkspaceTab, string> = {
     market: t('workspaceTabMarket'),
+    outputStyles: t('workspaceTabOutputStyles'),
     instructions: t('workspaceTabInstructions'),
     skills: t('workspaceTabSkills'),
     commands: t('workspaceTabCommands'),
@@ -233,6 +235,8 @@ function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi |
       return h(MarketSection, { t, mode })
     case 'instructions':
       return h(InstructionsPanel, { t, sessionId })
+    case 'outputStyles':
+      return h(OutputStylesPanel, { t, sessionId })
     case 'skills':
       return h(UserPanelSurface, { t, kind: 'skills' })
     case 'commands':

@@ -21,6 +21,7 @@ vi.mock('../../../packages/market-ui/src/features/lsp/LspStatusPanel.js', () => 
 vi.mock('../../../packages/market-ui/src/features/hooks/StatusPanel.js', () => ({ HooksStatusPanel: () => h('output', { 'data-tab': 'hooks' }) }))
 vi.mock('../../../packages/market-ui/src/ui/UserPanelSurface.js', () => ({ UserPanelSurface: (props: { kind: string }) => h('output', { 'data-tab': props.kind }) }))
 vi.mock('../../../packages/market-ui/src/features/instructions/InstructionsPanel.js', () => ({ InstructionsPanel: () => h('output', { 'data-tab': 'instructions' }) }))
+vi.mock('../../../packages/market-ui/src/features/output-styles/OutputStylesPanel.js', () => ({ OutputStylesPanel: () => h('output', { 'data-tab': 'outputStyles' }) }))
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -143,7 +144,7 @@ describe('workspace tab stowing', () => {
   it('removes a stowed chip from the row, adds a menu row, and keeps display order', async () => {
     stubServer()
     await mount()
-    expect(chipLabels()).toHaveLength(8)
+    expect(chipLabels()).toHaveLength(9)
 
     await openManager()
     await stow('commands')
@@ -184,9 +185,9 @@ describe('workspace tab stowing', () => {
     stubServer()
     await mount()
     // The workspace opens on market, which is the pinned tab and is never
-    // stowed, so activate a stowable tab before stowing it. It is the third
-    // chip: market, instructions, skills.
-    await act(async () => host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2]!.click())
+    // stowed, so activate a stowable tab before stowing it. It is the fourth
+    // chip: market, instructions, outputStyles, skills.
+    await act(async () => host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')[3]!.click())
     expect(activePanel()).toBe('skills')
 
     await openManager()
@@ -206,7 +207,7 @@ describe('workspace tab stowing', () => {
     expect(rowCheckbox('market')?.checked).toBe(true)
     await stow('market')
 
-    expect(chipLabels()).toHaveLength(8)
+    expect(chipLabels()).toHaveLength(9)
     expect(stored.hidden).toEqual([])
   })
 
@@ -243,7 +244,7 @@ describe('workspace tab stowing', () => {
     host?.remove()
     host = undefined
     await mount()
-    expect(chipLabels()).toHaveLength(7)
+    expect(chipLabels()).toHaveLength(8)
     expect(chipLabels()).toContain('workspaceTabMarket')
     expect(chipLabels()).not.toContain('workspaceTabSkills')
   })
@@ -288,7 +289,7 @@ describe('workspace tab stowing', () => {
   it('shows every tab again from the manager', async () => {
     stubServer({ hidden: ['mcp', 'lsp'] })
     await mount()
-    expect(chipLabels()).toHaveLength(6)
+    expect(chipLabels()).toHaveLength(7)
 
     await openManager()
     const showAll = [...dialog()!.querySelectorAll('button')].find(button => button.textContent === 'tabManageShowAll')
@@ -296,7 +297,7 @@ describe('workspace tab stowing', () => {
     await act(async () => showAll.click())
     await flush()
 
-    expect(chipLabels()).toHaveLength(8)
+    expect(chipLabels()).toHaveLength(9)
     expect(stored.hidden).toEqual([])
   })
 
@@ -323,11 +324,12 @@ describe('workspace tab stowing', () => {
     expect(tablist!.contains(trigger())).toBe(false)
     expect(trigger()!.getAttribute('aria-haspopup')).toBe('menu')
 
-    // Exactly one tab stop, and the walk covers the six visible chips.
+    // Exactly one tab stop, and the walk covers the seven visible chips.
     const chips = [...host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
     expect(chips.map(chip => chip.textContent)).toEqual([
       'workspaceTabMarket',
       'workspaceTabInstructions',
+      'workspaceTabOutputStyles',
       'workspaceTabSkills',
       'workspaceTabPersonas',
       'workspaceTabMcp',
@@ -340,7 +342,7 @@ describe('workspace tab stowing', () => {
     await act(async () => chips[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
     // End lands on the last VISIBLE chip, which is hooks, not the last declared tab.
     expect(activePanel()).toBe('hooks')
-    await act(async () => chips[5]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })))
+    await act(async () => chips[6]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })))
     expect(activePanel()).toBe('market')
   })
 
@@ -351,7 +353,7 @@ describe('workspace tab stowing', () => {
     )
     await mount()
 
-    expect(chipLabels()).toHaveLength(8)
+    expect(chipLabels()).toHaveLength(9)
     await openManager()
     expect(dialog()?.textContent).toContain('tabLayoutLoadFailed')
   })
