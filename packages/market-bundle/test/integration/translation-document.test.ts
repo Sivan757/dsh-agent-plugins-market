@@ -95,7 +95,7 @@ describe('Catalog.translateDocument', () => {
     expect(sent).toEqual([['A ⟦D1⟧flow⟦D2⟧ is a path through the skill.']])
     await catalog.settleDescriptions(5000)
     expect(sent).toHaveLength(1)
-    catalog.dispose()
+    await catalog.dispose()
   })
 
   it('reuses unchanged paragraphs after another paragraph is inserted before them', async () => {
@@ -303,7 +303,7 @@ describe('TranslationService paragraph completion', () => {
     expect(result).toEqual({ text, bilingualText: text, pending: 0, failed: 1 })
     await catalog.settleDescriptions(500)
     expect(batches).toEqual([])
-    catalog.dispose()
+    await catalog.dispose()
   })
 
   it('retries a failed document through the public retry flag without clearing its successful paragraphs', async () => {
@@ -342,6 +342,6 @@ describe('TranslationService paragraph completion', () => {
     expect(done.text).toContain('译:Failed paragraph.')
     expect(calls.filter(text => text.startsWith('Good'))).toHaveLength(1)
     await service.settle(500)
-    service.dispose()
+    await service.dispose()
   })
 })

@@ -42,7 +42,7 @@ it('keeps construction inert and callers safe before the required host services 
     expect(sessions.refresh()).toBeUndefined()
   } finally {
     inject.mockRestore()
-    catalog.dispose()
+    await catalog.dispose()
     await runtime.dispose()
     await ctx.fiber.dispose()
   }

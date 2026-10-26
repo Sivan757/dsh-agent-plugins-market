@@ -688,8 +688,17 @@ export class TranslationLocalizer {
    * returning. Dropping them costs nothing durable: translation is lazy, the
    * cache is the only state that has to survive, and the next activation's
    * first read queues whatever is still missing.
+   *
+   * The timers are cancelled synchronously and the returned promise is the
+   * cache write this disposal starts: {@link flush} writes the entries a
+   * completed call recorded, which is a file under the plugin data root, so an
+   * owner that disposes this instance must await the result before removing
+   * that root or reporting its own teardown complete. Every owner on the way
+   * out awaits it — `TranslationService.dispose`, the catalog, the plugin fiber.
+   *
+   * @returns fulfillment once the pending cache write landed.
    */
-  dispose(): void {
+  dispose(): Promise<void> {
     this.disposed = true
     if (this.pumpTimer !== undefined) {
       clearTimeout(this.pumpTimer)
@@ -703,6 +712,6 @@ export class TranslationLocalizer {
     // Ownership goes with the queue: no later read can be answered from a job
     // this instance will never run. In-flight calls still land and are written.
     this.owners.clear()
-    void this.flush()
+    return this.flush()
   }
 }

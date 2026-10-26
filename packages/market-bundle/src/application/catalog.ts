@@ -165,10 +165,19 @@ export class Catalog implements MarketService {
     await this.translation.load()
   }
 
-  /** Release the localizer's and the snapshot cache's timers; in-flight work still persists. */
-  dispose(): void {
-    this.translation.dispose()
+  /**
+   * Release the localizer's and the snapshot cache's timers; in-flight work still persists.
+   *
+   * Both timer sets are cancelled synchronously. The returned promise is the
+   * translation cache write the localizer's disposal starts, a file under the
+   * plugin data root, so the owner that disposes this catalog awaits it before
+   * removing that root or reporting its own teardown complete.
+   *
+   * @returns fulfillment once the pending translation cache write landed.
+   */
+  async dispose(): Promise<void> {
     this.snapshots.dispose()
+    await this.translation.dispose()
   }
 
   /**
