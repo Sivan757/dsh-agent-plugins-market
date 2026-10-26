@@ -4,10 +4,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { carrierKeyOf } from '@deepseek-ai/dsh-scope'
+import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-shell'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { SubagentRunInfo } from '@deepseek-ai/dsh-subagent'
-import type {} from '@deepseek-ai/dsh-tools'
+import type { PreToolDecision } from '@deepseek-ai/dsh-tools'
 import {
   DEFAULT_HOOK_TIMEOUT_MS,
   DEFAULT_STDERR_SUMMARY_MAX_CHARS,
@@ -16,7 +17,8 @@ import {
   createDetachedRuns,
   matchesMatcher,
   mergeHookOutputs,
-  runHook
+  runHook,
+  type HookOutput
 } from '@deepseek-ai/dsh-hook-protocol'
 import { qualifiedSuiteId } from '../../../../market-catalog/src/index.js'
 import { expandPluginPaths, pluginPathEnvironment, pluginRootOf, suiteDataDir } from '../../../../market-catalog/src/index.js'
@@ -24,7 +26,29 @@ import { normalizeHookDocuments, standaloneHookDocument } from '../../../../mark
 import type { ProjectHooks, Suite } from '../../../../market-contracts/src/model/types.js'
 import { hookConfigPath, type HooksMountDiagnostic } from './hooks-mounts.js'
 
-type Point = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'Stop' | 'SubagentStart' | 'SubagentStop'
+/**
+ * Every Claude Code hook event this bridge runs. The host extension points
+ * decide the list: an event with no reachable interception point stays out of
+ * it and the catalog rejects the declaration with a diagnostic, so a suite
+ * never believes a hook is live when it is not.
+ *
+ * The catalog derives the events it admits from the shared support table, and
+ * `packages/market-runtime/test/hook-event-coverage.test.ts` holds this list to
+ * that table, so the two cannot drift.
+ */
+export const HOOK_RUNTIME_POINTS = [
+  'SessionStart',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'Stop',
+  'SubagentStart',
+  'SubagentStop',
+  'PreCompact',
+  'SessionEnd'
+] as const
+type Point = (typeof HOOK_RUNTIME_POINTS)[number]
 type Outcome = ReturnType<typeof mergeHookOutputs>
 type Turn = Parameters<typeof appendHookInvoked>[1]['turn']
 type Source = 'startup' | 'resume'
@@ -32,18 +56,66 @@ interface Selection {
   suite: Suite
   hooks: ProjectHooks
 }
+interface RunOptions {
+  /**
+   * Run the final pass that disposal owns. A closing pass reads a captured
+   * selection snapshot, so the checks that stop a live pass do not stop it.
+   */
+  closing?: boolean
+  /** Selection snapshot for a closing pass; a live pass reads the live map. */
+  selection?: ReadonlyMap<string, Selection>
+  /** Default per-hook timeout in ms; the point's own reference default when absent. */
+  defaultTimeoutMs?: number
+}
 const CONTEXT_SOURCE = { kind: 'hooks-claude-code' } as const
+/** Plain (non-JSON) stdout is conversation context on exactly these events. */
+const STDOUT_CONTEXT_POINTS: ReadonlySet<Point> = new Set<Point>(['SessionStart', 'UserPromptSubmit'])
+/**
+ * Reference per-event timeouts, in ms, for the events whose reference default
+ * differs from the protocol default: Claude Code lowers UserPromptSubmit
+ * commands to 30 seconds and gives SessionEnd a 1.5-second budget.
+ */
+const POINT_DEFAULT_TIMEOUT_MS: Partial<Record<Point, number>> = { UserPromptSubmit: 30_000, SessionEnd: 1_500 }
+/** Consecutive stop continuations before a blocking Stop hook stops forcing another step. */
+const STOP_CONTINUATION_CAP = 8
+/** Separator between two joined hook reasons, as the shared merge joins them. */
+const REASON_SEPARATOR = '\n\n'
+/** Never aborted: a closing pass outlives the drain that aborts the shared run signal. */
+const NEVER_ABORTED = new AbortController().signal
+/** English fallback the model and the session log read when a hook blocks without a reason. */
+const DEFAULT_REASON: Partial<Record<Point, string>> = {
+  UserPromptSubmit: 'blocked by UserPromptSubmit hook',
+  PreToolUse: 'blocked by PreToolUse hook',
+  PostToolUse: 'blocked by PostToolUse hook',
+  Stop: 'continue: blocked by Stop hook'
+}
 
 /**
  * Own one live Agent's hooks. Supply a live context injected with shell and
  * sessionProjections, plus a synchronous live authorization check. Reconcile before
  * awaiting start; agent/created is deliberately not observed. Dispose before the
  * Agent or its context tears down. Each command rechecks authorization.
+ *
+ * Decisions are applied, not logged: a deny, block, ask, or allow reaches the
+ * host decision it names, additionalContext is delivered to the turn or the
+ * tool call, `continue: false` cancels the run through the host's own hook
+ * cancellation cause, and an exit-2 hook blocks with its stderr as the reason.
+ * A hook that returns nothing, times out, cannot be decoded, or answers for a
+ * different event is contained: it contributes no decision and the point
+ * proceeds as if it had not run.
+ *
+ * Three reference fields have no host seam and are reported instead of applied:
+ * `updatedInput` (the host decision union has no rewrite arm), a user-visible
+ * `systemMessage` channel (no notice surface on the interception points, so the
+ * text falls back into the block reason and the host log), and a PreCompact
+ * veto (no pre-compaction interception point). docs/reference/hooks-event-coverage.md
+ * records each gap beside the host symbol that would have to change.
+ *
  * Subagent events use the exact parent carrier, but identify the child on stdin.
- * Like the host bridge, input rewrites, systemMessage and run-level halt are not
- * applied; SubagentStop is observation-only. Unknown remote child cwd is empty.
- * Every command receives its suite's path variables in the process environment,
- * the same values its command string expands to.
+ * SessionEnd runs from disposal, so its reason vocabulary is `other` only.
+ * Unknown remote child cwd is empty. Every command receives its suite's path
+ * variables in the process environment, the same values its command string
+ * expands to.
  */
 export class ExtensionHooks {
   private selected = new Map<string, Selection>()
@@ -56,6 +128,8 @@ export class ExtensionHooks {
   private disposed = false
   private revision = 0
   private handler = 0
+  /** Consecutive Stop continuations this run has forced, for the reference cap. */
+  private continuations = 0
 
   constructor(
     private readonly ctx: Context,
@@ -86,7 +160,14 @@ export class ExtensionHooks {
             event.signal
           )
           if (this.disposed) return next()
-          if (merged.decision === 'deny') return { kind: 'reject' as const }
+          if (merged.stop) {
+            this.halt(agent, 'UserPromptSubmit', merged)
+            return { kind: 'reject' as const }
+          }
+          if (merged.decision === 'deny') {
+            this.reportBlocked('UserPromptSubmit', merged)
+            return { kind: 'reject' as const }
+          }
           const downstream = await next()
           const context = contextFrom(merged)
           return !this.disposed && context && downstream.kind === 'enter' ? { ...downstream, messages: [...downstream.messages, context] } : downstream
@@ -106,9 +187,26 @@ export class ExtensionHooks {
             exec.signal
           )
           if (this.disposed) return next()
-          if (merged.decision === 'deny') return { kind: 'deny' as const, reason: merged.reason ?? 'blocked by PreToolUse hook' }
-          if (merged.decision === 'ask') return { kind: 'ask' as const, ...(merged.reason === undefined ? {} : { reason: merged.reason }) }
-          return next()
+          if (merged.stop) {
+            this.halt(agent, 'PreToolUse', merged)
+            return { kind: 'deny' as const, reason: this.blockReason('PreToolUse', merged) }
+          }
+          if (merged.decision === 'deny') return { kind: 'deny' as const, reason: this.blockReason('PreToolUse', merged) }
+          if (merged.decision === 'ask')
+            return {
+              kind: 'ask' as const,
+              ...(merged.reason === undefined ? {} : { reason: merged.reason }),
+              displayReason: ASK_DISPLAY_REASON
+            }
+          const downstream = await next()
+          // A hook allow pre-approves an approval prompt; it never overrides a
+          // denial, so a later guard keeps its veto.
+          const decision: PreToolDecision = merged.decision === 'allow' && downstream.kind === 'ask' ? { kind: 'allow' } : downstream
+          // The pre-execute decision carries no context field, so context reaches
+          // the next request through the agent's own model-facing inbox.
+          const context = contextFrom(merged)
+          if (!this.disposed && decision.kind === 'allow' && context) agent.inject(context)
+          return decision
         })
       })
     )
@@ -116,20 +214,35 @@ export class ExtensionHooks {
       ctx.on('tools/post-execute', (exec, result, next) => {
         if (exec.agent !== agent || this.disposed) return next()
         return this.track(async () => {
-          const merged = await this.runPoint(
-            'PostToolUse',
-            exec.name,
-            { ...base(agent, 'PostToolUse'), tool_name: exec.name, tool_input: exec.arguments, tool_use_id: exec.callId, tool_response: text(result.content) },
-            agent,
-            this.lastTurn(),
-            exec.signal
-          )
+          // The reference protocol separates the two events: PostToolUse fires
+          // after a tool succeeds, PostToolUseFailure after it fails.
+          const point: Point = result.isError ? 'PostToolUseFailure' : 'PostToolUse'
+          const payload = {
+            ...base(agent, point),
+            tool_name: exec.name,
+            tool_input: exec.arguments,
+            tool_use_id: exec.callId,
+            ...(result.isError ? { error: result.error.message } : { tool_response: text(result.content) })
+          }
+          const merged = await this.runPoint(point, exec.name, payload, agent, this.lastTurn(), exec.signal)
           if (this.disposed) return next()
+          if (merged.stop) {
+            this.halt(agent, point, merged)
+            return next()
+          }
           const context = contextFrom(merged)
-          if (merged.decision === 'deny')
+          const reason = merged.decision === 'deny' ? this.blockReason(point, merged) : undefined
+          if (result.isError) {
+            // A failed call already carries its own error. Replacing it would hide
+            // the failure, so a blocking hook's reason rides the next request.
+            const downstream = await next()
+            const contexts = [...(reason === undefined ? [] : [contextFromReason(reason)]), ...(context === undefined ? [] : [context])]
+            return this.disposed || contexts.length === 0 ? downstream : { ...downstream, additionalContexts: [...contexts, ...(downstream.additionalContexts ?? [])] }
+          }
+          if (reason !== undefined)
             return {
               kind: 'block' as const,
-              feedback: [{ type: 'text' as const, text: merged.reason ?? 'blocked by PostToolUse hook' }],
+              feedback: [{ type: 'text' as const, text: reason }],
               ...(context ? { additionalContexts: [context] } : {})
             }
           const downstream = await next()
@@ -141,9 +254,33 @@ export class ExtensionHooks {
       ctx.on('agent/turn-stopping', event => {
         if (event.agent !== agent || this.disposed) return
         return this.track(async () => {
-          const merged = await this.runPoint('Stop', '', { ...base(agent, 'Stop'), stop_hook_active: false }, agent, event.turn, event.signal)
-          if (!this.disposed && merged.decision === 'deny')
-            agent.steer(createUserMessage({ content: [{ type: 'text', text: merged.reason ?? 'continue: blocked by Stop hook' }], source: CONTEXT_SOURCE }))
+          const merged = await this.runPoint('Stop', '', { ...base(agent, 'Stop'), stop_hook_active: this.continuations > 0 }, agent, event.turn, event.signal)
+          if (this.disposed) return
+          if (merged.stop) {
+            this.reportBlocked('Stop', merged)
+            this.halt(agent, 'Stop', merged)
+            return
+          }
+          const reason = merged.decision === 'deny' ? this.blockReason('Stop', merged) : undefined
+          if (merged.decision === 'deny') this.reportBlocked('Stop', merged)
+          if (reason === undefined && merged.additionalContext.length === 0) {
+            this.continuations = 0
+            return
+          }
+          // A blocking or context-bearing Stop hook continues the turn; the
+          // reference cap stops an unconditionally blocking hook from looping.
+          if (this.continuations >= STOP_CONTINUATION_CAP) {
+            this.ctx.logger?.warn(
+              'extension-hooks: Stop hook reached the ' + STOP_CONTINUATION_CAP + ' continuation cap for session ' + agent.session.header.id + '; the turn ends'
+            )
+            this.continuations = 0
+            return
+          }
+          this.continuations += 1
+          for (const message of [reason, ...merged.additionalContext]) {
+            if (message === undefined || message.length === 0) continue
+            agent.steer(createUserMessage({ content: [{ type: 'text', text: message }], source: CONTEXT_SOURCE }))
+          }
         })
       })
     )
@@ -157,6 +294,30 @@ export class ExtensionHooks {
     this.listeners.push(
       ctx.on('subagent/end', function (info) {
         if (carrierKeyOf(this) === agent) observeSubagent('SubagentStop', info)
+      })
+    )
+    this.listeners.push(
+      ctx.on('session/event', (session, event) => {
+        if (session !== agent.session || this.disposed) return
+        // Compaction is owned by the host's compaction plugin, which this
+        // package does not depend on: the event is read as durable data, by
+        // its name, and a payload that is not an object runs nothing.
+        const type: string = event.type
+        if (type !== 'compaction/start') return
+        const trigger = compactionTrigger(event.data)
+        if (trigger === undefined) {
+          this.ctx.logger?.warn('extension-hooks: ignored a compaction/start payload with no readable trigger for session ' + agent.session.header.id)
+          return
+        }
+        void this.track(async () => {
+          const merged = await this.runPoint('PreCompact', trigger, { ...base(agent, 'PreCompact'), trigger, custom_instructions: '' }, agent, this.lastTurn(), this.runs.signal)
+          // No host interception point precedes a committed compaction, so a
+          // blocking PreCompact decision cannot veto it.
+          if (!this.disposed && merged.decision === 'deny')
+            this.ctx.logger?.warn('extension-hooks: PreCompact hook blocked compaction for session ' + agent.session.header.id + ', but the host exposes no pre-compaction veto')
+        }).catch(error => {
+          this.ctx.logger?.warn('extension-hooks: PreCompact hook failed: ' + String(error))
+        })
       })
     )
   }
@@ -206,8 +367,14 @@ export class ExtensionHooks {
     this.startup = this.track(async () => {
       await this.pending
       const merged = await this.runPoint('SessionStart', source, { ...base(this.agent, 'SessionStart'), source }, this.agent, undefined, signal)
+      if (this.disposed || signal?.aborted) return
+      if (merged.stop) {
+        this.reportBlocked('SessionStart', merged)
+        this.halt(this.agent, 'SessionStart', merged)
+        return
+      }
       const context = contextFrom(merged)
-      if (!this.disposed && !signal?.aborted && context) this.agent.inject(context)
+      if (context) this.agent.inject(context)
     })
     return this.startup
   }
@@ -215,12 +382,40 @@ export class ExtensionHooks {
   /** Stop admission, unregister listeners, abort and await owned runs. Repeated calls share completion. */
   dispose(): Promise<void> {
     if (this.closing) return this.closing
+    const finalSelection = new Map(this.selected)
     this.disposed = true
+    // SessionEnd is the one point that fires from disposal, so it takes its own
+    // signal: the shared drain signal is aborted by the drain this waits behind.
+    const sessionEnd = finalSelection.size === 0 ? Promise.resolve() : this.sessionEnd(finalSelection)
     this.selected.clear()
     this.children.clear()
     for (const unregister of this.listeners.splice(0)) unregister()
-    this.closing = Promise.all([this.runs.drain(), this.pending]).then(() => undefined)
+    this.closing = Promise.all([sessionEnd, this.runs.drain(), this.pending]).then(() => undefined)
     return this.closing
+  }
+
+  /**
+   * Run every selected SessionEnd hook once, and discard its output.
+   *
+   * The reference event cannot decide anything: its stdout is discarded and its
+   * timeout is 1.5 seconds. The reason vocabulary has no host seam: the agent
+   * disposal payload carries no reason, so the payload reports `other`, the
+   * value the reference protocol uses when nothing finer is known.
+   */
+  private sessionEnd(selection: ReadonlyMap<string, Selection>): Promise<void> {
+    const merged = this.runPoint('SessionEnd', 'other', { ...base(this.agent, 'SessionEnd'), reason: 'other' }, this.agent, undefined, undefined, {
+      closing: true,
+      selection,
+      defaultTimeoutMs: POINT_DEFAULT_TIMEOUT_MS.SessionEnd
+    })
+    return merged
+      .then(outcome => {
+        for (const message of outcome.systemMessages) this.warnSystemMessage('SessionEnd', message, undefined)
+        if (outcome.decision === 'deny') this.reportBlocked('SessionEnd', outcome)
+      })
+      .catch(error => {
+        this.ctx.logger?.warn('extension-hooks: SessionEnd hook failed: ' + String(error))
+      })
   }
 
   private observeSubagent(point: 'SubagentStart' | 'SubagentStop', info: SubagentRunInfo): void {
@@ -240,8 +435,16 @@ export class ExtensionHooks {
         },
         child
       )
+      if (this.disposed) return
+      if (point === 'SubagentStop') {
+        // The subagent end edge is an emit-only notification: it carries no
+        // interception point, so a block cannot keep the child running.
+        if (merged.decision === 'deny') this.reportBlocked('SubagentStop', merged)
+        return
+      }
       const context = contextFrom(merged)
-      if (!this.disposed && point === 'SubagentStart' && context && child && this.children.get(info.runId) === child) child.inject(context)
+      if (context && child && this.children.get(info.runId) === child) child.inject(context)
+      if (merged.stop && child) this.halt(child, 'SubagentStart', merged)
     }).catch(error => {
       this.ctx.logger.warn('extension-hooks: ' + point + ' hook failed: ' + String(error))
     })
@@ -258,11 +461,23 @@ export class ExtensionHooks {
     return boundary?.openTurnStartSeq == null ? undefined : boundary.lastTurn
   }
 
-  private async runPoint(point: Point, query: string, payload: Record<string, unknown>, subject?: Agent, turn?: Turn, signal?: AbortSignal): Promise<Outcome> {
-    const outputs: Array<Awaited<ReturnType<typeof runHook>>['output']> = []
-    const ownerSignal = signal ? AbortSignal.any([signal, this.runs.signal]) : this.runs.signal
-    for (const [key, selection] of this.selected) {
-      const { suite, hooks } = selection
+  private async runPoint(
+    point: Point,
+    query: string,
+    payload: Record<string, unknown>,
+    subject?: Agent,
+    turn?: Turn,
+    signal?: AbortSignal,
+    options: RunOptions = {}
+  ): Promise<Outcome> {
+    const closing = options.closing === true
+    const selection = options.selection ?? this.selected
+    const outputs: HookOutput[] = []
+    // Disposal drains by aborting the shared signal, so the final pass it waits
+    // behind cannot use it: SessionEnd would be killed before it ran.
+    const ownerSignal = closing ? (signal ?? NEVER_ABORTED) : signal === undefined ? this.runs.signal : AbortSignal.any([signal, this.runs.signal])
+    for (const [key, selected] of selection) {
+      const { suite, hooks } = selected
       const cwd = subject?.session.header.cwd
       const projectDir = hooks.projectRoot ?? cwd
       // One context drives both the inline substitution and the process
@@ -280,7 +495,7 @@ export class ExtensionHooks {
         for (const hook of group.hooks) {
           const position = index++
           if (!matched) continue
-          if (this.disposed || ownerSignal.aborted || this.selected.get(key) !== selection) break
+          if ((!closing && this.disposed) || ownerSignal.aborted || selection.get(key) !== selected) break
           let allowed = false
           try {
             allowed = this.isSuiteAllowed(suite) === true && this.isHookAllowed?.(suite, point, position) !== false
@@ -296,7 +511,7 @@ export class ExtensionHooks {
             { command: expandPluginPaths(hook.command, pathContext), ...(hook.timeout === undefined ? {} : { timeoutSec: hook.timeout }) },
             {
               payload,
-              defaultTimeoutMs: DEFAULT_HOOK_TIMEOUT_MS,
+              defaultTimeoutMs: options.defaultTimeoutMs ?? POINT_DEFAULT_TIMEOUT_MS[point] ?? DEFAULT_HOOK_TIMEOUT_MS,
               signal: ownerSignal,
               trailingNewline: true,
               expectedEventName: point,
@@ -307,13 +522,72 @@ export class ExtensionHooks {
           )
           if (subject && turn !== undefined)
             appendHookResult(subject.session, { turn, point, handlerId, output, durationMs, stderrSummaryMaxChars: DEFAULT_STDERR_SUMMARY_MAX_CHARS })
-          if (output.updatedInput !== undefined || output.systemMessage !== undefined || output.continue === false)
-            this.ctx.logger.warn('extension-hooks: ' + key + ' ' + point + ': updatedInput, systemMessage, and run-level halt are not supported by the host bridge')
-          if (!this.disposed && !ownerSignal.aborted) outputs.push(output)
+          this.reportUnapplied(key, point, output, position)
+          this.warnSystemMessage(point, output.systemMessage, key)
+          if ((!closing && this.disposed) || ownerSignal.aborted) continue
+          outputs.push(withStdoutContext(point, output))
         }
       }
     }
     return mergeHookOutputs(outputs)
+  }
+
+  /**
+   * Report the reference fields this bridge cannot apply.
+   *
+   * Each is named with the host symbol that would have to change, so a suite
+   * author reads why the field had no effect instead of assuming it did.
+   */
+  private reportUnapplied(key: string, point: Point, output: HookOutput, position: number): void {
+    if (output.updatedInput !== undefined)
+      this.ctx.logger.warn(
+        'extension-hooks: ' + key + ' ' + point + '#' + position + ': updatedInput is not applied; the host PreToolDecision union (@deepseek-ai/dsh-tools) has no input-rewrite arm'
+      )
+  }
+
+  /** Record a hook's user-visible warning on the only channel the host exposes: its log. */
+  private warnSystemMessage(point: Point, message: string | undefined, key: string | undefined): void {
+    if (message === undefined || message.trim() === '') return
+    this.ctx.logger?.warn('extension-hooks: ' + (key ?? 'session') + ' ' + point + ' systemMessage: ' + message)
+  }
+
+  /** Report a blocking decision the host point cannot enforce, or one whose output is discarded. */
+  private reportBlocked(point: Point, merged: Outcome): void {
+    this.ctx.logger?.warn('extension-hooks: ' + point + ' hook blocked: ' + (merged.reason ?? merged.stopReason ?? 'no reason supplied'))
+  }
+
+  /**
+   * The model-facing reason one blocking decision carries.
+   *
+   * The reference protocol keeps the reason in two places: `permissionDecisionReason`
+   * (or a top-level `reason`, or exit-2 stderr) and `systemMessage`. The merged
+   * reason wins; the hook's own system message is the next best authored text, so
+   * a hook that blocks with only a system message still explains itself instead of
+   * falling back to a generic sentence.
+   */
+  private blockReason(point: Point, merged: Outcome): string {
+    if (merged.reason !== undefined && merged.reason.length > 0) return merged.reason
+    if (merged.stopReason !== undefined && merged.stopReason.length > 0) return merged.stopReason
+    if (merged.systemMessages.length > 0) return merged.systemMessages.join(REASON_SEPARATOR)
+    return DEFAULT_REASON[point] ?? 'blocked by ' + point + ' hook'
+  }
+
+  /**
+   * Halt the run the way the host records a hook-caused cancellation.
+   *
+   * `AgentCancelCause` carries a `hook` arm, and the loop records the turn as
+   * aborted with that reason, so `continue: false` is a real run-level halt
+   * rather than a logged field. Cancelling also clears the pending inbox, which
+   * is what a halt means.
+   */
+  private halt(subject: Agent, point: Point, merged: Outcome): void {
+    const reason = merged.stopReason ?? merged.reason ?? DEFAULT_REASON[point] ?? 'stopped by ' + point + ' hook'
+    this.ctx.logger?.warn('extension-hooks: ' + point + ' hook halted the run: ' + reason)
+    try {
+      subject.cancel({ kind: 'hook', reason })
+    } catch (error) {
+      this.ctx.logger?.warn('extension-hooks: could not halt the run for ' + point + ': ' + String(error))
+    }
   }
 }
 
@@ -330,4 +604,52 @@ function contextFrom(merged: Outcome) {
   return merged.additionalContext.length === 0
     ? undefined
     : createUserMessage({ content: merged.additionalContext.map(text => ({ type: 'text' as const, text })), source: CONTEXT_SOURCE })
+}
+function contextFromReason(reason: string) {
+  return createUserMessage({ content: [{ type: 'text' as const, text: reason }], source: CONTEXT_SOURCE })
+}
+
+/**
+ * Fold plain stdout into context for the two events the reference protocol
+ * reads it on.
+ *
+ * Both reference events document plain (non-JSON) stdout as conversation
+ * context. The codec keeps the raw stream, so the fold happens here rather
+ * than in the shared decoder, which stays dialect-neutral.
+ * @param point - the firing event.
+ * @param output - the decoded hook outcome.
+ * @returns the outcome, with plain stdout added as context when it applies.
+ */
+function withStdoutContext(point: Point, output: HookOutput): HookOutput {
+  if (!STDOUT_CONTEXT_POINTS.has(point)) return output
+  if (output.exitCode !== 0) return output
+  const stdout = output.stdout.trim()
+  if (stdout === '' || stdout.startsWith('{') || output.additionalContext !== undefined) return output
+  return { ...output, additionalContext: stdout }
+}
+
+/**
+ * The approval prompt a hook-initiated ask shows.
+ *
+ * `PreToolDecision.ask.displayReason` carries one label per locale, so this
+ * plugin's own prompt text ships both languages. The hook's authored reason
+ * stays in `reason`, the audited field, rather than standing in for UI copy.
+ */
+const ASK_DISPLAY_REASON: { readonly en: string; readonly [locale: string]: string } = {
+  en: 'A PreToolUse hook asks before this tool runs',
+  zh: 'PreToolUse 钩子要求先确认再运行此工具'
+}
+
+/**
+ * Read the compaction trigger out of a durable `compaction/start` payload.
+ *
+ * The compaction plugin is not a dependency of this package, so the payload is
+ * validated as durable data: a manual compaction carries the command that asked
+ * for it, an automatic one does not.
+ * @param data - the event's data, as recorded.
+ * @returns the trigger, or undefined when the payload is not an object.
+ */
+function compactionTrigger(data: unknown): 'manual' | 'auto' | undefined {
+  if (typeof data !== 'object' || data === null) return undefined
+  return 'sourceCommandId' in data && data.sourceCommandId !== undefined ? 'manual' : 'auto'
 }

@@ -62,9 +62,10 @@ function harness() {
     const append = vi.fn<(event: string, data: Record<string, unknown>) => void>()
     const inject = vi.fn()
     const steer = vi.fn()
-    const value = { id, ctx, session: { header: { id, cwd }, append }, inject, steer } as unknown as Agent
+    const cancel = vi.fn()
+    const value = { id, ctx, session: { header: { id, cwd }, append }, inject, steer, cancel } as unknown as Agent
     registry.set(id, value)
-    return { value, append, inject, steer }
+    return { value, append, inject, steer, cancel }
   }
   const mount = (owner: Agent, selected: Suite[], allows: (suite: Suite) => boolean = () => true, hookAllows?: (suite: Suite, event: string, index: number) => boolean) => {
     const hooks = new ExtensionHooks(ctx, owner, allows, hookAllows, '/data')
@@ -85,6 +86,11 @@ function harness() {
     const callbacks = ctx.events.dispatch('emit', args) as Array<(info: Record<string, unknown>) => unknown>
     await Promise.all(callbacks.map(callback => callback(info)))
   }
+  // session/event carries two arguments, which the cordis helper overloads do not express.
+  const sessionEvent = async (session: unknown, event: Record<string, unknown>) => {
+    const callbacks = ctx.events.dispatch('emit', ['session/event', session, event]) as Array<(session: unknown, event: Record<string, unknown>) => unknown>
+    await Promise.all(callbacks.map(callback => callback(session, event)))
+  }
   return {
     ctx,
     calls,
@@ -93,6 +99,7 @@ function harness() {
     mount,
     exec,
     subagent,
+    sessionEvent,
     registry,
     warn,
     setRun: (value: typeof run) => {
@@ -204,7 +211,11 @@ describe('ExtensionHooks', () => {
       messages: [message, { source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: 'context' }] }]
     })
     const allow = vi.fn(async () => ({ kind: 'allow' as const }))
-    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), allow)).toEqual({ kind: 'ask', reason: 'ask first' })
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), allow)).toEqual({
+      kind: 'ask',
+      reason: 'ask first',
+      displayReason: { en: 'A PreToolUse hook asks before this tool runs', zh: 'PreToolUse 钩子要求先确认再运行此工具' }
+    })
     expect(allow).not.toHaveBeenCalled()
     h.setRun(async request => ({
       exitCode: 0,
@@ -537,5 +548,242 @@ describe('ExtensionHooks', () => {
     await h.ctx.waterfall('tools/pre-execute', h.exec(a.value, 'Read'), async () => ({ kind: 'allow' as const }))
     // The unmatched group owns position 0, so the matched hook is the denied position 1.
     expect(h.calls).toEqual([])
+  })
+
+  it('pre-approves a downstream ask on a hook allow and keeps a downstream deny', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    await h.mount(a, [suite('one', { PreToolUse: ['allow'] })]).ready
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: { hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name, permissionDecision: 'allow' }
+      })
+    }))
+    // The hook pre-approves an approval prompt: the call runs without asking.
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a), async () => ({ kind: 'ask' as const, reason: 'needs approval' }))).toEqual({ kind: 'allow' })
+    // It never overrides a denial, so a later policy keeps its veto.
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a), async () => ({ kind: 'deny' as const, reason: 'policy' }))).toEqual({ kind: 'deny', reason: 'policy' })
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a), async () => ({ kind: 'allow' as const }))).toEqual({ kind: 'allow' })
+  })
+
+  it('uses the hook systemMessage as the denial reason when the hook names no reason', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    await h.mount(a, [suite('one', { PreToolUse: ['deny'], Stop: ['stop'] })]).ready
+    // hookify blocks exactly this way: permissionDecision deny, text in systemMessage.
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: { hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name, permissionDecision: 'deny' },
+        systemMessage: '**[no-rm]** do not delete files'
+      })
+    }))
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a), async () => ({ kind: 'allow' as const }))).toEqual({
+      kind: 'deny',
+      reason: '**[no-rm]** do not delete files'
+    })
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('PreToolUse systemMessage: **[no-rm]** do not delete files'))
+  })
+
+  it('injects PreToolUse additionalContext into the model request only for a call that proceeds', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { PreToolUse: ['context'] })]).ready
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: { hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name, additionalContext: 'read the guide first' }
+      })
+    }))
+    await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), async () => ({ kind: 'allow' as const }))
+    expect(a.inject).toHaveBeenCalledWith(expect.objectContaining({ source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: 'read the guide first' }] }))
+    a.inject.mockClear()
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name,
+          permissionDecision: 'deny',
+          permissionDecisionReason: 'not this one',
+          additionalContext: 'read the guide first'
+        }
+      })
+    }))
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), async () => ({ kind: 'allow' as const }))).toEqual({
+      kind: 'deny',
+      reason: 'not this one'
+    })
+    expect(a.inject).not.toHaveBeenCalled()
+  })
+
+  it('halts the run through the host hook cancellation cause for continue false', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { PreToolUse: ['halt'] })]).ready
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify({ continue: false, stopReason: 'quota reached' }) }))
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), async () => ({ kind: 'allow' as const }))).toEqual({
+      kind: 'deny',
+      reason: 'quota reached'
+    })
+    expect(a.cancel).toHaveBeenCalledWith({ kind: 'hook', reason: 'quota reached' })
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('PreToolUse hook halted the run: quota reached'))
+  })
+
+  it('treats exit code 2 as a blocking error with stderr as the reason on every deciding point', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { PreToolUse: ['pre'], PostToolUse: ['post'], Stop: ['stop'] })]).ready
+    h.setRun(async () => ({ exitCode: 2, stderr: 'refused by rule 7', stdout: '' }))
+    expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), async () => ({ kind: 'allow' as const }))).toEqual({ kind: 'deny', reason: 'refused by rule 7' })
+    expect(
+      await h.ctx.waterfall('tools/post-execute', h.exec(a.value), { content: [{ type: 'text', text: 'ok' }], isError: false, value: null }, async () => ({
+        kind: 'accept' as const
+      }))
+    ).toEqual({ kind: 'block', feedback: [{ type: 'text', text: 'refused by rule 7' }] })
+    await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
+    // The Stop reason reaches the turn as steering, which is the continuation.
+    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'refused by rule 7' }] }))
+    // A blocking exit code is not a halt: the run continues.
+    expect(a.cancel).not.toHaveBeenCalled()
+  })
+
+  it('folds plain stdout as context on SessionStart and UserPromptSubmit only', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: 'plain guidance' }))
+    const { hooks, ready } = h.mount(a.value, [suite('one', { SessionStart: ['start'], UserPromptSubmit: ['prompt'], PostToolUse: ['post'] })])
+    await ready
+    await hooks.start('startup')
+    expect(a.inject).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'plain guidance' }] }))
+    const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+    const prompt = { agent: a.value, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }
+    expect(await h.ctx.waterfall('agent/pre-step', prompt, async () => ({ kind: 'enter' as const, messages: [message] }))).toMatchObject({
+      kind: 'enter',
+      messages: [message, { content: [{ type: 'text', text: 'plain guidance' }] }]
+    })
+    // PostToolUse documents no plain-stdout context, so nothing is folded there.
+    expect(await h.ctx.waterfall('tools/post-execute', h.exec(a.value), { content: [], isError: false, value: null }, async () => ({ kind: 'accept' as const }))).toEqual({
+      kind: 'accept'
+    })
+  })
+
+  it('runs PostToolUseFailure for a failed call and keeps its error visible', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    await h.mount(a, [suite('one', { PostToolUse: ['after-success'], PostToolUseFailure: ['after-failure'] })]).ready
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: { hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name, additionalContext: 'the sandbox refused it' },
+        systemMessage: 'retry with a narrower path'
+      })
+    }))
+    const failed = { content: [{ type: 'text' as const, text: 'boom' }], isError: true as const, error: { message: 'boom' } }
+    const result = await h.ctx.waterfall('tools/post-execute', h.exec(a), failed, async () => ({ kind: 'accept' as const }))
+    expect(h.calls.map(call => call.command)).toEqual(['after-failure'])
+    expect(payloads(h.calls)[0]).toMatchObject({ hook_event_name: 'PostToolUseFailure', tool_name: 'Read', tool_input: { file_path: 'a.ts' }, error: 'boom' })
+    expect(result).toMatchObject({
+      kind: 'accept',
+      additionalContexts: [{ content: [{ type: 'text', text: 'the sandbox refused it' }] }]
+    })
+    // The failure itself is never replaced, and a warning with no decision is
+    // reported rather than folded into a block reason.
+    expect(result).not.toHaveProperty('content')
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('PostToolUseFailure systemMessage: retry with a narrower path'))
+  })
+
+  it('runs PreCompact hooks on a compaction start event and reports the missing veto', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { PreCompact: ['compact'] })]).ready
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify({ decision: 'block', reason: 'keep the context' }) }))
+    await h.sessionEvent(a.value.session, { type: 'compaction/start', seq: 3, time: 1, data: { turn: 1, sourceCommandId: 'compact' } })
+    await vi.waitFor(() => expect(h.calls).toHaveLength(1))
+    expect(payloads(h.calls)[0]).toMatchObject({ hook_event_name: 'PreCompact', trigger: 'manual', session_id: 'a' })
+    await vi.waitFor(() => expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('the host exposes no pre-compaction veto')))
+    // A committed compaction happens inside the open turn, so the pair is recorded.
+    expect(a.append.mock.calls.map(call => call[0])).toEqual(['hook/invoked', 'hook/result'])
+    // Nothing can veto the compaction, so the run continues.
+    expect(a.cancel).not.toHaveBeenCalled()
+  })
+
+  it('derives an automatic compaction trigger and ignores a payload it cannot read', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { PreCompact: ['compact'] })]).ready
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: '' }))
+    await h.sessionEvent(a.value.session, { type: 'compaction/start', seq: 3, time: 1, data: { turn: 1 } })
+    await vi.waitFor(() => expect(h.calls).toHaveLength(1))
+    expect(payloads(h.calls)[0]).toMatchObject({ hook_event_name: 'PreCompact', trigger: 'auto' })
+    await h.sessionEvent(a.value.session, { type: 'compaction/start', seq: 4, time: 2, data: 'not an object' })
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('ignored a compaction/start payload with no readable trigger'))
+    expect(h.calls).toHaveLength(1)
+  })
+
+  it('runs SessionEnd hooks once from disposal and discards their output', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify({ decision: 'block', reason: 'ignored' }) }))
+    const { hooks, ready } = h.mount(a.value, [suite('one', { SessionEnd: ['end'] })])
+    await ready
+    await hooks.dispose()
+    expect(h.calls.map(call => call.command)).toEqual(['end'])
+    expect(payloads(h.calls)[0]).toMatchObject({ hook_event_name: 'SessionEnd', reason: 'other', session_id: 'a' })
+    expect(h.calls[0]!.timeoutMs).toBe(1_500)
+    // Disposal happens outside any open turn, so the pair is not recorded.
+    expect(a.append).not.toHaveBeenCalled()
+    expect(a.cancel).not.toHaveBeenCalled()
+  })
+
+  it('caps consecutive Stop continuations and reports stop hook activation', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { Stop: ['stop'] })]).ready
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify({ decision: 'block', reason: 'keep going' }) }))
+    for (let index = 0; index < 9; index += 1) await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
+    expect(a.steer).toHaveBeenCalledTimes(8)
+    expect(payloads(h.calls).map(payload => payload.stop_hook_active)).toEqual([false, true, true, true, true, true, true, true, true])
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('reached the 8 continuation cap'))
+  })
+
+  it('reports updatedInput without applying it and leaves the tool arguments untouched', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    await h.mount(a, [suite('one', { PreToolUse: ['rewrite'] })]).ready
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name,
+          updatedInput: { file_path: 'b.ts' }
+        }
+      })
+    }))
+    const execution = h.exec(a)
+    const next = vi.fn(async () => ({ kind: 'allow' as const }))
+    await h.ctx.waterfall('tools/pre-execute', execution, next)
+    expect(next).toHaveBeenCalledOnce()
+    expect(execution.arguments).toEqual({ file_path: 'a.ts' })
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('updatedInput is not applied; the host PreToolDecision union (@deepseek-ai/dsh-tools) has no input-rewrite arm'))
+  })
+
+  it('applies the reference per-event timeout defaults', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    await h.mount(a, [suite('one', { UserPromptSubmit: ['prompt'], PreToolUse: ['pre'] })]).ready
+    const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+    await h.ctx.waterfall('agent/pre-step', { agent: a, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }, async () => ({
+      kind: 'enter' as const,
+      messages: [message]
+    }))
+    await h.ctx.waterfall('tools/pre-execute', h.exec(a), async () => ({ kind: 'allow' as const }))
+    expect(h.calls.map(call => call.timeoutMs)).toEqual([30_000, 600_000])
   })
 })
