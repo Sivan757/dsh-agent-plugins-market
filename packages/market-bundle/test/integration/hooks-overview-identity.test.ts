@@ -8,7 +8,7 @@
  * React keys and `data-resource-id` values. These cases read through the real
  * catalog and through a catalog double that already carries the suite.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -18,6 +18,7 @@ import { readHooksOverview } from '../../../../packages/market-bundle/src/sessio
 import { loadUserHooksSuite, USER_HOOKS_SOURCE } from '../../../../packages/market-runtime/src/application/panels/user-hooks.js'
 import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 /** The declaration file the acceptance run used: two events, one command each. */
 const declarations = {
@@ -29,7 +30,7 @@ const declarations = {
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** One isolated Agent layout root holding the acceptance declaration file. */

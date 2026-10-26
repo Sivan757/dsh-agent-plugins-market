@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -13,6 +13,7 @@ import { SuiteSkillProvider } from '../../../../packages/market-runtime/src/runt
 import { agentRoleCatalog, readAgentRole } from '../../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import { suiteInstructions } from '../../../../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const DATA_ROOT = '/data'
 const PROJECT_DIR = '/project'
@@ -28,7 +29,7 @@ async function put(dir: string, path: string, value: string | object): Promise<v
   await writeFile(join(dir, path), typeof value === 'string' ? value : JSON.stringify(value))
 }
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** Capture every registered slash command so one handler can be invoked directly. */

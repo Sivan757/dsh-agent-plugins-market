@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url'
  * suite detail must serve translated descriptions, report what is
  * still pending, and never let a provider failure break the read.
  */
-import { cp, mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { cp, mkdtemp, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
 import { MAX_DOCUMENT_CHUNK_CHARS } from '../../../../packages/market-translation/src/application/translation/document.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../../../../packages/market-translation/src/application/translation/chain.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixture = fileURLToPath(new URL('./fixtures/v1-suite', import.meta.url))
 const roots: string[] = []
@@ -19,7 +20,7 @@ afterEach(async () => {
   // The chain's breaker is process-global: a test that fails a provider must
   // not take that provider out of the chain for the tests after it.
   resetCircuitBreaker()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** A provider that maps every text in a batch, throwing when the answer is an Error. */

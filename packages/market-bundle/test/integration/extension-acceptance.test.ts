@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +16,7 @@ import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtim
 import { ExtensionPresetStore, extensionPresetLibraryPath } from '../../../../packages/market-runtime/src/application/state/extension-presets.js'
 import { allFiltersOn, saveResourceFilters } from '../../../../packages/market-runtime/src/application/state/resource-filters.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 let presetSequence = 0
 /**
@@ -60,7 +61,7 @@ afterEach(async () => {
 })
 async function setup(inventory?: () => Promise<ExtensionResource[]>) {
   const root = await mkdtemp(join(tmpdir(), 'extension-acceptance-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

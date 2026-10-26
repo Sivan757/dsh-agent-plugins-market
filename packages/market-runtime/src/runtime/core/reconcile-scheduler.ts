@@ -70,12 +70,23 @@ export class ReconcileScheduler {
     return this.pass
   }
 
-  /** Stop scheduling; later events are dropped. */
-  dispose(): void {
+  /**
+   * Stop scheduling and join the pass already running.
+   *
+   * The flags are set synchronously, so a pass that has not reached its own
+   * disposal check yet still sees the stop; the returned promise settles when
+   * the in-flight pass finished, which lets an owner that is disposing its
+   * fiber report teardown complete instead of leaving one reconcile to run
+   * behind it.
+   *
+   * @returns fulfillment once no pass is running.
+   */
+  dispose(): Promise<void> {
     this.disposed = true
     this.releaseCredentialUpdates()
     this.credentialFlush.dispose()
     this.pendingCredentialRefs.clear()
+    return this.pass ?? Promise.resolve()
   }
 
   private async reconcileOnce(): Promise<void> {

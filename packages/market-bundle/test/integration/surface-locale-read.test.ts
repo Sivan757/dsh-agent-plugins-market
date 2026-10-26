@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
  * panel list, the MCP status inventory including each observed tool, the LSP
  * inventory, the `/` menu faces, and the single-suite detail.
  */
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -17,13 +17,14 @@ import { Catalog } from '../../../../packages/market-bundle/src/application/cata
 import { createPanelResources } from '../../../../packages/market-runtime/src/application/panel-resources.js'
 import { createUserPanelStores } from '../../../../packages/market-runtime/src/runtime/panels/user-panels.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../../../../packages/market-translation/src/application/translation/chain.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixture = fileURLToPath(new URL('./fixtures/v1-suite', import.meta.url))
 const roots: string[] = []
 
 afterEach(async () => {
   resetCircuitBreaker()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** A provider that prefixes every text, so a translation is unmistakable. */

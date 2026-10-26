@@ -10,7 +10,7 @@
  * methods — the localization callbacks, the snapshot reads — is the one this
  * module calls.
  */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -22,10 +22,11 @@ import type { LocalizeDocument, LocalizeFields } from '../../../../packages/mark
 import { pluginResourceId } from '../../../../packages/market-runtime/src/index.js'
 import { required } from './helpers/fixture.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** A discovered command suite whose single command carries frontmatter. */

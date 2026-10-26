@@ -14,7 +14,7 @@
  * mistaken for a global switch. MCP and LSP entries are deliberately not selected:
  * this case is about an ordinary disabled consumer, not about the mount path.
  */
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -31,6 +31,7 @@ import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { EXTENSION_ROUTES, type ExtensionWindowPayload } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import { apply, inject, name } from '../../../../packages/market-bundle/src/index.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const cleanups: Array<() => void | Promise<void>> = []
@@ -134,7 +135,7 @@ const COMMAND = 'deploy'
 describe('a globally disabled suite explicitly selected by one session', () => {
   it('serves the selected skill and command to that session only, and never flips the global switch', async () => {
     const home = await mkdtemp(join(tmpdir(), 'global-override-'))
-    cleanups.push(() => rm(home, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(home))
     vi.stubEnv('DSH_HOME', home)
     vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
     await cp(join(fixtures, 'v1-suite'), join(home, 'agent-plugins', '.sources', 'demo', 'v1-suite'), { recursive: true })

@@ -3,7 +3,7 @@
  * whose ports record what the runtime would do — drop the OAuth grant record
  * through the credentials store and flag the owning mount for a rebuild.
  */
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -12,10 +12,11 @@ import { MARKET_ROUTES } from '../../../../packages/market-contracts/src/contrac
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
 import type { CatalogPortsOverride } from '../../../../packages/market-contracts/src/ports/ports.js'
 import { mountSuiteRoutes, type WebServerService } from '../../../../packages/market-bundle/src/routes.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 type RouteTable = Map<string, (request: unknown, response: unknown) => void | Promise<void>>

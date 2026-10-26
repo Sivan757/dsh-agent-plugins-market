@@ -8,7 +8,7 @@
  * sequential count. A fork drops an inherited request and starts its own token at 1.
  * Fixture: real AgentLoop, real session log, one holdable model response.
  */
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -22,6 +22,7 @@ import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persisten
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { captureExtensionSelection, type ExtensionSelection } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import { ExtensionSessionState, EXTENSION_INTENT_SOURCE } from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -71,7 +72,7 @@ const selection = (...ids: string[]) => captureExtensionSelection(null, ids)
 
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'extension-next-turn-review-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

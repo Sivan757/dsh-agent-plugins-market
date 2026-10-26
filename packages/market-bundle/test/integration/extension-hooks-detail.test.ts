@@ -1,5 +1,5 @@
 /** The project detail read must answer for the user-hooks configuration row even when no valid hook exists. */
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -10,10 +10,11 @@ import { loadUserHooksSuite, USER_HOOKS_SOURCE, USER_HOOKS_SUITE } from '../../.
 import { MARKET_ROUTES, type SuiteDetail } from '../../../../packages/market-contracts/src/contracts/market.js'
 import { mountSuiteRoutes, type WebServerService } from '../../../../packages/market-bundle/src/routes.js'
 import type { MarketService } from '../../../../packages/market-contracts/src/ports/queries.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 async function root(prefix: string): Promise<string> {
   const value = await mkdtemp(join(tmpdir(), prefix))

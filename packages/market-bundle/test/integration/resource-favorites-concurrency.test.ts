@@ -20,10 +20,11 @@ import {
   resourceFavoritesPath,
   saveResourceFavorite
 } from '../../../../packages/market-runtime/src/application/state/resource-favorites.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 async function newDataRoot(): Promise<string> {

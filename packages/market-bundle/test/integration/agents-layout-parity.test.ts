@@ -3,7 +3,7 @@
  * one user Agent layout root, each carrying every surface that layout can
  * hold, read through the same entry points the plugin runtime uses.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -18,10 +18,11 @@ import { loadUserMcpSuite } from '../../../../packages/market-mcp/src/applicatio
 import { loadUserHooksSuite } from '../../../../packages/market-runtime/src/application/panels/user-hooks.js'
 import { UserCommandMountRegistry } from '../../../../packages/market-runtime/src/runtime/panels/user-commands.js'
 import { createUserPanelStores } from '../../../../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 async function root(prefix: string): Promise<string> {
   const value = await mkdtemp(join(tmpdir(), prefix))

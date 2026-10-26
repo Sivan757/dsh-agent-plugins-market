@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +10,7 @@ import type { CatalogPortsOverride } from '../../../../packages/market-contracts
 import { loadUserMcpSuite, userMcpPath } from '../../../../packages/market-mcp/src/application/mcp/mcp-direct-config.js'
 import { toMcpMounts } from '../../../../packages/market-mcp/src/application/mcp/mcp-config.js'
 import * as jsonFile from '../../../../packages/market-catalog/src/application/json-file.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 async function setup(ports: CatalogPortsOverride = {}) {
@@ -22,7 +23,7 @@ async function setup(ports: CatalogPortsOverride = {}) {
 }
 afterEach(async () => {
   vi.restoreAllMocks()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 describe('service configuration editing', () => {

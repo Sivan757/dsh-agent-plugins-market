@@ -6,7 +6,7 @@
  * replacement (no HTTP caller today) is covered at the application layer with
  * its documented `{ lspServers }` document shape.
  */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -14,10 +14,11 @@ import { MARKET_ROUTES } from '../../../../packages/market-contracts/src/contrac
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
 import { mountSuiteRoutes, type WebServerService } from '../../../../packages/market-bundle/src/routes.js'
 import { loadDisabledLspServers } from '../../../../packages/market-lsp/src/application/lsp/lsp-server-state.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 type RouteTable = Map<string, (request: unknown, response: unknown) => void | Promise<void>>

@@ -6,7 +6,7 @@
  * Suite and per-skill authorization are answered at call time by the runtime,
  * never frozen into the registration.
  */
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,11 +18,12 @@ import { ScopedExtensionContributors } from '../../../../packages/market-runtime
 import type { SuiteSkillProvider } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** One agent whose own scope keeps the providers registered on it. */

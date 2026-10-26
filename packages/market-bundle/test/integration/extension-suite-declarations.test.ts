@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import { readCommands as runtimeReadCommands } from '../../../../packages/market
 import { scanSource } from '../../../../packages/market-catalog/src/scanning/suite-scanner.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import * as discovery from '../../../../packages/market-catalog/src/scanning/source-catalog.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const cleanups: Array<() => void | Promise<void>> = []
 afterEach(async () => {
@@ -17,7 +18,7 @@ afterEach(async () => {
 })
 async function tempRoot() {
   const root = await mkdtemp(join(tmpdir(), 'extension-declarations-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   return root
 }
 async function put(root: string, path: string, content: string) {

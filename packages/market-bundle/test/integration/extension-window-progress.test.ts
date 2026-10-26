@@ -10,7 +10,7 @@
  *
  * @module tests/extension-window-progress
  */
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -32,6 +32,7 @@ import {
 } from '../../../../packages/market-runtime/src/runtime/host/extension-progress.js'
 import { EXTENSION_SESSION_SOURCE } from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 /** The definition the wire field has always carried, written out independently. */
 export function referenceStarted(events: readonly SessionEvent[]): boolean {
@@ -75,7 +76,7 @@ afterEach(async () => {
 
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'extension-window-progress-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

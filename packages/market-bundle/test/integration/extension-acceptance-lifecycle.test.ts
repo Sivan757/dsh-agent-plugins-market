@@ -15,7 +15,7 @@
  * isolated live profile; calling `state.initialize` directly would be a stand-in,
  * not the mechanism, so no such case is asserted here.
  */
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -31,6 +31,7 @@ import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtim
 import { attachExtensionToolGates, type ExtensionToolGates } from '../../../../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
 import { registerOwnedBridgeTool } from '../../../../packages/market-mcp/src/runtime/mcp/bridge/tool-ownership.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -98,7 +99,7 @@ const TOOL = 'db__query'
 
 async function setup(holdApply: () => Promise<void>, ready: (agent: unknown) => Promise<void>) {
   const root = await mkdtemp(join(tmpdir(), 'extension-lifecycle-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

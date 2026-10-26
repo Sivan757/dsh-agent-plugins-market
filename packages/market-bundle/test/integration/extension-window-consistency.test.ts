@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { captureExtensionSelection, type ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtime/host/extension-runtime.js'
 import { EXTENSION_SESSION_SOURCE } from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 class Query extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -42,7 +43,7 @@ afterEach(async () => {
 })
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'extension-window-consistency-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)
