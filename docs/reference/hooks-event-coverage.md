@@ -14,12 +14,26 @@ The runtime class is `packages/market-runtime/src/runtime/surfaces/extension-hoo
 | `UserPromptSubmit` | `agent/pre-step` waterfall | `block`/`deny` rejects the step, `additionalContext` and plain stdout join it, 30-second default timeout, `continue: false` halts | `{ kind: 'reject' }` carries no reason field, so a blocked prompt's reason reaches the log, not the user |
 | `PreToolUse` | `tools/pre-execute` waterfall | `deny`, `ask` with a bilingual approval prompt, `allow` as a pre-approval of a downstream `ask`, `additionalContext` queued for the next request, `continue: false` halts, exit 2 blocks with stderr as the reason | `updatedInput` and `defer` have no decision arm |
 | `PostToolUse` | `tools/post-execute` waterfall after a successful call | `block` turns the reason into corrective feedback, `additionalContext` rides the next request | `updatedToolOutput` is not decoded by the shared codec, and `tool_response` is flattened to text |
-| `PostToolUseFailure` | `tools/post-execute` when `result.isError` | `additionalContext` rides the next request, a blocking reason rides it too, `continue: false` halts | The failure is never replaced, so a hook cannot hide a failed call |
+| `PostToolUseFailure` | `tools/post-execute` when `result.isError` and the tool body ran | `additionalContext` rides the next request, a blocking reason rides it too, `continue: false` halts | A result carrying `ABORTED`, `ABORTED_BEFORE_DISPATCH`, `UNKNOWN_TOOL` or `INVALID_ARGS` fires neither tool event. A denial from another `tools/pre-execute` listener carries no code and still fires this event, which diverges from the reference (see below). The failure is never replaced, so a hook cannot hide a failed call |
 | `Stop` | `agent/turn-stopping` serial listener | `block` continues the turn with the reason, `additionalContext` continues as non-error feedback, `stop_hook_active` reports a forced continuation, eight consecutive continuations are the cap, `continue: false` halts | `last_assistant_message`, `background_tasks` and `session_crons` are not in the payload |
 | `SubagentStart` | `subagent/start` emit | `additionalContext` injected into a live in-process child, `continue: false` cancels it | A remote child has no local target, and `agent_type` is the constant `general-purpose` |
 | `SubagentStop` | `subagent/end` emit | The decoded outcome reaches the log | The end edge is emit-only, so a block cannot keep the child running and a halt cannot act on a child that already ended |
 | `PreCompact` | `session/event` carrying `compaction/start` | Hooks run with the derived trigger (`manual` when a `sourceCommandId` is present, otherwise `auto`) | A block cannot veto a committed compaction |
-| `SessionEnd` | Disposal of the agent-scoped bridge | Hooks run once with the reference 1.5-second budget | The reason vocabulary is `other` only, and output is discarded as the reference protocol specifies |
+| `SessionEnd` | Disposal of the agent-scoped bridge | Hooks run once, defaulting to the reference 1.5-second budget and clamped at 60 seconds | The reason vocabulary is `other` only, and output is discarded as the reference protocol specifies. The owner must dispose this bridge while its grant is still open, or the event runs against nothing |
+
+## A suite that predates the split
+
+The reference protocol runs `PostToolUse` only after a successful call and `PostToolUseFailure` after a failed one. A suite already installed cannot be edited by this plugin, so a suite that declares no matching `PostToolUseFailure` group keeps running its `PostToolUse` hooks for failed calls, with the payload those hooks already receive. The first such run per suite writes one host log line naming the event to declare. A matching `PostToolUseFailure` group moves that tool to the reference split, so a suite that declares both never runs twice for one call.
+
+Two suites in the default catalog are in that state today: `hookify` (`PostToolUse`, no matcher, so every tool) and `security-guidance` (`PostToolUse` on `Edit|Write|MultiEdit|NotebookEdit` and on `Bash`).
+
+## A denial fires the failure event
+
+The reference protocol fires `PostToolUse` and `PostToolUseFailure` only around a tool body. Four outcomes reach `tools/post-execute` without one, and this bridge skips them by failure code: a cancellation before dispatch (`ABORTED_BEFORE_DISPATCH`), a cancellation during dispatch (`ABORTED`), an unknown tool (`UNKNOWN_TOOL`), and rejected arguments (`INVALID_ARGS`).
+
+One case has no marker. When another `tools/pre-execute` listener denies a call, including this plugin's own `PreToolUse` hook, the registry produces `{ isError: true, error: { message, info? } }` and only sets `info` when the denying decision supplied it. `PreToolDecision.deny` in `@deepseek-ai/dsh-tools` carries an optional `info`, so a denial is indistinguishable from a tool that ran and failed. A suite failure hook therefore runs for a call another hook refused.
+
+Closing this needs a host marker: a stable failure code on a policy denial, the way `UNKNOWN_TOOL` and `ABORTED_BEFORE_DISPATCH` already work. This plugin does not guess one from the message text.
 
 ## Fields with no host seam
 

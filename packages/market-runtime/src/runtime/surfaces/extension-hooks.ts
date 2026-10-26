@@ -50,6 +50,11 @@ export const HOOK_RUNTIME_POINTS = [
 ] as const
 type Point = (typeof HOOK_RUNTIME_POINTS)[number]
 type Outcome = ReturnType<typeof mergeHookOutputs>
+/** One point's merged decision, plus the denial reason rebuilt from denying hooks only. */
+interface PointOutcome {
+  merged: Outcome
+  denySystemMessages: string[]
+}
 type Turn = Parameters<typeof appendHookInvoked>[1]['turn']
 type Source = 'startup' | 'resume'
 interface Selection {
@@ -66,6 +71,12 @@ interface RunOptions {
   selection?: ReadonlyMap<string, Selection>
   /** Default per-hook timeout in ms; the point's own reference default when absent. */
   defaultTimeoutMs?: number
+  /**
+   * This pass runs PostToolUse for a failed call on behalf of a suite that
+   * declares no matching failure hook. The first such run per suite is logged
+   * once, so the divergence from the reference is diagnosable and bounded.
+   */
+  fallback?: boolean
 }
 const CONTEXT_SOURCE = { kind: 'hooks-claude-code' } as const
 /** Plain (non-JSON) stdout is conversation context on exactly these events. */
@@ -80,6 +91,15 @@ const POINT_DEFAULT_TIMEOUT_MS: Partial<Record<Point, number>> = { UserPromptSub
 const STOP_CONTINUATION_CAP = 8
 /** Separator between two joined hook reasons, as the shared merge joins them. */
 const REASON_SEPARATOR = '\n\n'
+/**
+ * Failure codes that mean no tool body ran: the call was cancelled before or
+ * during dispatch, named no registered tool, or carried rejected arguments.
+ * The reference fires these two events only around an execution, so a result
+ * carrying one of these codes fires neither.
+ */
+const NON_EXECUTED_FAILURE_CODES: ReadonlySet<string> = new Set(['ABORTED', 'ABORTED_BEFORE_DISPATCH', 'UNKNOWN_TOOL', 'INVALID_ARGS'])
+/** The reference raises SessionEnd's 1.5-second budget only up to this ceiling. */
+const SESSION_END_MAX_TIMEOUT_MS = 60_000
 /** Never aborted: a closing pass outlives the drain that aborts the shared run signal. */
 const NEVER_ABORTED = new AbortController().signal
 /** English fallback the model and the session log read when a hook blocks without a reason. */
@@ -103,6 +123,21 @@ const DEFAULT_REASON: Partial<Record<Point, string>> = {
  * A hook that returns nothing, times out, cannot be decoded, or answers for a
  * different event is contained: it contributes no decision and the point
  * proceeds as if it had not run.
+ *
+ * PostToolUse and PostToolUseFailure are separate events, as the reference has
+ * them: PostToolUse after a successful call, PostToolUseFailure after a failed
+ * one. A suite that declares only PostToolUse cannot be edited by this plugin
+ * and keeps seeing failed calls through its PostToolUse hooks, and the first
+ * such run per suite is logged with the event to declare to get the split. A
+ * matching PostToolUseFailure group takes the tool, so a suite that declares
+ * both never runs twice for one call.
+ *
+ * One divergence remains and is not simulated: a denial produced by a
+ * tools/pre-execute listener reaches tools/post-execute with no marker that says
+ * the tool body never ran, so a failed call denied by another hook still fires
+ * the failure event. The host's ToolFailure.info carries a code for a
+ * cancellation, an unknown tool, and invalid arguments, which this bridge
+ * excludes, but not for a policy denial.
  *
  * Three reference fields have no host seam and are reported instead of applied:
  * `updatedInput` (the host decision union has no rewrite arm), a user-visible
@@ -130,6 +165,8 @@ export class ExtensionHooks {
   private handler = 0
   /** Consecutive Stop continuations this run has forced, for the reference cap. */
   private continuations = 0
+  /** Suites already told that their PostToolUse hooks still run for failed calls. */
+  private readonly compatNotices = new Set<string>()
 
   constructor(
     private readonly ctx: Context,
@@ -150,8 +187,12 @@ export class ExtensionHooks {
         // plugin's own metadata, which is neither a prompt nor prompt content.
         const authored = event.messages.filter(message => message.source.kind === 'user')
         if (event.agent !== agent || this.disposed || authored.length === 0) return next()
+        // A new authored prompt starts its own stop-hook count. Without this
+        // reset the flag stays true for the rest of the session after one forced
+        // continuation, and every later Stop hook reads a stale activation.
+        this.continuations = 0
         return this.track(async () => {
-          const merged = await this.runPoint(
+          const { merged } = await this.runPoint(
             'UserPromptSubmit',
             '',
             { ...base(agent, 'UserPromptSubmit'), prompt: text(authored.flatMap(message => message.content)) },
@@ -178,7 +219,7 @@ export class ExtensionHooks {
       ctx.on('tools/pre-execute', (exec, next) => {
         if (exec.agent !== agent || this.disposed) return next()
         return this.track(async () => {
-          const merged = await this.runPoint(
+          const outcome = await this.runPoint(
             'PreToolUse',
             exec.name,
             { ...base(agent, 'PreToolUse'), tool_name: exec.name, tool_input: exec.arguments, tool_use_id: exec.callId },
@@ -186,12 +227,13 @@ export class ExtensionHooks {
             this.lastTurn(),
             exec.signal
           )
+          const { merged } = outcome
           if (this.disposed) return next()
           if (merged.stop) {
             this.halt(agent, 'PreToolUse', merged)
-            return { kind: 'deny' as const, reason: this.blockReason('PreToolUse', merged) }
+            return { kind: 'deny' as const, reason: this.blockReason('PreToolUse', outcome) }
           }
-          if (merged.decision === 'deny') return { kind: 'deny' as const, reason: this.blockReason('PreToolUse', merged) }
+          if (merged.decision === 'deny') return { kind: 'deny' as const, reason: this.blockReason('PreToolUse', outcome) }
           if (merged.decision === 'ask')
             return {
               kind: 'ask' as const,
@@ -213,10 +255,15 @@ export class ExtensionHooks {
     this.listeners.push(
       ctx.on('tools/post-execute', (exec, result, next) => {
         if (exec.agent !== agent || this.disposed) return next()
+        // A failure that never executed a tool body is not a tool failure: the
+        // host reports a pre-execute denial, a pre-dispatch cancellation, an
+        // unknown tool, and rejected arguments through this same waterfall.
+        if (result.isError && NON_EXECUTED_FAILURE_CODES.has(result.error.info?.code ?? '')) return next()
         return this.track(async () => {
           // The reference protocol separates the two events: PostToolUse fires
           // after a tool succeeds, PostToolUseFailure after it fails.
           const point: Point = result.isError ? 'PostToolUseFailure' : 'PostToolUse'
+          const turn = this.lastTurn()
           const payload = {
             ...base(agent, point),
             tool_name: exec.name,
@@ -224,14 +271,31 @@ export class ExtensionHooks {
             tool_use_id: exec.callId,
             ...(result.isError ? { error: result.error.message } : { tool_response: text(result.content) })
           }
-          const merged = await this.runPoint(point, exec.name, payload, agent, this.lastTurn(), exec.signal)
+          const outputs = await this.collect(point, exec.name, payload, agent, turn, exec.signal)
+          // A suite written before the split declares only PostToolUse and cannot
+          // be edited here. It keeps seeing failed calls, as it did before, until
+          // it declares the failure event that expresses the same intent.
+          if (result.isError && !this.declaresFailureFor(exec.name))
+            outputs.push(
+              ...(await this.collect(
+                'PostToolUse',
+                exec.name,
+                { ...base(agent, 'PostToolUse'), tool_name: exec.name, tool_input: exec.arguments, tool_use_id: exec.callId, tool_response: text(result.content) },
+                agent,
+                turn,
+                exec.signal,
+                { fallback: true }
+              ))
+            )
+          const outcome = foldOutcome(outputs)
+          const { merged } = outcome
           if (this.disposed) return next()
           if (merged.stop) {
             this.halt(agent, point, merged)
             return next()
           }
           const context = contextFrom(merged)
-          const reason = merged.decision === 'deny' ? this.blockReason(point, merged) : undefined
+          const reason = merged.decision === 'deny' ? this.blockReason(point, outcome) : undefined
           if (result.isError) {
             // A failed call already carries its own error. Replacing it would hide
             // the failure, so a blocking hook's reason rides the next request.
@@ -254,14 +318,15 @@ export class ExtensionHooks {
       ctx.on('agent/turn-stopping', event => {
         if (event.agent !== agent || this.disposed) return
         return this.track(async () => {
-          const merged = await this.runPoint('Stop', '', { ...base(agent, 'Stop'), stop_hook_active: this.continuations > 0 }, agent, event.turn, event.signal)
+          const outcome = await this.runPoint('Stop', '', { ...base(agent, 'Stop'), stop_hook_active: this.continuations > 0 }, agent, event.turn, event.signal)
+          const { merged } = outcome
           if (this.disposed) return
           if (merged.stop) {
             this.reportBlocked('Stop', merged)
             this.halt(agent, 'Stop', merged)
             return
           }
-          const reason = merged.decision === 'deny' ? this.blockReason('Stop', merged) : undefined
+          const reason = merged.decision === 'deny' ? this.blockReason('Stop', outcome) : undefined
           if (merged.decision === 'deny') this.reportBlocked('Stop', merged)
           if (reason === undefined && merged.additionalContext.length === 0) {
             this.continuations = 0
@@ -310,7 +375,14 @@ export class ExtensionHooks {
           return
         }
         void this.track(async () => {
-          const merged = await this.runPoint('PreCompact', trigger, { ...base(agent, 'PreCompact'), trigger, custom_instructions: '' }, agent, this.lastTurn(), this.runs.signal)
+          const { merged } = await this.runPoint(
+            'PreCompact',
+            trigger,
+            { ...base(agent, 'PreCompact'), trigger, custom_instructions: '' },
+            agent,
+            this.lastTurn(),
+            this.runs.signal
+          )
           // No host interception point precedes a committed compaction, so a
           // blocking PreCompact decision cannot veto it.
           if (!this.disposed && merged.decision === 'deny')
@@ -366,13 +438,16 @@ export class ExtensionHooks {
     if (this.disposed) return Promise.resolve()
     this.startup = this.track(async () => {
       await this.pending
-      const merged = await this.runPoint('SessionStart', source, { ...base(this.agent, 'SessionStart'), source }, this.agent, undefined, signal)
+      const { merged } = await this.runPoint('SessionStart', source, { ...base(this.agent, 'SessionStart'), source }, this.agent, undefined, signal)
       if (this.disposed || signal?.aborted) return
       if (merged.stop) {
         this.reportBlocked('SessionStart', merged)
         this.halt(this.agent, 'SessionStart', merged)
         return
       }
+      // No SessionStart interception point exists, so a blocking start hook is
+      // reported and the session opens anyway.
+      if (merged.decision === 'deny') this.reportBlocked('SessionStart', merged)
       const context = contextFrom(merged)
       if (context) this.agent.inject(context)
     })
@@ -403,15 +478,14 @@ export class ExtensionHooks {
    * value the reference protocol uses when nothing finer is known.
    */
   private sessionEnd(selection: ReadonlyMap<string, Selection>): Promise<void> {
-    const merged = this.runPoint('SessionEnd', 'other', { ...base(this.agent, 'SessionEnd'), reason: 'other' }, this.agent, undefined, undefined, {
+    return this.runPoint('SessionEnd', 'other', { ...base(this.agent, 'SessionEnd'), reason: 'other' }, this.agent, undefined, undefined, {
       closing: true,
       selection,
       defaultTimeoutMs: POINT_DEFAULT_TIMEOUT_MS.SessionEnd
     })
-    return merged
-      .then(outcome => {
-        for (const message of outcome.systemMessages) this.warnSystemMessage('SessionEnd', message, undefined)
-        if (outcome.decision === 'deny') this.reportBlocked('SessionEnd', outcome)
+      .then(({ merged }) => {
+        for (const message of merged.systemMessages) this.warnSystemMessage('SessionEnd', message, undefined)
+        if (merged.decision === 'deny') this.reportBlocked('SessionEnd', merged)
       })
       .catch(error => {
         this.ctx.logger?.warn('extension-hooks: SessionEnd hook failed: ' + String(error))
@@ -424,7 +498,7 @@ export class ExtensionHooks {
     if (point === 'SubagentStart' && child) this.children.set(info.runId, child)
     if (point === 'SubagentStop') this.children.delete(info.runId)
     void this.track(async () => {
-      const merged = await this.runPoint(
+      const { merged } = await this.runPoint(
         point,
         'general-purpose',
         {
@@ -445,6 +519,8 @@ export class ExtensionHooks {
       const context = contextFrom(merged)
       if (context && child && this.children.get(info.runId) === child) child.inject(context)
       if (merged.stop && child) this.halt(child, 'SubagentStart', merged)
+      // The subagent start edge cannot veto a spawn, so a denial is reported.
+      if (merged.decision === 'deny') this.reportBlocked('SubagentStart', merged)
     }).catch(error => {
       this.ctx.logger.warn('extension-hooks: ' + point + ' hook failed: ' + String(error))
     })
@@ -461,6 +537,7 @@ export class ExtensionHooks {
     return boundary?.openTurnStartSeq == null ? undefined : boundary.lastTurn
   }
 
+  /** Fold one point's hooks into the single decision its caller applies. */
   private async runPoint(
     point: Point,
     query: string,
@@ -469,7 +546,20 @@ export class ExtensionHooks {
     turn?: Turn,
     signal?: AbortSignal,
     options: RunOptions = {}
-  ): Promise<Outcome> {
+  ): Promise<PointOutcome> {
+    return foldOutcome(await this.collect(point, query, payload, subject, turn, signal, options))
+  }
+
+  /** Run every matching hook of one point and answer their decoded outputs. */
+  private async collect(
+    point: Point,
+    query: string,
+    payload: Record<string, unknown>,
+    subject?: Agent,
+    turn?: Turn,
+    signal?: AbortSignal,
+    options: RunOptions = {}
+  ): Promise<HookOutput[]> {
     const closing = options.closing === true
     const selection = options.selection ?? this.selected
     const outputs: HookOutput[] = []
@@ -503,12 +593,16 @@ export class ExtensionHooks {
             this.ctx.logger.warn('extension-hooks: authorization failed for ' + key + ': ' + String(error))
           }
           if (!allowed) continue
+          if (options.fallback === true) this.noticeFallback(key)
           const handlerId = 'extension-hooks:' + this.agent.id + ':' + key + ':' + point + ':' + ++this.handler
           if (subject && turn !== undefined)
             appendHookInvoked(subject.session, { turn, point, dialect: 'claude-code', handlerId, ...(group.matcher === undefined ? {} : { matcher: group.matcher }) })
           const { output, durationMs } = await runHook(
             this.ctx.shell,
-            { command: expandPluginPaths(hook.command, pathContext), ...(hook.timeout === undefined ? {} : { timeoutSec: hook.timeout }) },
+            {
+              command: expandPluginPaths(hook.command, pathContext),
+              ...(hook.timeout === undefined ? {} : { timeoutSec: closing ? Math.min(hook.timeout, SESSION_END_MAX_TIMEOUT_MS / 1000) : hook.timeout })
+            },
             {
               payload,
               defaultTimeoutMs: options.defaultTimeoutMs ?? POINT_DEFAULT_TIMEOUT_MS[point] ?? DEFAULT_HOOK_TIMEOUT_MS,
@@ -529,7 +623,39 @@ export class ExtensionHooks {
         }
       }
     }
-    return mergeHookOutputs(outputs)
+    return outputs
+  }
+
+  /**
+   * Whether any selected suite routes a failed call of this tool to the failure
+   * event.
+   *
+   * The test is per matcher, not per suite: a suite may handle failed edits and
+   * failed shell calls through different events, and one matching group is
+   * enough to make the reference split apply to that tool.
+   */
+  private declaresFailureFor(toolName: string): boolean {
+    for (const { hooks } of this.selected.values())
+      for (const group of hooks.events.PostToolUseFailure ?? []) if (matchesMatcher(group.matcher, toolName, 'claude-code')) return true
+    return false
+  }
+
+  /**
+   * Report once per suite that its PostToolUse hooks still run for failed calls.
+   *
+   * The reference protocol runs PostToolUse only after a successful call. A
+   * suite that declares no PostToolUseFailure keeps the older behavior, and this
+   * line is how an author learns which event to declare to get the reference
+   * split. It fires once per suite per agent, not once per failed call.
+   */
+  private noticeFallback(suiteKey: string): void {
+    if (this.compatNotices.has(suiteKey)) return
+    this.compatNotices.add(suiteKey)
+    this.ctx.logger?.warn(
+      'extension-hooks: ' +
+        suiteKey +
+        ' declares PostToolUse without PostToolUseFailure, so its PostToolUse hooks also run for failed calls; declare PostToolUseFailure to follow the reference split'
+    )
   }
 
   /**
@@ -548,12 +674,12 @@ export class ExtensionHooks {
   /** Record a hook's user-visible warning on the only channel the host exposes: its log. */
   private warnSystemMessage(point: Point, message: string | undefined, key: string | undefined): void {
     if (message === undefined || message.trim() === '') return
-    this.ctx.logger?.warn('extension-hooks: ' + (key ?? 'session') + ' ' + point + ' systemMessage: ' + message)
+    this.ctx.logger?.warn('extension-hooks: ' + (key ?? 'session') + ' ' + point + ' systemMessage: ' + logSafe(message))
   }
 
   /** Report a blocking decision the host point cannot enforce, or one whose output is discarded. */
   private reportBlocked(point: Point, merged: Outcome): void {
-    this.ctx.logger?.warn('extension-hooks: ' + point + ' hook blocked: ' + (merged.reason ?? merged.stopReason ?? 'no reason supplied'))
+    this.ctx.logger?.warn('extension-hooks: ' + point + ' hook blocked: ' + logSafe(merged.reason ?? merged.stopReason ?? 'no reason supplied'))
   }
 
   /**
@@ -565,10 +691,14 @@ export class ExtensionHooks {
    * a hook that blocks with only a system message still explains itself instead of
    * falling back to a generic sentence.
    */
-  private blockReason(point: Point, merged: Outcome): string {
+  private blockReason(point: Point, outcome: PointOutcome): string {
+    const { merged } = outcome
     if (merged.reason !== undefined && merged.reason.length > 0) return merged.reason
     if (merged.stopReason !== undefined && merged.stopReason.length > 0) return merged.stopReason
-    if (merged.systemMessages.length > 0) return merged.systemMessages.join(REASON_SEPARATOR)
+    // A hook that allowed the call may still have written a warning. Folding that
+    // text into the denial would present one hook's notice as another hook's
+    // reason, so only a denying hook's own message can stand in for a reason.
+    if (outcome.denySystemMessages.length > 0) return outcome.denySystemMessages.join(REASON_SEPARATOR)
     return DEFAULT_REASON[point] ?? 'blocked by ' + point + ' hook'
   }
 
@@ -582,7 +712,7 @@ export class ExtensionHooks {
    */
   private halt(subject: Agent, point: Point, merged: Outcome): void {
     const reason = merged.stopReason ?? merged.reason ?? DEFAULT_REASON[point] ?? 'stopped by ' + point + ' hook'
-    this.ctx.logger?.warn('extension-hooks: ' + point + ' hook halted the run: ' + reason)
+    this.ctx.logger?.warn('extension-hooks: ' + point + ' hook halted the run: ' + logSafe(reason))
     try {
       subject.cancel({ kind: 'hook', reason })
     } catch (error) {
@@ -600,6 +730,21 @@ function text(content: readonly { type: string; text?: string }[]): string {
     .map(block => block.text)
     .join('')
 }
+/**
+ * Fold one point's decoded outputs into the decision its caller applies.
+ *
+ * The merged outcome deliberately loses which hook said what, so the denial
+ * reason kept beside it is rebuilt from the denying hooks alone.
+ * @param outputs - every matched hook's decoded output, in hook order.
+ * @returns the merged decision plus the system messages of denying hooks.
+ */
+function foldOutcome(outputs: HookOutput[]): PointOutcome {
+  const denySystemMessages = outputs
+    .filter(output => output.decision === 'deny' || output.decision === 'block')
+    .map(output => output.systemMessage)
+    .filter((message): message is string => message !== undefined && message.length > 0)
+  return { merged: mergeHookOutputs(outputs), denySystemMessages }
+}
 function contextFrom(merged: Outcome) {
   return merged.additionalContext.length === 0
     ? undefined
@@ -607,6 +752,39 @@ function contextFrom(merged: Outcome) {
 }
 function contextFromReason(reason: string) {
   return createUserMessage({ content: [{ type: 'text' as const, text: reason }], source: CONTEXT_SOURCE })
+}
+
+/**
+ * Make hook-authored text safe to place in one log line.
+ *
+ * A hook controls its own output, and an unescaped newline would let it forge a
+ * second log line. Every control character becomes a space, so the text stays
+ * one record and the reader still sees what the hook wrote.
+ * @param text - the hook-authored text.
+ * @returns the same text with control characters replaced.
+ */
+function logSafe(text: string): string {
+  let safe = ''
+  for (const character of text) safe += character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? ' ' : character
+  return safe
+}
+
+/**
+ * Whether a hook's stdout is a JSON object the shared codec would parse.
+ *
+ * Exit-0 stdout is structured only when it parses as an object; anything else,
+ * including text that opens with a brace, remains plain output.
+ * @param stdout - the trimmed stdout.
+ * @returns true when the text is a JSON object.
+ */
+function parsesAsJsonObject(stdout: string): boolean {
+  if (!stdout.startsWith('{')) return false
+  try {
+    const parsed: unknown = JSON.parse(stdout)
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -624,7 +802,11 @@ function withStdoutContext(point: Point, output: HookOutput): HookOutput {
   if (!STDOUT_CONTEXT_POINTS.has(point)) return output
   if (output.exitCode !== 0) return output
   const stdout = output.stdout.trim()
-  if (stdout === '' || stdout.startsWith('{') || output.additionalContext !== undefined) return output
+  if (stdout === '' || output.additionalContext !== undefined) return output
+  // The codec applies structured fields only when the text parses as a JSON
+  // object. Asking the same question answers "did the codec take it": a suite
+  // banner that merely begins with a brace stays plain context.
+  if (parsesAsJsonObject(stdout)) return output
   return { ...output, additionalContext: stdout }
 }
 
@@ -634,6 +816,12 @@ function withStdoutContext(point: Point, output: HookOutput): HookOutput {
  * `PreToolDecision.ask.displayReason` carries one label per locale, so this
  * plugin's own prompt text ships both languages. The hook's authored reason
  * stays in `reason`, the audited field, rather than standing in for UI copy.
+ *
+ * The pair is written here instead of resolved through `HostTranslate` or
+ * `locales.ts` because the host type is a per-locale record and every call site
+ * is a synchronous host decision. A lookup would make an approval prompt depend
+ * on a locale service the interception point does not inject, and a missing
+ * service would leave the prompt empty rather than translated.
  */
 const ASK_DISPLAY_REASON: { readonly en: string; readonly [locale: string]: string } = {
   en: 'A PreToolUse hook asks before this tool runs',

@@ -698,6 +698,160 @@ describe('ExtensionHooks', () => {
     expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('PostToolUseFailure systemMessage: retry with a narrower path'))
   })
 
+  it('keeps a suite that declares only PostToolUse seeing failed calls, with one notice', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    // The shape the catalog's hookify and security-guidance suites ship: no
+    // PostToolUseFailure anywhere, so the reference split cannot apply yet.
+    await h.mount(a, [suite('one', { PostToolUse: ['after-success'] })]).ready
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: { hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name, additionalContext: 'the write did not land' }
+      })
+    }))
+    const failed = { content: [{ type: 'text' as const, text: 'EACCES' }], isError: true as const, error: { message: 'EACCES' } }
+    const result = await h.ctx.waterfall('tools/post-execute', h.exec(a), failed, async () => ({ kind: 'accept' as const }))
+    expect(h.calls.map(call => call.command)).toEqual(['after-success'])
+    // It runs as PostToolUse, the point the suite declared, with the older payload.
+    expect(payloads(h.calls)[0]).toMatchObject({ hook_event_name: 'PostToolUse', tool_name: 'Read', tool_response: 'EACCES' })
+    expect(result).toMatchObject({ kind: 'accept', additionalContexts: [{ content: [{ type: 'text', text: 'the write did not land' }] }] })
+    const notice = 'declares PostToolUse without PostToolUseFailure'
+    expect(h.warn.mock.calls.filter(call => String(call[0]).includes(notice))).toHaveLength(1)
+    // A second failed call runs the hook again and does not repeat the notice.
+    await h.ctx.waterfall('tools/post-execute', h.exec(a), failed, async () => ({ kind: 'accept' as const }))
+    expect(h.calls).toHaveLength(2)
+    expect(h.warn.mock.calls.filter(call => String(call[0]).includes(notice))).toHaveLength(1)
+  })
+
+  it('stops the fallback for the tools a suite routes to the failure event', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    // claude-security's shape: both events, with the failure event limited to Bash.
+    const both = suite('both', { PostToolUse: [] })
+    both.hooks = {
+      events: {
+        PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'edit-review' }] }],
+        PostToolUseFailure: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'bash-review' }] }]
+      }
+    }
+    await h.mount(a, [both]).ready
+    const failed = { content: [{ type: 'text' as const, text: 'boom' }], isError: true as const, error: { message: 'boom' } }
+    await h.ctx.waterfall('tools/post-execute', h.exec(a, 'Bash'), failed, async () => ({ kind: 'accept' as const }))
+    // The reference split applies to Bash: the failure event runs and PostToolUse does not.
+    expect(h.calls.map(call => call.command)).toEqual(['bash-review'])
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: '' }))
+    h.warn.mockClear()
+    // Edit is not routed to the failure event, so its PostToolUse hook still runs.
+    await h.ctx.waterfall('tools/post-execute', h.exec(a, 'Edit'), failed, async () => ({ kind: 'accept' as const }))
+    expect(h.calls.map(call => call.command)).toEqual(['bash-review', 'edit-review'])
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('declares PostToolUse without PostToolUseFailure'))
+  })
+
+  it('folds a failure-event denial into context instead of replacing the error', async () => {
+    const h = harness()
+    const a = h.agents('a').value
+    await h.mount(a, [suite('one', { PostToolUseFailure: ['after-failure'] })]).ready
+    h.setRun(async () => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUseFailure', permissionDecision: 'deny' }, systemMessage: 'check the branch first' })
+    }))
+    const failed = { content: [{ type: 'text' as const, text: 'boom' }], isError: true as const, error: { message: 'boom' } }
+    const result = await h.ctx.waterfall('tools/post-execute', h.exec(a), failed, async () => ({ kind: 'accept' as const }))
+    // The failure stays a failure; the hook's reason rides the next request.
+    expect(result).toMatchObject({ kind: 'accept', additionalContexts: [{ content: [{ type: 'text', text: 'check the branch first' }] }] })
+    expect(result).not.toHaveProperty('content')
+  })
+
+  it('resets stop hook activation when a new prompt is submitted', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { Stop: ['stop'] })]).ready
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify({ decision: 'block', reason: 'keep going' }) }))
+    await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
+    await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
+    expect(payloads(h.calls).map(payload => payload.stop_hook_active)).toEqual([false, true])
+    // A new authored prompt owns a fresh count, so the flag resets.
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: '' }))
+    const message = createUserMessage({ content: [{ type: 'text', text: 'next task' }], source: { kind: 'user' } })
+    await h.ctx.waterfall('agent/pre-step', { agent: a.value, messages: [message], turn: 2, step: 1, signal: new AbortController().signal }, async () => ({
+      kind: 'enter' as const,
+      messages: [message]
+    }))
+    h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify({ decision: 'block', reason: 'keep going' }) }))
+    await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 2, signal: new AbortController().signal })
+    expect(
+      payloads(h.calls)
+        .filter(payload => payload.hook_event_name === 'Stop')
+        .map(payload => payload.stop_hook_active)
+    ).toEqual([false, true, false])
+  })
+
+  it('applies a blocking reason to feedback and to a Stop continuation when the call succeeded', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    // The failure path is covered above. This case pins the success path: the
+    // reason becomes corrective feedback, and a Stop block steers it.
+    await h.mount(a.value, [suite('one', { PostToolUse: ['post'], Stop: ['stop'] })]).ready
+    h.setRun(async request => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        hookSpecificOutput: { hookEventName: (JSON.parse(request.stdin) as { hook_event_name: string }).hook_event_name, permissionDecision: 'deny' },
+        systemMessage: 'rewrite the header'
+      })
+    }))
+    const blocked = await h.ctx.waterfall('tools/post-execute', h.exec(a.value), { content: [], isError: false, value: null }, async () => ({
+      kind: 'accept' as const
+    }))
+    expect(blocked).toEqual({ kind: 'block', feedback: [{ type: 'text', text: 'rewrite the header' }] })
+    await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
+    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'rewrite the header' }] }))
+  })
+
+  it('continues a turn for Stop context that carries no blocking decision', async () => {
+    const h = harness()
+    const a = h.agents('a')
+    await h.mount(a.value, [suite('one', { Stop: ['stop'] })]).ready
+    // A context-only Stop hook: no decision, just additionalContext.
+    h.setRun(async () => ({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: 'Stop', additionalContext: 'one more thing to check' } })
+    }))
+    await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
+    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'one more thing to check' }] }))
+    expect(a.cancel).not.toHaveBeenCalled()
+  })
+
+  it('halts with the hook reason at every point that can apply a stop', async () => {
+    const cases: Array<[string, (h: ReturnType<typeof harness>, agent: Agent) => Promise<unknown>]> = [
+      [
+        'UserPromptSubmit',
+        async (h, agent) => {
+          const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
+          return h.ctx.waterfall('agent/pre-step', { agent, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }, async () => ({
+            kind: 'enter' as const,
+            messages: [message]
+          }))
+        }
+      ],
+      ['PreToolUse', (h, agent) => h.ctx.waterfall('tools/pre-execute', h.exec(agent), async () => ({ kind: 'allow' as const }))],
+      ['PostToolUse', (h, agent) => h.ctx.waterfall('tools/post-execute', h.exec(agent), { content: [], isError: false, value: null }, async () => ({ kind: 'accept' as const }))],
+      ['Stop', (h, agent) => h.ctx.parallel('agent/turn-stopping', { agent, turn: 1, signal: new AbortController().signal })]
+    ]
+    for (const [point, drive] of cases) {
+      const h = harness()
+      const a = h.agents('a')
+      await h.mount(a.value, [suite('one', { [point]: ['hook'] })]).ready
+      h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: JSON.stringify({ continue: false, stopReason: point + ' halt' }) }))
+      await drive(h, a.value)
+      expect(a.cancel, point).toHaveBeenCalledWith({ kind: 'hook', reason: point + ' halt' })
+    }
+  })
+
   it('runs PreCompact hooks on a compaction start event and reports the missing veto', async () => {
     const h = harness()
     const a = h.agents('a')
@@ -739,6 +893,14 @@ describe('ExtensionHooks', () => {
     // Disposal happens outside any open turn, so the pair is not recorded.
     expect(a.append).not.toHaveBeenCalled()
     expect(a.cancel).not.toHaveBeenCalled()
+    // A declaration that asks for longer than the reference ceiling is clamped,
+    // so one suite cannot hold session teardown for its own timeout.
+    const long = suite('long', { SessionEnd: ['slow'] })
+    long.hooks!.events.SessionEnd![0]!.hooks[0]!.timeout = 600
+    const second = h.mount(h.agents('b').value, [long])
+    await second.ready
+    await second.hooks.dispose()
+    expect(h.calls.at(-1)!.timeoutMs).toBe(60_000)
   })
 
   it('caps consecutive Stop continuations and reports stop hook activation', async () => {
