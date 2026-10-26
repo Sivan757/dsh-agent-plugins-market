@@ -22,6 +22,7 @@ import { MarketSection } from '../features/market/MarketSection.js'
 import { McpStatusPanel } from '../features/mcp/StatusPanel.js'
 import { LspStatusPanel } from '../features/lsp/LspStatusPanel.js'
 import { HooksStatusPanel } from '../features/hooks/StatusPanel.js'
+import { InstructionsPanel } from '../features/instructions/InstructionsPanel.js'
 import { UserPanelSurface } from '../ui/UserPanelSurface.js'
 import css from './workspace.module.css'
 
@@ -63,12 +64,14 @@ function rowTabs(layout: { hidden: string[] }, active: WorkspaceTab): WorkspaceT
 export interface PluginWorkspaceProps {
   t: Translate
   credentials?: CredentialApi
+  /** The live session the workspace describes; the instructions tab reads its chain. */
+  sessionId?: string
   /** The host surface controls only outer spacing; data and actions stay shared. */
   mode?: 'settings' | 'page'
 }
 
 /** One page with six top tabs; state is local so switching is instant. */
-export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWorkspaceProps): ReactNode {
+export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }: PluginWorkspaceProps): ReactNode {
   const [active, setActive] = useState<WorkspaceTab>('market')
 
   // Deep links: a `#/agent-plugins/<tab>` hash selects the tab, and is then
@@ -102,6 +105,7 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
 
   const labelKeys: Record<WorkspaceTab, string> = {
     market: t('workspaceTabMarket'),
+    instructions: t('workspaceTabInstructions'),
     skills: t('workspaceTabSkills'),
     commands: t('workspaceTabCommands'),
     personas: t('workspaceTabPersonas'),
@@ -204,7 +208,7 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
     h(
       'div',
       { className: css.tabPanel, role: 'tabpanel', id: 'agent-plugins-panel', 'aria-labelledby': `agent-plugins-tab-${active}` },
-      h(SettingsSizedDetails, null, renderTab(active, t, credentials, mode))
+      h(SettingsSizedDetails, null, renderTab(active, t, credentials, mode, sessionId))
     )
   )
 }
@@ -220,12 +224,15 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
  * @param t - the translator this page renders through.
  * @param credentials - the credential API an MCP panel needs.
  * @param mode - the host surface the panel renders inside.
+ * @param sessionId - the live session, which the instructions panel reads its chain for.
  * @returns the tab's panel.
  */
-function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi | undefined, mode: 'settings' | 'page'): ReactNode {
+function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi | undefined, mode: 'settings' | 'page', sessionId: string | undefined): ReactNode {
   switch (tab) {
     case 'market':
       return h(MarketSection, { t, mode })
+    case 'instructions':
+      return h(InstructionsPanel, { t, sessionId })
     case 'skills':
       return h(UserPanelSurface, { t, kind: 'skills' })
     case 'commands':

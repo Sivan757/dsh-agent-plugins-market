@@ -321,6 +321,7 @@ it('gives the settings workspace a seventh Hooks tab on the shared, non-scrollin
   const labels = [...tablist.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)
   expect(labels).toEqual([
     en.workspaceTabMarket,
+    en.workspaceTabInstructions,
     en.workspaceTabSkills,
     en.workspaceTabCommands,
     en.workspaceTabPersonas,

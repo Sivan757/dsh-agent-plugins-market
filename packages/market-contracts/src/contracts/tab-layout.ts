@@ -9,7 +9,7 @@
  * when a tab is added to one and not the other, which is the moment to extend
  * this list.
  */
-export const WORKSPACE_TAB_KEYS = ['market', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks'] as const
+export const WORKSPACE_TAB_KEYS = ['market', 'instructions', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks'] as const
 
 /** One workspace tab. */
 export type WorkspaceTabKey = (typeof WORKSPACE_TAB_KEYS)[number]

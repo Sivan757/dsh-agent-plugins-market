@@ -14,6 +14,7 @@ vi.mock('../../../packages/market-ui/src/features/mcp/StatusPanel.js', () => ({ 
 vi.mock('../../../packages/market-ui/src/features/lsp/LspStatusPanel.js', () => ({ LspStatusPanel: () => h('output', { 'data-tab': 'lsp' }) }))
 vi.mock('../../../packages/market-ui/src/features/hooks/StatusPanel.js', () => ({ HooksStatusPanel: () => h('output', { 'data-tab': 'hooks' }) }))
 vi.mock('../../../packages/market-ui/src/ui/UserPanelSurface.js', () => ({ UserPanelSurface: (props: { kind: string }) => h('output', { 'data-tab': props.kind }) }))
+vi.mock('../../../packages/market-ui/src/features/instructions/InstructionsPanel.js', () => ({ InstructionsPanel: () => h('output', { 'data-tab': 'instructions' }) }))
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -40,7 +41,7 @@ async function mount(): Promise<void> {
   await act(async () => root!.render(h(PluginWorkspace, { t })))
 }
 
-/** The tab at its display position (market, skills, commands, personas, mcp, lsp, hooks). */
+/** The tab at its display position (market, instructions, skills, commands, personas, mcp, lsp, hooks). */
 const tab = (index: number): HTMLButtonElement | null => host?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index] ?? null
 const activePanelTab = (): Element | null => host?.querySelector('[role="tabpanel"] [data-tab]') ?? null
 
@@ -50,7 +51,7 @@ describe('PluginWorkspace tab row', () => {
     const tablist = host!.querySelector('[role="tablist"]')
     expect(tablist).not.toBeNull()
     expect(tablist!.getAttribute('aria-label')).toBe('workspaceTabMarket')
-    expect(host!.querySelectorAll('[role="tab"]').length).toBe(7)
+    expect(host!.querySelectorAll('[role="tab"]').length).toBe(8)
     // Exactly one tab stop: the selected tab only.
     expect(tab(0)?.getAttribute('aria-selected')).toBe('true')
     expect(host!.querySelectorAll('[role="tab"][tabindex="0"]').length).toBe(1)
@@ -60,13 +61,13 @@ describe('PluginWorkspace tab row', () => {
     expect(panel?.getAttribute('aria-labelledby')).toBe('agent-plugins-tab-market')
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('market')
 
-    await act(async () => tab(4)!.click())
+    await act(async () => tab(5)!.click())
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
   })
 
   it('consumes a pasted deep-link hash and leaves the host URL alone on click', async () => {
     await mount()
-    await act(async () => tab(5)!.click())
+    await act(async () => tab(6)!.click())
     // Switching tabs is local state: the plugin never writes the host page's URL.
     expect(window.location.hash).toBe('')
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('lsp')

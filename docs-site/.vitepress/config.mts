@@ -30,6 +30,8 @@ export default defineConfig({
     'guide/sources.zh.md': 'docs/zh/sources.md',
     'guide/resources.md': 'docs/resources.md',
     'guide/resources.zh.md': 'docs/zh/resources.md',
+    'guide/instructions.md': 'docs/instructions.md',
+    'guide/instructions.zh.md': 'docs/zh/instructions.md',
     'guide/services.md': 'docs/services.md',
     'guide/services.zh.md': 'docs/zh/services.md',
     'guide/translation.md': 'docs/translation.md',
