@@ -38,7 +38,7 @@ my-suite/
 
 ### Commands — `com.deepseek.harness/commands/*.md`
 
-Frontmatter: `description` (required, shown in the command list), `argument-hint` (optional input placeholder). Body is the prompt delivered to the model; `$ARGUMENTS` substitutes the invocation tail. One command per file, file name = command name.
+Frontmatter: `description` (required, shown in the command list), `argument-hint` (optional input placeholder), `arguments` (optional declared argument names, as one space-separated string or a list). Body is the prompt delivered to the model. The invocation text splits on whitespace, with a quoted phrase kept whole, and fills `$ARGUMENTS` (the whole text), `$1` to `$9` (one word each in order) and each declared name (`$system` for `arguments: system`). A declared name the text does not fill expands to nothing and the reply names it, and a body with no placeholder at all receives the text after one blank line as `User input: <text>`. One command per file, file name = command name.
 
 ```markdown
 ---
