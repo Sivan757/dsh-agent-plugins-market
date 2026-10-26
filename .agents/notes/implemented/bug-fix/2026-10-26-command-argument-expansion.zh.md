@@ -38,7 +38,9 @@ Run a **security hardening pass** on `legacy/$system` ...
 
 调用文本按 Claude Code 的方式切分：以空白分隔，单引号或双引号包住的短语算一个参数并去掉引号。没有转义语法，未闭合的引号一直延伸到文本结尾。
 
-正文用到、而文本没有填的参数展开为空，命令的确认行会点名它：`/modernize-uplift did not receive these declared arguments, left empty: $target_version`。这句话是一对宿主 locale 键，跟随界面语言。空缺可见但调用不失败，因为已发布套件把尾部参数当可选，正文自己按空值分支：`modernize-brief` 写的是 `$target_stack (if blank, ...)`，`modernize-transform` 要求 `$module` 或 `$target_stack` 为空时停下。
+正文用到、而文本没有填的参数展开为空，命令的确认行会点名它：`/modernize-uplift did not receive these declared arguments, left empty: $target_version`。这句话是一对宿主 locale 键，跟随界面语言。
+
+展开为空而不是拒绝，是该方言本身的行为，也是唯一能让已发布命令继续工作的做法。Claude Code 把缺失参数渲染成空字符串，而带尾部参数的正文正是按这个"空"来分支。`code-modernization/commands/modernize-brief.md` 读 `$target_stack`，为空时取 `analysis/$system/INTENT.md` 里的那个，否则按评估推荐一个。`code-modernization/commands/modernize-transform.md` 写的是 `If $module or $target_stack is empty` 时先把后面的内容读完再动手。改成拒绝调用，等于用一个作者从未考虑过的失败，替换掉他们写过也测过的分支。
 
 完全不含占位符的正文，会在一个空行之后收到文本，渲染为 `User input: <text>`。用户输入的任何内容都不会被丢掉。
 

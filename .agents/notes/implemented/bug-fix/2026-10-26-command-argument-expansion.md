@@ -38,7 +38,9 @@ Every other dollar sequence stays literal, so `$HOME`, `${CLAUDE_PLUGIN_ROOT}`, 
 
 The invocation text splits the way Claude Code splits it: on whitespace, with a single- or double-quoted phrase kept as one argument and its quotes removed. There is no escape syntax, and an unterminated quote runs to the end of the text.
 
-An argument the body uses and the text leaves unfilled expands to nothing, and the command's acknowledgement line names it: `/modernize-uplift did not receive these declared arguments, left empty: $target_version`. The sentence is a host locale key pair, so it follows the interface language. The gap is visible without failing the invocation, because the published suite treats trailing arguments as optional and its bodies branch on emptiness: `modernize-brief` reads `$target_stack (if blank, ...)`, and `modernize-transform` says to stop when `$module` or `$target_stack` is empty.
+An argument the body uses and the text leaves unfilled expands to nothing, and the command's acknowledgement line names it: `/modernize-uplift did not receive these declared arguments, left empty: $target_version`. The sentence is a host locale key pair, so it follows the interface language.
+
+Empty text, not a refusal, is the dialect's own behavior and the only one that keeps the published commands working. Claude Code renders a missing argument as an empty string, and the bodies that carry a trailing argument branch on exactly that emptiness. `code-modernization/commands/modernize-brief.md` reads `$target_stack` and, when it is blank, takes the one in `analysis/$system/INTENT.md` or recommends one from the assessment. `code-modernization/commands/modernize-transform.md` says `If $module or $target_stack is empty`, read further before acting. Failing the invocation instead would replace a branch those authors wrote and tested with a refusal they never accounted for.
 
 A body that carries no placeholder at all receives the text after one blank line, rendered `User input: <text>`. Nothing the user typed is ever dropped.
 
