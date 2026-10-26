@@ -17,6 +17,10 @@ import { rm } from 'node:fs/promises'
  * writer that outlives the fiber is a product defect and still fails this call
  * after the budget runs out.
  *
+ * `force` is kept for the one case it covers: Node ignores only `ENOENT`, so a
+ * root a case already removed is not a teardown failure, while a permission
+ * error still rejects.
+ *
  * @param path - a directory created by `mkdtemp` for one test.
  * @returns fulfillment once the root is gone, or the original failure.
  */
