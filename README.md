@@ -67,7 +67,7 @@ Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`
 - **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
 - **Sources and downloads.** Add a Git repository, a local directory or an archive, adopt a checkout you cloned yourself, and refresh on demand. Pick a global or China mainland mirror, and refresh every source on a 6-hour timer if you want.
 - **Runtime injection.** Enabled suites add skills to the catalog and slash menu, commands as `/name`, agent personas to the subagent catalog, MCP tools as `mcp__*`, hooks to lifecycle events, and language servers to the `lsp` tool. Installing the plugin is the whole LSP setup.
-- **One workspace.** Seven tabs cover the market, the resources you author, and the services that run. Every tab has search, filters and a grid or list view.
+- **One workspace.** Eight tabs cover the market, the instructions injected into a session, the resources you author, and the services that run. Every tab has search, filters and a grid or list view.
 
 ### Advanced
 
@@ -80,11 +80,12 @@ Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`
 
 ## Everyday use
 
-The workspace has seven tabs:
+The workspace has eight tabs:
 
 | Tab            | Use it to                                                                           |
 | -------------- | ----------------------------------------------------------------------------------- |
 | Market         | Add sources, preview suites, install or remove them, and switch them on or off.     |
+| Instructions   | See the AGENTS.md chain a session injects, and create, edit or delete those files.  |
 | Skills         | Browse skills and create or edit your own reusable instructions.                    |
 | Commands       | Manage prompt templates invoked as `/name`.                                         |
 | Agent personas | Save role instructions and model settings, then delegate to them.                   |
@@ -94,7 +95,7 @@ The workspace has seven tabs:
 
 A **source** is where content comes from. A **suite** is an installable unit discovered there. Adding a source discovers its suites. Enabling a suite turns its runtime capabilities on.
 
-Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. Project-native resources stay in the project. See [storage and discovery](https://sivan757.github.io/dsh-agent-plugins-market/docs/resources/#storage-and-discovery).
+Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. The [instructions guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/instructions/) explains the AGENTS.md chain the host injects and the page that edits it. Project-native resources stay in the project. See [storage and discovery](https://sivan757.github.io/dsh-agent-plugins-market/docs/resources/#storage-and-discovery).
 
 ## Compatibility
 

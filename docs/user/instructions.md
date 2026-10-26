@@ -1,0 +1,60 @@
+# Workspace instructions
+
+English | [简体中文](instructions.zh.md) | [README](../../README.md)
+
+**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Instructions](instructions.md)
+
+## What the page shows
+
+The **Instructions** tab shows the `AGENTS.md` chain the host injects into the current session. Discovery, load order, deduplication and the byte budget all come from the harness package `@deepseek-ai/dsh-agent-instructions`, so the page and the prompt cannot disagree: a row status is read from the text the model receives.
+
+The page reads the chain for the session's working directory. When no session is named it reads the host process working directory, and the page says so under the directory path.
+
+## Load order
+
+Two user-global roots come first, then every directory from the project root down to the session directory.
+
+- `$DSH_HOME/AGENTS.md`, the harness home, which is `~/.dsh` unless you set `$DSH_HOME`.
+- `$DSH_AGENTS_HOME/AGENTS.md`, the shared agents root, which is `~/.agents` unless you set `$DSH_AGENTS_HOME`.
+- For each project directory, in order: `AGENTS.md`, `CLAUDE.md`, `AGENTS.local.md`, `CLAUDE.local.md`.
+- The project root is the first directory at or above the session directory that holds a `.git` entry, a directory or the file a linked worktree writes.
+
+## Which file names load
+
+Only `AGENTS.md` loads in the two user-global roots. Neither `CLAUDE.md` nor a local overlay is a candidate there, so the page never offers to create one.
+
+All four names load inside a project directory. A row the page adds for a directory with no instruction file is marked as not created, and creating it is the action that row offers.
+
+## Repeated content
+
+Inside one candidate group, a file whose trimmed content matches an earlier one renders once. The two user-global roots form one group, so an `AGENTS.md` with the same text in both renders once and the harness home wins. Each project directory is its own group, so `AGENTS.local.md` that repeats its sibling `AGENTS.md` is reported as repeated content beside the file that carries it.
+
+## The byte budget
+
+`instructionMaxBytes` caps the whole injected baseline, and `instructionMaxSourceBytes` caps one file. Their defaults are 65536 and 1048576, the values the host row uses. Keep both equal to the host value, or the page describes a budget the model does not get.
+
+Over the budget, broader files are omitted first and only the most specific file is truncated. A file over the per-file cap never loads at all, and the page names that reason instead of the omission list. A budget of 0 or less switches instruction loading off entirely.
+
+## Status of one row
+
+| Status              | Meaning                                                             |
+| ------------------- | ------------------------------------------------------------------- |
+| Loaded              | The file's text is in the injected prompt.                          |
+| Truncated           | The file is the most specific one, cut to fit the remaining budget. |
+| Over budget         | A broader file the budget omitted.                                  |
+| Over the file limit | Larger than `instructionMaxSourceBytes`, so it never loads.         |
+| Repeated content    | The same trimmed text as an earlier file in its group, shown once.  |
+| Not injected        | Existing but absent from the prompt for no attributable reason.     |
+| Not created         | The file does not exist. Creating it is the offered action.         |
+
+## Creating, editing and deleting
+
+Every action writes one file the chain can load. A request names a scope, a project-relative directory and a candidate file name, never a path, so the page cannot reach a file this session does not inject.
+
+Writes are atomic, they create the parent directory only for a location the chain already lists, and the editor refuses text over `instructionMaxSourceBytes` because such a file would never load. The editor counts bytes against both limits as you type.
+
+One file can carry two names on the chain, for example `CLAUDE.md` symlinked to `AGENTS.md`. Deleting either name reports the other one, and whether the deleted entry was a link, so you know what the remaining name still resolves to.
+
+## When the page is unavailable
+
+The harness package is optional. A profile that does not provide `@deepseek-ai/dsh-agent-instructions` gets a notice naming it, not a failed page, and nothing else in the workspace is affected.
