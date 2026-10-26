@@ -51,6 +51,7 @@
     "packages/market-ui/test/client-editor-layout.test.ts",
     "packages/market-ui/test/client-extension-detail-frame.test.ts",
     "packages/market-ui/test/client-failure-guidance.test.ts",
+    "packages/market-ui/test/client-instructions-panel.test.ts",
     "packages/market-ui/test/client-locales.test.ts",
     "packages/market-ui/test/client-page-mode.test.ts",
     "packages/market-ui/test/client-selection-skill-notifications.test.ts",
