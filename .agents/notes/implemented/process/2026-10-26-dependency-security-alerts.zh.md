@@ -31,9 +31,9 @@ Dependabot 针对 `pnpm-lock.yaml` 报告了十条未处理告警。它们分布
 @deepseek-ai/dsh-mcp-client@0.2.1-rc.3  { "@modelcontextprotocol/client": "2.2.0" }
 ```
 
-把宿主基线移到 `0.2.1-rc.3` 并不会提升这两个 pin，因此 overrides 在两条线上都必需，不是陈旧基线的妥协。`undici` override 还把依赖图从两份收敛为一份，因为 `jsdom` 本就解析到 `8.12.2`。
+两条线给出相同答案，因此 overrides 在对齐改动之后依然必要，不是陈旧基线的妥协。`undici` override 还把依赖图收敛为一份，因为 `jsdom` 本就解析到 `8.12.2`。
 
-**`zod` 是已接受风险，记录在 [`.github/SECURITY.md`](../../../.github/SECURITY.md#accepted-dependency-risk--已接受的依赖风险)。** 宿主系列精确声明 zod `4.4.3`。2026-10-26 用 `npm view <package>@0.2.1-rc.3 dependencies.zod` 实测，六个宿主包都报告 `4.4.3`：`@deepseek-ai/dsh-agent-loop`、`@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-subagent`、`@deepseek-ai/dsh-session-projection`、`@deepseek-ai/dsh-client-ui-plugin-manager`、`@deepseek-ai/dsh-experimental-agent-team`。`4.4.3` override 存在的原因是插件 schema 会进入宿主的 `ProjectionDefinition`，第二份副本会让宿主的 `ZodType` 变成名义类型，插件 schema 不再匹配。把它提到 `4.6.6` 会破坏该匹配。关闭告警需要宿主发布新版本移动整个系列，而不是在本仓库改动。
+**`zod` 是已接受风险，记录在 [`.github/SECURITY.md`](../../../../.github/SECURITY.md)。** 宿主系列精确声明 zod `4.4.3`。2026-10-26 用 `npm view <package>@0.2.1-rc.3 dependencies.zod` 实测，六个宿主包都报告 `4.4.3`：`@deepseek-ai/dsh-agent-loop`、`@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-subagent`、`@deepseek-ai/dsh-session-projection`、`@deepseek-ai/dsh-client-ui-plugin-manager`、`@deepseek-ai/dsh-experimental-agent-team`。`4.4.3` override 存在的原因是插件 schema 会进入宿主的 `ProjectionDefinition`，第二份副本会让宿主的 `ZodType` 变成名义类型，插件 schema 不再匹配。把它提到 `4.6.6` 会破坏该匹配。关闭告警需要宿主发布新版本移动整个系列，而不是在本仓库改动。
 
 ## Alternatives considered
 
@@ -50,4 +50,4 @@ Dependabot 针对 `pnpm-lock.yaml` 报告了十条未处理告警。它们分布
 - `zod` high 告警按设计保持开启。`.github/SECURITY.md` 写明它已被接受以及什么能关闭它，后来者不会把它当作疏漏。
 - 两条新 override 带来维护成本。每条都点名逼出它的父包以及测量时的父包版本，宿主提高自身 pin 时即可移除。
 - `undici` 依赖图现在只有一份而非两份，安装中少了一个重复的 `EnvHttpProxyAgent` 模块实例。
-- 本次改动不触碰任何宿主 pin。`0.2.1-rc.2` 的 devDependency 基线未变，`check-host-alignment` 在本分支与未修改的 `origin/dev` 上给出相同结果。
+- 本次改动不触碰任何宿主 pin，且 `check-host-alignment` 在其上通过。`0.2.1-rc.3` 基线来自单独的基线对齐改动，不来自本次改动。

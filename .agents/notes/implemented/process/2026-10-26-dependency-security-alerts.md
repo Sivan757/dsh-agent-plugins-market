@@ -31,9 +31,9 @@ Each transitive moves by the cheapest mechanism its parent allows.
 @deepseek-ai/dsh-mcp-client@0.2.1-rc.3  { "@modelcontextprotocol/client": "2.2.0" }
 ```
 
-Moving the host baseline to `0.2.1-rc.3` does not raise either pin, so the overrides are required on both lines and are not a workaround for a stale baseline. The `undici` override also collapses the graph from two copies to one, because `jsdom` already resolved `8.12.2`.
+Both lines answer the same way, so the overrides survive the alignment change and are not a workaround for a stale baseline. The `undici` override also collapses the graph to one copy, because `jsdom` already resolved `8.12.2`.
 
-**The `zod` row is an accepted risk, recorded in [`.github/SECURITY.md`](../../../.github/SECURITY.md#accepted-dependency-risk--已接受的依赖风险).** The host family declares zod `4.4.3` exactly. Measured on 2026-10-26 with `npm view <package>@0.2.1-rc.3 dependencies.zod`, six host packages report `4.4.3`: `@deepseek-ai/dsh-agent-loop`, `@deepseek-ai/dsh-llm`, `@deepseek-ai/dsh-subagent`, `@deepseek-ai/dsh-session-projection`, `@deepseek-ai/dsh-client-ui-plugin-manager`, and `@deepseek-ai/dsh-experimental-agent-team`. The `4.4.3` override exists because a plugin schema crosses into the host's `ProjectionDefinition`, and a second physical copy makes the host's `ZodType` nominal, so the plugin's schema stops matching. Raising it to `4.6.6` breaks that match. Closing the alert needs a host release that moves the family, not a change here.
+**The `zod` row is an accepted risk, recorded in [`.github/SECURITY.md`](../../../../.github/SECURITY.md).** The host family declares zod `4.4.3` exactly. Measured on 2026-10-26 with `npm view <package>@0.2.1-rc.3 dependencies.zod`, six host packages report `4.4.3`: `@deepseek-ai/dsh-agent-loop`, `@deepseek-ai/dsh-llm`, `@deepseek-ai/dsh-subagent`, `@deepseek-ai/dsh-session-projection`, `@deepseek-ai/dsh-client-ui-plugin-manager`, and `@deepseek-ai/dsh-experimental-agent-team`. The `4.4.3` override exists because a plugin schema crosses into the host's `ProjectionDefinition`, and a second physical copy makes the host's `ZodType` nominal, so the plugin's schema stops matching. Raising it to `4.6.6` breaks that match. Closing the alert needs a host release that moves the family, not a change here.
 
 ## Alternatives considered
 
@@ -50,4 +50,4 @@ Moving the host baseline to `0.2.1-rc.3` does not raise either pin, so the overr
 - The `zod` high alert stays open by design. `.github/SECURITY.md` states that it is accepted and what would close it, so the next reader does not treat it as an oversight.
 - Two new overrides carry a maintenance cost. Each names the parent that forced it and the parent version it was measured against, so the override is removed when the host raises its own pin.
 - The `undici` graph now holds one copy instead of two, which removes a duplicate `EnvHttpProxyAgent` module instance from the install.
-- This change does not touch any host pin. The `0.2.1-rc.2` devDependency baseline is unchanged, and `check-host-alignment` reports the same result here as on an unmodified `origin/dev`.
+- This change touches no host pin, and `check-host-alignment` passes on it. The `0.2.1-rc.3` baseline comes from the separate alignment change, not from this one.
