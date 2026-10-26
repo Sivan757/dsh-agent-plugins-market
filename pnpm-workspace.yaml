@@ -5,6 +5,7 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@deepseek-ai/cosmokit@1.8.5 || 1.8.6'
   - '@deepseek-ai/dsh-agent@0.2.1-rc.3'
+  - '@deepseek-ai/dsh-agent-instructions@0.2.1-rc.3'
   - '@deepseek-ai/dsh-agent-loop@0.2.1-rc.3'
   - '@deepseek-ai/dsh-agent-loop-testkit@0.2.1-rc.3'
   - '@deepseek-ai/dsh-atomic-write@0.2.1-rc.3'
@@ -78,6 +79,14 @@ packages:
 # 1.2.1 resolution while postcss and css-tree@2.2.1 already carried 1.2.2.
 # 1.2.2 fixes GHSA-68fv-2mgg-jv7q (indexed source-map section offsets).
 overrides:
+  # @deepseek-ai/dsh-agent-instructions peers on @deepseek-ai/dsh-home-paths
+  # 0.2.1-rc.3 exactly, and the support range in dependencies
+  # (>=0.2.0-rc.2 <0.3.0-0) cannot resolve a 0.2.1 prerelease: node-semver only
+  # matches a prerelease of the same major.minor.patch a comparator names. The
+  # dependency stays a range for consumers, and this override resolves the same
+  # host baseline this repository builds against. Its 0.2.1 line also adds the
+  # agents-home helpers the instruction loader imports.
+  '@deepseek-ai/dsh-home-paths': 0.2.1-rc.3
   source-map-js: 1.2.2
   # @deepseek-ai/dsh-http-proxy declares undici "8.11.2" exactly, on 0.2.1-rc.3 and
   # on rc.2 alike, so no range and no targeted update can raise it. 8.12.2 is the
