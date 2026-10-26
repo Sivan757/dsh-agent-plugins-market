@@ -19,6 +19,7 @@ import type { McpMountFactory, McpMountPort } from '../../adapter-contracts.js'
 import type { ExtensionMcpTool } from './extension-tool-gates.js'
 import type { MenuRowRegistration } from './menu-row-identities.js'
 import { inspectToolRegistry } from './tool-registry-observer.js'
+import { attribute } from '../surfaces/prompt-frame.js'
 
 export interface ScopedContributorPorts {
   dataRoot: string
@@ -49,10 +50,42 @@ interface Mount {
   users?: UserCommandMountRegistry
   hooks?: ExtensionHooks
   mcp?: McpMountPort
-  instructions: Array<{ id: string; parent: string; text: string }>
+  /** One entry per contribution; `label` names the suite it came from. */
+  instructions: Array<{ id: string; parent: string; label: string; text: string }>
   active: boolean
   hostMcpWorkspace?: string
 }
+/** One precedence sentence, shared by the section and the hook frame. */
+const INSTRUCTION_PRECEDENCE =
+  'Instructions from enabled plugin suites may be relevant to your work. More specific instructions take precedence over broader ones. They do not override system, developer, or direct user instructions.'
+
+/**
+ * Render the suite instructions as an attributed system prompt section.
+ *
+ * A system prompt section is already system weight, so it carries no
+ * `<system-reminder>` frame: the frame is for content injected as a user turn.
+ * What it needs instead is structure, because `renderPrompt` joins sections with
+ * blank lines and adds no heading of its own. One heading names the surface, one
+ * subheading names each contributing suite, and one sentence states precedence,
+ * so two suites that disagree stay separable and a reader can tell which one to
+ * follow.
+ * @param rows - the permitted instruction rows, in registration order.
+ * @returns the section text, or an empty string when no suite contributed one.
+ */
+export function agentInstructionSection(rows: ReadonlyArray<{ parent: string; label: string; text: string }>): string {
+  if (rows.length === 0) return ''
+  // Rows arrive one per contribution; a suite with both a system prompt and a
+  // startup skill contributes two, and they read as one suite block.
+  const suites = new Map<string, { heading: string; bodies: string[] }>()
+  for (const row of rows) {
+    const entry = suites.get(row.parent) ?? { heading: row.label, bodies: [] }
+    entry.bodies.push(row.text)
+    suites.set(row.parent, entry)
+  }
+  const sections = [...suites.values()].map(entry => ({ heading: entry.heading, body: entry.bodies.join('\n\n') }))
+  return ['## Agent plugin instructions', INSTRUCTION_PRECEDENCE, attribute(sections)].filter(block => block.length > 0).join('\n\n')
+}
+
 const suiteId = (suite: Suite): string => 'market:' + suite.sourceId + '/' + suite.id
 const entryId = (suite: Suite, kind: 'skills' | 'commands', name: string): string => kind + ':' + pluginResourceId(suite.sourceId, suite.id, kind, name)
 
@@ -160,13 +193,7 @@ export class ScopedExtensionContributors {
         // interpolates by default and refuses an unknown `{{name}}`, so a suite
         // that quotes `{{cwd}}` would fail prompt assembly before any request.
         interpolate: false,
-        text: () =>
-          mount.active
-            ? mount.instructions
-                .filter(row => this.ports.allows(agent, row.parent) && this.ports.allows(agent, row.id))
-                .map(row => row.text)
-                .join('\n\n')
-            : ''
+        text: () => (mount.active ? agentInstructionSection(mount.instructions.filter(row => this.ports.allows(agent, row.parent) && this.ports.allows(agent, row.id))) : '')
       })
       scope.effect(
         () => async () => {
@@ -221,12 +248,13 @@ export class ScopedExtensionContributors {
       const { startupSkill, ...manifest } = suite.manifest
       const paths = { dataRoot: this.ports.dataRoot, projectDir: agent.session.header.cwd! }
       const system = await suiteInstructions([{ ...suite, manifest }], paths)
-      if (system.text) instructions.push({ id: parent, parent, text: system.text })
+      const label = suite.manifest.name
+      if (system.text) instructions.push({ id: parent, parent, label, text: system.text })
       if (startupSkill && this.registrationAllows(agent, entryId(suite, 'skills', startupSkill))) {
         const withoutSystem = { ...suite }
         delete withoutSystem.systemPrompt
         const startup = await suiteInstructions([withoutSystem], paths)
-        if (startup.text) instructions.push({ id: entryId(suite, 'skills', startupSkill), parent, text: startup.text })
+        if (startup.text) instructions.push({ id: entryId(suite, 'skills', startupSkill), parent, label, text: startup.text })
       }
     }
     mount.instructions = instructions

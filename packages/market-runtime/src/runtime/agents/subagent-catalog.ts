@@ -1,4 +1,5 @@
 /** Durable role catalogs follow DSH tool-skill's pre-step publication and session-surface recovery. */
+import { escapeEntry } from '../surfaces/prompt-frame.js'
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
@@ -129,10 +130,6 @@ export function mountSubagentCatalog(
   }
 }
 
-function escapeText(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-}
-
 /**
  * The guidance published with every catalog. It is fixed English and does not
  * follow the host's locale: the model-facing contract is one text, so a role
@@ -189,7 +186,7 @@ const CATALOG_WHEN_TO_DELEGATE = [
  * tell the model which model each role runs on without changing what it does.
  */
 export function renderCatalogText(entries: readonly SubagentCatalogEntry[], update: boolean): string {
-  const lines = entries.map(entry => `- \`${escapeText(entry.name)}\`: ${escapeText(entry.description)}`)
+  const lines = entries.map(entry => `- \`${escapeEntry(entry.name)}\`: ${escapeEntry(entry.description)}`)
   return [
     '<system-reminder>',
     '',
@@ -227,7 +224,7 @@ export function renderTeamRoleCatalogText(entries: readonly SubagentCatalogEntry
     '',
     'Available roles for spawn_teammate_role. This complete list replaces every earlier subagent-catalog and its delegation guidance in this session.',
     '',
-    ...entries.map(entry => '- ' + escapeText(JSON.stringify(entry.name)) + ': ' + escapeText(entry.description)),
+    ...entries.map(entry => '- ' + escapeEntry(JSON.stringify(entry.name)) + ': ' + escapeEntry(entry.description)),
     '',
     'A role from this list goes to spawn_teammate_role. Without a matching role, or when the member should inherit this conversation, use native spawn_teammate.',
     '',
