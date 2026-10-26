@@ -25,6 +25,7 @@ import { expandPluginPaths, pluginPathEnvironment, pluginRootOf, suiteDataDir } 
 import { normalizeHookDocuments, standaloneHookDocument } from '../../../../market-catalog/src/index.js'
 import type { ProjectHooks, Suite } from '../../../../market-contracts/src/model/types.js'
 import { hookConfigPath, type HooksMountDiagnostic } from './hooks-mounts.js'
+import { attribute, frame } from './prompt-frame.js'
 
 /**
  * Every Claude Code hook event this bridge runs. The host extension points
@@ -50,10 +51,24 @@ export const HOOK_RUNTIME_POINTS = [
 ] as const
 type Point = (typeof HOOK_RUNTIME_POINTS)[number]
 type Outcome = ReturnType<typeof mergeHookOutputs>
+/** One decoded hook output with the suite that produced it. */
+interface AttributedOutput {
+  /** The suite name, the heading a reader uses to tell contributors apart. */
+  label: string
+  /** The selection key, kept for calls that need the exact suite identity. */
+  key: string
+  output: HookOutput
+}
 /** One point's merged decision, plus the denial reason rebuilt from denying hooks only. */
 interface PointOutcome {
   merged: Outcome
   denySystemMessages: string[]
+  /**
+   * The durable instruction text this point injected, one entry per contributing
+   * suite. Kept apart from `merged` because the merge loses which suite wrote
+   * what, and attribution is what makes two suites separable.
+   */
+  contexts: Array<{ label: string; text: string }>
 }
 type Turn = Parameters<typeof appendHookInvoked>[1]['turn']
 type Source = 'startup' | 'resume'
@@ -79,6 +94,17 @@ interface RunOptions {
   fallback?: boolean
 }
 const CONTEXT_SOURCE = { kind: 'hooks-claude-code' } as const
+/**
+ * What the frame says before a suite's own instruction text.
+ *
+ * Durable session context is instruction content, so it gets the familiar frame
+ * and an intro that states what it is and its precedence. Mid-turn steering and
+ * corrective feedback never reach this text: they stay plain, because labeling
+ * them is what made a model read a steering note as third-party metadata and
+ * refuse it.
+ */
+const SESSION_CONTEXT_INTRO =
+  'The following context was injected by an enabled agent plugin suite. It is session instructions, not a message from the user. More specific instructions take precedence over broader ones. It does not override system, developer, or direct user instructions.'
 /** Plain (non-JSON) stdout is conversation context on exactly these events. */
 const STDOUT_CONTEXT_POINTS: ReadonlySet<Point> = new Set<Point>(['SessionStart', 'UserPromptSubmit'])
 /**
@@ -192,7 +218,7 @@ export class ExtensionHooks {
         // continuation, and every later Stop hook reads a stale activation.
         this.continuations = 0
         return this.track(async () => {
-          const { merged } = await this.runPoint(
+          const outcome = await this.runPoint(
             'UserPromptSubmit',
             '',
             { ...base(agent, 'UserPromptSubmit'), prompt: text(authored.flatMap(message => message.content)) },
@@ -200,6 +226,7 @@ export class ExtensionHooks {
             event.turn,
             event.signal
           )
+          const { merged } = outcome
           if (this.disposed) return next()
           if (merged.stop) {
             this.halt(agent, 'UserPromptSubmit', merged)
@@ -210,7 +237,9 @@ export class ExtensionHooks {
             return { kind: 'reject' as const }
           }
           const downstream = await next()
-          const context = contextFrom(merged)
+          // A submitted prompt opens a turn, so its context is session-standing
+          // instruction text and takes the frame.
+          const context = contextFrom(outcome, true)
           return !this.disposed && context && downstream.kind === 'enter' ? { ...downstream, messages: [...downstream.messages, context] } : downstream
         })
       })
@@ -246,7 +275,9 @@ export class ExtensionHooks {
           const decision: PreToolDecision = merged.decision === 'allow' && downstream.kind === 'ask' ? { kind: 'allow' } : downstream
           // The pre-execute decision carries no context field, so context reaches
           // the next request through the agent's own model-facing inbox.
-          const context = contextFrom(merged)
+          // One tool call's context is a per-call callback, not standing session
+          // instruction, so it stays plain prose.
+          const context = contextFrom(outcome, false)
           if (!this.disposed && decision.kind === 'allow' && context) agent.inject(context)
           return decision
         })
@@ -294,7 +325,7 @@ export class ExtensionHooks {
             this.halt(agent, point, merged)
             return next()
           }
-          const context = contextFrom(merged)
+          const context = contextFrom(outcome, false)
           const reason = merged.decision === 'deny' ? this.blockReason(point, outcome) : undefined
           if (result.isError) {
             // A failed call already carries its own error. Replacing it would hide
@@ -438,7 +469,8 @@ export class ExtensionHooks {
     if (this.disposed) return Promise.resolve()
     this.startup = this.track(async () => {
       await this.pending
-      const { merged } = await this.runPoint('SessionStart', source, { ...base(this.agent, 'SessionStart'), source }, this.agent, undefined, signal)
+      const outcome = await this.runPoint('SessionStart', source, { ...base(this.agent, 'SessionStart'), source }, this.agent, undefined, signal)
+      const { merged } = outcome
       if (this.disposed || signal?.aborted) return
       if (merged.stop) {
         this.reportBlocked('SessionStart', merged)
@@ -448,7 +480,8 @@ export class ExtensionHooks {
       // No SessionStart interception point exists, so a blocking start hook is
       // reported and the session opens anyway.
       if (merged.decision === 'deny') this.reportBlocked('SessionStart', merged)
-      const context = contextFrom(merged)
+      // A session start is the durable case: the frame says what the text is.
+      const context = contextFrom(outcome, true)
       if (context) this.agent.inject(context)
     })
     return this.startup
@@ -498,7 +531,7 @@ export class ExtensionHooks {
     if (point === 'SubagentStart' && child) this.children.set(info.runId, child)
     if (point === 'SubagentStop') this.children.delete(info.runId)
     void this.track(async () => {
-      const { merged } = await this.runPoint(
+      const outcome = await this.runPoint(
         point,
         'general-purpose',
         {
@@ -509,6 +542,7 @@ export class ExtensionHooks {
         },
         child
       )
+      const { merged } = outcome
       if (this.disposed) return
       if (point === 'SubagentStop') {
         // The subagent end edge is an emit-only notification: it carries no
@@ -516,7 +550,7 @@ export class ExtensionHooks {
         if (merged.decision === 'deny') this.reportBlocked('SubagentStop', merged)
         return
       }
-      const context = contextFrom(merged)
+      const context = contextFrom(outcome, false)
       if (context && child && this.children.get(info.runId) === child) child.inject(context)
       if (merged.stop && child) this.halt(child, 'SubagentStart', merged)
       // The subagent start edge cannot veto a spawn, so a denial is reported.
@@ -559,10 +593,10 @@ export class ExtensionHooks {
     turn?: Turn,
     signal?: AbortSignal,
     options: RunOptions = {}
-  ): Promise<HookOutput[]> {
+  ): Promise<AttributedOutput[]> {
     const closing = options.closing === true
     const selection = options.selection ?? this.selected
-    const outputs: HookOutput[] = []
+    const outputs: AttributedOutput[] = []
     // Disposal drains by aborting the shared signal, so the final pass it waits
     // behind cannot use it: SessionEnd would be killed before it ran.
     const ownerSignal = closing ? (signal ?? NEVER_ABORTED) : signal === undefined ? this.runs.signal : AbortSignal.any([signal, this.runs.signal])
@@ -619,7 +653,7 @@ export class ExtensionHooks {
           this.reportUnapplied(key, point, output, position)
           this.warnSystemMessage(point, output.systemMessage, key)
           if ((!closing && this.disposed) || ownerSignal.aborted) continue
-          outputs.push(withStdoutContext(point, output))
+          outputs.push({ label: suite.manifest.name, key, output: withStdoutContext(point, output) })
         }
       }
     }
@@ -738,17 +772,38 @@ function text(content: readonly { type: string; text?: string }[]): string {
  * @param outputs - every matched hook's decoded output, in hook order.
  * @returns the merged decision plus the system messages of denying hooks.
  */
-function foldOutcome(outputs: HookOutput[]): PointOutcome {
-  const denySystemMessages = outputs
+function foldOutcome(outputs: readonly AttributedOutput[]): PointOutcome {
+  const decoded = outputs.map(entry => entry.output)
+  const denySystemMessages = decoded
     .filter(output => output.decision === 'deny' || output.decision === 'block')
     .map(output => output.systemMessage)
     .filter((message): message is string => message !== undefined && message.length > 0)
-  return { merged: mergeHookOutputs(outputs), denySystemMessages }
+  const contexts: Array<{ label: string; text: string }> = []
+  for (const entry of outputs) {
+    const text = entry.output.additionalContext
+    if (text !== undefined && text.length > 0) contexts.push({ label: entry.label, text })
+  }
+  return { merged: mergeHookOutputs(decoded), denySystemMessages, contexts }
 }
-function contextFrom(merged: Outcome) {
-  return merged.additionalContext.length === 0
-    ? undefined
-    : createUserMessage({ content: merged.additionalContext.map(text => ({ type: 'text' as const, text })), source: CONTEXT_SOURCE })
+/**
+ * Build the model-facing message for one point's context.
+ *
+ * `framed` selects the two documented forms. Durable session instruction takes
+ * the frame, one heading per contributing suite, so two suites that disagree
+ * stay separable. A transient note stays exactly as the hook wrote it, one block
+ * per contributor: it is a mid-turn callback, and labeling it is what makes a
+ * model read it as third-party metadata.
+ * @param outcome - the point's folded outcome with its attributed context.
+ * @param framed - whether this content is durable session instruction.
+ * @returns the message, or undefined when no hook contributed context.
+ */
+function contextFrom(outcome: PointOutcome, framed: boolean) {
+  const { contexts } = outcome
+  if (contexts.length === 0) return undefined
+  const content = framed
+    ? [{ type: 'text' as const, text: frame([SESSION_CONTEXT_INTRO, attribute(contexts.map(context => ({ heading: context.label, body: context.text })))].join('\n\n')) }]
+    : contexts.map(context => ({ type: 'text' as const, text: context.text }))
+  return createUserMessage({ content, source: CONTEXT_SOURCE })
 }
 function contextFromReason(reason: string) {
   return createUserMessage({ content: [{ type: 'text' as const, text: reason }], source: CONTEXT_SOURCE })

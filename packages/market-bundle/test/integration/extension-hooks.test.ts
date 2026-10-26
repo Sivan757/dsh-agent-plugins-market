@@ -109,6 +109,12 @@ function harness() {
 }
 
 const payloads = (calls: ReturnType<typeof harness>['calls']) => calls.map(call => JSON.parse(call.stdin) as Record<string, unknown>)
+const FRAME_OPEN = '<system-reminder>'
+const FRAME_CLOSE = '</system-reminder>'
+const CONTEXT_INTRO =
+  'The following context was injected by an enabled agent plugin suite. It is session instructions, not a message from the user. More specific instructions take precedence over broader ones. It does not override system, developer, or direct user instructions.'
+/** The frame a durable session context carries, for one contributing suite. */
+const framedContext = (suite: string, body: string): string => [FRAME_OPEN, CONTEXT_INTRO, '', '### ' + suite, '', body, FRAME_CLOSE].join('\n')
 
 describe('ExtensionHooks', () => {
   it('keeps remote child identity without substituting the parent session', async () => {
@@ -208,7 +214,7 @@ describe('ExtensionHooks', () => {
     }))
     expect(await h.ctx.waterfall('agent/pre-step', prompt, enter)).toMatchObject({
       kind: 'enter',
-      messages: [message, { source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: 'context' }] }]
+      messages: [message, { source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: framedContext('one', 'context') }] }]
     })
     const allow = vi.fn(async () => ({ kind: 'allow' as const }))
     expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), allow)).toEqual({
@@ -659,12 +665,12 @@ describe('ExtensionHooks', () => {
     const { hooks, ready } = h.mount(a.value, [suite('one', { SessionStart: ['start'], UserPromptSubmit: ['prompt'], PostToolUse: ['post'] })])
     await ready
     await hooks.start('startup')
-    expect(a.inject).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'plain guidance' }] }))
+    expect(a.inject).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: framedContext('one', 'plain guidance') }] }))
     const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
     const prompt = { agent: a.value, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }
     expect(await h.ctx.waterfall('agent/pre-step', prompt, async () => ({ kind: 'enter' as const, messages: [message] }))).toMatchObject({
       kind: 'enter',
-      messages: [message, { content: [{ type: 'text', text: 'plain guidance' }] }]
+      messages: [message, { content: [{ type: 'text', text: framedContext('one', 'plain guidance') }] }]
     })
     // PostToolUse documents no plain-stdout context, so nothing is folded there.
     expect(await h.ctx.waterfall('tools/post-execute', h.exec(a.value), { content: [], isError: false, value: null }, async () => ({ kind: 'accept' as const }))).toEqual({
