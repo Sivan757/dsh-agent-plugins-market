@@ -555,7 +555,9 @@ export async function setSurfaceToggle(key: SurfaceToggleKey, enabled: boolean):
   const payload = await postAction('surface-toggles/set', { key, enabled })
   return payload.toggles as SurfaceToggles
 }
-/** Read this workspace's stowed workspace tabs; a failed read resolves to none stowed. */
+/* ---- Workspace tab stowing ---- */
+
+/** Read this workspace's stowed workspace tabs. */
 export async function loadTabLayout(): Promise<TabLayoutWire> {
   const layout = await getJson<TabLayoutWire>(MARKET_ROUTES.tabLayout, 'tab layout failed')
   return { hidden: resolveHiddenTabs(layout.hidden) }

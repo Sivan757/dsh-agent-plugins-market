@@ -14,7 +14,7 @@ import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { ResourceTabs } from '../ui/ResourceTabs.js'
 import { TabStowControl } from './TabStowControl.js'
 import { loadTabLayout, saveTabLayout } from '../api.js'
-import { resolveHiddenTabs, visibleTabs } from '../../../market-contracts/src/contracts/tab-layout.js'
+import { resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -25,11 +25,25 @@ import { HooksStatusPanel } from '../features/hooks/StatusPanel.js'
 import { UserPanelSurface } from '../ui/UserPanelSurface.js'
 import css from './workspace.module.css'
 
-/** The seven workspace tabs in display order. */
-export type WorkspaceTab = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'
+/**
+ * One workspace tab.
+ *
+ * The key set is the contract's, not a second list kept in step with it: that
+ * list is what the server validates a stow request against, so it owns the
+ * order and this alias only names the type. Adding a tab edits
+ * `WORKSPACE_TAB_KEYS` alone; the label map and the panel switch below then
+ * fail to compile until they cover the new key.
+ */
+export type WorkspaceTab = WorkspaceTabKey
 
-/** Display order of the tab row. The stow menu lists the tabs this array names. */
-export const TAB_ORDER: ReadonlyArray<WorkspaceTab> = ['market', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks']
+/**
+ * Display order of the tab row: the contract's own array, not a copy.
+ *
+ * Sharing the array is what makes one list the owner, and `resolveHiddenTabs`
+ * returns its result in this order too, so the row, the stow menu and the
+ * manager all read one sequence.
+ */
+export const TAB_ORDER: ReadonlyArray<WorkspaceTab> = WORKSPACE_TAB_KEYS
 
 /**
  * The tabs the row renders for one active tab.
@@ -195,6 +209,19 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
   )
 }
 
+/**
+ * Render the panel for one tab.
+ *
+ * The closed union ends in an exhaustiveness check rather than a default, so a
+ * tab added to `WORKSPACE_TAB_KEYS` fails this file to compile until its panel
+ * exists. That is the whole contract for adding a tab: the key list, the two
+ * locale dictionaries, and this switch.
+ * @param tab - the tab whose panel renders.
+ * @param t - the translator this page renders through.
+ * @param credentials - the credential API an MCP panel needs.
+ * @param mode - the host surface the panel renders inside.
+ * @returns the tab's panel.
+ */
 function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi | undefined, mode: 'settings' | 'page'): ReactNode {
   switch (tab) {
     case 'market':
@@ -214,7 +241,14 @@ function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi |
       // translator already answers the preset keys; the declared split is a
       // typing boundary, reconciled here as the entry point does.
       return h(HooksStatusPanel, { t: t as ExtensionTranslate })
+    default:
+      return unreachableTab(tab)
   }
+}
+
+/** Fail loud on a tab with no panel: the compiler stops this before a user sees it. */
+function unreachableTab(tab: never): never {
+  throw new Error('unhandled workspace tab: ' + String(tab))
 }
 /** The text of a thrown value, for a diagnostic that must stay a string. */
 function messageOf(error: unknown): string {

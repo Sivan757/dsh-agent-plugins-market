@@ -117,11 +117,26 @@ async function stow(key: string): Promise<void> {
 }
 
 describe('workspace tab stowing', () => {
-  it('names the same tabs in the display order and the stowable key set', async () => {
-    // One home is display order, the other is the wire's closed key set. A tab
-    // added to only one of them would stow to a key the server drops.
-    expect([...TAB_ORDER].sort()).toEqual([...WORKSPACE_TAB_KEYS].sort())
+  it('reads its display order from the contract key list rather than a copy', async () => {
+    // TAB_ORDER is WORKSPACE_TAB_KEYS, so one list owns the order. A copy would
+    // let a tab exist in the contract and be missing from the row, which is a
+    // tab the server accepts a stow for and the row cannot show.
+    expect(TAB_ORDER).toBe(WORKSPACE_TAB_KEYS)
     expect(TAB_ORDER[0]).toBe('market')
+
+    // Every tab in that one list renders a chip and a panel: the row is built
+    // from it, so a tab with no panel would fail to compile instead of landing
+    // here. This states the end-to-end shape the list promises.
+    // The personas tab renders the shared user-panel surface for the agents
+    // kind, so its panel marker names the kind rather than the tab.
+    const panelOf: Record<string, string> = { personas: 'agents' }
+    stubServer()
+    await mount()
+    expect(chipLabels()).toHaveLength(TAB_ORDER.length)
+    for (const [index, key] of TAB_ORDER.entries()) {
+      await act(async () => host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index]!.click())
+      expect(activePanel()).toBe(panelOf[key] ?? key)
+    }
   })
 
   it('removes a stowed chip from the row, adds a menu row, and keeps display order', async () => {

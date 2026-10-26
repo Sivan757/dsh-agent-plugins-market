@@ -22,9 +22,11 @@ The row policy stays in the CSS module: the row is a nowrap flex line, the tabs 
 
 `rowTabs` in `PluginWorkspace.tsx` is `visibleTabs(TAB_ORDER, layout, active)`: every tab that is not stowed, plus the active tab even when it is stowed. The second half is what keeps a hash deep link working for a stowed tab. The reveal is derived from the layout and the selection on every render and is never written back, so following a link cannot change the saved layout.
 
-The row is built from `TAB_ORDER` rather than a literal list, so an added tab appears with no change here. The stow menu, the dialog and the panel all read the same array.
+The row is built from `TAB_ORDER`, and `TAB_ORDER` is `WORKSPACE_TAB_KEYS` itself rather than a copy, so one list owns the tab set. That list is the contract's, because it is also what the server validates a stow request against. `WorkspaceTab` is an alias of `WorkspaceTabKey` for the same reason.
 
-Stowing the active tab moves the selection to the first tab that is not stowed. That computation deliberately ignores the reveal above: consulting it would keep the tab being stowed and leave the selection where it was.
+Adding a tab therefore means three things, each of which fails to compile until it is done: the key in `WORKSPACE_TAB_KEYS`, the paired label in both locale dictionaries, and the panel case in `renderTab`, whose closed union ends in an exhaustiveness check. Nothing else changes: `TAB_ORDER`, the stow menu, the manager, the routes and the store all read that one list.
+
+Stowing the active tab moves the selection to the first tab that is not stowed. That computation reads the stow list alone rather than the row, so it does not depend on which tab is pinned or where the pinned tab sits in the order.
 
 ### Persistence, per workspace
 
@@ -39,7 +41,7 @@ It is a separate document and a separate owner on purpose. `workspace-policy.ts`
 `packages/market-contracts/src/contracts/tab-layout.ts` is imported by both sides, so one function decides what a stow list is:
 
 - `resolveHiddenTabs` drops unknown keys, non-strings, duplicates and the pinned `market` tab, and returns the survivors in display order so one layout always writes the same bytes.
-- The pinned tab is the clamp: because `market` is never stowed, the row always has a tab, and the loader and the request handler cannot produce an empty row however the file or the body was authored.
+- The pinned `market` tab is the clamp: it is never stowed, so the row always has a tab and no file and no request can empty it.
 - `visibleTabs` holds the reveal rule in one place, so the optimistic client row and the persisted layout agree.
 
 The route refuses rather than corrects what a caller asked for: an unknown key and the pinned key are both 400s with the reason, while stowing every other tab is legal because the pinned tab remains.
@@ -52,7 +54,7 @@ The layout is read once on mount. A failed read leaves every tab visible and sta
 
 ## Alternatives considered
 
-- **A per-tab context menu holding the stow action** was rejected because it puts the way out of the row inside the thing being removed. A user who has stowed tabs needs an entry point that is still there, and one control at the end of the row is where the row itself suggests looking.
+- **A per-tab context menu, where right-clicking a tab stows it,** was rejected on three counts. It is not discoverable: nothing tells a user that a tab can be right-clicked, and the one user who needs it most is the one who has already given up on the row. It leaves nowhere to restore from: once a tab is stowed its own context menu is gone with it, so the way back would have to be invented somewhere else anyway. And it puts a second interactive element inside the tab strip, where the host owns the walk and the selection, so the row would stop being a pure tab list. The single trailing menu answers all three: it is visible without knowing anything, it lists every stowed tab as the one place to restore from, and it leaves the tablist untouched.
 - **Drag to reorder, with stowing as the drag endpoint** was rejected because the host tab row has no drag affordance and adding one would replace the sliding indicator and the walk keys with a second interaction model. Order is also not a problem the owner reported: the cost of a long row is attention, not sequence.
 - **A switch in the settings card only, listing every tab as a boolean** was rejected because it moves a per-visit decision to a page the user visits twice. The row is where the cost is paid, so the control belongs beside it, and the settings card already carries the switches that are genuinely global.
 - **Hiding every stowed tab unconditionally, including the active one** was rejected because a hash link to a stowed tab would then select nothing visible, or worse, render a panel whose tab the row does not show. The reveal keeps the invariant and costs one clause.
@@ -72,7 +74,7 @@ A workspace can now hold a tab row sized to the work it does, and every tab stay
 
 `packages/market-ui/test/client-workspace-tab-stow.test.ts` drives the real workspace and the real fetch helpers against a stub server for both routes:
 
-- the display order and the stowable key set name the same tabs, with the pinned tab first,
+- `TAB_ORDER` is the contract's own array, and every tab in it renders a chip and opens its own panel,
 - stowing removes the chip, adds the menu row, keeps display order and reaches the server,
 - choosing a stowed tab from the menu selects it and renders its panel without writing,
 - stowing the active tab moves the selection to the first visible tab,
