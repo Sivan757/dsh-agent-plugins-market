@@ -275,7 +275,10 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
               selectedSuites(agent, selection),
               catalog.mcpBackend()
             ])
-            runtime.setCatalogAuthority(candidates, globalSuites)
+            // Seed only: this read belongs to one session, and publishing it as
+            // the process-wide authority would let it narrow what every other
+            // session still has mounted. The catalog pipeline owns replacement.
+            runtime.ensureCatalogAuthority(candidates, globalSuites)
             const shared = suites
               .filter(suite => suite.dimension === 'user')
               .map(suite => (backend === 'builtin' ? suite : { ...suite, mcp: undefined, activeSurfaces: { ...suite.activeSurfaces, mcp: false } }))
