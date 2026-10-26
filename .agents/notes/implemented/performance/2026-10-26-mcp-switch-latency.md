@@ -60,8 +60,8 @@ The mount and switch rows are one handshake deep instead of three. The hanging r
 
 An MCP switch now costs one handshake rather than one per server, and never more than one second, whatever the servers do. The trade-offs:
 
-- A switch answered after its budget does not prove the pass finished. A status read taken in that window reports the previous state; the next one reports the pass's outcome, and the overrun is logged.
-- Mount concurrency is a fixed safety bound, not a setting: it caps how many servers one pass may start at once, and it is not deployment-varying in the way a timeout policy is.
+- A switch answered after its budget does not prove the pass finished. A status read taken in that window reports the previous state. The next read reports the pass's outcome, and the overrun is logged.
+- Mount concurrency is a fixed safety bound rather than a setting. It caps how many servers one pass may start at once, and it does not vary with deployment the way a timeout policy does.
 - A busy profile still pays one handshake per pass, so the remaining latency scales with the slowest server rather than with their number.
 
 ## Verification
