@@ -41,7 +41,7 @@ async function mount(): Promise<void> {
   await act(async () => root!.render(h(PluginWorkspace, { t })))
 }
 
-/** The tab at its display position (market, instructions, skills, commands, personas, mcp, lsp, hooks). */
+/** The tab at its display position (market, instructions, outputStyles, skills, commands, personas, mcp, lsp, hooks). */
 const tab = (index: number): HTMLButtonElement | null => host?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index] ?? null
 const activePanelTab = (): Element | null => host?.querySelector('[role="tabpanel"] [data-tab]') ?? null
 
@@ -51,7 +51,7 @@ describe('PluginWorkspace tab row', () => {
     const tablist = host!.querySelector('[role="tablist"]')
     expect(tablist).not.toBeNull()
     expect(tablist!.getAttribute('aria-label')).toBe('workspaceTabMarket')
-    expect(host!.querySelectorAll('[role="tab"]').length).toBe(8)
+    expect(host!.querySelectorAll('[role="tab"]').length).toBe(9)
     // Exactly one tab stop: the selected tab only.
     expect(tab(0)?.getAttribute('aria-selected')).toBe('true')
     expect(host!.querySelectorAll('[role="tab"][tabindex="0"]').length).toBe(1)
@@ -61,13 +61,13 @@ describe('PluginWorkspace tab row', () => {
     expect(panel?.getAttribute('aria-labelledby')).toBe('agent-plugins-tab-market')
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('market')
 
-    await act(async () => tab(5)!.click())
+    await act(async () => tab(6)!.click())
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
   })
 
   it('consumes a pasted deep-link hash and leaves the host URL alone on click', async () => {
     await mount()
-    await act(async () => tab(6)!.click())
+    await act(async () => tab(7)!.click())
     // Switching tabs is local state: the plugin never writes the host page's URL.
     expect(window.location.hash).toBe('')
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('lsp')

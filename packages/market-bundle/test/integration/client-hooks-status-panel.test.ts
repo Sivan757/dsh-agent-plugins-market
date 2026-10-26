@@ -322,6 +322,7 @@ it('gives the settings workspace a seventh Hooks tab on the shared, non-scrollin
   expect(labels).toEqual([
     en.workspaceTabMarket,
     en.workspaceTabInstructions,
+    en.workspaceTabOutputStyles,
     en.workspaceTabSkills,
     en.workspaceTabCommands,
     en.workspaceTabPersonas,
