@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve, sep } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { INSTRUCTION_ROUTES } from '../../../../packages/market-contracts/src/contracts/instructions.js'
 import type { InstructionsPayload } from '../../../../packages/market-contracts/src/contracts/instructions.js'
 import { mountInstructionRoutes, type InstructionRouteDeps } from '../../../../packages/market-bundle/src/routes-instructions.js'
@@ -159,6 +159,15 @@ function writePath(route: string): string {
   return `${route}?sessionId=${SESSION}`
 }
 
+/**
+ * A project display path, spelled the way the host spells one on this platform.
+ *
+ * The host returns a project-relative path built with the platform separator,
+ * and the page shows it verbatim, so an expectation written with a forward
+ * slash would pass on Linux and fail on Windows.
+ */
+const projectPath = (...segments: string[]): string => segments.join(sep)
+
 const LIMITS = resolveInstructionLimits({})
 
 /** The three host calls a parity assertion compares against. */
@@ -214,26 +223,28 @@ describe('instruction chain parity with the host module', () => {
     expect(payload.total).toBe(Buffer.byteLength(oracle.rendered?.text ?? '', 'utf8'))
     expect(payload.budget).toBe(LIMITS.maxBytes)
 
-    // Every discovered file appears once, in the host's discovery order.
+    // Every discovered file appears once, in the host's discovery order, with the
+    // host's own display path. The comparison is against the oracle's answer, so
+    // the platform's separator is whatever the host emitted, never a literal.
     const discoveredRows = payload.rows.filter(row => row.exists)
     expect(discoveredRows.map(row => row.displayPath)).toEqual(oracle.discovered.map(file => file.displayPath))
-    expect(discoveredRows.map(row => row.displayPath)).toEqual([
-      '$DSH_HOME/AGENTS.md',
-      '$DSH_AGENTS_HOME/AGENTS.md',
-      'AGENTS.md',
-      'CLAUDE.md',
-      'AGENTS.local.md',
-      'apps/site/AGENTS.md'
-    ])
+    // Identity comes from the absolute path, which is platform-free.
+    expect(discoveredRows.map(row => resolve(row.path))).toEqual(oracle.discovered.map(file => resolve(file.absolutePath)))
+    // The two user-global labels are the host's own, not a path this test built.
+    expect(discoveredRows.slice(0, 2).map(row => row.displayPath)).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md'])
 
     // Dedupe is the host's rule, reported with the earlier candidate that won.
     expect(payload.rows.find(row => row.displayPath === '$DSH_AGENTS_HOME/AGENTS.md')?.status).toBe('duplicate')
     expect(payload.rows.find(row => row.displayPath === '$DSH_AGENTS_HOME/AGENTS.md')?.duplicateOf).toBe('$DSH_HOME/AGENTS.md')
     expect(payload.rows.find(row => row.displayPath === 'CLAUDE.md')?.status).toBe('duplicate')
     expect(payload.rows.find(row => row.displayPath === 'CLAUDE.md')?.duplicateOf).toBe('AGENTS.md')
-    for (const shown of ['$DSH_HOME/AGENTS.md', 'AGENTS.md', 'AGENTS.local.md', 'apps/site/AGENTS.md']) {
+    for (const shown of ['$DSH_HOME/AGENTS.md', 'AGENTS.md', 'AGENTS.local.md', projectPath('apps', 'site', 'AGENTS.md')]) {
       expect(payload.rows.find(row => row.displayPath === shown)?.status).toBe('loaded')
     }
+    // The project row is the same file the host discovered, by absolute path.
+    expect(payload.rows.find(row => resolve(row.path) === resolve(root, 'apps', 'site', 'AGENTS.md'))?.displayPath).toBe(
+      oracle.discovered.find(file => resolve(file.absolutePath) === resolve(root, 'apps', 'site', 'AGENTS.md'))?.displayPath
+    )
   })
 
   it('reads a truncation before the rendered header', async () => {
@@ -252,13 +263,21 @@ describe('instruction chain parity with the host module', () => {
     const oracle = await hostAnswer(cwd, { maxBytes: 120 })
 
     expect(payload.rendered).toEqual(oracle.rendered)
+    // The one truncated file is the host's own entry, named by absolute path so
+    // the comparison holds on any platform.
+    const truncated = oracle.rendered?.truncated ?? []
+    expect(truncated).toHaveLength(1)
+    const truncation = truncated[0]!
     // At this budget the renderer emits no "Instructions from:" header at all,
     // so a header-first rule would call this file a duplicate.
-    expect(oracle.rendered?.text).not.toContain('Instructions from: apps/site/AGENTS.md')
-    expect(oracle.rendered?.truncated.map(item => item.displayPath)).toEqual(['apps/site/AGENTS.md'])
-    expect(payload.rows.find(row => row.displayPath === 'apps/site/AGENTS.md')).toMatchObject({ status: 'truncated', includedBytes: 0 })
+    expect(oracle.rendered?.text).not.toContain('Instructions from:')
+    expect(payload.rows.find(row => resolve(row.path) === resolve(root, 'apps', 'site', 'AGENTS.md'))).toMatchObject({
+      status: 'truncated',
+      includedBytes: truncation.includedBytes,
+      originalBytes: truncation.originalBytes
+    })
     for (const omitted of oracle.rendered?.omitted ?? []) {
-      expect(payload.rows.find(row => row.displayPath === omitted.displayPath)?.status).toBe('over-budget')
+      expect(payload.rows.find(row => resolve(row.path) === resolve(omitted.absolutePath))?.status).toBe('over-budget')
     }
   })
 
@@ -318,11 +337,21 @@ describe('instruction chain parity with the host module', () => {
     // Only AGENTS.md is a candidate in either root: no CLAUDE.md, no overlay.
     expect(payload.rows.some(row => row.scope !== 'project' && row.candidate !== 'AGENTS.md')).toBe(false)
     // The chain is root -> cwd, and every directory carries the four candidates.
+    // Each directory is derived from the parent chain of the discovered file, so
+    // the comparison is a set of relative directories, not invented strings.
+    const discoveredDirectory = relative(root, join(root, 'apps', 'site'))
+    const chain = ['.', dirname(discoveredDirectory)].filter(directory => directory !== '.')
     const directories = [...new Set(payload.rows.filter(row => row.scope === 'project').map(row => row.directory))]
-    expect(directories).toEqual(['.', 'apps', 'apps/site'])
+    expect(new Set(directories)).toEqual(new Set(['.', ...chain, discoveredDirectory]))
     expect(payload.rows.filter(row => row.scope === 'project')).toHaveLength(12)
-    expect(payload.rows.find(row => row.displayPath === 'apps/site/AGENTS.md')?.status).toBe('loaded')
-    expect(payload.rows.find(row => row.displayPath === 'apps/AGENTS.md')).toMatchObject({ status: 'missing', scope: 'project', candidate: 'AGENTS.md' })
+    // A row is identified by the absolute path it names, which is platform-free.
+    const siteRow = payload.rows.find(row => resolve(row.path) === resolve(root, 'apps', 'site', 'AGENTS.md'))
+    expect(siteRow?.status).toBe('loaded')
+    expect(payload.rows.find(row => resolve(row.path) === resolve(root, 'apps', 'AGENTS.md'))).toMatchObject({
+      status: 'missing',
+      scope: 'project',
+      candidate: 'AGENTS.md'
+    })
   })
 
   it('treats a .git file as a project marker, the linked-worktree case', async () => {
@@ -397,12 +426,29 @@ describe('instruction writes', () => {
 
   it('creates a candidate in a directory that has no file, parents included', async () => {
     const { root, routes } = await writeTree()
-    const answer = await post(routes, writePath(INSTRUCTION_ROUTES.save), { scope: 'project', directory: 'apps/site', candidate: 'AGENTS.md', text: '# Site\n' })
+    // The directory is spelled the way the chain spells one on this platform,
+    // which is what the page echoes back from its read.
+    const directory = join('apps', 'site')
+    const answer = await post(routes, writePath(INSTRUCTION_ROUTES.save), { scope: 'project', directory, candidate: 'AGENTS.md', text: '# Site\n' })
 
     expect(answer.status).toBe(200)
     expect(await readFile(join(root, 'apps', 'site', 'AGENTS.md'), 'utf8')).toBe('# Site\n')
     // The atomic write leaves the target and nothing else behind.
     expect(await readdir(join(root, 'apps', 'site'))).toEqual(['AGENTS.md'])
+  })
+
+  it('accepts either separator spelling of one chain directory', async () => {
+    const { root, routes } = await writeTree()
+    // A caller writing the body by hand may use a forward slash on Windows or a
+    // backslash on POSIX. Both name the directory the chain derived.
+    const answer = await post(routes, writePath(INSTRUCTION_ROUTES.save), {
+      scope: 'project',
+      directory: 'apps/site',
+      candidate: 'CLAUDE.md',
+      text: '# Site\n'
+    })
+    expect(answer.status).toBe(200)
+    expect(await readFile(join(root, 'apps', 'site', 'CLAUDE.md'), 'utf8')).toBe('# Site\n')
   })
 
   it('writes a user-global root file', async () => {
@@ -419,9 +465,11 @@ describe('instruction writes', () => {
     expect(absolute.status).toBe(400)
     expect(absolute.body['error']).toContain('relative to the project root')
 
+    // A traversal segment is refused before the chain is consulted, because no
+    // directory the chain derived can contain one.
     const outside = await post(routes, writePath(INSTRUCTION_ROUTES.save), { scope: 'project', directory: '..', candidate: 'AGENTS.md', text: 'x' })
     expect(outside.status).toBe(400)
-    expect(outside.body['error']).toContain('not an instruction candidate')
+    expect(outside.body['error']).toContain('is not a directory inside the project root')
 
     // Neither user-global root loads a CLAUDE.md, so it is not a target there.
     const global = await post(routes, writePath(INSTRUCTION_ROUTES.save), { scope: 'user-global', directory: '.', candidate: 'CLAUDE.md', text: 'x' })

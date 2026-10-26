@@ -459,13 +459,34 @@ export async function readInstructions(cwd: string, limits: InstructionLimits): 
   }
 }
 
+/**
+ * Normalize one requested project-relative directory to the platform separator.
+ *
+ * The read returns the host's own spelling, which uses the platform separator,
+ * and the page echoes it back. A caller writing the request by hand may use
+ * either separator, so both are accepted and the path is rebuilt from segments.
+ * A traversal segment is refused: the target must still be a directory the
+ * chain derived.
+ * @param directory - the requested directory.
+ * @returns the directory with the platform separator.
+ * @throws when the value is absolute or holds a parent-reference segment.
+ */
+function chainDirectory(directory: string): string {
+  if (isAbsolute(directory)) throw new Error('directory must be relative to the project root, not an absolute path')
+  const segments = directory.split(/[\\/]+/).filter(segment => segment !== '' && segment !== '.')
+  if (segments.includes('..')) throw new Error(`"${directory}" is not a directory inside the project root`)
+  // The chain spells both the project root and a user-global root as ".", so an
+  // empty segment list means that row, never the filesystem root.
+  return segments.length === 0 ? '.' : segments.join(sep)
+}
+
 /** Parse a write's target key strictly, rejecting a path where a name belongs. */
 function targetKey(input: Record<string, unknown>): string {
   const scope = input['scope']
   if (scope !== 'user-global' && scope !== 'agents-global' && scope !== 'project') throw new Error(`unknown instruction scope "${String(scope)}"`)
-  const directory = input['directory']
-  if (typeof directory !== 'string' || directory === '') throw new Error('directory must be a non-empty string')
-  if (isAbsolute(directory)) throw new Error('directory must be relative to the project root, not an absolute path')
+  const raw = input['directory']
+  if (typeof raw !== 'string' || raw === '') throw new Error('directory must be a non-empty string')
+  const directory = chainDirectory(raw)
   const candidate = input['candidate']
   if (typeof candidate !== 'string' || candidate === '') throw new Error('candidate must be a non-empty string')
   if (candidate.includes('/') || candidate.includes('\\') || candidate === '.' || candidate === '..') throw new Error(`"${candidate}" is not a candidate file name`)

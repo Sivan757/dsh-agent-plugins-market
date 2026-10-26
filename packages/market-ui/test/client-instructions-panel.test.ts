@@ -168,6 +168,29 @@ describe('instructions panel', () => {
     expect(rows()).toEqual([])
   })
 
+  it('renders a platform-separated display path verbatim', async () => {
+    // The host emits a project display path with the platform separator, so a
+    // Windows profile shows backslashes. The page must show what the host
+    // injects and never reformat it, or the row would name a file the prompt
+    // does not.
+    const windowsPath = 'apps\\site\\AGENTS.md'
+    const payload: InstructionsPayload = {
+      ...PAYLOAD,
+      rows: PAYLOAD.rows.map(row => (row.displayPath === 'apps/site/AGENTS.md' ? { ...row, displayPath: windowsPath, duplicateOf: undefined } : row)),
+      rendered: {
+        text: `Workspace instruction budget 120 bytes: truncated ${windowsPath} from 32 to 0 bytes`,
+        omitted: [],
+        truncated: [{ displayPath: windowsPath, originalBytes: 32, includedBytes: 0 }]
+      }
+    }
+    await mount(payload)
+
+    expect(paths()).toContain(windowsPath)
+    expect(paths()).not.toContain('apps/site/AGENTS.md')
+    // The preview carries the same spelling the host produced.
+    expect(host!.querySelector('[data-instructions-preview]')?.textContent).toContain(windowsPath)
+  })
+
   it('previews the injected text and names the omitted and truncated files', async () => {
     await mount()
     const preview = host!.querySelector('[data-instructions-preview]')
