@@ -79,7 +79,19 @@ packages:
 # 1.2.2 fixes GHSA-68fv-2mgg-jv7q (indexed source-map section offsets).
 overrides:
   source-map-js: 1.2.2
+  # @deepseek-ai/dsh-http-proxy declares undici "8.11.2" exactly, on 0.2.1-rc.3 and
+  # on rc.2 alike, so no range and no targeted update can raise it. 8.12.2 is the
+  # patch that clears the undici advisories, and it is the version jsdom already
+  # resolved here, so this override also collapses the graph to one copy.
+  undici: 8.12.2
+  # @deepseek-ai/dsh-mcp-client declares @modelcontextprotocol/client "2.2.0"
+  # exactly, on 0.2.1-rc.3 and on rc.2 alike. 2.3.0 is the first release that clears
+  # its advisory, and its own exact @modelcontextprotocol/core "2.3.0" follows.
+  '@modelcontextprotocol/client': 2.3.0
   # The host family pins zod exactly (4.4.3), and a plugin schema crosses into the
   # host's ProjectionDefinition. One physical copy is required: a second copy makes
   # the host's ZodType nominal, so the plugin's schema no longer matches it.
+  # Dependabot keeps reporting zod < 4.6.6 as high severity. This override is the
+  # accepted risk that alert asks you to fix: moving it breaks the host contract
+  # above. Evidence and the reasoning are in .github/SECURITY.md.
   zod: 4.4.3
