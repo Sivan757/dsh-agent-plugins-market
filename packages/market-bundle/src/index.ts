@@ -23,6 +23,7 @@ import type { DownloadRegionSetting } from '../../market-contracts/src/contracts
 import { Catalog } from './application/catalog.js'
 import type { CatalogPortsOverride } from '../../market-contracts/src/ports/ports.js'
 import { resolveSwitchSettleMs, settlesWithin } from '../../market-catalog/src/index.js'
+import { resolveInventoryRetry } from '../../market-runtime/src/index.js'
 import { RuntimeReconciler } from '../../market-runtime/src/index.js'
 import { ReconcileScheduler } from '../../market-runtime/src/index.js'
 import { MarketSettingsNamespace } from './platform/settings-namespace.js'
@@ -104,6 +105,14 @@ export interface Config {
    * status read being immediately accurate for never waiting on a slow server.
    */
   switchSettleMs?: number
+  /**
+   * How often one session's extension inventory is re-read after a failed or
+   * postponed catalog read, in milliseconds. `baseMs` is the first delay and
+   * `maxMs` is the ceiling the doubling delay settles at. The retry never stops
+   * while the session is denied, because a schedule that gave up would turn a
+   * transient failure into a permanent denial. Defaults: 200 and 60000.
+   */
+  inventoryRetry?: { baseMs?: number; maxMs?: number }
   /** MCP mount backend switch; updated live through the host settings service. */
   mcpEnhanced: Volatile<boolean | undefined>
   /** Project-layout discovery switch; updated live through the host settings service. */
@@ -152,6 +161,7 @@ export interface ConfigInput {
     allowHttpArchives?: boolean | null
   }
   switchSettleMs?: number | null
+  inventoryRetry?: { baseMs?: number | null; maxMs?: number | null } | null
   mcpEnhanced?: boolean | null
   scanProjectLayouts?: boolean | null
   downloadRegion?: 'auto' | 'global' | 'china' | null
@@ -176,6 +186,13 @@ export const Config = z.object({
     allowHttpArchives: z.boolean()
   }),
   switchSettleMs: z.union([z.natural(), z.const(undefined)]),
+  inventoryRetry: z.union([
+    z.object({
+      baseMs: z.union([z.natural(), z.const(undefined)]),
+      maxMs: z.union([z.natural(), z.const(undefined)])
+    }),
+    z.const(undefined)
+  ]),
   mcpEnhanced: MarketSettingsFields.mcpEnhanced.volatile(),
   scanProjectLayouts: MarketSettingsFields.scanProjectLayouts.volatile(),
   downloadRegion: MarketSettingsFields.downloadRegion.volatile(),
@@ -206,6 +223,12 @@ export async function apply(
   // One explicit resolve step, so a malformed budget fails here rather than
   // turning into an accidental endless wait at the first switch.
   const switchSettleMs = resolveSwitchSettleMs(config.switchSettleMs)
+  // The same rule as the switch budget: a deployment-varying schedule is a
+  // resolved configuration value, so a bad one fails at load.
+  const inventoryRetry = resolveInventoryRetry({
+    ...(config.inventoryRetry?.baseMs == null ? {} : { baseMs: config.inventoryRetry.baseMs }),
+    ...(config.inventoryRetry?.maxMs == null ? {} : { maxMs: config.inventoryRetry.maxMs })
+  })
   // The instruction page reads and rewrites the same AGENTS.md chain the host
   // injects, so its two byte caps must be the values that chain runs under.
   // Resolved once, validated here: a typo fails at load, not at the first read.
@@ -261,7 +284,7 @@ export async function apply(
   )
 
   const runtime = new RuntimeReconciler(ctx, dataRoot, createRuntimeMounts(ctx, dataRoot), key => hostLocale.t(key))
-  const sessionExtensions = createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, hostLocale })
+  const sessionExtensions = createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, hostLocale, inventoryRetry })
 
   // User panel stores (skills / commands / agent personas) and their runtime
   // contributions: one extra skill provider plus one command mount registry.

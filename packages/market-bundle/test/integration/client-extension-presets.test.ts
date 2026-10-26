@@ -261,6 +261,26 @@ describe('extension preset rendering', () => {
     expect(posts[0]!.url).toContain('/recover')
     expect(posts[0]!.body).toEqual({ sessionId: 'unready', expectedRevision: 7 })
   })
+  it('says a ready session is re-reading the catalog while its tools are hidden', async () => {
+    await mount()
+    // Ready, but the catalog read is in flight: this is the state whose only
+    // report used to be the model saying a tool was gone.
+    state = { ...state, sessionId: 'pending', status: { ready: true, revision: 3, recoverable: false, inventoryPending: true } }
+    await act(async () =>
+      root!.render(
+        h(ExtensionPresetEntry, {
+          renderDetail,
+          sessionId: 'pending',
+          t: key => extensionPresetsEn[key as keyof typeof extensionPresetsEn] ?? settingsEn[key as keyof typeof settingsEn] ?? key
+        })
+      )
+    )
+    await act(async () => host!.querySelector('button')!.click())
+    expect(document.body.textContent).toContain(extensionPresetsEn.epInventoryPending)
+    // The line is not the not-ready state: the session is usable and selections stay open.
+    expect(document.body.textContent).not.toContain(extensionPresetsEn.epNotReady)
+    expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Default')!.disabled).toBe(false)
+  })
   it('keeps a retry action after load failure without claiming global selection', async () => {
     await mount()
     vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))

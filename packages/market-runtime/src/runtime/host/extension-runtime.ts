@@ -20,9 +20,16 @@ import {
 import type { ExtensionRouteService } from '../../extension-service.js'
 import { ExtensionSessionState, type ExtensionApplyReceipt } from './extension-session-state.js'
 import { ExtensionProgressReader } from './extension-progress.js'
+import { DEFAULT_INVENTORY_RETRY, inventoryRetryDelay, type InventoryRetryPolicy } from './inventory-retry.js'
 
 export interface ExtensionRuntimePorts {
   dataRoot: string
+  /**
+   * Schedule for re-reading one session's inventory after a postponed or failed
+   * refresh. Omitted keeps {@link DEFAULT_INVENTORY_RETRY}; the composition root
+   * resolves the configured values and passes them here.
+   */
+  inventoryRetry?: InventoryRetryPolicy
   inventory(agent: Agent): Promise<ExtensionResource[]>
   applySelection(agent: Agent, selection: ExtensionSelection): Promise<void | ExtensionApplyReceipt>
   /** Whether this service governs one agent at all; absent governs every agent. */
@@ -63,11 +70,18 @@ export class ExtensionRuntime implements ExtensionRouteService {
   /** Per-agent read sequence: a slow earlier response must not overwrite a newer inventory. */
   private readonly reads = new Map<Agent, number>()
   private readonly targets = new Map<Agent, ExtensionSelection>()
+  /** Retries armed for an agent whose refresh could not finish yet. */
+  private readonly retries = new Map<Agent, ReturnType<typeof setTimeout>>()
+  private readonly retryAttempts = new Map<Agent, number>()
+  /** Agents already reported as being on the slow schedule. */
+  private readonly retryWarned = new Set<Agent>()
+  private readonly retry: InventoryRetryPolicy
   private readonly off: Array<() => void> = []
   constructor(
     private readonly ctx: Context,
     private readonly ports: ExtensionRuntimePorts
   ) {
+    this.retry = ports.inventoryRetry ?? DEFAULT_INVENTORY_RETRY
     this.store = new ExtensionPresetStore(ports.dataRoot)
     this.progress = new ExtensionProgressReader(ctx)
     this.state = new ExtensionSessionState(ctx, {
@@ -112,6 +126,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
         this.reads.delete(agent)
         this.registeredIds.delete(agent)
         this.appliedEpochs.delete(agent)
+        this.cancelRetry(agent)
       })
     )
   }
@@ -125,6 +140,18 @@ export class ExtensionRuntime implements ExtensionRouteService {
     } catch {
       return false
     }
+  }
+  /**
+   * Why one agent's managed capabilities are denied right now, if they are.
+   *
+   * A stale agent and a withdrawn resource produce the same model-facing
+   * failure, so the status surface needs the difference: "still reading the
+   * catalog" is transient, "the resource is gone" is not.
+   * @param agent - the agent to describe.
+   * @returns the reason one of its capabilities is denied, or undefined.
+   */
+  denialReason(agent: Agent): 'extension-inventory-pending' | undefined {
+    return this.stale.has(agent) ? 'extension-inventory-pending' : undefined
   }
   allows(agent: Agent, resourceId: string, suiteId?: string): boolean {
     if (this.stale.has(agent)) return false
@@ -187,16 +214,75 @@ export class ExtensionRuntime implements ExtensionRouteService {
         .map(agent => this.refreshAgent(agent))
     )
   }
+  /**
+   * Arm the next retry for an agent whose refresh could not complete.
+   *
+   * The fail-closed window is correct while a catalog read is pending, but it
+   * must not be permanent: `refreshAgent` bails for a session that is still
+   * attaching and for one whose inventory read failed, and nothing else would
+   * come back for an idle agent. The retry is what closes the window, and it
+   * keeps closing it, slowing to the resolved ceiling rather than stopping. A
+   * schedule that gave up would reintroduce the same permanent denial later.
+   */
+  private scheduleRetry(agent: Agent): void {
+    if (this.disposed || this.retries.has(agent) || !this.dirty.has(agent)) return
+    const attempt = this.retryAttempts.get(agent) ?? 0
+    this.retryAttempts.set(agent, attempt + 1)
+    const delay = inventoryRetryDelay(this.retry, attempt)
+    if (delay >= this.retry.maxMs) this.warnSlowRetry(agent, delay)
+    const timer = setTimeout(() => {
+      this.retries.delete(agent)
+      if (this.disposed || this.ctx.agents.get(agent.id) !== agent) return
+      void this.refreshAgent(agent).catch(error => this.ctx.logger?.warn('extension refresh retry: ' + String(error)))
+    }, delay)
+    timer.unref?.()
+    this.retries.set(agent, timer)
+  }
+
+  /**
+   * Say once, per agent, that its inventory read is now on the slow schedule.
+   *
+   * A person reading the log needs to know the retry is still armed and slow,
+   * not that it stopped. Repeating it every attempt would bury the first line.
+   */
+  private warnSlowRetry(agent: Agent, delayMs: number): void {
+    if (this.retryWarned.has(agent)) return
+    this.retryWarned.add(agent)
+    this.ctx.logger?.warn(
+      `[dsh-agent-plugins-market] session ${agent.id}: extension inventory is still unreadable; managed capabilities stay denied while it is retried every ${String(delayMs)}ms`
+    )
+  }
+
+  /** Drop a pending retry and its attempt budget. */
+  private cancelRetry(agent: Agent): void {
+    const timer = this.retries.get(agent)
+    if (timer !== undefined) clearTimeout(timer)
+    this.retries.delete(agent)
+    this.retryAttempts.delete(agent)
+    this.retryWarned.delete(agent)
+  }
+
   private async refreshAgent(agent: Agent): Promise<void> {
     if (this.disposed || !this.dirty.has(agent) || this.refreshing.has(agent)) return
     const work = async (): Promise<void> => {
       const epoch = this.epoch
       await agent.runMaintenance(async signal => {
         const snapshot = this.state.status(agent)
-        if (!snapshot.ready || !snapshot.selection) return
+        // A session that is still attaching can neither be refreshed nor called
+        // ready. Leaving it dirty with no schedule is the permanent denial this
+        // retry exists to prevent.
+        if (!snapshot.ready || !snapshot.selection) {
+          this.scheduleRetry(agent)
+          return
+        }
         await this.refreshInventory(agent)
         signal.throwIfAborted()
-        if (this.stale.has(agent)) return
+        if (this.stale.has(agent)) {
+          // The epoch moved during the read, so this answer may not publish.
+          // Another pass will follow, and this retry covers an idle agent.
+          this.scheduleRetry(agent)
+          return
+        }
         this.targets.set(agent, snapshot.selection)
         let receipt: void | ExtensionApplyReceipt = undefined
         try {
@@ -221,6 +307,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
         }
         this.registeredIds.set(agent, this.availableIds(agent))
         this.dirty.delete(agent)
+        this.cancelRetry(agent)
         try {
           this.ports.committed?.(agent)
         } catch (error) {
@@ -246,6 +333,9 @@ export class ExtensionRuntime implements ExtensionRouteService {
         removeAbort()
         this.refreshing.delete(agent)
         if (!this.disposed && this.ctx.agents.get(agent.id) === agent) await this.refreshAgent(agent)
+        // A busy agent heals through whenIdle, but only once: if that refresh
+        // could not finish either, the retry is what comes back.
+        if (!this.disposed && this.dirty.has(agent)) this.scheduleRetry(agent)
       })
       this.refreshing.set(agent, deferred)
       void deferred.catch(error => this.ctx.logger.warn('extension refresh: ' + String(error)))
@@ -254,6 +344,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     const startedEpoch = this.epoch
     const pending = work().catch(error => {
       this.ctx.logger.warn('extension refresh: ' + String(error))
+      this.scheduleRetry(agent)
     })
     this.refreshing.set(agent, pending)
     await pending
@@ -320,7 +411,20 @@ export class ExtensionRuntime implements ExtensionRouteService {
   }
   async window(sessionId: string): Promise<ExtensionWindowPayload> {
     const agent = this.agent(sessionId)
-    const [library, resources] = await Promise.all([this.store.read(extensionWorkspace(agent)), this.refreshInventory(agent)])
+    const library = await this.store.read(extensionWorkspace(agent))
+    // A failed inventory read is a reportable state, not a dead panel: the
+    // panel is the surface that has to say why the session's tools are gone, so
+    // it answers from the cached rows and names the pending read.
+    let resources: ExtensionResource[]
+    let readFailed = false
+    try {
+      resources = await this.refreshInventory(agent)
+    } catch (error) {
+      readFailed = true
+      resources = [...(this.resources.get(agent) ?? [])]
+      this.ctx.logger.warn('extension inventory read: ' + String(error))
+      this.scheduleRetry(agent)
+    }
     await this.state.whenSelectionSettled(agent)
     const status = this.state.status(agent)
     // Not ready is a reportable state, not a failed read: the payload carries
@@ -335,6 +439,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
       busy: agent.status !== 'idle',
       library,
       state: state ?? { revision: status.revision, selection: status.selection ?? captureExtensionSelection(null, []) },
+
       // The pending request rides the payload so the manager shows what is coming
       // without a banner and cannot snap back to the superseded selection.
       ...(intent === undefined ? {} : { intendedSelection: intent.selection, intendedRevision: intent.revision }),
@@ -342,7 +447,9 @@ export class ExtensionRuntime implements ExtensionRouteService {
       // client keeps across a promotion, which never moves backwards.
       selectionRevision: this.state.selectionRevision(agent),
       resources,
-      status
+      // A ready session can still be denied for a moment while its catalog read
+      // is in flight. The panel names that instead of reporting a missing tool.
+      status: readFailed || this.stale.has(agent) ? { ...status, inventoryPending: true } : status
     }
   }
   /** Recovery is an explicit, revision-checked act; it never invents a selection. */
@@ -352,7 +459,26 @@ export class ExtensionRuntime implements ExtensionRouteService {
       if (this.state.read(agent)?.revision !== revision) throw failure('extension-session-conflict')
       await this.refreshAgent(agent)
       if (this.dirty.has(agent)) throw failure('extension-refresh-pending')
-    } else await this.state.recover(agent, revision)
+    } else {
+      // The not-ready branch replays a committed selection without reading the
+      // inventory, so the agent would come back ready but still stale: denied,
+      // with nothing scheduled. Recovery must leave it refreshed or scheduled,
+      // never in between, so the re-read is part of that guarantee rather than a
+      // separate step that can fail on its own.
+      await this.state.recover(agent, revision)
+      try {
+        await this.refreshInventory(agent)
+        if (this.dirty.has(agent) && !this.stale.has(agent)) await this.refreshAgent(agent)
+      } catch (error) {
+        // The recovered selection is durable and the session is ready, so the
+        // read failure is reported and the retry takes it from here. Rethrowing
+        // would tell the caller recovery failed when it did not.
+        this.ctx.logger.warn('extension inventory refresh after recovery: ' + String(error))
+      }
+      // Unconditional: a stale mark, a dirty mark, or a failed read all end in a
+      // scheduled attempt rather than a session nobody comes back for.
+      if (this.dirty.has(agent)) this.scheduleRetry(agent)
+    }
     await this.ports.ready?.(agent)
   }
   async create(sessionId: string, revision: number, input: ExtensionPresetInput): Promise<void> {
@@ -408,6 +534,10 @@ export class ExtensionRuntime implements ExtensionRouteService {
   }
   async dispose(): Promise<void> {
     this.disposed = true
+    for (const timer of this.retries.values()) clearTimeout(timer)
+    this.retries.clear()
+    this.retryAttempts.clear()
+    this.retryWarned.clear()
     this.lifetime.abort()
     await Promise.allSettled([...this.refreshing.values()])
     for (const off of this.off.splice(0)) off()

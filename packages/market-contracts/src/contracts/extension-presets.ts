@@ -245,8 +245,15 @@ export interface ExtensionWindowPayload {
   busy: boolean
   library: ExtensionPresetLibrary
   state: ExtensionSessionSnapshot
-  /** While not ready, state is a display-only recovery snapshot, never effective authorization. */
-  status?: { ready: boolean; revision: number; recoverable: boolean; error?: string; selection?: ExtensionSelection }
+  /**
+   * While not ready, state is a display-only recovery snapshot, never effective
+   * authorization.
+   *
+   * `inventoryPending` is the third state a person has to tell apart: the
+   * session is ready, but its catalog read is still in flight, so every managed
+   * capability is denied for a moment and comes back without any action.
+   */
+  status?: { ready: boolean; revision: number; recoverable: boolean; error?: string; inventoryPending?: boolean; selection?: ExtensionSelection }
   /**
    * The selection a request made mid-turn will commit at the next safe boundary.
    * Absent when nothing is pending: `state` stays the effective selection until then.
