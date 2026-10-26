@@ -158,7 +158,7 @@ describe('user snapshot keep-warm refresh', () => {
     expect(fsCounts.readdir).toBe(scansBeforeProbe)
     expect(probe).toBe(atBoundary)
     expect(firstSuiteSkills(probe)).toContain('late-skill')
-    catalog.dispose()
+    await catalog.dispose()
   })
 
   it('holds the snapshot inside its TTL while reads arrive, and stops after the idle window', async () => {
@@ -203,7 +203,7 @@ describe('user snapshot keep-warm refresh', () => {
     const rebuilt = await catalog.readUserCatalog()
     expect(fsCounts.readdir).toBeGreaterThan(scansBeforeRebuild)
     expect(rebuilt.suites.map(suite => suite.id)).toEqual(['v1-suite'])
-    catalog.dispose()
+    await catalog.dispose()
   })
 
   it('keeps the chain down for good when teardown lands mid-refresh', async () => {
@@ -219,8 +219,7 @@ describe('user snapshot keep-warm refresh', () => {
     // state a teardown races.
     await catalog.readUserCatalog()
     vi.advanceTimersByTime(REFRESH_AFTER_MS)
-    catalog.dispose()
-
+    await catalog.dispose()
     // Expire the snapshot by the clock alone, so the next read joins the
     // in-flight refresh instead of answering from the cache, and await it: its
     // own `.finally()` is what used to re-arm the chain after teardown.
@@ -259,6 +258,6 @@ describe('user snapshot keep-warm refresh', () => {
     await vi.advanceTimersByTimeAsync(TTL_MS - REFRESH_AFTER_MS)
     const atBoundary = await catalog.readUserCatalog()
     expect(firstSuiteSkills(atBoundary)).toContain('late-skill')
-    catalog.dispose()
+    await catalog.dispose()
   })
 })

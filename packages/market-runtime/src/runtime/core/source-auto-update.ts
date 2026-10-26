@@ -22,7 +22,8 @@ export type SourceRefresh = () => Promise<void>
 
 export class SourceAutoUpdater {
   private stop: (() => void) | undefined
-  private inFlight = false
+  /** The pass in flight, or undefined. Disposal joins it, so no write outlives the fiber. */
+  private pass: Promise<void> | undefined
 
   constructor(
     private readonly ctx: Context,
@@ -44,29 +45,47 @@ export class SourceAutoUpdater {
       this.ctx.logger?.info?.('[dsh-agent-plugins-market] background source updates off')
       return
     }
-    this.stop = repeat(this.ctx, () => void this.run(), this.intervalMs)
+    this.stop = repeat(this.ctx, () => void this.start(), this.intervalMs)
     this.ctx.logger?.info?.(`[dsh-agent-plugins-market] background source updates on: every ${Math.round(this.intervalMs / 60_000)} minutes`)
   }
 
-  /** Disarm the interval; an in-flight pass finishes on its own. */
-  dispose(): void {
+  /**
+   * Disarm the interval, and join a pass that is already running.
+   *
+   * The disarm is synchronous: no further tick starts after this returns. The
+   * returned promise is the pass that was in flight, because that pass
+   * refreshes sources — cloning checkouts and committing state under the user
+   * root — so an owner that disposes this updater must await it before removing
+   * that root or reporting its own teardown complete. A failure inside the pass
+   * is reported through the logger and does not reject this promise.
+   *
+   * @returns fulfillment once no pass is running.
+   */
+  dispose(): Promise<void> {
     this.stop?.()
     this.stop = undefined
+    return this.pass ?? Promise.resolve()
   }
 
-  private async run(): Promise<void> {
-    if (this.inFlight) {
+  /** Start one pass unless the previous one is still running. */
+  private start(): void {
+    if (this.pass !== undefined) {
       this.ctx.logger?.warn?.('[dsh-agent-plugins-market] background source update skipped: the previous pass is still running')
       return
     }
-    this.inFlight = true
+    const pass = this.run()
+    this.pass = pass
+    void pass.finally(() => {
+      if (this.pass === pass) this.pass = undefined
+    })
+  }
+
+  private async run(): Promise<void> {
     try {
       await this.refresh()
       this.ctx.logger?.info?.('[dsh-agent-plugins-market] background source update finished')
     } catch (error) {
       this.ctx.logger?.warn?.(`[dsh-agent-plugins-market] background source update failed: ${error instanceof Error ? error.message : String(error)}`)
-    } finally {
-      this.inFlight = false
     }
   }
 }

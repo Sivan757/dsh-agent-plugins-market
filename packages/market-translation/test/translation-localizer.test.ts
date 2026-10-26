@@ -111,7 +111,7 @@ describe('TranslationLocalizer', () => {
     expect(first.pending).toBe(true)
     await localizer.settle(1_000)
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('serves a cached translation without calling the provider again', async () => {
@@ -120,13 +120,13 @@ describe('TranslationLocalizer', () => {
     await first.load()
     first.localize(unit('a/b', 'Read files'), 'zh')
     await first.settle(1_000)
-    first.dispose()
+    await first.dispose()
 
     const second = build([provider])
     await second.load()
     expect(second.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
     expect(batches).toHaveLength(1)
-    second.dispose()
+    await second.dispose()
   })
 
   it('de-duplicates concurrent requests for the same text', async () => {
@@ -137,7 +137,7 @@ describe('TranslationLocalizer', () => {
     await localizer.settle(1_000)
     expect(batches).toHaveLength(1)
     expect(batches[0]).toEqual(['Read files'])
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('keeps two entities of one surface apart in the cache', async () => {
@@ -149,7 +149,7 @@ describe('TranslationLocalizer', () => {
     await localizer.settle(1_000)
     expect(localizer.localize(unit('a/b', 'Read the market'), 'zh').text).toBe('ZH:Read the market')
     expect(localizer.localize(unit('a/c', 'Write the market'), 'zh').text).toBe('ZH:Write the market')
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('misses the cache when the provider identity changes', async () => {
@@ -166,8 +166,8 @@ describe('TranslationLocalizer', () => {
     })
     await other.load()
     expect(other.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(true)
-    localizer.dispose()
-    other.dispose()
+    await localizer.dispose()
+    await other.dispose()
   })
 
   it('caps one provider call at MAX_BATCH_SIZE texts', async () => {
@@ -180,7 +180,7 @@ describe('TranslationLocalizer', () => {
     await localizer.settle(2_000)
     expect(batches.every(batch => batch.length <= MAX_BATCH_SIZE)).toBe(true)
     expect(batches.reduce((total, batch) => total + batch.length, 0)).toBe(MAX_BATCH_SIZE + 5)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('caps one provider call at MAX_BATCH_CHARS characters', async () => {
@@ -207,7 +207,7 @@ describe('TranslationLocalizer', () => {
     await localizer.settle(2_000)
     expect(batches.map(batch => batch.length)).toEqual([2, 1])
     expect(batches.reduce((total, batch) => total + batch.length, 0)).toBe(3)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('still runs a text larger than a whole batch budget, on its own', async () => {
@@ -221,7 +221,7 @@ describe('TranslationLocalizer', () => {
     // budget is a ceiling on the call, not a minimum size for a text.
     expect(batches.reduce((total, batch) => total + batch.length, 0)).toBe(2)
     expect(batches.some(batch => batch.length === 1 && (batch[0] ?? '').length > MAX_BATCH_CHARS)).toBe(true)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('coalesces a burst that arrives one unit per turn into full batches', async () => {
@@ -240,7 +240,7 @@ describe('TranslationLocalizer', () => {
     expect(batches.reduce((total, batch) => total + batch.length, 0)).toBe(units)
     // One provider call per full batch, not one per unit.
     expect(batches.map(batch => batch.length)).toEqual([MAX_BATCH_SIZE, MAX_BATCH_SIZE, MAX_BATCH_SIZE])
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('holds a lone unit for the coalescing window and starts it on that tick', async () => {
@@ -259,7 +259,7 @@ describe('TranslationLocalizer', () => {
       // the window closes, not after some second-long wait.
       await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
       expect(batches).toEqual([['Read files']])
-      localizer.dispose()
+      await localizer.dispose()
     } finally {
       vi.useRealTimers()
     }
@@ -281,7 +281,7 @@ describe('TranslationLocalizer', () => {
       // twentieth unit must not pay for it.
       localizer.localize(unit('suite/last', 'Text number last'), 'zh')
       expect(batches.map(batch => batch.length)).toEqual([MAX_BATCH_SIZE])
-      localizer.dispose()
+      await localizer.dispose()
     } finally {
       vi.useRealTimers()
     }
@@ -315,7 +315,7 @@ describe('TranslationLocalizer', () => {
     await localizer.settle(1_000)
     expect(batches).toHaveLength(2)
     expect(localizer.localize(unit('a/c', 'Write files'), 'zh')).toEqual({ text: 'ZH:Write files', pending: false })
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('does not strand queued work when it is disposed before the window closes', async () => {
@@ -328,7 +328,7 @@ describe('TranslationLocalizer', () => {
     // Nothing has run yet: the coalescing window is still open.
     expect(batches).toEqual([])
 
-    localizer.dispose()
+    await localizer.dispose()
     // A disposed instance cannot deliver its queue, so the queue must not keep
     // reporting itself pending: a settle waiting on it would burn its whole
     // deadline and still answer "not drained".
@@ -353,7 +353,7 @@ describe('TranslationLocalizer', () => {
     expect(answer.text).toBe('Read files')
     await localizer.settle(1_000)
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh').text).toBe('Read files')
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('stops reporting pending once a key exhausts its retries', async () => {
@@ -375,7 +375,7 @@ describe('TranslationLocalizer', () => {
     }
     clock += 200_000
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(false)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('recovers an exhausted text when the switch forgets its failures', async () => {
@@ -410,14 +410,14 @@ describe('TranslationLocalizer', () => {
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh').pending).toBe(true)
     await localizer.settle(1_000)
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('reports no pending work when the chain is empty', async () => {
     const localizer = build([])
     await localizer.load()
     expect(localizer.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'Read files', pending: false })
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('writes the cache to disk and reuses it across instances', async () => {
@@ -427,12 +427,11 @@ describe('TranslationLocalizer', () => {
     localizer.localize(unit('a/b', 'Read files'), 'zh')
     await localizer.settle(1_000)
     await localizer.flush()
-    localizer.dispose()
-
+    await localizer.dispose()
     const reloaded = build([provider])
     await reloaded.load()
     expect(reloaded.localize(unit('a/b', 'Read files'), 'zh').text).toBe('ZH:Read files')
-    reloaded.dispose()
+    await reloaded.dispose()
   })
 
   it('keeps a cached entry indefinitely: nothing expires it', async () => {
@@ -442,14 +441,13 @@ describe('TranslationLocalizer', () => {
     localizer.localize(unit('a/b', 'Read files'), 'zh')
     await localizer.settle(1_000)
     await localizer.flush()
-    localizer.dispose()
-
+    await localizer.dispose()
     // A year later the entry is still served: only an explicit clear removes it.
     clock += 365 * 24 * 60 * 60 * 1000
     const later = build([provider])
     await later.load()
     expect(later.localize(unit('a/b', 'Read files'), 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
-    later.dispose()
+    await later.dispose()
   })
 
   it('clear empties memory and disk, so the next read translates again', async () => {
@@ -472,8 +470,8 @@ describe('TranslationLocalizer', () => {
     const reopened = build([provider])
     await reopened.load()
     expect(reopened.localize(unit('a/b', 'Other text'), 'zh').pending).toBe(true)
-    localizer.dispose()
-    reopened.dispose()
+    await localizer.dispose()
+    await reopened.dispose()
   })
 
   it('targets the language the market renders, whatever the preference tag says', async () => {
@@ -494,7 +492,7 @@ describe('TranslationLocalizer', () => {
     expect(localizer.localize(unit('a/c', 'Write files'), 'en-US')).toEqual({ text: 'Write files', pending: false })
     await localizer.settle(200)
     expect(targets).toEqual(['zh'])
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('clears the provider circuit breaker when the cache is cleared', async () => {
@@ -525,8 +523,8 @@ describe('TranslationLocalizer', () => {
     second.localize(unit('a/b', 'Read files'), 'zh')
     await second.settle(1_000)
     expect(batches).toHaveLength(1)
-    localizer.dispose()
-    second.dispose()
+    await localizer.dispose()
+    await second.dispose()
   })
 
   it('does not queue text that is already Chinese', async () => {
@@ -536,7 +534,7 @@ describe('TranslationLocalizer', () => {
     expect(localizer.localize(unit('a/b', '读取文件'), 'zh')).toEqual({ text: '读取文件', pending: false })
     await localizer.settle(200)
     expect(batches).toHaveLength(0)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('keeps the key stable for identical input', () => {
@@ -558,7 +556,7 @@ describe('TranslationLocalizer', () => {
     await localizer.load()
     expect(() => localizer.localize(unit('a/b', 'Read files'), 'zh')).not.toThrow()
     await expect(localizer.settle(500)).resolves.toBeTypeOf('boolean')
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('cancels a pending flush timer on dispose', async () => {
@@ -595,7 +593,7 @@ describe('shared source text', () => {
     expect(batches).toEqual([['Read files']])
     expect(localizer.localize(suite, 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
     expect(localizer.localize(skill, 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it("records the shared answer under each entity's own key", async () => {
@@ -608,7 +606,7 @@ describe('shared source text', () => {
     // cache still records what was translated for whom.
     expect(first.localize(skill, 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
     await first.flush()
-    first.dispose()
+    await first.dispose()
     expect(batches).toHaveLength(1)
 
     const second = build([provider])
@@ -617,7 +615,7 @@ describe('shared source text', () => {
     expect(second.localize(skill, 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
     // Both fields came off disk: the shared call was not paid for a second time.
     expect(batches).toHaveLength(1)
-    second.dispose()
+    await second.dispose()
   })
 
   it('shares one answer across two roles carrying the same text', async () => {
@@ -636,7 +634,7 @@ describe('shared source text', () => {
     expect(localizer.localize(document, 'zh')).toEqual({ text: 'ZH:Read files', pending: false })
     await localizer.flush()
     expect(batches).toHaveLength(1)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('queues nothing for a text already in flight for another entity', async () => {
@@ -650,7 +648,7 @@ describe('shared source text', () => {
       expect(localizer.pendingCount).toBe(1)
       await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
       expect(batches).toEqual([['Read files']])
-      localizer.dispose()
+      await localizer.dispose()
     } finally {
       vi.useRealTimers()
     }
@@ -667,7 +665,7 @@ describe('shared source text', () => {
     expect(localizer.localize(skill, 'en-US')).toEqual({ text: 'Read files', pending: false })
     await localizer.settle(200)
     expect(batches).toHaveLength(1)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('never reuses an answer across provider chains', async () => {
@@ -683,7 +681,7 @@ describe('shared source text', () => {
     expect(localizer.localize(skill, 'zh').pending).toBe(true)
     await localizer.settle(1_000)
     expect(batches).toHaveLength(2)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('records no answer for either entity when the provider fails', async () => {
@@ -714,8 +712,8 @@ describe('shared source text', () => {
     const reloaded = build([recorder().provider])
     await reloaded.load()
     expect(reloaded.localize(suite, 'zh').pending).toBe(true)
-    localizer.dispose()
-    reloaded.dispose()
+    await localizer.dispose()
+    await reloaded.dispose()
   })
 })
 
@@ -741,7 +739,7 @@ describe('translation lifecycle', () => {
     await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
     expect(batches).toEqual([])
     expect(localizer.pendingCount).toBe(0)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('does not start a fallback after the live switch turns off', async () => {
@@ -758,7 +756,7 @@ describe('translation lifecycle', () => {
     expect(fallback).not.toHaveBeenCalled()
     expect(isTripped('google')).toBe(false)
     expect(localizer.pendingCount).toBe(0)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('drops pending work on clear instead of translating without another read', async () => {
@@ -770,7 +768,7 @@ describe('translation lifecycle', () => {
     await vi.advanceTimersByTimeAsync(BATCH_COALESCE_MS)
     expect(batches).toEqual([])
     expect(localizer.pendingCount).toBe(0)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('aborts pre-clear requests and ignores a provider that returns after cancellation', async () => {
@@ -788,8 +786,8 @@ describe('translation lifecycle', () => {
     await reloaded.load()
     expect(reloaded.localize(unit('a', 'Read files'), 'zh')).toEqual({ text: 'Read files', pending: false })
     expect(localizer.pendingCount).toBe(0)
-    localizer.dispose()
-    reloaded.dispose()
+    await localizer.dispose()
+    await reloaded.dispose()
   })
 
   it('keeps new-generation ownership while an old request finishes', async () => {
@@ -812,7 +810,7 @@ describe('translation lifecycle', () => {
     requests[1]!.resolve(['fresh answer'])
     await vi.advanceTimersByTimeAsync(0)
     expect(localizer.localize(unit('a', 'Read files'), 'zh').text).toBe('fresh answer')
-    localizer.dispose()
+    await localizer.dispose()
     await localizer.flush()
   })
 
@@ -822,7 +820,7 @@ describe('translation lifecycle', () => {
     localizer.localize(unit('a', answer), 'zh')
     await localizer.settle(500)
     expect(localizer.localize(unit('a', answer), 'zh').text).toBe(answer)
-    localizer.dispose()
+    await localizer.dispose()
   })
 })
 
@@ -846,7 +844,7 @@ describe('target language and live settings', () => {
     await localizer.settle(500)
     expect(batches.flat()).toHaveLength(10)
     expect(batches.every(batch => batch.reduce((sum, text) => sum + text.length, 0) <= 2400)).toBe(true)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('starts a full English-target batch without waiting for the coalescing timer', async () => {
@@ -859,7 +857,7 @@ describe('target language and live settings', () => {
     expect(batches).toHaveLength(1)
     expect(batches[0]).toHaveLength(3)
     await vi.advanceTimersByTimeAsync(0)
-    localizer.dispose()
+    await localizer.dispose()
     await localizer.flush()
   })
 
@@ -891,8 +889,8 @@ describe('target language and live settings', () => {
     expect(reloaded.localize(mixed, 'en').text).toBe('en:Read files 中文')
     expect(reloaded.localize(mixed, 'zh').text).toBe('zh:Read files 中文')
     expect(calls).toHaveLength(2)
-    localizer.dispose()
-    reloaded.dispose()
+    await localizer.dispose()
+    await reloaded.dispose()
   })
 
   it('cancels inflight work immediately on notification while preserving completed cache entries', async () => {
@@ -923,8 +921,8 @@ describe('target language and live settings', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(running.localize(unit('new', 'New text'), 'zh').text).toBe('new answer')
     expect(batches).toHaveLength(1)
-    localizer.dispose()
-    running.dispose()
+    await localizer.dispose()
+    await running.dispose()
     await running.flush()
   })
 
@@ -949,7 +947,7 @@ describe('target language and live settings', () => {
     expect(localizer.localize(unit('a', 'Read files'), 'zh').pending).toBe(true)
     await localizer.settle(500)
     expect(localizer.localize(unit('a', 'Read files'), 'zh').text).toBe('recovered')
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('orders old flush, cache deletion and newly requested translations', async () => {
@@ -968,8 +966,8 @@ describe('target language and live settings', () => {
     await reloaded.load()
     expect(reloaded.localize(unit('old', 'Old text'), 'zh')).toEqual({ text: 'Old text', pending: false })
     expect(reloaded.localize(unit('new', 'New text'), 'zh')).toEqual({ text: 'ZH:New text', pending: false })
-    localizer.dispose()
-    reloaded.dispose()
+    await localizer.dispose()
+    await reloaded.dispose()
   })
 
   it('does not cache a whitespace-only response', async () => {
@@ -977,7 +975,7 @@ describe('target language and live settings', () => {
     localizer.localize(unit('a', 'Read files'), 'zh')
     await localizer.settle(500)
     expect(localizer.localize(unit('a', 'Read files'), 'zh')).toEqual({ text: 'Read files', pending: false })
-    localizer.dispose()
+    await localizer.dispose()
   })
 })
 
@@ -1004,7 +1002,7 @@ describe('cold queue deadlines', () => {
       expect(localizer.pendingCount).toBe(0)
       expect(localizer.localize(unit('60', 'Cold text 60'), 'zh')).toEqual({ text: 'Cold text 60', pending: false })
     } finally {
-      localizer.dispose()
+      await localizer.dispose()
       vi.useRealTimers()
     }
   })
@@ -1034,8 +1032,8 @@ describe('atomic paragraph localization', () => {
     const reopened = build([])
     await reopened.load()
     expect(reopened.localizeParagraph(paragraph, undefined, 'en')).toEqual({ text: 'First sentence. Second sentence.', pending: false })
-    reopened.dispose()
-    localizer.dispose()
+    await reopened.dispose()
+    await localizer.dispose()
   })
 
   it('does not reuse legacy description or document answers for the new paragraph strategy', async () => {
@@ -1050,7 +1048,7 @@ describe('atomic paragraph localization', () => {
     await localizer.settle(500)
     expect(localizer.localizeParagraph(unit('doc', text), [text], 'zh').text).toBe('ZH:' + text)
     expect(batches).toHaveLength(2)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('keeps failures explicit and retries only the requested document without deleting completed answers', async () => {
@@ -1087,7 +1085,7 @@ describe('atomic paragraph localization', () => {
     localizer.retryDocument('market', 'first')
     expect(localizer.localizeParagraph(first, [first.text], 'zh').pending).toBe(false)
     expect(calls.filter(text => text === other.text)).toHaveLength(4)
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('reports unsupported sentence input without starting provider work', async () => {
@@ -1097,7 +1095,7 @@ describe('atomic paragraph localization', () => {
     expect(localizer.localizeParagraph(paragraph, undefined, 'zh')).toEqual({ text: paragraph.text, pending: false, failed: true })
     await localizer.settle(100)
     expect(batches).toEqual([])
-    localizer.dispose()
+    await localizer.dispose()
   })
 
   it('does not resurrect cancelled paragraph parts after clear', async () => {
@@ -1111,6 +1109,6 @@ describe('atomic paragraph localization', () => {
     requests[0]!.resolve(['old result'])
     await vi.advanceTimersByTimeAsync(0)
     expect(localizer.localizeParagraph(paragraph, [paragraph.text], 'zh').pending).toBe(true)
-    localizer.dispose()
+    await localizer.dispose()
   })
 })

@@ -92,7 +92,7 @@ describe('hooks overview identity', () => {
       expect(prompt).toMatchObject({ face: 'hooks', available: true, name: 'printf "prompt hook"', source: 'user-hooks' })
       expect(prompt!.detail).toMatchObject({ kind: 'hook', event: 'UserPromptSubmit', command: 'printf "prompt hook"', provenance: 'user-hooks', support: 'supported' })
     } finally {
-      catalog.dispose()
+      await catalog.dispose()
     }
   })
 

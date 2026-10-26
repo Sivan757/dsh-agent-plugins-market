@@ -147,8 +147,7 @@ describe('Catalog translation', () => {
     const { catalog, userRoot } = await catalogWith({ locale: 'zh', provider: first })
     await catalog.overview()
     await catalog.settleDescriptions(5_000)
-    catalog.dispose()
-
+    await catalog.dispose()
     // A second activation over the same data root must not pay for the same
     // fields again, and the identity it folds into the key must match the first.
     const second = stubProvider(() => new Error('must not be called'))
@@ -165,7 +164,7 @@ describe('Catalog translation', () => {
     expect(overview.suites[0]?.translatedDescription).toBe('中文描述')
     expect(overview.translationPending).toBeUndefined()
     expect(second.calls).toEqual([])
-    reopened.dispose()
+    await reopened.dispose()
   })
 
   it('chunks a description longer than one call may carry, and reassembles it whole', async () => {

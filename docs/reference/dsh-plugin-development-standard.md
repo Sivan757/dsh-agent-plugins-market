@@ -44,7 +44,7 @@ Web GUI(浏览器) ──window.__ModuleLoader__──▶ 插件 client 面(单�
 - `exports` 双入口：`.`（host，构建产物 `lib/index.js`）与 `./client`（浏览器 bundle）。
 - `dsh.bundle.patch` 指向包内 `cordis.patch.yml`，后者用 `insert: [{id, name}]` 把插件行插入 profile layer 栈。
 - `dsh.client.inject` 列出 client 面要 `require()` 的官方客户端模块（常用：`dsh-client-locale / -ui-settings / -ui-theme / -api-remotes`）。注意两点：inject 列表**不是** externals 白名单——它只声明 factory 到达顺序，实际可 `require` 的是平台 seed table（`PLATFORM_MODULES`）；`dsh-client-ui-primitives` 与 `dsh-client-store` 都不在 inject 里但可直接 require（见附录 A）。
-- `peerDependencies` 声明 `@deepseek-ai/cordis` 及用到的官方能力包；可选能力加 `peerDependenciesMeta.optional` 并优雅降级。注意安装包**不会**替你安装任何 peer（dsh profile 设 `autoInstallPeers: false`）：本插件要自己保证可用的能力必须放进 `dependencies` 并由插件自行挂载，而安装包已共享供给的服务包必须留作 peer——自带副本会遮蔽安装包那份并产生第二个服务实例。动态 `import()` 的官方包同样必须声明：只 import 不声明，缺包时该 surface 只剩一行诊断，没有任何版本契约可对齐（`pnpm run check:host-alignment` 会拦下这种漏声明）。
+- `peerDependencies` 声明 `@deepseek-ai/cordis` 及用到的官方能力包；可选能力加 `peerDependenciesMeta.optional` 并优雅降级。注意安装包**不会**替你安装任何 peer（dsh profile 设 `autoInstallPeers: false`）：本插件要自己保证可用的能力必须放进 `dependencies` 并由插件自行挂载，而安装包已共享供给的服务包必须留作 peer——自带副本会遮蔽安装包那份并产生第二个服务实例。动态 `import()` 的官方包同样必须声明：只 import 不声明，缺包时该 surface 只剩一行诊断，没有任何版本契约可对齐（`pnpm run check:host-alignment` 会拦下这种漏声明）。可选标记只对构建会擦除的导入成立：`import type` 不产出运行期导入，按值 `import` 会，缺包时模块求值直接失败，所以按值导入的包必须是必选 peer 或 `dependencies`（`optional-static` 规则会拦下这种错标）。
 - 构建产物（`lib/`、`client/`）由 `prepare`、`prepack` 生成，随 `files` 进入发布包；不纳入版本管理。
 
 ### 2.2 Host 入口（src/index.ts）

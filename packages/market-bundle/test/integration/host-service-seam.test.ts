@@ -29,6 +29,7 @@ import { shellSeamOf, type ShellOutcome, type ShellSeam } from '../../../../pack
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from '../../../../packages/market-bundle/src/platform/feedback-tool.js'
 import { readLocalePreference } from '../../../../packages/market-runtime/src/runtime/host/host-locale.js'
 import { apply, inject, name } from '../../../../packages/market-bundle/src/index.js'
+import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
 import { RuntimeReconciler } from '../../../../packages/market-runtime/src/index.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { removeTempRoot } from './helpers/temp-root.js'
@@ -467,6 +468,66 @@ describe('host services on a real fiber tree', () => {
       openTeardown()
       await unloading
       await expect(readFile(join(home, 'agent-plugins', 'teardown-finished'), 'utf8')).resolves.toBe('')
+    } finally {
+      teardown.mockRestore()
+    }
+  })
+
+  /**
+   * The catalog's teardown is the entry's teardown too.
+   *
+   * Disposing the catalog cancels its timers and writes the translation cache —
+   * `translation-cache.json` under the plugin data root — so a fiber that
+   * reports unloaded first leaves that file appearing under a tree its caller
+   * may already be removing. The localizer and the catalog own the write; this
+   * case owns the wiring between them and the fiber.
+   *
+   * The gate holds the catalog's disposal open, so the marker it writes is on
+   * disk only if the fiber awaited it.
+   */
+  it('finishes the catalog teardown before the entry fiber reports unloaded', async () => {
+    const home = await root()
+    vi.stubEnv('DSH_HOME', home)
+    vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
+
+    const ctx = new Context()
+    const skills = fakeSkills()
+    mount(ctx, skills.Plugin)
+    mount(ctx, fakeCommands().Plugin)
+    await settled()
+
+    let openTeardown!: () => void
+    const teardownOpen = new Promise<void>(resolve => {
+      openTeardown = resolve
+    })
+    let reachedTeardown!: () => void
+    const teardownReached = new Promise<void>(resolve => {
+      reachedTeardown = resolve
+    })
+    const teardown = vi.spyOn(Catalog.prototype, 'dispose').mockImplementation(async () => {
+      reachedTeardown()
+      await teardownOpen
+      await mkdir(join(home, 'agent-plugins', 'data'), { recursive: true })
+      await writeFile(join(home, 'agent-plugins', 'data', 'translation-cache.json'), '{}')
+    })
+
+    try {
+      const entry = mountEntry(ctx, { name, inject: [...inject], apply })
+      await vi.waitFor(() => expect(skills.providers).toHaveLength(1))
+
+      const unloading = entry.dispose()
+      await teardownReached
+      let unloaded = false
+      void unloading.then(() => {
+        unloaded = true
+      })
+      await new Promise(resolve => setImmediate(resolve))
+      await new Promise(resolve => setImmediate(resolve))
+      expect(unloaded).toBe(false)
+
+      openTeardown()
+      await unloading
+      await expect(readFile(join(home, 'agent-plugins', 'data', 'translation-cache.json'), 'utf8')).resolves.toBe('{}')
     } finally {
       teardown.mockRestore()
     }

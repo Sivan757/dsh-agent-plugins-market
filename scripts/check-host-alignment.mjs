@@ -29,6 +29,9 @@
  * - anything `src/` imports is declared in one of the two sections above;
  * - a package reached only through `import(...)` is an optional peer, because it is mounted
  *   lazily and must degrade instead of failing — unless this plugin provisions it itself;
+ * - a package imported for value is never optional: the marker promises the plugin still works
+ *   when the package is absent, and a value import fails module evaluation instead. The marker
+ *   stays valid for a type-only import, whose cordis augmentation costs nothing at runtime;
  * - `@deepseek-ai/cordis` carries one identical range in peer and dev (it tracks its own 4.x line);
  * - `pnpm-workspace.yaml` `minimumReleaseAgeExclude` admits the baseline for every aligned package.
  *
@@ -113,14 +116,31 @@ const isClientPackage = name => name.startsWith(CLIENT_PREFIX)
 const read = path => readFile(path, 'utf8')
 
 /**
+ * Whether the import statement ending at `end` is type-only.
+ *
+ * The nearest preceding `import` or `export` keyword opens the statement, so `import type { X }
+ * from` and `import type {}` from both read as type-only while a mixed `import { type X, y }`
+ * reads as a value import. A type-only import is erased at build time, so the package it names
+ * carries no runtime obligation.
+ * @param source - file contents.
+ * @param end - index of the `from` keyword that closes the statement's bindings.
+ * @returns true when the statement is type-only.
+ */
+function isTypeOnly(source, end) {
+  const open = Math.max(source.lastIndexOf('import', end), source.lastIndexOf('export', end))
+  return open !== -1 && /^(?:import|export)\s+type\b/.test(source.slice(open, end))
+}
+
+/**
  * Collect host package names a source tree imports, so an undeclared dependency cannot hide
  * behind a dynamic import. Dynamic imports keep the specifier in a `const` (the optional
  * dependency must stay non-literal for bundlers), so an identifier resolved through `import(...)`
  * counts too.
  * @param dir - directory to walk.
- * @returns map of host package name to `{ reference, static, dynamic }`, where `reference` is the
- * first `file` that mentions it; a package seen only through `import(...)` is a lazily mounted
- * capability and must therefore be an optional peer.
+ * @returns map of host package name to `{ reference, static, value, dynamic }`, where `reference`
+ * is the first `file` that mentions it; `value` means a production file imports it for value, a
+ * package seen only through `import(...)` is a lazily mounted capability, and one seen only
+ * through `import type` is erased at build time.
  */
 function scanHostSurface(dir) {
   const found = new Map()
@@ -146,14 +166,19 @@ function scanHostSurface(dir) {
     const record = (name, kind) => {
       if (isClientPackage(name)) return
       const isTest = /(^|\/)test\//.test(relative(ROOT, path))
-      const entry = found.get(name) ?? { reference: relative(ROOT, path), static: false, dynamic: false, inSrc: false, inTest: false }
-      entry[kind] = true
+      const entry = found.get(name) ?? { reference: relative(ROOT, path), static: false, value: false, dynamic: false, inSrc: false, inTest: false }
+      entry[kind === 'dynamic' ? 'dynamic' : 'static'] = true
+      // A type-only import is erased, so only a value import obliges the package at runtime.
+      if (kind === 'value' && !isTest) entry.value = true
       if (isTest) entry.inTest = true
       else entry.inSrc = true
       found.set(name, entry)
     }
-    for (const match of source.matchAll(/(?:from|require\s*\()\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'static')
-    for (const match of source.matchAll(/(?:^|[;\s])import\s+'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'static')
+    for (const match of source.matchAll(/(from|require\s*\()\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) {
+      // A `require(` specifier names a runtime load; only a `from` clause can belong to a type-only statement.
+      record(match[2], match[1] === 'from' && isTypeOnly(source, match.index) ? 'type' : 'value')
+    }
+    for (const match of source.matchAll(/(?:^|[;\s])import\s+'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'value')
     for (const match of source.matchAll(/import\(\s*'(@deepseek-ai\/dsh-[a-z0-9-]+)'/g)) record(match[1], 'dynamic')
     // A host specifier held in a top-level `const` exists to be imported dynamically — possibly
     // through a helper that takes the literal as an argument — so the reference is recorded where
@@ -280,6 +305,15 @@ function inspect(manifest, surface, baseline, exclusions) {
     if (lazyOnly && !selfProvisioned && meta[name]?.optional !== true) {
       violations.push({ code: 'optional-undeclared', message: `${name} is reached only through import(...) (${where}) but peerDependenciesMeta does not mark it optional` })
     }
+    // The optional marker promises the plugin still works when the package is absent. A value
+    // import refuses to evaluate without it, so the marker has to go: the package becomes a
+    // required peer, or a dependency when this plugin provisions it.
+    if (entry?.value && entry.inSrc && !lazyOnly && !selfProvisioned && meta[name]?.optional === true) {
+      violations.push({
+        code: 'optional-static',
+        message: `${name} is imported for value by ${where} but peerDependenciesMeta marks it optional; a value import needs a required peer or a dependencies entry`
+      })
+    }
   }
 
   if (peer[CORDIS] !== undefined && dev[CORDIS] !== peer[CORDIS]) {
@@ -380,6 +414,8 @@ function repair(manifest, surface, baseline, exclusionText) {
       dev[name] = baseline
       const entry = surface.get(name)
       if (entry?.dynamic && !entry.static) meta[name] = { optional: true }
+      // A value import cannot honor the optional marker, so repair drops it instead of shipping it.
+      else if (entry?.value && entry.inSrc) delete meta[name]
     }
   }
 

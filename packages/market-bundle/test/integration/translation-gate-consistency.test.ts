@@ -15,7 +15,7 @@ const catalogs: Catalog[] = []
 afterEach(async () => {
   for (const catalog of catalogs.splice(0)) {
     await catalog.settleDescriptions()
-    catalog.dispose()
+    await catalog.dispose()
   }
   resetCircuitBreaker()
   await Promise.all(roots.splice(0).map(removeTempRoot))
