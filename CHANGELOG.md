@@ -9,6 +9,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.13.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.12.1...dsh-agent-plugins-market-v0.13.0) (2026-10-26)
+
+
+### Features
+
+* **instructions:** add the workspace AGENTS.md instructions tab ([5bbcf7f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5bbcf7fba46d06f601675bfe2b1c50f1476dfc25))
+* **instructions:** add the workspace instructions tab ([0c41e4d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0c41e4df8652c9b669e710f2d418159504c7ae1c))
+* **instructions:** read the host AGENTS.md chain instead of reimplementing it ([d563355](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d563355741d95c16d02e9b62259b31fa1880a852))
+* **workspace:** stow infrequently used tabs into a trailing menu ([263dca2](https://github.com/Sivan757/dsh-agent-plugins-market/commit/263dca2ee14fd084413368338793fefb8c689ee5))
+* **workspace:** stow infrequently used tabs into a trailing menu ([5883967](https://github.com/Sivan757/dsh-agent-plugins-market/commit/58839672c9432968f972d2f5a56fff7dd2cb5746))
+
+
+### Bug Fixes
+
+* **instructions:** make the chain tests platform-independent ([1d829b0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1d829b05288ee114f92759a82c7fe8decc346905))
+
 ## [0.12.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.12.0...dsh-agent-plugins-market-v0.12.1) (2026-10-26)
 
 
