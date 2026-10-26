@@ -54,7 +54,13 @@ export const MARKET_ROUTES = {
   setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`,
   userPanel: `${MARKET_API_PREFIX}user-panel`,
   menuRowFaces: `${MARKET_API_PREFIX}menu-row-faces`,
-  clearTranslations: `${MARKET_API_PREFIX}translations/clear`
+  clearTranslations: `${MARKET_API_PREFIX}translations/clear`,
+  /**
+   * This workspace's stowed tab layout (GET), and the write that replaces it
+   * (POST). The document is per workspace, so no path or body carries one.
+   */
+  tabLayout: `${MARKET_API_PREFIX}tab-layout`,
+  setTabLayout: `${MARKET_API_PREFIX}tab-layout/set`
 } as const
 
 /** One timeout's three layers: the user's value, the suite declaration, and the value in force. */

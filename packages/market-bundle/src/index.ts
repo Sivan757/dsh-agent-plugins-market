@@ -45,7 +45,9 @@ import { createPanelResources } from '../../market-runtime/src/index.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from '../../market-catalog/src/index.js'
 import { mountSuiteRoutes } from './routes.js'
 import { mountResourceRoutes } from './routes-resources.js'
+import { mountTabLayoutRoutes } from './routes-tab-layout.js'
 import { ResourceFilterService } from '../../market-runtime/src/index.js'
+import { TabLayoutService } from '../../market-runtime/src/index.js'
 import { loadLspServers } from '../../market-lsp/src/index.js'
 import { loadDisabledLspServers } from '../../market-lsp/src/index.js'
 import {
@@ -324,6 +326,10 @@ export async function apply(
   )
   const surfaceToggles = new SurfaceToggleService(resourceFilters)
   void resourceFilters.reload().catch(error => ctx.logger.warn('workspace policy: ' + String(error)))
+  // The tab layout is its own document and its own owner: sharing the policy
+  // file above would let one writer overwrite the other's section.
+  const tabLayout = new TabLayoutService(dataRoot, process.cwd())
+  void tabLayout.reload().catch(error => ctx.logger.warn('workspace tab layout: ' + String(error)))
 
   // The credentials store powers the MCP re-authorize action (dropping a grant
   // record forces the next mount through a fresh browser authorization). Every
@@ -463,6 +469,7 @@ export async function apply(
     // and taking it down with one of them would strand the user.
     hostCtx.effect(() => {
       const disposeSuite = mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles, sessionExtensions.session())
+      const disposeTabLayout = mountTabLayoutRoutes(hostCtx, tabLayout)
       const disposeResources = mountResourceRoutes(hostCtx, {
         catalog,
         panels: resources,
@@ -493,6 +500,7 @@ export async function apply(
       })
       return () => {
         disposeSuite?.()
+        disposeTabLayout()
         disposeResources()
       }
     }, 'dsh-agent-plugins-market: http routes')

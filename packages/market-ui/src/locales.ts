@@ -471,7 +471,21 @@ export const zh = {
   translationFailed: '部分段落未能翻译，已保留原文。点击重试。',
   translationRetry: '重试翻译',
   translationReset: '重置缓存',
-  translationResetDone: '翻译缓存已清空'
+  translationResetDone: '翻译缓存已清空',
+  /* ---- Workspace tab stowing ---- */
+  tabMenuTrigger: '页签管理',
+  tabMenuStowedCount: '已收纳 {count} 个页签',
+  tabMenuStowedGroup: '已收纳的页签',
+  tabMenuManage: '管理页签…',
+  tabManageTitle: '管理工作区页签',
+  tabManageDesc: '收纳不常看的页签。它们仍可从页签菜单打开，随时可以放回来。',
+  tabManageRowHint: '显示在页签行',
+  tabManageRowStowedHint: '已收纳，仍可从页签菜单打开',
+  tabManageLastVisibleHint: '至少保留一个页签可见',
+  tabManageShowAll: '全部显示',
+  tabManageDone: '完成',
+  tabLayoutLoadFailed: '无法读取页签布局，已显示全部页签：{error}',
+  tabLayoutWriteFailed: '页签布局没有保存，已恢复原来的布局：{error}'
 }
 
 export type LocaleKey = keyof typeof zh
@@ -946,5 +960,19 @@ export const en: Record<LocaleKey, string> = {
   translationFailed: 'Some paragraphs could not be translated. Original text is retained. Click to retry.',
   translationRetry: 'Retry translation',
   translationReset: 'Reset cache',
-  translationResetDone: 'Translation cache cleared'
+  translationResetDone: 'Translation cache cleared',
+  /* ---- Workspace tab stowing ---- */
+  tabMenuTrigger: 'Tab settings',
+  tabMenuStowedCount: '{count} tabs stowed',
+  tabMenuStowedGroup: 'Stowed tabs',
+  tabMenuManage: 'Manage tabs…',
+  tabManageTitle: 'Manage workspace tabs',
+  tabManageDesc: 'Stow tabs you rarely need. They stay reachable from the tab menu and you can bring them back at any time.',
+  tabManageRowHint: 'Shown in the tab row',
+  tabManageRowStowedHint: 'Stowed, still available from the tab menu',
+  tabManageLastVisibleHint: 'At least one tab must stay visible',
+  tabManageShowAll: 'Show all',
+  tabManageDone: 'Done',
+  tabLayoutLoadFailed: 'Could not read the tab layout, so every tab is shown: {error}',
+  tabLayoutWriteFailed: 'The tab layout was not saved, so the previous layout is back: {error}'
 }

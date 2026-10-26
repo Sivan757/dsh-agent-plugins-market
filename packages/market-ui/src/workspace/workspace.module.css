@@ -34,3 +34,76 @@
   flex: 1;
   flex-direction: column;
 }
+/* ---- Tab stowing ---- */
+
+/* The trailing control sits at the row's end and keeps its size while the tabs
+   shrink and ellipsize. The button is a fixed 28px control with an optional
+   count badge, so the row's width cost is constant whether one tab or six are
+   stowed. */
+.tabStow {
+  display: flex;
+  align-items: center;
+}
+
+.tabStowTrigger {
+  position: relative;
+  flex: none;
+}
+
+/* A count, not a control: it never takes a pointer event, so the whole button
+   stays one hit target. */
+.tabStowBadge {
+  position: absolute;
+  top: -2px;
+  inset-inline-end: -2px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--dsw-alias-bg-elevated, #ffffff);
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.tabManageList {
+  display: flex;
+  max-height: 45vh;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+/* One row: the label and its control on the leading edge, the state hint on the
+   trailing edge. The hint is a second line on a narrow dialog rather than a
+   sideways scroll. */
+.tabManageRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 4px 2px;
+}
+
+.tabManageHint {
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary, #656d76);
+  font-size: 12px;
+}
+
+.tabManageError {
+  margin: 8px 0 0;
+  color: var(--dsw-alias-label-error, #cf222e);
+  font-size: 12px;
+}
+
+.tabManageFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
