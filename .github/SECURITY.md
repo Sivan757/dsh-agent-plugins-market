@@ -73,6 +73,20 @@ Raising this override to `4.6.6` breaks the host contract described above. Closi
 
 把该 override 提到 `4.6.6` 会破坏上述宿主契约。关闭这条告警需要宿主发布、把整个系列移到 `4.6.6`，而不是在本仓库改。
 
+## What the overrides do not change / override 不改动什么
+
+The `undici` and `@modelcontextprotocol/client` overrides raise dependencies in this repository's development tree only. They ship to nobody.
+
+`undici` 与 `@modelcontextprotocol/client` 两条 override 只提升本仓库开发树里的依赖，它们不会交付给任何使用者。
+
+pnpm applies `overrides` from `pnpm-workspace.yaml`, and that file is not in the `package.json` `files` list. `npm pack` leaves it out of the tarball, so the published artifact carries no overrides. A consumer profile resolves `@deepseek-ai/dsh-mcp-client` from npm, and that package still declares `@modelcontextprotocol/client` `2.2.0` exactly on the `0.2.1-rc.3` line.
+
+pnpm 从 `pnpm-workspace.yaml` 读取 `overrides`，而该文件不在 `package.json` 的 `files` 列表中。`npm pack` 不会把它打进 tarball，因此发布产物不携带任何 override。使用方 profile 从 npm 解析 `@deepseek-ai/dsh-mcp-client`，该包在 `0.2.1-rc.3` 线上仍精确声明 `@modelcontextprotocol/client` `2.2.0`。
+
+Read the alerts these overrides close as repository hygiene and supply-chain posture. Do not read them as a statement that users now run the fixed versions. A user runs whatever the host family ships, and raising that is a host change.
+
+这些 override 关闭的告警属于仓库卫生与供应链姿态。不要据此认为使用者已在运行修复后的版本。使用者运行的是宿主系列交付的版本，提升它属于宿主改动。
+
 ## Security scope / 安全范围
 
 Reports are especially valuable for issues involving source checkout isolation, path traversal, manifest parsing, HTTP route authorization, hook or MCP mounting, dependency supply chain risks, credential exposure, or generated release artifacts. Third-party marketplace content may be untrusted; review it before enabling a suite.

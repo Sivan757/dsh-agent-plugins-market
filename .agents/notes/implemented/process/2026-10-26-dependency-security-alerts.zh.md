@@ -35,6 +35,8 @@ Dependabot 针对 `pnpm-lock.yaml` 报告了十条未处理告警。它们分布
 
 **`zod` 是已接受风险，记录在 [`.github/SECURITY.md`](../../../../.github/SECURITY.md)。** 宿主系列精确声明 zod `4.4.3`。2026-10-26 用 `npm view <package>@0.2.1-rc.3 dependencies.zod` 实测，六个宿主包都报告 `4.4.3`：`@deepseek-ai/dsh-agent-loop`、`@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-subagent`、`@deepseek-ai/dsh-session-projection`、`@deepseek-ai/dsh-client-ui-plugin-manager`、`@deepseek-ai/dsh-experimental-agent-team`。`4.4.3` override 存在的原因是插件 schema 会进入宿主的 `ProjectionDefinition`，第二份副本会让宿主的 `ZodType` 变成名义类型，插件 schema 不再匹配。把它提到 `4.6.6` 会破坏该匹配。关闭告警需要宿主发布新版本移动整个系列，而不是在本仓库改动。
 
+**这些修复不会交付给使用者。** pnpm 从 `pnpm-workspace.yaml` 读取 `overrides`，而该文件不在 `package.json` 的 `files` 列表中，因此 `npm pack` 不会把它打进 tarball，发布产物不携带任何 override。使用方 profile 从 npm 解析 `@deepseek-ai/dsh-mcp-client`，该包在 `0.2.1-rc.3` 线上仍精确声明 `@modelcontextprotocol/client` `2.2.0`。这四项修复属于仓库卫生与供应链姿态，改变的是本仓库安装与测试的内容，不是使用者运行的内容。
+
 ## Alternatives considered
 
 - **四个包全用 override。** 已拒绝：override 会永久钉住版本，而四个父包中有三个声明了真实范围。`fast-uri` 与 `body-parser` 会因此背上父包本已提供的维护工作，下一次 `ajv` 或 `express` minor 会与 pin 静默冲突。
@@ -51,3 +53,15 @@ Dependabot 针对 `pnpm-lock.yaml` 报告了十条未处理告警。它们分布
 - 两条新 override 带来维护成本。每条都点名逼出它的父包以及测量时的父包版本，宿主提高自身 pin 时即可移除。
 - `undici` 依赖图现在只有一份而非两份，安装中少了一个重复的 `EnvHttpProxyAgent` 模块实例。
 - 本次改动不触碰任何宿主 pin，且 `check-host-alignment` 在其上通过。`0.2.1-rc.3` 基线来自单独的基线对齐改动，不来自本次改动。
+
+## Forward risk: the MCP client redirect default
+
+`@modelcontextprotocol/client` `2.3.0` 为两个 HTTP 传输新增 `redirectPolicy`，默认值为 `'same-origin'`。`2.2.0` 没有该选项，重定向交给 fetch。`dsh-mcp-client` 不传该选项，因此继承新默认值。
+
+导入接口没有漂移。解包两个 tarball 可见相同的 402 个导出、逐字节一致的 `declare class Client` 块、未变的 `StdioClientTransport`。失效来自默认值变更，不是 API 破坏。
+
+该风险是实测的，不是假设。2026-10-26 探测，owner 自己的服务 `https://kuboard.dev.kapukapu.cn/mcp` 返回 `301`，`location: https://kuboard.platform.zealwon.com/mcp`，属于跨源重定向。两个本地服务复现了后果。端口 A 对端口 B 返回 `307`，`2.2.0` 把请求送达目标并正常返回，而 `2.3.0` 没有向目标发出任何请求，抛出 `Error POSTing to endpoint: Redirect to ... not followed; use that URL as the endpoint if it is the intended server (redirectPolicy: 'same-origin')`。
+
+当宿主系列把 `dsh-mcp-client` 移到 `@modelcontextprotocol/client` `2.3.0` 或更晚时，该服务将无法连接。失效落在宿主上，不在本仓库。连接失败会走插件的重试策略，再走注销路径，重定向文本随消息一起出现。
+
+修复是在 `dsh-mcp-client` 中加一行：给传输传 `redirectPolicy: 'follow'`。那是宿主改动。本仓库不为此添加变通方案，也不从这里开宿主 issue。本记录就是凭据。
