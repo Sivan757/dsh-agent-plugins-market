@@ -13,7 +13,7 @@
  * the model with every managed resource denied, the failure must stay visible,
  * and the terminal failure must not be retried per turn.
  */
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -30,6 +30,7 @@ import { captureExtensionSelection } from '../../../../packages/market-contracts
 import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtime/host/extension-runtime.js'
 import { attachExtensionToolGates, type ExtensionToolGates } from '../../../../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 class Query extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -70,7 +71,7 @@ const lastTurnEnd = (agent: Agent) =>
 
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'extension-scan-failure-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -7,6 +7,7 @@ import { CommandMountRegistry } from '../../../../packages/market-runtime/src/ru
 import { SuiteSkillProvider } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { benignExit, injectDynamicContext, type ShellOutcome, type ShellSeam } from '../../../../packages/market-runtime/src/runtime/surfaces/dynamic-context.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -19,7 +20,7 @@ async function put(dir: string, path: string, value: string | object): Promise<v
   await writeFile(join(dir, path), typeof value === 'string' ? value : JSON.stringify(value))
 }
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 function outcome(overrides: Partial<ShellOutcome> = {}): ShellOutcome {

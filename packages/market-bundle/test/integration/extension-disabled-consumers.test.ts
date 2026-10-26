@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,7 @@ import { createUserPanelStores } from '../../../../packages/market-runtime/src/r
 import { bindHostLocale } from '../../../../packages/market-runtime/src/runtime/host/host-locale.js'
 import { agentRoleCatalog, executeAgentRole, resolveRolePolicy, type AgentRoleHost } from '../../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const cleanups: Array<() => void | Promise<void>> = []
 afterEach(async () => {
@@ -31,7 +32,7 @@ async function put(root: string, path: string, content: string) {
 }
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'disabled-consumers-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   await put(root, '.claude-plugin/plugin.json', JSON.stringify({ name: 'demo' }))
   const skillFile = await put(
     root,

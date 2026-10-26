@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,7 @@ import { createUserPanelStores, UserPanelSkillProvider } from '../../../../packa
 import { scanSource } from '../../../../packages/market-catalog/src/scanning/suite-scanner.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const cleanups: Array<() => void | Promise<void>> = []
 afterEach(async () => {
@@ -31,7 +32,7 @@ class Commands extends Service {
 const text = (name: string, controls = '') => '---\nname: ' + name + '\ndescription: Native ' + name + '\n' + controls + '---\nNative body for ' + name
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'extension-user-skills-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const stores = createUserPanelStores(join(root, 'agents'))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())

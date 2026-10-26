@@ -1,11 +1,12 @@
 import { fileURLToPath } from 'node:url'
-import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
 import * as discovery from '../../../../packages/market-catalog/src/scanning/source-catalog.js'
 import { SuiteSkillProvider } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 
@@ -31,7 +32,7 @@ async function setup(enabled = true): Promise<Catalog> {
 
 afterEach(async () => {
   vi.restoreAllMocks()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 describe('runtime catalog discovery', () => {

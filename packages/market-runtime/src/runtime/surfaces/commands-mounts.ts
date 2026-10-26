@@ -3,13 +3,16 @@
  * register as dsh slash commands.
  *
  * A CC command is a prompt template the model executes (its body carries
- * `$ARGUMENTS`, path variables and `` !`cmd` `` dynamic-context placeholders),
- * so the handler maps it onto the harness's follow-up mechanism: the template
- * with those placeholders resolved becomes one durable user-role follow-up
- * message on the receiving agent. Registrations reconcile on every
- * enable/disable/install/uninstall; a broken command file, a failed injected
- * command, or an unavailable `ctx.commands` is contained per command and
- * reported as a diagnostic.
+ * `$ARGUMENTS`, the `$name` arguments its frontmatter declares, path variables
+ * and `` !`cmd` `` dynamic-context placeholders), so the handler maps it onto
+ * the harness's follow-up mechanism: the template with those placeholders
+ * resolved becomes one durable user-role follow-up message on the receiving
+ * agent. A declared argument the invocation left unfilled expands to nothing
+ * and the acknowledgement names it, so the gap is never silent.
+ *
+ * Registrations reconcile on every enable/disable/install/uninstall; a broken
+ * command file, a failed injected command, or an unavailable `ctx.commands` is
+ * contained per command and reported as a diagnostic.
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
@@ -20,6 +23,7 @@ import { defaultMarkdownResources, resourceCommandName, resourceText } from '../
 import { parseCommandResource, readCommands, type CommandSpec } from '../../application/command-resources.js'
 export { readCommands } from '../../application/command-resources.js'
 import { bindHostLocale, type HostTranslate } from '../host/host-locale.js'
+import { expandCommandArguments } from '../../application/command-arguments.js'
 import { injectDynamicContext, shellSeamOf, type ShellSeam } from './dynamic-context.js'
 import { pluginMarketSource } from '../../../../market-contracts/src/host/plugin-message-source.js'
 import { CommandNameRegistry, registerWithAllocatedName } from '../host/command-name-allocator.js'
@@ -205,6 +209,7 @@ export class CommandMountRegistry {
             // suite would be text the command author never wrote, and the
             // follow-up's `source` already records provenance.
             let authoredBody = spec.body
+            let declaredArgs = spec.args
             if (this.selectionPolicy) {
               if (this.selectionPolicy(suite, spec.resourceName) !== true) return { kind: 'error', text: this.t('commandNotSelected', { command: name }) }
               try {
@@ -212,15 +217,26 @@ export class CommandMountRegistry {
                 const fresh = parseCommandResource(resource, await resourceText(resource), { includeDisabled: this.allowDisabled })
                 if (!fresh || this.selectionPolicy(suite, spec.resourceName) !== true) return { kind: 'error', text: this.t('commandNotSelected', { command: name }) }
                 authoredBody = fresh.body
+                declaredArgs = fresh.args
               } catch {
                 return { kind: 'error', text: this.t('commandNotSelected', { command: name }) }
               }
             }
-            const body = expandPluginPaths(authoredBody, {
+            const authored = expandPluginPaths(authoredBody, {
               ...(spec.suiteRoot === undefined ? {} : { root: spec.suiteRoot }),
               ...(spec.suiteData === undefined ? {} : { data: spec.suiteData }),
               ...(workdir === undefined ? {} : { projectDir: workdir })
-            }).replaceAll('$ARGUMENTS', invocation.rawInput.trim())
+            })
+            const expansion = expandCommandArguments(authored, invocation.rawInput, declaredArgs)
+            const body = expansion.text
+            // The acknowledgement is the one line the person who typed the
+            // command sees, so an argument the body used and the input left out
+            // is named there rather than left to a literal placeholder.
+            const acknowledgement = (): string => {
+              const forwarded = this.t('commandAcknowledged', { command: name })
+              if (expansion.missing.length === 0) return forwarded
+              return `${forwarded} ${this.t('commandMissingArguments', { command: name, arguments: expansion.missing.join(', ') })}`
+            }
             if (this.selectionPolicy?.(suite, spec.resourceName) === false) {
               return { kind: 'error', text: this.t('commandNotSelected', { command: name }) }
             }
@@ -232,7 +248,7 @@ export class CommandMountRegistry {
                   source: pluginMarketSource()
                 })
               )
-              return { kind: 'success', text: this.t('commandAcknowledged', { command: name }) }
+              return { kind: 'success', text: acknowledgement() }
             }
             let text: string
             try {
@@ -249,7 +265,7 @@ export class CommandMountRegistry {
                 source: pluginMarketSource()
               })
             )
-            return { kind: 'success', text: this.t('commandAcknowledged', { command: name }) }
+            return { kind: 'success', text: acknowledgement() }
           }
         })
       )

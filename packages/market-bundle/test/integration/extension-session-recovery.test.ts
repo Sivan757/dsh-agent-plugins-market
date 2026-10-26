@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persisten
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { captureExtensionSelection } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import { ExtensionSessionState, EXTENSION_SESSION_SOURCE, EXTENSION_SESSION_WAKE_SOURCE } from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -48,7 +49,7 @@ afterEach(async () => {
 })
 async function setup(savedRoot?: string, eligible?: (agent: Agent) => boolean) {
   const root = savedRoot ?? (await mkdtemp(join(tmpdir(), 'extension-recovery-')))
-  if (!savedRoot) cleanups.push(() => rm(root, { recursive: true, force: true }))
+  if (!savedRoot) cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)
@@ -73,7 +74,7 @@ async function setup(savedRoot?: string, eligible?: (agent: Agent) => boolean) {
  */
 async function crashCopy(root: string): Promise<string> {
   const holder = await mkdtemp(join(tmpdir(), 'extension-crash-'))
-  cleanups.push(() => rm(holder, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(holder))
   const copy = join(holder, 'session-root')
   await cp(root, copy, { recursive: true })
   return copy

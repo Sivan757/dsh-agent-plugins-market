@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -6,6 +6,7 @@ import { loadLspServers, saveLspServers } from '../../../../packages/market-lsp/
 import { buildLspStatus, DIRECT_LSP_SUITE_ID } from '../../../../packages/market-lsp/src/application/lsp/lsp-status.js'
 import type { LspMountDiagnostic } from '../../../../packages/market-lsp/src/runtime/lsp/lsp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const tempRoots: string[] = []
 async function tempRoot(): Promise<string> {
@@ -14,7 +15,7 @@ async function tempRoot(): Promise<string> {
   return root
 }
 afterEach(async () => {
-  await Promise.all(tempRoots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(tempRoots.splice(0).map(removeTempRoot))
 })
 
 describe('lsp-direct-config', () => {

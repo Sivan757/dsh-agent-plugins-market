@@ -22,7 +22,7 @@ import { MarketSettingsFields } from './platform/settings-schema.js'
 import type { DownloadRegionSetting } from '../../market-contracts/src/contracts/settings.js'
 import { Catalog } from './application/catalog.js'
 import type { CatalogPortsOverride } from '../../market-contracts/src/ports/ports.js'
-import { settlesWithin } from '../../market-catalog/src/index.js'
+import { resolveSwitchSettleMs, settlesWithin } from '../../market-catalog/src/index.js'
 import { RuntimeReconciler } from '../../market-runtime/src/index.js'
 import { ReconcileScheduler } from '../../market-runtime/src/index.js'
 import { MarketSettingsNamespace } from './platform/settings-namespace.js'
@@ -93,6 +93,13 @@ export interface Config {
     fallbackTarball?: boolean
     allowHttpArchives?: boolean
   }
+  /**
+   * How long a switch request waits for the mount pass it scheduled, in
+   * milliseconds. Defaults to `SWITCH_SETTLE_MS`. `0` answers as soon as the
+   * choice is stored and never waits for a mount, which trades the post-switch
+   * status read being immediately accurate for never waiting on a slow server.
+   */
+  switchSettleMs?: number
   /** MCP mount backend switch; updated live through the host settings service. */
   mcpEnhanced: Volatile<boolean | undefined>
   /** Project-layout discovery switch; updated live through the host settings service. */
@@ -127,6 +134,7 @@ export interface ConfigInput {
     fallbackTarball?: boolean | null
     allowHttpArchives?: boolean | null
   }
+  switchSettleMs?: number | null
   mcpEnhanced?: boolean | null
   scanProjectLayouts?: boolean | null
   downloadRegion?: 'auto' | 'global' | 'china' | null
@@ -148,6 +156,7 @@ export const Config = z.object({
     fallbackTarball: z.boolean(),
     allowHttpArchives: z.boolean()
   }),
+  switchSettleMs: z.union([z.natural(), z.const(undefined)]),
   mcpEnhanced: MarketSettingsFields.mcpEnhanced.volatile(),
   scanProjectLayouts: MarketSettingsFields.scanProjectLayouts.volatile(),
   downloadRegion: MarketSettingsFields.downloadRegion.volatile(),
@@ -173,6 +182,9 @@ export async function apply(
 ): Promise<void> {
   const userRoot = resolveUserRoot(config.userRoot)
   const dataRoot = resolveDataRoot(config.dataRoot, userRoot)
+  // One explicit resolve step, so a malformed budget fails here rather than
+  // turning into an accidental endless wait at the first switch.
+  const switchSettleMs = resolveSwitchSettleMs(config.switchSettleMs)
   const agentsRoot = resolveAgentsRoot()
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
@@ -298,7 +310,18 @@ export async function apply(
   })
 
   // Legacy surface and entry routes share one committed workspace policy.
-  const resourceFilters = new ResourceFilterService(dataRoot, process.cwd(), { onFiltersChanged: onChanged })
+  const resourceFilters = new ResourceFilterService(
+    dataRoot,
+    process.cwd(),
+    {
+      onFiltersChanged: onChanged,
+      // A switch answers once its policy write lands. The pass behind it keeps
+      // running, so whatever it does after the answer is reported here instead
+      // of being dropped with the response.
+      onPipelineReport: message => ctx.logger?.warn(`[dsh-agent-plugins-market] ${message}`)
+    },
+    switchSettleMs
+  )
   const surfaceToggles = new SurfaceToggleService(resourceFilters)
   void resourceFilters.reload().catch(error => ctx.logger.warn('workspace policy: ' + String(error)))
 
@@ -352,7 +375,7 @@ export async function apply(
     translationProviderIdentity: () => 'google|microsoft|llm'
   }
 
-  const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, ...(config.git === undefined ? {} : { git: config.git }) })
+  const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, switchSettleMs, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
   const readUserDeclarations = async (): Promise<ExtensionSuiteCandidate[]> => {
     const [installed, direct] = await Promise.all([catalog.installedSuiteDeclarations(), Promise.all([loadUserMcpSuite(agentsRoot), loadUserHooksSuite(agentsRoot)])])
@@ -476,13 +499,28 @@ export async function apply(
   })
 
   ctx.effect(
-    () => () => {
+    () => async () => {
       disposed = true
-      scheduler.dispose()
+      const scheduleStopped = scheduler.dispose()
       autoUpdate.dispose()
       settings.dispose()
       catalog.dispose()
-      void runtime.dispose().catch(error => ctx.logger.warn('runtime disposal: ' + String(error)))
+      // Cordis awaits an async disposer, so this fiber reports unloaded only
+      // after the runtime tore its mounts down. Disposing an MCP server
+      // disposes the bridge and waits for the child it started, and the plugin
+      // data root under the mounts stays in use until that ends; returning
+      // before it did let a caller that removes that root, a test teardown or a
+      // profile reload, delete a tree this fiber was still writing to and
+      // emptying. The runtime goes first so its own stop flag makes a queued
+      // pass bail before the schedule join below waits for it.
+      try {
+        await runtime.dispose()
+      } catch (error) {
+        ctx.logger.warn('runtime disposal: ' + String(error))
+      }
+      // A pass that failed already reported through the change pipeline; the
+      // join only has to finish, not repeat the failure as a disposal error.
+      await scheduleStopped.catch(error => ctx.logger.warn('reconcile disposal: ' + String(error)))
     },
     'dsh-agent-plugins-market: lifecycle'
   )

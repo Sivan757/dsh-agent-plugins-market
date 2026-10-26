@@ -12,7 +12,7 @@
  * `readExtensionInventory` reading real panel rows, so nothing here restates the
  * globalEnabled rule in its own fixture.
  */
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -25,6 +25,7 @@ import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { readExtensionInventory } from '../../../../packages/market-bundle/src/application/extension-inventory.js'
 import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtime/host/extension-runtime.js'
 import type { UserPanelEntryWire } from '../../../../packages/market-contracts/src/contracts/market.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -82,7 +83,7 @@ afterEach(async () => {
 
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'extension-global-defaults-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

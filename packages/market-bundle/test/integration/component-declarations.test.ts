@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -10,6 +10,7 @@ import { suiteInstructions } from '../../../../packages/market-runtime/src/runti
 import { HooksMountRegistry } from '../../../../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js'
 import { discoverNativeProjectSuites } from '../../../../packages/market-catalog/src/scanning/native-project.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 async function root() {
@@ -23,7 +24,7 @@ async function put(root: string, path: string, value: string | object) {
 }
 const skill = (name: string) => `---\nname: ${name}\ndescription: ${name} skill\n---\n${name} body`
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 describe('schema component declarations', () => {

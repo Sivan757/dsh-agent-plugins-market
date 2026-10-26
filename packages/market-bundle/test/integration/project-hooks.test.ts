@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -7,10 +7,11 @@ import { discoverProjectHooks } from '../../../../packages/market-catalog/src/sc
 import { discoverNativeProjectSuites } from '../../../../packages/market-catalog/src/scanning/native-project.js'
 import { HooksMountRegistry } from '../../../../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 async function root(): Promise<string> {
   const value = await mkdtemp(join(tmpdir(), 'market-project-hooks-test-'))
@@ -43,6 +44,27 @@ describe('native project hook normalization', () => {
     expect(result?.events.PreToolUse?.flatMap(group => group.hooks.map(entry => entry.command))).toEqual(['echo one', 'echo two'])
     expect(errors.join('\n')).toContain('unsupported hook event FutureEvent')
     expect(errors.join('\n')).toContain('unsupported Stop hook type prompt')
+  })
+
+  it('admits the events the runtime runs and keeps a matcher-less event free of one', async () => {
+    const project = await root()
+    await writeFile(
+      join(project, '.claude/settings.json'),
+      JSON.stringify({
+        hooks: {
+          PostToolUseFailure: [hook('echo failure')],
+          PreCompact: [{ hooks: [{ type: 'command', command: 'echo compact' }] }],
+          SessionEnd: [hook('echo end')],
+          PermissionRequest: [hook('echo permission')]
+        }
+      })
+    )
+    const errors: string[] = []
+    const result = await discoverProjectHooks(project, ['.claude/settings.json'], errors)
+    expect(Object.keys(result?.events ?? {}).sort()).toEqual(['PostToolUseFailure', 'PreCompact', 'SessionEnd'])
+    expect(errors).toEqual(['.claude/settings.json: unsupported hook event PermissionRequest'])
+    // PreCompact matches on the compaction trigger, so a declared matcher survives.
+    expect(result?.events.PreCompact?.[0]?.matcher).toBeUndefined()
   })
 
   it('rejects malformed matchers without keeping earlier commands executable', async () => {

@@ -170,9 +170,12 @@ export class ScopedExtensionContributors {
       })
       scope.effect(
         () => async () => {
+          // Hooks close first, while the grant above is still open: the bridge's
+          // SessionEnd pass reaches every suite through that grant, and a closed
+          // grant would make the final event silently run nothing.
+          await mount.hooks?.dispose()
           mount.active = false
           mount.instructions = []
-          await mount.hooks?.dispose()
           mount.commands?.disposeAll()
           mount.users?.disposeAll()
           await mount.mcp?.disposeAll()
@@ -336,6 +339,10 @@ export class ScopedExtensionContributors {
     const mount = this.mounted.get(agent)
     if (!mount) return
     this.mounted.delete(agent)
+    // The hook bridge owns SessionEnd and reaches every suite through the grant
+    // that reads mount.active, so it closes before that grant does. Its disposer
+    // is idempotent, and the fiber effect below disposes it again as a no-op.
+    await mount.hooks?.dispose()
     mount.active = false
     for (const release of mount.releaseSkills.splice(0)) release()
     await mount.fiber?.dispose()

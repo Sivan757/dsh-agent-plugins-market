@@ -6,7 +6,7 @@
  * attached — re-registering them per toggle would churn the host registry — so
  * the switch has to reach the data each one serves.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
 import { join } from 'node:path'
@@ -17,10 +17,11 @@ import { mountProjectCommands, mountProjectMcp } from '../../../../packages/mark
 import { bindHostLocale } from '../../../../packages/market-runtime/src/runtime/host/host-locale.js'
 import { ToggledSkillProvider } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { UserPanelSkillProvider, createUserPanelStores } from '../../../../packages/market-runtime/src/runtime/panels/user-panels.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** A project carrying one command and one MCP server. */

@@ -10,7 +10,7 @@
  * the host's own CommandRuntime (see loadCommandRuntime for how it is resolved in this tree)
  * and hooks through the real tools/pre-execute lifecycle.
  */
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -30,6 +30,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { EXTENSION_ROUTES, type ExtensionWindowPayload } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import { apply, inject, name } from '../../../../packages/market-bundle/src/index.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const cleanups: Array<() => void | Promise<void>> = []
@@ -152,7 +153,7 @@ const exec = (agent: Agent, toolName: string) => ({
 describe('scoped extension effects in one workspace', () => {
   it('runs a granted suite hook for its own session only, and never for the same-cwd sibling', async () => {
     const home = await mkdtemp(join(tmpdir(), 'scoped-effects-'))
-    cleanups.push(() => rm(home, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(home))
     vi.stubEnv('DSH_HOME', home)
     vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
     await cp(join(fixtures, 'v1-suite'), join(home, 'agent-plugins', '.sources', 'demo', 'v1-suite'), { recursive: true })

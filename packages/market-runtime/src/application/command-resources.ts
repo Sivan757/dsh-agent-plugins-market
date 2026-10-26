@@ -11,6 +11,13 @@ export interface CommandSpec {
   body: string
   hint?: string
   /**
+   * The argument names the `arguments:` frontmatter declares, in order. The
+   * body binds them to the invocation text positionally (`$system`,
+   * `$target_stack`), so the declaration is the only record of which word each
+   * placeholder receives.
+   */
+  args?: string[]
+  /**
    * The resource name as authored, before it was flattened into
    * {@link CommandSpec.name} (`git/commit` where the call name is
    * `git-commit`). The panel addresses the same document by this spelling, so
@@ -61,13 +68,14 @@ export function parseCommandResource(entry: SuiteMarkdownResource, text: string,
     options.onIssue?.({ resourceName: entry.name, reason: `invalid frontmatter: ${messageOf(error)}` })
     return undefined
   }
-  const meta = commandMeta(text)
+  const report = (reason: string): void => options.onIssue?.({ resourceName: entry.name, reason })
+  const meta = commandMeta(text, report)
   const description = meta?.description ?? firstLine(text)
   if (description === undefined) {
-    options.onIssue?.({ resourceName: entry.name, reason: 'no description in frontmatter or body' })
+    report('no description in frontmatter or body')
     return undefined
   }
-  return { name, description, hint: meta?.hint, body: stripFrontmatter(text), resourceName: entry.name }
+  return { name, description, hint: meta?.hint, args: meta?.args, body: stripFrontmatter(text), resourceName: entry.name }
 }
 
 /** Read declared commands, or discover the conventional directory when resources is omitted. */
@@ -91,9 +99,13 @@ export async function readCommands(root: string, resources?: SuiteMarkdownResour
 interface CommandMeta {
   description?: string
   hint?: string
+  args?: string[]
 }
 
-function commandMeta(text: string): CommandMeta | undefined {
+/** A placeholder name a body can carry as `$name`. */
+const ARGUMENT_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+function commandMeta(text: string, report: (reason: string) => void): CommandMeta | undefined {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
   if (frontmatter === undefined) return undefined
   try {
@@ -105,10 +117,49 @@ function commandMeta(text: string): CommandMeta | undefined {
     if (typeof description === 'string' && description.trim() !== '') meta.description = description.trim()
     const hint = record['argument-hint'] ?? record['argumentHint']
     if (typeof hint === 'string' && hint.trim() !== '') meta.hint = hint.trim()
+    const args = declaredArguments(record['arguments'], report)
+    if (args !== undefined) meta.args = args
     return meta
   } catch {
     return undefined
   }
+}
+
+/**
+ * Read the `arguments:` frontmatter, which Claude Code accepts either as one
+ * space- or comma-separated string (`arguments: system target_stack`) or as a
+ * list of names.
+ *
+ * An entry that names no usable placeholder is diagnosed and dropped while the
+ * remaining names still bind, so one typo costs one placeholder rather than
+ * the command.
+ */
+function declaredArguments(value: unknown, report: (reason: string) => void): string[] | undefined {
+  if (value === undefined) return undefined
+  const items: readonly unknown[] | undefined = typeof value === 'string' ? value.split(/[\s,]+/) : Array.isArray(value) ? value : undefined
+  if (items === undefined) {
+    report('"arguments" must be a string or a list of argument names')
+    return undefined
+  }
+  const names: string[] = []
+  for (const item of items) {
+    if (typeof item !== 'string') {
+      report(`"arguments" entry ${JSON.stringify(item)} is not a string`)
+      continue
+    }
+    const name = item.trim()
+    if (name === '') continue
+    if (!ARGUMENT_NAME.test(name)) {
+      report(`"${name}" is not a usable argument name`)
+      continue
+    }
+    if (names.includes(name)) {
+      report(`"${name}" is declared more than once in "arguments"`)
+      continue
+    }
+    names.push(name)
+  }
+  return names.length === 0 ? undefined : names
 }
 
 function firstLine(text: string): string | undefined {

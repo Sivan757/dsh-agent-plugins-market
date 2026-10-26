@@ -1,5 +1,5 @@
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -10,6 +10,7 @@ import { mountProjectMcp } from '../../../../packages/market-runtime/src/runtime
 import { discoverNativeProjectSuites } from '../../../../packages/market-catalog/src/scanning/native-project.js'
 import { toMcpMounts } from '../../../../packages/market-mcp/src/application/mcp/mcp-config.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -19,7 +20,7 @@ async function root(): Promise<string> {
   return path
 }
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 describe('native project MCP configurations', () => {

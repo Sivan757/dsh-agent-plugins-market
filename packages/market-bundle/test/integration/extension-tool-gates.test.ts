@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +16,7 @@ import * as lspTool from '@deepseek-ai/dsh-tool-lsp'
 import { attachExtensionToolGates, type ExtensionLspProvider, type ExtensionToolOwnership } from '../../../../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
 import { bridgeToolRegistrations, registerOwnedBridgeTool } from '../../../../packages/market-mcp/src/runtime/mcp/bridge/tool-ownership.js'
 import { publicToolName, syncTools, type ToolHost } from '../../../../packages/market-mcp/src/runtime/mcp/bridge/tools.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const cleanups: Array<() => void | Promise<void>> = []
 afterEach(async () => {
@@ -63,7 +64,7 @@ async function setup() {
   // Both Agents share one real directory: 0.2.1 validates a working directory on use,
   // so the fixture cannot point at a path that does not exist.
   const workspace = await mkdtemp(join(tmpdir(), 'extension-tool-gates-'))
-  cleanups.push(() => rm(workspace, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(workspace))
   const a = await harness.create(SessionId('extension-tools-a'), {}, { cwd: workspace })
   const b = await harness.create(SessionId('extension-tools-b'), {}, { cwd: workspace })
   const chosen = new Map<Agent, Set<string>>([

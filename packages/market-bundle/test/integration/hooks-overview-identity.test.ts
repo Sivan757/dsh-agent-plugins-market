@@ -8,7 +8,7 @@
  * React keys and `data-resource-id` values. These cases read through the real
  * catalog and through a catalog double that already carries the suite.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -18,6 +18,7 @@ import { readHooksOverview } from '../../../../packages/market-bundle/src/sessio
 import { loadUserHooksSuite, USER_HOOKS_SOURCE } from '../../../../packages/market-runtime/src/application/panels/user-hooks.js'
 import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 /** The declaration file the acceptance run used: two events, one command each. */
 const declarations = {
@@ -29,7 +30,7 @@ const declarations = {
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** One isolated Agent layout root holding the acceptance declaration file. */
@@ -136,7 +137,7 @@ const installedSuite = (): Suite => ({
   hooks: {
     events: {
       PreToolUse: [{ hooks: [{ type: 'command', command: 'echo installed' }] }],
-      Notification: [{ hooks: [{ type: 'command', command: 'notify-me' }] }]
+      PreCompact: [{ hooks: [{ type: 'command', command: 'before-compact' }] }]
     }
   },
   errors: []
@@ -155,7 +156,7 @@ describe('hooks overview follows-suite rows', () => {
     }
     const rows = (await readHooksOverview(catalog)).rows
     const installed = rows.filter(row => row.detail.kind === 'hook' && row.detail.sourceId === 'demo')
-    expect(ids(installed)).toEqual(['hooks:demo/v1/PreToolUse/0', 'hooks:demo/v1/Notification/0'])
+    expect(ids(installed)).toEqual(['hooks:demo/v1/PreToolUse/0', 'hooks:demo/v1/PreCompact/0'])
     // The panel is read-only; the flag explains the absent switch instead of
     // adding one, so the supported row keeps its selectable shape...
     expect(installed[0]).toMatchObject({ followsSuite: true, available: true, globalEnabled: true })

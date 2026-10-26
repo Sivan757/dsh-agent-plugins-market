@@ -131,7 +131,7 @@ describe('user hook declarations as Hooks tab rows', () => {
       projectSuites: [
         userHooksSuite({
           events: { PreToolUse: eventGroup(command('echo ok')) },
-          errors: ['hooks.json: unsupported hook event Notification', 'hooks.json: unsupported hook event PreCompact']
+          errors: ['hooks.json: unsupported hook event Notification', 'hooks.json: unsupported hook event PermissionRequest']
         })
       ]
     })
@@ -142,24 +142,27 @@ describe('user hook declarations as Hooks tab rows', () => {
       suiteId: 'user-hooks',
       event: 'Notification',
       provenance: 'user-hooks',
-      support: 'supported-partial',
+      support: 'registered-only',
       diagnostic: 'hooks.json: unsupported hook event Notification'
     })
-    const rejected = rows.find(row => row.id.endsWith('/PreCompact/declared'))!.detail
-    expect(rejected).toMatchObject({ kind: 'hook', event: 'PreCompact', support: 'registered-only', diagnostic: 'hooks.json: unsupported hook event PreCompact' })
+    const rejected = rows.find(row => row.id.endsWith('/PermissionRequest/declared'))!.detail
+    expect(rejected).toMatchObject({ kind: 'hook', event: 'PermissionRequest', support: 'registered-only', diagnostic: 'hooks.json: unsupported hook event PermissionRequest' })
     // No admitted hook exists behind a rejected declaration, so neither field is claimed.
     expect(rejected).not.toHaveProperty('command')
     expect(rejected).not.toHaveProperty('hookIndex')
   })
 
-  it('keeps partial and registered-only events read-only with their reason', async () => {
+  it('keeps a partial event read-only and admits an event the runtime now runs', async () => {
     const rows = await readExtensionInventory(ports, {
-      projectSuites: [userHooksSuite({ events: { Notification: eventGroup(command('notify-me')), SessionEnd: eventGroup(command('on-end')) } })]
+      projectSuites: [userHooksSuite({ events: { PreCompact: eventGroup(command('before-compact')), SessionEnd: eventGroup(command('on-end')) } })]
     })
-    const notification = rows.find(row => row.id.endsWith('/Notification/0'))!
-    expect(notification).toMatchObject({ available: false, control: 'global-only', unavailableReason: 'hook-event-partial' })
+    const preCompact = rows.find(row => row.id.endsWith('/PreCompact/0'))!
+    expect(preCompact).toMatchObject({ available: false, control: 'global-only', unavailableReason: 'hook-event-partial' })
+    // SessionEnd runs from disposal and discards its output, which is the
+    // reference semantics, so its declaration selects like any other.
     const sessionEnd = rows.find(row => row.id.endsWith('/SessionEnd/0'))!
-    expect(sessionEnd).toMatchObject({ available: false, control: 'global-only', unavailableReason: 'hook-event-unsupported' })
+    expect(sessionEnd).toMatchObject({ available: true, globalEnabled: true })
+    expect(sessionEnd).not.toHaveProperty('unavailableReason')
   })
 
   it('surfaces each rejected-event diagnostic as one read-only declared row', async () => {
@@ -167,15 +170,15 @@ describe('user hook declarations as Hooks tab rows', () => {
       projectSuites: [
         userHooksSuite({
           events: { PreToolUse: eventGroup(command('echo ok')) },
-          errors: ['hooks.json: unsupported hook event SessionEnd', 'hooks.json: unsupported hook event PreCompact']
+          errors: ['hooks.json: unsupported hook event Notification', 'hooks.json: unsupported hook event UserPromptExpansion']
         })
       ]
     })
     const declared = rows.filter(row => row.id.endsWith('/declared'))
-    expect(declared.map(row => row.name)).toEqual(['SessionEnd', 'PreCompact'])
+    expect(declared.map(row => row.name)).toEqual(['Notification', 'UserPromptExpansion'])
     for (const row of declared) {
       expect(row).toMatchObject({ face: 'hooks', description: row.name, available: false, control: 'global-only' })
-      // SessionEnd and PreCompact are both registered-only in the host support map.
+      // Neither event has an interception point, so both stay registered-only.
       expect(row.unavailableReason).toBe('hook-event-unsupported')
     }
     // The selectable row for the admitted event stays untouched beside the declared ones.

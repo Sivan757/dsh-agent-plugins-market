@@ -22,6 +22,7 @@ import { Catalog } from '../../../../packages/market-bundle/src/application/cata
 import { projectAgentRoles } from '../../../../packages/market-runtime/src/application/project-agent-roles.js'
 import { createUserPanelStores } from '../../../../packages/market-runtime/src/runtime/panels/user-panels.js'
 import { createPanelResources } from '../../../../packages/market-runtime/src/application/panel-resources.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 // Resolve the actual session/prompt runtime already installed with dsh-tools. Those host packages
 // live inside dsh-tools' own dependency tree, so this project reaches them at runtime but cannot
@@ -464,7 +465,7 @@ A role`)
 
   it('tracks real user edits, suite disable/uninstall and project scope with no role skills', async () => {
     const root = await mkdtemp(join(tmpdir(), 'subagent-catalog-'))
-    cleanups.push(() => rm(root, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(root))
     const userRoot = join(root, 'user')
     const stores = createUserPanelStores(userRoot)
     await stores.agents.create('reviewer', '---\nname: Reviewer\ndescription: Review\nmodel: inherit\n---\nPrivate instructions')
@@ -529,7 +530,7 @@ A role`)
 
   it('fails instead of dropping a role whose document cannot be read', async () => {
     const root = await mkdtemp(join(tmpdir(), 'subagent-catalog-blocked-'))
-    cleanups.push(() => rm(root, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(root))
     // The document's own directory is now a file: a platform may report ENOENT
     // for the document, which must not read as a removed role.
     const blocked = join(root, 'agents')

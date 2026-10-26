@@ -35,16 +35,17 @@ const MAX_ENTRIES = 4096
 const ENTRY_ID = /^(market|skills|commands|agents|mcp|lsp|hooks):.{1,1023}$/u
 
 /**
- * Which hook events the host bridge can run today, per
- * docs/scratch/hooks-support-gap-analysis.md: the seven events the harness
- * bridge registers (`CLAUDE_EVENTS`), Notification as supported-partial (the
- * plugin can bridge `permission_prompt` and `idle_prompt` itself but no host
- * seam exists for the other matcher types), and SessionEnd and PreCompact as
- * registered-only (the event can be declared but no execution path exists
- * yet). The catalog validator still rejects those three events, so their
- * declarations surface as suite diagnostics; the inventory turns each into a
- * read-only Hooks row. When a runtime bridge lands, the validator admits the
- * event and its entry here flips, instead of editing every consumer.
+ * Which hook events the market runtime runs, per
+ * docs/reference/hooks-event-coverage.md.
+ *
+ * `supported` means the event runs and every decision it documents is applied.
+ * `supported-partial` means the event runs but one documented decision has no
+ * host seam: PreCompact cannot veto a committed compaction. `registered-only`
+ * means the catalog rejects the declaration, so its rows stay read-only: the
+ * event has no interception point at all, which is true of Notification and
+ * PermissionRequest today. The catalog validator admits exactly the supported
+ * and supported-partial events, so an admitted declaration always has an
+ * execution path.
  */
 export type HookEventSupport = 'supported' | 'supported-partial' | 'registered-only'
 
@@ -53,12 +54,14 @@ export const HOOK_EVENT_HOST_SUPPORT: Readonly<Record<string, HookEventSupport>>
   UserPromptSubmit: 'supported',
   PreToolUse: 'supported',
   PostToolUse: 'supported',
+  PostToolUseFailure: 'supported',
   Stop: 'supported',
   SubagentStart: 'supported',
   SubagentStop: 'supported',
-  Notification: 'supported-partial',
-  SessionEnd: 'registered-only',
-  PreCompact: 'registered-only'
+  PreCompact: 'supported-partial',
+  SessionEnd: 'supported',
+  Notification: 'registered-only',
+  PermissionRequest: 'registered-only'
 }
 const hasControlCharacters = (value: string): boolean => Array.from(value).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
 
