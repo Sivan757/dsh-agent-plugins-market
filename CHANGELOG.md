@@ -9,6 +9,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.12.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.12.0...dsh-agent-plugins-market-v0.12.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** read the session-query service instead of importing its package ([ca4d791](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ca4d791dc0f9b1bd67b0593252ce1109672f0597))
+* **deps:** read the session-query service instead of importing its package ([6fee647](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6fee64768892f3bb9313dfc1a9a208eff1a67b58))
+* **lifecycle:** await the translation cache write and the source refresh pass ([975bfd1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/975bfd103ba0773a5927121cabadd0d0bdb8a052))
+* **lifecycle:** await the translation cache write and the source refresh pass ([6931d38](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6931d387ee104023825f5c0b04da71fd1f3b0e39))
+
 ## [0.12.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.11.1...dsh-agent-plugins-market-v0.12.0) (2026-10-26)
 
 
