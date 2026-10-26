@@ -17,7 +17,7 @@ Nothing detected either one: `check:refactor` reads the tree, and the tree was i
 
 **The baseline is resolved, not stored.** The script asks the registry for the `latest` dist-tag of `@deepseek-ai/dsh` — the package a consumer installs, and the only family member whose `latest` names a released line — and requires every declared package to carry that one version. `--host-version` pins a baseline explicitly and skips the network; `--channel` selects another dist-tag; a five-minute cache under `node_modules/.cache/` keeps the pre-commit path fast, and `--offline` refuses rather than guessing. Which tag answers the question is [resolved from the latest release line](2026-09-22-latest-release-line-baseline.md), which replaced the earlier per-package `next` resolution.
 
-**Six rules, each a distinct way the config drifts:**
+**Seven rules, each a distinct way the config drifts:**
 
 | Rule | Checks |
 | --- | --- |
@@ -25,6 +25,7 @@ Nothing detected either one: `check:refactor` reads the tree, and the tree was i
 | `peer-stale` / `dev-stale` | a host package the deployment supplies carries the peer support window and exact dev `<baseline>` |
 | `undeclared` / `dev-missing` | every host package referenced from `src/` is declared in `dependencies` or `peerDependencies`, and every peer has a dev mirror |
 | `optional-undeclared` | a host-supplied package reached _only_ through `import(...)` is an optional peer — a static import carries a compile-time contract and stays required, while a self-provisioned package needs no optional marker because nothing can go missing |
+| `optional-static` | the optional marker is absent from a package a production file imports for value, because a value import cannot degrade: it fails module evaluation ([why](../bug-fix/2026-10-26-optional-peer-value-import.md)). A type-only import is erased, so the marker stays valid there |
 | `cordis-mirror` | `@deepseek-ai/cordis` carries one identical range in peer and dev, since it tracks its own 4.x line |
 | `exclusion-missing` / `exclusion-stale` | `pnpm-workspace.yaml` `minimumReleaseAgeExclude` admits the baseline for every aligned package |
 
@@ -62,4 +63,4 @@ Realigning the pins required three adaptations:
 
 ## Deferred
 
-`scripts/check-host-alignment.mjs` has no unit test. It is exercised by the three gate points on every commit, publish, and release run, but a broken rule would surface as a false pass rather than a failing assertion; the script reads fixed repository paths, so testing it needs an injectable root first.
+`packages/market-bundle/test/repo/host-alignment.test.ts` covers the rule set with fixture trees: it copies the real script into a temporary root and drives it with `--host-version` and `--json`, so a broken rule fails an assertion instead of passing silently. Cases cover a test-only dev pin, an undeclared runtime import, a stale dev pin, and the optional marker on a value import versus a type-only one. A rule whose behaviour depends on the repository's own tree rather than the fixture still has no coverage.

@@ -17,7 +17,7 @@ Status: implemented
 
 **基线是解析出来的，不是存下来的。** 脚本向 registry 查询 `@deepseek-ai/dsh` 的 `latest` dist-tag——它是消费方实际安装的包，也是家族里唯一用 `latest` 指向已发布版本的成员——并要求声明的每个包都携带这一个版本。`--host-version` 显式指定基线并跳过网络；`--channel` 选择其他 dist-tag；`node_modules/.cache/` 下五分钟缓存让提交路径保持轻快，`--offline` 宁可拒绝也不猜。用哪个 tag 回答这个问题，见[以 latest 发布线解析基线](2026-09-22-latest-release-line-baseline.zh.md)，它取代了先前逐包解析 `next` 的做法。
 
-**六条规则，对应配置漂移的六种方式：**
+**七条规则，对应配置漂移的七种方式：**
 
 | 规则 | 检查内容 |
 | --- | --- |
@@ -25,6 +25,7 @@ Status: implemented
 | `peer-stale` / `dev-stale` | 由部署方供给的宿主包 peer 为 `^<baseline>`、dev 精确为 `<baseline>` |
 | `undeclared` / `dev-missing` | 源码引入的每个宿主包都声明在 `dependencies` 或 `peerDependencies`，且每个 peer 都有 dev 镜像 |
 | `optional-undeclared` | 宿主供给且**只**经 `import(...)` 到达的包必须是可选 peer——静态 import 携带编译期契约，保持必需；自行供给的包不需要该标记，因为它不可能缺失 |
+| `optional-static` | 某个被生产文件按值导入的包上不允许存在可选标记，因为值导入无法降级：它会直接让模块求值失败（[缘由](../bug-fix/2026-10-26-optional-peer-value-import.zh.md)）。类型导入会被擦除，标记在那里仍然成立 |
 | `cordis-mirror` | `@deepseek-ai/cordis` 在 peer 与 dev 中携带同一个范围，它自成 4.x 线 |
 | `exclusion-missing` / `exclusion-stale` | `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 对每个已对齐的包都接受该基线 |
 
@@ -62,4 +63,4 @@ Status: implemented
 
 ## Deferred
 
-`scripts/check-host-alignment.mjs` 没有单元测试。它被三道门禁在每次提交、打包、发布中执行，但某条规则坏掉会表现为误通过而不是断言失败；该脚本读取固定的仓库路径，要测试它得先让根路径可注入。
+`packages/market-bundle/test/repo/host-alignment.test.ts` 用夹具树覆盖规则集：它把真实脚本复制进临时根目录，并以 `--host-version` 与 `--json` 驱动，因此规则坏掉会变成断言失败而不是静默通过。用例覆盖仅测试用的 dev pin、未声明的运行期导入、过期的 dev pin，以及值导入与类型导入各自的可选标记结果。依赖本仓库自身工作树、而非夹具的规则仍然没有覆盖。

@@ -140,9 +140,6 @@
     },
     "@deepseek-ai/dsh-session-query": {
       "optional": true
-    },
-    "@deepseek-ai/dsh-tools": {
-      "optional": true
     }
   },
   "dependencies": {

@@ -1,8 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import '@deepseek-ai/dsh-session-query'
+// Type-only: this module reads the host's `sessionQuery` service, never the package.
+// A value import here fails module evaluation in a profile that ships no copy.
+import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import { z } from 'zod'
+import { optionalService } from '../core/context.js'
 import { parseExtensionIds, type ExtensionSelection } from '../../../../market-contracts/src/contracts/extension-presets.js'
 
 export const EXTENSION_SESSION_SOURCE = 'market-extension-selection'
@@ -296,8 +299,28 @@ export class ExtensionSessionState {
     if (error === undefined || !this.startFailures.has(agent)) return false
     return error !== 'extension-session-busy' && error !== 'extension-session-corrupt'
   }
-  /** Whether this service governs one agent; an undecidable answer stays governed. */
+  /**
+   * The host's session-query service, read off the optional seam.
+   *
+   * The host owns the instance and this plugin only reads it, so the package is an
+   * optional peer and this is the one place that answers for it. A profile that
+   * provides no service gets `undefined`, never a throw.
+   * @returns the host service, or `undefined` when the profile provides none.
+   */
+  private query(): SessionQueryEngine | undefined {
+    return optionalService(this.ctx, 'sessionQuery') as SessionQueryEngine | undefined
+  }
+  /**
+   * Whether this service governs one agent at all.
+   *
+   * A profile with no session-query service governs nobody: no durable selection can be
+   * replayed, so every hook passes through untouched, every managed resource stays
+   * denied, and no turn is parked waiting for a state this host can never publish.
+   * @param agent - the agent to decide.
+   * @returns whether the port accepts it and the service it reads is present.
+   */
   private governs(agent: Agent): boolean {
+    if (this.query() === undefined) return false
     if (this.ports.eligible === undefined) return true
     try {
       return this.ports.eligible(agent)
@@ -346,7 +369,11 @@ export class ExtensionSessionState {
   status(agent: Agent): ExtensionSessionStatus {
     // An ungoverned agent reports why it has no session state at all, so a route
     // or panel can name the reason instead of reading a permanent "not ready".
-    if (!this.governs(agent)) return { ready: false, revision: 0, recoverable: false, error: 'extension-session-ineligible' }
+    // A profile with no session-query service names that capability, which is a
+    // different answer from an agent this service deliberately does not govern.
+    if (!this.governs(agent)) {
+      return { ready: false, revision: 0, recoverable: false, error: this.query() === undefined ? 'extension-session-query-unavailable' : 'extension-session-ineligible' }
+    }
     const ready = !this.disposed && !this.unavailable.has(agent) && this.states.has(agent)
     const checkpoint = this.checkpoints.get(agent)
     const error = this.errors.get(agent)
@@ -375,6 +402,7 @@ export class ExtensionSessionState {
   }
   initialize(agent: Agent, source?: string, signal?: AbortSignal): Promise<void> {
     if (this.disposed) return Promise.reject(failure('extension-session-not-ready'))
+    if (this.query() === undefined) return Promise.reject(failure('extension-session-query-unavailable'))
     if (!this.governs(agent)) return Promise.reject(failure('extension-session-ineligible'))
     const pending = this.initializing.get(agent)
     if (pending) return pending
@@ -396,7 +424,11 @@ export class ExtensionSessionState {
     return operation
   }
   private async replay(agent: Agent): Promise<{ checkpoint: Checkpoint; nonempty: boolean }> {
-    const observation = await this.ctx.sessionQuery.observeSession(agent.id, { projectionMode: 'none' })
+    // The read site for the optional service: a profile without it gets this code
+    // through status and the record {@link fail} writes, never a TypeError.
+    const query = this.query()
+    if (query === undefined) throw failure('extension-session-query-unavailable')
+    const observation = await query.observeSession(agent.id, { projectionMode: 'none' })
     const checkpoint: Checkpoint = {}
     const seen = new Map<string, string>()
     try {
