@@ -452,7 +452,24 @@ export class ExtensionRuntime implements ExtensionRouteService {
       status: readFailed || this.stale.has(agent) ? { ...status, inventoryPending: true } : status
     }
   }
-  /** Recovery is an explicit, revision-checked act; it never invents a selection. */
+  /**
+   * Recovery is an explicit, revision-checked act; it never invents a selection.
+   *
+   * Resolving does NOT mean the session's managed capabilities are live. It
+   * means the durable selection is restored and this service owns the rest:
+   *
+   * - the ready branch rejects with `extension-refresh-pending` when its own
+   *   refresh could not land, so a caller cannot mistake a still-denied session
+   *   for a recovered one,
+   * - the not-ready branch can resolve while the session is ready and every
+   *   managed capability is still denied, because the post-recovery inventory
+   *   read failed and the retry is armed. Read {@link allows} or
+   *   {@link denialReason} before treating a resolved recovery as usable,
+   * - either branch leaves a retry armed when work is still outstanding, so a
+   *   failed recovery is never an agent with work queued and nobody coming back.
+   * @param sessionId - the session to recover.
+   * @param revision - the compare-and-swap revision the caller last observed.
+   */
   async recover(sessionId: string, revision: number): Promise<void> {
     const agent = this.agent(sessionId)
     if (this.dirty.has(agent) && this.state.status(agent).ready) {
@@ -460,12 +477,17 @@ export class ExtensionRuntime implements ExtensionRouteService {
       await this.refreshAgent(agent)
       if (this.dirty.has(agent)) throw failure('extension-refresh-pending')
     } else {
-      // The not-ready branch replays a committed selection without reading the
-      // inventory, so the agent would come back ready but still stale: denied,
-      // with nothing scheduled. Recovery must leave it refreshed or scheduled,
-      // never in between, so the re-read is part of that guarantee rather than a
-      // separate step that can fail on its own.
-      await this.state.recover(agent, revision)
+      // The not-ready branch may replay the selection, which reads the
+      // inventory, and it then re-reads again to publish. Either read can fail,
+      // and both must end the same way: the agent keeps or regains its durable
+      // selection, and a retry is armed. Leaving it dirty with nothing scheduled
+      // is the in-between state this method must never produce.
+      try {
+        await this.state.recover(agent, revision)
+      } catch (error) {
+        if (this.dirty.has(agent)) this.scheduleRetry(agent)
+        throw error
+      }
       try {
         await this.refreshInventory(agent)
         if (this.dirty.has(agent) && !this.stale.has(agent)) await this.refreshAgent(agent)

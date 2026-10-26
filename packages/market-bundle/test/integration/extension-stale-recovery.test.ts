@@ -64,6 +64,7 @@ async function setup() {
   let rows: ExtensionResource[] = [{ id: RESOURCE, face: 'mcp', name: 'db', source: 'demo', available: true, detail: { kind: 'mcp', entryId: 'plugin:demo/suite/db' } }]
   let failInventory = false
   const gates = new Map<Agent, ExtensionToolGates>()
+  let publishFailure = false
   const runtime = new ExtensionRuntime(ctx, {
     dataRoot: root,
     // A fast schedule keeps the retry observable without waiting a minute.
@@ -73,7 +74,10 @@ async function setup() {
       return rows
     },
     applySelection: async () => {},
-    committed: agent => gates.get(agent)?.refresh()
+    committed: agent => {
+      if (publishFailure) throw new Error('publication failed')
+      gates.get(agent)?.refresh()
+    }
   })
   cleanup.push(() => runtime.dispose())
   await runtime.start()
@@ -114,10 +118,13 @@ async function setup() {
   }
 
   /** Grant the one resource, the way a preset selection does. */
+  let granted = 0
   const grant = async (target: Agent): Promise<void> => {
+    // Preset names are unique per library, and one case may grant twice.
+    const name = 'grant-' + target.id + '-' + String(granted++)
     const window = await runtime.window(target.id)
-    await runtime.create(target.id, window.library.revision, { name: 'grant-' + target.id, enabledIds: [RESOURCE] })
-    const preset = (await runtime.window(target.id)).library.presets.find(row => row.name === 'grant-' + target.id)
+    await runtime.create(target.id, window.library.revision, { name, enabledIds: [RESOURCE] })
+    const preset = (await runtime.window(target.id)).library.presets.find(row => row.name === name)
     if (preset === undefined) throw new Error('preset was not created')
     await runtime.select(target.id, (await runtime.window(target.id)).state.revision, preset.id)
   }
@@ -127,6 +134,15 @@ async function setup() {
     runtime,
     agent,
     grant,
+    /** Grant again with the publication port failing, leaving the session not ready. */
+    grantWithFailedPublication: async (target: Agent) => {
+      publishFailure = true
+      try {
+        await grant(target)
+      } finally {
+        publishFailure = false
+      }
+    },
     tool,
     setRows: (next: ExtensionResource[]) => {
       rows = next
@@ -290,24 +306,50 @@ it('publishes the pending state on the session window and clears it when the rea
   expect(runtime.allows(alpha, RESOURCE)).toBe(true)
 })
 
-it('schedules a retry when recovery cannot finish its own refresh', async () => {
+it('arms a retry when recovery itself cannot complete, so the next attempt can succeed', async () => {
+  const { runtime, agent, grant, grantWithFailedPublication, failInventory } = await setup()
+  const alpha = await agent('alpha')
+  await grant(alpha)
+  await vi.waitFor(() => expect(runtime.allows(alpha, RESOURCE)).toBe(true))
+
+  // A publication failure leaves the session not ready with a durable selection.
+  // Then the catalog read fails too, so recovery cannot restore it either.
+  await expect(grantWithFailedPublication(alpha)).rejects.toThrow('publication failed')
+  failInventory(true)
+  const status = runtime.state.status(alpha)
+  expect(status.ready).toBe(false)
+  expect(status.recoverable).toBe(true)
+  await expect(runtime.recover(alpha.id, status.revision)).rejects.toThrow()
+
+  // The in-between state the fix forbids: work outstanding, nobody scheduled.
+  // A retry must be armed, or the session would sit denied with nothing to wake it.
+  const internals = runtime as unknown as { retries: Map<Agent, unknown>; dirty: Set<Agent> }
+  expect(internals.dirty.has(alpha)).toBe(true)
+  expect(internals.retries.has(alpha)).toBe(true)
+
+  // The read works again, and the next explicit recovery restores the capability.
+  failInventory(false)
+  await runtime.recover(alpha.id, runtime.state.status(alpha).revision)
+  await vi.waitFor(() => expect(runtime.allows(alpha, RESOURCE)).toBe(true), { timeout: 5_000 })
+  expect(runtime.state.status(alpha).ready).toBe(true)
+})
+
+it('reports a session that is ready but still denied instead of pretending it is usable', async () => {
   const { runtime, agent, grant, failInventory } = await setup()
   const alpha = await agent('alpha')
   await grant(alpha)
   await vi.waitFor(() => expect(runtime.allows(alpha, RESOURCE)).toBe(true))
 
-  // Deny the agent, then keep the re-read failing so an explicit recovery
-  // cannot complete. It reports pending, which is its documented contract, and
-  // the session must be scheduled rather than left with nobody coming back.
-  runtime.invalidate()
+  // A pending read leaves the session ready in the state machine but authorizing
+  // nothing. That is why recover documents that resolving restores the selection,
+  // not the capabilities: a caller checks allows() or denialReason() first.
   failInventory(true)
+  runtime.invalidate()
   await runtime.refreshAll()
-  const status = runtime.state.status(alpha)
-  await expect(runtime.recover(alpha.id, status.revision)).rejects.toThrow('extension-refresh-pending')
+  expect(runtime.state.status(alpha).ready).toBe(true)
+  expect(runtime.allows(alpha, RESOURCE)).toBe(false)
+  expect(runtime.denialReason(alpha)).toBe('extension-inventory-pending')
 
-  // The read recovers and the scheduled retry restores the capability without
-  // another catalog event or another recovery call.
   failInventory(false)
   await vi.waitFor(() => expect(runtime.allows(alpha, RESOURCE)).toBe(true), { timeout: 5_000 })
-  expect(runtime.state.status(alpha).ready).toBe(true)
 })
