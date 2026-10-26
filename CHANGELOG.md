@@ -9,6 +9,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.12.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.11.1...dsh-agent-plugins-market-v0.12.0) (2026-10-26)
+
+
+### Features
+
+* **hooks:** apply hook decisions, context and run-level halts ([92d0e32](https://github.com/Sivan757/dsh-agent-plugins-market/commit/92d0e323ebcf00cb095a45755e5aedfaab1177ea))
+* **hooks:** apply hook decisions, context and run-level halts ([f494ac1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f494ac1d77bafb9439ecdcedfd1563b2dc714f56))
+
+
+### Bug Fixes
+
+* **commands:** expand named command arguments from the arguments declaration ([e718319](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e718319286dda66a59b3b577d99a520514c14835))
+* **commands:** expand named command arguments from the arguments declaration ([fbcd767](https://github.com/Sivan757/dsh-agent-plugins-market/commit/fbcd7674fa1d2e2ba819c9e8a3e832b379470391))
+* **commands:** report command files the parser refuses ([a6d56f8](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a6d56f8f08f22a7cb92acd9ef37164220e32cd9e))
+* **commands:** report command files the parser refuses ([dc130dc](https://github.com/Sivan757/dsh-agent-plugins-market/commit/dc130dcf874dc57967aa79de7a7aecb274fe0339))
+* **deps:** clear the open Dependabot alerts in the lockfile ([476b30a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/476b30afed7b277ebba99dd94a5478258020032c))
+* **deps:** clear the open Dependabot alerts, accept the zod risk ([f7d3a44](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f7d3a44736f9353f2968d24a55e70c2776bfb0b2))
+* **hooks:** run SessionEnd while the grant is open and stop faking failures ([7e8e1eb](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7e8e1eb93e9f64d31aa9e76b9dbec546d5b02d8a))
+* **lifecycle:** wait for the runtime teardown before the entry fiber unloads ([03b6cb5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/03b6cb572256988b3fb7d76033db42c660e10cae))
+* **lifecycle:** wait for the runtime teardown before the entry fiber unloads ([3b8fdeb](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3b8fdebf5e8479cc1a6a76f41968ce358281df83))
+* **mcp:** make a mount batch total, take over a free name, configure the budget ([dc5a9e7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/dc5a9e7fbcca5dd00fb403882da5cc81971a3956))
+
+
+### Performance Improvements
+
+* **mcp:** measure the MCP switch path before changing it ([a77c00a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/a77c00a6eed120f0e582779e358cccaabe2705d1))
+* **mcp:** mount a pass in parallel and bound the switch wait ([108b3a6](https://github.com/Sivan757/dsh-agent-plugins-market/commit/108b3a68ac84195869952420d7f49f8788d667b1))
+* **mcp:** mount a pass in parallel and bound the switch wait ([865422a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/865422ace620457facbe5447459158df2fcfdd07))
+
 ## [0.11.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.11.0...dsh-agent-plugins-market-v0.11.1) (2026-10-21)
 
 
