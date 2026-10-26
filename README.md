@@ -67,24 +67,25 @@ Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`
 - **Ten suite layouts.** Claude Code, Codex, Cursor, Kimi Code, ZCode, Qoder CLI, GitHub Copilot CLI, Universal `.plugin/`, [agent-plugins](https://agent-plugins.org) and manifest-less skill collections.
 - **Sources and downloads.** Add a Git repository, a local directory or an archive, adopt a checkout you cloned yourself, and refresh on demand. Pick a global or China mainland mirror, and refresh every source on a 6-hour timer if you want.
 - **Runtime injection.** Enabled suites add skills to the catalog and slash menu, commands as `/name`, agent personas to the subagent catalog, MCP tools as `mcp__*`, hooks to lifecycle events, and language servers to the `lsp` tool. Installing the plugin is the whole LSP setup.
-- **One workspace.** Seven tabs cover the market, the resources you author, and the services that run. Every tab has search, filters and a grid or list view.
+- **One workspace.** Eight tabs cover the market, the instructions injected into a session, the resources you author, and the services that run. Every tab has search, filters and a grid or list view.
 
 ### Advanced
 
 - **MCP OAuth with nothing to declare.** A remote MCP server that answers `401` starts RFC 9728 discovery, dynamic client registration and PKCE authorization in your browser, and the granted token persists. OAuth is on by default, so a suite needs no declaration for it.
 - **Per-server MCP control.** Override a declaration without editing its source, switch one tool off, and set the tool-call and startup timeouts.
 - **Project and personal resources.** Turn on **Scan project Agent layouts** to read skills, commands, roles, MCP servers and hooks from the project's own directories. Author your own under `~/.agents/` as Markdown, and disable a resource without deleting its file.
-- **Per-workspace control.** Each workspace switches the six mounted surfaces off or on, keeps its own resource filters, and saves a resource-window setup as a favorite that works across projects.
+- **Per-workspace control.** Each workspace switches the six mounted surfaces off or on, keeps its own resource filters, saves a resource-window setup as a favorite that works across projects, and stows tabs it does not need into the menu at the end of the tab row.
 - **Hooks that decide, not just observe.** Ten events apply what the hook returns: tool deny, ask and allow, added context, corrective feedback, a forced continuation, and a real halt for `continue: false`. A hook row opens a declaration card with its event, matcher and timeout, plus a dry run in your home directory. [Hook event coverage](docs/reference/hooks-event-coverage.md) lists every event and the three reference fields the host cannot apply yet.
 - **Bilingual by default.** The interface and the injected prompts follow the host language. Descriptions and documents show the original, a translation or both, and stay cached until you clear them.
 
 ## Everyday use
 
-The workspace has seven tabs:
+The workspace has eight tabs:
 
 | Tab            | Use it to                                                                           |
 | -------------- | ----------------------------------------------------------------------------------- |
 | Market         | Add sources, preview suites, install or remove them, and switch them on or off.     |
+| Instructions   | See the AGENTS.md chain a session injects, and create, edit or delete those files.  |
 | Skills         | Browse skills and create or edit your own reusable instructions.                    |
 | Commands       | Manage prompt templates invoked as `/name`.                                         |
 | Agent personas | Save role instructions and model settings, then delegate to them.                   |
@@ -94,7 +95,7 @@ The workspace has seven tabs:
 
 A **source** is where content comes from. A **suite** is an installable unit discovered there. Adding a source discovers its suites. Enabling a suite turns its runtime capabilities on.
 
-Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. Project-native resources stay in the project. See [storage and discovery](https://sivan757.github.io/dsh-agent-plugins-market/docs/resources/#storage-and-discovery).
+Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. The [instructions guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/instructions/) explains the AGENTS.md chain the host injects and the page that edits it. Project-native resources stay in the project. See [storage and discovery](https://sivan757.github.io/dsh-agent-plugins-market/docs/resources/#storage-and-discovery).
 
 ## Compatibility
 

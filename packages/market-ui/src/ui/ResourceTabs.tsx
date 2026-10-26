@@ -25,12 +25,21 @@ export interface ResourceTabsProps<T extends string> {
   /** Localized accessible name of the tab list. */
   label: string
   items: readonly ResourceTabItem<T>[]
+  /**
+   * A control pinned to the row's trailing edge, after the tab list.
+   *
+   * It renders beside the `role="tablist"` element, never inside it: the host
+   * owns the roving tab stop and the walk keys over the tabs, and a second
+   * focusable child of the list would join that walk. It never shrinks, so the
+   * tabs keep their equal columns and ellipsize instead of the row growing.
+   */
+  trailing?: ReactNode
   /** Placement class for the row; the row policy itself stays in this module. */
   className?: string
 }
 
 /** Render one shared tab row. */
-export function ResourceTabs<T extends string>({ value, onChange, label, items, className }: ResourceTabsProps<T>): ReactNode {
+export function ResourceTabs<T extends string>({ value, onChange, label, items, trailing, className }: ResourceTabsProps<T>): ReactNode {
   const tabs: SegmentedTab<T>[] = items.map(item => ({
     value: item.value,
     // Wrapped here rather than by each caller: one arrangement and one
@@ -45,6 +54,7 @@ export function ResourceTabs<T extends string>({ value, onChange, label, items, 
   return h(
     'div',
     { className: className === undefined ? css.row : css.row + ' ' + className },
-    h(SegmentedTabs<T>, { className: css.tabs, label, value, onChange, items: [first, ...rest] })
+    h(SegmentedTabs<T>, { className: css.tabs, label, value, onChange, items: [first, ...rest] }),
+    trailing === undefined ? null : h('div', { className: css.trailing }, trailing)
   )
 }

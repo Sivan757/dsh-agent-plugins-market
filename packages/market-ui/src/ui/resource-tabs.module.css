@@ -8,14 +8,29 @@
  */
 
 .row {
+  display: flex;
+  /* One line, always: a trailing control must not push the tabs onto a second
+     row, so nothing here wraps. */
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
   flex: none;
   min-width: 0;
   /* Clips, never scrolls: a label that cannot fit its column ellipsizes below. */
   overflow: hidden;
 }
 
+/* The tabs take every pixel the trailing control does not, and shrink first:
+   their labels ellipsize, the control keeps its size. */
 .tabs {
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.trailing {
+  display: flex;
+  flex: none;
+  align-items: center;
 }
 
 .row [role='tab'] {

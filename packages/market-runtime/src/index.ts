@@ -51,3 +51,6 @@ export type { MountPluginHandle, PluginMountContext } from './runtime/core/mount
 export { causeMessages } from './runtime/host/failure-detail.js'
 export { resolveDeclaredCommand } from './runtime/host/shell-path.js'
 export { optionalService } from './runtime/core/context.js'
+export { TabLayoutService } from './runtime/host/tab-layout-service.js'
+export { loadTabLayout, mutateTabLayout, saveTabLayout, tabLayoutPath } from './application/state/tab-layout.js'
+export type { TabLayout } from './application/state/tab-layout.js'

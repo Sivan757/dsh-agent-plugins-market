@@ -45,7 +45,11 @@ import { createPanelResources } from '../../market-runtime/src/index.js'
 import { resolveAgentsRoot, resolveDataRoot, resolveUserRoot } from '../../market-catalog/src/index.js'
 import { mountSuiteRoutes } from './routes.js'
 import { mountResourceRoutes } from './routes-resources.js'
+import { mountTabLayoutRoutes } from './routes-tab-layout.js'
+import { mountInstructionRoutes } from './routes-instructions.js'
+import { resolveInstructionLimits } from './application/instructions.js'
 import { ResourceFilterService } from '../../market-runtime/src/index.js'
+import { TabLayoutService } from '../../market-runtime/src/index.js'
 import { loadLspServers } from '../../market-lsp/src/index.js'
 import { loadDisabledLspServers } from '../../market-lsp/src/index.js'
 import {
@@ -114,6 +118,19 @@ export interface Config {
   translationEnabled: Volatile<boolean | undefined>
   /** Agent preset manager switch; updated live through the host settings service. */
   agentPresetsEnabled: Volatile<boolean | undefined>
+  /**
+   * Byte cap on the whole workspace instruction baseline the instructions page
+   * reports. Defaults to 65536, the host loader's own default: keep the two
+   * equal, or the page would describe a budget the model does not get. `0`
+   * disables instruction loading, exactly as the host row's `maxBytes` does.
+   */
+  instructionMaxBytes?: number
+  /**
+   * Byte cap on one instruction file. Defaults to 1048576, the host loader's
+   * own default; a larger file never loads. Keep equal to the host
+   * `agent-instructions` row's `maxSourceBytes`.
+   */
+  instructionMaxSourceBytes?: number
 }
 
 /**
@@ -142,6 +159,8 @@ export interface ConfigInput {
   autoUpdateSources?: boolean | null
   translationEnabled?: boolean | null
   agentPresetsEnabled?: boolean | null
+  instructionMaxBytes?: number | null
+  instructionMaxSourceBytes?: number | null
 }
 
 export const Config = z.object({
@@ -163,7 +182,9 @@ export const Config = z.object({
   feedbackEnabled: MarketSettingsFields.feedbackEnabled.volatile(),
   autoUpdateSources: MarketSettingsFields.autoUpdateSources.volatile(),
   translationEnabled: MarketSettingsFields.translationEnabled.volatile(),
-  agentPresetsEnabled: MarketSettingsFields.agentPresetsEnabled.volatile()
+  agentPresetsEnabled: MarketSettingsFields.agentPresetsEnabled.volatile(),
+  instructionMaxBytes: z.union([z.natural(), z.const(undefined)]),
+  instructionMaxSourceBytes: z.union([z.natural(), z.const(undefined)])
 })
 
 const undefinedRef = { get: () => undefined as never }
@@ -185,6 +206,10 @@ export async function apply(
   // One explicit resolve step, so a malformed budget fails here rather than
   // turning into an accidental endless wait at the first switch.
   const switchSettleMs = resolveSwitchSettleMs(config.switchSettleMs)
+  // The instruction page reads and rewrites the same AGENTS.md chain the host
+  // injects, so its two byte caps must be the values that chain runs under.
+  // Resolved once, validated here: a typo fails at load, not at the first read.
+  const instructionLimits = resolveInstructionLimits(config)
   const agentsRoot = resolveAgentsRoot()
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
@@ -324,6 +349,10 @@ export async function apply(
   )
   const surfaceToggles = new SurfaceToggleService(resourceFilters)
   void resourceFilters.reload().catch(error => ctx.logger.warn('workspace policy: ' + String(error)))
+  // The tab layout is its own document and its own owner: sharing the policy
+  // file above would let one writer overwrite the other's section.
+  const tabLayout = new TabLayoutService(dataRoot, process.cwd())
+  void tabLayout.reload().catch(error => ctx.logger.warn('workspace tab layout: ' + String(error)))
 
   // The credentials store powers the MCP re-authorize action (dropping a grant
   // record forces the next mount through a fresh browser authorization). Every
@@ -463,6 +492,11 @@ export async function apply(
     // and taking it down with one of them would strand the user.
     hostCtx.effect(() => {
       const disposeSuite = mountSuiteRoutes(hostCtx, catalog, resources, surfaceToggles, sessionExtensions.session())
+      const disposeTabLayout = mountTabLayoutRoutes(hostCtx, tabLayout)
+      const disposeInstructions = mountInstructionRoutes(hostCtx, {
+        limits: instructionLimits,
+        ...(sessionExtensions.session() === undefined ? {} : { session: sessionExtensions.session() })
+      })
       const disposeResources = mountResourceRoutes(hostCtx, {
         catalog,
         panels: resources,
@@ -493,6 +527,8 @@ export async function apply(
       })
       return () => {
         disposeSuite?.()
+        disposeTabLayout()
+        disposeInstructions()
         disposeResources()
       }
     }, 'dsh-agent-plugins-market: http routes')

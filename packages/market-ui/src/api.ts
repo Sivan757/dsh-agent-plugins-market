@@ -26,6 +26,9 @@ import type {
 import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-status.js'
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
+import { resolveHiddenTabs, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
+import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
+import type { InstructionDeleteResult, InstructionsPayload, InstructionSaveRequest } from '../../market-contracts/src/contracts/instructions.js'
 import type { DocumentTranslation } from '../../market-contracts/src/contracts/translation.js'
 
 export type {
@@ -52,6 +55,14 @@ export type {
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../../market-contracts/src/contracts/mcp-status.js'
 export type { LspStatusEntry, LspStatusPayload, LspStatusState, LspLegacySeam, LspLegacySeamMigration } from '../../market-contracts/src/contracts/lsp-status.js'
 export type { McpBackendInfo }
+export type {
+  InstructionDeleteResult,
+  InstructionRow,
+  InstructionsPayload,
+  InstructionRowStatus,
+  InstructionScope,
+  InstructionSaveRequest
+} from '../../market-contracts/src/contracts/instructions.js'
 
 /** The market overview wire, under the name the client surfaces use. */
 export type OverviewData = OverviewPayload
@@ -553,4 +564,67 @@ export async function loadSurfaceToggles(): Promise<SurfaceToggles> {
 export async function setSurfaceToggle(key: SurfaceToggleKey, enabled: boolean): Promise<SurfaceToggles> {
   const payload = await postAction('surface-toggles/set', { key, enabled })
   return payload.toggles as SurfaceToggles
+}
+/* ---- Workspace tab stowing ---- */
+
+/** Read this workspace's stowed workspace tabs. */
+export async function loadTabLayout(): Promise<TabLayoutWire> {
+  const layout = await getJson<TabLayoutWire>(MARKET_ROUTES.tabLayout, 'tab layout failed')
+  return { hidden: resolveHiddenTabs(layout.hidden) }
+}
+
+/** Replace this workspace's stowed tabs and resolve with the committed layout. */
+export async function saveTabLayout(hidden: readonly string[]): Promise<TabLayoutWire> {
+  const payload = await postOkJson<{ hidden?: unknown }>(MARKET_ROUTES.setTabLayout, { hidden: [...hidden] }, 'tab layout failed')
+  return { hidden: resolveHiddenTabs(payload.hidden) }
+}
+
+/* ---- Workspace instructions (AGENTS.md chain) ---- */
+
+/**
+ * Read the workspace instruction chain for one workspace.
+ *
+ * @param sessionId - the live session whose workspace to describe; omitted
+ * means the host process working directory.
+ * @returns the chain, the rendered baseline and the byte budget it ran under.
+ */
+export async function fetchInstructions(sessionId?: string): Promise<InstructionsPayload> {
+  return withBusyOperation(
+    async () => {
+      const response = await boundedFetch(sessionRoute(INSTRUCTION_ROUTES.read, sessionId), { credentials: 'same-origin' }, READ_TIMEOUT_MS)
+      const payload = (await response.json()) as InstructionsPayload & { error?: string }
+      if (!response.ok) throw new Error(payload.error ?? `instructions failed: ${response.status}`)
+      return payload
+    },
+    { blocking: false }
+  )
+}
+
+/* ---- Workspace instructions (AGENTS.md chain) ---- */
+
+/**
+ * Create or replace one instruction candidate.
+ *
+ * The body names a candidate, never a path: the server resolves it against the
+ * same chain the read returned.
+ * @param request - the scope, directory, candidate name and new text.
+ * @param sessionId - the live session whose workspace to write in.
+ */
+export async function saveInstructionFile(request: InstructionSaveRequest, sessionId?: string): Promise<void> {
+  await postOkJson(sessionRoute(INSTRUCTION_ROUTES.save, sessionId), { ...request }, 'save failed')
+}
+
+/* ---- Workspace instructions (AGENTS.md chain) ---- */
+
+/**
+ * Remove one instruction candidate.
+ *
+ * @param request - the scope, directory and candidate name to remove.
+ * @param sessionId - the live session whose workspace to write in.
+ * @returns the other chain entries that resolve to the same file.
+ */
+export async function deleteInstructionFile(request: Omit<InstructionSaveRequest, 'text'>, sessionId?: string): Promise<InstructionDeleteResult> {
+  const payload = await postOkJson<{ aliases?: unknown[]; targetIsLink?: boolean }>(sessionRoute(INSTRUCTION_ROUTES.remove, sessionId), { ...request }, 'delete failed')
+  const aliases = Array.isArray(payload.aliases) ? payload.aliases.map(value => String(value)) : []
+  return { aliases, targetIsLink: payload.targetIsLink === true }
 }
