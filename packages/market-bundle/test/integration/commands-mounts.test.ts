@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { scanSource } from '../../../../packages/market-catalog/src/scanning/suite-scanner.js'
@@ -8,6 +9,9 @@ import { CommandMountRegistry } from '../../../../packages/market-runtime/src/ru
 import type { Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { required } from './helpers/fixture.js'
+
+/** A trimmed copy of the published code-modernization commands, frontmatter included. */
+const CODE_MODERNIZATION = fileURLToPath(new URL('./fixtures/code-modernization-commands', import.meta.url))
 
 const roots: string[] = []
 afterEach(async () => {
@@ -65,6 +69,16 @@ function commandHost(registered: Map<string, Registration>, occupied: string[] =
       }
     }
   } as unknown as Context
+}
+
+/** Run one registered command and report the follow-up body the model would receive. */
+async function forward(definition: Registration, rawInput: string): Promise<{ body: string; outcome: { kind: string; text: string } }> {
+  let body = ''
+  const outcome = (await definition.handler({
+    agent: { session: { header: {} }, followup: (message: { content: Array<{ text: string }> }) => (body = message.content[0]?.text ?? '') },
+    rawInput
+  })) as { kind: string; text: string }
+  return { body, outcome }
 }
 
 describe('suite command name allocation', () => {
@@ -223,5 +237,87 @@ describe('suite command name allocation', () => {
     expect([...secondRegistered.keys()]).toEqual(['review'])
     firstRegistry.disposeAll()
     secondRegistry.disposeAll()
+  })
+})
+
+describe('suite command argument binding', () => {
+  it('binds the named argument the code-modernization frontmatter declares', async () => {
+    const registered = new Map<string, Registration>()
+    const registry = new CommandMountRegistry(commandHost(registered))
+    await registry.reconcile(await suitesOf(CODE_MODERNIZATION))
+
+    const definition = required(registered.get('modernize-harden'), 'the modernize-harden fixture command to register')
+    const { body, outcome } = await forward(definition, 'payment-service')
+
+    // The input reaches the model through the declared name, so neither the
+    // literal placeholder nor the plain body survives.
+    expect(body).toContain('security hardening pass')
+    expect(body).toContain('legacy/payment-service')
+    expect(body).toContain('analysis/payment-service/')
+    expect(body).not.toContain('$system')
+    expect(outcome.kind).toBe('success')
+    registry.disposeAll()
+  })
+
+  it('binds two declared names, keeping a quoted argument whole', async () => {
+    const registered = new Map<string, Registration>()
+    const registry = new CommandMountRegistry(commandHost(registered))
+    await registry.reconcile(await suitesOf(CODE_MODERNIZATION))
+
+    const definition = required(registered.get('modernize-review'), 'the modernize-review fixture command to register')
+    const { body } = await forward(definition, 'billing "flagged rules"')
+    expect(body).toContain('analysis/billing/BUSINESS_RULES.md')
+    expect(body).toContain('let `flagged rules` pick the rest')
+    registry.disposeAll()
+  })
+
+  it('expands positional placeholders in a body that declares no arguments', async () => {
+    const root = await suiteRoot({ 'brief.md': '---\ndescription: Brief\n---\nBrief for `$1`, target `$2`' })
+    const registered = new Map<string, Registration>()
+    const registry = new CommandMountRegistry(commandHost(registered))
+    await registry.reconcile(await suitesOf(root))
+
+    const definition = required(registered.get('brief'), 'the brief command to register')
+    expect((await forward(definition, 'billing net8')).body).toBe('Brief for `billing`, target `net8`')
+    registry.disposeAll()
+  })
+
+  it('names a declared argument the input left out instead of dropping it silently', async () => {
+    const root = await suiteRoot({
+      'uplift.md': '---\ndescription: Uplift\narguments: system source_version target_version\n---\nUplift $system from $source_version to $target_version'
+    })
+    const registered = new Map<string, Registration>()
+    const registry = new CommandMountRegistry(commandHost(registered))
+    await registry.reconcile(await suitesOf(root))
+
+    const definition = required(registered.get('uplift'), 'the uplift command to register')
+    const { body, outcome } = await forward(definition, 'billing')
+
+    expect(body).toBe('Uplift billing from  to ')
+    expect(outcome.kind).toBe('success')
+    expect(outcome.text).toContain('$source_version, $target_version')
+    registry.disposeAll()
+  })
+
+  it('appends the input when the body carries no placeholder at all', async () => {
+    const root = await suiteRoot({ 'checklist.md': '---\ndescription: Checklist\n---\nFollow the release checklist.\n' })
+    const registered = new Map<string, Registration>()
+    const registry = new CommandMountRegistry(commandHost(registered))
+    await registry.reconcile(await suitesOf(root))
+
+    const definition = required(registered.get('checklist'), 'the checklist command to register')
+    expect((await forward(definition, 'deploy staging')).body).toBe('Follow the release checklist.\n\nUser input: deploy staging')
+    registry.disposeAll()
+  })
+
+  it('keeps $ARGUMENTS as the whole input when the command also declares arguments', async () => {
+    const root = await suiteRoot({ 'assess.md': '---\ndescription: Assess\narguments: system\n---\nSystem: $system\nFlags: $ARGUMENTS' })
+    const registered = new Map<string, Registration>()
+    const registry = new CommandMountRegistry(commandHost(registered))
+    await registry.reconcile(await suitesOf(root))
+
+    const definition = required(registered.get('assess'), 'the assess command to register')
+    expect((await forward(definition, 'billing --show-secrets')).body).toBe('System: billing\nFlags: billing --show-secrets')
+    registry.disposeAll()
   })
 })

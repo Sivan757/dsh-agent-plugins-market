@@ -14,11 +14,12 @@
  */
 
 /** Host runtime dictionary keys (mirrored for zh and en). */
-export type HostLocaleKey = 'commandAcknowledged' | 'commandNotSelected' | 'userCommandSourceLabel' | 'feedbackToolCardTitle'
+export type HostLocaleKey = 'commandAcknowledged' | 'commandNotSelected' | 'commandMissingArguments' | 'userCommandSourceLabel' | 'feedbackToolCardTitle'
 
 const zh: Record<HostLocaleKey, string> = {
   commandAcknowledged: '/{command} 已转交模型执行',
   commandNotSelected: '/{command} 未在当前会话启用',
+  commandMissingArguments: '/{command} 以下已声明的参数没有取到值，按空值处理：{arguments}',
   userCommandSourceLabel: '用户命令',
   feedbackToolCardTitle: '提交市场体验反馈'
 }
@@ -26,6 +27,7 @@ const zh: Record<HostLocaleKey, string> = {
 const en: Record<HostLocaleKey, string> = {
   commandAcknowledged: '/{command} forwarded to the model for execution',
   commandNotSelected: '/{command} is not enabled in this session',
+  commandMissingArguments: '/{command} did not receive these declared arguments, left empty: {arguments}',
   userCommandSourceLabel: 'user command',
   feedbackToolCardTitle: 'File market feedback'
 }
