@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -14,6 +14,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtime/host/extension-runtime.js'
 import { attachExtensionToolGates, type ExtensionToolGates } from '../../../../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 class Query extends SessionQueryEngine {
   searchSessions(): Promise<never> {
     return Promise.reject(new Error('unused'))
@@ -42,7 +43,7 @@ const id = 'mcp:plugin:source/suite/db'
 const row: ExtensionResource = { id, face: 'mcp', name: 'db', source: 'source', available: true, detail: { kind: 'mcp', entryId: 'plugin:source/suite/db' } }
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'extension-maintenance-'))
-  cleanup.push(() => rm(root, { recursive: true, force: true }))
+  cleanup.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanup.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

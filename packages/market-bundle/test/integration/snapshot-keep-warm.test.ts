@@ -17,12 +17,13 @@ import { fileURLToPath } from 'node:url'
  * The last case fakes the process clock itself, covering the default clock a
  * deployment gets.
  */
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Catalog, type CatalogOptions } from '../../../../packages/market-bundle/src/application/catalog.js'
 import type { CatalogSnapshot } from '../../../../packages/market-catalog/src/application/snapshot-cache.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 /**
  * Scan volume by filesystem call: a discovery scan opens with stat on the
@@ -59,7 +60,7 @@ const roots: string[] = []
 
 afterEach(async () => {
   vi.useRealTimers()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** Fake the scheduling and leave the process clock real; see the file header. */

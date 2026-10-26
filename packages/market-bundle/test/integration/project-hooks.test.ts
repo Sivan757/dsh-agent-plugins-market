@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -7,10 +7,11 @@ import { discoverProjectHooks } from '../../../../packages/market-catalog/src/sc
 import { discoverNativeProjectSuites } from '../../../../packages/market-catalog/src/scanning/native-project.js'
 import { HooksMountRegistry } from '../../../../packages/market-runtime/src/runtime/surfaces/hooks-mounts.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 async function root(): Promise<string> {
   const value = await mkdtemp(join(tmpdir(), 'market-project-hooks-test-'))

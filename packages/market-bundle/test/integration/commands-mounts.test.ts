@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,13 +9,14 @@ import { CommandMountRegistry } from '../../../../packages/market-runtime/src/ru
 import type { Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { required } from './helpers/fixture.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 /** A trimmed copy of the published code-modernization commands, frontmatter included. */
 const CODE_MODERNIZATION = fileURLToPath(new URL('./fixtures/code-modernization-commands', import.meta.url))
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** One suite root carrying the given `commands/<file>.md` documents. */

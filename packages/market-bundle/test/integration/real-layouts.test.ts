@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +15,7 @@ import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { isRecord } from '../../../../packages/market-catalog/src/scanning/component-files.js'
 import Ajv2020Default from 'ajv/dist/2020.js'
 import { required } from './helpers/fixture.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixtures = fileURLToPath(new URL('./fixtures/real-layouts/', import.meta.url))
 interface Sample {
@@ -67,7 +68,7 @@ if (samples.length !== parsedIndex.length) throw new Error('every real-layouts f
 const roots: string[] = []
 const Ajv2020 = Ajv2020Default as unknown as { new (options: Record<string, unknown>): { compile(schema: unknown): ((data: unknown) => boolean) & { errors?: unknown } } }
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 async function snapshot(sample: Sample): Promise<Snapshot> {
   const parsed: unknown = JSON.parse(await readFile(join(fixtures, sample.fixture), 'utf8'))

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
  * A document's translation: split for the provider's request budget, cached per
  * chunk, and assembled back into one body the reader can render as a whole.
  */
-import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +13,7 @@ import { TranslationService } from '../../../../packages/market-translation/src/
 import { createPanelResources } from '../../../../packages/market-runtime/src/application/panel-resources.js'
 import { createUserPanelStores } from '../../../../packages/market-runtime/src/runtime/panels/user-panels.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../../../../packages/market-translation/src/application/translation/chain.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixture = fileURLToPath(new URL('./fixtures/v1-suite', import.meta.url))
 const roots: string[] = []
@@ -20,7 +21,7 @@ const roots: string[] = []
 afterEach(async () => {
   resetCircuitBreaker()
   vi.unstubAllGlobals()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** A provider that records every batch and prefixes each text, so a translation is unmistakable. */

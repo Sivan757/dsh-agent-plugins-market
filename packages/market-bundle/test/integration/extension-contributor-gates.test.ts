@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -13,10 +13,11 @@ import { createUserPanelStores } from '../../../../packages/market-runtime/src/r
 import { bindHostLocale } from '../../../../packages/market-runtime/src/runtime/host/host-locale.js'
 import type { ShellSeam } from '../../../../packages/market-runtime/src/runtime/surfaces/dynamic-context.js'
 import { required } from './helpers/fixture.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 async function root(): Promise<string> {

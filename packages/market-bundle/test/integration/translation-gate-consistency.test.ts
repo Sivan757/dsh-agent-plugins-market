@@ -1,5 +1,5 @@
 /** Language chooses the translation target; whether translations show is a separate setting, on by default. */
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -7,6 +7,7 @@ import { Catalog } from '../../../../packages/market-bundle/src/application/cata
 import { resolveMarketSettings, resolveTranslationTarget } from '../../../../packages/market-contracts/src/contracts/settings.js'
 import { bindHostLocale } from '../../../../packages/market-runtime/src/runtime/host/host-locale.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../../../../packages/market-translation/src/application/translation/chain.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const locales = ['zh', 'zh-CN', 'zh-Hant', 'ja', 'en', 'en-US'] as const
 const roots: string[] = []
@@ -17,7 +18,7 @@ afterEach(async () => {
     catalog.dispose()
   }
   resetCircuitBreaker()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 function hostRendersChinese(locale: string | undefined): boolean {

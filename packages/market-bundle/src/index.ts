@@ -499,13 +499,28 @@ export async function apply(
   })
 
   ctx.effect(
-    () => () => {
+    () => async () => {
       disposed = true
-      scheduler.dispose()
+      const scheduleStopped = scheduler.dispose()
       autoUpdate.dispose()
       settings.dispose()
       catalog.dispose()
-      void runtime.dispose().catch(error => ctx.logger.warn('runtime disposal: ' + String(error)))
+      // Cordis awaits an async disposer, so this fiber reports unloaded only
+      // after the runtime tore its mounts down. Disposing an MCP server
+      // disposes the bridge and waits for the child it started, and the plugin
+      // data root under the mounts stays in use until that ends; returning
+      // before it did let a caller that removes that root, a test teardown or a
+      // profile reload, delete a tree this fiber was still writing to and
+      // emptying. The runtime goes first so its own stop flag makes a queued
+      // pass bail before the schedule join below waits for it.
+      try {
+        await runtime.dispose()
+      } catch (error) {
+        ctx.logger.warn('runtime disposal: ' + String(error))
+      }
+      // A pass that failed already reported through the change pipeline; the
+      // join only has to finish, not repeat the failure as a disposal error.
+      await scheduleStopped.catch(error => ctx.logger.warn('reconcile disposal: ' + String(error)))
     },
     'dsh-agent-plugins-market: lifecycle'
   )

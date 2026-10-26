@@ -3,7 +3,7 @@
  * key, the override record and OAuth grant that outlived it are dropped, and a
  * suite-declared server is refused because its `mcp.json` is source-owned.
  */
-import { cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,13 +13,14 @@ import { loadUserMcpSuite, userMcpPath } from '../../../../packages/market-mcp/s
 import { loadSuiteOverrides, saveSuiteOverrides, suiteOverridePath } from '../../../../packages/market-mcp/src/application/mcp/mcp-overrides.js'
 import { toMcpMounts } from '../../../../packages/market-mcp/src/application/mcp/mcp-config.js'
 import type { CatalogPortsOverride } from '../../../../packages/market-contracts/src/ports/ports.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixture = join(here, 'fixtures', 'v1-suite')
 
 const roots: string[] = []
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 async function setup(ports: CatalogPortsOverride = {}): Promise<{ root: string; agentsRoot: string; catalog: Catalog }> {

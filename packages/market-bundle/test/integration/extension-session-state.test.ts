@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -11,6 +11,7 @@ import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persisten
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { captureExtensionSelection, type ExtensionSelection } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import { ExtensionSessionState, EXTENSION_SESSION_SOURCE } from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
     return Promise.reject(new Error('unused'))
@@ -25,7 +26,7 @@ afterEach(async () => {
 })
 async function setup(savedRoot?: string) {
   const root = savedRoot ?? (await mkdtemp(join(tmpdir(), 'extension-session-')))
-  if (!savedRoot) cleanups.push(() => rm(root, { recursive: true, force: true }))
+  if (!savedRoot) cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { scanSource } from '../../../../packages/market-catalog/src/scanning/suite-scanner.js'
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
 import { SuiteSkillProvider } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 
@@ -29,7 +30,7 @@ Read references/guide.md in \${CLAUDE_SKILL_DIR}.`
 }
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 describe('manifest-free skill source aggregation', () => {

@@ -11,6 +11,7 @@ import { discoverNativeProjectSuites } from '../../../../packages/market-catalog
 import { PLUGIN_LAYOUTS, PROJECT_LAYOUTS } from '../../../../packages/market-contracts/src/model/layouts.js'
 import { SuiteSkillProvider } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { CommandMountRegistry } from '../../../../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -24,7 +25,7 @@ async function put(root: string, path: string, text: string): Promise<void> {
 }
 const skill = '---\nname: layout-test\ndescription: A layout test skill.\n---\nBody.\n'
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 describe('layout registry', () => {

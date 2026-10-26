@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { addUserMcpServer, loadUserMcpSuite, prepareUserMcpServer, prepareUserMcpServerRemoval } from '../../../../packages/market-mcp/src/application/mcp/mcp-direct-config.js'
 import { CommandMountRegistry } from '../../../../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
 import { toMcpMounts } from '../../../../packages/market-mcp/src/application/mcp/mcp-config.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 async function root(): Promise<string> {
@@ -14,7 +15,7 @@ async function root(): Promise<string> {
   return path
 }
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 describe('user MCP persistence', () => {

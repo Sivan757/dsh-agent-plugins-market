@@ -10,7 +10,7 @@
  * Both halves run against the real service and a real session log; only the
  * adapter's own effect is a double.
  */
-import { cp, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -24,6 +24,7 @@ import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persisten
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { captureExtensionSelection, type ExtensionSelection } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import { ExtensionSessionState, type ExtensionApplyReceipt, type ExtensionSessionStatePorts } from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -48,7 +49,7 @@ afterEach(async () => {
 /** Snapshot a flushed session root so a later host replays it as a committed binding. */
 async function crashCopy(root: string): Promise<string> {
   const copy = await mkdtemp(join(tmpdir(), 'extension-transaction-crash-'))
-  cleanups.push(() => rm(copy, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(copy))
   await cp(root, copy, { recursive: true })
   return copy
 }
@@ -70,7 +71,7 @@ function receipt(): ExtensionApplyReceipt & { commits: number; rollbacks: number
 
 async function setup(savedRoot?: string) {
   const root = savedRoot ?? (await mkdtemp(join(tmpdir(), 'extension-transaction-')))
-  if (!savedRoot) cleanups.push(() => rm(root, { recursive: true, force: true }))
+  if (!savedRoot) cleanups.push(() => removeTempRoot(root))
   const ctx = new Context()
   cleanups.push(() => ctx.fiber.dispose())
   await mountAgentLoopTestDependencies(ctx)

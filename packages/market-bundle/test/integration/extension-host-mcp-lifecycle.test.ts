@@ -8,7 +8,7 @@
  * stdio — and every sharing claim is read from the host ToolRuntime through
  * tools.get, never from an internal map of ours.
  */
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -26,6 +26,7 @@ import { createUserPanelStores } from '../../../../packages/market-runtime/src/r
 import type { DiscoveredSuite } from '../../../../packages/market-contracts/src/model/types.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
@@ -102,7 +103,7 @@ const selection = { presetId: null, presetName: null, presetRevision: null, modi
 /** One real host context, a shipped project suite, and the production scoped mount. */
 async function setup(options: { command?: string } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'host-mcp-lifecycle-'))
-  cleanups.push(() => rm(root, { recursive: true, force: true }))
+  cleanups.push(() => removeTempRoot(root))
   const suiteRoot = join(root, 'suite')
   await writeShippedServer(suiteRoot)
   let command = options.command ?? './bin/server'
@@ -226,8 +227,8 @@ describe('host-shared project MCP lifecycle', () => {
     const h = await setup()
     const dirA = await mkdtemp(join(tmpdir(), 'host-mcp-ws-a-'))
     const dirB = await mkdtemp(join(tmpdir(), 'host-mcp-ws-b-'))
-    cleanups.push(() => rm(dirA, { recursive: true, force: true }))
-    cleanups.push(() => rm(dirB, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(dirA))
+    cleanups.push(() => removeTempRoot(dirB))
     const first = await h.create('workspace-a', dirA)
     const second = await h.create('workspace-b', dirB)
     h.capture(first)

@@ -11,7 +11,7 @@
  * registry. The second mounts the plugin entry itself and pins the root layer:
  * an installed suite must not be reachable by any session that never selected it.
  */
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -36,6 +36,7 @@ import { apply, inject, name } from '../../../../packages/market-bundle/src/inde
 import { ScopedExtensionContributors } from '../../../../packages/market-runtime/src/runtime/host/scoped-contributors.js'
 import { createUserPanelStores } from '../../../../packages/market-runtime/src/runtime/panels/user-panels.js'
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const cleanups: Array<() => void | Promise<void>> = []
@@ -159,9 +160,9 @@ async function put(dir: string, path: string, value: unknown): Promise<void> {
 describe('suite skills are served per session, never from the root layer', () => {
   it('serves the granted session, denies its same-cwd sibling, and honors a single entry switch', async () => {
     const root = await mkdtemp(join(tmpdir(), 'scoped-root-'))
-    cleanups.push(() => rm(root, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(root))
     const userRoot = await mkdtemp(join(tmpdir(), 'scoped-root-user-'))
-    cleanups.push(() => rm(userRoot, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(userRoot))
     const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {} })
     await catalog.load()
     await installFixture(catalog.userRoot, catalog)
@@ -226,7 +227,7 @@ describe('suite skills are served per session, never from the root layer', () =>
 
   it('keeps an installed suite out of the root layer the plugin entry mounts', async () => {
     const home = await mkdtemp(join(tmpdir(), 'scoped-root-home-'))
-    cleanups.push(() => rm(home, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(home))
     vi.stubEnv('DSH_HOME', home)
     vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
     const suiteRoot = join(home, 'agent-plugins', '.sources', 'demo', 'v1-suite')
@@ -253,7 +254,7 @@ describe('suite skills are served per session, never from the root layer', () =>
 
   it('drives one session selection through the routes the entry mounts', async () => {
     const home = await mkdtemp(join(tmpdir(), 'scoped-root-http-'))
-    cleanups.push(() => rm(home, { recursive: true, force: true }))
+    cleanups.push(() => removeTempRoot(home))
     vi.stubEnv('DSH_HOME', home)
     vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
     const suiteRoot = join(home, 'agent-plugins', '.sources', 'demo', 'v1-suite')

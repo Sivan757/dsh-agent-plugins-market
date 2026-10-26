@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
  * free when its id and authored text are exactly the ones the panel used; an id
  * derived differently shows up as the same prose going to a provider twice.
  */
-import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -21,12 +21,13 @@ import { CommandMountRegistry } from '../../../../packages/market-runtime/src/ru
 import { collectMenuRowIdentities } from '../../../../packages/market-runtime/src/runtime/host/menu-row-identities.js'
 import { resetCircuitBreaker, type TranslationProvider } from '../../../../packages/market-translation/src/application/translation/chain.js'
 import type { MenuRowIdentity } from '../../../../packages/market-contracts/src/ports/ports.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const roots: string[] = []
 
 afterEach(async () => {
   resetCircuitBreaker()
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /** A provider recording every text it is asked for, so a second translation is visible. */

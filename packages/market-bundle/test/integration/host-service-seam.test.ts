@@ -16,7 +16,7 @@
  * hand-made seam, and `tests/timer-seat.test.ts` pins the same ancestor-walk
  * trap for the timer accessors.
  */
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,7 +29,9 @@ import { shellSeamOf, type ShellOutcome, type ShellSeam } from '../../../../pack
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from '../../../../packages/market-bundle/src/platform/feedback-tool.js'
 import { readLocalePreference } from '../../../../packages/market-runtime/src/runtime/host/host-locale.js'
 import { apply, inject, name } from '../../../../packages/market-bundle/src/index.js'
+import { RuntimeReconciler } from '../../../../packages/market-runtime/src/index.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
+import { removeTempRoot } from './helpers/temp-root.js'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const roots: string[] = []
@@ -52,7 +54,7 @@ const settled = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 
 afterEach(async () => {
   vi.unstubAllEnvs()
   for (const dispose of cleanups.splice(0).reverse()) await dispose()
-  await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(removeTempRoot))
 })
 
 /**
@@ -399,5 +401,74 @@ describe('host services on a real fiber tree', () => {
     emitSettingsUpdated(ctx, 'locale')
     expect(settings.state.reads).toBe(reads + 1)
     expect(readLocalePreference()).toBe('zh')
+  })
+
+  /**
+   * The entry's teardown is the fiber's teardown.
+   *
+   * The runtime outlives `apply()`: one reconcile pass is queued behind it, and
+   * that pass creates every stdio mount's `${PLUGIN_DATA}` directory under the
+   * plugin data root before any server connects. Unmounting then disposes the
+   * bridge and waits for the child it started. Cordis awaits an async effect
+   * disposer, so the entry has to return one: a `void runtime.dispose()` reports
+   * the fiber unloaded while that work still runs, and a test that removes its
+   * temp root next then deletes a tree the runtime is still writing to and
+   * emptying. Windows reports the leftover entry as `ENOTEMPTY` for the root.
+   *
+   * The gate holds the runtime's disposal open, so the write behind it is on
+   * disk only if the fiber joined that disposal. Nothing here depends on
+   * timing: the fiber either awaits the teardown or it does not.
+   */
+  it('finishes the runtime teardown before the entry fiber reports unloaded', async () => {
+    const home = await root()
+    vi.stubEnv('DSH_HOME', home)
+    vi.stubEnv('DSH_AGENTS_HOME', join(home, 'agents'))
+
+    const ctx = new Context()
+    const skills = fakeSkills()
+    mount(ctx, skills.Plugin)
+    mount(ctx, fakeCommands().Plugin)
+    await settled()
+
+    let openTeardown!: () => void
+    const teardownOpen = new Promise<void>(resolve => {
+      openTeardown = resolve
+    })
+    let reachedTeardown!: () => void
+    const teardownReached = new Promise<void>(resolve => {
+      reachedTeardown = resolve
+    })
+    // The spy stands in for the runtime's own teardown: it reports that it
+    // started, holds the caller there, then does what a teardown does to the
+    // plugin data root. A fiber that awaits it cannot report unloaded first.
+    const teardown = vi.spyOn(RuntimeReconciler.prototype, 'dispose').mockImplementation(async () => {
+      reachedTeardown()
+      await teardownOpen
+      await mkdir(join(home, 'agent-plugins'), { recursive: true })
+      await writeFile(join(home, 'agent-plugins', 'teardown-finished'), '')
+    })
+
+    try {
+      const entry = mountEntry(ctx, { name, inject: [...inject], apply })
+      await vi.waitFor(() => expect(skills.providers).toHaveLength(1))
+
+      const unloading = entry.dispose()
+      await teardownReached
+      let unloaded = false
+      void unloading.then(() => {
+        unloaded = true
+      })
+      // A fire-and-forget teardown leaves the fiber's own state transition as
+      // the last thing that has to finish, which is over within a turn.
+      await new Promise(resolve => setImmediate(resolve))
+      await new Promise(resolve => setImmediate(resolve))
+      expect(unloaded).toBe(false)
+
+      openTeardown()
+      await unloading
+      await expect(readFile(join(home, 'agent-plugins', 'teardown-finished'), 'utf8')).resolves.toBe('')
+    } finally {
+      teardown.mockRestore()
+    }
   })
 })
