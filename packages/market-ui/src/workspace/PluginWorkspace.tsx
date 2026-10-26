@@ -9,9 +9,12 @@
  * different content heights swap.
  * @module client/PluginWorkspace
  */
-import { createElement as h, useEffect, useState, type ReactNode } from 'react'
+import { createElement as h, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { ResourceTabs } from '../ui/ResourceTabs.js'
+import { TabStowControl } from './TabStowControl.js'
+import { loadTabLayout, saveTabLayout } from '../api.js'
+import { resolveHiddenTabs, visibleTabs } from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -25,7 +28,23 @@ import css from './workspace.module.css'
 /** The seven workspace tabs in display order. */
 export type WorkspaceTab = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'
 
-const TAB_ORDER: ReadonlyArray<WorkspaceTab> = ['market', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks']
+/** Display order of the tab row. The stow menu lists the tabs this array names. */
+export const TAB_ORDER: ReadonlyArray<WorkspaceTab> = ['market', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks']
+
+/**
+ * The tabs the row renders for one active tab.
+ *
+ * The stowed list decides, except that the active tab always renders: a hash
+ * deep link can select a stowed tab, and the panel below must always have its
+ * own tab in the row. The reveal is derived from the layout and the selection,
+ * never written back, so following a link cannot change what is saved.
+ * @param layout - the resolved stow list.
+ * @param active - the tab the panel shows.
+ * @returns the visible tabs in display order.
+ */
+function rowTabs(layout: { hidden: string[] }, active: WorkspaceTab): WorkspaceTab[] {
+  return visibleTabs(TAB_ORDER, layout, active)
+}
 
 export interface PluginWorkspaceProps {
   t: Translate
@@ -77,6 +96,68 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
     hooks: t('workspaceTabHooks')
   }
 
+  // The stow list is read once and then owned here: the row, the menu and the
+  // dialog all render from this value, so a write cannot leave the row and the
+  // panel disagreeing about which tabs exist.
+  const [layout, setLayout] = useState<{ hidden: string[] }>({ hidden: [] })
+  const [layoutError, setLayoutError] = useState<string | undefined>(undefined)
+  const [stowing, setStowing] = useState(false)
+  /** The last layout the server confirmed, so a failed write can put it back. */
+  const confirmed = useRef<{ hidden: string[] }>({ hidden: [] })
+
+  useEffect(() => {
+    let live = true
+    void loadTabLayout()
+      .then(stored => {
+        if (!live) return
+        confirmed.current = stored
+        setLayout(stored)
+      })
+      .catch((error: unknown) => {
+        // A failed read costs the user their layout, never the workspace: every
+        // tab stays visible and the reason appears where the controls are.
+        if (live) setLayoutError(t('tabLayoutLoadFailed', { error: messageOf(error) }))
+      })
+    return () => {
+      live = false
+    }
+  }, [t])
+
+  /**
+   * Apply a stow list now and persist it behind the row.
+   *
+   * The row paints first because the change is the user's own click, and a
+   * local file write is fast enough that waiting would only make it feel late.
+   * A failed write puts the confirmed layout back and says why, so the row
+   * never shows a layout the server does not have.
+   */
+  const stow = useCallback(
+    (next: readonly string[]) => {
+      const resolved = { hidden: resolveHiddenTabs(next) }
+      // Stowing the tab the panel shows would leave a panel whose tab is not
+      // rendered, so the selection moves to the first tab that stays. This
+      // reads the stow list alone rather than the row, so it does not depend on
+      // which tab is pinned or where the pinned tab sits in the order.
+      if (resolved.hidden.includes(active)) setActive(TAB_ORDER.find(tab => !resolved.hidden.includes(tab)) ?? 'market')
+      setLayout(resolved)
+      setStowing(true)
+      setLayoutError(undefined)
+      void saveTabLayout(resolved.hidden)
+        .then(committed => {
+          confirmed.current = committed
+          setLayout(committed)
+        })
+        .catch((error: unknown) => {
+          setLayout(confirmed.current)
+          setLayoutError(t('tabLayoutWriteFailed', { error: messageOf(error) }))
+        })
+        .finally(() => setStowing(false))
+    },
+    [active, t]
+  )
+
+  const shown = rowTabs(layout, active)
+
   return h(
     'div',
     { className: mode === 'page' ? `${css.workspace} ${css.pageMode}` : css.workspace, 'data-agent-plugins-workspace': true },
@@ -84,23 +165,25 @@ export function PluginWorkspace({ t, credentials, mode = 'settings' }: PluginWor
     // the sliding indicator; the row policy (equal columns, ellipsized labels,
     // no sideways scroll) is the same one the preset manager renders. Panels
     // stay caller-owned: every tab names one shared panel id, and the active
-    // section renders inside it below.
+    // section renders inside it below. The row is built from TAB_ORDER, so the
+    // stowed tabs are simply the ones it leaves out.
     h(ResourceTabs<WorkspaceTab>, {
       label: labelKeys.market,
       value: active,
       // Switching tabs is local state only; the URL stays the host's.
       onChange: setActive,
-      // Display order restated so the required first tab is a literal: the
-      // host's items demand a non-empty tuple, and the tab set is fixed anyway.
-      items: [
-        { value: 'market', text: labelKeys.market, id: 'agent-plugins-tab-market', panelId: 'agent-plugins-panel' },
-        { value: 'skills', text: labelKeys.skills, id: 'agent-plugins-tab-skills', panelId: 'agent-plugins-panel' },
-        { value: 'commands', text: labelKeys.commands, id: 'agent-plugins-tab-commands', panelId: 'agent-plugins-panel' },
-        { value: 'personas', text: labelKeys.personas, id: 'agent-plugins-tab-personas', panelId: 'agent-plugins-panel' },
-        { value: 'mcp', text: labelKeys.mcp, id: 'agent-plugins-tab-mcp', panelId: 'agent-plugins-panel' },
-        { value: 'lsp', text: labelKeys.lsp, id: 'agent-plugins-tab-lsp', panelId: 'agent-plugins-panel' },
-        { value: 'hooks', text: labelKeys.hooks, id: 'agent-plugins-tab-hooks', panelId: 'agent-plugins-panel' }
-      ]
+      items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
+      // The trigger renders outside the tablist, so the host's roving tab stop
+      // and walk keys stay exactly what they were.
+      trailing: h(TabStowControl, {
+        t,
+        tabs: TAB_ORDER.map(tab => ({ key: tab, label: labelKeys[tab] })),
+        hidden: layout.hidden,
+        busy: stowing,
+        error: layoutError,
+        onSelect: tab => setActive(tab as WorkspaceTab),
+        onStow: stow
+      })
     }),
     // Every detail dialog these panels open inherits the fixed settings-sized
     // frame, the same chrome the preset manager's details use.
@@ -132,4 +215,8 @@ function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi |
       // typing boundary, reconciled here as the entry point does.
       return h(HooksStatusPanel, { t: t as ExtensionTranslate })
   }
+}
+/** The text of a thrown value, for a diagnostic that must stay a string. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

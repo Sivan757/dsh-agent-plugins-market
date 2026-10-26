@@ -174,13 +174,15 @@ describe('market HTTP routes', () => {
     const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
 
-    // The base mount registers exactly the shared route constants plus the
-    // LSP save mutation route (a distinct path — the webserver keys its
-    // exact table by pathname only, so a same-path GET/POST pair throws at
-    // mount); the user panel routes appear only when a panel store set is
-    // provided. The strict mock reproduces that duplicate-throw contract.
+    // The base mount registers the shared route constants plus the LSP save
+    // mutation route (a distinct path — the webserver keys its exact table by
+    // pathname only, so a same-path GET/POST pair throws at mount), minus the
+    // constants whose own module mounts them: the user panel routes appear only
+    // when a panel store set is provided, and the tab-layout pair belongs to
+    // its own module. The strict mock reproduces that duplicate-throw contract.
+    const mountedElsewhere = new Set<string>([MARKET_ROUTES.userPanel, MARKET_ROUTES.tabLayout, MARKET_ROUTES.setTabLayout])
     expect([...routes.keys()].sort()).toEqual(
-      [...Object.values(MARKET_ROUTES).filter(path => path !== MARKET_ROUTES.userPanel), `${MARKET_ROUTES.lspServers}/save`, `${MARKET_ROUTES.lspServers}/enabled`].sort()
+      [...Object.values(MARKET_ROUTES).filter(path => !mountedElsewhere.has(path)), `${MARKET_ROUTES.lspServers}/save`, `${MARKET_ROUTES.lspServers}/enabled`].sort()
     )
     const overviewResponse = response()
     await routes.get(MARKET_ROUTES.overview)?.({ url: '/api/agent-plugins/overview', headers: {} }, overviewResponse)

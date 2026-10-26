@@ -26,6 +26,7 @@ import type {
 import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-status.js'
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
+import { resolveHiddenTabs, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import type { DocumentTranslation } from '../../market-contracts/src/contracts/translation.js'
 
 export type {
@@ -553,4 +554,15 @@ export async function loadSurfaceToggles(): Promise<SurfaceToggles> {
 export async function setSurfaceToggle(key: SurfaceToggleKey, enabled: boolean): Promise<SurfaceToggles> {
   const payload = await postAction('surface-toggles/set', { key, enabled })
   return payload.toggles as SurfaceToggles
+}
+/** Read this workspace's stowed workspace tabs; a failed read resolves to none stowed. */
+export async function loadTabLayout(): Promise<TabLayoutWire> {
+  const layout = await getJson<TabLayoutWire>(MARKET_ROUTES.tabLayout, 'tab layout failed')
+  return { hidden: resolveHiddenTabs(layout.hidden) }
+}
+
+/** Replace this workspace's stowed tabs and resolve with the committed layout. */
+export async function saveTabLayout(hidden: readonly string[]): Promise<TabLayoutWire> {
+  const payload = await postOkJson<{ hidden?: unknown }>(MARKET_ROUTES.setTabLayout, { hidden: [...hidden] }, 'tab layout failed')
+  return { hidden: resolveHiddenTabs(payload.hidden) }
 }
