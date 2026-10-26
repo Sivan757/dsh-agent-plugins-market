@@ -1,9 +1,20 @@
 /** Normalize native Claude-shaped command hooks for the existing host execution bridge. */
+import { HOOK_EVENT_HOST_SUPPORT } from '../../../market-contracts/src/contracts/extension-presets.js'
 import type { ProjectHooks } from '../../../market-contracts/src/model/types.js'
 import { readProjectDocument } from './project-config.js'
 import type { ProjectHookFormat } from '../../../market-contracts/src/model/layouts.js'
 
-const EVENTS: ReadonlySet<string> = new Set(['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SubagentStart', 'SubagentStop'])
+/**
+ * The events this package executes: exactly the events the shared support table
+ * does not call registered-only. One home for the fact keeps the validator and
+ * the Hooks tab from disagreeing about what can run.
+ * @see docs/reference/hooks-event-coverage.md
+ */
+const EVENTS: ReadonlySet<string> = new Set(
+  Object.entries(HOOK_EVENT_HOST_SUPPORT)
+    .filter(([, support]) => support !== 'registered-only')
+    .map(([event]) => event)
+)
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

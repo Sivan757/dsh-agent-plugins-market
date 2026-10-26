@@ -260,11 +260,11 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
         }
       }
     }
-    // Declarations the catalog validator rejected (Notification, SessionEnd,
-    // PreCompact and anything else the host cannot run) exist only as
-    // diagnostics on the suite. Each names its event, so one read-only row per
-    // diagnostic registers the declaration in the Hooks tab instead of letting
-    // it disappear into the suite detail's error list.
+    // Declarations the catalog validator rejected (Notification, PermissionRequest
+    // and anything else with no interception point) exist only as diagnostics on
+    // the suite. Each names its event, so one read-only row per diagnostic
+    // registers the declaration in the Hooks tab instead of letting it disappear
+    // into the suite detail's error list.
     for (const error of suite.errors) {
       const event = /^\S+ unsupported hook event (\S+)$/.exec(error)?.[1]
       if (event === undefined) continue

@@ -246,7 +246,7 @@ See `examples/load-context.sh` for complete example.
 
 ### Events without a DeepSeek Harness counterpart
 
-The host bridge recognizes seven events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `SubagentStart`, `SubagentStop`. The source format also carries `SessionEnd`, `PreCompact`, `PostCompact` and `Notification`; those have no interception point here and are skipped with a diagnostic. Do not build on them.
+The runtime runs ten events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `PreCompact` and `SessionEnd`. `PostToolUse` fires when a tool call succeeds and `PostToolUseFailure` when it fails, matching the reference split. `PreCompact` runs but cannot veto a committed compaction, and `SessionEnd` runs from session teardown and discards its output. The source format also carries `PostCompact`, `Notification`, `PermissionRequest` and other events with no interception point here; those are skipped with a diagnostic, so do not build on them.
 
 ## Hook Output Format
 
@@ -597,14 +597,19 @@ echo "$output" | jq .
 | Event | When | Use For |
 |-------|------|---------|
 | PreToolUse | Before tool | Validation, modification |
-| PostToolUse | After tool | Feedback, logging |
+| PostToolUse | After a tool succeeds | Feedback, logging |
+| PostToolUseFailure | After a tool fails | Failure alerts, corrective context |
 | UserPromptSubmit | User input | Context, validation |
 | Stop | Agent stopping | Completeness check |
 | SubagentStart | Subagent starts | Context injection |
 | SubagentStop | Subagent done | Task validation |
 | SessionStart | Session begins | Context loading |
+| PreCompact | Before compaction | Observation only, no veto |
+| SessionEnd | Session teardown | Cleanup, output discarded |
 
-`SessionEnd`, `PreCompact`, `PostCompact` and `Notification` have no counterpart in the host bridge and are skipped with a diagnostic.
+A suite that declares `PostToolUse` and no `PostToolUseFailure` keeps seeing failed calls through its `PostToolUse` hooks, and the host log says so once. Declare `PostToolUseFailure` to take the reference split.
+
+`PostCompact`, `Notification` and `PermissionRequest` have no counterpart in the runtime and are skipped with a diagnostic.
 
 ### Best Practices
 

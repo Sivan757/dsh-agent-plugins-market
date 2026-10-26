@@ -136,7 +136,7 @@ const installedSuite = (): Suite => ({
   hooks: {
     events: {
       PreToolUse: [{ hooks: [{ type: 'command', command: 'echo installed' }] }],
-      Notification: [{ hooks: [{ type: 'command', command: 'notify-me' }] }]
+      PreCompact: [{ hooks: [{ type: 'command', command: 'before-compact' }] }]
     }
   },
   errors: []
@@ -155,7 +155,7 @@ describe('hooks overview follows-suite rows', () => {
     }
     const rows = (await readHooksOverview(catalog)).rows
     const installed = rows.filter(row => row.detail.kind === 'hook' && row.detail.sourceId === 'demo')
-    expect(ids(installed)).toEqual(['hooks:demo/v1/PreToolUse/0', 'hooks:demo/v1/Notification/0'])
+    expect(ids(installed)).toEqual(['hooks:demo/v1/PreToolUse/0', 'hooks:demo/v1/PreCompact/0'])
     // The panel is read-only; the flag explains the absent switch instead of
     // adding one, so the supported row keeps its selectable shape...
     expect(installed[0]).toMatchObject({ followsSuite: true, available: true, globalEnabled: true })

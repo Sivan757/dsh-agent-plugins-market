@@ -75,7 +75,7 @@ Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`
 - **Per-server MCP control.** Override a declaration without editing its source, switch one tool off, and set the tool-call and startup timeouts.
 - **Project and personal resources.** Turn on **Scan project Agent layouts** to read skills, commands, roles, MCP servers and hooks from the project's own directories. Author your own under `~/.agents/` as Markdown, and disable a resource without deleting its file.
 - **Per-workspace control.** Each workspace switches the six mounted surfaces off or on, keeps its own resource filters, and saves a resource-window setup as a favorite that works across projects.
-- **Hooks you can read and try.** A hook row opens a declaration card with its event, matcher and timeout, plus a dry run in your home directory.
+- **Hooks that decide, not just observe.** Ten events apply what the hook returns: tool deny, ask and allow, added context, corrective feedback, a forced continuation, and a real halt for `continue: false`. A hook row opens a declaration card with its event, matcher and timeout, plus a dry run in your home directory. [Hook event coverage](docs/reference/hooks-event-coverage.md) lists every event and the three reference fields the host cannot apply yet.
 - **Bilingual by default.** The interface and the injected prompts follow the host language. Descriptions and documents show the original, a translation or both, and stay cached until you clear them.
 
 ## Everyday use

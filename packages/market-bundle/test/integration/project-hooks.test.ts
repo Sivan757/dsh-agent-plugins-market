@@ -45,6 +45,27 @@ describe('native project hook normalization', () => {
     expect(errors.join('\n')).toContain('unsupported Stop hook type prompt')
   })
 
+  it('admits the events the runtime runs and keeps a matcher-less event free of one', async () => {
+    const project = await root()
+    await writeFile(
+      join(project, '.claude/settings.json'),
+      JSON.stringify({
+        hooks: {
+          PostToolUseFailure: [hook('echo failure')],
+          PreCompact: [{ hooks: [{ type: 'command', command: 'echo compact' }] }],
+          SessionEnd: [hook('echo end')],
+          PermissionRequest: [hook('echo permission')]
+        }
+      })
+    )
+    const errors: string[] = []
+    const result = await discoverProjectHooks(project, ['.claude/settings.json'], errors)
+    expect(Object.keys(result?.events ?? {}).sort()).toEqual(['PostToolUseFailure', 'PreCompact', 'SessionEnd'])
+    expect(errors).toEqual(['.claude/settings.json: unsupported hook event PermissionRequest'])
+    // PreCompact matches on the compaction trigger, so a declared matcher survives.
+    expect(result?.events.PreCompact?.[0]?.matcher).toBeUndefined()
+  })
+
   it('rejects malformed matchers without keeping earlier commands executable', async () => {
     const project = await root()
     await writeFile(join(project, '.claude/settings.json'), JSON.stringify({ hooks: { PreToolUse: [hook('echo one'), { ...hook('echo two'), matcher: '[' }] } }))
