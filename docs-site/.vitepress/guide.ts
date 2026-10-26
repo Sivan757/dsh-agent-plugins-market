@@ -27,6 +27,8 @@ export const GUIDES: string[] = [
   'resources.zh.md',
   'instructions.md',
   'instructions.zh.md',
+  'output-styles.md',
+  'output-styles.zh.md',
   'services.md',
   'services.zh.md',
   'translation.md',
@@ -50,7 +52,7 @@ export interface GuideSection {
 
 export const SECTIONS: GuideSection[] = [
   { key: 'start', en: 'Get started', zh: '开始使用', pages: ['install'] },
-  { key: 'content', en: 'Content', zh: '内容', pages: ['sources', 'resources', 'instructions'] },
+  { key: 'content', en: 'Content', zh: '内容', pages: ['sources', 'resources', 'instructions', 'output-styles'] },
   { key: 'capabilities', en: 'Capabilities', zh: '能力', pages: ['services', 'translation'] },
   { key: 'workspace', en: 'Workspace', zh: '工作区', pages: ['settings', 'workspace'] },
   { key: 'reference', en: 'Reference', zh: '参考', pages: ['agent-roles', 'layout-coverage'] }

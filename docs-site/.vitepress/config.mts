@@ -32,6 +32,8 @@ export default defineConfig({
     'guide/resources.zh.md': 'docs/zh/resources.md',
     'guide/instructions.md': 'docs/instructions.md',
     'guide/instructions.zh.md': 'docs/zh/instructions.md',
+    'guide/output-styles.md': 'docs/output-styles.md',
+    'guide/output-styles.zh.md': 'docs/zh/output-styles.md',
     'guide/services.md': 'docs/services.md',
     'guide/services.zh.md': 'docs/zh/services.md',
     'guide/translation.md': 'docs/translation.md',
