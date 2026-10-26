@@ -49,6 +49,9 @@ import { mountResourceRoutes } from './routes-resources.js'
 import { mountTabLayoutRoutes } from './routes-tab-layout.js'
 import { mountInstructionRoutes } from './routes-instructions.js'
 import { resolveInstructionLimits } from './application/instructions.js'
+import { mountOutputStyleRoutes } from './routes-output-styles.js'
+import { createOutputStyleSuitePort } from './application/output-styles-suites.js'
+import { OutputStyleService, mountOutputStyleSection } from '../../market-runtime/src/index.js'
 import { ResourceFilterService } from '../../market-runtime/src/index.js'
 import { TabLayoutService } from '../../market-runtime/src/index.js'
 import { loadLspServers } from '../../market-lsp/src/index.js'
@@ -429,6 +432,13 @@ export async function apply(
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, switchSettleMs, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
+  // The output-style selection is the third document of the tab-layout shape and
+  // owns its own file for the same reason. Its suite rows come from the catalog
+  // and its captures run through the bounded dry run, so both arrive as a port
+  // the composition root supplies. The initial read is the process workspace;
+  // each agent's own workspace is read when that agent is created.
+  const outputStyles = new OutputStyleService(dataRoot, agentsRoot, createOutputStyleSuitePort({ catalog, hostCtx: ctx, dataRoot }))
+  void outputStyles.refresh(process.cwd()).catch(error => ctx.logger.warn('workspace output style: ' + String(error)))
   const readUserDeclarations = async (): Promise<ExtensionSuiteCandidate[]> => {
     const [installed, direct] = await Promise.all([catalog.installedSuiteDeclarations(), Promise.all([loadUserMcpSuite(agentsRoot), loadUserHooksSuite(agentsRoot)])])
     return [...installed, ...(await readExtensionSuiteDeclarations(direct))]
@@ -498,6 +508,14 @@ export async function apply(
     hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
   })
 
+  // The output-style section is per agent: a selection belongs to a workspace,
+  // and a child agent can run in a different one. It mounts on the root context
+  // because the events it follows are root events; each registration lands on
+  // the agent's own scope.
+  ctx.inject(['agents', 'systemPrompt'], hostCtx => {
+    hostCtx.effect(() => mountOutputStyleSection(hostCtx, outputStyles), 'dsh-agent-plugins-market: output style section')
+  })
+
   // Coordination also serves native teammates and does not depend on role discovery.
   ctx.inject(['agents', 'agentTeams', 'systemPrompt'], teamCtx => {
     teamCtx.effect(() => mountTeamCoordination(teamCtx), 'dsh-agent-plugins-market: Team coordination')
@@ -518,6 +536,10 @@ export async function apply(
       const disposeTabLayout = mountTabLayoutRoutes(hostCtx, tabLayout)
       const disposeInstructions = mountInstructionRoutes(hostCtx, {
         limits: instructionLimits,
+        ...(sessionExtensions.session() === undefined ? {} : { session: sessionExtensions.session() })
+      })
+      const disposeOutputStyles = mountOutputStyleRoutes(hostCtx, {
+        service: outputStyles,
         ...(sessionExtensions.session() === undefined ? {} : { session: sessionExtensions.session() })
       })
       const disposeResources = mountResourceRoutes(hostCtx, {
@@ -552,6 +574,7 @@ export async function apply(
         disposeSuite?.()
         disposeTabLayout()
         disposeInstructions()
+        disposeOutputStyles()
         disposeResources()
       }
     }, 'dsh-agent-plugins-market: http routes')

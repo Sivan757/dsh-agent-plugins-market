@@ -52,6 +52,25 @@ export { causeMessages } from './runtime/host/failure-detail.js'
 export { resolveDeclaredCommand } from './runtime/host/shell-path.js'
 export { optionalService } from './runtime/core/context.js'
 export { TabLayoutService } from './runtime/host/tab-layout-service.js'
+export { OutputStyleService } from './runtime/host/output-style-service.js'
+export type { OutputStyleSuitePort } from './runtime/host/output-style-service.js'
+export { mountOutputStyleSection } from './runtime/host/output-style-section.js'
+export { loadOutputStyle, mutateOutputStyle, outputStylePath, saveOutputStyleCapture, saveOutputStyleSelection } from './application/state/output-style.js'
+export type { OutputStyleState } from './application/state/output-style.js'
+export {
+  BUILTIN_DEFAULT_NAME,
+  USER_OUTPUT_STYLE_DIRECTORY,
+  deleteUserStyle,
+  groupStylesBySource,
+  parseCapturedStyle,
+  readBuiltinStyles,
+  readUserStyles,
+  suiteStyleFingerprint,
+  userStyleDirectory,
+  userStylePath,
+  writeUserStyle
+} from './application/output-styles.js'
+export type { SuiteStyleCandidate } from './application/output-styles.js'
 export { DEFAULT_INVENTORY_RETRY, INVENTORY_RETRY_BASE_MS, INVENTORY_RETRY_MAX_MS, inventoryRetryDelay, resolveInventoryRetry } from './runtime/host/inventory-retry.js'
 export type { InventoryRetryPolicy } from './runtime/host/inventory-retry.js'
 export { loadTabLayout, mutateTabLayout, saveTabLayout, tabLayoutPath } from './application/state/tab-layout.js'
