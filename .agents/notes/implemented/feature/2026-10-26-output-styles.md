@@ -41,11 +41,17 @@ Its order is a fixed 490. The host allocates 0 to the deployment persona prefix,
 <body>
 ```
 
-The heading is part of the text because the host joins sections with a blank line and adds no heading of its own, so without it two blocks of instructions would run together. The body is escaped for `</system-reminder>` even though a system prompt has no such frame: the escape costs one substitution and removes a class of injection from any future reuse of the same text inside a user-role frame.
+The heading is part of the text because the host joins sections with a blank line and adds no heading of its own, so without it two blocks of instructions would run together.
 
-The body is not wrapped in `<system-reminder>`. That frame belongs to durable workspace-instruction messages, where the model is told the text is context rather than a standing instruction. A system-prompt section already carries system weight, and wrapping it would say the opposite of what the section is.
+The body is not wrapped in `<system-reminder>`. That is rule R7 of `docs/reference/prompt-injection-conventions.md`: a system-prompt section is already system weight, so it takes a Markdown heading and never a frame, which would add weight to weight. The frame belongs to durable workspace-instruction messages, where the model is told the text is context rather than a standing instruction.
 
-The rendering lives in `market-contracts`, imported by both the server and the page, so the preview is byte for byte the text the prompt receives rather than a second implementation of the same idea.
+Escaping and the attributed form both come from the merged `runtime/surfaces/prompt-frame.ts` rather than from a second copy. `escapeFrameBody` neutralizes `</system-reminder>` and is idempotent, so applying it to a body that carries no frame costs one scan and renders identically; it is applied here so a captured suite body cannot smuggle a closing marker into the prompt, and so the same text stays safe if it is ever reused inside a frame.
+
+`attribute()` renders one `### <heading>` per contributor and is deliberately not used for the style itself. It exists to keep several contributors separable (rule R5), and exactly one style is selected per workspace, so a wrapper `##` section with one nested `###` per style would separate nothing. It would also nest the style under a heading that names no contributor, and add a level that exists only to satisfy a shape meant for multiple contributors. The `##` heading names the one contributor directly, which is the single-contributor form the conventions describe.
+
+`escapeEntry` is not used here: nothing in the section is an emphasis block, and a style body is prose the model reads in place, not a name echoed inside markup.
+
+The renderer lives in `market-runtime`, not in the contracts package: the architecture gate forbids contracts importing the runtime, and the page must not reimplement the rule. It does not need to. The page renders the server's `injected` string and never rebuilds it, so the preview is the section text by construction rather than by agreement between two implementations. Two tests pin that: the service asserts `injected` equals `renderOutputStyleSection` and equals `sectionText`, and the panel asserts the `<pre>` equals the payload's `injected` byte for byte, escaped marker included.
 
 **State is its own document** at `output-style/<sha256(workspace).slice(0,24)>.json`, holding `{ version, workspace, styleId, captured? }`, read-modify-write under the host file lock and written atomically. A sibling of the tab layout rather than a section of it: one writer per file is what keeps two surfaces from clobbering each other. The read is tolerant: an unparsable document or an id that no longer names a style resolves to the default selection, because that is the safe direction for prompt contribution nobody can see.
 
@@ -61,7 +67,11 @@ The rendering lives in `market-contracts`, imported by both the server and the p
 
 **Hash the hook script's bytes into the fingerprint.** Catches an edited script without a version bump. It would read an arbitrary executable on every list read, for a case the always-available capture action already covers, and it would make a suite's own cache files count as a style change.
 
-**Wrap the body in `<system-reminder>` for consistency with workspace instructions.** It reads as the plugin being cautious about text it is already putting into the system prompt. The frame tells the model the text is context, which would weaken the instruction it is meant to be.
+**Wrap the body in `<system-reminder>` for consistency with workspace instructions.** It reads as the plugin being cautious about text it is already putting into the system prompt. The frame tells the model the text is context, which would weaken the instruction it is meant to be, and rule R7 forbids it outright.
+
+**Render the style as a `## Output style` wrapper with one `### <label>` inside, reusing `attribute()` for symmetry with the suite-instruction section.** Symmetric, and it nests a style under a heading that names no contributor. `attribute()` answers the several-contributors problem; one selected style is one contributor, so the wrapper would add a level that separates nothing.
+
+**Render the section in the contracts package so both the server and the page can call it.** It was the first shape, and the architecture gate refuses it: a stateless contracts record may not import the runtime, and the merged frame helper lives in the runtime. Moving the renderer to the runtime and having the page display the server's answer is both allowed and stronger, because one implementation cannot disagree with itself.
 
 **Let the page run a capture implicitly when a suite style is selected.** One click instead of two. It hides a program run inside a selection and lets text reach the prompt that no one read in the preview, which is the thing this feature is for.
 

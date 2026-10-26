@@ -123,6 +123,20 @@ describe('output styles panel', () => {
     expect(rows()[1]!.getAttribute('data-selected')).toBe('true')
   })
 
+  it('renders the server section text byte for byte, never raw body text', async () => {
+    // The preview is the escaped final text, heading included, because that is
+    // what the model reads. A page that rendered the body would show something
+    // the prompt never contains.
+    const injected = '## Output style: teaching-style\nTeach. <\\/system-reminder> Nothing else.'
+    await mount({ ...PAYLOAD, selected: 'builtin:concise', injected })
+
+    const pre = host!.querySelector('[data-output-style-preview] pre')
+    expect(pre?.textContent).toBe(injected)
+    // The escaped form is present and the raw closing marker is not.
+    expect(pre?.textContent).toContain('<\\/system-reminder>')
+    expect(pre?.textContent).not.toContain('</system-reminder>')
+  })
+
   it('says that the default style injects nothing', async () => {
     await mount()
     expect(preview()).toContain('outputStylesPreviewEmpty')

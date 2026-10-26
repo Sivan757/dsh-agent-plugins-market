@@ -5,7 +5,9 @@ import { join } from 'node:path'
 import { OutputStyleService } from '../src/runtime/host/output-style-service.js'
 import { BUILTIN_DEFAULT_NAME, parseCapturedStyle, readBuiltinStyles, suiteStyleFingerprint, userStylePath, writeUserStyle } from '../src/application/output-styles.js'
 import { defaultOutputStyleState, loadOutputStyle, outputStylePath, saveOutputStyleSelection } from '../src/application/state/output-style.js'
-import { OUTPUT_STYLE_DEFAULT_ID, OUTPUT_STYLE_SECTION_ORDER, escapeFrameBreak, renderOutputStyleSection } from '../../market-contracts/src/contracts/output-styles.js'
+import { renderOutputStyleSection } from '../src/runtime/host/output-style-render.js'
+import { OUTPUT_STYLE_DEFAULT_ID, OUTPUT_STYLE_SECTION_ORDER } from '../../market-contracts/src/contracts/output-styles.js'
+import { attribute, escapeFrameBody } from '../src/runtime/surfaces/prompt-frame.js'
 import { mountOutputStyleSection } from '../src/runtime/host/output-style-section.js'
 import type { OutputStyleSuitePort } from '../src/runtime/host/output-style-service.js'
 
@@ -43,8 +45,8 @@ function suitePort(overrides: { fingerprint?: string; text?: string; captured?: 
 }
 
 describe('the injected section text', () => {
-  it('renders the heading above the body verbatim', () => {
-    expect(renderOutputStyleSection('concise', 'Answer first.\n')).toBe('## Output style: concise\nAnswer first.\n')
+  it('renders the heading above the body', () => {
+    expect(renderOutputStyleSection('concise', 'Answer first.\n')).toBe('## Output style: concise\nAnswer first.')
   })
 
   it('contributes nothing for an empty body or the default style', async () => {
@@ -64,9 +66,26 @@ describe('the injected section text', () => {
     expect(payload.injected).toBe('')
   })
 
-  it('escapes a closing reminder tag so the text cannot break a user-role frame', () => {
-    expect(escapeFrameBreak('before </system-reminder> after')).toBe('before <\\/system-reminder> after')
-    expect(renderOutputStyleSection('x', '</system-reminder>')).toBe('## Output style: x\n<\\/system-reminder>')
+  it('escapes a closing reminder tag with the merged frame helper', () => {
+    expect(renderOutputStyleSection('x', '</system-reminder>')).toBe('## Output style: x\n' + escapeFrameBody('</system-reminder>'))
+    expect(renderOutputStyleSection('x', '</system-reminder>')).toContain('<\\/system-reminder>')
+    // The escape is idempotent, so a body that already carries it gains nothing.
+    expect(escapeFrameBody(escapeFrameBody('a </system-reminder> b'))).toBe(escapeFrameBody('a </system-reminder> b'))
+  })
+
+  it('uses the merged frame helper rather than a second escaper', async () => {
+    // One implementation of the escape rule: the section delegates to the
+    // module that owns framing, so the two cannot drift.
+    const body = 'before </system-reminder> after'
+    expect(renderOutputStyleSection('x', body)).toContain(escapeFrameBody(body))
+    // And the attributed form the conventions describe for several contributors
+    // is available untouched, which is what a second style would use.
+    expect(attribute([{ heading: 'a\nb', body: 'text' }])).toBe('### a b\n\ntext')
+    expect(attribute([{ heading: 'a', body: '   ' }])).toBe('')
+  })
+
+  it('trims the body so a trailing newline does not add a blank prompt line', () => {
+    expect(renderOutputStyleSection('concise', '  Answer first.\n\n')).toBe('## Output style: concise\nAnswer first.')
   })
 
   it('renders a selected builtin style with its heading', async () => {
@@ -82,6 +101,42 @@ describe('the injected section text', () => {
   it('places the section below the persona prefix and clear of the named slots', () => {
     expect(OUTPUT_STYLE_SECTION_ORDER).toBeGreaterThan(0)
     expect(OUTPUT_STYLE_SECTION_ORDER).toBeLessThan(500)
+  })
+})
+
+describe('the section and the preview', () => {
+  it('gives the page exactly the bytes the prompt section renders', async () => {
+    // The page renders the server's `injected` string and never re-renders it,
+    // so this equality is what makes the preview trustworthy: what a person
+    // reads is the section text, escaped heading included.
+    const { dataRoot, agentsRoot } = await roots_pair()
+    const service = new OutputStyleService(dataRoot, agentsRoot)
+    await service.select(WORKSPACE, 'builtin:explanatory')
+    const payload = await service.payload(WORKSPACE)
+    const builtin = (await readBuiltinStyles()).find(row => row.id === 'builtin:explanatory')
+    expect(builtin).toBeDefined()
+    expect(payload.injected).toBe(renderOutputStyleSection(builtin!.label, builtin!.body))
+    expect(payload.injected).toBe(service.sectionText(WORKSPACE))
+    expect(payload.injected.startsWith('## Output style: explanatory\n')).toBe(true)
+  })
+
+  it('never opens a system-reminder frame, which rule R7 reserves for user-role content', async () => {
+    const { dataRoot, agentsRoot } = await roots_pair()
+    const service = new OutputStyleService(dataRoot, agentsRoot)
+    await service.select(WORKSPACE, 'builtin:concise')
+    const injected = (await service.payload(WORKSPACE)).injected
+    expect(injected.startsWith('## ')).toBe(true)
+    expect(injected).not.toContain('<system-reminder>')
+    expect(injected).not.toContain('</system-reminder>')
+  })
+
+  it('escapes a captured body that carries a closing frame marker', async () => {
+    const { dataRoot, agentsRoot } = await roots_pair()
+    const port = suitePort({ text: 'Teach. </system-reminder> Nothing else.' })
+    const service = new OutputStyleService(dataRoot, agentsRoot, port)
+    await service.capture(WORKSPACE, 'src/teaching')
+    await service.select(WORKSPACE, 'suite:src/teaching')
+    expect(service.sectionText(WORKSPACE)).toBe('## Output style: teaching-style\nTeach. <\\/system-reminder> Nothing else.')
   })
 })
 

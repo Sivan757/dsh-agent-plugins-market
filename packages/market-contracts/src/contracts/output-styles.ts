@@ -44,6 +44,18 @@ export const OUTPUT_STYLE_DEFAULT_ID = 'builtin:default'
 export const OUTPUT_STYLE_SECTION_NAME = 'market:output-style'
 
 /**
+ * The heading line the section opens with.
+ *
+ * The host joins prompt sections with a blank line and adds no heading of its
+ * own, so the producer supplies one. It is a `##` heading rather than a wrapper
+ * section with a nested `###` per style: exactly one style is selected per
+ * workspace, so a second level would separate nothing. See
+ * \`packages/market-runtime/src/runtime/surfaces/prompt-frame.ts\` and rule R7 in
+ * \`docs/reference/prompt-injection-conventions.md\` for the framing decision.
+ */
+export const OUTPUT_STYLE_HEADING_PREFIX = '## Output style: '
+
+/**
  * Where the section sorts among the host's own prompt sections.
  *
  * The host allocates 0 to the deployment persona prefix, 500 to plan policy and
@@ -54,37 +66,6 @@ export const OUTPUT_STYLE_SECTION_NAME = 'market:output-style'
  * make the style's position depend on its name.
  */
 export const OUTPUT_STYLE_SECTION_ORDER = 490
-
-/**
- * Keep a closing reminder tag from ending a user-role frame.
- *
- * The section renders into the system prompt, where no such frame exists. The
- * escape is applied anyway so the same text stays safe if it is ever reused
- * inside a frame: one substitution here costs nothing and removes a class of
- * injection from any future reuse.
- * @param text - authored style text.
- * @returns the text with every closing reminder tag neutralized.
- */
-export function escapeFrameBreak(text: string): string {
-  return text.replaceAll('</system-reminder>', '<\\/system-reminder>')
-}
-
-/**
- * Render one selection as the exact system-prompt section text.
- *
- * The host joins sections with a blank line and adds no heading of its own, so
- * the heading is part of this text. Without it a reader of the assembled prompt
- * cannot tell where the style starts, and two styles would silently concatenate.
- * The body is emitted verbatim apart from the frame escape.
- * @param label - the style's display name.
- * @param body - the style's authored text.
- * @returns the section text, or an empty string when the body carries nothing.
- */
-export function renderOutputStyleSection(label: string, body: string): string {
-  const trimmed = body.trim()
-  if (trimmed === '') return ''
-  return `## Output style: ${label}\n${escapeFrameBreak(body)}`
-}
 
 /** How one suite style's capture relates to the suite on disk now. */
 export type OutputStyleCaptureState = 'missing' | 'current' | 'stale'

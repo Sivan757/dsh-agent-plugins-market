@@ -55,6 +55,7 @@ export { TabLayoutService } from './runtime/host/tab-layout-service.js'
 export { OutputStyleService } from './runtime/host/output-style-service.js'
 export type { OutputStyleSuitePort } from './runtime/host/output-style-service.js'
 export { mountOutputStyleSection } from './runtime/host/output-style-section.js'
+export { renderOutputStyleSection } from './runtime/host/output-style-render.js'
 export { loadOutputStyle, mutateOutputStyle, outputStylePath, saveOutputStyleCapture, saveOutputStyleSelection } from './application/state/output-style.js'
 export type { OutputStyleState } from './application/state/output-style.js'
 export {

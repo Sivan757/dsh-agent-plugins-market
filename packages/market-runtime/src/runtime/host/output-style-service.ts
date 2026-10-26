@@ -24,10 +24,10 @@ import {
   writeUserStyle,
   type SuiteStyleCandidate
 } from '../../application/output-styles.js'
+import { renderOutputStyleSection } from './output-style-render.js'
 import { loadOutputStyle, saveOutputStyleCapture, saveOutputStyleSelection, defaultOutputStyleState, type OutputStyleState } from '../../application/state/output-style.js'
 import {
   OUTPUT_STYLE_DEFAULT_ID,
-  renderOutputStyleSection,
   type OutputStyleCaptureResult,
   type OutputStyleCaptured,
   type OutputStyleRow,
