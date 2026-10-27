@@ -42,35 +42,127 @@
 }
 /* ---- Tab stowing ---- */
 
-/* The trailing control sits at the row's end and keeps its size while the tabs
-   shrink and ellipsize. The button is a fixed 28px control with an optional
-   count badge, so the row's width cost is constant whether one tab or six are
-   stowed. */
+/* The trailing control is the row's edge, not a button beside the tabs. The
+   row puts it on its own right edge, so it costs the flow nothing: the tab
+   column absorbs the space it covers, and a translucent glow reads as a fade
+   rather than as one more control competing for width. */
 .tabStow {
   display: flex;
+  height: 100%;
   align-items: center;
 }
 
 .tabStowTrigger {
   position: relative;
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  width: 30px;
+  height: 26px;
+  padding-inline: 4px;
+  border-radius: 8px;
+  color: var(--dsw-alias-label-tertiary, #6e7781);
+  background: radial-gradient(ellipse 120% 100% at 100% 50%, var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06)), transparent 72%);
 }
 
-/* A count, not a control: it never takes a pointer event, so the whole button
-   stays one hit target. */
-.tabStowBadge {
-  position: absolute;
-  top: -2px;
-  inset-inline-end: -2px;
-  min-width: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
-  background: var(--dsw-alias-label-primary, #1f2328);
-  color: var(--dsw-alias-bg-elevated, #ffffff);
-  font-size: 9px;
+/* With something stowed the edge carries the count, which is the state the
+   control reports and the reason it is visible at all. */
+.tabStowTriggerCounted {
+  width: 30px;
+  color: var(--dsw-alias-label-secondary, #656d76);
+  background: radial-gradient(ellipse 140% 110% at 100% 50%, var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.08)), transparent 74%);
+}
+
+.tabStowTrigger:hover {
+  color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.08));
+}
+
+.tabStowCount {
+  min-width: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-elevated, #ffffff);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
   line-height: 14px;
   text-align: center;
   pointer-events: none;
+}
+
+/* The long-hover bubble: a floating card above the tab the pointer rested on.
+   It is fixed-positioned from the tab's measured rect, so the row's clipping
+   and the panel's scrolling cannot cut it off. */
+.tabHover {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-elevated, #ffffff);
+  box-shadow: var(--dsw-elevation-prominent, 0 8px 40px rgba(15, 17, 21, 0.16));
+  transform: translate(-50%, -100%) translateY(-8px);
+  animation: tabHoverIn 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The bubble floats because the tab is above the viewport edge; landing from
+   4px below keeps the motion tied to the tab it came from. */
+@keyframes tabHoverIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) translateY(-8px);
+  }
+}
+
+.tabHoverGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tabHoverButton {
+  min-width: 26px;
+  height: 24px;
+  padding-inline: 7px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--dsw-alias-label-secondary, #656d76);
+}
+
+/* The guide wears the same card as the actions, wider and quieter: it is a
+   sentence to read once, so it must not look like a control strip. */
+.tabHoverGuide {
+  gap: 8px;
+  max-width: 320px;
+  padding: 6px 6px 6px 10px;
+}
+
+.tabHoverGuideText {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary, #656d76);
+}
+
+.tabHoverDivider {
+  width: 1px;
+  height: 16px;
+  margin-inline: 3px;
+  background: var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.06));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabHover {
+    animation: none;
+  }
 }
 
 .tabManageList {

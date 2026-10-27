@@ -33,6 +33,24 @@
   align-items: center;
 }
 
+/* The overlay variant: the control sits on the row's right edge and the tabs
+   keep a column's worth of padding, so the last label stays readable. Nothing
+   leaves the flow, so the row still cannot wrap or scroll sideways. */
+.rowOverlay {
+  position: relative;
+}
+
+.tabsOverlay {
+  padding-inline-end: 34px;
+}
+
+.trailingOverlay {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  justify-content: flex-end;
+}
+
 .row [role='tab'] {
   min-width: 0;
   padding-inline: 6px;

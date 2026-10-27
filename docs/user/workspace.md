@@ -8,11 +8,13 @@ The settings page is the canonical layout, and the preset manager renders the sa
 
 ## Stowing and ordering tabs
 
-The icon at the end of the tab row opens tab settings. It sits beside the tabs rather than inside them, so the tab walk keys keep working exactly as before. Stow a tab you rarely need and its chip leaves the row: the tab stays reachable from that menu, and the menu still lists every stowed tab when the row is short.
+The row's trailing edge opens tab settings. It lies over the row rather than in it, so the tabs get the column back, and the tab walk keys keep working exactly as before. While anything is stowed that edge shows the count; otherwise it is a faint ellipsis. Stow a tab you rarely need and its chip leaves the row: the tab stays reachable from that menu, and the menu still lists every stowed tab when the row is short.
 
 **Manage tabs** lists every tab in display order. Uncheck one to stow it, check it to bring it back. The stowed tabs stay available from the menu, so stowing is a tidy-up rather than a disable. The market tab cannot be stowed, and the last visible tab's control is disabled so the row is never empty. **Show all** brings everything back at once.
 
 Stowing the tab you are looking at moves you to the first visible tab, so the panel below always has its tab in the row. A link to a stowed tab still works: that tab joins the row while it is the one on screen, and the saved layout does not change because of the link.
+
+Rest the pointer on any tab for about half a second and a small card appears above it: two arrows to move that tab, **Stow**, and **Open the list**. Hold **Shift** while hovering is not needed, and nothing has to be aimed at: the pause is the whole gesture. The same card introduces itself once, the first time the workspace opens, then stays out of the way.
 
 The order is yours too. **Manage tabs** puts a pair of arrows on every visible row: the left arrow moves that tab one place left, the right arrow one place right. With a tab focused, Alt+Left and Alt+Right do the same from the row itself. The market tab stays in the first position, so ordering, like stowing, cannot leave the row without its home tab. A stowed tab keeps the place it had, and comes back there.
 
