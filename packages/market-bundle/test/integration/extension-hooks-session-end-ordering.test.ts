@@ -118,7 +118,8 @@ function harness() {
     }
   }
   // The user's own grant. It stays true through teardown: the flag that closes
-  // belongs to the mount, inside the owner under test.
+  // belongs to the mount, inside the owner under test, and the hook's own
+  // outcome is what reports which side of the ordering that flag was closed on.
   const grants = new Set<string>([SUITE_ID])
   const closing = scope(shell)
   const agent = {
@@ -141,14 +142,7 @@ function harness() {
   cleanups.push(async () => {
     await contributors.disposeAll()
   })
-  return {
-    commands,
-    contributors,
-    agent,
-    fibers: closing.fibers,
-    /** The production teardown: the owner's dispose closes the mount flag itself. */
-    close: () => {}
-  }
+  return { commands, contributors, agent, fibers: closing.fibers }
 }
 
 describe('SessionEnd runs before the grant closes', () => {
@@ -156,9 +150,10 @@ describe('SessionEnd runs before the grant closes', () => {
     const h = harness()
     await h.contributors.reconcile(h.agent, captureExtensionSelection(null, [SUITE_ID]))
     expect(h.commands).toEqual([])
-    // The production ordering: the owner disposes the hook bridge first, and the
-    // grant only closes on the fiber that follows.
-    h.close()
+    // The mount's own flag is the gate the hook reads, and the owner owns it:
+    // `ScopedExtensionContributors.dispose` disposes the bridge and only then
+    // clears that flag. Reversing those two lines makes this call fire nothing,
+    // which is the failure this case exists for.
     await h.contributors.dispose(h.agent)
     expect(h.commands).toEqual(['on-end'])
   })

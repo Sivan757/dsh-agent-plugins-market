@@ -115,13 +115,19 @@ describe('resolveSwitchSettleMs', () => {
     const dataRoot = await mkdtemp(join(tmpdir(), 'resource-filter-budget-'))
     const workspace = '/ws/budget-zero'
     const reports: string[] = []
+    // The pass is held open, not slept through: whether the switch waited is
+    // then decided by the pass's own state, never by how fast the runner is.
     let settled = false
+    let openPass!: () => void
+    const passHeld = new Promise<void>(resolve => {
+      openPass = resolve
+    })
     const service = new ResourceFilterService(
       dataRoot,
       workspace,
       {
         onFiltersChanged: async () => {
-          await new Promise(resolve => setTimeout(resolve, 50))
+          await passHeld
           settled = true
         },
         onPipelineReport: message => reports.push(message)
@@ -130,16 +136,17 @@ describe('resolveSwitchSettleMs', () => {
     )
     await service.reload()
 
-    const started = performance.now()
     const answered = await service.setSurface('lsp', false)
-    const waitedMs = performance.now() - started
 
-    expect(waitedMs).toBeLessThan(45)
-    expect(answered).toEqual({ ...ALL_SURFACES_ON, lsp: false })
+    // The switch answered while the pass it scheduled is still running, which
+    // is the whole meaning of a zero budget.
     expect(settled).toBe(false)
+    expect(answered).toEqual({ ...ALL_SURFACES_ON, lsp: false })
     expect((await loadResourceFilters(dataRoot, workspace)).toggles.lsp).toBe(false)
-    // The pipeline keeps running; a zero budget only stops the waiting.
-    await new Promise(resolve => setTimeout(resolve, 80))
+    // Nothing is cancelled by the answer: releasing the pass lets it finish.
+    openPass()
+    await passHeld
+    while (!settled) await new Promise(resolve => setImmediate(resolve))
     expect(settled).toBe(true)
     // A zero budget never reports an overrun: waiting was never promised.
     expect(reports).toEqual([])

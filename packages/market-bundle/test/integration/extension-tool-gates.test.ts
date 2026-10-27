@@ -255,11 +255,14 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     expect(f.ctx.tools.schemas(f.a).map(schema => schema.name)).not.toContain(dynamic.definition.name)
     expect((await f.call(f.a, dynamic.definition.name)).isError).toBe(true)
     expect(dynamic.execute).not.toHaveBeenCalled()
-    const count = changes.mock.calls.length
+    // Both refreshes see the same deny set, so the gate must compare its
+    // signature and return before touching the registry. Clearing first makes
+    // "no new notification" an exact zero rather than a tolerance on a
+    // baseline that a feedback loop could inflate up to seven.
+    changes.mockClear()
     f.refresh()
     f.refresh()
-    expect(changes).toHaveBeenCalledTimes(count)
-    expect(count).toBeLessThan(8)
+    expect(changes).toHaveBeenCalledTimes(0)
     dynamic.remove()
     expect(f.ctx.tools.get(dynamic.definition.name)).toBeUndefined()
   })
