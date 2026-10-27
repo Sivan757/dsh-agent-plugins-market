@@ -515,8 +515,15 @@ async function main() {
   }
 
   // pnpm's age policy covers the whole resolved graph, so a host package pulled in
-  // transitively needs its own exemption even though this repo never names it.
-  const lockedAtBaseline = lockedHostPackages(await read(LOCK_PATH), baseline)
+  // transitively needs its own exemption even though this repo never names it. A
+  // fixture that exercises only the manifest and exclusion rules carries no lockfile,
+  // so a missing one is an empty resolved graph rather than a failure. Naming ENOENT
+  // keeps a real read error loud.
+  const lockText = await read(LOCK_PATH).catch(error => {
+    if (error?.code === 'ENOENT') return ''
+    throw error
+  })
+  const lockedAtBaseline = lockedHostPackages(lockText, baseline)
 
   let workspaceText = await read(WORKSPACE_PATH)
   let { violations, hostNames } = inspect(manifest, surface, baseline, parseExclusions(workspaceText), lockedAtBaseline)
