@@ -93,6 +93,8 @@ const CLIENT_PREFIX = '@deepseek-ai/dsh-client-'
 const CORDIS = '@deepseek-ai/cordis'
 /** `pnpm-workspace.yaml` key carrying the supply-chain escape hatch pnpm writes. */
 const EXCLUDE_KEY = 'minimumReleaseAgeExclude'
+/** The lockfile, read for the full resolved graph the age policy also covers. */
+const LOCK_PATH = 'pnpm-lock.yaml'
 
 const argv = process.argv.slice(2)
 const flag = name => argv.includes(`--${name}`)
@@ -242,9 +244,23 @@ function baselineFrom(tags) {
   return version
 }
 
-/** Every host package whose aligned pin requires the supply-chain escape hatch to carry the baseline. */
-function requiredExclusions(manifest, baseline, hostNames) {
-  const required = new Set()
+/**
+ * Every host package the supply-chain escape hatch must admit at the baseline.
+ *
+ * Two sources, because pnpm's minimum-release-age policy covers the whole resolved
+ * graph rather than the packages this repo names. First, every host package this
+ * repo pins directly. Second, every host package the lockfile already resolves at
+ * the baseline, which is where transitive dependencies enter: a host package pulled
+ * in by another host package needs its own exemption, and a fixer that only reads
+ * the manifest leaves those 26 entries stale.
+ * @param manifest - the parsed root package.json.
+ * @param baseline - the resolved host version.
+ * @param hostNames - host packages this repo imports or declares.
+ * @param lockedAtBaseline - host packages the lockfile resolves at the baseline.
+ * @returns the names that must appear in the exclusion list.
+ */
+function requiredExclusions(manifest, baseline, hostNames, lockedAtBaseline) {
+  const required = new Set(lockedAtBaseline)
   for (const name of hostNames) {
     if (manifest.devDependencies?.[name] === baseline) required.add(name)
     else if (manifest.dependencies?.[name] === HOST_SUPPORT_RANGE) required.add(name)
@@ -253,10 +269,37 @@ function requiredExclusions(manifest, baseline, hostNames) {
 }
 
 /**
+ * Host packages the lockfile resolves at one version.
+ * @param lockText - pnpm-lock.yaml contents.
+ * @param baseline - the version to look for.
+ * @returns the package names resolved at that version.
+ */
+function lockedHostPackages(lockText, baseline) {
+  const found = new Set()
+  // A pin in the importers block is `  name@version`, and a resolution in the packages block is
+  // `  'name@version':` optionally followed by a peer-suffix. Only the first two tokens matter,
+  // so the line is split rather than parsed.
+  const suffix = '@' + baseline
+  for (const raw of lockText.split('\n')) {
+    const line = raw.trim().replace(/^'/u, '')
+    const at = line.indexOf(HOST_PREFIX)
+    if (at !== 0) continue
+    const name = line.slice(0, line.indexOf(suffix) === -1 ? 0 : line.indexOf(suffix))
+    if (!name.endsWith('') || name.length <= HOST_PREFIX.length) continue
+    const versionStart = line.indexOf('@', HOST_PREFIX.length)
+    if (versionStart === -1) continue
+    const version = line.slice(versionStart + 1).split(/['":(]/u)[0]
+    if (version !== baseline) continue
+    if (/^[a-z0-9-]+$/u.test(name.slice(HOST_PREFIX.length))) found.add(name)
+  }
+  return found
+}
+
+/**
  * Compare the manifest against one baseline.
  * @returns `{ violations, hostNames }`, where each violation carries a stable `code`.
  */
-function inspect(manifest, surface, baseline, exclusions) {
+function inspect(manifest, surface, baseline, exclusions, lockedAtBaseline) {
   const violations = []
   const peer = manifest.peerDependencies ?? {}
   const dev = manifest.devDependencies ?? {}
@@ -323,7 +366,7 @@ function inspect(manifest, surface, baseline, exclusions) {
     })
   }
 
-  for (const name of requiredExclusions(manifest, baseline, hostNames)) {
+  for (const name of requiredExclusions(manifest, baseline, hostNames, lockedAtBaseline)) {
     const entry = exclusions.find(candidate => candidate.name === name)
     if (entry === undefined) {
       violations.push({ code: 'exclusion-missing', message: `${WORKSPACE_PATH} ${EXCLUDE_KEY} has no entry for ${name}` })
@@ -396,7 +439,7 @@ function writeManifest(manifest) {
 }
 
 /** Apply every fixable violation: pins, missing declarations, escape-hatch entries. */
-function repair(manifest, surface, baseline, exclusionText) {
+function repair(manifest, surface, baseline, exclusionText, lockedAtBaseline) {
   const peer = (manifest.peerDependencies ??= {})
   const dev = (manifest.devDependencies ??= {})
   const meta = (manifest.peerDependenciesMeta ??= {})
@@ -420,7 +463,7 @@ function repair(manifest, surface, baseline, exclusionText) {
   }
 
   const entries = new Map(parseExclusions(exclusionText).map(entry => [entry.name, entry]))
-  for (const name of requiredExclusions(manifest, baseline, [...names])) {
+  for (const name of requiredExclusions(manifest, baseline, [...names], lockedAtBaseline)) {
     const entry = entries.get(name)
     if (entry === undefined) entries.set(name, { name, versions: [baseline] })
     else entry.versions = [baseline]
@@ -467,14 +510,18 @@ async function main() {
     throw new Error(`resolved baseline ${baseline} is outside the declared support window ${HOST_SUPPORT_RANGE}; move HOST_SUPPORT_FLOOR/HOST_SUPPORT_CEILING before releasing`)
   }
 
+  // pnpm's age policy covers the whole resolved graph, so a host package pulled in
+  // transitively needs its own exemption even though this repo never names it.
+  const lockedAtBaseline = lockedHostPackages(await read(LOCK_PATH), baseline)
+
   let workspaceText = await read(WORKSPACE_PATH)
-  let { violations, hostNames } = inspect(manifest, surface, baseline, parseExclusions(workspaceText))
+  let { violations, hostNames } = inspect(manifest, surface, baseline, parseExclusions(workspaceText), lockedAtBaseline)
 
   // `--fix` normalizes even a currently-passing tree, so the file always reads as exactly one
   // baseline instead of accumulating the version lists pnpm merges on every install.
   let repaired = false
   if (fix) {
-    const nextWorkspace = repair(manifest, surface, baseline, workspaceText)
+    const nextWorkspace = repair(manifest, surface, baseline, workspaceText, lockedAtBaseline)
     const nextManifest = writeManifest(manifest)
     repaired = nextManifest !== manifestText || nextWorkspace !== workspaceText
     if (repaired) {
@@ -482,7 +529,7 @@ async function main() {
       await writeFile(WORKSPACE_PATH, nextWorkspace)
       workspaceText = nextWorkspace
     }
-    ;({ violations, hostNames } = inspect(manifest, surface, baseline, parseExclusions(workspaceText)))
+    ;({ violations, hostNames } = inspect(manifest, surface, baseline, parseExclusions(workspaceText), lockedAtBaseline))
   }
 
   if (useJson) {
