@@ -16,7 +16,10 @@ Each axis has a skill and a question it answers. Run all five per pass, because 
 
 ## The pass
 
-1. Run the gates first. A red gate is worth more than any report: `pnpm run typecheck`, `lint`, `format:check`, `test`, `check:architecture`, `check:doc-links`, `duplication`.
+1. Run the gates first. A red gate is worth more than any report: `pnpm run typecheck`, `lint`, `format:check`, `test`, `check:architecture`, `check:doc-links`, `check:reuse`, `check:host-alignment`.
+
+   There is no `duplication` gate in this repository, and that is a real gap: the simplification pass found five byte-identical copies of the same route plumbing and a dead write path, neither of which any gate would have caught. A duplication gate and a dead-export gate are the two additions that would make the next pass cheaper. Neither exists yet, and the dead-export gate cannot land until the branches that delete today's dead exports merge.
+
 2. Run each axis as an independent read-only reviewer, one report per axis under `pass-<date>/`. Each report ranks by the cost of NOT fixing.
 3. Consolidate into one backlog. Drop anything a report did not evidence with `file:line`. Merge duplicates across axes, keeping the entry with the strongest evidence.
 4. Land the backlog in waves, one axis per pull request, so a regression is attributable to one change.
