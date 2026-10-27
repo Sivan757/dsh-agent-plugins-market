@@ -51,7 +51,6 @@ export const MARKET_ROUTES = {
   mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
   mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
   mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
-  setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`,
   userPanel: `${MARKET_API_PREFIX}user-panel`,
   menuRowFaces: `${MARKET_API_PREFIX}menu-row-faces`,
   clearTranslations: `${MARKET_API_PREFIX}translations/clear`,

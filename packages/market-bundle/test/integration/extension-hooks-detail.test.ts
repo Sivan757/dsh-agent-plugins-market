@@ -112,7 +112,6 @@ function marketService(catalog: Catalog): MarketService {
       hostClient: { available: true, version: '' },
       downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
     }),
-    setMcpBackend: async () => {},
     menuRowFaces: async () => [],
     notifyPanelsChanged: async () => {}
   }

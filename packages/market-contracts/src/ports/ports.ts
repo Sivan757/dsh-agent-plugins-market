@@ -161,8 +161,6 @@ export interface CatalogPorts {
   lspStatusSource: LspMountStatusSource
   /** The persisted MCP mount backend choice. */
   mcpBackend(): Promise<McpBackend>
-  /** Persists an MCP mount backend choice. */
-  setMcpBackend(backend: McpBackend): Promise<void>
   /** The persisted download-region setting. */
   downloadRegion(): Promise<DownloadRegionSetting>
   /** The host locale preference ('zh' default when unset). */
@@ -215,9 +213,6 @@ export const defaultCatalogPorts: CatalogPorts = {
   menuRowIdentities: async () => [],
   translationProviders: [],
   translationProviderIdentity: () => 'none',
-  setMcpBackend: async () => {
-    throw new Error('the settings service is not mounted')
-  },
   downloadRegion: async () => 'auto'
 }
 

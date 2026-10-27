@@ -5,7 +5,6 @@ import type { MenuRowFaceWire, OverviewPayload, SourceProgress, SuiteDetail, Sui
 import type { DocumentTranslation } from '../contracts/translation.js'
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../contracts/mcp-overrides.js'
-import type { McpBackend } from '../contracts/mcp.js'
 import type { ServerConfigPayload } from '../contracts/market.js'
 import type { LspServerTable, McpBackendInfo, SourceInput, SourcePatch } from './ports.js'
 
@@ -83,8 +82,6 @@ export interface MarketMutations {
   mcpBackendInfo(): Promise<McpBackendInfo>
   /** Drop every cached translation; translation is lazy, so the next read refills it. */
   clearTranslations(): Promise<void>
-  /** Switch the MCP mount backend and remount every suite server through it. */
-  setMcpBackend(backend: McpBackend): Promise<void>
   /**
    * Panel change hook: the HTTP layer notifies after a user-panel mutation
    * (skills / commands / agent personas) so the runtime remounts commands

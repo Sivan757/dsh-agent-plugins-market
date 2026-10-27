@@ -355,18 +355,6 @@ export class McpService {
   }
 
   /**
-   * Switch the MCP mount backend and remount every suite server through it.
-   * A host-client switch takes effect only where the host package resolves;
-   * unresolvable or unsupported transports surface as per-server diagnostics.
-   */
-  async setBackend(backend: McpBackend): Promise<void> {
-    return this.context.enqueue(async () => {
-      await this.ports.setMcpBackend(backend)
-      await this.context.notifyChanged(true)
-    })
-  }
-
-  /**
    * Drop one MCP server's OAuth grant record so the next mount re-runs the
    * browser authorization — the path for "I picked too narrow a scope".
    * @param serverName - the derived serverName whose folded form keys the record.

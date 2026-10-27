@@ -57,7 +57,6 @@ function service(): MarketService {
       hostClient: { available: true, version: '0.1.1-rc.2' },
       downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
     }),
-    setMcpBackend: async () => {},
     menuRowFaces: async () => [],
     notifyPanelsChanged: async () => {}
   }
@@ -222,7 +221,7 @@ describe('market HTTP routes', () => {
     expect(reauthRoutes.size).toBe(0)
   })
 
-  it('serves the MCP backend block and validates backend switches', async () => {
+  it('serves the MCP backend block', async () => {
     const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
@@ -230,17 +229,6 @@ describe('market HTTP routes', () => {
     const getResponse = response()
     await routes.get(MARKET_ROUTES.mcpBackend)?.({ url: MARKET_ROUTES.mcpBackend, headers: {} }, getResponse)
     expect(getResponse.value()).toMatchObject({ backend: 'builtin', hostClient: { available: true, version: '0.1.1-rc.2' } })
-
-    const postResponse = response()
-    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest(MARKET_ROUTES.setMcpBackend, { backend: 'host' }), postResponse)
-    await settle()
-    expect(postResponse.value()).toMatchObject({ ok: true, backend: 'builtin' })
-
-    // An unknown backend value is rejected with a 400 payload.
-    const badResponse = response()
-    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest(MARKET_ROUTES.setMcpBackend, { backend: 'nope' }), badResponse)
-    await settle()
-    expect(badResponse.value()).toMatchObject({ ok: false })
 
     dispose()
     expect(routes.size).toBe(0)
