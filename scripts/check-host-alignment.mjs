@@ -33,7 +33,11 @@
  *   when the package is absent, and a value import fails module evaluation instead. The marker
  *   stays valid for a type-only import, whose cordis augmentation costs nothing at runtime;
  * - `@deepseek-ai/cordis` carries one identical range in peer and dev (it tracks its own 4.x line);
- * - `pnpm-workspace.yaml` `minimumReleaseAgeExclude` admits the baseline for every aligned package.
+ * - `pnpm-workspace.yaml` `minimumReleaseAgeExclude` admits the baseline for every aligned package,
+ *   and for every host package the lockfile resolves at that baseline. The second half matters
+ *   because pnpm's age policy covers the whole resolved graph: a host package arriving
+ *   transitively needs its own exemption, and demanding it only for manifest entries left 26 of
+ *   them stale while this gate reported green.
  *
  * `@deepseek-ai/dsh-client-*` is exempt from the peer rules: those are host-supplied bundle
  * externals, pinned through devDependencies only and never installable capabilities. Host packages
