@@ -33,6 +33,7 @@ import {
 } from '../../market-runtime/src/index.js'
 import type { Catalog } from './application/catalog.js'
 import { createProjectExtensionResources } from './application/extension-project.js'
+import { createProjectReaderCache } from './application/project-readers.js'
 import { readExtensionInventory } from './application/extension-inventory.js'
 import { mountExtensionPresetRoutes } from './routes-extension-presets.js'
 import type { SuiteRouteSessionResolver } from './routes.js'
@@ -170,14 +171,11 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, in
         gates.set(agent, gate)
         return gate
       }
-      const projectReaders = new Map<Agent, ReturnType<typeof createProjectExtensionResources>>()
-      const getProjectReader = (agent: Agent): ReturnType<typeof createProjectExtensionResources> => {
-        const existing = projectReaders.get(agent)
-        if (existing !== undefined) return existing
-        const created = createProjectExtensionResources(catalog, panels, extensionWorkspace(agent))
-        projectReaders.set(agent, created)
-        return created
-      }
+      // One reader per workspace, not per agent: the reader's only session-varying
+      // input is the project directory, and it owns the panel row caches that
+      // absorb repeated scans.
+      const projectReaders = createProjectReaderCache(workspace => createProjectExtensionResources(catalog, panels, workspace))
+      const getProjectReader = (agent: Agent): ReturnType<typeof createProjectExtensionResources> => projectReaders.reader(extensionWorkspace(agent))
       const pendingSelections = new Map<Agent, ExtensionSelection>()
       const readCandidates = async (agent: Agent): Promise<ExtensionSuiteCandidate[]> => {
         const [user, project] = await Promise.all([readUserDeclarations(), catalog.readProjectCatalog(extensionWorkspace(agent))])
@@ -343,7 +341,14 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, in
       hostCtx.on('agent/disposed', ({ agent }) => {
         gates.get(agent)?.dispose()
         gates.delete(agent)
-        projectReaders.delete(agent)
+        // A workspace reader is shared, so it outlives the first session that
+        // leaves one. Releasing it only when no other agent names the workspace
+        // keeps the scan for the sessions still reading it.
+        const workspace = extensionWorkspace(agent)
+        projectReaders.release(
+          workspace,
+          hostCtx.agents.list().some(candidate => candidate !== agent && extensionWorkspace(candidate) === workspace)
+        )
         pendingSelections.delete(agent)
         void runtime.releaseSessionDemand(agent).catch(error => ctx.logger.warn(String(error)))
         void contributors.dispose(agent).catch(error => ctx.logger.warn('extension disposal: ' + String(error)))

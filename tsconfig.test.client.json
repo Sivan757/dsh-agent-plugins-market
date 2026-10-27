@@ -41,6 +41,8 @@
     "packages/market-ui/test/client-workspace-tab-stow.test.ts",
     "packages/market-ui/test/client-workspace-tabs.test.ts",
     "packages/market-ui/test/client-workspace-view.test.ts",
+    "packages/market-ui/test/extension-window-poll.test.ts",
+    "packages/market-ui/test/market-overview-reads.test.ts",
     "packages/market-ui/test/filter-toolbar.test.ts",
     "packages/market-ui/test/lsp-seam-render.test.ts",
     "packages/market-ui/test/market-detail-document-lazy.test.ts",

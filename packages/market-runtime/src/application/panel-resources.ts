@@ -7,7 +7,7 @@ import type { DocumentTranslation } from '../../../market-contracts/src/contract
 import { defaultMarkdownResources, resourceText } from '../../../market-catalog/src/index.js'
 import { pluginRootOf } from '../../../market-catalog/src/index.js'
 import { isWithin, suiteDataDir } from '../../../market-catalog/src/index.js'
-import { parseSkillFrontmatter, stripFrontmatter } from '../../../market-catalog/src/index.js'
+import { skillFieldsFromRecord, stripFrontmatter } from '../../../market-catalog/src/index.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
 import { isAbsentPath } from './fs-probe.js'
 import type { LocalizeDocument, LocalizeFields } from '../../../market-contracts/src/ports/ports.js'
@@ -24,6 +24,7 @@ interface UserPanelEntries {
   update(name: string, text: string): Promise<void>
   remove(name: string): Promise<void>
 }
+import { ROW_CACHE_MAX_AGE_MS } from '../../../market-contracts/src/contracts/refresh-cadence.js'
 import type { CatalogPort as Catalog } from '../catalog-port.js'
 import type { CatalogSnapshot } from '../../../market-catalog/src/index.js'
 
@@ -122,29 +123,39 @@ const FLIPPABLE_KEYS: Record<UserPanelKind, readonly string[]> = {
  * How long one set of scanned rows may be reused.
  *
  * The memo exists to collapse the reads one interaction produces — the re-read
- * after a mutation, the detail open, the next panel's read — and to absorb one
- * tick of the client's 1.5 s translation poll. It must not outlive that: the
- * scan reads file contents, so an out-of-band edit stays invisible to a reused
- * row for as long as the bound allows. Ageing the rows on the snapshot object
- * alone would inherit the user snapshot's 30 s TTL — the keep-warm refresh
- * replaces that object only every 0.8 of it — leaving a hand edit invisible for
- * tens of seconds. Two seconds is one poll interval plus the slack a slow read
- * needs, so a poll landing a tick after the read that armed it is still free,
- * while a hand edit is visible by the next poll at the latest — and Refresh
- * re-reads unconditionally.
+ * after a mutation, the detail open, the next panel's read — and to absorb the
+ * client's translation poll. It must not outlive that: the scan reads file
+ * contents, so an out-of-band edit stays invisible to a reused row for as long
+ * as the bound allows. Ageing the rows on the snapshot object alone would
+ * inherit the user snapshot's 30 s TTL — the keep-warm refresh replaces that
+ * object only every 0.8 of it — leaving a hand edit invisible for tens of
+ * seconds.
+ *
+ * The number is derived in the contracts package from the two client cadences
+ * that read these rows, because stating it here as a literal is what let it
+ * drift below the poll that scans it. See
+ * {@link ../../../market-contracts/src/contracts/refresh-cadence.ts} for the two
+ * edges it has to sit between and why each one is visible to a user.
  */
-export const ROW_CACHE_MAX_AGE_MS = 2_000
+export { ROW_CACHE_MAX_AGE_MS }
 
 /** Everything one plugin document contributes to its row, read out of its text once. */
 function documentFields(rawText: string, skills: boolean): { rawText: string; metadata: Record<string, unknown>; description: string; disabled: boolean } {
   let metadata: Record<string, unknown>
+  let invocationOff = false
   try {
     metadata = parseFrontmatterRecord(rawText)
+    // The strict parse already produced the record, so the skill fields are
+    // derived from it rather than from a second read of the same YAML. A
+    // document that fails the strict parse sets `disabled` below, which the
+    // invocation flags could not change, so that branch needs no skill read.
+    if (skills) {
+      const skill = skillFieldsFromRecord(metadata, undefined)
+      invocationOff = typeof skill === 'object' && !skill.invocation.modelInvocable && !skill.invocation.userInvocable
+    }
   } catch (error) {
     metadata = { disabled: true, validationError: String(error) }
   }
-  const skill = skills ? parseSkillFrontmatter(rawText, undefined) : undefined
-  const invocationOff = typeof skill === 'object' && !skill.invocation.modelInvocable && !skill.invocation.userInvocable
   return {
     rawText,
     metadata,

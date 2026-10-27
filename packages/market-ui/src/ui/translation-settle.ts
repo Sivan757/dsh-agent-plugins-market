@@ -12,9 +12,15 @@
  * without changing the last reported value or pretending that work settled.
  * @module client/ui/translation-settle
  */
+import { TRANSLATION_POLL_MS } from '../../../market-contracts/src/contracts/refresh-cadence.js'
 
-/** How long to wait between re-reads; the market overview's long-standing pace. */
-export const TRANSLATION_POLL_MS = 1_500
+/**
+ * How long to wait between re-reads; the market overview's long-standing pace.
+ *
+ * Owned by the contracts package beside the row-cache bound, which is derived
+ * from it: the cache has to outlive this poll to absorb it.
+ */
+export { TRANSLATION_POLL_MS } from '../../../market-contracts/src/contracts/refresh-cadence.js'
 
 /** What one surface's read reports back. */
 export interface PendingRead<T> {

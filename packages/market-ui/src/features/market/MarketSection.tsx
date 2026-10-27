@@ -9,7 +9,7 @@
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from '../../api.js'
-import { loadOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from './market-resource.js'
+import { loadOverview, peekOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from './market-resource.js'
 import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from './market-view-model.js'
 import { SourceTabsRow, type SourceTabItem } from '../../ui/SourceTabsRow.js'
 import { SourceEditorModal, type EditorState } from './SourceEditorModal.js'
@@ -63,8 +63,10 @@ function progressStepLabel(t: Translate, step: string): string {
 }
 
 export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): ReactNode {
-  const [overview, setOverview] = useState<OverviewData>(() => loadOverview().initial)
-  const [loading, setLoading] = useState(() => loadOverview().revalidating)
+  // Seeded from the cache without starting a request: the mount effect below is
+  // the single owner of that request, and render must not race it.
+  const [overview, setOverview] = useState<OverviewData>(() => peekOverview().initial)
+  const [loading, setLoading] = useState(() => !peekOverview().cached)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<Tab>('all')
   // The filter tablist names the collection below; the host derives its panel id
@@ -92,23 +94,40 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   // The irreversible uninstall is gated behind the host's risk acknowledgement.
   const [uninstallAck, setUninstallAck] = useState(false)
 
-  const refresh = useCallback(async () => {
-    const sequence = ++refreshSequence.current
-    const requestedLanguage = languageRef.current
-    invalidateOverview()
-    try {
-      const data = await loadOverview().promise
-      if (refreshSequence.current !== sequence || languageRef.current !== requestedLanguage) return
-      setOverview(data)
-      setOverviewLanguage(requestedLanguage)
-    } catch {
-      if (refreshSequence.current === sequence) setToast({ key: Date.now(), message: t('loadFail') })
-    } finally {
-      if (refreshSequence.current === sequence) setLoading(false)
-    }
-  }, [t])
+  /**
+   * Read the overview into this panel's state.
+   *
+   * A plain read joins the shared request when one is in flight and starts a
+   * fresh one otherwise, so a mount that follows a mount costs one request and
+   * keeps the last answer for the next first paint. The shared cache is dropped
+   * only when the answer itself changed, never merely because a component
+   * mounted.
+   * @param force - drop the shared cache first: the caller knows the stored
+   * answer is no longer the answer, because a mutation landed or the locale the
+   * server resolves text for changed.
+   */
+  const refresh = useCallback(
+    async (force = false): Promise<void> => {
+      const sequence = ++refreshSequence.current
+      const requestedLanguage = languageRef.current
+      if (force) invalidateOverview()
+      try {
+        const data = await loadOverview().promise
+        if (refreshSequence.current !== sequence || languageRef.current !== requestedLanguage) return
+        setOverview(data)
+        setOverviewLanguage(requestedLanguage)
+      } catch {
+        if (refreshSequence.current === sequence) setToast({ key: Date.now(), message: t('loadFail') })
+      } finally {
+        if (refreshSequence.current === sequence) setLoading(false)
+      }
+    },
+    [t]
+  )
 
-  useTranslationRefresh(t, refresh)
+  // The server resolves text in the host's locale preference, so a locale change
+  // is a different answer rather than a revalidation of this one.
+  useTranslationRefresh(t, () => refresh(true))
 
   useEffect(() => {
     void refresh()
@@ -133,8 +152,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       setBusy(key)
       try {
         await postAction(path, body)
-        invalidateOverview()
-        await refresh()
+        await refresh(true)
         return true
       } catch (error) {
         setToast({ key: Date.now(), message: `${t('actionFail')}: ${clientErrorMessage(t, error)}` })
@@ -459,8 +477,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                 try {
                   const payload = await postAction('sources/add', body)
                   const derived = (payload['source'] as { id?: string } | undefined)?.id
-                  invalidateOverview()
-                  await refresh()
+                  await refresh(true)
                   setEditor(undefined)
                   if (derived !== undefined) setCategory(derived)
                   return true
