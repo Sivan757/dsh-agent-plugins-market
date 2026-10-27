@@ -11,6 +11,7 @@
  * The handlers live here rather than in `routes.ts` so the main table stays
  * readable; the composition root mounts both under one disposer.
  */
+import { isTrustedMutation } from './request-trust.js'
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
@@ -51,7 +52,7 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!sameOrigin(request)) {
+          if (!isTrustedMutation(request)) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
@@ -113,16 +114,6 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
 
   return () => {
     for (const dispose of disposers) dispose()
-  }
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
   }
 }
 

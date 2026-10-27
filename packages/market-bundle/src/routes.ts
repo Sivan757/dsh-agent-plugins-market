@@ -6,6 +6,7 @@
  * cross-site form or fetch cannot trigger a clone, an uninstall, or an
  * enable/disable against a local profile.
  */
+import { isTrustedMutation } from './request-trust.js'
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from '../../market-contracts/src/contracts/market.js'
@@ -95,7 +96,7 @@ export function mountSuiteRoutes(
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!sameOrigin(request)) {
+          if (!isTrustedMutation(request)) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
@@ -721,16 +722,6 @@ function parseSha256(raw: unknown): string | undefined {
   const value = textField(raw, 'sha256').trim().toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error('sha256 must be a 64-character hex digest')
   return value
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
-  }
 }
 
 /** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */

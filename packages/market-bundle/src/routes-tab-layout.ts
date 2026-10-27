@@ -9,6 +9,7 @@
  * by the store.
  * @module routes-tab-layout
  */
+import { isTrustedMutation } from './request-trust.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES } from '../../market-contracts/src/contracts/market.js'
 import { PINNED_TAB_KEY, WORKSPACE_TAB_KEYS, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
@@ -54,7 +55,7 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
       kind: 'exact',
       path: MARKET_ROUTES.setTabLayout,
       handler: (request, response) => {
-        if (!sameOrigin(request)) {
+        if (!isTrustedMutation(request)) {
           sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
           return
         }
@@ -80,7 +81,7 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
       kind: 'exact',
       path: MARKET_ROUTES.setTabOrder,
       handler: (request, response) => {
-        if (!sameOrigin(request)) {
+        if (!isTrustedMutation(request)) {
           sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
           return
         }
@@ -152,16 +153,6 @@ function requestedHidden(body: Record<string, unknown>): string[] {
     requested.push(key)
   }
   return requested
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
-  }
 }
 
 /** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
