@@ -117,10 +117,13 @@ const CONTEXT_INTRO =
  * The frame a durable session context carries, for one contributing suite.
  *
  * The lead line is the measured hook label: event, matcher, status. It is what
- * separates a hook's text from the person's own words.
+ * separates a hook's text from the person's own words. The contributor line after
+ * it is the shared attribution, so the suite stays named.
  */
 const framedContext = (suite: string, body: string, event = 'SessionStart', matcher = 'startup'): string =>
-  [FRAME_OPEN, event + (matcher === '' ? '' : ':' + matcher) + ' hook additional context: ' + CONTEXT_INTRO, '', '### ' + suite, '', body, FRAME_CLOSE].join('\n')
+  [FRAME_OPEN, event + (matcher === '' ? '' : ':' + matcher) + ' hook additional context: ' + CONTEXT_INTRO, '', 'Instructions from: ' + suite + ':', '', body, FRAME_CLOSE].join(
+    '\n'
+  )
 /**
  * The label a per-call hook context carries.
  *
@@ -257,7 +260,7 @@ describe('ExtensionHooks', () => {
       additionalContexts: [{ content: [{ type: 'text', text: contextLine('PostToolUse', 'Read', 'feedback') }] }]
     })
     await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
-    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: 'blocked' }] }))
+    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: 'Stop hook feedback:\nblocked' }] }))
     expect(payloads(h.calls)).toEqual([
       expect.objectContaining({ hook_event_name: 'UserPromptSubmit', prompt: 'hello' }),
       expect.objectContaining({ hook_event_name: 'UserPromptSubmit', prompt: 'hello' }),
@@ -679,7 +682,7 @@ describe('ExtensionHooks', () => {
     ).toEqual({ kind: 'block', feedback: [{ type: 'text', text: 'refused by rule 7' }] })
     await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
     // The Stop reason reaches the turn as steering, which is the continuation.
-    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'refused by rule 7' }] }))
+    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'Stop hook feedback:\nrefused by rule 7' }] }))
     // A blocking exit code is not a halt: the run continues.
     expect(a.cancel).not.toHaveBeenCalled()
   })
@@ -843,7 +846,7 @@ describe('ExtensionHooks', () => {
     }))
     expect(blocked).toEqual({ kind: 'block', feedback: [{ type: 'text', text: 'rewrite the header' }] })
     await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
-    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'rewrite the header' }] }))
+    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'Stop hook feedback:\nrewrite the header' }] }))
   })
 
   it('continues a turn for Stop context that carries no blocking decision', async () => {
@@ -857,7 +860,7 @@ describe('ExtensionHooks', () => {
       stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: 'Stop', additionalContext: 'one more thing to check' } })
     }))
     await h.ctx.parallel('agent/turn-stopping', { agent: a.value, turn: 1, signal: new AbortController().signal })
-    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'one more thing to check' }] }))
+    expect(a.steer).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: 'Stop hook additional context: one more thing to check' }] }))
     expect(a.cancel).not.toHaveBeenCalled()
   })
 

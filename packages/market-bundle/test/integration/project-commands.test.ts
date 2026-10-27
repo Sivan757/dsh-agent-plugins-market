@@ -1,3 +1,4 @@
+import { authoredBodyOf } from './helpers/command-forward.js'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -105,7 +106,7 @@ describe('project command lifecycle', () => {
     const forwarded = required(first.messages[0] as UserMessage | undefined, 'the project command to forward one follow-up')
     expect(forwarded.id).toMatch(/^\S+$/)
     expect(forwarded.role).toBe('user')
-    expect(forwarded.content).toEqual([{ type: 'text', text: 'First project my diff' }])
+    expect(forwarded.content.map(part => ('text' in part ? authoredBodyOf(part.text) : ''))).toEqual(['First project my diff'])
     expect(forwarded.source).toEqual({ kind: 'plugin-market', form: 'instructions' })
     expect(JSON.stringify(first.messages)).not.toContain('Second project')
     expect(JSON.stringify(second.messages)).toContain('Second project my diff')

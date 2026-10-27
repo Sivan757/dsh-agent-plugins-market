@@ -28,11 +28,17 @@ The host's own decisions define the rules, and they are written down in `docs/re
 
 Applied:
 
-- The suite instruction section is now `## Agent plugin instructions`, a precedence sentence, and one `### <suite>` heading per contributor. A suite that contributes both a system prompt and a startup skill reads as one block. `renderPrompt` joins sections with blank lines and adds no heading (`packages/core/system-prompt/src/index.ts:290-295`), which is why the structure has to be inside the section.
-- Hook context is split by durability, and every delivered block is event-labelled. `SessionStart` and `UserPromptSubmit` context is durable session instruction, so it becomes one framed message whose lead line is `<Event>[:<matcher>] hook additional context:`, followed by the disclaimer and one heading per contributing suite. `PreToolUse`, `PostToolUse`, `PostToolUseFailure` and `SubagentStart` context stays plain, one labelled block per contributor. A blocking reason carries `<Event> hook error:`. `Stop` steering and corrective feedback stay plain and unlabelled.
+- The suite instruction section is `## Agent plugin instructions`, the host's own precedence sentence, then `Instructions from: <suite> (<kind>):` and the body. A suite that contributes both a system prompt and a startup skill renders two labelled blocks, because a label has to be true of everything beneath it. `renderPrompt` joins sections with blank lines and adds no heading (`packages/core/system-prompt/src/index.ts:290-295`), which is why the structure lives inside the section. The precedence sentence mirrors the host's hedged intro rather than an override: two strength claims about one content class in one request is worse than a softer phrase that agrees with its neighbour.
+- Hook context is split by durability, and every delivered block is event-labelled. `SessionStart` and `UserPromptSubmit` context is durable session instruction, so it becomes one framed message whose lead line is `<Event>[:<matcher>] hook additional context:`, followed by the disclaimer and one heading per contributing suite. `PreToolUse`, `PostToolUse`, `PostToolUseFailure` and `SubagentStart` context stays plain, one labelled block per contributor. A blocking reason carries `<Event> hook error:`. `Stop` steering stays plain but is labelled `Stop hook feedback:`, which is a label rather than the frame rule R2 forbids.
 - Attribution needed the identity the merge discards, so `collect` now returns each decoded output with its suite label, and `PointOutcome` carries the attributed contexts beside the merged decision.
 - `subagent-catalog.ts` imports `escapeEntry` instead of keeping a private copy, and that helper delegates to the host's published `escapeText` from `@deepseek-ai/dsh-skill`, the same function the host skill catalog uses on every entry.
-- `team-coordination.ts`, `role-composition.ts`, `extension-session-state.ts` and `commands-mounts.ts` already conform. They are unchanged and pinned by tests.
+- `team-coordination.ts` already conforms and is unchanged.
+- `role-composition.ts` states the binding instead of the resume mechanism: messages from the launching agent direct the work, and no agent message is the user's consent.
+- `extension-session-state.ts` gives its three bookkeeping messages no content at all, so a sentence cannot reach a request if the inbox filter ever misses.
+- `teammate-role-runtime.ts` emits its frame with no blank line inside the tags.
+- `commands-mounts.ts` and `user-commands.ts` carry the measured slash-command metadata around the authored body, and omit the argument element when nothing was typed.
+- The two delegation tool descriptions read as a purpose line, then `-` bullets, then an optional `## Writing the prompt` section.
+- `project-runtime.ts` no longer exports `mountSuiteInstructions`. Two producers registered one section name with different shapes, so the assembled prompt depended on mount order. The real path is `suiteInstructions` plus `agentInstructionSection`, and the Kimi test drives it.
 
 ## Why not the alternatives
 
@@ -58,13 +64,15 @@ Applied:
 
 `packages/market-bundle/test/integration/prompt-injection-conventions.test.ts` maps one case to each rule:
 
-| Rule  | Case                                                                                                                                                    |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1    | a hook `SessionStart` context arrives framed                                                                                                            |
-| R2    | a user prompt context is framed and a `Stop` reason is not, and a `PreToolUse` context stays plain but labelled                                         |
-| R3    | the only angle-bracket tags in section and catalog text are the frame, `<available_skills>` and `<skill_content>`                                       |
-| R4    | a closing marker inside suite hook context is escaped                                                                                                   |
-| R5    | two hook suites are separable by heading, and two instruction suites carry headings plus a precedence line                                              |
-| R6    | a user-authored command body reaches the model with no frame and no heading                                                                             |
-| R7    | the instruction section starts with a Markdown heading and contains no frame, an empty section renders nothing, and a blank body contributes no heading |
-| GAP D | the plain producers import no frame module, the team section keeps `## Team coordination`, and the session-state markers stay plain                     |
+| Rule  | Case                                                                                                                                                               |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R1    | a hook `SessionStart` context arrives framed                                                                                                                       |
+| R2    | a user prompt context is framed and a `Stop` reason is not, and a `PreToolUse` context stays plain but labelled                                                    |
+| R3    | the only angle-bracket tags in section and catalog text are the frame, `<available_skills>` and `<skill_content>`                                                  |
+| R4    | a closing marker inside suite hook context is escaped                                                                                                              |
+| R5    | two hook suites stay separable by contributor label in one framed block, and two instruction suites carry `Instructions from:` labels plus the precedence sentence |
+| R6    | a user-authored command body reaches the model with no frame, wrapped in the measured command metadata                                                             |
+| R7    | the instruction section starts with a Markdown heading and contains no frame, an empty section renders nothing, and a blank body contributes no label              |
+| GAP D | the plain producers import no frame module, the team section keeps `## Team coordination`, and the session-state markers carry no text                             |
+
+`packages/market-bundle/test/integration/prompt-conformance-shapes.test.ts` pins the eight shipped shapes literally: the contributor label and its two kinds, the absence of the second section producer, the command metadata with and without an argument, the instruction-list shape of both tool descriptions, and the catalog bullet form.

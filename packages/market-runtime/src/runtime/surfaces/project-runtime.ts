@@ -60,48 +60,6 @@ export function mountProjectHooks(ctx: Context, catalog: Catalog): { refresh(): 
   return mountProjectSurface(ctx, catalog, ['shell', 'sessionProjections'], scope => new HooksMountRegistry(scope))
 }
 
-/** Kimi's startup skill and system-prompt declarations use the existing scoped prompt service. */
-export function mountSuiteInstructions(
-  ctx: Context,
-  catalog: Catalog,
-  dataRoot?: string,
-  /** Whether one user-dimension suite may contribute instructions; absent allows all. */
-  suiteAllowed?: (suite: Suite) => boolean
-): { refresh(): Promise<void>; dispose(): Promise<void> } {
-  return mountProjectSurface(
-    ctx,
-    catalog,
-    'systemPrompt',
-    (scope, agent) => {
-      let text = ''
-      const host = scope as unknown as {
-        systemPrompt: { section(value: { name: string; order: number; text(): string; interpolate?: boolean }): () => void }
-      }
-      // Suite-authored Markdown is literal text, never a template: the host
-      // interpolates by default and refuses an unknown `{{name}}`, so a suite that
-      // quotes `{{cwd}}` would fail prompt assembly before any model request.
-      const dispose = host.systemPrompt.section({ name: 'agent-plugins:instructions', order: 500, interpolate: false, text: () => text })
-      return {
-        async reconcile(projectSuites) {
-          const projectDir = agent.session.header.cwd
-          const userSuites = (await catalog.enabledUserSuites()).filter(suite => suiteAllowed?.(suite) !== false)
-          const result = await suiteInstructions([...userSuites, ...projectSuites], {
-            ...(dataRoot === undefined ? {} : { dataRoot }),
-            ...(projectDir === undefined ? {} : { projectDir })
-          })
-          text = result.text
-          return result.errors
-        },
-        disposeAll() {
-          text = ''
-          dispose()
-        }
-      }
-    },
-    true
-  )
-}
-
 /** Runtime paths one instruction pass can resolve; a variable without one stays verbatim. */
 export interface SuiteInstructionPaths {
   /** Plugin storage root holding each suite's `${PLUGIN_DATA}` directory. */

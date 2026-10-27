@@ -168,7 +168,7 @@ describe('R2 the frame is for durable session instruction only', () => {
 
 describe('R3 no invented tags', () => {
   it('uses no angle-bracket tag beyond the familiar frame and the emphasis block', async () => {
-    const section = agentInstructionSection([{ parent: 'p', label: 'alpha', text: 'body' }])
+    const section = agentInstructionSection([{ parent: 'p', label: 'alpha', kind: 'plugin suite', text: 'body' }])
     const role = { name: 'r', title: 'R', description: 'd' }
     // Every producer that frames content, plus every variant of each: an update
     // variant and the Team catalog are separate literals, so a tag invented in one
@@ -204,26 +204,61 @@ describe('R4 escaping', () => {
 })
 
 describe('R5 attribution', () => {
-  it('separates two hook suites in one frame by heading', async () => {
+  it('labels durable hook context with its event and names the contributing suite', async () => {
+    const h = harness()
+    const hooks = await h.mount([suite('alpha', { SessionStart: ['start'] })])
+    h.contextFor('SessionStart', 'shared')
+    await hooks.start('startup')
+    const message = h.recorded.inject.mock.calls[0]![0] as { content: ReadonlyArray<{ type: string; text?: string }> }
+    // One framed block. The lead line is the measured hook label naming the event,
+    // matcher and status; the contributor line names the suite.
+    expect(message.content).toHaveLength(1)
+    const text = textOf(message)
+    expect(text.startsWith(SYSTEM_REMINDER_OPEN + '\nSessionStart:startup hook additional context: ')).toBe(true)
+    expect(text).toContain('Instructions from: alpha:')
+    expect(text.endsWith('\n' + SYSTEM_REMINDER_CLOSE)).toBe(true)
+  })
+
+  it('names every contributing suite in one framed block', async () => {
     const h = harness()
     const hooks = await h.mount([suite('alpha', { SessionStart: ['start'] }), suite('beta', { SessionStart: ['start'] })])
     h.contextFor('SessionStart', 'shared')
     await hooks.start('startup')
-    const injected = textOf(h.recorded.inject.mock.calls[0]![0] as { content: ReadonlyArray<{ type: string; text?: string }> })
-    expect(injected).toContain('### alpha')
-    expect(injected).toContain('### beta')
+    const message = h.recorded.inject.mock.calls[0]![0] as { content: ReadonlyArray<{ type: string; text?: string }> }
+    // Session-standing context is one block: the attribution, not the block array,
+    // is what keeps two suites separable.
+    expect(message.content).toHaveLength(1)
+    const text = textOf(message)
+    expect(text).toContain('Instructions from: alpha:')
+    expect(text).toContain('Instructions from: beta:')
+    expect(text.indexOf('Instructions from: alpha:')).toBeLessThan(text.indexOf('Instructions from: beta:'))
+    // No invented separator and no invented heading.
+    expect(text).not.toContain('---')
+    expect(text).not.toContain('### ')
+  })
+
+  it('keeps a per-call hook callback plain but still labelled', async () => {
+    const h = harness()
+    await h.mount([suite('alpha', { PreToolUse: ['pre'] })])
+    h.contextFor('PreToolUse', 'check the guide')
+    await h.ctx.waterfall('tools/pre-execute', h.exec(), async () => ({ kind: 'allow' as const }))
+    const message = h.recorded.inject.mock.calls[0]![0] as { content: ReadonlyArray<{ type: string; text?: string }> }
+    // A mid-turn callback stays out of the frame, so it keeps user-turn weight.
+    const text = textOf(message)
+    expect(text).toBe('PreToolUse:Read hook additional context: check the guide')
+    expect(text).not.toContain(SYSTEM_REMINDER_OPEN)
   })
 
   it('separates two instruction suites by heading with a precedence line', () => {
     const section = agentInstructionSection([
-      { parent: 'market:source/alpha', label: 'alpha', text: 'alpha body' },
-      { parent: 'market:source/beta', label: 'beta', text: 'beta body' }
+      { parent: 'market:source/alpha', label: 'alpha', kind: 'plugin suite', text: 'alpha body' },
+      { parent: 'market:source/beta', label: 'beta', kind: 'plugin suite', text: 'beta body' }
     ])
-    expect(section).toContain('## Agent plugin instructions')
+    expect(section.startsWith('## Agent plugin instructions')).toBe(true)
     expect(section).toContain('More specific instructions take precedence over broader ones.')
-    expect(section).toContain('### alpha')
-    expect(section).toContain('### beta')
-    expect(section.indexOf('### alpha')).toBeLessThan(section.indexOf('### beta'))
+    expect(section).toContain('Instructions from: alpha (plugin suite):')
+    expect(section).toContain('Instructions from: beta (plugin suite):')
+    expect(section.indexOf('Instructions from: alpha')).toBeLessThan(section.indexOf('Instructions from: beta'))
   })
 })
 
@@ -263,8 +298,20 @@ describe('R6 user input stays unframed', () => {
       },
       rawInput: ' the diff'
     })
-    // The user's own words, with no frame and no heading: user-weighted input.
-    expect(forwarded).toBe('Review this: the diff')
+    // The measured slash-command metadata, then the user's own words. Still no
+    // frame: rule R6 keeps a user-authored body at user weight.
+    expect(forwarded).toBe(
+      [
+        '<command-message>review</command-message>',
+        '<command-name>/review</command-name>',
+        '<command-args>the diff</command-args>',
+        '',
+        '---',
+        'Review this: the diff',
+        '',
+        'ARGUMENTS: the diff'
+      ].join('\n')
+    )
     expect(forwarded).not.toContain(SYSTEM_REMINDER_OPEN)
     expect(forwarded).not.toContain('###')
     registry.disposeAll()
@@ -273,7 +320,7 @@ describe('R6 user input stays unframed', () => {
 
 describe('R7 a system prompt section is system weight', () => {
   it('gives the suite instruction section a heading rather than a frame', () => {
-    const section = agentInstructionSection([{ parent: 'p', label: 'alpha', text: 'body' }])
+    const section = agentInstructionSection([{ parent: 'p', label: 'alpha', kind: 'plugin suite', text: 'body' }])
     expect(section.startsWith('## Agent plugin instructions')).toBe(true)
     expect(section).not.toContain(SYSTEM_REMINDER_OPEN)
   })
@@ -283,7 +330,7 @@ describe('R7 a system prompt section is system weight', () => {
   })
 
   it('contributes nothing for a section whose body is blank', () => {
-    expect(agentInstructionSection([{ parent: 'p', label: 'alpha', text: '   ' }])).not.toContain('### alpha')
+    expect(agentInstructionSection([{ parent: 'p', label: 'alpha', kind: 'plugin suite', text: '   ' }])).not.toContain('Instructions from: alpha')
   })
 })
 

@@ -1,3 +1,4 @@
+import { authoredBodyOf } from './helpers/command-forward.js'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -129,7 +130,7 @@ describe('suite text surfaces resolve their paths', () => {
     const registry = new CommandMountRegistry(host.ctx as never, undefined, DATA_ROOT)
     await expect(registry.reconcile([withDefaultSurfaces({ ...suite, enabled: true })])).resolves.toEqual([])
     const data = suiteDataDir(DATA_ROOT, suite.sourceId, suite.id)
-    expect(forward(host.registered, { session: { header: { cwd: PROJECT_DIR } } }, 'focus')).toBe(
+    expect(authoredBodyOf(forward(host.registered, { session: { header: { cwd: PROJECT_DIR } } }, 'focus'))).toBe(
       // The variable resolves to the suite root; the `/scripts/...` after it is
       // the author's text and stays exactly as written, on every platform.
       `node "${suite.root}/scripts/rescue.mjs" --cache "${data}/cache" --root "${PROJECT_DIR}" focus`
@@ -145,7 +146,7 @@ describe('suite text surfaces resolve their paths', () => {
     const host = commandHost()
     const registry = new CommandMountRegistry(host.ctx as never, undefined, DATA_ROOT)
     await expect(registry.reconcile([withDefaultSurfaces(native)])).resolves.toEqual([])
-    expect(forward(host.registered, { session: { header: { cwd: PROJECT_DIR } } })).toBe('Run ${CLAUDE_PLUGIN_ROOT}/x ')
+    expect(authoredBodyOf(forward(host.registered, { session: { header: { cwd: PROJECT_DIR } } }))).toBe('Run ${CLAUDE_PLUGIN_ROOT}/x ')
     registry.disposeAll()
   })
 

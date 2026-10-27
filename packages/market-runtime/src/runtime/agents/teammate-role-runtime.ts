@@ -49,18 +49,22 @@ export interface RoleTeammateResult {
   reasoningEffort?: string
 }
 
-/** The teammate's own orientation, mirroring the host's native teammate wrapper. */
+/**
+ * The teammate's own orientation, mirroring the host's native teammate wrapper.
+ *
+ * The wrapper is `<system-reminder>` then content then `</system-reminder>` with no
+ * blank line of its own, the shape every other framed producer here emits. A
+ * blank line inside the tags is formatting a reader would have to interpret.
+ */
 function memberIdentity(member: string, role: string): string {
   return [
     '<system-reminder>',
-    '',
     `You are teammate ${JSON.stringify(member)}.`,
     'Your Team Lead is addressed as "lead".',
     'Use list_agents({}) to find your teammates and their names.',
     'To message your Team Lead, use send_message({ target: "lead", message: "..." }).',
     'To message another teammate, use send_message({ target: "<teammate name>", message: "..." }).',
     ...(role === '' ? [] : [`Your role is ${role}. The role instructions are applied to your system prompt.`]),
-    '',
     '</system-reminder>'
   ].join('\n')
 }

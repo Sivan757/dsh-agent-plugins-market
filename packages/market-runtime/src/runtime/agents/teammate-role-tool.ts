@@ -1,3 +1,19 @@
+/**
+ * The Team member tool's description, in the measured instruction-list shape.
+ *
+ * A purpose line, one blank line, then the rules as ` - ` bullets. The skip rule
+ * (no matching role) is a bullet because that is what a model skims.
+ */
+export const TEAMMATE_ROLE_TOOL_DESCRIPTION = [
+  'Create a named Team member from a role in the current "subagent-catalog" message.',
+  '',
+  ' - Use it only when the user explicitly requests Agent Teams or teammates.',
+  ' - Only the Team Lead can create members. The member starts fresh, without this conversation, with the role instructions applied to its system prompt.',
+  ' - It returns the Team target immediately and the member runs asynchronously, so keep working instead of waiting on the call.',
+  ' - Use the native Team tools to message, interrupt, list and assign tasks to it.',
+  ' - Without a matching role, use spawn_teammate.'
+].join('\n')
+
 /** Role-aware creation is an additional Team entry point, not another member manager. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
@@ -18,8 +34,7 @@ export async function mountTeammateRoleTool(ctx: Context, listRoles: (parent?: u
     await runtime.restore()
     const tool = defineTool({
       name: TEAMMATE_ROLE_TOOL_NAME,
-      description:
-        'Create a named Team member from a role in the current "subagent-catalog" message. Use only when the user explicitly requests Agent Teams or teammates; only the Team Lead can create members. The member starts fresh, without this conversation, with the role instructions applied to its system prompt. Returns the Team target immediately and the member runs asynchronously, so keep working instead of waiting on the call. Use the native Team tools to message, interrupt, list and assign tasks to it. Without a matching role, use spawn_teammate.',
+      description: TEAMMATE_ROLE_TOOL_DESCRIPTION,
       parameters: {
         agent: { type: 'string', required: true, description: 'Exact role name listed in the current "subagent-catalog" message.' },
         name: { type: 'string', required: true, description: 'Unique lower-kebab-case Team member name, distinct from the reusable role name.' },

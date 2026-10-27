@@ -50,8 +50,8 @@ interface Mount {
   users?: UserCommandMountRegistry
   hooks?: ExtensionHooks
   mcp?: McpMountPort
-  /** One entry per contribution; `label` names the suite it came from. */
-  instructions: Array<{ id: string; parent: string; label: string; text: string }>
+  /** One entry per contribution; `label` names the suite and `kind` what it contributed. */
+  instructions: Array<{ id: string; parent: string; label: string; kind: string; text: string }>
   active: boolean
   hostMcpWorkspace?: string
 }
@@ -64,26 +64,28 @@ const INSTRUCTION_PRECEDENCE =
  *
  * A system prompt section is already system weight, so it carries no
  * `<system-reminder>` frame: the frame is for content injected as a user turn.
- * What it needs instead is structure, because `renderPrompt` joins sections with
- * blank lines and adds no heading of its own. One heading names the surface, one
- * subheading names each contributing suite, and one sentence states precedence,
- * so two suites that disagree stay separable and a reader can tell which one to
- * follow.
+ * It opens with a `##` heading naming the section, then the precedence sentence,
+ * then one labelled block per contribution. The label names the suite and what it
+ * contributed, so two suites that disagree stay separable and a reader can tell
+ * instructions from a startup skill.
+ *
+ * A suite that contributes both a system prompt and a startup skill renders two
+ * blocks rather than one merged body, because the label has to be true of
+ * everything beneath it.
  * @param rows - the permitted instruction rows, in registration order.
  * @returns the section text, or an empty string when no suite contributed one.
  */
-export function agentInstructionSection(rows: ReadonlyArray<{ parent: string; label: string; text: string }>): string {
+export function agentInstructionSection(rows: ReadonlyArray<{ parent: string; label: string; kind: string; text: string }>): string {
   if (rows.length === 0) return ''
-  // Rows arrive one per contribution; a suite with both a system prompt and a
-  // startup skill contributes two, and they read as one suite block.
-  const suites = new Map<string, { heading: string; bodies: string[] }>()
+  const sections = new Map<string, { heading: string; kind: string; bodies: string[] }>()
   for (const row of rows) {
-    const entry = suites.get(row.parent) ?? { heading: row.label, bodies: [] }
+    const key = row.parent + '\u0000' + row.kind
+    const entry = sections.get(key) ?? { heading: row.label, kind: row.kind, bodies: [] }
     entry.bodies.push(row.text)
-    suites.set(row.parent, entry)
+    sections.set(key, entry)
   }
-  const sections = [...suites.values()].map(entry => ({ heading: entry.heading, body: entry.bodies.join('\n\n') }))
-  return ['## Agent plugin instructions', INSTRUCTION_PRECEDENCE, attribute(sections)].filter(block => block.length > 0).join('\n\n')
+  const blocks = [...sections.values()].map(entry => ({ heading: entry.heading, kind: entry.kind, body: entry.bodies.join('\n\n') }))
+  return ['## Agent plugin instructions', INSTRUCTION_PRECEDENCE, attribute(blocks)].filter(block => block.length > 0).join('\n\n')
 }
 
 const suiteId = (suite: Suite): string => 'market:' + suite.sourceId + '/' + suite.id
@@ -249,12 +251,12 @@ export class ScopedExtensionContributors {
       const paths = { dataRoot: this.ports.dataRoot, projectDir: agent.session.header.cwd! }
       const system = await suiteInstructions([{ ...suite, manifest }], paths)
       const label = suite.manifest.name
-      if (system.text) instructions.push({ id: parent, parent, label, text: system.text })
+      if (system.text) instructions.push({ id: parent, parent, label, kind: 'plugin suite', text: system.text })
       if (startupSkill && this.registrationAllows(agent, entryId(suite, 'skills', startupSkill))) {
         const withoutSystem = { ...suite }
         delete withoutSystem.systemPrompt
         const startup = await suiteInstructions([withoutSystem], paths)
-        if (startup.text) instructions.push({ id: entryId(suite, 'skills', startupSkill), parent, label, text: startup.text })
+        if (startup.text) instructions.push({ id: entryId(suite, 'skills', startupSkill), parent, label, kind: 'startup skill', text: startup.text })
       }
     }
     mount.instructions = instructions

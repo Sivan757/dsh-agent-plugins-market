@@ -129,7 +129,7 @@ describe('output-style routes', () => {
 
     expect(answer.status).toBe(200)
     expect(answer.body['selected']).toBe('builtin:concise')
-    expect(String(answer.body['injected'])).toContain('## Output style: concise')
+    expect(String(answer.body['injected'])).toContain('## Output Style: concise')
   })
 
   it('rejects an unknown style id', async () => {
@@ -170,7 +170,7 @@ describe('output-style routes', () => {
 
     const selected = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/teaching' })
     expect(selected.status).toBe(200)
-    expect(String(selected.body['injected'])).toBe('## Output style: teaching-style\nTeach as you go.')
+    expect(String(selected.body['injected'])).toBe('## Output Style: teaching-style\nTeach as you go.')
   })
 
   it('refuses a suite style nobody captured yet', async () => {

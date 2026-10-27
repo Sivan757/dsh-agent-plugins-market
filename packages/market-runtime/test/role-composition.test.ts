@@ -150,6 +150,12 @@ describe('one role child receives its card body from the plugin composition', ()
     expect(first).toBeDefined()
     expect(systemOf(first)).toContain('CARD_PERSONA')
     const stored = await ctx.sessionQuery.readSession(SessionId(value.subagentId))
+    // The binding notice states what directs the child, not how we persist it: a
+    // resume-mechanics sentence is text the child cannot act on.
+    const notice = JSON.stringify(first?.messages.filter(message => message.role === 'user'))
+    expect(notice).toContain('You are the role child')
+    expect(notice).toContain('Messages from the agent that launched you')
+    expect(notice).not.toContain('delegation snapshot')
     expect(bindingCount(stored.events)).toBe(1)
   })
 

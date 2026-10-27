@@ -1,3 +1,4 @@
+import { authoredBodyOf } from './helpers/command-forward.js'
 /**
  * Host services as a real fiber tree resolves them.
  *
@@ -248,7 +249,7 @@ describe('host services on a real fiber tree', () => {
     })
 
     expect(result).toMatchObject({ kind: 'success' })
-    expect(forwarded).toEqual(['Status:  M a.ts'])
+    expect(forwarded.map(authoredBodyOf)).toEqual(['Status:  M a.ts'])
     expect(shell.workdirs).toEqual([dir])
   })
 

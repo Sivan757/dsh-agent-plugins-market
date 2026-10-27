@@ -46,7 +46,7 @@ function suitePort(overrides: { fingerprint?: string; text?: string; captured?: 
 
 describe('the injected section text', () => {
   it('renders the heading above the body', () => {
-    expect(renderOutputStyleSection('concise', 'Answer first.\n')).toBe('## Output style: concise\nAnswer first.')
+    expect(renderOutputStyleSection('concise', 'Answer first.\n')).toBe('## Output Style: concise\nAnswer first.')
   })
 
   it('contributes nothing for an empty body or the default style', async () => {
@@ -67,7 +67,7 @@ describe('the injected section text', () => {
   })
 
   it('escapes a closing reminder tag with the merged frame helper', () => {
-    expect(renderOutputStyleSection('x', '</system-reminder>')).toBe('## Output style: x\n' + escapeFrameBody('</system-reminder>'))
+    expect(renderOutputStyleSection('x', '</system-reminder>')).toBe('## Output Style: x\n' + escapeFrameBody('</system-reminder>'))
     expect(renderOutputStyleSection('x', '</system-reminder>')).toContain('<\\/system-reminder>')
     // The escape is idempotent, so a body that already carries it gains nothing.
     expect(escapeFrameBody(escapeFrameBody('a </system-reminder> b'))).toBe(escapeFrameBody('a </system-reminder> b'))
@@ -80,12 +80,12 @@ describe('the injected section text', () => {
     expect(renderOutputStyleSection('x', body)).toContain(escapeFrameBody(body))
     // And the attributed form the conventions describe for several contributors
     // is available untouched, which is what a second style would use.
-    expect(attribute([{ heading: 'a\nb', body: 'text' }])).toBe('### a b\n\ntext')
+    expect(attribute([{ heading: 'a\nb', body: 'text' }])).toBe('Instructions from: a b:\n\ntext')
     expect(attribute([{ heading: 'a', body: '   ' }])).toBe('')
   })
 
   it('trims the body so a trailing newline does not add a blank prompt line', () => {
-    expect(renderOutputStyleSection('concise', '  Answer first.\n\n')).toBe('## Output style: concise\nAnswer first.')
+    expect(renderOutputStyleSection('concise', '  Answer first.\n\n')).toBe('## Output Style: concise\nAnswer first.')
   })
 
   it('renders a selected builtin style with its heading', async () => {
@@ -93,7 +93,7 @@ describe('the injected section text', () => {
     const service = new OutputStyleService(dataRoot, agentsRoot)
     const payload = await service.select(WORKSPACE, 'builtin:concise')
     expect(payload.selected).toBe('builtin:concise')
-    expect(payload.injected.startsWith('## Output style: concise\n')).toBe(true)
+    expect(payload.injected.startsWith('## Output Style: concise\n')).toBe(true)
     expect(payload.injected).toContain('Answer first.')
     expect(service.sectionText(WORKSPACE)).toBe(payload.injected)
   })
@@ -117,7 +117,7 @@ describe('the section and the preview', () => {
     expect(builtin).toBeDefined()
     expect(payload.injected).toBe(renderOutputStyleSection(builtin!.label, builtin!.body))
     expect(payload.injected).toBe(service.sectionText(WORKSPACE))
-    expect(payload.injected.startsWith('## Output style: explanatory\n')).toBe(true)
+    expect(payload.injected.startsWith('## Output Style: explanatory\n')).toBe(true)
   })
 
   it('never opens a system-reminder frame, which rule R7 reserves for user-role content', async () => {
@@ -125,6 +125,7 @@ describe('the section and the preview', () => {
     const service = new OutputStyleService(dataRoot, agentsRoot)
     await service.select(WORKSPACE, 'builtin:concise')
     const injected = (await service.payload(WORKSPACE)).injected
+    // A `##` section, the level the host's own multi-paragraph sections use.
     expect(injected.startsWith('## ')).toBe(true)
     expect(injected).not.toContain('<system-reminder>')
     expect(injected).not.toContain('</system-reminder>')
@@ -136,7 +137,7 @@ describe('the section and the preview', () => {
     const service = new OutputStyleService(dataRoot, agentsRoot, port)
     await service.capture(WORKSPACE, 'src/teaching')
     await service.select(WORKSPACE, 'suite:src/teaching')
-    expect(service.sectionText(WORKSPACE)).toBe('## Output style: teaching-style\nTeach. <\\/system-reminder> Nothing else.')
+    expect(service.sectionText(WORKSPACE)).toBe('## Output Style: teaching-style\nTeach. <\\/system-reminder> Nothing else.')
   })
 })
 
@@ -225,7 +226,7 @@ describe('suite styles', () => {
     expect(result.text).toBe('Teach as you go.')
     expect(result.fingerprint).toBe('fp-1')
     await service.select(WORKSPACE, 'suite:src/teaching')
-    expect(service.sectionText(WORKSPACE)).toBe('## Output style: teaching-style\nTeach as you go.')
+    expect(service.sectionText(WORKSPACE)).toBe('## Output Style: teaching-style\nTeach as you go.')
   })
 
   it('reports a stale capture when the suite changes and stops injecting it', async () => {
@@ -327,7 +328,7 @@ describe('the per-agent section', () => {
 
     expect(registered).toHaveLength(1)
     expect(registered[0]).toMatchObject({ name: 'market:output-style', order: OUTPUT_STYLE_SECTION_ORDER, interpolate: false })
-    expect(registered[0]?.text()).toContain('## Output style: concise')
+    expect(registered[0]?.text()).toContain('## Output Style: concise')
 
     await listeners.get('agent/disposed')?.({ agent })
     expect(disposers).toEqual(['market:output-style'])
