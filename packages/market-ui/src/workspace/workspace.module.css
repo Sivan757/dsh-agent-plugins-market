@@ -28,6 +28,12 @@
    (equal host columns, ellipsized labels, no sideways scroll) for the workspace
    and the preset manager alike, so nothing here carries one surface's row. */
 
+/* A wrapper that carries the Alt+arrow listener without adding a box, so the
+   host row layout above is exactly what it was. */
+.rowKeys {
+  display: contents;
+}
+
 .tabPanel {
   display: flex;
   min-height: 0;
@@ -92,6 +98,45 @@
   min-width: 0;
   color: var(--dsw-alias-label-secondary, #656d76);
   font-size: 12px;
+}
+
+/* The pair that moves one tab inside the rendered row. Two 20px targets sit
+   between the checkbox and the hint, so the row still reads as a list rather
+   than a toolbar. */
+.tabManageMove {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.tabManageMoveButton {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  border-radius: var(--dsw-radius-sm, 6px);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #656d76);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.tabManageMoveButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
+  color: var(--dsw-alias-label-primary, #1f2328);
+  transform: translateY(-1px);
+}
+
+.tabManageMoveButton:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .tabManageError {

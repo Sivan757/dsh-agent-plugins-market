@@ -11,6 +11,7 @@
  */
 import { createElement as h, useState, type ReactNode } from 'react'
 import { Button, Checkbox, IconEllipsisOutlineMedium, IconSettingsOutlineMedium, Menu, Modal, Tooltip, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PINNED_TAB_KEY } from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import css from './workspace.module.css'
 
@@ -24,8 +25,10 @@ export interface StowableTab {
 
 export interface TabStowControlProps {
   t: Translate
-  /** Every tab in display order. */
+  /** Every tab in row order. */
   tabs: readonly StowableTab[]
+  /** The tabs the row currently renders, in order: the range reordering acts on. */
+  visible: readonly string[]
   /** The stowed keys, already resolved. */
   hidden: readonly string[]
   /** Whether a write is in flight; the manager refuses a second one. */
@@ -36,17 +39,19 @@ export interface TabStowControlProps {
   onSelect: (tab: string) => void
   /** Replace the stow list. The workspace applies it optimistically and persists it. */
   onStow: (next: readonly string[]) => void
+  /** Move a tab within the rendered row. The workspace persists the new order. */
+  onReorder: (from: number, to: number) => void
 }
 
 /** The id the menu gives its manage row; tab keys are the other row ids. */
 const MANAGE_ID = '\u0000manage'
 
 /** One trailing trigger, its stowed-tabs menu, and the tab manager dialog. */
-export function TabStowControl({ t, tabs, hidden, busy, error, onSelect, onStow }: TabStowControlProps): ReactNode {
+export function TabStowControl({ t, tabs, visible, hidden, busy, error, onSelect, onStow, onReorder }: TabStowControlProps): ReactNode {
   const [menuOpen, setMenuOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const stowed = tabs.filter(tab => hidden.includes(tab.key))
-  const visible = tabs.filter(tab => !hidden.includes(tab.key))
+  const shownNow = tabs.filter(tab => !hidden.includes(tab.key))
   const count = stowed.length
 
   // The stowed group is first and only exists when something is stowed. The
@@ -124,7 +129,16 @@ export function TabStowControl({ t, tabs, hidden, busy, error, onSelect, onStow 
           const visibleNow = !hidden.includes(tab.key)
           // The control that would empty the row is the one that stows the last
           // visible tab, so that is the control that is disabled.
-          const lastVisible = visibleNow && visible.length === 1
+          const lastVisible = visibleNow && shownNow.length === 1
+          // Reordering acts on the rendered row, so a stowed tab has no arrows:
+          // its position comes back with it, and an invisible target would make
+          // the buttons lie about where the tab lands.
+          const at = visible.indexOf(tab.key)
+          // The pinned tab is the row's first column in every layout, so it has
+          // nothing to move between and the pair would only be dead buttons.
+          const movable = visibleNow && tab.key !== PINNED_TAB_KEY
+          const canMoveLeft = movable && at > 1
+          const canMoveRight = movable && at >= 0 && at < visible.length - 1
           return h(
             'div',
             { key: tab.key, className: css.tabManageRow, 'data-tab-stow-row': tab.key },
@@ -135,6 +149,34 @@ export function TabStowControl({ t, tabs, hidden, busy, error, onSelect, onStow 
               disabled: busy || lastVisible,
               ...(lastVisible ? { title: t('tabManageLastVisibleHint') } : {})
             }),
+            movable
+              ? h(
+                  'span',
+                  { className: css.tabManageMove },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: css.tabManageMoveButton,
+                      'aria-label': t('tabManageMoveLeft', { tab: tab.label }),
+                      disabled: busy || !canMoveLeft,
+                      onClick: () => onReorder(at, at - 1)
+                    },
+                    '\u2190'
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: css.tabManageMoveButton,
+                      'aria-label': t('tabManageMoveRight', { tab: tab.label }),
+                      disabled: busy || !canMoveRight,
+                      onClick: () => onReorder(at, at + 1)
+                    },
+                    '\u2192'
+                  )
+                )
+              : null,
             h('span', { className: css.tabManageHint }, lastVisible ? t('tabManageLastVisibleHint') : visibleNow ? t('tabManageRowHint') : t('tabManageRowStowedHint'))
           )
         }),

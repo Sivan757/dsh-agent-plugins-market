@@ -60,7 +60,9 @@ export const MARKET_ROUTES = {
    * (POST). The document is per workspace, so no path or body carries one.
    */
   tabLayout: `${MARKET_API_PREFIX}tab-layout`,
-  setTabLayout: `${MARKET_API_PREFIX}tab-layout/set`
+  setTabLayout: `${MARKET_API_PREFIX}tab-layout/set`,
+  /** Reorder the row without touching the stow list. The body carries `order`. */
+  setTabOrder: `${MARKET_API_PREFIX}tab-layout/order`
 } as const
 
 /** One timeout's three layers: the user's value, the suite declaration, and the value in force. */

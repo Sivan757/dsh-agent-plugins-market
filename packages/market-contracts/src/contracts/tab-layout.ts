@@ -26,15 +26,23 @@ export const PINNED_TAB_KEY: WorkspaceTabKey = 'market'
 /** Version of the persisted tab-layout document this release reads and writes. */
 export const TAB_LAYOUT_VERSION = 1
 
-/** One workspace's stowed tabs, as the host and the client exchange them. */
+/** One workspace's tab row, as the host and the client exchange them. */
 export interface TabLayoutWire {
   /** Stowed tab keys, in display order. */
   hidden: string[]
+  /**
+   * The complete row order, every tab exactly once.
+   *
+   * Always present and always whole, so a reader never has to merge a partial
+   * order with the default one. A document that predates ordering reads as the
+   * display order, which is what it rendered before. The pinned tab stays first.
+   */
+  order: WorkspaceTabKey[]
 }
 
-/** Nothing stowed: the all-visible layout an explicit empty choice writes. */
+/** Nothing stowed, display order: the all-visible layout an explicit empty choice writes. */
 export function emptyTabLayout(): TabLayoutWire {
-  return { hidden: [] }
+  return { hidden: [], order: [...WORKSPACE_TAB_KEYS] }
 }
 
 /**
@@ -59,7 +67,54 @@ export const DEFAULT_STOWED_TABS = ['instructions', 'lsp', 'hooks'] as const
  * @returns the starting stow list.
  */
 export function defaultTabLayout(): TabLayoutWire {
-  return { hidden: resolveHiddenTabs([...DEFAULT_STOWED_TABS]) }
+  return { hidden: resolveHiddenTabs([...DEFAULT_STOWED_TABS]), order: [...WORKSPACE_TAB_KEYS] }
+}
+
+/**
+ * Read one row order from an untrusted value.
+ *
+ * The returned list is always a complete permutation: known keys in the authored
+ * order, then every remaining key in display order. That keeps the row renderable
+ * from one array, so a file that names four tabs cannot hide the other five. The
+ * pinned tab always lands first, which is the same clamp the stow list uses.
+ * @param value - the untrusted `order` value from a file, a body, or a snapshot.
+ * @returns every tab exactly once, pinned first.
+ */
+export function resolveTabOrder(value: unknown): WorkspaceTabKey[] {
+  const authored = Array.isArray(value) ? value.filter((key): key is WorkspaceTabKey => typeof key === 'string' && (WORKSPACE_TAB_KEYS as readonly string[]).includes(key)) : []
+  const seen = new Set<WorkspaceTabKey>()
+  const ordered: WorkspaceTabKey[] = []
+  for (const key of authored) {
+    if (seen.has(key)) continue
+    seen.add(key)
+    ordered.push(key)
+  }
+  for (const key of WORKSPACE_TAB_KEYS) {
+    if (!seen.has(key)) ordered.push(key)
+  }
+  return [PINNED_TAB_KEY, ...ordered.filter(key => key !== PINNED_TAB_KEY)]
+}
+
+/**
+ * Move one tab to another index of the row.
+ *
+ * Indexes are positions in the resolved order, so a caller that just rendered
+ * the row can pass what it sees. The pinned tab cannot move and no move can
+ * displace it: the result goes back through {@link resolveTabOrder}, which
+ * restores it to the front whatever the request asked for.
+ * @param order - the current resolved order.
+ * @param from - the index of the tab to move.
+ * @param to - the index it should land on.
+ * @returns the new complete order.
+ */
+export function moveTab(order: readonly WorkspaceTabKey[], from: number, to: number): WorkspaceTabKey[] {
+  if (from < 0 || from >= order.length || to < 0 || to >= order.length || from === to) return resolveTabOrder(order)
+  const moving = order[from]
+  if (moving === undefined || moving === PINNED_TAB_KEY) return resolveTabOrder(order)
+  const next = [...order]
+  next.splice(from, 1)
+  next.splice(to, 0, moving)
+  return resolveTabOrder(next)
 }
 
 /**

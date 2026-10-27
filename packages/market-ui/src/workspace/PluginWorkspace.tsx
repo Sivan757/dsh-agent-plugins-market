@@ -13,8 +13,16 @@ import { createElement as h, useCallback, useEffect, useRef, useState, type Reac
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { ResourceTabs } from '../ui/ResourceTabs.js'
 import { TabStowControl } from './TabStowControl.js'
-import { loadTabLayout, saveTabLayout } from '../api.js'
-import { defaultTabLayout, resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
+import { loadTabLayout, saveTabLayout, saveTabOrder } from '../api.js'
+import {
+  defaultTabLayout,
+  moveTab,
+  resolveHiddenTabs,
+  visibleTabs,
+  WORKSPACE_TAB_KEYS,
+  type TabLayoutWire,
+  type WorkspaceTabKey
+} from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -58,8 +66,8 @@ export const TAB_ORDER: ReadonlyArray<WorkspaceTab> = WORKSPACE_TAB_KEYS
  * @param active - the tab the panel shows.
  * @returns the visible tabs in display order.
  */
-function rowTabs(layout: { hidden: string[] }, active: WorkspaceTab): WorkspaceTab[] {
-  return visibleTabs(TAB_ORDER, layout, active)
+function rowTabs(layout: TabLayoutWire, active: WorkspaceTab): WorkspaceTab[] {
+  return visibleTabs(layout.order.length > 0 ? layout.order : TAB_ORDER, layout, active)
 }
 
 export interface PluginWorkspaceProps {
@@ -121,11 +129,11 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
   // panel disagreeing about which tabs exist. It starts from the same default the
   // server answers, so the first paint is the row the workspace really has
   // instead of a full one that collapses a frame later.
-  const [layout, setLayout] = useState<{ hidden: string[] }>(() => defaultTabLayout())
+  const [layout, setLayout] = useState<TabLayoutWire>(() => defaultTabLayout())
   const [layoutError, setLayoutError] = useState<string | undefined>(undefined)
   const [stowing, setStowing] = useState(false)
   /** The last layout the server confirmed, so a failed write can put it back. */
-  const confirmed = useRef<{ hidden: string[] }>(defaultTabLayout())
+  const confirmed = useRef<TabLayoutWire>(defaultTabLayout())
 
   useEffect(() => {
     let live = true
@@ -155,12 +163,12 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
    */
   const stow = useCallback(
     (next: readonly string[]) => {
-      const resolved = { hidden: resolveHiddenTabs(next) }
+      const resolved: TabLayoutWire = { hidden: resolveHiddenTabs(next), order: layout.order }
       // Stowing the tab the panel shows would leave a panel whose tab is not
       // rendered, so the selection moves to the first tab that stays. This
       // reads the stow list alone rather than the row, so it does not depend on
       // which tab is pinned or where the pinned tab sits in the order.
-      if (resolved.hidden.includes(active)) setActive(TAB_ORDER.find(tab => !resolved.hidden.includes(tab)) ?? 'market')
+      if (resolved.hidden.includes(active)) setActive(resolved.order.find(tab => !resolved.hidden.includes(tab)) ?? 'market')
       setLayout(resolved)
       setStowing(true)
       setLayoutError(undefined)
@@ -175,10 +183,79 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
         })
         .finally(() => setStowing(false))
     },
-    [active, t]
+    [active, layout.order, t]
   )
 
   const shown = rowTabs(layout, active)
+
+  /**
+   * Move one tab and persist the new order.
+   *
+   * Same shape as stowing: the row paints at once, the write follows, and a
+   * failed write restores the confirmed order with a reason. Sorting never
+   * touches the stow list, so a tab put away keeps its place for later.
+   * @param from - the index of the tab being moved, in the rendered row.
+   * @param to - the index it should land on, in the rendered row.
+   */
+  const reorder = useCallback(
+    (from: number, to: number) => {
+      const row = shown
+      const moving = row[from]
+      const landing = row[to]
+      if (moving === undefined || landing === undefined || moving === landing) return
+      const order = moveTab(layout.order, layout.order.indexOf(moving), layout.order.indexOf(landing))
+      setLayout({ hidden: layout.hidden, order })
+      setStowing(true)
+      setLayoutError(undefined)
+      void saveTabOrder(order)
+        .then(committed => {
+          confirmed.current = committed
+          setLayout(committed)
+        })
+        .catch((error: unknown) => {
+          setLayout(confirmed.current)
+          setLayoutError(t('tabLayoutWriteFailed', { error: messageOf(error) }))
+        })
+        .finally(() => setStowing(false))
+    },
+    [layout.hidden, layout.order, shown, t]
+  )
+
+  /**
+   * Move a focused tab with the keyboard.
+   *
+   * The mouse gesture in the manager is one way to sort; this is the same
+   * operation without a pointer, and it is what makes sorting reachable for a
+   * keyboard or screen-reader user. Alt is required so a plain arrow keeps the
+   * host's own tab walk.
+   */
+  const onKeyDown = useCallback(
+    (event: { key: string; altKey: boolean; target: EventTarget | null; preventDefault: () => void }) => {
+      if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return
+      const target = event.target as { closest?: (selector: string) => Element | null } | null
+      const tab = target?.closest?.('[role="tab"]') ?? null
+      if (tab === null) return
+      // The host mints each tab's id from the value, so the id is the reliable
+      // way back to the tab a caller moved; a data attribute is only a fallback.
+      const raw = tab.getAttribute('data-value') ?? (tab.getAttribute('id') ?? '').replace('agent-plugins-tab-', '')
+      const from = shown.indexOf(raw as WorkspaceTab)
+      if (from < 0) return
+      event.preventDefault()
+      const to = from + (event.key === 'ArrowLeft' ? -1 : 1)
+      if (to <= 0 || to >= shown.length) return
+      reorder(from, to)
+    },
+    [reorder, shown]
+  )
+
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const node = rowRef.current
+    if (node === null) return
+    const listener = (event: Event): void => onKeyDown(event as unknown as Parameters<typeof onKeyDown>[0])
+    node.addEventListener('keydown', listener)
+    return () => node.removeEventListener('keydown', listener)
+  }, [onKeyDown])
 
   return h(
     'div',
@@ -189,24 +266,32 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     // stay caller-owned: every tab names one shared panel id, and the active
     // section renders inside it below. The row is built from TAB_ORDER, so the
     // stowed tabs are simply the ones it leaves out.
-    h(ResourceTabs<WorkspaceTab>, {
-      label: labelKeys.market,
-      value: active,
-      // Switching tabs is local state only; the URL stays the host's.
-      onChange: setActive,
-      items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
-      // The trigger renders outside the tablist, so the host's roving tab stop
-      // and walk keys stay exactly what they were.
-      trailing: h(TabStowControl, {
-        t,
-        tabs: TAB_ORDER.map(tab => ({ key: tab, label: labelKeys[tab] })),
-        hidden: layout.hidden,
-        busy: stowing,
-        error: layoutError,
-        onSelect: tab => setActive(tab as WorkspaceTab),
-        onStow: stow
+    // display: contents on the wrapper keeps the host's own row layout: the
+    // element exists only to carry the Alt+arrow listener, and it adds no box.
+    h(
+      'div',
+      { ref: rowRef, className: css.rowKeys },
+      h(ResourceTabs<WorkspaceTab>, {
+        label: labelKeys.market,
+        value: active,
+        // Switching tabs is local state only; the URL stays the host's.
+        onChange: setActive,
+        items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
+        // The trigger renders outside the tablist, so the host's roving tab stop
+        // and walk keys stay exactly what they were.
+        trailing: h(TabStowControl, {
+          t,
+          tabs: layout.order.map(tab => ({ key: tab, label: labelKeys[tab] })),
+          visible: shown,
+          hidden: layout.hidden,
+          busy: stowing,
+          error: layoutError,
+          onSelect: tab => setActive(tab as WorkspaceTab),
+          onStow: stow,
+          onReorder: reorder
+        })
       })
-    }),
+    ),
     // Every detail dialog these panels open inherits the fixed settings-sized
     // frame, the same chrome the preset manager's details use.
     h(

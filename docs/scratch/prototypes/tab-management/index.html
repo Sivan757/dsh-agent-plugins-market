@@ -3,16 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <title>页签管理 · 三个方案</title>
+    <title>页签管理 · 四个方案</title>
     <style>
       :root {
         --dsw-static-deepseek-100: rgb(228, 237, 253);
         --dsw-static-deepseek-500: rgb(65, 118, 230);
-        --dsw-static-green-500: rgb(52, 199, 123);
         --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
         --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
         --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
-        --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
         --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
         --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
         --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
@@ -21,10 +19,7 @@
         --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
         --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
         --dsw-radius-sm: 6px;
-        --dsw-radius-md: 10px;
-        --dsw-radius-lg: 14px;
         --dsw-radius-panel: 16px;
-        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
         --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
         --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
         --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
@@ -32,19 +27,15 @@
         --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
         --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
         --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
-        --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
         --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
         --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
         --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
         --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
         --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
-        --dsw-alias-state-success-primary: var(--dsw-static-green-500);
-        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
         --dsw-elevation-soft: 0 1px 2px rgba(15, 17, 21, 0.04), 0 4px 16px rgba(15, 17, 21, 0.06);
         --dsw-elevation-prominent: 0 8px 40px rgba(15, 17, 21, 0.16);
       }
       :root[data-theme='dark'] {
-        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-850);
         --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
         --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
         --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
@@ -52,12 +43,10 @@
         --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
         --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
         --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
-        --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
         --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
         --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
         --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
         --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
-        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
         --dsw-elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.24);
         --dsw-elevation-prominent: 0 8px 40px rgba(0, 0, 0, 0.5);
       }
@@ -75,7 +64,7 @@
         padding: 34px 36px 60px;
       }
       .wrap {
-        max-width: 860px;
+        max-width: 880px;
         margin: 0 auto;
       }
       h1 {
@@ -88,8 +77,8 @@
       .lead {
         font-size: 13px;
         color: var(--dsw-alias-label-tertiary);
-        max-width: 640px;
-        margin-bottom: 26px;
+        max-width: 660px;
+        margin-bottom: 24px;
       }
       .card {
         display: block;
@@ -98,8 +87,8 @@
         background: var(--dsw-alias-bg-layer-2);
         border: 1px solid var(--dsw-alias-border-l2);
         border-radius: var(--dsw-radius-panel);
-        padding: 18px 22px;
-        margin-bottom: 12px;
+        padding: 16px 20px;
+        margin-bottom: 10px;
         box-shadow: var(--dsw-elevation-soft);
         transition:
           transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1),
@@ -110,6 +99,9 @@
         transform: translateY(-2px);
         box-shadow: var(--dsw-elevation-prominent);
         border-color: var(--dsw-alias-border-l3);
+      }
+      .card.rec {
+        border-color: var(--dsw-alias-state-business-primary);
       }
       .card b {
         font-size: 15px;
@@ -133,30 +125,54 @@
       .card p {
         font-size: 12.5px;
         color: var(--dsw-alias-label-tertiary);
-        max-width: 640px;
+        max-width: 650px;
       }
       .card .meta {
         font-size: 11.5px;
         color: var(--dsw-alias-label-tertiary);
-        margin-top: 8px;
+        margin-top: 7px;
         display: flex;
         gap: 14px;
         flex-wrap: wrap;
       }
       .card .meta i {
         font-style: normal;
-        opacity: 0.85;
+      }
+      .card .meta .yes {
+        color: var(--dsw-alias-state-business-primary);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+        margin: 6px 0 4px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--dsw-alias-border-l1);
+      }
+      th {
+        font-weight: 600;
+        color: var(--dsw-alias-label-secondary);
+        font-size: 11.5px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      td {
+        color: var(--dsw-alias-label-tertiary);
       }
       hr {
         border: 0;
         border-top: 1px solid var(--dsw-alias-border-l1);
-        margin: 26px 0 20px;
+        margin: 24px 0 18px;
       }
       h2 {
         font-size: 13px;
         font-weight: 640;
         color: var(--dsw-alias-label-secondary);
-        margin-bottom: 10px;
+        margin-bottom: 8px;
       }
       ul {
         list-style: none;
@@ -173,7 +189,6 @@
         content: '—';
         position: absolute;
         left: 0;
-        color: var(--dsw-alias-label-tertiary);
         opacity: 0.6;
       }
       kbd {
@@ -190,47 +205,89 @@
   </head>
   <body>
     <div class="wrap">
-      <h1>页签管理 · 三个方案</h1>
+      <h1>页签管理 · 四个方案</h1>
       <p class="lead">
-        目标：页签行的可用空间不再被一个常驻按钮吃掉，同时让「收纳」这件事自己被发现。三个方案都去掉了行尾按钮，用不同方式把入口藏进已有的手势里。每页都可以切深色、重放引导。
+        两个目标：页签行的可用空间不再被常驻按钮吃掉；收纳与<b>排序</b>都要有。四个方案都去掉了行尾按钮，
+        区别只在「入口藏在哪种手势里」以及「排序怎么下手」。每页可切深色、可重放引导。
       </p>
 
-      <a class="card" href="a-edge-rail.html">
-        <b>方案 A · 边缘磁轨<span class="tag">拖拽</span></b>
-        <p>行尾 10px 留白即握把。指针进入 56px 热区，一条磁轨浮出；向左拖依次收纳，向右拖依次取回，每格 34px 磁吸。</p>
-        <div class="meta">
-          <i>零常驻控件</i><i>磁吸回弹</i><i>可加 <kbd>⌥</kbd> 点击直接收纳</i>
-        </div>
+      <a class="card rec" href="d-press-sort.html">
+        <b>方案 D · 长按抬升 → 排序 / 拖出收纳<span class="tag">推荐</span></b>
+        <p>一个手势管两件事。长按 260ms 整行浮起，横向拖动改顺序，继续拖过右缘就收纳。点击仍然是切换页签。</p>
+        <div class="meta"><i class="yes">排序 ✓</i><i class="yes">收纳 ✓</i><i>零常驻控件</i><i>触屏成立</i></div>
       </a>
 
-      <a class="card" href="b-press-and-lift.html">
-        <b>方案 B · 长按抬升<span class="tag">长按</span></b>
-        <p>长按任意页签 260ms，进度环绕满整行 translateY(-3px) 浮起进入编辑态，页签可拖动；拖到右缘落点区松手即收纳。</p>
-        <div class="meta"><i>零常驻控件</i><i>"灵光一闪"式抬升</i><i>触屏同样成立</i></div>
+      <a class="card" href="a-edge-rail.html">
+        <b>方案 A · 边缘磁轨 + 长按排序<span class="tag">组合</span></b>
+        <p>行尾 10px 留白的磁轨负责成段收纳与取回（每次一格，34px 磁吸）；长按页签做横向排序。两种手势各管一件事。</p>
+        <div class="meta"><i class="yes">排序 ✓</i><i class="yes">收纳 ✓</i><i>磁吸回弹</i><i>成段收纳最快</i></div>
       </a>
 
       <a class="card" href="c-hover-bubble.html">
-        <b>方案 C · 长悬停气泡<span class="tag">长悬停</span></b>
-        <p>悬停 620ms，页签上方浮出小气泡（收纳 / 在列表中看）；溢出的页签在右缘化成渐隐 + 数字，点渐隐展开完整列表。</p>
-        <div class="meta"><i>零常驻控件</i><i>渐隐带计数</i><i>气泡与列表共用一处入口</i></div>
+        <b>方案 C · 长悬停气泡 + 右缘渐隐<span class="tag">长悬停</span></b>
+        <p>悬停 620ms 弹气泡，气泡里给 <kbd>←</kbd> <kbd>→</kbd> 挪位、收纳、在列表中看；溢出页签化成渐隐 + 数字。</p>
+        <div class="meta"><i class="yes">排序 ✓（按键）</i><i class="yes">收纳 ✓</i><i>入口最容易被发现</i></div>
+      </a>
+
+      <a class="card" href="b-press-and-lift.html">
+        <b>方案 B · 长按抬升 + 拖出收纳<span class="tag">仅收纳</span></b>
+        <p>长按抬升后拖到右缘收纳。第一版没有排序，留作手势原型的参照。</p>
+        <div class="meta"><i>排序 ✗</i><i class="yes">收纳 ✓</i><i>纯手势</i></div>
       </a>
 
       <hr />
-      <h2>三个方案的共同约束</h2>
+      <h2>排序能力的四种做法</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>方案</th>
+            <th>排序入口</th>
+            <th>键盘等效</th>
+            <th>代价</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>D</td>
+            <td>长按 → 横向拖动，2px 竖线示位</td>
+            <td><kbd>⌥</kbd>+<kbd>←/→</kbd></td>
+            <td>长按与「长按选中文字」有冲突，需位移阈值</td>
+          </tr>
+          <tr>
+            <td>A</td>
+            <td>同上，另有一套成段收纳的磁轨</td>
+            <td><kbd>⌥</kbd>+<kbd>←/→</kbd>、<kbd>⌫</kbd></td>
+            <td>两种手势要各教一次</td>
+          </tr>
+          <tr>
+            <td>C</td>
+            <td>气泡里的 <kbd>←</kbd><kbd>→</kbd>，一次挪一格</td>
+            <td>同一对按钮就是键盘路径</td>
+            <td>挪远要靠连点，长距离排序慢</td>
+          </tr>
+          <tr>
+            <td>B</td>
+            <td>无</td>
+            <td>—</td>
+            <td>不满足需求</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>排序的存储（四个方案共用）</h2>
       <ul>
-        <li>页签行严格保持宿主 <code>role="tablist"</code> 的漫游焦点与 ←/→/Home/End 键盘行走；入口渲染在 tablist 之外或作为页签内部的 popover，不进入焦点序列。</li>
-        <li>键盘等效路径必须存在：<kbd>⌥</kbd>+<kbd>←/→</kbd> 移动"收纳边界"，或页签聚焦时按 <kbd>⌫</kbd> 收纳。任何鼠标手势都要有键盘版本。</li>
-        <li>至少保留一个可见页签（<code>market</code> 固定不可收纳），深链打开已收纳页签时临时显示、不写回。</li>
-        <li>每次手势结束只落一次盘（乐观更新 + 失败回退并说明原因），不给每个中间帧写文件。</li>
-        <li><code>prefers-reduced-motion</code> 下取消位移与弹入，仅保留透明度切换。</li>
+        <li>布局文档从 <code>{ hidden }</code> 扩成 <code>{ hidden, order }</code>：<code>order</code> 是全部九键的完整排列，未知键被丢弃、缺失键按默认顺序补齐。</li>
+        <li><code>market</code> 固定第一位：任何拖动、任何手写文件都把它拨回首位，因此排序与收纳一样不可能把行弄空。</li>
+        <li>收纳不动 <code>order</code>：收起再放回时页签回到原来的位置，而不是队尾。</li>
+        <li>一次手势结束只写一次盘；同一次拖动里既排序又收纳时合并成一次写。</li>
       </ul>
 
-      <h2>建议</h2>
+      <h2>共同约束</h2>
       <ul>
-        <li>
-          默认组合：<b>A 的边缘磁轨</b>作主入口（无所占空间、可逆、一次拖到位），<b>C 的右缘渐隐 + 计数</b>作被收纳项的可见线索，<b>B 的长按抬升</b>只保留给触屏与"选中页签后按 ⌫"。
-        </li>
-        <li>首次使用：跟随 C 的气泡做一次 1.8s 引导，比 A/B 的拖拽更不容易误触，也不打断阅读。</li>
+        <li>入口与排序都不进 <code>role="tablist"</code> 的焦点序列；编辑态不改变 ←/→ 的切换语义。</li>
+        <li>每个鼠标手势都有键盘路径，<kbd>Esc</kbd> 退出编辑态并放弃本次手势。</li>
+        <li><code>prefers-reduced-motion</code> 下去掉位移、倾斜与弹入，只保留透明度与描边。</li>
+        <li>长按阈值 260ms、位移超过 8px 立即进入拖动并取消长按计时，避免与文本选择打架。</li>
       </ul>
     </div>
   </body>

@@ -6,7 +6,7 @@ English | [简体中文](workspace.zh.md) | [README](../../README.md)
 
 The settings page is the canonical layout, and the preset manager renders the same pieces. All surfaces share one tab row of equal columns that never scrolls sideways, and a label that does not fit ellipsizes. They also share one card and detail anatomy, hooks included, and one text-view switch at the toolbar's trailing edge: the manager's switch flips its cards and the detail behind them together. The workspace tabs share a saved grid/list preference; search and filters remain resource-specific. Add and refresh are header actions. Every card carries its enable switch, MCP and LSP services included, so a service can be stopped without opening its detail. The market filters by install state; the other five surfaces filter by owner — user, plugin — and by switched-off entries, whose count is the number of rows that filter shows. MCP Add validates a JSON server declaration and persists it under `~/.agents/mcp.json`, then mounts it through the plugin bridge; LSP Add does the same into `~/.agents/lsp.json`. Invalid declarations and duplicate names are rejected. A service you declared yourself offers a delete action on its card, and while you create one the JSON view adopts the service key a pasted document names, so the name field follows the document instead of blocking it. Existing host-owned MCP services remain observation-only.
 
-## Stowing tabs
+## Stowing and ordering tabs
 
 The icon at the end of the tab row opens tab settings. It sits beside the tabs rather than inside them, so the tab walk keys keep working exactly as before. Stow a tab you rarely need and its chip leaves the row: the tab stays reachable from that menu, and the menu still lists every stowed tab when the row is short.
 
@@ -14,9 +14,11 @@ The icon at the end of the tab row opens tab settings. It sits beside the tabs r
 
 Stowing the tab you are looking at moves you to the first visible tab, so the panel below always has its tab in the row. A link to a stowed tab still works: that tab joins the row while it is the one on screen, and the saved layout does not change because of the link.
 
+The order is yours too. **Manage tabs** puts a pair of arrows on every visible row: the left arrow moves that tab one place left, the right arrow one place right. With a tab focused, Alt+Left and Alt+Right do the same from the row itself. The market tab stays in the first position, so ordering, like stowing, cannot leave the row without its home tab. A stowed tab keeps the place it had, and comes back there.
+
 A workspace that has never changed its tab row starts with three tabs stowed: **Rules** (the AGENTS.md chain), **Language Engine**, and **Hooks**. Each answers a question most sessions never ask, so they wait in the menu until you need them. Picking anything in **Manage tabs**, including **Show all**, replaces that starting row with your own choice.
 
-The choice belongs to the workspace. Another project keeps its own tab row, and the plugin stores the layout beside its other workspace state.
+The choice and the order belong to the workspace. Another project keeps its own tab row, and the plugin stores the layout beside its other workspace state.
 
 ## Resource detail editing
 

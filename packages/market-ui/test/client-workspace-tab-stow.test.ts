@@ -34,7 +34,7 @@ const t: Translate = key => String(key)
 let root: Root | undefined
 let host: HTMLDivElement | undefined
 /** The stub server's stored layout. */
-let stored: { hidden: string[] }
+let stored: { hidden: string[]; order?: string[] }
 /** When set, the write route answers this error instead of committing. */
 let writeError: string | undefined
 
@@ -49,17 +49,24 @@ afterEach(async () => {
   writeError = undefined
 })
 
-function stubServer(initial: { hidden: string[] } = { hidden: [] }): void {
+function stubServer(initial: { hidden: string[]; order?: string[] } = { hidden: [] }): void {
   stored = initial
+  const answer = (): { hidden: string[]; order: string[] } => ({ hidden: stored.hidden, order: stored.order ?? [...WORKSPACE_TAB_KEYS] })
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
-      if (url.endsWith('/tab-layout')) return json(200, stored)
+      if (url.endsWith('/tab-layout')) return json(200, answer())
       if (url.endsWith('/tab-layout/set')) {
         if (writeError !== undefined) return json(400, { ok: false, error: writeError })
         const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { hidden: string[] }
-        stored = { hidden: body.hidden }
-        return json(200, { ok: true, hidden: stored.hidden })
+        stored = { ...stored, hidden: body.hidden }
+        return json(200, { ok: true, ...answer() })
+      }
+      if (url.endsWith('/tab-layout/order')) {
+        if (writeError !== undefined) return json(400, { ok: false, error: writeError })
+        const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { order: string[] }
+        stored = { ...stored, order: body.order }
+        return json(200, { ok: true, ...answer() })
       }
       return json(404, { ok: false, error: 'not found' })
     })
@@ -109,6 +116,9 @@ async function openManager(): Promise<void> {
   if (manage === undefined) throw new Error('the manage row is not in the menu')
   await act(async () => manage.click())
 }
+
+/** The manager's move buttons for one tab, in rendered order. */
+const moveButtons = (key: string): HTMLButtonElement[] => [...(dialog()?.querySelectorAll<HTMLButtonElement>('[data-tab-stow-row="' + key + '"] button') ?? [])]
 
 /** Stow one tab through the manager's checkbox. */
 async function stow(key: string): Promise<void> {
@@ -344,6 +354,94 @@ describe('workspace tab stowing', () => {
     expect(activePanel()).toBe('hooks')
     await act(async () => chips[6]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })))
     expect(activePanel()).toBe('market')
+  })
+
+  it('reorders the row from the manager and persists the new order', async () => {
+    stubServer()
+    await mount()
+    const start = chipLabels()
+    expect(start.slice(0, 3)).toEqual(['workspaceTabMarket', 'workspaceTabInstructions', 'workspaceTabOutputStyles'])
+
+    await openManager()
+    // Move the third chip one place left, then one place right: the same pair of
+    // buttons has to work in both directions or a move cannot be undone.
+    await act(async () => moveButtons('outputStyles')[0]!.click())
+    await flush()
+    expect(chipLabels().slice(0, 3)).toEqual(['workspaceTabMarket', 'workspaceTabOutputStyles', 'workspaceTabInstructions'])
+    expect(stored.order?.slice(0, 3)).toEqual(['market', 'outputStyles', 'instructions'])
+
+    await act(async () => moveButtons('outputStyles')[1]!.click())
+    await flush()
+    expect(chipLabels().slice(0, 3)).toEqual(start.slice(0, 3))
+  })
+
+  it('offers no move buttons for a stowed tab', async () => {
+    stubServer({ hidden: ['commands'] })
+    await mount()
+
+    await openManager()
+    // Reordering acts on the rendered row, so a stowed tab has no target: the
+    // arrows would have to lie about where an invisible chip lands.
+    expect(moveButtons('commands')).toHaveLength(0)
+    expect(moveButtons('skills')).toHaveLength(2)
+    // The pinned tab is the row's floor, so it cannot move at all.
+    expect(moveButtons('market')).toHaveLength(0)
+  })
+
+  it('keeps a stowed tab in place when a visible one moves', async () => {
+    stubServer({ hidden: ['commands'] })
+    await mount()
+    await openManager()
+
+    await act(async () => moveButtons('skills')[0]!.click())
+    await flush()
+
+    // The visible chip moved one slot; the stowed tab kept its own, so it comes
+    // back where it was rather than at the end.
+    expect(stored.order?.indexOf('commands')).toBe(WORKSPACE_TAB_KEYS.indexOf('commands'))
+  })
+
+  it('moves a tab with Alt and an arrow key, and leaves the walk keys alone', async () => {
+    stubServer()
+    await mount()
+    const start = chipLabels()
+    const second = host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]!
+
+    await act(async () => second.focus())
+    // A plain arrow is the host tab walk, so sorting needs the modifier.
+    await act(async () => {
+      second.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(chipLabels()).toEqual(start)
+
+    await act(async () => {
+      second.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }))
+    })
+    await flush()
+    expect(chipLabels().slice(0, 3)).toEqual(['workspaceTabMarket', 'workspaceTabOutputStyles', 'workspaceTabInstructions'])
+    expect(stored.order?.slice(0, 3)).toEqual(['market', 'outputStyles', 'instructions'])
+
+    // The pinned tab stays first: a left move on the second chip is a no-op.
+    await act(async () => {
+      host!.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true }))
+    })
+    await flush()
+    expect(chipLabels()[0]).toBe('workspaceTabMarket')
+  })
+
+  it('keeps the confirmed order when the reorder write fails', async () => {
+    stubServer()
+    await mount()
+    const start = chipLabels()
+    await openManager()
+
+    writeError = 'disk is full'
+    await act(async () => moveButtons('outputStyles')[0]!.click())
+    await flush()
+
+    // The row goes back to what the server has, and the reason is visible.
+    expect(chipLabels()).toEqual(start)
+    expect(dialog()?.textContent).toContain('tabLayoutWriteFailed')
   })
 
   it('keeps the default row when the layout read fails, leaves every tab reachable, and reports it in the manager', async () => {

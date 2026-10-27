@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>方案 D · 长按抬升排序</title>
+    <style>
+      :root {
+        --dsw-static-deepseek-100: rgb(228, 237, 253);
+        --dsw-static-deepseek-500: rgb(65, 118, 230);
+        --dsw-static-green-500: rgb(52, 199, 123);
+        --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+        --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+        --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+        --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+        --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+        --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+        --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+        --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+        --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+        --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+        --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+        --dsw-radius-sm: 6px;
+        --dsw-radius-md: 10px;
+        --dsw-radius-lg: 14px;
+        --dsw-radius-panel: 16px;
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+        --dsw-alias-border-l1: rgba(0, 0, 0, 0.06);
+        --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+        --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+        --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+        --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+        --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+        --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+        --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-elevation-soft: 0 1px 2px rgba(15, 17, 21, 0.04), 0 4px 16px rgba(15, 17, 21, 0.06);
+        --dsw-elevation-prominent: 0 8px 40px rgba(15, 17, 21, 0.16);
+      }
+      :root[data-theme='dark'] {
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-border-l1: rgba(255, 255, 255, 0.08);
+        --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+        --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+        --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+        --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+        --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.24);
+        --dsw-elevation-prominent: 0 8px 40px rgba(0, 0, 0, 0.5);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+        font-size: 14px;
+        line-height: 24px;
+        color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-module-platform);
+        padding: 26px 32px 44px;
+        overflow-x: hidden;
+      }
+      .head {
+        max-width: 920px;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .head h1 {
+        font-size: 19px;
+        line-height: 26px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      .head p {
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        max-width: 640px;
+        line-height: 19px;
+      }
+      .head .spacer {
+        flex: 1;
+      }
+      .chip {
+        border: 1px solid var(--dsw-alias-border-l2);
+        background: var(--dsw-alias-bg-layer-2);
+        border-radius: 999px;
+        padding: 5px 12px;
+        font-size: 12px;
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+        transition:
+          transform 0.16s ease,
+          background 0.16s ease;
+      }
+      .chip:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        transform: translateY(-1px);
+      }
+      .chip:active {
+        transform: scale(0.97);
+      }
+      .panel {
+        max-width: 920px;
+        margin: 0 auto;
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-panel);
+        box-shadow: var(--dsw-elevation-soft);
+        padding: 18px 22px 20px;
+        position: relative;
+      }
+      .ptitle {
+        font-size: 15px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 26px;
+      }
+      .ptitle .count {
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--dsw-alias-label-tertiary);
+        border: 1px solid var(--dsw-alias-border-l1);
+        border-radius: 999px;
+        padding: 1px 9px;
+        transition: all 0.2s ease;
+      }
+      .ptitle .hint {
+        margin-left: auto;
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-tertiary);
+        opacity: 0;
+        transition: opacity 0.24s ease;
+      }
+      .panel.editing .ptitle .hint {
+        opacity: 1;
+      }
+      .body {
+        margin-top: 14px;
+        border-top: 1px solid var(--dsw-alias-border-l1);
+        padding-top: 13px;
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        min-height: 64px;
+        line-height: 20px;
+      }
+      .body b {
+        color: var(--dsw-alias-label-secondary);
+        font-weight: 600;
+      }
+      .states {
+        max-width: 920px;
+        margin: 22px auto 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .state {
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-lg);
+        padding: 14px 18px 16px;
+      }
+      .state .cap {
+        font-size: 10.5px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--dsw-alias-label-tertiary);
+        margin-bottom: 12px;
+      }
+      .state .cap b {
+        color: var(--dsw-alias-state-business-primary);
+        font-weight: 650;
+        margin-right: 6px;
+      }
+      .state .note {
+        font-size: 12px;
+        color: var(--dsw-alias-label-tertiary);
+        margin-top: 12px;
+        line-height: 19px;
+      }
+      .rowwrap {
+        position: relative;
+        padding-top: 4px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 42px;
+        position: relative;
+        border-radius: 12px;
+        padding: 0 6px;
+        transition:
+          transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+          background 0.2s ease,
+          box-shadow 0.3s ease;
+      }
+      .row.lift {
+        transform: translateY(-3px);
+        background: var(--dsw-alias-bg-layer-3);
+        box-shadow:
+          0 6px 22px rgba(15, 17, 21, 0.1),
+          0 0 0 1px var(--dsw-alias-border-l2);
+      }
+      .tabs {
+        position: relative;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-width: 0;
+        height: 100%;
+      }
+      .tab {
+        font: inherit;
+        font-size: 13px;
+        border: 0;
+        background: transparent;
+        color: var(--dsw-alias-label-secondary);
+        padding: 7px 11px;
+        border-radius: var(--dsw-radius-sm);
+        cursor: pointer;
+        white-space: nowrap;
+        position: relative;
+        transition:
+          color 0.16s ease,
+          background 0.16s ease,
+          transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+          opacity 0.2s ease,
+          margin 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .tab:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        color: var(--dsw-alias-label-primary);
+      }
+      .tab.on {
+        color: var(--dsw-alias-label-primary);
+        font-weight: 600;
+      }
+      .ind {
+        position: absolute;
+        bottom: 2px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--dsw-alias-state-business-primary);
+        transition:
+          left 0.3s cubic-bezier(0.34, 1.4, 0.64, 1),
+          width 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+      }
+      .row.lift .tab {
+        cursor: grab;
+        opacity: 0.86;
+      }
+      .row.lift .tab.on {
+        opacity: 1;
+      }
+      .row.lift .tab:hover {
+        transform: translateY(-1px);
+      }
+      .tab.held {
+        opacity: 0.35;
+        cursor: grabbing;
+      }
+      .tab.ghost {
+        position: fixed;
+        z-index: 40;
+        pointer-events: none;
+        opacity: 0.96;
+        cursor: grabbing;
+        background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l3);
+        box-shadow: var(--dsw-elevation-prominent);
+        transform: scale(1.04) rotate(-1deg);
+        color: var(--dsw-alias-label-primary);
+        font-weight: 600;
+      }
+      .slot {
+        width: 2px;
+        align-self: stretch;
+        margin: 9px 0;
+        border-radius: 2px;
+        background: var(--dsw-alias-state-business-primary);
+        opacity: 0;
+        transition: opacity 0.16s ease;
+      }
+      .slot.on {
+        opacity: 1;
+      }
+      .dropzone {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 112px;
+        border-radius: 10px;
+        background: linear-gradient(90deg, transparent, var(--dsw-alias-state-business-tertiary));
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 10px;
+        font-size: 11px;
+        color: var(--dsw-alias-state-business-primary);
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      .row.lift .dropzone {
+        opacity: 0.55;
+      }
+      .row.drop-armed .dropzone {
+        opacity: 1;
+        box-shadow: inset 0 0 0 2px var(--dsw-alias-state-business-primary);
+      }
+      .dock {
+        position: absolute;
+        right: 6px;
+        top: -30px;
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        opacity: 0;
+        transform: translateY(6px);
+        pointer-events: none;
+        transition:
+          opacity 0.2s ease,
+          transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .dock.has {
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+      }
+      .dock .tag {
+        font-size: 10.5px;
+        color: var(--dsw-alias-label-tertiary);
+        letter-spacing: 0.04em;
+        margin-right: 2px;
+      }
+      .ghost-pill {
+        font: inherit;
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-secondary);
+        background: var(--dsw-alias-bg-layer-3);
+        border: 1px dashed var(--dsw-alias-border-l3);
+        border-radius: 999px;
+        padding: 2px 9px;
+        cursor: pointer;
+        transition:
+          transform 0.18s ease,
+          background 0.18s ease,
+          border-color 0.18s ease;
+      }
+      .ghost-pill:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        border-color: var(--dsw-alias-state-business-primary);
+        color: var(--dsw-alias-label-primary);
+        transform: translateY(-1px);
+      }
+      .hold {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 24px;
+        height: 24px;
+        margin: -12px 0 0 -12px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        border-top-color: var(--dsw-alias-state-business-primary);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 20;
+      }
+      .hold.on {
+        opacity: 1;
+        animation: spin 0.5s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .tip {
+        position: absolute;
+        font-size: 12px;
+        background: var(--dsw-alias-brand-primary);
+        color: var(--dsw-alias-bg-layer-2);
+        border-radius: 8px;
+        padding: 5px 10px;
+        white-space: nowrap;
+        z-index: 30;
+        box-shadow: var(--dsw-elevation-prominent);
+      }
+      .cursor {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid var(--dsw-alias-state-business-primary);
+        background: rgba(65, 118, 230, 0.18);
+        box-shadow: 0 0 0 7px rgba(65, 118, 230, 0.1);
+        pointer-events: none;
+        z-index: 29;
+      }
+      .state .row {
+        pointer-events: none;
+      }
+      .state .dock {
+        position: static;
+        opacity: 1;
+        transform: none;
+      }
+      .state .dock::before {
+        display: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .row,
+        .tab,
+        .dock,
+        .dropzone,
+        .tip,
+        .cursor {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+
+      .tabs {
+        padding-right: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <div>
+        <h1>方案 D · 长按抬升 → 排序 / 拖出收纳</h1>
+        <p>一个手势同时管两件事：长按 260ms 整行浮起进入编辑态，横向拖动改顺序，拖过右缘就收纳。点击仍然是切换页签，不受影响。</p>
+      </div>
+      <div class="spacer"></div>
+      <button class="chip" id="theme">切换深色</button>
+      <button class="chip" id="guide">重放首次引导</button>
+      <button class="chip" id="reset">还原顺序</button>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="ptitle">Agent Plugins <span class="count" id="count"></span><span class="hint">编辑中 · 拖动排序，拖过右缘收纳</span></div>
+      <div class="rowwrap">
+        <div class="dock" id="dock"></div>
+        <div class="row" id="row">
+          <div class="tabs" id="tabs"></div>
+          <div class="hold" id="hold"></div>
+          <div class="dropzone">拖到这里收纳</div>
+        </div>
+      </div>
+      <div class="body">
+        长按 <b>连接器</b> 或 <b>技能</b> 后左右拖动，松手即落位；继续往右拖到最后 112px，落点区点亮，松手把它收起来。页签聚焦时 <b>⌥←/⌥→</b> 移动顺序，<b>⌫</b> 收纳。
+      </div>
+    </div>
+
+    <div class="states">
+      <div class="state">
+        <div class="cap"><b>状态 1</b>静止 · 顺序即上次保存的顺序</div>
+        <div class="rowwrap">
+          <div class="dock"></div>
+          <div class="row" data-state="rest">
+            <div class="tabs"></div>
+            <div class="dropzone">拖到这里收纳</div>
+          </div>
+        </div>
+        <div class="note">行内没有任何常驻控件，顺序本身就是自定义的结果：市场固定第一，其余按你上次摆放的样子排列。</div>
+      </div>
+      <div class="state">
+        <div class="cap"><b>状态 2</b>长按抬升 · 可拖动，被拖页签变幽灵</div>
+        <div class="rowwrap">
+          <div class="row lift" data-state="lift">
+            <div class="tabs"></div>
+            <div class="dropzone">拖到这里收纳</div>
+          </div>
+        </div>
+        <div class="note">
+          整行上浮 3px、加阴影，其余页签降到 86% 不透明度；被拖的页签留在原位变淡（45%），一个略微倾斜、带更大阴影的副本跟着指针。落点用 2px 品牌色竖线表示，两侧页签以 220ms
+          弹簧让位。
+        </div>
+      </div>
+      <div class="state">
+        <div class="cap"><b>状态 3</b>拖出右缘 · 收纳区点亮</div>
+        <div class="rowwrap">
+          <div class="row lift drop-armed" data-state="armed">
+            <div class="tabs"></div>
+            <div class="dropzone">拖到这里收纳</div>
+          </div>
+        </div>
+        <div class="note">越过右缘最后 112px，落点区从半透明渐变升级为 2px 实线内描边；松手即收纳，顺序保持不变，整段只写一次盘。</div>
+      </div>
+    </div>
+
+    <script>
+      var KEYS = [
+        ['market', '市场'],
+        ['instructions', '规则'],
+        ['outputStyles', '输出风格'],
+        ['skills', '技能'],
+        ['commands', '快捷指令'],
+        ['personas', '专家'],
+        ['mcp', '连接器'],
+        ['lsp', '语言引擎'],
+        ['hooks', '钩子']
+      ]
+      var PINNED = 'market'
+      function labelOf(k) {
+        for (var i = 0; i < KEYS.length; i++) {
+          if (KEYS[i][0] === k) return KEYS[i][1]
+        }
+        return k
+      }
+      function mountDock(dockEl, stowed, onRestore) {
+        dockEl.innerHTML = '<span class="tag">已收纳</span>'
+        stowed.forEach(function (k, i) {
+          var p = document.createElement('button')
+          p.type = 'button'
+          p.className = 'ghost-pill'
+          p.textContent = labelOf(k)
+          p.style.animationDelay = i * 40 + 'ms'
+          p.onclick = function () {
+            onRestore(k)
+          }
+          dockEl.appendChild(p)
+        })
+        dockEl.classList.toggle('has', stowed.length > 0)
+      }
+      var order = KEYS.map(function (e) {
+        return e[0]
+      })
+      var baseline = order.slice()
+      var stowed = ['instructions', 'lsp', 'hooks']
+      var active = 'market'
+
+      var panel = document.getElementById('panel')
+      var row = document.getElementById('row')
+      var tabsEl = document.getElementById('tabs')
+      var dockEl = document.getElementById('dock')
+      var countEl = document.getElementById('count')
+      var holdEl = document.getElementById('hold')
+
+      function visibleOrder() {
+        return order.filter(function (k) {
+          return k !== PINNED && stowed.indexOf(k) < 0
+        }).length
+          ? [PINNED].concat(
+              order.filter(function (k) {
+                return k !== PINNED && stowed.indexOf(k) < 0
+              })
+            )
+          : [PINNED]
+      }
+
+      function paint() {
+        tabsEl.innerHTML = ''
+        var shown = visibleOrder()
+        shown.forEach(function (k) {
+          var b = document.createElement('button')
+          b.type = 'button'
+          b.className = 'tab' + (k === active ? ' on' : '')
+          b.textContent = labelOf(k)
+          b.setAttribute('role', 'tab')
+          b.setAttribute('data-key', k)
+          b.setAttribute('aria-selected', k === active ? 'true' : 'false')
+          b.addEventListener('click', function () {
+            if (row.classList.contains('lift')) return
+            active = k
+            paint()
+          })
+          b.addEventListener('pointerdown', onChipDown)
+          tabsEl.appendChild(b)
+        })
+        var ind = document.createElement('div')
+        ind.className = 'ind'
+        tabsEl.appendChild(ind)
+        var on = tabsEl.querySelector('.tab.on')
+        if (on) {
+          ind.style.left = on.offsetLeft + 'px'
+          ind.style.width = on.offsetWidth + 'px'
+        }
+        countEl.textContent = (stowed.length ? '已收纳 ' + stowed.length : '全部可见') + ' · ' + shown.length + ' 个可见'
+        mountDock(dockEl, stowed, function (k) {
+          stowed = stowed.filter(function (x) {
+            return x !== k
+          })
+          active = k
+          paint()
+        })
+      }
+
+      var holdTimer = null
+      var dragState = null
+
+      function onChipDown(event) {
+        var chip = event.currentTarget
+        if (chip.getAttribute('data-key') === PINNED && !row.classList.contains('lift')) {
+          /* pinned still clickable */
+        }
+        if (row.classList.contains('lift')) {
+          startDrag(chip, event)
+          return
+        }
+        var rect = chip.getBoundingClientRect()
+        holdEl.style.left = rect.left - row.getBoundingClientRect().left + rect.width / 2 + 'px'
+        holdEl.style.top = '50%'
+        holdEl.classList.add('on')
+        var cancelled = false
+        var cancel = function () {
+          cancelled = true
+          clearTimeout(holdTimer)
+          holdEl.classList.remove('on')
+          window.removeEventListener('pointerup', cancel)
+          window.removeEventListener('pointermove', cancel)
+        }
+        window.addEventListener('pointerup', cancel, { once: true })
+        holdTimer = setTimeout(function () {
+          if (cancelled) return
+          holdEl.classList.remove('on')
+          row.classList.add('lift')
+          panel.classList.add('editing')
+          startDrag(chip, event)
+        }, 260)
+      }
+
+      function startDrag(chip, event) {
+        var key = chip.getAttribute('data-key')
+        if (key === PINNED) return
+        var rect = chip.getBoundingClientRect()
+        var clone = chip.cloneNode(true)
+        clone.className = 'tab ghost'
+        clone.style.left = rect.left + 'px'
+        clone.style.top = rect.top + 'px'
+        clone.style.width = rect.width + 'px'
+        document.body.appendChild(clone)
+        chip.classList.add('held')
+        var slot = document.createElement('div')
+        slot.className = 'slot on'
+        tabsEl.appendChild(slot)
+        dragState = { key: key, chip: chip, clone: clone, slot: slot, offsetX: event.clientX - rect.left }
+        window.addEventListener('pointermove', onDragMove)
+        window.addEventListener('pointerup', onDragUp)
+      }
+
+      function onDragMove(event) {
+        if (!dragState) return
+        dragState.clone.style.left = event.clientX - dragState.offsetX + 'px'
+        dragState.clone.style.top = event.clientY - 16 + 'px'
+        var rect = row.getBoundingClientRect()
+        var armed = event.clientX > rect.right - 112
+        row.classList.toggle('drop-armed', armed)
+        if (armed) {
+          dragState.slot.classList.remove('on')
+          return
+        }
+        var chips = Array.prototype.slice.call(tabsEl.querySelectorAll('.tab')).filter(function (c) {
+          return c !== dragState.chip
+        })
+        var index = chips.length
+        for (var i = 0; i < chips.length; i++) {
+          var r = chips[i].getBoundingClientRect()
+          if (event.clientX < r.left + r.width / 2) {
+            index = i
+            break
+          }
+        }
+        var anchored = chips[index] || null
+        dragState.slot.classList.add('on')
+        if (anchored) tabsEl.insertBefore(dragState.slot, anchored)
+        else tabsEl.appendChild(dragState.slot)
+      }
+
+      function onDragUp(event) {
+        if (!dragState) return
+        var rect = row.getBoundingClientRect()
+        var accepted = event.clientX > rect.right - 112
+        var key = dragState.key
+        var slot = dragState.slot
+        var before = []
+        var nodes = Array.prototype.slice.call(tabsEl.children)
+        // 被拖的页签在拖动期间仍留在 DOM 里，它的旧位置必须跳过：只有落点槽
+        // 代表新位置，否则同一个键会被收集两次。
+        nodes.forEach(function (node) {
+          if (node === slot) {
+            if (before.indexOf(key) < 0) before.push(key)
+            return
+          }
+          var nodeKey = node.getAttribute && node.getAttribute('data-key')
+          if (nodeKey && node !== dragState.chip && before.indexOf(nodeKey) < 0) before.push(nodeKey)
+        })
+        dragState.clone.remove()
+        dragState.chip.classList.remove('held')
+        slot.remove()
+        row.classList.remove('lift', 'drop-armed')
+        panel.classList.remove('editing')
+        dragState = null
+        window.removeEventListener('pointermove', onDragMove)
+        window.removeEventListener('pointerup', onDragUp)
+        if (accepted) {
+          if (key !== PINNED && stowed.indexOf(key) < 0) {
+            stowed = stowed.concat([key])
+            if (active === key) active = PINNED
+          }
+        } else {
+          var rest = order.filter(function (k) {
+            return before.indexOf(k) < 0
+          })
+          order = before.concat(rest)
+          if (order.indexOf(PINNED) !== 0) {
+            order = [PINNED].concat(
+              order.filter(function (k) {
+                return k !== PINNED
+              })
+            )
+          }
+        }
+        paint()
+      }
+
+      row.addEventListener('pointerleave', function () {
+        if (!dragState) row.classList.remove('drop-armed')
+      })
+
+      document.addEventListener('keydown', function (event) {
+        if (!row.contains(document.activeElement)) return
+        var chip = document.activeElement.closest ? document.activeElement.closest('.tab') : null
+        if (!chip) return
+        var key = chip.getAttribute('data-key')
+        var shown = visibleOrder()
+        var at = shown.indexOf(key)
+        if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+          event.preventDefault()
+          var to = showTarget(shown, at, event.key === 'ArrowLeft' ? -1 : 1)
+          if (to < 0 || to >= shown.length) return
+          var moved = shown.slice()
+          moved.splice(at, 1)
+          moved.splice(to, 0, key)
+          order = moved.concat(
+            order.filter(function (k) {
+              return moved.indexOf(k) < 0
+            })
+          )
+          paint()
+          var next = tabsEl.querySelector('.tab[data-key="' + key + '"]')
+          if (next) next.focus()
+          return
+        }
+        if (event.key === 'Backspace' && key !== PINNED) {
+          event.preventDefault()
+          stowed = stowed.concat([key])
+          if (active === key) active = PINNED
+          paint()
+        }
+      })
+      function showTarget(shown, at, delta) {
+        var i = at + delta
+        if (i < 0 || i >= shown.length) return -1
+        if (shown[i] === PINNED) return -1
+        return i
+      }
+
+      function runGuide() {
+        row.classList.add('lift')
+        panel.classList.add('editing')
+        var chip = tabsEl.querySelectorAll('.tab')[3] || tabsEl.querySelector('.tab')
+        if (!chip) return
+        var rect = chip.getBoundingClientRect()
+        var rowRect = row.getBoundingClientRect()
+        var c = document.createElement('div')
+        c.className = 'cursor'
+        c.style.left = rect.left - rowRect.left + rect.width / 2 - 7 + 'px'
+        c.style.top = rect.top - rowRect.top + rect.height / 2 - 7 + 'px'
+        var tip = document.createElement('div')
+        tip.className = 'tip'
+        tip.textContent = '长按后左右拖动排序'
+        tip.style.left = rect.left - rowRect.left + 'px'
+        tip.style.top = rect.top - rowRect.top - 34 + 'px'
+        row.append(c)
+        row.append(tip)
+        c.animate(
+          [
+            { transform: 'translate(0,0) scale(1)', opacity: 1 },
+            { transform: 'translate(56px,0) scale(1)', opacity: 1, offset: 0.45 },
+            { transform: 'translate(-40px,0) scale(1)', opacity: 1, offset: 0.8 },
+            { transform: 'translate(0,0) scale(1)', opacity: 1 }
+          ],
+          { duration: 2200, easing: 'cubic-bezier(.22,1,.36,1)' }
+        ).onfinish = function () {
+          c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, fill: 'forwards' })
+          tip.style.transition = 'opacity .3s'
+          tip.style.opacity = '0'
+          setTimeout(function () {
+            c.remove()
+            tip.remove()
+            row.classList.remove('lift')
+            panel.classList.remove('editing')
+          }, 340)
+        }
+      }
+      document.getElementById('guide').onclick = runGuide
+      document.getElementById('reset').onclick = function () {
+        order = baseline.slice()
+        stowed = ['instructions', 'lsp', 'hooks']
+        active = 'market'
+        paint()
+      }
+      document.getElementById('theme').onclick = function (e) {
+        var dark = document.documentElement.dataset.theme === 'dark'
+        document.documentElement.dataset.theme = dark ? 'light' : 'dark'
+        e.target.textContent = dark ? '切换深色' : '切换浅色'
+      }
+
+      /* rendered states */
+      function paintState(stateRow, mode) {
+        var tabs = stateRow.querySelector('.tabs')
+        if (!tabs) return
+        var shown = [PINNED].concat(
+          order.filter(function (k) {
+            return k !== PINNED && stowed.indexOf(k) < 0
+          })
+        )
+        tabs.innerHTML = ''
+        shown.forEach(function (k, i) {
+          var b = document.createElement('button')
+          b.type = 'button'
+          b.className = 'tab' + (k === 'market' ? ' on' : '') + (mode === 'lift' && i === 3 ? ' held' : '')
+          b.textContent = labelOf(k)
+          tabs.appendChild(b)
+          if (mode === 'lift' && i === 3) {
+            var slot = document.createElement('div')
+            slot.className = 'slot on'
+            tabs.appendChild(slot)
+          }
+        })
+        var ind = document.createElement('div')
+        ind.className = 'ind'
+        tabs.appendChild(ind)
+        var on = tabs.querySelector('.tab.on')
+        if (on) {
+          ind.style.left = on.offsetLeft + 'px'
+          ind.style.width = on.offsetWidth + 'px'
+        }
+        var dock = stateRow.parentElement.querySelector('.dock')
+        if (dock) mountDock(dock, stowed, function () {})
+      }
+      var stateRows = document.querySelectorAll('.state .row')
+      Array.prototype.forEach.call(stateRows, function (stateRow) {
+        var mode = stateRow.getAttribute('data-state') === 'lift' ? 'lift' : 'rest'
+        paintState(stateRow, mode)
+        if (stateRow.getAttribute('data-state') === 'armed') stateRow.classList.add('lift')
+      })
+
+      paint()
+    </script>
+  </body>
+</html>

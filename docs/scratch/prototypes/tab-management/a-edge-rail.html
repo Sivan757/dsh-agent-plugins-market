@@ -236,6 +236,90 @@
           left 0.34s cubic-bezier(0.34, 1.4, 0.64, 1),
           width 0.34s cubic-bezier(0.34, 1.4, 0.64, 1);
       }
+      /* 长按抬升：整行浮起进入编辑态，页签可拖动排序 */
+      .row.lift {
+        transform: translateY(-3px);
+        background: var(--dsw-alias-bg-layer-3);
+        box-shadow:
+          0 6px 22px rgba(15, 17, 21, 0.1),
+          0 0 0 1px var(--dsw-alias-border-l2);
+      }
+      .row.lift .tab {
+        cursor: grab;
+        opacity: 0.86;
+      }
+      .row.lift .tab.on {
+        opacity: 1;
+      }
+      .tab.held {
+        opacity: 0.35;
+        cursor: grabbing;
+      }
+      /* 被拖页签的幽灵副本：跟着指针，略微倾斜并抬起 */
+      .tab.ghost {
+        position: fixed;
+        z-index: 40;
+        pointer-events: none;
+        cursor: grabbing;
+        background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l3);
+        box-shadow: var(--dsw-elevation-prominent);
+        color: var(--dsw-alias-label-primary);
+        font-weight: 600;
+        transform: scale(1.04) rotate(-1deg);
+      }
+      /* 落点：一条 2px 竖线，两侧页签让位 */
+      .slot {
+        width: 2px;
+        align-self: stretch;
+        margin: 9px 0;
+        border-radius: 2px;
+        background: var(--dsw-alias-state-business-primary);
+        opacity: 0;
+        transition: opacity 0.16s ease;
+      }
+      .slot.on {
+        opacity: 1;
+      }
+      /* 长按进度环 */
+      .hold {
+        position: absolute;
+        top: 50%;
+        width: 24px;
+        height: 24px;
+        margin-top: -12px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        border-top-color: var(--dsw-alias-state-business-primary);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 20;
+      }
+      .hold.on {
+        opacity: 1;
+        animation: holdspin 0.5s linear infinite;
+      }
+      @keyframes holdspin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .row.drop-armed .dropzone {
+        opacity: 1;
+        box-shadow: inset 0 0 0 2px var(--dsw-alias-state-business-primary);
+      }
+      .row.lift .dropzone {
+        opacity: 0.55;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .row,
+        .tab,
+        .slot,
+        .ghost-pill {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
       .dock {
         display: flex;
         gap: 5px;
@@ -418,8 +502,8 @@
   <body>
     <div class="head">
       <div>
-        <h1>方案 A · 边缘磁轨</h1>
-        <p>不加任何常驻按钮。页签行右缘留 10px 留白，指针进入 56px 热区时一条磁轨浮出；向左拖依次收纳，向右拖依次取回，每格 34px 磁吸。</p>
+        <h1>方案 A · 边缘磁轨 + 长按排序</h1>
+        <p>不加任何常驻按钮。行尾 10px 留白的磁轨负责「成段收纳 / 取回」，长按页签则进入编辑态做横向排序，两种手势互不干扰。</p>
       </div>
       <div class="spacer"></div>
       <button class="chip" id="theme">切换深色</button>
@@ -432,10 +516,15 @@
         <div class="row" id="live">
           <div class="tabs"></div>
           <div class="dock"></div>
+          <div class="hold"></div>
+          <div class="dropzone">拖到这里收纳</div>
           <div class="rail" id="rail"><i></i><i></i><i></i></div>
         </div>
       </div>
-      <div class="body" id="hint">把指针移到页签行最右端（约 12px 宽的一条缝），磁轨会浮出来。向左拖动即可把 <b>语言引擎 / 钩子</b> 收起来。</div>
+      <div class="body" id="hint">
+        两种手势：把指针移到行尾的窄缝，磁轨浮出，向左拖是一段段收纳；<b>长按任一页签 260ms</b>，整行浮起进入编辑态，左右拖动即可排序，继续往右拖到落点区松手就收纳。键盘等效为
+        <b>⌥←/⌥→</b> 与 <b>⌫</b>。
+      </div>
     </div>
 
     <div class="states">
@@ -481,6 +570,9 @@
         ['hooks', '钩子']
       ]
       const PINNED = 'market'
+      /** Display order. The row renders from this list, so reordering is one write to it. */
+      const DEFAULT_ORDER = KEYS.map(e => e[0])
+      let order = DEFAULT_ORDER.slice()
       const label = k => (KEYS.find(e => e[0] === k) || ['', '?'])[1]
       function tabButton(key, activeKey, extra) {
         const b = document.createElement('button')
@@ -493,7 +585,7 @@
       function renderRow(root, stowed, activeKey, animate) {
         root.querySelectorAll('.tab,.ghost-pill,.ind').forEach(n => n.remove())
         const tabs = root.querySelector('.tabs')
-        const visible = KEYS.filter(([k]) => !stowed.includes(k))
+        const visible = order.map(k => [k, label(k)]).filter(([k]) => !stowed.includes(k))
         visible.forEach(([k], i) => {
           const b = tabButton(k, activeKey)
           if (animate) {
@@ -524,7 +616,7 @@
           dock.classList.toggle('has', stowed.length > 0)
         }
         const counter = root.querySelector('.count')
-        if (counter) counter.textContent = stowed.length === 0 ? '全部可见' : '已收纳 ' + stowed.length
+        if (counter) counter.textContent = (stowed.length === 0 ? '全部可见' : '已收纳 ' + stowed.length) + ' · ' + visible.length + ' 个可见'
       }
       window.__KIT = { KEYS, PINNED, label, tabButton, renderRow }
       const live = document.getElementById('live')
@@ -534,13 +626,14 @@
 
       function paint(animate) {
         __KIT.renderRow(live, stowed, active, animate)
-        live.querySelectorAll('.tab').forEach(
-          b =>
-            (b.onclick = () => {
-              active = b.dataset.key
-              paint(false)
-            })
-        )
+        live.querySelectorAll('.tab').forEach(b => {
+          b.onclick = () => {
+            if (live.classList.contains('lift')) return
+            active = b.dataset.key
+            paint(false)
+          }
+          b.addEventListener('pointerdown', e => beginHold(b, e))
+        })
         live.querySelectorAll('.ghost-pill').forEach(
           b =>
             (b.onclick = () => {
@@ -553,7 +646,150 @@
         if (badge) badge.textContent = stowed.length ? '已收纳 ' + stowed.length : '全部可见'
       }
 
+      // ---- 长按抬升 -> 拖动排序；拖到右缘 -> 收纳 ----
+      // 排序与收纳共用一个手势：横向拖是改顺序，越过右缘是收纳。页签本身固定
+      // 第一位，所以横向拖动永远落在一个合法位置上。
+      const holdEl = live.querySelector('.hold')
+      let holdTimer = null
+      let reorder = null
+
+      function beginHold(chip, event) {
+        if (chip.dataset.key === __KIT.PINNED) return
+        if (live.classList.contains('lift')) {
+          beginReorder(chip, event)
+          return
+        }
+        const rowRect = live.getBoundingClientRect()
+        const rect = chip.getBoundingClientRect()
+        holdEl.style.left = rect.left - rowRect.left + rect.width / 2 + 'px'
+        holdEl.classList.add('on')
+        let cancelled = false
+        const cancel = () => {
+          cancelled = true
+          clearTimeout(holdTimer)
+          holdEl.classList.remove('on')
+          window.removeEventListener('pointerup', cancel)
+          window.removeEventListener('pointermove', cancel)
+        }
+        window.addEventListener('pointerup', cancel, { once: true })
+        window.addEventListener('pointermove', cancel, { once: true })
+        holdTimer = setTimeout(() => {
+          if (cancelled) return
+          holdEl.classList.remove('on')
+          live.classList.add('lift', 'dock-open')
+          beginReorder(chip, event)
+        }, 260)
+      }
+
+      function beginReorder(chip, event) {
+        const key = chip.dataset.key
+        const rect = chip.getBoundingClientRect()
+        const clone = chip.cloneNode(true)
+        clone.className = 'tab ghost'
+        clone.style.left = rect.left + 'px'
+        clone.style.top = rect.top + 'px'
+        clone.style.width = rect.width + 'px'
+        document.body.appendChild(clone)
+        chip.classList.add('held')
+        const slot = document.createElement('div')
+        slot.className = 'slot on'
+        const tabsEl = live.querySelector('.tabs')
+        tabsEl.appendChild(slot)
+        reorder = { key, chip, clone, slot, offsetX: event.clientX - rect.left }
+
+        const move = ev => {
+          if (!reorder) return
+          reorder.clone.style.left = ev.clientX - reorder.offsetX + 'px'
+          reorder.clone.style.top = ev.clientY - 16 + 'px'
+          const rowRect = live.getBoundingClientRect()
+          const armed = ev.clientX > rowRect.right - 112
+          live.classList.toggle('drop-armed', armed)
+          if (armed) {
+            reorder.slot.classList.remove('on')
+            return
+          }
+          const others = [...tabsEl.querySelectorAll('.tab')].filter(c => c !== reorder.chip).filter(c => !c.classList.contains('ghost'))
+          let index = others.length
+          for (let i = 0; i < others.length; i += 1) {
+            const r = others[i].getBoundingClientRect()
+            if (ev.clientX < r.left + r.width / 2) {
+              index = i
+              break
+            }
+          }
+          reorder.slot.classList.add('on')
+          if (others[index] !== undefined) tabsEl.insertBefore(reorder.slot, others[index])
+          else tabsEl.appendChild(reorder.slot)
+        }
+
+        const up = ev => {
+          if (!reorder) return
+          const rowRect = live.getBoundingClientRect()
+          const archive = ev.clientX > rowRect.right - 112
+          // 被拖的页签在拖动期间仍在 DOM 里；跳过它的旧位置，只让落点槽代表
+          // 新位置，否则这个键会被收集两次。
+          const before = []
+          for (const node of [...tabsEl.children]) {
+            if (node === reorder.slot) {
+              if (!before.includes(reorder.key)) before.push(reorder.key)
+              continue
+            }
+            const nodeKey = node.dataset && node.dataset.key
+            if (nodeKey && node !== reorder.chip && !before.includes(nodeKey)) before.push(nodeKey)
+          }
+          reorder.clone.remove()
+          reorder.chip.classList.remove('held')
+          reorder.slot.remove()
+          reorder = null
+          live.classList.remove('lift', 'drop-armed', 'dock-open')
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+          if (archive) {
+            if (reorder !== null) return
+            if (!stowed.includes(key)) {
+              stowed = [...stowed, key]
+              if (active === key) active = __KIT.PINNED
+            }
+          } else {
+            order = before.concat(order.filter(k => !before.includes(k)))
+            if (order[0] !== __KIT.PINNED) order = [__KIT.PINNED, ...order.filter(k => k !== __KIT.PINNED)]
+          }
+          paint(true)
+        }
+
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      }
+
+      /** 键盘等效：⌥←/⌥→ 移动顺序，⌫ 收纳。 */
+      live.addEventListener('keydown', event => {
+        const chip = event.target.closest ? event.target.closest('.tab') : null
+        if (!chip) return
+        const key = chip.dataset.key
+        const shown = order.filter(k => !stowed.includes(k))
+        const at = shown.indexOf(key)
+        if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+          event.preventDefault()
+          const to = at + (event.key === 'ArrowLeft' ? -1 : 1)
+          if (to <= 0 || to >= shown.length) return
+          const moved = shown.slice()
+          moved.splice(at, 1)
+          moved.splice(to, 0, key)
+          order = moved.concat(order.filter(k => !moved.includes(k)))
+          paint(false)
+          live.querySelector('.tab[data-key="' + key + '"]')?.focus()
+          return
+        }
+        if (event.key === 'Backspace' && key !== __KIT.PINNED) {
+          event.preventDefault()
+          stowed = [...stowed, key]
+          if (active === key) active = __KIT.PINNED
+          paint(true)
+        }
+      })
+
       live.addEventListener('pointermove', e => {
+        if (reorder) return
         const r = live.getBoundingClientRect()
         live.classList.toggle('near', e.clientX > r.right - 56)
         live.classList.toggle('dock-open', e.clientX > r.right - 56 || live.classList.contains('dragging'))
