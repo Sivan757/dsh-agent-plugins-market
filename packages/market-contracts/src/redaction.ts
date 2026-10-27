@@ -1,6 +1,9 @@
 /** Redact secret-shaped MCP configuration before it crosses a status/detail boundary. */
 import { REDACTED_VALUE } from './contracts/mcp.js'
 
+/** Stands in for a filesystem path in a message the browser may read. */
+export const REDACTED_PATH = '<path>'
+
 /**
  * Secret-shaped key matcher. This is a heuristic, not a security boundary: it
  * exists so a token cannot leak into a status response, a detail preview, or a
@@ -79,6 +82,77 @@ export function redactUrl(raw: string): string {
  */
 export function redactErrorMessage(raw: string): string {
   return raw.replace(/https?:\/\/[^\s"'<>]+/gi, value => redactUrl(value))
+}
+
+/** Characters that end a path run inside a diagnostic sentence. */
+const PATH_STOP = new Set([' ', '\t', '\n', '\r', '"', "'", '`', '<', '>', '(', ')', '[', ']', ',', ';'])
+
+/**
+ * Locate every filesystem path in a diagnostic sentence.
+ *
+ * A path is absolute: a leading `/` at a boundary, or a drive letter followed by
+ * a separator. The scan rejects a `/` that follows a scheme colon or another
+ * slash, so `https://host/path` and a relative `a/b` are not paths, and a bare
+ * `/` with no segment is not one either. Scanning beats a regular expression
+ * here for the same reason [`hasPlaceholder`] scans: the answer must stay
+ * linear on a message that arrives from an endpoint or a log line.
+ * @param text - one diagnostic sentence.
+ * @returns the path substrings, in order, each clipped to its delimiters.
+ */
+export function findFilePaths(text: string): string[] {
+  const found: string[] = []
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]!
+    const previous = index === 0 ? '' : text[index - 1]!
+    // A word character before the candidate rules out both shapes: `https://`
+    // would otherwise read as drive `s:`, and `a/b` as a root.
+    // A word character before the candidate rules out both shapes: `https://`
+    // would otherwise read as drive `s:`, and `a/b` as a root. A preceding dot
+    // rules out a root too: `../escape` and `./escape` are relative, and reading
+    // their separator as a root would invent the absolute path `/escape`.
+    const standalone = !/[\w.]/.test(previous)
+    const driveLetter = standalone && /[A-Za-z]/.test(character) && text[index + 1] === ':' && (text[index + 2] === '\\' || text[index + 2] === '/')
+    const posixRoot = character === '/' && previous !== ':' && previous !== '/' && standalone
+    if (!driveLetter && !posixRoot) continue
+    const start = index
+    let cursor = driveLetter ? index + 3 : index + 1
+    while (cursor < text.length && !PATH_STOP.has(text[cursor]!)) cursor += 1
+    // A root with no segment names no location: `/` alone, or `/` then a
+    // delimiter. Windows needs its separator and at least one name too.
+    const body = text.slice(driveLetter ? start + 3 : start + 1, cursor)
+    if (body.length === 0) continue
+    found.push(text.slice(start, cursor))
+    index = cursor - 1
+  }
+  return found
+}
+
+/**
+ * Whether a diagnostic sentence names a filesystem location.
+ * @param text - one diagnostic sentence.
+ * @returns true when at least one absolute path appears in it.
+ */
+export function containsFilePath(text: string): boolean {
+  return findFilePaths(text).length > 0
+}
+
+/**
+ * Replace every filesystem path in a sentence with {@link REDACTED_PATH}.
+ *
+ * Used where the sentence must still read as a sentence: a message that keeps
+ * its meaning without naming a directory the reader does not own.
+ * @param text - one diagnostic sentence.
+ * @returns the sentence with each path replaced.
+ */
+export function redactFilePaths(text: string): string {
+  let result = ''
+  let cursor = 0
+  for (const path of findFilePaths(text)) {
+    const start = text.indexOf(path, cursor)
+    result += text.slice(cursor, start) + REDACTED_PATH
+    cursor = start + path.length
+  }
+  return result + text.slice(cursor)
 }
 
 function splitOnce(value: string, separator: string): [string, string] {

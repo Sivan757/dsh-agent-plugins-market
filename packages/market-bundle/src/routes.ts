@@ -12,6 +12,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from '../../market-contracts/src/contracts/market.js'
 import { expandHome } from '../../market-catalog/src/index.js'
 import { sanitizeOverridePatch } from '../../market-mcp/src/index.js'
+import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import type { MarketService } from '../../market-contracts/src/ports/queries.js'
 import type { SourcePatch } from '../../market-contracts/src/ports/ports.js'
 import type { SourceKind, SuiteSurfaceKey } from '../../market-contracts/src/model/types.js'
@@ -31,6 +32,8 @@ export interface WebServerService {
 interface RouteHost {
   webServer: WebServerService
   get?(name: string): unknown
+  /** Receives a failure's full detail, including the paths the browser never sees. */
+  logger?: RouteLogger
 }
 
 /** Recount a merged MCP view so its totals describe the entries actually returned. */
@@ -111,13 +114,9 @@ export function mountSuiteRoutes(
               sendJson(response, 200, { ok: true, ...value })
             } catch (error) {
               // A rejection that names its fields travels with them, so the editor
-              // can place each reason beside the input it belongs to.
-              const fields = (error as { fields?: unknown }).fields
-              sendJson(response, 400, {
-                ok: false,
-                error: error instanceof Error ? error.message : String(error),
-                ...(Array.isArray(fields) ? { fields } : {})
-              })
+              // can place each reason beside the input it belongs to. A message
+              // that names a filesystem path does not cross; its detail is logged.
+              sendJson(response, 400, routeFailurePayload(error, 'POST ' + path, host.logger))
             }
           })()
         }
@@ -193,7 +192,7 @@ export function mountSuiteRoutes(
       const query = queryOf(request)
       sendJson(response, 200, await readModelCatalog(host, query.get('provider') || undefined, query.get('model') || undefined))
     } catch (error) {
-      sendJson(response, 503, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 503, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.modelCatalog, host.logger))
     }
   })
 
@@ -220,7 +219,7 @@ export function mountSuiteRoutes(
       if (kind !== 'mcp' && kind !== 'lsp') throw new Error('invalid service kind')
       sendJson(response, 200, await manager.serverConfig(kind, query.get('id') ?? '', query.get('create') === 'true'))
     } catch (error) {
-      sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 400, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.serverConfig, host.logger))
     }
   })
   post(MARKET_ROUTES.saveServerConfig, async body => {
@@ -315,7 +314,7 @@ export function mountSuiteRoutes(
         )
       )
     } catch (error) {
-      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 404, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.suite, host.logger))
     }
   })
 
@@ -345,7 +344,7 @@ export function mountSuiteRoutes(
         )
       )
     } catch (error) {
-      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 404, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.suiteDocument, host.logger))
     }
   })
 
@@ -482,7 +481,7 @@ export function mountSuiteRoutes(
     try {
       sendJson(response, 200, { ok: true, overrides: await manager.mcpOverrides(sourceId, suiteId) })
     } catch (error) {
-      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 404, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.mcpOverrides, host.logger))
     }
   })
 

@@ -688,7 +688,9 @@ describe('market HTTP routes', () => {
       const output = response()
       await routes.get(MARKET_ROUTES.setMcpServerTool)!(postRequest(MARKET_ROUTES.setMcpServerTool, { suiteId: 'demo/suite', serverKey: 'db', tool: '', enabled: true }), output)
       await settle()
-      expect(output.value()).toEqual({ ok: false, error: 'missing MCP tool name' })
+      // An authored validation message keeps its text, and every failure now
+      // carries the stable code the browser branches on.
+      expect(output.value()).toEqual({ ok: false, code: 'request-failed', error: 'missing MCP tool name' })
     } finally {
       dispose()
     }

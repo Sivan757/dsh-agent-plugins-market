@@ -53,13 +53,18 @@ Before sending logs, remove tokens, cookies, private URLs, local paths, session 
 
 ## Accepted dependency risk / 已接受的依赖风险
 
-One open Dependabot alert is accepted, not fixed.
+Two open advisories are accepted, not fixed.
 
-有一条 Dependabot 告警属于已接受风险，不修复。
+有两条未处理的告警属于已接受风险，不修复。
 
-| Advisory                                  | Required fix | Accepted at | Why                                                           |
-| ----------------------------------------- | ------------ | ----------- | ------------------------------------------------------------- |
-| zod high severity, versions below `4.6.6` | `4.6.6`      | `4.4.3`     | The host pins zod exactly, and one physical copy is required. |
+| Advisory                                             | Severity | Required fix | Accepted at | Why                                                                   |
+| ---------------------------------------------------- | -------- | ------------ | ----------- | --------------------------------------------------------------------- |
+| zod, versions below `4.6.6` (GHSA-mrhx-c7xc-m3w5)    | high     | `4.6.6`      | `4.4.3`     | The host pins zod exactly, and one physical copy is required.         |
+| katex, versions below `0.18.2` (GHSA-238p-pmpm-9mq7) | low      | `0.18.2`     | `0.16.47`   | `package.json` pins `^0.16.47` to mirror the host's own TeX renderer. |
+
+`pnpm audit --audit-level high` runs in `.github/workflows/npm-publish.yml` before the release step and ignores exactly these two advisory ids. Adding an advisory to that step needs a row here first.
+
+`pnpm audit --audit-level high` 在发布步骤前由 `.github/workflows/npm-publish.yml` 运行，并只忽略上述两个 advisory id。要把告警加进该步骤，必须先在此表新增一行。
 
 The DeepSeek Harness host family declares zod `4.4.3` exactly. Measured with `npm view <package>@0.2.1-rc.3 dependencies.zod` on 2026-10-26, every one of these packages reports `4.4.3`: `@deepseek-ai/dsh-agent-loop`, `@deepseek-ai/dsh-llm`, `@deepseek-ai/dsh-subagent`, `@deepseek-ai/dsh-session-projection`, `@deepseek-ai/dsh-client-ui-plugin-manager`, and `@deepseek-ai/dsh-experimental-agent-team`.
 
@@ -72,6 +77,10 @@ DeepSeek Harness 宿主系列把 zod 精确锁定在 `4.4.3`。2026-10-26 用 `n
 Raising this override to `4.6.6` breaks the host contract described above. Closing the alert needs a host release that moves the whole family to `4.6.6`, not a change in this repository.
 
 把该 override 提到 `4.6.6` 会破坏上述宿主契约。关闭这条告警需要宿主发布、把整个系列移到 `4.6.6`，而不是在本仓库改。
+
+`katex` 是 devDependency，存在的目的是让 vitest 内联宿主的 `dsh-client-ui-primitives`，该包以 `^0.16.47` 渲染 TeX。把它提升到 `0.18.2` 会让内联的代码跑在宿主不发布的版本上，所以 `package.json` 保留 `^0.16.47`，`.github/dependabot.yml` 也忽略 `>=0.17` 的版本。关闭这条告警需要宿主把 katex 移出 `^0.16.x`。
+
+`katex` is a devDependency so vitest can inline the host's `dsh-client-ui-primitives`, which renders TeX through `^0.16.47`. Raising it to `0.18.2` would run the inlined code on a version the host does not ship, so `package.json` keeps `^0.16.47` and `.github/dependabot.yml` ignores `>=0.17`. Closing this advisory needs a host release that moves katex off `^0.16.x`.
 
 ## What the overrides do not change / override 不改动什么
 

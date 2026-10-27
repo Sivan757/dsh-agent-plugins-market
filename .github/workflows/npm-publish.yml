@@ -43,12 +43,38 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: main
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Verify host dependency alignment
         run: node scripts/check-host-alignment.mjs
+
+      # A known advisory blocks a release, not a pull request: a PR that adds a
+      # dependency must not go red because an unrelated transitive package has an
+      # advisory, while a release must not ship one. The check sits here, before
+      # release-please, so a known advisory stops the tag rather than leaving a
+      # GitHub Release with no npm artifact behind it.
+      #
+      # `--audit-level high` fails on high and critical only; low and moderate are
+      # reported without failing. `--prod` is deliberately not passed: in this pnpm
+      # version it reports the same advisories as the default audit, because the
+      # dev-only `katex` advisory appears in both modes, so it would narrow nothing
+      # while implying a filter that is not happening.
+      #
+      # The two ignored ids are the accepted risks in .github/SECURITY.md, each
+      # unfixable from this repository. Revisit each when the host moves off the
+      # range that forces it:
+      #   GHSA-mrhx-c7xc-m3w5  zod    host family pins 4.4.3 exactly
+      #   GHSA-238p-pmpm-9mq7  katex  mirrors the host's ^0.16.47 TeX renderer
+      - name: Audit dependencies for a release-blocking advisory
+        run: >-
+          pnpm audit --audit-level high --ignore GHSA-mrhx-c7xc-m3w5 --ignore GHSA-238p-pmpm-9mq7
 
       # Two release modes:
       #  - push to main: the version comes from the conventional commits since

@@ -15,6 +15,7 @@
  * @module routes-output-styles
  */
 import { isTrustedMutation } from './request-trust.js'
+import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { OUTPUT_STYLE_ROUTES } from '../../market-contracts/src/contracts/output-styles.js'
@@ -35,6 +36,8 @@ export interface OutputStyleRouteDeps {
 
 interface RouteHost {
   webServer: WebServerService
+  /** Receives a failure's full detail, including the paths the browser never sees. */
+  logger?: RouteLogger
 }
 
 const MAX_BODY_BYTES = 64 * 1024
@@ -71,7 +74,7 @@ export function mountOutputStyleRoutes(hostCtx: unknown, deps: OutputStyleRouteD
               const value = await handler(body as Record<string, unknown>, request)
               sendJson(response, 200, { ok: true, ...value })
             } catch (error) {
-              sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+              sendJson(response, 400, routeFailurePayload(error, 'route ' + path, host.logger))
             }
           })()
         }

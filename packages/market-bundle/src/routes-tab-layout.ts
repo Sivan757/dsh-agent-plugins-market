@@ -10,6 +10,7 @@
  * @module routes-tab-layout
  */
 import { isTrustedMutation } from './request-trust.js'
+import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES } from '../../market-contracts/src/contracts/market.js'
 import { PINNED_TAB_KEY, WORKSPACE_TAB_KEYS, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
@@ -18,6 +19,8 @@ const MAX_BODY_BYTES = 64 * 1024
 
 interface WebHost {
   webServer: { register(route: { kind: 'exact'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void }
+  /** Receives a failure's full detail, including the paths the browser never sees. */
+  logger?: RouteLogger
 }
 
 /** What the tab-layout routes need from the composition root. */
@@ -69,7 +72,7 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
             const layout = await service.setHidden(requestedHidden(body as Record<string, unknown>))
             sendJson(response, 200, { ok: true, hidden: layout.hidden, order: layout.order })
           } catch (error) {
-            sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+            sendJson(response, 400, routeFailurePayload(error, 'POST ' + MARKET_ROUTES.setTabLayout, host.logger))
           }
         })()
       }
@@ -95,7 +98,7 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
             const layout = await service.setOrder(requestedOrder(body as Record<string, unknown>))
             sendJson(response, 200, { ok: true, hidden: layout.hidden, order: layout.order })
           } catch (error) {
-            sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+            sendJson(response, 400, routeFailurePayload(error, 'POST ' + MARKET_ROUTES.setTabOrder, host.logger))
           }
         })()
       }

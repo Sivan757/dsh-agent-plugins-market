@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { redactErrorMessage, redactMcpConfig, redactUrl, isSensitiveKey } from '../../../../packages/market-contracts/src/redaction.js'
+import {
+  containsFilePath,
+  findFilePaths,
+  redactErrorMessage,
+  redactFilePaths,
+  redactMcpConfig,
+  redactUrl,
+  isSensitiveKey
+} from '../../../../packages/market-contracts/src/redaction.js'
 import { credentialRefsInServer } from '../../../../packages/market-mcp/src/application/mcp/mcp-config.js'
 
 describe('MCP config redaction', () => {
@@ -12,6 +20,26 @@ describe('MCP config redaction', () => {
       auth: { enabled: true, scope: 'user' }
     })
     expect(redactMcpConfig({ headers: { authorization: 'Bearer abc' }, auth: { enabled: true } })).toEqual({ headers: { authorization: '[redacted]' }, auth: { enabled: true } })
+  })
+
+  it('finds an absolute path in a diagnostic and leaves a URL and a relative path alone', () => {
+    // The shapes below are the ones this repository actually throws.
+    expect(findFilePaths('local source directory /Users/someone/private-checkout is missing')).toEqual(['/Users/someone/private-checkout'])
+    expect(findFilePaths('Plugin storage cannot use a symbolic-link directory: /tmp/x/y')).toEqual(['/tmp/x/y'])
+    expect(findFilePaths('archive download failed: HTTP 404 for https://example.com/a.zip')).toEqual([])
+    expect(findFilePaths('invalid source url must be an absolute path or start with ~/')).toEqual([])
+    expect(findFilePaths('a/b is relative and 3/4 is a ratio')).toEqual([])
+    // The separator inside a relative escape is not an absolute root.
+    expect(findFilePaths('"../escape" is not a usable style name')).toEqual([])
+    expect(findFilePaths('./local/file is relative')).toEqual([])
+    expect(findFilePaths('root / alone names no location')).toEqual([])
+  })
+
+  it('redacts a path while keeping the rest of the sentence readable', () => {
+    expect(redactFilePaths('local source directory /Users/someone/x is missing')).toBe('local source directory <path> is missing')
+    expect(redactFilePaths('no path here')).toBe('no path here')
+    expect(containsFilePath('local source directory /srv/x is missing')).toBe(true)
+    expect(containsFilePath('missing source url')).toBe(false)
   })
 
   it('redacts non-obvious secret keys such as X-Auth', () => {
