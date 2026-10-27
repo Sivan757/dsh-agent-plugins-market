@@ -105,6 +105,15 @@ overrides:
   # above. Evidence and the reasoning are in .github/SECURITY.md.
   zod: 4.4.3
 
+# The single ignore list for `pnpm audit`, which the release job runs with
+# `--audit-level high`. Each entry here is a row in the accepted-risk table in
+# .github/SECURITY.md, which carries the reason and what would close it.
+#
+# Revisit each entry when the host moves off the range that forces it:
+#   GHSA-mrhx-c7xc-m3w5  zod    host family pins 4.4.3 exactly
+#   GHSA-238p-pmpm-9mq7  katex  mirrors the host's ^0.16.47 TeX renderer
+# Remove the line when the advisory no longer matches the resolved graph; an
+# entry that ignores nothing is caught by `pnpm audit` reporting it unused.
 auditConfig:
   ignoreGhsas:
     - GHSA-mrhx-c7xc-m3w5

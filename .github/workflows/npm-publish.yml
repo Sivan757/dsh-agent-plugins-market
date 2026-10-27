@@ -62,19 +62,19 @@ jobs:
       # GitHub Release with no npm artifact behind it.
       #
       # `--audit-level high` fails on high and critical only; low and moderate are
-      # reported without failing. `--prod` is deliberately not passed: in this pnpm
-      # version it reports the same advisories as the default audit, because the
-      # dev-only `katex` advisory appears in both modes, so it would narrow nothing
-      # while implying a filter that is not happening.
+      # reported without failing.
       #
-      # The two ignored ids are the accepted risks in .github/SECURITY.md, each
-      # unfixable from this repository. Revisit each when the host moves off the
-      # range that forces it:
-      #   GHSA-mrhx-c7xc-m3w5  zod    host family pins 4.4.3 exactly
-      #   GHSA-238p-pmpm-9mq7  katex  mirrors the host's ^0.16.47 TeX renderer
+      # The ignore list is not repeated here. It lives once, in `auditConfig.ignoreGhsas`
+      # in pnpm-workspace.yaml, so this step and a developer's local `pnpm audit`
+      # answer the same way. Each id there is a row in the accepted-risk table in
+      # .github/SECURITY.md, which carries the reason and what would close it.
+      #
+      # `--prod` is deliberately not passed: in this pnpm version it reports the same
+      # advisories as the default audit, because the dev-only `katex` advisory appears
+      # in both modes, so it would narrow nothing while implying a filter that is not
+      # happening.
       - name: Audit dependencies for a release-blocking advisory
-        run: >-
-          pnpm audit --audit-level high --ignore GHSA-mrhx-c7xc-m3w5 --ignore GHSA-238p-pmpm-9mq7
+        run: pnpm audit --audit-level high
 
       # Two release modes:
       #  - push to main: the version comes from the conventional commits since
