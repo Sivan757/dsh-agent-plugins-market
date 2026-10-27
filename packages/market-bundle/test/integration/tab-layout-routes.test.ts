@@ -10,6 +10,9 @@ import { DEFAULT_STOWED_TABS, WORKSPACE_TAB_KEYS } from '../../../../packages/ma
 /** The row a workspace with no recorded choice serves. */
 const DEFAULT_HIDDEN = WORKSPACE_TAB_KEYS.filter(key => (DEFAULT_STOWED_TABS as readonly string[]).includes(key))
 
+/** The unresorted row order. */
+const DEFAULT_ORDER = [...WORKSPACE_TAB_KEYS]
+
 type Handler = (request: unknown, response: unknown) => void
 type RouteTable = Map<string, { handler: Handler }>
 
@@ -83,19 +86,19 @@ async function post(routes: RouteTable, path: string, body: Record<string, unkno
 describe('tab-layout routes', () => {
   it('registers the shared constants and disposes them together', async () => {
     const { routes, dispose } = await harness()
-    expect([...routes.keys()].sort()).toEqual([MARKET_ROUTES.tabLayout, MARKET_ROUTES.setTabLayout].sort())
+    expect([...routes.keys()].sort()).toEqual([MARKET_ROUTES.tabLayout, MARKET_ROUTES.setTabLayout, MARKET_ROUTES.setTabOrder].sort())
     dispose()
     expect(routes.size).toBe(0)
   })
 
   it('serves the live layout and the layout it commits', async () => {
     const { routes, dispose } = await harness()
-    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN } })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN, order: DEFAULT_ORDER } })
 
     const written = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['lsp', 'hooks'] })
     expect(written.status).toBe(200)
-    expect(written.body).toEqual({ ok: true, hidden: ['lsp', 'hooks'] })
-    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: ['lsp', 'hooks'] } })
+    expect(written.body).toEqual({ ok: true, hidden: ['lsp', 'hooks'], order: DEFAULT_ORDER })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: ['lsp', 'hooks'], order: DEFAULT_ORDER } })
     dispose()
   })
 
@@ -106,7 +109,7 @@ describe('tab-layout routes', () => {
     const answer = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['mcp', 'nope'] })
     expect(answer.status).toBe(400)
     expect(answer.body).toMatchObject({ ok: false, error: 'unknown tab key "nope"' })
-    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: ['mcp'] } })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: ['mcp'], order: DEFAULT_ORDER } })
     dispose()
   })
 
@@ -125,7 +128,7 @@ describe('tab-layout routes', () => {
     // Stowing every other tab is legal: the pinned tab stays.
     const rest = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: WORKSPACE_TAB_KEYS.filter(key => key !== 'market') })
     expect(rest.status).toBe(200)
-    expect(rest.body).toEqual({ ok: true, hidden: WORKSPACE_TAB_KEYS.filter(key => key !== 'market') })
+    expect(rest.body).toEqual({ ok: true, hidden: WORKSPACE_TAB_KEYS.filter(key => key !== 'market'), order: DEFAULT_ORDER })
     dispose()
   })
 
@@ -144,7 +147,38 @@ describe('tab-layout routes', () => {
     const answer = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['mcp'] }, { origin: 'http://evil.example' })
     expect(answer.status).toBe(403)
     expect(answer.body).toMatchObject({ ok: false, error: 'cross-origin request rejected' })
-    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN } })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN, order: DEFAULT_ORDER } })
+    dispose()
+  })
+
+  it('reorders the row without touching the stow list', async () => {
+    const { routes, dispose } = await harness()
+    await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['lsp'] })
+    const order = ['market', 'hooks', 'mcp', 'personas', 'commands', 'skills', 'outputStyles', 'instructions', 'lsp']
+
+    const written = await post(routes, MARKET_ROUTES.setTabOrder, { order })
+    expect(written.status).toBe(200)
+    expect(written.body).toEqual({ ok: true, hidden: ['lsp'], order })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: ['lsp'], order } })
+    dispose()
+  })
+
+  it('refuses an order that is malformed or moves the pinned tab', async () => {
+    const { routes, dispose } = await harness()
+    for (const [body, error] of [
+      [{}, 'order must be an array of tab keys'],
+      [{ order: 'skills' }, 'order must be an array of tab keys'],
+      [{ order: [7] }, 'order must be an array of tab keys'],
+      [{ order: ['market', 'nope'] }, 'unknown tab key "nope"'],
+      [{ order: ['market', 'mcp', 'mcp'] }, 'tab key "mcp" appears twice'],
+      [{ order: ['mcp', 'market'] }, 'the "market" tab stays first']
+    ] as const) {
+      const answer = await post(routes, MARKET_ROUTES.setTabOrder, body)
+      expect(answer.status).toBe(400)
+      expect(answer.body).toMatchObject({ ok: false, error })
+    }
+    // A refused order leaves the row exactly as it was.
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN, order: DEFAULT_ORDER } })
     dispose()
   })
 

@@ -16,7 +16,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
-import { defaultTabLayout, resolveHiddenTabs, TAB_LAYOUT_VERSION, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
+import { defaultTabLayout, resolveHiddenTabs, resolveTabOrder, TAB_LAYOUT_VERSION, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
 
 /** One workspace's stowed tabs as this store keeps them. */
 export type TabLayout = TabLayoutWire
@@ -69,7 +69,9 @@ export async function loadTabLayout(dataRoot: string, workspace: string): Promis
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return defaultTabLayout()
   const hidden = (value as Record<string, unknown>)['hidden']
   if (!Array.isArray(hidden)) return defaultTabLayout()
-  return { hidden: resolveHiddenTabs(hidden) }
+  // A document written before ordering carries no `order`; it renders in display
+  // order, which is exactly what that document meant when it was written.
+  return { hidden: resolveHiddenTabs(hidden), order: resolveTabOrder((value as Record<string, unknown>)['order']) }
 }
 
 /**
@@ -89,8 +91,11 @@ export async function mutateTabLayout(dataRoot: string, workspace: string, mutat
   const path = tabLayoutPath(dataRoot, workspace)
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   return withFileLock(path, async () => {
-    const next = { hidden: resolveHiddenTabs(mutate(await loadTabLayout(dataRoot, workspace)).hidden) }
-    await writeJsonDocument(path, { version: TAB_LAYOUT_VERSION, workspace, hidden: next.hidden })
+    const changed = mutate(await loadTabLayout(dataRoot, workspace))
+    // Both halves go through their resolver, so a hand-written file or a caller
+    // cannot store a partial row or displace the pinned tab.
+    const next: TabLayoutWire = { hidden: resolveHiddenTabs(changed.hidden), order: resolveTabOrder(changed.order) }
+    await writeJsonDocument(path, { version: TAB_LAYOUT_VERSION, workspace, hidden: next.hidden, order: next.order })
     return next
   })
 }
@@ -104,5 +109,17 @@ export async function mutateTabLayout(dataRoot: string, workspace: string, mutat
  */
 export async function saveTabLayout(dataRoot: string, workspace: string, hidden: readonly string[]): Promise<TabLayout> {
   const requested = [...hidden]
-  return mutateTabLayout(dataRoot, workspace, () => ({ hidden: requested }))
+  return mutateTabLayout(dataRoot, workspace, current => ({ hidden: requested, order: current.order }))
+}
+
+/**
+ * Replace one workspace's row order as one write, keeping its stow list.
+ * @param dataRoot - the plugin data root.
+ * @param workspace - the workspace the layout belongs to.
+ * @param order - the requested order; it is completed and clamped before it is stored.
+ * @returns the committed layout.
+ */
+export async function saveTabOrder(dataRoot: string, workspace: string, order: readonly string[]): Promise<TabLayout> {
+  const requested = [...order]
+  return mutateTabLayout(dataRoot, workspace, current => ({ hidden: current.hidden, order: resolveTabOrder(requested) }))
 }

@@ -8,8 +8,8 @@
  * detached snapshot.
  * @module runtime/host/tab-layout-service
  */
-import { loadTabLayout, saveTabLayout, type TabLayout } from '../../application/state/tab-layout.js'
-import { defaultTabLayout, resolveHiddenTabs, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
+import { loadTabLayout, saveTabLayout, saveTabOrder, type TabLayout } from '../../application/state/tab-layout.js'
+import { defaultTabLayout, resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
 
 export type { TabLayout }
 
@@ -52,7 +52,7 @@ export class TabLayoutService {
 
   /** The live layout as a value no caller can mutate. */
   currentLayout(): TabLayoutWire {
-    return { hidden: [...this.layout.hidden] }
+    return { hidden: [...this.layout.hidden], order: [...this.layout.order] }
   }
 
   /**
@@ -66,12 +66,34 @@ export class TabLayoutService {
    */
   async setHidden(hidden: unknown): Promise<TabLayoutWire> {
     const requested = resolveHiddenTabs(hidden)
-    return this.enqueue(async () => await this.commit(requested))
+    return this.enqueue(async () => {
+      const stored = this.workspace === '' ? { ...this.layout, hidden: requested } : await saveTabLayout(this.dataRoot, this.workspace, requested)
+      return this.publish(stored)
+    })
   }
 
-  /** Show every tab again. */
+  /**
+   * Replace the row order and publish it.
+   *
+   * Sorting never touches the stow list, so a tab that is put away keeps its
+   * place for when it comes back.
+   * @param order - the requested order from a request body or another caller.
+   * @returns the committed layout.
+   */
+  async setOrder(order: unknown): Promise<TabLayoutWire> {
+    const requested = resolveTabOrder(order)
+    return this.enqueue(async () => {
+      const stored = this.workspace === '' ? { ...this.layout, order: requested } : await saveTabOrder(this.dataRoot, this.workspace, requested)
+      return this.publish(stored)
+    })
+  }
+
+  /** Show every tab again, keeping the row order. */
   async showAll(): Promise<TabLayoutWire> {
-    return this.enqueue(async () => await this.commit([]))
+    return this.enqueue(async () => {
+      const stored = this.workspace === '' ? { ...this.layout, hidden: [] } : await saveTabLayout(this.dataRoot, this.workspace, [])
+      return this.publish(stored)
+    })
   }
 
   /**
@@ -81,9 +103,8 @@ export class TabLayoutService {
    * previous value and the caller can report the failure while the row keeps
    * matching what is stored.
    */
-  private async commit(requested: readonly string[]): Promise<TabLayoutWire> {
-    const stored = this.workspace === '' ? { hidden: [...requested] } : await saveTabLayout(this.dataRoot, this.workspace, requested)
-    this.layout = { hidden: resolveHiddenTabs(stored.hidden) }
+  private publish(stored: TabLayoutWire): TabLayoutWire {
+    this.layout = { hidden: resolveHiddenTabs(stored.hidden), order: resolveTabOrder(stored.order) }
     return this.currentLayout()
   }
 }

@@ -28,7 +28,7 @@ import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
 import { OUTPUT_STYLE_ROUTES } from '../../market-contracts/src/contracts/output-styles.js'
 import type { OutputStyleCaptureResult, OutputStylesPayload, OutputStyleSaveRequest } from '../../market-contracts/src/contracts/output-styles.js'
-import { resolveHiddenTabs, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
+import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
 import type { InstructionDeleteResult, InstructionsPayload, InstructionSaveRequest } from '../../market-contracts/src/contracts/instructions.js'
 import type { DocumentTranslation } from '../../market-contracts/src/contracts/translation.js'
@@ -570,16 +570,22 @@ export async function setSurfaceToggle(key: SurfaceToggleKey, enabled: boolean):
 }
 /* ---- Workspace tab stowing ---- */
 
-/** Read this workspace's stowed workspace tabs. */
+/** Read this workspace's tab row: which tabs are stowed, and in what order. */
 export async function loadTabLayout(): Promise<TabLayoutWire> {
   const layout = await getJson<TabLayoutWire>(MARKET_ROUTES.tabLayout, 'tab layout failed')
-  return { hidden: resolveHiddenTabs(layout.hidden) }
+  return { hidden: resolveHiddenTabs(layout.hidden), order: resolveTabOrder(layout.order) }
 }
 
 /** Replace this workspace's stowed tabs and resolve with the committed layout. */
 export async function saveTabLayout(hidden: readonly string[]): Promise<TabLayoutWire> {
-  const payload = await postOkJson<{ hidden?: unknown }>(MARKET_ROUTES.setTabLayout, { hidden: [...hidden] }, 'tab layout failed')
-  return { hidden: resolveHiddenTabs(payload.hidden) }
+  const payload = await postOkJson<{ hidden?: unknown; order?: unknown }>(MARKET_ROUTES.setTabLayout, { hidden: [...hidden] }, 'tab layout failed')
+  return { hidden: resolveHiddenTabs(payload.hidden), order: resolveTabOrder(payload.order) }
+}
+
+/** Replace this workspace's row order and resolve with the committed layout. */
+export async function saveTabOrder(order: readonly string[]): Promise<TabLayoutWire> {
+  const payload = await postOkJson<{ hidden?: unknown; order?: unknown }>(MARKET_ROUTES.setTabOrder, { order: [...order] }, 'tab order failed')
+  return { hidden: resolveHiddenTabs(payload.hidden), order: resolveTabOrder(payload.order) }
 }
 
 /* ---- Workspace instructions (AGENTS.md chain) ---- */

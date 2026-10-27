@@ -527,7 +527,7 @@
       function renderRow(root, stowed, activeKey, animate) {
         root.querySelectorAll('.tab,.ghost-pill,.ind').forEach(n => n.remove())
         const tabs = root.querySelector('.tabs')
-        const visible = KEYS.filter(([k]) => !stowed.includes(k))
+        const visible = order.map(k => [k, label(k)]).filter(([k]) => !stowed.includes(k))
         visible.forEach(([k], i) => {
           const b = tabButton(k, activeKey)
           if (animate) {
@@ -566,6 +566,9 @@
       const spill = document.getElementById('spill')
       let stowed = ['lsp', 'hooks'],
         active = 'market'
+      /** Display order; the row renders from it, so sorting is one write here. */
+      const DEFAULT_ORDER = __KIT.KEYS.map(e => e[0])
+      let order = DEFAULT_ORDER.slice()
 
       function paint(animate) {
         __KIT.renderRow(live, stowed, active, animate)
@@ -628,10 +631,33 @@
         bubbleTimer = setTimeout(() => {
           const b = document.createElement('div')
           b.className = 'bubble'
-          b.innerHTML = '<div class="inner"><button class="act" data-a="stow">收纳</button>' + '<button class="act" data-a="open">在列表中看</button></div>'
+          // 排序也在这枚气泡里：两枚方向键把当前页签左右挪一格。鼠标用户不必
+          // 再学第二种手势，键盘用户拿到的就是同一对动作。
+          b.innerHTML =
+            '<div class="inner">' +
+            '<button class="act" data-a="left" aria-label="左移一位">←</button>' +
+            '<button class="act" data-a="right" aria-label="右移一位">→</button>' +
+            '<button class="act" data-a="stow">收纳</button>' +
+            '<button class="act" data-a="open">在列表中看</button>' +
+            '</div>'
           tab.append(b)
           tab.style.position = 'relative'
           requestAnimationFrame(() => b.classList.add('on'))
+          const move = direction => {
+            const keys = order.filter(k => !stowed.includes(k))
+            const at = keys.indexOf(tab.dataset.key)
+            const to = at + direction
+            if (to <= 0 || to >= keys.length) return
+            const next = keys.slice()
+            next.splice(at, 1)
+            next.splice(to, 0, tab.dataset.key)
+            order = next.concat(order.filter(k => !next.includes(k)))
+            paint(true)
+            b.remove()
+            bubbleEl = null
+          }
+          b.querySelector('[data-a="left"]').onclick = () => move(-1)
+          b.querySelector('[data-a="right"]').onclick = () => move(1)
           b.querySelector('[data-a="stow"]').onclick = () => {
             const k = tab.dataset.key
             if (!stowed.includes(k)) {

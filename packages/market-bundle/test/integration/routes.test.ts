@@ -180,7 +180,7 @@ describe('market HTTP routes', () => {
     // constants whose own module mounts them: the user panel routes appear only
     // when a panel store set is provided, and the tab-layout pair belongs to
     // its own module. The strict mock reproduces that duplicate-throw contract.
-    const mountedElsewhere = new Set<string>([MARKET_ROUTES.userPanel, MARKET_ROUTES.tabLayout, MARKET_ROUTES.setTabLayout])
+    const mountedElsewhere = new Set<string>([MARKET_ROUTES.userPanel, MARKET_ROUTES.tabLayout, MARKET_ROUTES.setTabLayout, MARKET_ROUTES.setTabOrder])
     expect([...routes.keys()].sort()).toEqual(
       [...Object.values(MARKET_ROUTES).filter(path => !mountedElsewhere.has(path)), `${MARKET_ROUTES.lspServers}/save`, `${MARKET_ROUTES.lspServers}/enabled`].sort()
     )
