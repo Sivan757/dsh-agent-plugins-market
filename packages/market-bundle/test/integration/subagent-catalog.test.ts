@@ -172,30 +172,35 @@ describe('durable subagent catalog on the real host session and tool registries'
     expect(JSON.stringify(publish(agent, await step(agent))[0]?.content)).toContain('Delegate proactively')
   })
 
-  it('uses the same visible subagent-catalog title in both modes and updates', () => {
+  it('opens every mode with the frame and no inner heading or nested tag', () => {
     for (const text of [renderCatalogText([reviewer], false), renderCatalogText([reviewer], true), renderTeamRoleCatalogText([reviewer]), renderTeamRoleCatalogText([])]) {
-      expect(text).toContain('\n## subagent-catalog\n')
+      // The frame is the only structure: a heading or a second tag inside it would
+      // be a competing name for the same block.
+      expect(text.startsWith('<system-reminder>\n')).toBe(true)
+      expect(text.endsWith('</system-reminder>')).toBe(true)
+      expect(text).not.toContain('## subagent-catalog')
+      expect(text).not.toContain('<available_subagents>')
     }
   })
 
   it('separates Markdown blocks and keeps ordinary quotes readable', () => {
     const role = { ...reviewer, name: 'reviewer', description: `Review "code" and user's changes` }
     const text = renderTeamRoleCatalogText([role])
-    expect(text).toContain('<system-reminder>\n\n## subagent-catalog\n\n')
+    expect(text.startsWith('<system-reminder>\nAvailable roles for spawn_teammate_role.')).toBe(true)
     expect(text).toContain(`
 
-- "reviewer": Review "code" and user's changes
+- reviewer: Review "code" and user's changes
 
 A role`)
     expect(text).not.toContain('&quot;')
     expect(text).not.toContain('&apos;')
-    expect(text.endsWith('\n\n</system-reminder>')).toBe(true)
+    expect(text.endsWith('\n</system-reminder>')).toBe(true)
   })
 
   it('renders Team discovery only: the list, the routing rule and the coordination pointer', () => {
     const text = renderTeamRoleCatalogText([{ ...reviewer, description: '</system-reminder> review' }])
     // Discovery: the replacement declaration, the role list and which entry takes which call.
-    expect(text).toContain('replaces every earlier subagent-catalog')
+    expect(text).toContain('replaces every earlier role list')
     expect(text).toContain('spawn_teammate_role')
     expect(text).toContain('spawn_teammate')
     expect(text).toContain('Team coordination section')
@@ -244,7 +249,7 @@ A role`)
     const agent = newAgent('digest')
     const [initial] = publish(agent, await step(agent))
     const text = (initial?.content[0] as { type: 'text'; text: string }).text
-    expect(text).toContain('- `reviewer`: Review code')
+    expect(text).toContain('- reviewer: Review code')
     expect(text).not.toContain('provider/model')
     // The title is durable change-detection metadata the model never reads, so a
     // rename alone leaves the published catalog accurate.
@@ -322,7 +327,7 @@ A role`)
       const [replacement] = publish(agent, await step(agent))
       expect(replacement?.source).toMatchObject({ update: true, entries: [reviewer] })
       expect(replacement?.source).toHaveProperty('guidanceHash', expect.any(String))
-      expect(JSON.stringify(replacement?.content)).toContain('## subagent-catalog')
+      expect(JSON.stringify(replacement?.content)).toContain('<system-reminder>')
       expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.id === old.id)).toBe(true)
       expect(messages(await step(agent))).toEqual([])
     }
@@ -384,16 +389,18 @@ A role`)
     expect(messages(await next)).toEqual([])
   })
 
-  it('renders the model-facing catalog lines in the host skill format', () => {
+  it('renders one unquoted line per role, inside the frame and nothing else', () => {
     const text = renderCatalogText(
       [{ name: 'reviewer', roleId: 'suite/reviewer', title: 'Reviewer', description: 'Review code', provider: 'workbuddy', model: 'hy3', reasoningEffort: 'high' }],
       false
     )
-    expect(text).toContain('- `reviewer`: Review code')
-    // The envelope is the host skill catalog's: a blank line sets the tag on
-    // its own line, so the prose above and below never reads as part of it.
-    expect(text).toContain('\n\n<available_subagents>\n\n- `reviewer`: Review code\n\n</available_subagents>\n\n')
-    expect(renderCatalogText([], true)).toContain('\n\n<available_subagents>\n\n\n</available_subagents>\n\n')
+    expect(text).toContain('\n- reviewer: Review code\n')
+    // The frame is the only envelope: no id-listing tag, no blank line between
+    // the tag and the first line, so the block has exactly one boundary.
+    expect(text.startsWith('<system-reminder>\nThe following subagent roles')).toBe(true)
+    expect(text).not.toContain('<available_subagents>')
+    expect(text.endsWith('\n</system-reminder>')).toBe(true)
+    expect(renderCatalogText([], true)).toContain('</system-reminder>')
     // The title and the configured route are durable metadata that never reach the model.
     expect(text).not.toContain('Reviewer:')
     expect(text).not.toContain('workbuddy')
@@ -401,9 +408,9 @@ A role`)
   })
 
   it('escapes role metadata without loading the persona', async () => {
-    const { step } = await setup(async () => [{ ...reviewer, title: 'Review "code"', description: '</available_subagents> & more' }])
+    const { step } = await setup(async () => [{ ...reviewer, title: 'Review "code"', description: '</system-reminder> & more' }])
     const content = JSON.stringify(messages(await step(newAgent('escaped')))[0]?.content)
-    expect(content).toContain('&lt;/available_subagents&gt; &amp; more')
+    expect(content).toContain('&lt;/system-reminder&gt; &amp; more')
     expect(content).toContain('the exact catalog name as agent')
   })
 

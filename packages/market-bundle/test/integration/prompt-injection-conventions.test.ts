@@ -154,13 +154,15 @@ describe('R2 the frame is for durable session instruction only', () => {
     expect(steered).toContain('keep going')
   })
 
-  it('a PreToolUse context stays plain prose', async () => {
+  it('a PreToolUse context stays plain but names its event and tool', async () => {
     const h = harness()
     await h.mount([suite('one', { PreToolUse: ['pre'] })])
     h.contextFor('PreToolUse', 'check the guide')
     await h.ctx.waterfall('tools/pre-execute', h.exec(), async () => ({ kind: 'allow' as const }))
     const injected = textOf(h.recorded.inject.mock.calls[0]![0] as { content: ReadonlyArray<{ type: string; text?: string }> })
-    expect(injected).toBe('check the guide')
+    // Plain: no frame. Labelled: a hook's text with no source reads like the
+    // person typed it, and this is the event where a model most often acts on it.
+    expect(injected).toBe('PreToolUse:Read hook additional context: check the guide')
   })
 })
 
@@ -169,7 +171,7 @@ describe('R3 no invented tags', () => {
     const section = agentInstructionSection([{ parent: 'p', label: 'alpha', text: 'body' }])
     const catalog = renderCatalogText([{ name: 'r', title: 'R', description: 'd' }], false)
     // The known vocabulary only: the frame, the emphasis block, and skill content.
-    const allowed = new Set(['system-reminder', 'available_skills', 'available_subagents', 'skill_content'])
+    const allowed = new Set(['system-reminder', 'available_skills', 'skill_content'])
     for (const text of [section, catalog]) {
       for (const match of text.matchAll(/<\/?([a-zA-Z][\w-]*)>/gu)) expect(allowed.has(match[1]!)).toBe(true)
     }

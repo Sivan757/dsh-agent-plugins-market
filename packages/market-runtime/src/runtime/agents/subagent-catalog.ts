@@ -186,26 +186,21 @@ const CATALOG_WHEN_TO_DELEGATE = [
  * tell the model which model each role runs on without changing what it does.
  */
 export function renderCatalogText(entries: readonly SubagentCatalogEntry[], update: boolean): string {
-  const lines = entries.map(entry => `- \`${escapeEntry(entry.name)}\`: ${escapeEntry(entry.description)}`)
+  // A role line names the role and describes it, unquoted, as every list the model
+  // has been trained on does. The frame carries the block; a nested tag and an
+  // inner Markdown heading would be two more naming systems for one list.
+  const lines = entries.map(entry => '- ' + escapeEntry(entry.name) + ': ' + escapeEntry(entry.description))
   return [
     '<system-reminder>',
-    '',
-    '## subagent-catalog',
-    '',
     update ? CATALOG_UPDATED : CATALOG_INTRO,
     '',
     CATALOG_WHEN_TO_DELEGATE,
     '',
-    '<available_subagents>',
-    '',
     ...lines,
-    '',
-    '</available_subagents>',
     '',
     CATALOG_PROMPT,
     '',
     CATALOG_USAGE,
-    '',
     '</system-reminder>'
   ].join('\n')
 }
@@ -219,17 +214,13 @@ export function renderCatalogText(entries: readonly SubagentCatalogEntry[], upda
 export function renderTeamRoleCatalogText(entries: readonly SubagentCatalogEntry[]): string {
   return [
     '<system-reminder>',
+    'Available roles for spawn_teammate_role. This complete list replaces every earlier role list and its delegation guidance in this session.',
     '',
-    '## subagent-catalog',
-    '',
-    'Available roles for spawn_teammate_role. This complete list replaces every earlier subagent-catalog and its delegation guidance in this session.',
-    '',
-    ...entries.map(entry => '- ' + escapeEntry(JSON.stringify(entry.name)) + ': ' + escapeEntry(entry.description)),
+    ...entries.map(entry => '- ' + escapeEntry(entry.name) + ': ' + escapeEntry(entry.description)),
     '',
     'A role from this list goes to spawn_teammate_role. Without a matching role, or when the member should inherit this conversation, use native spawn_teammate.',
     '',
     'Team authorization, coordination, waiting and shared-task practice: see the Team coordination section of your system prompt.',
-    '',
     '</system-reminder>'
   ].join('\n')
 }
