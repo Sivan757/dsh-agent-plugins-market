@@ -39,7 +39,7 @@ The eleven optional chains become plain property access. **None of the condition
 
 ## Consequences
 
-**The boundary immediately caught a latent bug.** `packages/market-bundle/test/integration/real-layouts.test.ts` faked a `Catalog` with `as never` and handed it a _scanned_ suite, which the consumer then read as projected — it now throws at `src/runtime/project-runtime.ts`. That is the silent-mounts-everything failure mode above, and it had been invisible to `tsc` because of the cast. The test projects in the fakes remain, so a cast can still hide this class of mistake; do not read a green typecheck as "no cast hides anything".
+**The boundary immediately caught a latent bug.** `packages/market-bundle/test/integration/real-layouts.test.ts` faked a `Catalog` with `as never` and handed it a _scanned_ suite, which the consumer then read as projected — it now throws at `packages/market-runtime/src/runtime/surfaces/project-runtime.ts`. That is the silent-mounts-everything failure mode above, and it had been invisible to `tsc` because of the cast. The test projects in the fakes remain, so a cast can still hide this class of mistake; do not read a green typecheck as "no cast hides anything".
 
 **Two synthetic suites needed a truthful set.** `loadUserMcpSuite` and the direct-LSP suite literal are built outside `project()`, so they now carry `effectiveSurfaces(undefined)` — all six surfaces enabled, which is bit-for-bit what the absent field evaluated to at every check that read it.
 

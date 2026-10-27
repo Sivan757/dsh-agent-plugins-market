@@ -28,7 +28,7 @@ Claude Code 的契约（Plugins reference 的 "Environment variables" 表与 Ski
 - MCP：沿用既有的凭据感知展开器，它已经处理数据目录与凭据引用。
 - hooks：由本插件的 `ExtensionHooks` 在每个 agent 上执行，插件的根、数据目录与项目目录与其它面用同一个 context，命令串据此展开，同一份 context 再按 claude-code 的三个名字写进子进程环境。
 
-动态上下文在 `src/runtime/dynamic-context.ts`：一次扫描同时识别行首或空白后的 `` !`cmd` `` 与 ` ```! ` 代码块，命令按顺序在会话目录中运行（120s 上限、32 KiB stdout 上限），输出作为纯文本插入且不再被扫描。两个流合并后注入，截断带一行说明。退出码 1 对 `grep`、`rg`、`find`、`diff`、`test`、`[`、`git diff`、`git grep` 算结果而非失败（与宿主 shell 消费者一致），其余失败、超时、取消都抛出带命令与输出的错误：命令处理器把它转成 `kind: 'error'`，技能加载直接失败——模型永远不会只看到注入了一半的文本。shell seam 按结构读取（`ctx.shell`），profile 里没有这个服务时占位符保持字面量，绝不猜测。
+动态上下文在 `packages/market-runtime/src/runtime/surfaces/dynamic-context.ts`：一次扫描同时识别行首或空白后的 `` !`cmd` `` 与 ` ```! ` 代码块，命令按顺序在会话目录中运行（120s 上限、32 KiB stdout 上限），输出作为纯文本插入且不再被扫描。两个流合并后注入，截断带一行说明。退出码 1 对 `grep`、`rg`、`find`、`diff`、`test`、`[`、`git diff`、`git grep` 算结果而非失败（与宿主 shell 消费者一致），其余失败、超时、取消都抛出带命令与输出的错误：命令处理器把它转成 `kind: 'error'`，技能加载直接失败——模型永远不会只看到注入了一半的文本。shell seam 按结构读取（`ctx.shell`），profile 里没有这个服务时占位符保持字面量，绝不猜测。
 
 ## Alternatives considered
 

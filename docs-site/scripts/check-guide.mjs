@@ -2,11 +2,16 @@
 /**
  * Verify the guide under `docs/user/` is complete, bilingual and in sync.
  *
- * The site routes pages from `GUIDES` and groups them with `SECTIONS` in
- * `.vitepress/guide.ts`. A file that is not listed there renders nowhere and
- * reports nothing, and the repository rule that a page ships as an English and
- * Chinese pair with equal line counts is checked by nobody else. Both failures
- * are silent, so this reads the files, the library and the build copy.
+ * A page renders on the site only when five lists agree with the files: the
+ * file itself, `GUIDES` and `SECTIONS` in `.vitepress/guide.ts`, the
+ * `rewrites` map and the `sidebar` in `.vitepress/config.mts`. A sixth names
+ * the same pages on GitHub, in the `docs/AGENTS.md` tree table. A file missing
+ * from any one of them renders nowhere, or ships as a file nobody can reach,
+ * and reports nothing: both are silent in review, so this reads every owner.
+ *
+ * The repository rule that a page ships as an English and Chinese pair with
+ * equal line counts is checked by nobody else, and neither is the build copy,
+ * so this checks those here too.
  *
  * Usage: node scripts/check-guide.mjs
  *
@@ -21,6 +26,8 @@ const SITE = resolve(HERE, '..')
 const REPO = resolve(SITE, '..')
 const GUIDE_DIR = join(REPO, 'docs', 'user')
 const LIBRARY = join(SITE, '.vitepress', 'guide.ts')
+const CONFIG = join(SITE, '.vitepress', 'config.mts')
+const DOC_STANDARD = join(REPO, 'docs', 'AGENTS.md')
 const COPY_DIR = join(SITE, 'guide')
 
 /** Page names the library declares, read from its `GUIDES` array. */
@@ -39,6 +46,30 @@ function sectionPages() {
   return [...block[1].matchAll(/pages: \[([^\]]*)\]/g)].flatMap(m => [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]))
 }
 
+/** Page names the site rewrites, from every guide-page key in the rewrites map. */
+function rewritePages() {
+  const source = readFileSync(CONFIG, 'utf8')
+  const block = source.match(/rewrites: \{([\s\S]*?)\n  \}/)
+  if (block === null) throw new Error('check-guide: rewrites not found in ' + CONFIG)
+  return [...block[1].matchAll(/'guide\/([a-z0-9-]+)(?:\.zh)?\.md'/g)].map(m => m[1])
+}
+
+/** Page names the site sidebar links, from every docs route it names. */
+function sidebarPages() {
+  const source = readFileSync(CONFIG, 'utf8')
+  const block = source.match(/sidebar: \{([\s\S]*?)\n    \},\n    footer/)
+  if (block === null) throw new Error('check-guide: sidebar not found in ' + CONFIG)
+  return [...block[1].matchAll(/link: '\/docs(?:\/zh)?\/([a-z0-9-]+)'/g)].map(m => m[1])
+}
+
+/** Page names the documentation tree announces, from the user/ row of its table. */
+function standardPages() {
+  const source = readFileSync(DOC_STANDARD, 'utf8')
+  const row = source.match(/^\| `user\/` \|.*$/m)
+  if (row === null) throw new Error('check-guide: no user/ row in ' + DOC_STANDARD)
+  return [...row[0].matchAll(/\]\(user\/([a-z0-9-]+)\.md\)/g)].map(m => m[1])
+}
+
 const problems = []
 
 const files = statSync(GUIDE_DIR, { throwIfNoEntry: false })?.isDirectory() ? readdirSync(GUIDE_DIR).filter(name => name.endsWith('.md')) : []
@@ -55,6 +86,27 @@ for (const file of files) {
 // 2. Every declared route has a file, so the build cannot fail on a typo.
 for (const entry of nav) {
   if (!files.includes(entry)) problems.push('GUIDES names ' + entry + ', which docs/user/ does not ship')
+}
+
+// 2b. Every owner of the page set names the same pages. A page the site rewrites
+//     but the sidebar omits has a route and no link to it; one the documentation
+//     tree omits is reachable on the site and invisible in the repository.
+const shipped = files
+  .filter(file => !file.endsWith('.zh.md'))
+  .map(file => file.slice(0, -'.md'.length))
+  .sort()
+for (const [owner, named] of [
+  ['the rewrites map in .vitepress/config.mts', rewritePages()],
+  ['the sidebar in .vitepress/config.mts', sidebarPages()],
+  ['the user/ row in docs/AGENTS.md', standardPages()]
+]) {
+  const declared = new Set(named)
+  for (const page of shipped) {
+    if (!declared.has(page)) problems.push(page + '.md is missing from ' + owner + ', so that surface does not list it')
+  }
+  for (const page of declared) {
+    if (!shipped.includes(page)) problems.push(owner + ' names ' + page + ', which docs/user/ does not ship')
+  }
 }
 
 // 3. Bilingual pairing: the repository rule is an equal line count per pair.

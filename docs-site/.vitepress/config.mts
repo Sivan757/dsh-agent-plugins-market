@@ -67,7 +67,9 @@ export default defineConfig({
           text: 'Content',
           items: [
             { text: 'Marketplace sources', link: '/docs/sources' },
-            { text: 'Your own resources', link: '/docs/resources' }
+            { text: 'Your own resources', link: '/docs/resources' },
+            { text: 'Workspace instructions', link: '/docs/instructions' },
+            { text: 'Output styles', link: '/docs/output-styles' }
           ]
         },
         {
