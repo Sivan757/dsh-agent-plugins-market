@@ -8,17 +8,20 @@
  * an absolute path, and a page that is allowed to read the response is not the
  * reader who can act on that path.
  *
- * So a message that names a path is replaced by a fixed one, and the detail
- * goes to the log. A message that names no path passes through, because the
- * route modules author those for the user ("missing source url", "sha256 must be
- * a 64-character hex digest") and a generic replacement would erase the one
- * thing the editor shows beside the input it belongs to.
+ * So the boundary redacts every filesystem path and URL credential in the
+ * message and passes the sentence through, while the log keeps the whole detail.
+ * Replacing the sentence outright was the first attempt and it cost too much:
+ * a rejection that echoes the rejected value lost its reason whenever that value
+ * contained a slash ("/etc/passwd is not a usable style name" became a generic
+ * failure), and the reason is the one fact the editor places beside the input.
+ *
+ * Classification is by message content, not by throwing site, because the
+ * authored rejections do not all come from the route modules: the style-name
+ * rule lives in market-runtime, a layer below, so a flag passed from route throw
+ * sites would never have covered it.
  * @module route-errors
  */
-import { containsFilePath, redactErrorMessage } from '../../market-contracts/src/redaction.js'
-
-/** What the browser is told when the detail names a filesystem location. */
-export const ROUTE_FAILURE_MESSAGE = 'the request failed; the server log has the detail'
+import { redactErrorMessage, redactFilePaths } from '../../market-contracts/src/redaction.js'
 
 /** The code used when a failure carries none of its own. */
 export const ROUTE_FAILURE_CODE = 'request-failed'
@@ -51,9 +54,12 @@ export function describeRouteError(error: unknown): RouteFailure {
   const carried = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined
   const code = typeof carried === 'string' && carried !== '' ? carried : ROUTE_FAILURE_CODE
   const fields = typeof error === 'object' && error !== null && 'fields' in error ? (error as { fields?: unknown }).fields : undefined
-  // The message names a location, so nothing of it crosses. Otherwise it is kept
-  // with URL credentials redacted, which a diagnostic can also carry.
-  const message = containsFilePath(detail) ? ROUTE_FAILURE_MESSAGE : redactErrorMessage(detail)
+  // The sentence crosses with its locations and URL credentials redacted, not
+  // replaced: discarding it hid the reason a save was refused whenever the
+  // rejected value itself contained a slash, and that reason is the one fact the
+  // editor shows beside the input. A redacted path names no directory the reader
+  // does not already have, while the diagnosis survives.
+  const message = redactErrorMessage(redactFilePaths(detail))
   return {
     code,
     message,

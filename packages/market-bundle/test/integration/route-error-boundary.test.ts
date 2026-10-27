@@ -122,8 +122,27 @@ describe('the route error boundary', () => {
       // The security property first: no filesystem layout crosses the boundary.
       expect(JSON.stringify(body)).not.toContain(missing)
       expect(body['code']).toBe('request-failed')
+      // The diagnosis survives, because only the location was withheld.
+      expect(body['error']).toContain('<path>')
+      expect(body['error']).toContain('local source directory')
+      expect(body['error']).toContain('is missing')
       // The operator still gets the detail, in the log.
       expect(logged.join('\n')).toContain(missing)
+    } finally {
+      dispose()
+    }
+  })
+
+  it('keeps the authored reason when the rejected value echoes a slash', async () => {
+    // The rejected value is the user's own input, and a slash in it is why the
+    // request was refused. Redaction must withhold the value, not the rule.
+    const webServer = routes()
+    const dispose = mountSuiteRoutes({ webServer, logger: { warn: () => {} } }, service({}))
+    try {
+      const body = await post(webServer, MARKET_ROUTES.addSource, { url: 'https://example.com/x', kind: '/etc/passwd' })
+      expect(body['ok']).toBe(false)
+      expect(body['error']).toContain('invalid source kind')
+      expect(JSON.stringify(body)).not.toContain('/etc/passwd')
     } finally {
       dispose()
     }

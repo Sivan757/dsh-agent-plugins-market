@@ -202,6 +202,19 @@ describe('output-style routes', () => {
     expect(answer.body['error']).toContain('not a usable style name')
   })
 
+  it('keeps the authored reason when the rejected name itself contains a slash', async () => {
+    // The name is the user's input, and a slash in it is exactly why the save was
+    // refused. Replacing the sentence with the generic failure would hide the one
+    // fact the editor shows beside the input.
+    const { ctx, routes } = host()
+    mountOutputStyleRoutes(ctx, { service: await service(), session: session() })
+    for (const name of ['/etc/passwd', 'Team/Style', 'a/b']) {
+      const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.saveUser), { name, description: '', body: 'x' })
+      expect(answer.status).toBe(400)
+      expect(answer.body['error']).toContain('not a usable style name')
+    }
+  })
+
   it('answers 404 for an unknown session instead of reading another workspace', async () => {
     const { ctx, routes } = host()
     mountOutputStyleRoutes(ctx, { service: await service(), session: session() })
