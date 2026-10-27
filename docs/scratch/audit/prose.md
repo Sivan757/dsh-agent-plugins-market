@@ -25,7 +25,7 @@ Severity means the harm a reader suffers from believing the sentence, not the si
 
 > Hooks run on the published hook protocol, on ten events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `PreCompact` and `SessionEnd`.
 
-**Why it ranks first.** The sentence is the only place a user is told the event list, and it understates the product by three events while naming a bridge this composition never mounts. [Hook event coverage](../reference/hooks-event-coverage.md) is the owning reference and disagrees with it.
+**Why it ranks first.** The sentence is the only place a user is told the event list, and it understates the product by three events while naming a bridge this composition never mounts. [Hook event coverage](../../reference/hooks-event-coverage.md) is the owning reference and disagrees with it.
 
 ---
 
@@ -35,7 +35,7 @@ Severity means the harm a reader suffers from believing the sentence, not the si
 
 > The current package declares the DSH host packages it needs in the `^0.2.0-rc.2` range.
 
-**Contradicted by** `package.json:104-130` and `:148-154`: every `@deepseek-ai/dsh-*` peer and dependency carries `>=0.2.0-rc.2 <0.3.0-0`. No entry uses a caret. The window replaced the caret deliberately, and the reasoning is recorded in [the host support window note](../../.agents/notes/implemented/process/2026-10-17-host-support-window.md): a caret on a prerelease matches only its own `major.minor.patch`, so it excludes the next candidate the host ships.
+**Contradicted by** `package.json:104-130` and `:148-154`: every `@deepseek-ai/dsh-*` peer and dependency carries `>=0.2.0-rc.2 <0.3.0-0`. No entry uses a caret. The window replaced the caret deliberately, and the reasoning is recorded in [the host support window note](../../../.agents/notes/implemented/process/2026-10-17-host-support-window.md): a caret on a prerelease matches only its own `major.minor.patch`, so it excludes the next candidate the host ships.
 
 **Corrected sentence**
 
