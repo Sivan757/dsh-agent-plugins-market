@@ -6,9 +6,9 @@
  * mutation lost the race. This file owns `tab-layout/<workspace hash>.json` and
  * nothing else.
  *
- * The read is tolerant the way every plugin state file is: an absent, empty,
- * unparsable, or hand-edited document resolves to "nothing stowed", never to a
- * throw that would block the workspace.
+ * The read is tolerant the way every plugin state file is: an absent, empty, or
+ * hand-edited document resolves to the default stow list, never to a throw that
+ * would block the workspace.
  * @module application/state/tab-layout
  */
 import { createHash } from 'node:crypto'
@@ -16,7 +16,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
-import { emptyTabLayout, resolveHiddenTabs, TAB_LAYOUT_VERSION, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
+import { defaultTabLayout, resolveHiddenTabs, TAB_LAYOUT_VERSION, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
 
 /** One workspace's stowed tabs as this store keeps them. */
 export type TabLayout = TabLayoutWire
@@ -40,10 +40,12 @@ export function tabLayoutPath(dataRoot: string, workspace: string): string {
 /**
  * Read one workspace's layout.
  *
- * An unusable document reads as nothing stowed: the tab row is then complete,
- * which is the safe direction for a layout nobody can see. The clamp that keeps
- * one tab visible lives in `resolveHiddenTabs`, so a hand-written file cannot
- * empty the row either.
+ * A workspace with no document, or one that cannot be parsed, gets
+ * {@link defaultTabLayout}: the same starting row a fresh workspace gets, which
+ * keeps three rarely used surfaces out of the way. That is not a silent loss of
+ * a person's choice, because a choice is written on the first edit and an
+ * unparsable document carries none. The clamp that keeps one tab visible lives
+ * in `resolveHiddenTabs`, so a hand-written file cannot empty the row either.
  * @param dataRoot - the plugin data root.
  * @param workspace - the workspace the layout belongs to.
  * @returns the resolved layout.
@@ -57,11 +59,17 @@ export async function loadTabLayout(dataRoot: string, workspace: string): Promis
     // reads as nothing stowed so the workspace opens, and the next write
     // replaces the file. Every other failure stays fatal, because a permission
     // problem must surface instead of quietly showing every tab.
-    if (error instanceof SyntaxError) return emptyTabLayout()
+    if (error instanceof SyntaxError) return defaultTabLayout()
     throw error
   }
-  if (typeof value !== 'object' || value === null) return emptyTabLayout()
-  return { hidden: resolveHiddenTabs((value as Record<string, unknown>)['hidden']) }
+  // A document counts only when it carries a stow list. Anything else — a bare
+  // array, a record with no `hidden`, a `hidden` of the wrong type — is a
+  // document this release cannot read, which is the same fact as having none:
+  // nobody expressed an opinion about the row.
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return defaultTabLayout()
+  const hidden = (value as Record<string, unknown>)['hidden']
+  if (!Array.isArray(hidden)) return defaultTabLayout()
+  return { hidden: resolveHiddenTabs(hidden) }
 }
 
 /**

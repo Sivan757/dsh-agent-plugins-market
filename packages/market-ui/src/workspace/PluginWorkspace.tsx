@@ -14,7 +14,7 @@ import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { ResourceTabs } from '../ui/ResourceTabs.js'
 import { TabStowControl } from './TabStowControl.js'
 import { loadTabLayout, saveTabLayout } from '../api.js'
-import { resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
+import { defaultTabLayout, resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -118,12 +118,14 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
 
   // The stow list is read once and then owned here: the row, the menu and the
   // dialog all render from this value, so a write cannot leave the row and the
-  // panel disagreeing about which tabs exist.
-  const [layout, setLayout] = useState<{ hidden: string[] }>({ hidden: [] })
+  // panel disagreeing about which tabs exist. It starts from the same default the
+  // server answers, so the first paint is the row the workspace really has
+  // instead of a full one that collapses a frame later.
+  const [layout, setLayout] = useState<{ hidden: string[] }>(() => defaultTabLayout())
   const [layoutError, setLayoutError] = useState<string | undefined>(undefined)
   const [stowing, setStowing] = useState(false)
   /** The last layout the server confirmed, so a failed write can put it back. */
-  const confirmed = useRef<{ hidden: string[] }>({ hidden: [] })
+  const confirmed = useRef<{ hidden: string[] }>(defaultTabLayout())
 
   useEffect(() => {
     let live = true

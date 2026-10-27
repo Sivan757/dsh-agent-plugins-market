@@ -346,15 +346,19 @@ describe('workspace tab stowing', () => {
     expect(activePanel()).toBe('market')
   })
 
-  it('keeps every tab visible when the layout read fails, and reports it in the manager', async () => {
+  it('keeps the default row when the layout read fails, leaves every tab reachable, and reports it in the manager', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => json(500, { ok: false, error: 'boom' }))
     )
     await mount()
 
-    expect(chipLabels()).toHaveLength(9)
+    // A failed read cannot leave the workspace with nothing: the starting row
+    // still renders, and the three default-stowed tabs are one row away.
+    expect(chipLabels()).toHaveLength(6)
     await openManager()
     expect(dialog()?.textContent).toContain('tabLayoutLoadFailed')
+    // Every one of the nine surfaces is still listed and togglable.
+    expect(dialog()?.querySelectorAll('input[type="checkbox"]').length).toBe(9)
   })
 })

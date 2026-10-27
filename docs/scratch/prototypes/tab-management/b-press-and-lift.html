@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>方案 B · 长按抬升</title>
+    <style>
+      :root {
+        --dsw-static-deepseek-100: rgb(228, 237, 253);
+        --dsw-static-deepseek-500: rgb(65, 118, 230);
+        --dsw-static-green-500: rgb(52, 199, 123);
+        --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+        --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+        --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+        --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+        --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+        --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+        --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+        --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+        --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+        --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+        --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+        --dsw-radius-sm: 6px;
+        --dsw-radius-md: 10px;
+        --dsw-radius-lg: 14px;
+        --dsw-radius-panel: 16px;
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+        --dsw-alias-border-l1: rgba(0, 0, 0, 0.06);
+        --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+        --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+        --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+        --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+        --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+        --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+        --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-elevation-soft: 0 1px 2px rgba(15, 17, 21, 0.04), 0 4px 16px rgba(15, 17, 21, 0.06);
+        --dsw-elevation-prominent: 0 8px 40px rgba(15, 17, 21, 0.16);
+      }
+      :root[data-theme='dark'] {
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-border-l1: rgba(255, 255, 255, 0.08);
+        --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+        --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+        --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+        --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+        --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.24);
+        --dsw-elevation-prominent: 0 8px 40px rgba(0, 0, 0, 0.5);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+        font-size: 14px;
+        line-height: 24px;
+        color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-module-platform);
+        padding: 26px 32px 44px;
+        overflow-x: hidden;
+      }
+      .head {
+        max-width: 900px;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .head h1 {
+        font-size: 19px;
+        line-height: 26px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      .head p {
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        max-width: 620px;
+        line-height: 19px;
+      }
+      .head .spacer {
+        flex: 1;
+      }
+      .chip {
+        border: 1px solid var(--dsw-alias-border-l2);
+        background: var(--dsw-alias-bg-layer-2);
+        border-radius: 999px;
+        padding: 5px 12px;
+        font-size: 12px;
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+        transition:
+          transform 0.16s ease,
+          background 0.16s ease;
+      }
+      .chip:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        transform: translateY(-1px);
+      }
+      .chip:active {
+        transform: scale(0.97);
+      }
+      .panel {
+        max-width: 900px;
+        margin: 0 auto;
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-panel);
+        box-shadow: var(--dsw-elevation-soft);
+        padding: 18px 22px 22px;
+        position: relative;
+      }
+      .ptitle {
+        font-size: 15px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .ptitle .count {
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--dsw-alias-label-tertiary);
+        border: 1px solid var(--dsw-alias-border-l1);
+        border-radius: 999px;
+        padding: 1px 9px;
+        transition: all 0.2s ease;
+      }
+      .body {
+        margin-top: 16px;
+        border-top: 1px solid var(--dsw-alias-border-l1);
+        padding-top: 14px;
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        min-height: 70px;
+        line-height: 20px;
+      }
+      .body b {
+        color: var(--dsw-alias-label-secondary);
+        font-weight: 600;
+      }
+      .states {
+        max-width: 900px;
+        margin: 22px auto 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .state {
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-lg);
+        padding: 14px 18px 16px;
+      }
+      .state .cap {
+        font-size: 10.5px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--dsw-alias-label-tertiary);
+        margin-bottom: 10px;
+      }
+      .state .cap b {
+        color: var(--dsw-alias-state-business-primary);
+        font-weight: 650;
+        margin-right: 6px;
+      }
+      .state .note {
+        font-size: 12px;
+        color: var(--dsw-alias-label-tertiary);
+        margin-top: 10px;
+        line-height: 19px;
+      }
+      /* shared tab row atoms */
+      .tabs {
+        position: relative;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-width: 0;
+      }
+      .tab {
+        font: inherit;
+        font-size: 13px;
+        border: 0;
+        background: transparent;
+        color: var(--dsw-alias-label-secondary);
+        padding: 7px 11px;
+        border-radius: var(--dsw-radius-sm);
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          color 0.16s ease,
+          background 0.16s ease,
+          transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+          opacity 0.2s ease,
+          box-shadow 0.18s ease;
+      }
+      .tab:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        color: var(--dsw-alias-label-primary);
+      }
+      .tab.on {
+        color: var(--dsw-alias-label-primary);
+        font-weight: 600;
+      }
+      .ind {
+        position: absolute;
+        bottom: 2px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--dsw-alias-state-business-primary);
+        transition:
+          left 0.34s cubic-bezier(0.34, 1.4, 0.64, 1),
+          width 0.34s cubic-bezier(0.34, 1.4, 0.64, 1);
+      }
+      .dock {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        flex: none;
+      }
+      .ghost-pill {
+        font: inherit;
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-secondary);
+        background: var(--dsw-alias-bg-layer-3);
+        border: 1px dashed var(--dsw-alias-border-l3);
+        border-radius: 999px;
+        padding: 2px 9px;
+        cursor: pointer;
+        transition:
+          transform 0.18s ease,
+          background 0.18s ease,
+          border-color 0.18s ease;
+      }
+      .ghost-pill:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        border-color: var(--dsw-alias-state-business-primary);
+        color: var(--dsw-alias-label-primary);
+        transform: translateY(-1px);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        position: relative;
+      }
+
+      .rowwrap {
+        position: relative;
+        padding-top: 6px;
+      }
+      .row {
+        transition:
+          transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+          background 0.2s ease,
+          box-shadow 0.3s ease;
+        border-radius: 12px;
+        padding: 0 6px;
+      }
+      .row.lift {
+        transform: translateY(-3px);
+        background: var(--dsw-alias-bg-layer-3);
+        box-shadow:
+          0 6px 22px rgba(15, 17, 21, 0.1),
+          0 0 0 1px var(--dsw-alias-border-l2);
+      }
+      .row.lift .tab {
+        opacity: 0.82;
+        transition:
+          opacity 0.2s ease,
+          transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .row.lift .tab:hover,
+      .row.lift .tab.on {
+        opacity: 1;
+      }
+      .tab.dragging {
+        opacity: 0.45;
+        transform: scale(0.94);
+      }
+      .tab.pressed {
+        transform: scale(0.94);
+      }
+      /* 长按进度环 */
+      .hold {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 26px;
+        height: 26px;
+        margin: -13px 0 0 -13px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        border-top-color: var(--dsw-alias-state-business-primary);
+        opacity: 0;
+        pointer-events: none;
+      }
+      .hold.on {
+        opacity: 1;
+        animation: spin 0.5s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      /* 拖出右缘的落点提示 */
+      .dropzone {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 104px;
+        border-radius: 10px;
+        white-space: nowrap;
+        background: linear-gradient(90deg, transparent, var(--dsw-alias-state-business-tertiary));
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 10px;
+        font-size: 11px;
+        color: var(--dsw-alias-state-business-primary);
+        pointer-events: none;
+        letter-spacing: 0.02em;
+      }
+      .row.lift .dropzone {
+        opacity: 1;
+      }
+      .row.drop-armed .dropzone {
+        opacity: 1;
+        box-shadow: inset 0 0 0 2px var(--dsw-alias-state-business-primary);
+      }
+      /* 浮动收纳坞 */
+      .dock {
+        position: absolute;
+        right: 0;
+        top: -34px;
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        opacity: 0;
+        transform: translateY(6px);
+        pointer-events: none;
+        transition:
+          opacity 0.2s ease,
+          transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .dock.has,
+      .row.lift + .dock,
+      .rowwrap:hover .dock.has {
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+      }
+      .dock .tag {
+        font-size: 10.5px;
+        color: var(--dsw-alias-label-tertiary);
+        letter-spacing: 0.04em;
+        margin-right: 2px;
+      }
+      .state .row {
+        pointer-events: none;
+      }
+      .state .dock {
+        position: static;
+        opacity: 1;
+        transform: none;
+      }
+      .rowwrap {
+        min-height: 26px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <div>
+        <h1>方案 B · 长按抬升 + 拖出收纳</h1>
+        <p>长按任意页签 260ms，整行轻微抬升进入编辑态，页签可横向拖动；拖到右缘的落点区即收纳。没有按钮，也没有常驻图标。</p>
+      </div>
+      <div class="spacer"></div>
+      <button class="chip" id="theme">切换深色</button>
+      <button class="chip" id="guide">重放首次引导</button>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle">Agent Plugins <span class="count"></span></div>
+      <div class="rowwrap">
+        <div class="dock"><span class="tag">已收纳</span></div>
+        <div class="row" id="live">
+          <div class="tabs"></div>
+          <div class="dropzone">拖到这里收纳</div>
+          <div class="hold"></div>
+        </div>
+      </div>
+      <div class="body">长按 <b>语言引擎</b> 或 <b>钩子</b>，整行会浮起 3px；按住往右拖到边缘松手就收进去了。收纳后点上方幽灵芯片即可放回。</div>
+    </div>
+
+    <div class="states">
+      <div class="state">
+        <div class="cap"><b>状态 1</b>静止 · 完全无控件</div>
+        <div class="rowwrap">
+          <div class="dock"><span class="tag">已收纳</span></div>
+          <div class="row"><div class="tabs"></div></div>
+        </div>
+        <div class="note">不做任何常驻装饰。收纳项只在有内容时才浮在上方，且不占行内空间。</div>
+      </div>
+      <div class="state">
+        <div class="cap"><b>状态 2</b>长按 · 260ms 进度环 → 抬升</div>
+        <div class="rowwrap">
+          <div class="row lift">
+            <div class="tabs"></div>
+            <div class="dropzone">拖到这里收纳</div>
+          </div>
+        </div>
+        <div class="note">按住不动先出现一枚 26px 进度环，满圈瞬间整行 translateY(-3px) + 阴影浮起，其余页签降到 82% 不透明度 —— 这是"进入编辑态"的可信信号。</div>
+      </div>
+      <div class="state">
+        <div class="cap"><b>状态 3</b>拖动 · 被拖页签半透明，落点区点亮</div>
+        <div class="rowwrap">
+          <div class="row lift drop-armed">
+            <div class="tabs"></div>
+            <div class="dropzone">拖到这里收纳</div>
+          </div>
+        </div>
+        <div class="note">被拖页签 opacity .45 + scale .94，落点区从渐变升级为 2px 实线内描边。松手 200ms 收起，整段只写一次盘。</div>
+      </div>
+    </div>
+
+    <script>
+      const KEYS = [
+        ['market', '市场'],
+        ['instructions', '规则'],
+        ['outputStyles', '输出风格'],
+        ['skills', '技能'],
+        ['commands', '快捷指令'],
+        ['personas', '专家'],
+        ['mcp', '连接器'],
+        ['lsp', '语言引擎'],
+        ['hooks', '钩子']
+      ]
+      const PINNED = 'market'
+      const label = k => (KEYS.find(e => e[0] === k) || ['', '?'])[1]
+      function tabButton(key, activeKey, extra) {
+        const b = document.createElement('button')
+        b.className = 'tab' + (key === activeKey ? ' on' : '') + (extra ? ' ' + extra : '')
+        b.textContent = label(key)
+        b.dataset.key = key
+        b.type = 'button'
+        return b
+      }
+      function renderRow(root, stowed, activeKey, animate) {
+        root.querySelectorAll('.tab,.ghost-pill,.ind').forEach(n => n.remove())
+        const tabs = root.querySelector('.tabs')
+        const visible = KEYS.filter(([k]) => !stowed.includes(k))
+        visible.forEach(([k], i) => {
+          const b = tabButton(k, activeKey)
+          if (animate) {
+            b.style.animationDelay = i * 26 + 'ms'
+          }
+          tabs.appendChild(b)
+        })
+        const ind = document.createElement('div')
+        ind.className = 'ind'
+        tabs.appendChild(ind)
+        const on = tabs.querySelector('.tab.on')
+        if (on) {
+          ind.style.left = on.offsetLeft + 'px'
+          ind.style.width = on.offsetWidth + 'px'
+        }
+        const dock = root.querySelector('.dock')
+        if (dock) {
+          dock.innerHTML = ''
+          stowed.forEach((k, i) => {
+            const p = document.createElement('button')
+            p.type = 'button'
+            p.className = 'ghost-pill'
+            p.textContent = label(k)
+            p.dataset.key = k
+            p.style.animationDelay = i * 40 + 'ms'
+            dock.appendChild(p)
+          })
+          dock.classList.toggle('has', stowed.length > 0)
+        }
+        const counter = root.querySelector('.count')
+        if (counter) counter.textContent = stowed.length === 0 ? '全部可见' : '已收纳 ' + stowed.length
+      }
+      window.__KIT = { KEYS, PINNED, label, tabButton, renderRow }
+      const live = document.getElementById('live')
+      let stowed = ['lsp', 'hooks'],
+        active = 'market'
+      const holdEl = live.querySelector('.hold')
+
+      function paint(animate) {
+        __KIT.renderRow(live, stowed, active, animate)
+        live.querySelectorAll('.tab').forEach(b => {
+          b.onclick = () => {
+            if (live.classList.contains('lift')) return
+            active = b.dataset.key
+            paint(false)
+          }
+          b.addEventListener('pointerdown', e => startHold(b, e))
+        })
+      }
+      document.querySelectorAll('.dock').forEach(dock => {
+        dock.innerHTML = '<span class="tag">已收纳</span>'
+        stowed.forEach((k, i) => {
+          const p = document.createElement('button')
+          p.className = 'ghost-pill'
+          p.textContent = __KIT.label(k)
+          p.style.animationDelay = i * 40 + 'ms'
+          p.onclick = () => {
+            stowed = stowed.filter(x => x !== k)
+            active = k
+            paint(true)
+            refreshDock()
+          }
+          dock.appendChild(p)
+        })
+        dock.classList.add('has')
+      })
+      function refreshDock() {
+        document.querySelectorAll('.dock').forEach(dock => {
+          dock.innerHTML = '<span class="tag">已收纳</span>'
+          stowed.forEach((k, i) => {
+            const p = document.createElement('button')
+            p.className = 'ghost-pill'
+            p.textContent = __KIT.label(k)
+            p.style.animationDelay = i * 40 + 'ms'
+            p.onclick = () => {
+              stowed = stowed.filter(x => x !== k)
+              active = k
+              paint(true)
+              refreshDock()
+            }
+            dock.appendChild(p)
+          })
+          dock.classList.toggle('has', stowed.length > 0)
+        })
+        const badge = document.querySelector('.ptitle .count')
+        if (badge) badge.textContent = stowed.length ? '已收纳 ' + stowed.length : '全部可见'
+      }
+
+      let hold = null,
+        dragging = null
+      function startHold(btn, e) {
+        if (live.classList.contains('lift')) {
+          startDrag(btn, e)
+          return
+        }
+        btn.classList.add('pressed')
+        holdEl.classList.add('on')
+        hold = setTimeout(() => {
+          holdEl.classList.remove('on')
+          btn.classList.remove('pressed')
+          live.classList.add('lift')
+          startDrag(btn, e, true)
+        }, 260)
+        const cancel = () => {
+          clearTimeout(hold)
+          holdEl.classList.remove('on')
+          btn.classList.remove('pressed')
+          window.removeEventListener('pointerup', cancel)
+        }
+        window.addEventListener('pointerup', cancel, { once: true })
+      }
+      function startDrag(btn, e) {
+        dragging = { btn, x: e.clientX }
+        btn.setPointerCapture?.(e.pointerId)
+        btn.classList.add('dragging')
+        const move = ev => {
+          if (!dragging) return
+          const r = live.getBoundingClientRect()
+          const armed = ev.clientX > r.right - 104
+          live.classList.toggle('drop-armed', armed)
+        }
+        const up = ev => {
+          if (!dragging) return
+          const r = live.getBoundingClientRect()
+          const key = dragging.btn.dataset.key
+          if (ev.clientX > r.right - 104 && key !== __KIT.PINNED && !stowed.includes(key)) {
+            stowed = [...stowed, key]
+            if (active === key) active = __KIT.PINNED
+            paint(true)
+            refreshDock()
+          }
+          live.classList.remove('drop-armed', 'lift')
+          dragging.btn.classList.remove('dragging')
+          dragging = null
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      }
+
+      function runGuide() {
+        live.classList.add('lift')
+        const tab = live.querySelector('.tab')
+        if (!tab) {
+          return
+        }
+        const tip = document.createElement('div')
+        tip.className = 'tip'
+        tip.textContent = '长按任何页签，进入收纳模式'
+        tip.style.left = '50%'
+        tip.style.bottom = 'calc(100% + 34px)'
+        tip.style.transform = 'translateX(-50%)'
+        live.append(tip)
+        tab.animate([{ transform: 'scale(1)' }, { transform: 'scale(.92)', offset: 0.4 }, { transform: 'scale(1)' }], {
+          duration: 760,
+          iterations: 2,
+          easing: 'cubic-bezier(.34,1.56,.64,1)'
+        })
+        setTimeout(() => {
+          tip.style.transition = 'opacity .3s'
+          tip.style.opacity = '0'
+          setTimeout(() => {
+            tip.remove()
+            live.classList.remove('lift')
+          }, 320)
+        }, 1800)
+      }
+      document.getElementById('guide').onclick = runGuide
+      document.getElementById('theme').onclick = e => {
+        const dark = document.documentElement.dataset.theme === 'dark'
+        document.documentElement.dataset.theme = dark ? 'light' : 'dark'
+        e.target.textContent = dark ? '切换深色' : '切换浅色'
+      }
+      paint(false)
+      refreshDock()
+      document.querySelectorAll('.state .row').forEach((row, i) => {
+        __KIT.renderRow(row, ['lsp', 'hooks'], 'market', false)
+      })
+      /* guide runs on demand */
+    </script>
+  </body>
+</html>

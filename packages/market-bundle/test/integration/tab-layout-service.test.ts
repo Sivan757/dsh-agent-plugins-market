@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { loadTabLayout, mutateTabLayout, saveTabLayout, tabLayoutPath } from '../../../../packages/market-runtime/src/application/state/tab-layout.js'
 import { TabLayoutService } from '../../../../packages/market-runtime/src/runtime/host/tab-layout-service.js'
-import { WORKSPACE_TAB_KEYS } from '../../../../packages/market-contracts/src/contracts/tab-layout.js'
+import { DEFAULT_STOWED_TABS, WORKSPACE_TAB_KEYS } from '../../../../packages/market-contracts/src/contracts/tab-layout.js'
+
+/** The starting row: three rarely needed surfaces stay stowed until someone edits it. */
+const DEFAULT_HIDDEN = WORKSPACE_TAB_KEYS.filter(key => (DEFAULT_STOWED_TABS as readonly string[]).includes(key))
 
 async function dataRoot(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'tab-layout-'))
@@ -22,7 +25,7 @@ async function writeRaw(root: string, document: unknown, space = workspace): Pro
 describe('tab layout store', () => {
   it('round trips one workspace layout', async () => {
     const root = await dataRoot()
-    expect(await loadTabLayout(root, workspace)).toEqual({ hidden: [] })
+    expect(await loadTabLayout(root, workspace)).toEqual({ hidden: DEFAULT_HIDDEN })
 
     await saveTabLayout(root, workspace, ['lsp', 'hooks'])
     expect(await loadTabLayout(root, workspace)).toEqual({ hidden: ['lsp', 'hooks'] })
@@ -52,12 +55,22 @@ describe('tab layout store', () => {
     ['a bare array', []],
     ['a document with no hidden field', { version: 1, workspace }],
     ['a hidden field of the wrong type', { version: 1, hidden: 'skills' }]
-  ])('reads %s as nothing stowed', async (_label, contents) => {
+  ])('reads %s as the default stow list', async (_label, contents) => {
     const root = await dataRoot()
     const path = tabLayoutPath(root, workspace)
     await mkdir(dirname(path), { recursive: true })
     if (typeof contents === 'string') await writeFile(path, contents, 'utf8')
     else if (contents !== undefined) await writeFile(path, JSON.stringify(contents), 'utf8')
+
+    // No usable document means no recorded opinion, so the workspace opens the
+    // way a fresh one does. This is deliberately not "nothing stowed": the
+    // all-visible row is a choice, and it arrives as a written empty array.
+    expect(await loadTabLayout(root, workspace)).toEqual({ hidden: DEFAULT_HIDDEN })
+  })
+
+  it('reads an explicitly empty stow list as every tab visible', async () => {
+    const root = await dataRoot()
+    await writeRaw(root, { version: 1, workspace, hidden: [] })
 
     expect(await loadTabLayout(root, workspace)).toEqual({ hidden: [] })
   })
@@ -98,7 +111,9 @@ describe('tab layout store', () => {
       mutateTabLayout(root, workspace, current => ({ hidden: [...current.hidden, 'hooks'] }))
     ])
 
-    expect(await loadTabLayout(root, workspace)).toEqual({ hidden: ['mcp', 'lsp', 'hooks'] })
+    // Each mutation read the default, added one tab, and wrote the result; the
+    // lock is what makes the third see the first two.
+    expect(await loadTabLayout(root, workspace)).toEqual({ hidden: ['instructions', 'mcp', 'lsp', 'hooks'] })
   })
 })
 
@@ -107,7 +122,7 @@ describe('TabLayoutService', () => {
     const root = await dataRoot()
     const service = new TabLayoutService(root, workspace)
     await service.reload()
-    expect(service.currentLayout()).toEqual({ hidden: [] })
+    expect(service.currentLayout()).toEqual({ hidden: DEFAULT_HIDDEN })
 
     expect(await service.setHidden(['mcp'])).toEqual({ hidden: ['mcp'] })
     expect(await loadTabLayout(root, workspace)).toEqual({ hidden: ['mcp'] })
@@ -155,7 +170,9 @@ describe('TabLayoutService', () => {
     await writeFile(brokenRoot, 'x', 'utf8')
     const broken = new TabLayoutService(brokenRoot, workspace)
     await expect(broken.setHidden(['lsp'])).rejects.toThrow()
-    expect(broken.currentLayout()).toEqual({ hidden: [] })
+    // A failed write leaves the published layout at the starting default, not at
+    // the rejected value: the row must never show what was not stored.
+    expect(broken.currentLayout()).toEqual({ hidden: DEFAULT_HIDDEN })
     // The healthy service is untouched by the failed one.
     expect(service.currentLayout()).toEqual({ hidden: ['mcp'] })
   })
@@ -173,7 +190,8 @@ describe('TabLayoutService', () => {
     const service = new TabLayoutService(root, undefined)
     expect(await service.setHidden(['mcp'])).toEqual({ hidden: ['mcp'] })
     expect(service.currentLayout()).toEqual({ hidden: ['mcp'] })
-    // Nothing was written for a composition that has no workspace.
-    expect(await loadTabLayout(root, '')).toEqual({ hidden: [] })
+    // Nothing was written for a composition that has no workspace, so a read of
+    // the empty path still answers the default.
+    expect(await loadTabLayout(root, '')).toEqual({ hidden: DEFAULT_HIDDEN })
   })
 })

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>页签管理 · 三个方案</title>
+    <style>
+      :root {
+        --dsw-static-deepseek-100: rgb(228, 237, 253);
+        --dsw-static-deepseek-500: rgb(65, 118, 230);
+        --dsw-static-green-500: rgb(52, 199, 123);
+        --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+        --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+        --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+        --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+        --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+        --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+        --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+        --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+        --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+        --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+        --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+        --dsw-radius-sm: 6px;
+        --dsw-radius-md: 10px;
+        --dsw-radius-lg: 14px;
+        --dsw-radius-panel: 16px;
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+        --dsw-alias-border-l1: rgba(0, 0, 0, 0.06);
+        --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+        --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+        --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+        --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+        --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+        --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+        --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-elevation-soft: 0 1px 2px rgba(15, 17, 21, 0.04), 0 4px 16px rgba(15, 17, 21, 0.06);
+        --dsw-elevation-prominent: 0 8px 40px rgba(15, 17, 21, 0.16);
+      }
+      :root[data-theme='dark'] {
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-border-l1: rgba(255, 255, 255, 0.08);
+        --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+        --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+        --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+        --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+        --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.24);
+        --dsw-elevation-prominent: 0 8px 40px rgba(0, 0, 0, 0.5);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+        font-size: 14px;
+        line-height: 22px;
+        color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-module-platform);
+        padding: 34px 36px 60px;
+      }
+      .wrap {
+        max-width: 860px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 22px;
+        line-height: 30px;
+        font-weight: 650;
+        letter-spacing: -0.015em;
+        margin-bottom: 8px;
+      }
+      .lead {
+        font-size: 13px;
+        color: var(--dsw-alias-label-tertiary);
+        max-width: 640px;
+        margin-bottom: 26px;
+      }
+      .card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-panel);
+        padding: 18px 22px;
+        margin-bottom: 12px;
+        box-shadow: var(--dsw-elevation-soft);
+        transition:
+          transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1),
+          box-shadow 0.24s ease,
+          border-color 0.2s ease;
+      }
+      .card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--dsw-elevation-prominent);
+        border-color: var(--dsw-alias-border-l3);
+      }
+      .card b {
+        font-size: 15px;
+        font-weight: 640;
+        display: block;
+        margin-bottom: 3px;
+      }
+      .card .tag {
+        display: inline-block;
+        font-size: 10.5px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--dsw-alias-state-business-primary);
+        background: var(--dsw-alias-state-business-tertiary);
+        border-radius: 999px;
+        padding: 1px 8px;
+        margin-left: 8px;
+        vertical-align: 2px;
+        font-weight: 600;
+      }
+      .card p {
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        max-width: 640px;
+      }
+      .card .meta {
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-tertiary);
+        margin-top: 8px;
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .card .meta i {
+        font-style: normal;
+        opacity: 0.85;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--dsw-alias-border-l1);
+        margin: 26px 0 20px;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 640;
+        color: var(--dsw-alias-label-secondary);
+        margin-bottom: 10px;
+      }
+      ul {
+        list-style: none;
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      li {
+        padding-left: 16px;
+        position: relative;
+        margin-bottom: 6px;
+        line-height: 19px;
+      }
+      li::before {
+        content: '—';
+        position: absolute;
+        left: 0;
+        color: var(--dsw-alias-label-tertiary);
+        opacity: 0.6;
+      }
+      kbd {
+        font: inherit;
+        font-size: 11.5px;
+        background: var(--dsw-alias-bg-layer-3);
+        border: 1px solid var(--dsw-alias-border-l1);
+        border-bottom-width: 2px;
+        border-radius: 5px;
+        padding: 0 5px;
+        color: var(--dsw-alias-label-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>页签管理 · 三个方案</h1>
+      <p class="lead">
+        目标：页签行的可用空间不再被一个常驻按钮吃掉，同时让「收纳」这件事自己被发现。三个方案都去掉了行尾按钮，用不同方式把入口藏进已有的手势里。每页都可以切深色、重放引导。
+      </p>
+
+      <a class="card" href="a-edge-rail.html">
+        <b>方案 A · 边缘磁轨<span class="tag">拖拽</span></b>
+        <p>行尾 10px 留白即握把。指针进入 56px 热区，一条磁轨浮出；向左拖依次收纳，向右拖依次取回，每格 34px 磁吸。</p>
+        <div class="meta">
+          <i>零常驻控件</i><i>磁吸回弹</i><i>可加 <kbd>⌥</kbd> 点击直接收纳</i>
+        </div>
+      </a>
+
+      <a class="card" href="b-press-and-lift.html">
+        <b>方案 B · 长按抬升<span class="tag">长按</span></b>
+        <p>长按任意页签 260ms，进度环绕满整行 translateY(-3px) 浮起进入编辑态，页签可拖动；拖到右缘落点区松手即收纳。</p>
+        <div class="meta"><i>零常驻控件</i><i>"灵光一闪"式抬升</i><i>触屏同样成立</i></div>
+      </a>
+
+      <a class="card" href="c-hover-bubble.html">
+        <b>方案 C · 长悬停气泡<span class="tag">长悬停</span></b>
+        <p>悬停 620ms，页签上方浮出小气泡（收纳 / 在列表中看）；溢出的页签在右缘化成渐隐 + 数字，点渐隐展开完整列表。</p>
+        <div class="meta"><i>零常驻控件</i><i>渐隐带计数</i><i>气泡与列表共用一处入口</i></div>
+      </a>
+
+      <hr />
+      <h2>三个方案的共同约束</h2>
+      <ul>
+        <li>页签行严格保持宿主 <code>role="tablist"</code> 的漫游焦点与 ←/→/Home/End 键盘行走；入口渲染在 tablist 之外或作为页签内部的 popover，不进入焦点序列。</li>
+        <li>键盘等效路径必须存在：<kbd>⌥</kbd>+<kbd>←/→</kbd> 移动"收纳边界"，或页签聚焦时按 <kbd>⌫</kbd> 收纳。任何鼠标手势都要有键盘版本。</li>
+        <li>至少保留一个可见页签（<code>market</code> 固定不可收纳），深链打开已收纳页签时临时显示、不写回。</li>
+        <li>每次手势结束只落一次盘（乐观更新 + 失败回退并说明原因），不给每个中间帧写文件。</li>
+        <li><code>prefers-reduced-motion</code> 下取消位移与弹入，仅保留透明度切换。</li>
+      </ul>
+
+      <h2>建议</h2>
+      <ul>
+        <li>
+          默认组合：<b>A 的边缘磁轨</b>作主入口（无所占空间、可逆、一次拖到位），<b>C 的右缘渐隐 + 计数</b>作被收纳项的可见线索，<b>B 的长按抬升</b>只保留给触屏与"选中页签后按 ⌫"。
+        </li>
+        <li>首次使用：跟随 C 的气泡做一次 1.8s 引导，比 A/B 的拖拽更不容易误触，也不打断阅读。</li>
+      </ul>
+    </div>
+  </body>
+</html>
