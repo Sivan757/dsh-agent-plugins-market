@@ -25,9 +25,11 @@ The rule, stated correctly:
 
 - `# ` opens a top-level section.
 - `## ` opens a subsection of the `# ` section immediately above it.
-- A `## ` with no enclosing `# ` never appears.
+- No `# `-less `## ` appears **inside the system prompt**.
 
-Consequence for our own prompt: `## Agent plugin instructions`, `## Team coordination` and `## Output style:` are `##` siblings with no parent `# `. That, not the level itself, is the drift. The repair is to promote the three independent ones to `# `, and to keep `##` only under a real parent.
+That last clause is narrower than it first looked. Measured in `007-03-plan.json` `messages[0]`, the plan-mode reminder holds `## Plan File Info:`, `## Plan Workflow` and five `### Phase N` with **zero** `# ` lines. A `## ` with no parent `# ` is shipped behaviour outside the system prompt, so there is no global nesting rule.
+
+Consequence for our own prompt: **none.** Section 7 withdraws the promotion this paragraph used to recommend. `## Agent plugin instructions`, `## Team coordination` and `## Output style:` stay exactly as they are, and a `##` without a `#` parent is not drift either, since a shipped reminder does the same.
 
 ## 2. The `<system-reminder>` wrapper
 
@@ -41,7 +43,7 @@ Consequence for our own prompt: `## Agent plugin instructions`, `## Team coordin
 | ----- | --------------------------------------------------------------------------------------- | ----- |
 | 0     | A billing header line: `x-anthropic-billing-header: cc_version=...; cc_entrypoint=...;` | no    |
 | 1     | The identity line                                                                       | yes   |
-| 2     | The whole assembled prompt, 26,994 characters in `003-00-empty.json`                    | yes   |
+| 2     | The whole assembled prompt, 26,995 characters in `003-00-empty.json`                    | yes   |
 
 Block 2 is one block, so the internal blank lines are the only structure the model sees. Block 0 is not instruction at all and is worth knowing about only because it proves the harness can prepend metadata outside the prompt.
 
@@ -63,7 +65,7 @@ Measured: `message[0].content` is an ARRAY of text blocks. One block per reminde
    [5] text   86ch  <system-reminder>   # total_tokens
    [6] text  363ch  <system-reminder>   # codebase instructions (CLAUDE.md)
    [7] text   64ch  <system-reminder>   # today's date
-   [8] text  583ch  <system-reminder>   # git attribution
+   [8] text  582ch  <system-reminder>   # git attribution
    [9] text    5ch  hello                # the user
 ```
 
@@ -93,7 +95,7 @@ So the breakpoint sits at the end of the system prompt and again at the newest t
 
 `wire-captures.md` section 10 item 1 says every system prompt section is `# Name` and "no block contains two sibling `# ` headings". The second half is false, and the first half is true only per section.
 
-The assembled system prompt is a single block (26,994 characters in `003-00-empty.json`), and it contains ten `# ` sections plus six `## ` subsections, all six under `# auto memory`. So a block can hold many `# ` siblings; it is the per-section pattern that stays consistent: one `# ` opens a section, `## ` only appears inside one.
+The assembled system prompt is a single block (26,995 characters in `003-00-empty.json`; `004-01-memory.json` is one character shorter because its working directory path is), and it contains ten `# ` sections plus six `## ` subsections, all six under `# auto memory`. So a block can hold many `# ` siblings; it is the per-section pattern that stays consistent: one `# ` opens a section, `## ` only appears inside one.
 
 Read item 1 together with section 1 of this file and the rule in section 1 above.
 
@@ -135,3 +137,31 @@ Two strength claims about the same content class in one request, one hedged from
 The shape still transfers, and both sources agree on it: name the source, blank line, body. The host writes `Instructions from: ${displayPath}` and Claude Code writes `Contents of ${path} (${type}):`. Either satisfies the measured convention.
 
 Nothing else in this file is affected. The hook labelling, command metadata, notification, and invented-tag fixes stand.
+
+## 9. Two more claims this file left standing, both false
+
+An independent verification pass re-measured the reports and found two statements that survived the earlier corrections but should not have.
+
+### The system prompt is not tag-free
+
+`conformance-gaps.md:25` says the system prompt has no tags at all. Only the heading half of that sentence was ever retracted. Measured in `003-00-empty.json` `system[2]`: 59 tag occurrences across 40 lines, including a real XML taxonomy block (`<types>` -> `<type>` -> `<name>`, `<description>`, `<when_to_save>`, `<how_to_use>`, `<examples>`), a `<body_structure>` element, and a trailing `<total_tokens>15000000 tokens left</total_tokens>` as the last line of the prompt.
+
+Corrected: the system prompt is mostly Markdown, with one XML taxonomy block and one trailing token counter. A tag anywhere in it is not automatically drift, but every tag in it describes structure inside the prompt rather than labelling injected content, which is the distinction our rules actually need.
+
+### Nesting reaches four, not two
+
+`wire-captures.md` section 10 item 7 says nothing in the capture set is three deep. Two counter-examples:
+
+- `003-00-empty.json` `system[2]`: `<types>` -> `<type>` -> `<name>`, depth three.
+- `013-06-subagent.json` `messages[2]`: `<system-reminder>` -> `<task-notification>` -> `<usage>` -> `<subagent_tokens>`, depth four.
+
+Corrected: depth reaches at least four in shipped output.
+
+## 10. Two of the withdrawn items were not actually withdrawn, and one was
+
+`corrections.md` section 8 says three fixes were withdrawn. That count is wrong in both directions.
+
+- **Withdrawn, confirmed:** the `# ` promotion and the `IMPORTANT:` rewrite. Both were re-verified: the host's own section contributions are mostly bare prose (`packages/core/system-prompt/src/index.ts:450-455` emits `'You are an AI agent powered by DeepSeek Harness.'`), and the host uses no `IMPORTANT:` anywhere outside tests.
+- **Not withdrawn:** the `Contents of <path> (<type>):` shape. Section 8 closes by saying the shape still transfers, so the underlying fix stays open. Our producer still emits a bare `### <suite>` heading, which is neither the host shape nor the reference shape.
+
+So the count to remember is one shape still open for a contributor label, one heading decision closed in favour of the status quo, and one precedence decision closed in favour of mirroring the host.

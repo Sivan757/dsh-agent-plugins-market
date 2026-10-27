@@ -37,13 +37,13 @@ The rules below extend `docs/reference/prompt-injection-conventions.md`. Each on
 
 | Rule | Statement |
 | --- | --- |
-| M1 No tags in a system section | A `systemPrompt.section` is Markdown: `# ` heading, `-` bullets, prose. A tag there is drift |
+| M1 System sections stay structural | A `systemPrompt.section` is Markdown: a heading at the level its parent uses, `-` bullets, prose. A tag is not automatically drift: the reference prompt itself carries one XML block and a token tag (see `corrections.md` section 9) |
 | M2 Reminders carry the non-instruction facts | Environment, memory, catalogs, budget and date go in `<system-reminder>` blocks in a user message |
 | M3 One block per fact | Several reminders share one user message as separate content blocks, user text last. Never simulate this with a divider line |
 | M4 Precedence is host-owned | The host states scope once, hedged, for workspace instructions. A contributor mirrors that sentence instead of asserting a stronger override in the same request |
-| M5 Name then show | A file or a contributor is introduced as `Contents of <name> (<type>):` before its body |
-| M6 Event-labelled hook output | `<Event>[:<matcher>] hook <status>: <content>`, never a bare paragraph |
-| M7 Nest, do not re-rank | A subsection needs a parent one level above it. Our plugin contributes sections to a host prompt whose own sections are `## `, so we keep `## ` and never claim `# ` |
+| M5 Name then show | A file or a contributor is named before its body. Two measured shapes qualify: `Contents of <name> (<type>):` and the host's `Instructions from: <path>`. Our producers still emit a bare contributor heading |
+| M6 Event-labelled hook output | `<Event>[:<matcher>] hook <status>: <content>`, never a bare paragraph. Measured statuses: `success`, `additional context`, `error` |
+| M7 Nest, do not re-rank | A subsection needs a parent one level above it, where a parent exists. Our plugin contributes sections to a host prompt whose own sections are `## `, so we keep `## ` and never claim `# ` |
 | M8 One list form | Catalogs render `- <name>: <description>`, unquoted, with no nested tag wrapper |
 
 ## What we deliberately keep

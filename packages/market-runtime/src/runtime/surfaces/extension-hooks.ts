@@ -95,30 +95,27 @@ interface RunOptions {
 }
 const CONTEXT_SOURCE = { kind: 'hooks-claude-code' } as const
 /**
- * What the frame says before a suite's own instruction text.
+ * The sentence a framed hook block says after its label.
  *
- * Durable session context is instruction content, so it gets the familiar frame
- * and an intro that states what it is and its precedence. Mid-turn steering and
- * corrective feedback never reach this text: they stay plain, because labeling
- * them is what made a model read a steering note as third-party metadata and
- * refuse it.
+ * This host never tells the model what `<system-reminder>` means, so the block
+ * explains itself. It sits after the label rather than replacing it.
  */
-/**
- * What the frame says before a suite's own instruction text.
- *
- * The event name leads, then one sentence that says what the text is and where
- * it came from. The event name is not decoration: a session-start instruction
- * and a mid-turn callback are different things, and the model needs to tell them
- * apart. The sentence stays because this host never tells the model what the
- * frame means, so the text has to explain itself.
- * @param point - the hook event that produced the context.
- * @returns the intro line for that event.
- */
-const sessionContextIntro = (point: Point): string =>
-  point +
-  ' hook. The following context was injected by an enabled agent plugin suite. It is session instructions, not a message from the user. More specific instructions take precedence over broader ones.'
+const SESSION_CONTEXT_DISCLAIMER =
+  'The following context was injected by an enabled agent plugin suite. It is session instructions, not a message from the user. More specific instructions take precedence over broader ones.'
 /** Plain (non-JSON) stdout is conversation context on exactly these events. */
 const STDOUT_CONTEXT_POINTS: ReadonlySet<Point> = new Set<Point>(['SessionStart', 'UserPromptSubmit'])
+/**
+ * The events whose context is standing session instruction, so it takes the frame.
+ *
+ * A submitted prompt opens a turn and a session start outlives one, so both carry
+ * instruction weight. Every other event is a per-call callback: plain text with a
+ * label, never a second frame competing with the tool result beside it.
+ * @param point - the hook event.
+ * @returns whether that event's context is standing instruction.
+ */
+function isSessionStanding(point: Point): boolean {
+  return point === 'SessionStart' || point === 'UserPromptSubmit'
+}
 /**
  * Reference per-event timeouts, in ms, for the events whose reference default
  * differs from the protocol default: Claude Code lowers UserPromptSubmit
@@ -152,8 +149,19 @@ const DEFAULT_REASON: Partial<Record<Point, string>> = {
   UserPromptSubmit: 'UserPromptSubmit hook blocked this prompt',
   PreToolUse: 'PreToolUse hook blocked this tool',
   PostToolUse: 'PostToolUse hook blocked this step',
+  PostToolUseFailure: 'PostToolUseFailure hook blocked this step',
   Stop: 'Stop hook kept the turn going'
 }
+
+/**
+ * English fallback the session log records when a hook halts the run without a
+ * reason.
+ *
+ * Separate from {@link DEFAULT_REASON} because a Stop hook does one of two
+ * opposite things: a deny keeps the turn going, and `continue: false` cancels the
+ * run. One constant cannot say both, and recording the wrong one is durable.
+ */
+const HALT_REASON: Partial<Record<Point, string>> = { Stop: 'Stop hook stopped the turn' }
 
 /**
  * Own one live Agent's hooks. Supply a live context injected with shell and
@@ -500,7 +508,7 @@ export class ExtensionHooks {
       // reported and the session opens anyway.
       if (merged.decision === 'deny') this.reportBlocked('SessionStart', merged)
       // A session start is the durable case: the frame says what the text is.
-      const context = contextFrom(outcome, 'SessionStart')
+      const context = contextFrom(outcome, 'SessionStart', source)
       if (context) this.agent.inject(context)
     })
     return this.startup
@@ -764,7 +772,7 @@ export class ExtensionHooks {
    * is what a halt means.
    */
   private halt(subject: Agent, point: Point, merged: Outcome): void {
-    const reason = merged.stopReason ?? merged.reason ?? DEFAULT_REASON[point] ?? point + ' hook stopped this turn'
+    const reason = merged.stopReason ?? merged.reason ?? HALT_REASON[point] ?? point + ' hook stopped this turn'
     this.ctx.logger?.warn('extension-hooks: ' + point + ' hook halted the run: ' + logSafe(reason))
     try {
       subject.cancel({ kind: 'hook', reason })
@@ -805,53 +813,50 @@ function foldOutcome(outputs: readonly AttributedOutput[]): PointOutcome {
   return { merged: mergeHookOutputs(decoded), denySystemMessages, contexts }
 }
 /**
- * Build the model-facing message for one point's context.
+ * The label every hook-authored context carries.
  *
- * `framed` selects the two documented forms. Durable session instruction takes
- * the frame, one heading per contributing suite, so two suites that disagree
- * stay separable. A transient note stays exactly as the hook wrote it, one block
- * per contributor: it is a mid-turn callback, and labeling it is what makes a
- * model read it as third-party metadata.
- * @param outcome - the point's folded outcome with its attributed context.
- * @param framed - whether this content is durable session instruction.
- * @returns the message, or undefined when no hook contributed context.
- */
-/**
- * One action's hook output as conversation content.
- *
- * Session-standing context takes the frame, a lead line naming the event, and one
- * heading per contributing suite. A per-call callback stays plain but still says
- * which event and which tool produced it, because unlabelled text from a hook is
- * the case a model most often reads as if the person had typed it.
- * @param outcome - the merged hook outcome.
+ * Measured shape: the event, then the qualifier that fired it, then the status.
+ * `SessionStart:startup hook success:`, `UserPromptSubmit hook additional
+ * context:`, `PreToolUse:Bash hook error:`. The label is what separates a
+ * hook's text from the person's own words, and it is the one thing an unlabelled
+ * block cannot recover.
  * @param point - the event the output came from.
- * @param toolName - the tool the event fired for, when it fired for one.
- * @returns the message, or undefined when no hook produced context.
+ * @param qualifier - the matcher that fired, when there is one.
+ * @param status - the outcome word: `additional context`, `success`, or `error`.
+ * @returns the label, ending in a colon and a space.
  */
-function contextFrom(outcome: PointOutcome, point: Point, toolName?: string) {
-  const { contexts } = outcome
-  if (contexts.length === 0) return undefined
-  const framed = STDOUT_CONTEXT_POINTS.has(point)
-  const content = framed
-    ? [{ type: 'text' as const, text: frame([sessionContextIntro(point), attribute(contexts.map(context => ({ heading: context.label, body: context.text })))].join('\n\n')) }]
-    : contexts.map(context => ({ type: 'text' as const, text: hookContextLine(point, toolName) + context.text }))
-  return createUserMessage({ content, source: CONTEXT_SOURCE })
+function hookLabel(point: Point, qualifier: string | undefined, status: string): string {
+  // A matcher is a single token; whitespace becomes a space so the label stays
+  // one line whatever a suite named its tool.
+  const target = qualifier === undefined ? '' : ':' + qualifier.replace(/\s+/gu, ' ').trim()
+  return point + target + ' hook ' + status + ': '
 }
 
 /**
- * The label a per-call hook context carries.
+ * One action's hook output as conversation content.
  *
- * Measured shape from the reference implementation: the event, then the matcher
- * that fired, then the status.
+ * Session-standing context takes the frame, a labelled lead line, and one
+ * heading per contributing suite. A per-call callback stays plain but carries the
+ * same label, because unlabelled text from a hook is the case a model most often
+ * reads as if the person had typed it.
+ * @param outcome - the merged hook outcome.
  * @param point - the event the output came from.
- * @param toolName - the tool the event fired for, when it fired for one.
- * @returns the label, ending in a colon and a space.
+ * @param qualifier - the matcher that fired, when there is one.
+ * @returns the message, or undefined when no hook produced context.
  */
-function hookContextLine(point: Point, toolName: string | undefined): string {
-  // A tool name is a single token; whitespace becomes a space so the label stays
-  // one line whatever a suite named its tool.
-  const target = toolName === undefined ? '' : ':' + toolName.replace(/\s+/gu, ' ').trim()
-  return point + target + ' hook additional context: '
+function contextFrom(outcome: PointOutcome, point: Point, qualifier?: string) {
+  const { contexts } = outcome
+  if (contexts.length === 0) return undefined
+  const label = hookLabel(point, qualifier, 'additional context')
+  const content = isSessionStanding(point)
+    ? [
+        {
+          type: 'text' as const,
+          text: frame([label + SESSION_CONTEXT_DISCLAIMER, attribute(contexts.map(context => ({ heading: context.label, body: context.text })))].join('\n\n'))
+        }
+      ]
+    : contexts.map(context => ({ type: 'text' as const, text: label + context.text }))
+  return createUserMessage({ content, source: CONTEXT_SOURCE })
 }
 /**
  * A blocking hook's reason as conversation content.
@@ -864,7 +869,10 @@ function hookContextLine(point: Point, toolName: string | undefined): string {
  * @returns the labelled message.
  */
 function contextFromReason(point: Point, reason: string) {
-  return createUserMessage({ content: [{ type: 'text' as const, text: point + ' hook error: ' + reason }], source: CONTEXT_SOURCE })
+  // A fallback reason already names its event, so labelling it again would read as
+  // two hooks blocking one call.
+  const text = reason.startsWith(point + ' hook ') ? reason : hookLabel(point, undefined, 'error') + reason
+  return createUserMessage({ content: [{ type: 'text' as const, text }], source: CONTEXT_SOURCE })
 }
 
 /**

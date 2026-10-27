@@ -41,7 +41,9 @@
 </system-reminder>
 ```
 
-正文先一行来源标注，再给每个贡献者一个标题。来源标注点明注入出处：钩子输出写事件名，常驻指令写一句说明。技能目录见 `packages/skill/tool-skill/src/index.ts:256-310`，使用同一框架加 `<available_skills>`，并逐条转义。那个逐条转义函数是 `@deepseek-ai/dsh-skill` 导出的 `escapeText`，本插件现在直接调用它，不再保留自己的副本。
+正文先一行来源标注，再给每个贡献者一个标题。来源标注点明注入出处：钩子输出写事件名，常驻指令写一句说明。
+
+技能目录见 `packages/skill/tool-skill/src/index.ts:256-310`，使用同一框架加 `<available_skills>`，并逐条转义。那个逐条转义函数是 `@deepseek-ai/dsh-skill` 导出的 `escapeText`，本插件现在直接调用它，不再保留自己的副本。
 
 对照 Claude Code 2.1.308 实测（见 `docs/scratch/prompt-research/wire-captures.md`）：框架是 `<system-reminder>`、正文、`</system-reminder>`，框架本身不插空行；首条用户消息把每个提醒各放一个内容块而不是拼成一个字符串；模型看到的所有标签都是包住内容的框架，而不是为内容另起的名字。
 

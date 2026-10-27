@@ -22,7 +22,7 @@ import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { removeTempRoot } from './helpers/temp-root.js'
 import { ExtensionHooks } from '../../../../packages/market-runtime/src/runtime/surfaces/extension-hooks.js'
 import { agentInstructionSection } from '../../../../packages/market-runtime/src/runtime/host/scoped-contributors.js'
-import { renderCatalogText } from '../../../../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
+import { renderCatalogText, renderTeamRoleCatalogText } from '../../../../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
 
 const SYSTEM_REMINDER_OPEN = '<system-reminder>'
 const SYSTEM_REMINDER_CLOSE = '</system-reminder>'
@@ -169,10 +169,21 @@ describe('R2 the frame is for durable session instruction only', () => {
 describe('R3 no invented tags', () => {
   it('uses no angle-bracket tag beyond the familiar frame and the emphasis block', async () => {
     const section = agentInstructionSection([{ parent: 'p', label: 'alpha', text: 'body' }])
-    const catalog = renderCatalogText([{ name: 'r', title: 'R', description: 'd' }], false)
+    const role = { name: 'r', title: 'R', description: 'd' }
+    // Every producer that frames content, plus every variant of each: an update
+    // variant and the Team catalog are separate literals, so a tag invented in one
+    // would otherwise ship green.
+    const texts = [
+      section,
+      renderCatalogText([role], false),
+      renderCatalogText([role], true),
+      renderCatalogText([], true),
+      renderTeamRoleCatalogText([role]),
+      renderTeamRoleCatalogText([])
+    ]
     // The known vocabulary only: the frame, the emphasis block, and skill content.
     const allowed = new Set(['system-reminder', 'available_skills', 'skill_content'])
-    for (const text of [section, catalog]) {
+    for (const text of texts) {
       for (const match of text.matchAll(/<\/?([a-zA-Z][\w-]*)>/gu)) expect(allowed.has(match[1]!)).toBe(true)
     }
   })

@@ -400,7 +400,15 @@ A role`)
     expect(text.startsWith('<system-reminder>\nThe following subagent roles')).toBe(true)
     expect(text).not.toContain('<available_subagents>')
     expect(text.endsWith('\n</system-reminder>')).toBe(true)
-    expect(renderCatalogText([], true)).toContain('</system-reminder>')
+    // The empty-list path is where the removed blank-line juggling could regress, so
+    // it gets a real assertion: no role lines, and the frame still closes cleanly.
+    const empty = renderCatalogText([], true)
+    // With no roles the list collapses to nothing, so the guidance after it follows
+    // the trigger block directly. This is the shape the removed blank-line juggling
+    // used to produce, and what a regression here would silently change.
+    expect(empty).toContain('\n\n\nWriting the prompt:')
+    expect(empty).not.toContain('- `')
+    expect(empty.endsWith('</system-reminder>')).toBe(true)
     // The title and the configured route are durable metadata that never reach the model.
     expect(text).not.toContain('Reviewer:')
     expect(text).not.toContain('workbuddy')
