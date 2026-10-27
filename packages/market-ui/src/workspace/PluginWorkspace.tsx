@@ -1,12 +1,11 @@
 /**
- * The plugin workspace: one page, seven top tabs.
+ * The plugin workspace: one page, one top tab row.
  *
- * The market, skills, commands, agent personas, MCP services, LSP servers,
- * and hooks panels all render inside this shell, so the settings sidebar
- * keeps a single "Agent Plugins" entry and users switch surfaces with the tab
- * row. Each tab's content scrolls inside its own region (never the settings
- * column), which removes the scrollbar show/hide jitter when tabs with
- * different content heights swap.
+ * One panel per key in `WORKSPACE_TAB_KEYS` renders inside this shell, so the
+ * settings sidebar keeps a single "Agent Plugins" entry and users switch
+ * surfaces with the tab row. Each tab's content scrolls inside its own region
+ * (never the settings column), which removes the scrollbar show/hide jitter when
+ * tabs with different content heights swap.
  * @module client/PluginWorkspace
  */
 import { createElement as h, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
@@ -64,12 +63,15 @@ export const TAB_ORDER: ReadonlyArray<WorkspaceTab> = WORKSPACE_TAB_KEYS
  * deep link can select a stowed tab, and the panel below must always have its
  * own tab in the row. The reveal is derived from the layout and the selection,
  * never written back, so following a link cannot change what is saved.
+ * The order is the layout's own: every producer builds it through
+ * `resolveTabOrder`, which appends every missing key, so it is always the whole
+ * row and never needs a fallback.
  * @param layout - the resolved stow list.
  * @param active - the tab the panel shows.
  * @returns the visible tabs in display order.
  */
 function rowTabs(layout: TabLayoutWire, active: WorkspaceTab): WorkspaceTab[] {
-  return visibleTabs(layout.order.length > 0 ? layout.order : TAB_ORDER, layout, active)
+  return visibleTabs(layout.order, layout, active)
 }
 
 export interface PluginWorkspaceProps {
@@ -81,7 +83,7 @@ export interface PluginWorkspaceProps {
   mode?: 'settings' | 'page'
 }
 
-/** One page with six top tabs; state is local so switching is instant. */
+/** One page, one tab row per `WORKSPACE_TAB_KEYS`; state is local so switching is instant. */
 export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }: PluginWorkspaceProps): ReactNode {
   const [active, setActive] = useState<WorkspaceTab>('market')
 

@@ -40,11 +40,6 @@ export interface TabLayoutWire {
   order: WorkspaceTabKey[]
 }
 
-/** Nothing stowed, display order: the all-visible layout an explicit empty choice writes. */
-export function emptyTabLayout(): TabLayoutWire {
-  return { hidden: [], order: [...WORKSPACE_TAB_KEYS] }
-}
-
 /**
  * The tabs a workspace starts with stowed.
  *
@@ -60,7 +55,7 @@ export const DEFAULT_STOWED_TABS = ['instructions', 'lsp', 'hooks'] as const
 /**
  * The layout a workspace with no usable document gets.
  *
- * Deliberately not {@link emptyTabLayout}: "no opinion yet" and "I chose
+ * Deliberately not an empty stow list: "no opinion yet" and "I chose
  * everything visible" are different facts, and only the second one is a user
  * decision this plugin must preserve. The pinned tab cannot appear in
  * {@link DEFAULT_STOWED_TABS}, so this default can never empty the row.

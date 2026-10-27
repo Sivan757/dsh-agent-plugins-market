@@ -62,7 +62,6 @@ export {
   BUILTIN_DEFAULT_NAME,
   USER_OUTPUT_STYLE_DIRECTORY,
   deleteUserStyle,
-  groupStylesBySource,
   parseCapturedStyle,
   readBuiltinStyles,
   readUserStyles,
