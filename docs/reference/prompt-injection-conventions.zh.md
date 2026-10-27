@@ -21,10 +21,11 @@
 | 位置 | 机制 | 形式 | 原因 |
 | --- | --- | --- | --- |
 | `runtime/host/scoped-contributors.ts` 的 `agentInstructionSection` | `systemPrompt.section` | Markdown 段落：`## Agent plugin instructions`，每个贡献者一个 `### <套件>` | 依据 R7 与 R5。它已是系统权重，加框架等于给权重再加权重，而 `renderPrompt` 本身不提供结构。 |
-| `runtime/surfaces/extension-hooks.ts` 的 `contextFrom(…, true)`，用于 `SessionStart` 与 `UserPromptSubmit` | `agent.inject` 或进入步骤的消息 | 成帧，每个贡献者一个 `### <套件>`，并转义 | 依据 R2、R4、R5。这是持久会话指令，不成帧就会看起来像用户发言。 |
-| `extension-hooks.ts` 的 `contextFrom(…, false)`，用于 `PreToolUse`、`PostToolUse`、`PostToolUseFailure`、`SubagentStart` | `agent.inject` 或下游决定 | 纯文本，每个贡献者一块 | 依据 R2。单次工具调用的回调不是常驻指令。 |
-| `extension-hooks.ts` 的 `contextFromReason` 与 `Stop` 引导 | `agent.steer` | 纯文本 | 依据 R2。被加标签的引导正是那份记录里被模型拒绝的形态。 |
-| `runtime/agents/subagent-catalog.ts` 的 `renderCatalogText` | `agent.inject` | 成帧，并让 `<available_subagents>` 条目经 `prompt-frame.ts` 转义 | 与宿主技能目录一致。原先的本地转义函数是宿主那份的第二份拷贝。 |
+| `runtime/surfaces/extension-hooks.ts` 的 `contextFrom(…)`，用于 `SessionStart` 与 `UserPromptSubmit` | `agent.inject` 或进入步骤的消息 | 成帧，首行为 `<事件> hook.`，每个贡献者一个 `### <套件>`，并转义 | 依据 R2、R4、R5。这是持久会话指令，而事件名正是让模型区分会话起始规则与中途回调的依据。 |
+| `extension-hooks.ts` 的 `contextFrom(…)`，用于 `PreToolUse`、`PostToolUse`、`PostToolUseFailure`、`SubagentStart` | `agent.inject` 或下游决定 | 纯文本，首行为 `<事件>[:<工具>] hook additional context:`，每个贡献者一块 | 依据 R2。单次工具调用的回调不是常驻指令，但不加来源标签的钩子文本会被模型读成用户发言。 |
+| `extension-hooks.ts` 的 `contextFromReason` | `agent.inject` | 纯文本，首行为 `<事件> hook error:` | 依据 R2。被拦截的那次调用仍保留标签，因为此时模型最不该把钩子误当成用户。 |
+| `extension-hooks.ts` 的 `Stop` 引导 | `agent.steer` | 纯文本 | 依据 R2。被加标签的引导正是那份记录里被模型拒绝的形态。 |
+| `runtime/agents/subagent-catalog.ts` 的 `renderCatalogText` | `agent.inject` | 成帧，每个角色一行不加引号的 `- <名称>: <描述>`，无嵌套标签，经 `prompt-frame.ts` 转义 | 与参考实现的角色列表一致。嵌在里面的 `<available_subagents>` 与内部标题，是同一个块的第二套命名。 |
 | `runtime/agents/team-coordination.ts` | `systemPrompt.section` | `## Team coordination` Markdown 段落 | 依据 R7。指令段落沿用的正是这个形态。 |
 | `runtime/agents/role-composition.ts` 的 `roleChildNotice` | 子代理上的 `inject` | 纯文本 | 依据 R2。一句绑定说明，属模型可读事实而非指令内容。 |
 | `runtime/host/extension-session-state.ts` 的唤醒与意图标记 | `inject`、`steer` | 纯文本，`form: 'context'` | 关于插件自身状态的元数据，不是指令。 |
@@ -40,7 +41,9 @@
 </system-reminder>
 ```
 
-正文以一句说明开头，交代这段文字是什么以及它的优先级。每个贡献者以标题开始。技能目录见 `packages/skill/tool-skill/src/index.ts:256-310`，使用同一框架加 `<available_skills>`，并逐条转义。那个逐条转义函数是 `@deepseek-ai/dsh-skill` 导出的 `escapeText`，本插件现在直接调用它，不再保留自己的副本。
+正文先一行来源标注，再给每个贡献者一个标题。来源标注点明注入出处：钩子输出写事件名，常驻指令写一句说明。技能目录见 `packages/skill/tool-skill/src/index.ts:256-310`，使用同一框架加 `<available_skills>`，并逐条转义。那个逐条转义函数是 `@deepseek-ai/dsh-skill` 导出的 `escapeText`，本插件现在直接调用它，不再保留自己的副本。
+
+对照 Claude Code 2.1.308 实测（见 `docs/scratch/prompt-research/wire-captures.md`）：框架是 `<system-reminder>`、正文、`</system-reminder>`，框架本身不插空行；首条用户消息把每个提醒各放一个内容块而不是拼成一个字符串；模型看到的所有标签都是包住内容的框架，而不是为内容另起的名字。
 
 ## 转义
 

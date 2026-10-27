@@ -21,10 +21,11 @@ The host passes injected content through verbatim, so a producer owns all framin
 | Site | Mechanism | Form | Why |
 | --- | --- | --- | --- |
 | `runtime/host/scoped-contributors.ts` `agentInstructionSection` | `systemPrompt.section` | Markdown section: `## Agent plugin instructions`, one `### <suite>` per contributor | R7 and R5. It is already system weight, so a frame would add weight to weight while `renderPrompt` adds no structure of its own. |
-| `runtime/surfaces/extension-hooks.ts` `contextFrom(…, true)` for `SessionStart` and `UserPromptSubmit` | `agent.inject` or the entering step messages | Framed, one `### <suite>` per contributor, escaped | R2, R4, R5. Durable session instruction, and it arrives looking like a user turn without a frame. |
-| `extension-hooks.ts` `contextFrom(…, false)` for `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart` | `agent.inject` or the downstream decision | Plain, one block per contributor | R2. A per-call callback is not standing instruction. |
-| `extension-hooks.ts` `contextFromReason` and the `Stop` steering | `agent.steer` | Plain | R2. Steering that is labeled is what the recorded transcript refused. |
-| `runtime/agents/subagent-catalog.ts` `renderCatalogText` | `agent.inject` | Framed, with `<available_subagents>` entries escaped through `prompt-frame.ts` | Matches the host skill catalog. The local escaper was a second copy of the host's. |
+| `runtime/surfaces/extension-hooks.ts` `contextFrom(…)` for `SessionStart` and `UserPromptSubmit` | `agent.inject` or the entering step messages | Framed, led by `<Event> hook.`, one `### <suite>` per contributor, escaped | R2, R4, R5. Durable session instruction, and the event name is what tells a session-start rule from a mid-turn callback. |
+| `extension-hooks.ts` `contextFrom(…)` for `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart` | `agent.inject` or the downstream decision | Plain, led by `<Event>[:<tool>] hook additional context:`, one block per contributor | R2. A per-call callback is not standing instruction, but unlabelled text from a hook is what a model reads as user speech. |
+| `extension-hooks.ts` `contextFromReason` | `agent.inject` | Plain, led by `<Event> hook error:` | R2. A blocked call keeps the label because that is when a model must not mistake a hook for its user. |
+| `extension-hooks.ts` the `Stop` steering | `agent.steer` | Plain | R2. Steering that is labeled is what the recorded transcript refused. |
+| `runtime/agents/subagent-catalog.ts` `renderCatalogText` | `agent.inject` | Framed, one unquoted `- <name>: <description>` line per role, no nested tag, escaped through `prompt-frame.ts` | Matches the reference agent list. The nested `<available_subagents>` wrapper and the inner heading were a second naming system for one block. |
 | `runtime/agents/team-coordination.ts` | `systemPrompt.section` | `## Team coordination` Markdown section | R7. The pattern the instruction section follows. |
 | `runtime/agents/role-composition.ts` `roleChildNotice` | `inject` on the child | Plain | R2. A one-sentence binding statement the model reads, not instruction content. |
 | `runtime/host/extension-session-state.ts` wake and intent markers | `inject`, `steer` | Plain, `form: 'context'` | Metadata about the plugin's own state, not instructions. |
@@ -40,7 +41,11 @@ The frame is the one the harness's workspace-instruction producer emits, at `pac
 </system-reminder>
 ```
 
-The body opens with an intro that says what the text is and its precedence. Each contributor starts with a heading. The skill catalog at `packages/skill/tool-skill/src/index.ts:256-310` uses the same frame plus `<available_skills>`, and escapes every entry it prints. That entry escaper is `escapeText` from `@deepseek-ai/dsh-skill`, which this plugin now calls instead of keeping its own copy.
+The body opens with a lead line, then one heading per contributor. The lead line names the injection source: an event name for hook output, an intro sentence for standing instruction.
+
+The skill catalog at `packages/skill/tool-skill/src/index.ts:256-310` uses the same frame plus `<available_skills>`, and escapes every entry it prints. That entry escaper is `escapeText` from `@deepseek-ai/dsh-skill`, which this plugin now calls instead of keeping its own copy.
+
+Measured against Claude Code 2.1.308 (see `docs/scratch/prompt-research/wire-captures.md`): the wrapper is `<system-reminder>` then the body then `</system-reminder>` with no blank line the wrapper itself inserts, a first user message carries one reminder per content block rather than one joined string, and every tag the model sees is a wrapper around content rather than a name invented for it.
 
 ## Escaping
 

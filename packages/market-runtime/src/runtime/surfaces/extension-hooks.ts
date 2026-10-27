@@ -103,8 +103,20 @@ const CONTEXT_SOURCE = { kind: 'hooks-claude-code' } as const
  * them is what made a model read a steering note as third-party metadata and
  * refuse it.
  */
-const SESSION_CONTEXT_INTRO =
-  'The following context was injected by an enabled agent plugin suite. It is session instructions, not a message from the user. More specific instructions take precedence over broader ones. It does not override system, developer, or direct user instructions.'
+/**
+ * What the frame says before a suite's own instruction text.
+ *
+ * The event name leads, then one sentence that says what the text is and where
+ * it came from. The event name is not decoration: a session-start instruction
+ * and a mid-turn callback are different things, and the model needs to tell them
+ * apart. The sentence stays because this host never tells the model what the
+ * frame means, so the text has to explain itself.
+ * @param point - the hook event that produced the context.
+ * @returns the intro line for that event.
+ */
+const sessionContextIntro = (point: Point): string =>
+  point +
+  ' hook. The following context was injected by an enabled agent plugin suite. It is session instructions, not a message from the user. More specific instructions take precedence over broader ones.'
 /** Plain (non-JSON) stdout is conversation context on exactly these events. */
 const STDOUT_CONTEXT_POINTS: ReadonlySet<Point> = new Set<Point>(['SessionStart', 'UserPromptSubmit'])
 /**
@@ -128,12 +140,19 @@ const NON_EXECUTED_FAILURE_CODES: ReadonlySet<string> = new Set(['ABORTED', 'ABO
 const SESSION_END_MAX_TIMEOUT_MS = 60_000
 /** Never aborted: a closing pass outlives the drain that aborts the shared run signal. */
 const NEVER_ABORTED = new AbortController().signal
-/** English fallback the model and the session log read when a hook blocks without a reason. */
+/**
+ * English fallback the model and the session log read when a hook blocks without
+ * a reason.
+ *
+ * The event leads, as it does in a hook's own labelled output, so a blocked tool
+ * call and a blocked prompt are told apart by the first word rather than the
+ * last.
+ */
 const DEFAULT_REASON: Partial<Record<Point, string>> = {
-  UserPromptSubmit: 'blocked by UserPromptSubmit hook',
-  PreToolUse: 'blocked by PreToolUse hook',
-  PostToolUse: 'blocked by PostToolUse hook',
-  Stop: 'continue: blocked by Stop hook'
+  UserPromptSubmit: 'UserPromptSubmit hook blocked this prompt',
+  PreToolUse: 'PreToolUse hook blocked this tool',
+  PostToolUse: 'PostToolUse hook blocked this step',
+  Stop: 'Stop hook kept the turn going'
 }
 
 /**
@@ -239,7 +258,7 @@ export class ExtensionHooks {
           const downstream = await next()
           // A submitted prompt opens a turn, so its context is session-standing
           // instruction text and takes the frame.
-          const context = contextFrom(outcome, true)
+          const context = contextFrom(outcome, 'UserPromptSubmit')
           return !this.disposed && context && downstream.kind === 'enter' ? { ...downstream, messages: [...downstream.messages, context] } : downstream
         })
       })
@@ -276,8 +295,8 @@ export class ExtensionHooks {
           // The pre-execute decision carries no context field, so context reaches
           // the next request through the agent's own model-facing inbox.
           // One tool call's context is a per-call callback, not standing session
-          // instruction, so it stays plain prose.
-          const context = contextFrom(outcome, false)
+          // instruction, so it stays plain prose with its own event label.
+          const context = contextFrom(outcome, 'PreToolUse', exec.name)
           if (!this.disposed && decision.kind === 'allow' && context) agent.inject(context)
           return decision
         })
@@ -325,13 +344,13 @@ export class ExtensionHooks {
             this.halt(agent, point, merged)
             return next()
           }
-          const context = contextFrom(outcome, false)
+          const context = contextFrom(outcome, point, exec.name)
           const reason = merged.decision === 'deny' ? this.blockReason(point, outcome) : undefined
           if (result.isError) {
             // A failed call already carries its own error. Replacing it would hide
             // the failure, so a blocking hook's reason rides the next request.
             const downstream = await next()
-            const contexts = [...(reason === undefined ? [] : [contextFromReason(reason)]), ...(context === undefined ? [] : [context])]
+            const contexts = [...(reason === undefined ? [] : [contextFromReason(point, reason)]), ...(context === undefined ? [] : [context])]
             return this.disposed || contexts.length === 0 ? downstream : { ...downstream, additionalContexts: [...contexts, ...(downstream.additionalContexts ?? [])] }
           }
           if (reason !== undefined)
@@ -481,7 +500,7 @@ export class ExtensionHooks {
       // reported and the session opens anyway.
       if (merged.decision === 'deny') this.reportBlocked('SessionStart', merged)
       // A session start is the durable case: the frame says what the text is.
-      const context = contextFrom(outcome, true)
+      const context = contextFrom(outcome, 'SessionStart')
       if (context) this.agent.inject(context)
     })
     return this.startup
@@ -550,7 +569,7 @@ export class ExtensionHooks {
         if (merged.decision === 'deny') this.reportBlocked('SubagentStop', merged)
         return
       }
-      const context = contextFrom(outcome, false)
+      const context = contextFrom(outcome, 'SubagentStart')
       if (context && child && this.children.get(info.runId) === child) child.inject(context)
       if (merged.stop && child) this.halt(child, 'SubagentStart', merged)
       // The subagent start edge cannot veto a spawn, so a denial is reported.
@@ -733,7 +752,7 @@ export class ExtensionHooks {
     // text into the denial would present one hook's notice as another hook's
     // reason, so only a denying hook's own message can stand in for a reason.
     if (outcome.denySystemMessages.length > 0) return outcome.denySystemMessages.join(REASON_SEPARATOR)
-    return DEFAULT_REASON[point] ?? 'blocked by ' + point + ' hook'
+    return DEFAULT_REASON[point] ?? point + ' hook blocked this call'
   }
 
   /**
@@ -745,7 +764,7 @@ export class ExtensionHooks {
    * is what a halt means.
    */
   private halt(subject: Agent, point: Point, merged: Outcome): void {
-    const reason = merged.stopReason ?? merged.reason ?? DEFAULT_REASON[point] ?? 'stopped by ' + point + ' hook'
+    const reason = merged.stopReason ?? merged.reason ?? DEFAULT_REASON[point] ?? point + ' hook stopped this turn'
     this.ctx.logger?.warn('extension-hooks: ' + point + ' hook halted the run: ' + logSafe(reason))
     try {
       subject.cancel({ kind: 'hook', reason })
@@ -797,16 +816,55 @@ function foldOutcome(outputs: readonly AttributedOutput[]): PointOutcome {
  * @param framed - whether this content is durable session instruction.
  * @returns the message, or undefined when no hook contributed context.
  */
-function contextFrom(outcome: PointOutcome, framed: boolean) {
+/**
+ * One action's hook output as conversation content.
+ *
+ * Session-standing context takes the frame, a lead line naming the event, and one
+ * heading per contributing suite. A per-call callback stays plain but still says
+ * which event and which tool produced it, because unlabelled text from a hook is
+ * the case a model most often reads as if the person had typed it.
+ * @param outcome - the merged hook outcome.
+ * @param point - the event the output came from.
+ * @param toolName - the tool the event fired for, when it fired for one.
+ * @returns the message, or undefined when no hook produced context.
+ */
+function contextFrom(outcome: PointOutcome, point: Point, toolName?: string) {
   const { contexts } = outcome
   if (contexts.length === 0) return undefined
+  const framed = STDOUT_CONTEXT_POINTS.has(point)
   const content = framed
-    ? [{ type: 'text' as const, text: frame([SESSION_CONTEXT_INTRO, attribute(contexts.map(context => ({ heading: context.label, body: context.text })))].join('\n\n')) }]
-    : contexts.map(context => ({ type: 'text' as const, text: context.text }))
+    ? [{ type: 'text' as const, text: frame([sessionContextIntro(point), attribute(contexts.map(context => ({ heading: context.label, body: context.text })))].join('\n\n')) }]
+    : contexts.map(context => ({ type: 'text' as const, text: hookContextLine(point, toolName) + context.text }))
   return createUserMessage({ content, source: CONTEXT_SOURCE })
 }
-function contextFromReason(reason: string) {
-  return createUserMessage({ content: [{ type: 'text' as const, text: reason }], source: CONTEXT_SOURCE })
+
+/**
+ * The label a per-call hook context carries.
+ *
+ * Measured shape from the reference implementation: the event, then the matcher
+ * that fired, then the status.
+ * @param point - the event the output came from.
+ * @param toolName - the tool the event fired for, when it fired for one.
+ * @returns the label, ending in a colon and a space.
+ */
+function hookContextLine(point: Point, toolName: string | undefined): string {
+  // A tool name is a single token; whitespace becomes a space so the label stays
+  // one line whatever a suite named its tool.
+  const target = toolName === undefined ? '' : ':' + toolName.replace(/\s+/gu, ' ').trim()
+  return point + target + ' hook additional context: '
+}
+/**
+ * A blocking hook's reason as conversation content.
+ *
+ * The reason is labelled with its event. Unlabelled text from a hook is the case
+ * a model most often reads as though the person had typed it, and a blocked call
+ * is exactly when the model must not mistake a hook for its user.
+ * @param point - the event whose hook blocked the call.
+ * @param reason - the hook's own reason text, already resolved.
+ * @returns the labelled message.
+ */
+function contextFromReason(point: Point, reason: string) {
+  return createUserMessage({ content: [{ type: 'text' as const, text: point + ' hook error: ' + reason }], source: CONTEXT_SOURCE })
 }
 
 /**
