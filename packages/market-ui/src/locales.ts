@@ -487,7 +487,9 @@ export const zh = {
   tabLayoutLoadFailed: '无法读取页签布局，已显示全部页签：{error}',
   tabLayoutWriteFailed: '页签布局没有保存，已恢复原来的布局：{error}',
   /* ---- Workspace instructions tab (AGENTS.md chain) ---- */
-  workspaceTabInstructions: '指令',
+  // "规则" rather than "指令": the commands tab reads 快捷指令, and two tabs whose
+  // Chinese labels share 指令 cannot be told apart at a glance in a narrow row.
+  workspaceTabInstructions: '规则',
   instructionsSubtitle: '按宿主加载顺序显示本会话注入的 AGENTS.md 链条，并可直接创建、编辑或删除。',
   instructionsGroupGlobal: '用户级',
   instructionsGroupProject: '项目',
@@ -1041,7 +1043,9 @@ export const en: Record<LocaleKey, string> = {
   tabLayoutLoadFailed: 'Could not read the tab layout, so every tab is shown: {error}',
   tabLayoutWriteFailed: 'The tab layout was not saved, so the previous layout is back: {error}',
   /* ---- Workspace instructions tab (AGENTS.md chain) ---- */
-  workspaceTabInstructions: 'Instructions',
+  // "Rules" rather than "Instructions": the row is narrow and the label has to
+  // read as its own thing beside Shortcuts, not as a longer Shortcuts.
+  workspaceTabInstructions: 'Rules',
   instructionsSubtitle: 'Shows the AGENTS.md chain this session injects, in the host load order, and lets you create, edit or delete any file in it.',
   instructionsGroupGlobal: 'User-global',
   instructionsGroupProject: 'Project',

@@ -5,7 +5,10 @@ import { join } from 'node:path'
 import { mountTabLayoutRoutes } from '../../../../packages/market-bundle/src/routes-tab-layout.js'
 import { TabLayoutService } from '../../../../packages/market-runtime/src/runtime/host/tab-layout-service.js'
 import { MARKET_ROUTES } from '../../../../packages/market-contracts/src/contracts/market.js'
-import { WORKSPACE_TAB_KEYS } from '../../../../packages/market-contracts/src/contracts/tab-layout.js'
+import { DEFAULT_STOWED_TABS, WORKSPACE_TAB_KEYS } from '../../../../packages/market-contracts/src/contracts/tab-layout.js'
+
+/** The row a workspace with no recorded choice serves. */
+const DEFAULT_HIDDEN = WORKSPACE_TAB_KEYS.filter(key => (DEFAULT_STOWED_TABS as readonly string[]).includes(key))
 
 type Handler = (request: unknown, response: unknown) => void
 type RouteTable = Map<string, { handler: Handler }>
@@ -87,7 +90,7 @@ describe('tab-layout routes', () => {
 
   it('serves the live layout and the layout it commits', async () => {
     const { routes, dispose } = await harness()
-    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: [] } })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN } })
 
     const written = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['lsp', 'hooks'] })
     expect(written.status).toBe(200)
@@ -141,7 +144,7 @@ describe('tab-layout routes', () => {
     const answer = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['mcp'] }, { origin: 'http://evil.example' })
     expect(answer.status).toBe(403)
     expect(answer.body).toMatchObject({ ok: false, error: 'cross-origin request rejected' })
-    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: [] } })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN } })
     dispose()
   })
 

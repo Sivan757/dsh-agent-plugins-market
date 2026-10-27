@@ -9,12 +9,15 @@
  * @module runtime/host/tab-layout-service
  */
 import { loadTabLayout, saveTabLayout, type TabLayout } from '../../application/state/tab-layout.js'
-import { emptyTabLayout, resolveHiddenTabs, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
+import { defaultTabLayout, resolveHiddenTabs, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
 
 export type { TabLayout }
 
 export class TabLayoutService {
-  private layout: TabLayout = emptyTabLayout()
+  // The starting row is the resolved default, so the first read of a fresh
+  // workspace already matches what a reload will show instead of flashing every
+  // tab and then collapsing them.
+  private layout: TabLayout = defaultTabLayout()
   private readonly workspace: string
   private tail: Promise<void> = Promise.resolve()
 

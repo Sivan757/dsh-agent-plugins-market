@@ -14,6 +14,8 @@ The icon at the end of the tab row opens tab settings. It sits beside the tabs r
 
 Stowing the tab you are looking at moves you to the first visible tab, so the panel below always has its tab in the row. A link to a stowed tab still works: that tab joins the row while it is the one on screen, and the saved layout does not change because of the link.
 
+A workspace that has never changed its tab row starts with three tabs stowed: **Rules** (the AGENTS.md chain), **Language Engine**, and **Hooks**. Each answers a question most sessions never ask, so they wait in the menu until you need them. Picking anything in **Manage tabs**, including **Show all**, replaces that starting row with your own choice.
+
 The choice belongs to the workspace. Another project keeps its own tab row, and the plugin stores the layout beside its other workspace state.
 
 ## Resource detail editing

@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>方案 A · 边缘磁轨</title>
+    <style>
+      :root {
+        --dsw-static-deepseek-100: rgb(228, 237, 253);
+        --dsw-static-deepseek-500: rgb(65, 118, 230);
+        --dsw-static-green-500: rgb(52, 199, 123);
+        --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+        --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+        --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+        --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+        --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+        --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+        --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+        --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+        --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+        --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+        --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+        --dsw-radius-sm: 6px;
+        --dsw-radius-md: 10px;
+        --dsw-radius-lg: 14px;
+        --dsw-radius-panel: 16px;
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+        --dsw-alias-border-l1: rgba(0, 0, 0, 0.06);
+        --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+        --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+        --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+        --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+        --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+        --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+        --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-elevation-soft: 0 1px 2px rgba(15, 17, 21, 0.04), 0 4px 16px rgba(15, 17, 21, 0.06);
+        --dsw-elevation-prominent: 0 8px 40px rgba(15, 17, 21, 0.16);
+      }
+      :root[data-theme='dark'] {
+        --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-border-l1: rgba(255, 255, 255, 0.08);
+        --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+        --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+        --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+        --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+        --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
+        --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.24);
+        --dsw-elevation-prominent: 0 8px 40px rgba(0, 0, 0, 0.5);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+        font-size: 14px;
+        line-height: 24px;
+        color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-module-platform);
+        padding: 26px 32px 44px;
+        overflow-x: hidden;
+      }
+      .head {
+        max-width: 900px;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .head h1 {
+        font-size: 19px;
+        line-height: 26px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      .head p {
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        max-width: 620px;
+        line-height: 19px;
+      }
+      .head .spacer {
+        flex: 1;
+      }
+      .chip {
+        border: 1px solid var(--dsw-alias-border-l2);
+        background: var(--dsw-alias-bg-layer-2);
+        border-radius: 999px;
+        padding: 5px 12px;
+        font-size: 12px;
+        color: var(--dsw-alias-label-secondary);
+        cursor: pointer;
+        transition:
+          transform 0.16s ease,
+          background 0.16s ease;
+      }
+      .chip:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        transform: translateY(-1px);
+      }
+      .chip:active {
+        transform: scale(0.97);
+      }
+      .panel {
+        max-width: 900px;
+        margin: 0 auto;
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-panel);
+        box-shadow: var(--dsw-elevation-soft);
+        padding: 18px 22px 22px;
+        position: relative;
+      }
+      .ptitle {
+        font-size: 15px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .ptitle .count {
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--dsw-alias-label-tertiary);
+        border: 1px solid var(--dsw-alias-border-l1);
+        border-radius: 999px;
+        padding: 1px 9px;
+        transition: all 0.2s ease;
+      }
+      .body {
+        margin-top: 16px;
+        border-top: 1px solid var(--dsw-alias-border-l1);
+        padding-top: 14px;
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        min-height: 70px;
+        line-height: 20px;
+      }
+      .body b {
+        color: var(--dsw-alias-label-secondary);
+        font-weight: 600;
+      }
+      .states {
+        max-width: 900px;
+        margin: 22px auto 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .state {
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-lg);
+        padding: 14px 18px 16px;
+      }
+      .state .cap {
+        font-size: 10.5px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--dsw-alias-label-tertiary);
+        margin-bottom: 10px;
+      }
+      .state .cap b {
+        color: var(--dsw-alias-state-business-primary);
+        font-weight: 650;
+        margin-right: 6px;
+      }
+      .state .note {
+        font-size: 12px;
+        color: var(--dsw-alias-label-tertiary);
+        margin-top: 10px;
+        line-height: 19px;
+      }
+      /* shared tab row atoms */
+      .tabs {
+        position: relative;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-width: 0;
+      }
+      .tab {
+        font: inherit;
+        font-size: 13px;
+        border: 0;
+        background: transparent;
+        color: var(--dsw-alias-label-secondary);
+        padding: 7px 11px;
+        border-radius: var(--dsw-radius-sm);
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          color 0.16s ease,
+          background 0.16s ease,
+          transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+          opacity 0.2s ease,
+          box-shadow 0.18s ease;
+      }
+      .tab:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        color: var(--dsw-alias-label-primary);
+      }
+      .tab.on {
+        color: var(--dsw-alias-label-primary);
+        font-weight: 600;
+      }
+      .ind {
+        position: absolute;
+        bottom: 2px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--dsw-alias-state-business-primary);
+        transition:
+          left 0.34s cubic-bezier(0.34, 1.4, 0.64, 1),
+          width 0.34s cubic-bezier(0.34, 1.4, 0.64, 1);
+      }
+      .dock {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        flex: none;
+      }
+      .ghost-pill {
+        font: inherit;
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-secondary);
+        background: var(--dsw-alias-bg-layer-3);
+        border: 1px dashed var(--dsw-alias-border-l3);
+        border-radius: 999px;
+        padding: 2px 9px;
+        cursor: pointer;
+        transition:
+          transform 0.18s ease,
+          background 0.18s ease,
+          border-color 0.18s ease;
+      }
+      .ghost-pill:hover {
+        background: var(--dsw-alias-interactive-bg-hover);
+        border-color: var(--dsw-alias-state-business-primary);
+        color: var(--dsw-alias-label-primary);
+        transform: translateY(-1px);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        position: relative;
+      }
+
+      .row {
+        transition: padding-right 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        padding-right: 10px;
+      }
+      .row.near,
+      .row.dragging {
+        padding-right: 24px;
+      }
+      .tabs {
+        height: 100%;
+      }
+      .rail {
+        width: 12px;
+        align-self: stretch;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 3px;
+        cursor: grab;
+        touch-action: none;
+        flex: none;
+        opacity: 0;
+        transform: scaleX(0.55);
+        transition:
+          opacity 0.18s ease,
+          transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .row.near .rail,
+      .row.dragging .rail,
+      .row.force-near .rail {
+        opacity: 1;
+        transform: scaleX(1);
+      }
+      .rail i {
+        display: block;
+        width: 3px;
+        height: 13px;
+        border-radius: 2px;
+        background: var(--dsw-alias-label-tertiary);
+        opacity: 0.5;
+        transition:
+          background 0.16s ease,
+          opacity 0.16s ease;
+      }
+      .row.near .rail i,
+      .row.dragging .rail i {
+        background: var(--dsw-alias-state-business-primary);
+        opacity: 1;
+      }
+      .row.dragging .rail {
+        cursor: grabbing;
+      }
+      .rail::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 34px;
+        height: 34px;
+        transform: translate(-50%, -50%);
+        border-radius: 999px;
+        background: radial-gradient(circle, var(--dsw-alias-state-business-tertiary) 0%, transparent 72%);
+        opacity: 0;
+        transition: opacity 0.22s ease;
+        pointer-events: none;
+      }
+      .row.near .rail::after {
+        opacity: 1;
+      }
+      /* floating dock above the row */
+      .rowwrap {
+        position: relative;
+      }
+      .dock {
+        position: absolute;
+        right: 0;
+        top: -42px;
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+        pointer-events: none;
+        transition:
+          opacity 0.22s ease,
+          transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .dock.has {
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+      }
+      .dock::before {
+        content: '已收纳';
+        position: absolute;
+        right: calc(100% + 8px);
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 11px;
+        color: var(--dsw-alias-label-tertiary);
+        white-space: nowrap;
+      }
+      /* guide cursor */
+      .cursor {
+        position: absolute;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 2px solid var(--dsw-alias-state-business-primary);
+        background: rgba(65, 118, 230, 0.18);
+        box-shadow: 0 0 0 7px rgba(65, 118, 230, 0.1);
+        pointer-events: none;
+        z-index: 6;
+      }
+      .tip {
+        position: absolute;
+        font-size: 12px;
+        background: var(--dsw-alias-brand-primary);
+        color: var(--dsw-alias-bg-layer-2);
+        border-radius: 8px;
+        padding: 5px 10px;
+        white-space: nowrap;
+        z-index: 7;
+        box-shadow: var(--dsw-elevation-prominent);
+      }
+      .state .row {
+        pointer-events: none;
+      }
+      .state .dock {
+        position: static;
+        opacity: 1;
+        transform: none;
+      }
+      .state .dock::before {
+        display: none;
+      }
+      .state .rail {
+        opacity: 1;
+        transform: none;
+      }
+      .state .row:nth-child(1) .rail {
+        opacity: 0;
+        transform: scaleX(0.55);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <div>
+        <h1>方案 A · 边缘磁轨</h1>
+        <p>不加任何常驻按钮。页签行右缘留 10px 留白，指针进入 56px 热区时一条磁轨浮出；向左拖依次收纳，向右拖依次取回，每格 34px 磁吸。</p>
+      </div>
+      <div class="spacer"></div>
+      <button class="chip" id="theme">切换深色</button>
+      <button class="chip" id="guide">重放首次引导</button>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle">Agent Plugins <span class="count"></span></div>
+      <div class="rowwrap">
+        <div class="row" id="live">
+          <div class="tabs"></div>
+          <div class="dock"></div>
+          <div class="rail" id="rail"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+      <div class="body" id="hint">把指针移到页签行最右端（约 12px 宽的一条缝），磁轨会浮出来。向左拖动即可把 <b>语言引擎 / 钩子</b> 收起来。</div>
+    </div>
+
+    <div class="states">
+      <div class="state">
+        <div class="cap"><b>状态 1</b>静止 · 无按钮</div>
+        <div class="row">
+          <div class="tabs"></div>
+          <div class="dock"></div>
+          <div class="rail"><i></i><i></i><i></i></div>
+        </div>
+        <div class="note">右缘只有 10px 视觉留白，磁轨 opacity 0。常驻按钮带来的视觉重量被彻底去掉。</div>
+      </div>
+      <div class="state">
+        <div class="cap"><b>状态 2</b>接近 · 磁轨浮出，行内让位 14px</div>
+        <div class="row force-near">
+          <div class="tabs"></div>
+          <div class="dock"></div>
+          <div class="rail"><i></i><i></i><i></i></div>
+        </div>
+        <div class="note">180ms 弹入：scaleX 0.55→1 + 透明度，底座泛起品牌色光晕。行尾 padding 10→24px 是一次轻微的“呼吸”，提示这里可以拉。</div>
+      </div>
+      <div class="state">
+        <div class="cap"><b>状态 3</b>拖动 · 收纳层浮出 + 磁吸回弹</div>
+        <div class="row force-near dragging">
+          <div class="tabs"></div>
+          <div class="dock has"></div>
+          <div class="rail"><i></i><i></i><i></i></div>
+        </div>
+        <div class="note">收纳层在行上方浮出，幽灵芯片依次滑入（stagger 40ms）。每跨一格磁轨 scaleX 弹一下（spring 180ms），松手立即落位，整个会话只写一次盘。</div>
+      </div>
+    </div>
+
+    <script>
+      const KEYS = [
+        ['market', '市场'],
+        ['instructions', '规则'],
+        ['outputStyles', '输出风格'],
+        ['skills', '技能'],
+        ['commands', '快捷指令'],
+        ['personas', '专家'],
+        ['mcp', '连接器'],
+        ['lsp', '语言引擎'],
+        ['hooks', '钩子']
+      ]
+      const PINNED = 'market'
+      const label = k => (KEYS.find(e => e[0] === k) || ['', '?'])[1]
+      function tabButton(key, activeKey, extra) {
+        const b = document.createElement('button')
+        b.className = 'tab' + (key === activeKey ? ' on' : '') + (extra ? ' ' + extra : '')
+        b.textContent = label(key)
+        b.dataset.key = key
+        b.type = 'button'
+        return b
+      }
+      function renderRow(root, stowed, activeKey, animate) {
+        root.querySelectorAll('.tab,.ghost-pill,.ind').forEach(n => n.remove())
+        const tabs = root.querySelector('.tabs')
+        const visible = KEYS.filter(([k]) => !stowed.includes(k))
+        visible.forEach(([k], i) => {
+          const b = tabButton(k, activeKey)
+          if (animate) {
+            b.style.animationDelay = i * 26 + 'ms'
+          }
+          tabs.appendChild(b)
+        })
+        const ind = document.createElement('div')
+        ind.className = 'ind'
+        tabs.appendChild(ind)
+        const on = tabs.querySelector('.tab.on')
+        if (on) {
+          ind.style.left = on.offsetLeft + 'px'
+          ind.style.width = on.offsetWidth + 'px'
+        }
+        const dock = root.querySelector('.dock')
+        if (dock) {
+          dock.innerHTML = ''
+          stowed.forEach((k, i) => {
+            const p = document.createElement('button')
+            p.type = 'button'
+            p.className = 'ghost-pill'
+            p.textContent = label(k)
+            p.dataset.key = k
+            p.style.animationDelay = i * 40 + 'ms'
+            dock.appendChild(p)
+          })
+          dock.classList.toggle('has', stowed.length > 0)
+        }
+        const counter = root.querySelector('.count')
+        if (counter) counter.textContent = stowed.length === 0 ? '全部可见' : '已收纳 ' + stowed.length
+      }
+      window.__KIT = { KEYS, PINNED, label, tabButton, renderRow }
+      const live = document.getElementById('live')
+      let stowed = ['lsp', 'hooks']
+      let active = 'market'
+      const rail = document.getElementById('rail')
+
+      function paint(animate) {
+        __KIT.renderRow(live, stowed, active, animate)
+        live.querySelectorAll('.tab').forEach(
+          b =>
+            (b.onclick = () => {
+              active = b.dataset.key
+              paint(false)
+            })
+        )
+        live.querySelectorAll('.ghost-pill').forEach(
+          b =>
+            (b.onclick = () => {
+              stowed = stowed.filter(k => k !== b.dataset.key)
+              active = b.dataset.key
+              paint(true)
+            })
+        )
+        const badge = document.querySelector('.ptitle .count')
+        if (badge) badge.textContent = stowed.length ? '已收纳 ' + stowed.length : '全部可见'
+      }
+
+      live.addEventListener('pointermove', e => {
+        const r = live.getBoundingClientRect()
+        live.classList.toggle('near', e.clientX > r.right - 56)
+        live.classList.toggle('dock-open', e.clientX > r.right - 56 || live.classList.contains('dragging'))
+      })
+      live.addEventListener('pointerleave', () => {
+        inside = false
+        live.classList.remove('near', 'dock-open')
+      })
+
+      let inside = false
+      let drag = null
+      rail.addEventListener('pointerdown', e => {
+        rail.setPointerCapture(e.pointerId)
+        drag = { x: e.clientX, base: stowed.length }
+        live.classList.add('dragging', 'dock-open')
+      })
+      rail.addEventListener('pointermove', e => {
+        if (!drag) return
+        const steps = Math.round((drag.x - e.clientX) / 34)
+        const target = Math.max(0, Math.min(__KIT.KEYS.length - 1, drag.base + steps))
+        if (target === stowed.length) return
+        const restorable = __KIT.KEYS.map(k => k[0]).filter(k => k !== __KIT.PINNED)
+        if (target > stowed.length) {
+          const next = restorable.find(k => !stowed.includes(k) && k !== active)
+          if (next) stowed = [...stowed, next]
+        } else {
+          const back = [...stowed].pop()
+          if (back) {
+            stowed = stowed.filter(k => k !== back)
+            if (!stowed.includes(active)) active = __KIT.PINNED
+          }
+        }
+        paint(true)
+        rail.animate([{ transform: 'scaleX(1.45)' }, { transform: 'scaleX(1)' }], { duration: 180, easing: 'cubic-bezier(.34,1.56,.64,1)' })
+      })
+      rail.addEventListener('pointerup', () => {
+        drag = null
+        live.classList.remove('dragging')
+      })
+
+      function runGuide() {
+        live.classList.add('dock-open')
+        const rl = rail.getBoundingClientRect(),
+          rl2 = live.getBoundingClientRect()
+        if (!rl.width) return
+        const c = document.createElement('div')
+        c.className = 'cursor'
+        c.style.left = rl.left - rl2.left + rl.width / 2 - 7 + 'px'
+        c.style.top = rl.top - rl2.top + rl.height / 2 - 7 + 'px'
+        const tip = document.createElement('div')
+        tip.className = 'tip'
+        tip.textContent = '按住这里，向左拖'
+        tip.style.right = '10px'
+        tip.style.top = '-64px'
+        live.append(c, tip)
+        c.animate(
+          [
+            { transform: 'translate(56px,26px) scale(.85)', opacity: 0 },
+            { transform: 'translate(0,0) scale(1)', opacity: 1, offset: 0.3 },
+            { transform: 'translate(-52px,0) scale(1)', opacity: 1, offset: 0.72 },
+            { transform: 'translate(-8px,0) scale(1)', opacity: 1 }
+          ],
+          { duration: 2100, easing: 'cubic-bezier(.22,1,.36,1)' }
+        ).onfinish = () => {
+          c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, fill: 'forwards' })
+          tip.style.transition = 'opacity .3s'
+          tip.style.opacity = '0'
+          setTimeout(() => {
+            c.remove()
+            tip.remove()
+            live.classList.remove('dock-open')
+          }, 340)
+        }
+      }
+      document.getElementById('guide').onclick = runGuide
+      document.getElementById('theme').onclick = e => {
+        const dark = document.documentElement.dataset.theme === 'dark'
+        document.documentElement.dataset.theme = dark ? 'light' : 'dark'
+        e.target.textContent = dark ? '切换深色' : '切换浅色'
+      }
+      paint(false)
+      document.querySelectorAll('.state .row').forEach((row, i) => {
+        const forced = i === 2 ? ['lsp', 'hooks'] : ['lsp', 'hooks']
+        const idx = i
+        __KIT.renderRow(row, idx === 0 ? forced : forced, 'market', false)
+        if (row.classList.contains('dragging')) row.classList.add('dock-open')
+      })
+      /* guide runs on demand */
+    </script>
+  </body>
+</html>

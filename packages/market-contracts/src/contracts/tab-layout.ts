@@ -32,9 +32,34 @@ export interface TabLayoutWire {
   hidden: string[]
 }
 
-/** Nothing stowed: the all-visible default an absent file means. */
+/** Nothing stowed: the all-visible layout an explicit empty choice writes. */
 export function emptyTabLayout(): TabLayoutWire {
   return { hidden: [] }
+}
+
+/**
+ * The tabs a workspace starts with stowed.
+ *
+ * Three surfaces answer a question most sessions never ask: the AGENTS.md chain,
+ * the language servers, and the hook declarations. Opening the workspace with
+ * them in the row spends scarce width on tabs a person rarely needs, so a
+ * workspace that has never recorded an opinion starts with them stowed. They
+ * stay one action away from the row's own entry, and the first edit replaces
+ * this default with whatever the person chose.
+ */
+export const DEFAULT_STOWED_TABS = ['instructions', 'lsp', 'hooks'] as const
+
+/**
+ * The layout a workspace with no usable document gets.
+ *
+ * Deliberately not {@link emptyTabLayout}: "no opinion yet" and "I chose
+ * everything visible" are different facts, and only the second one is a user
+ * decision this plugin must preserve. The pinned tab cannot appear in
+ * {@link DEFAULT_STOWED_TABS}, so this default can never empty the row.
+ * @returns the starting stow list.
+ */
+export function defaultTabLayout(): TabLayoutWire {
+  return { hidden: resolveHiddenTabs([...DEFAULT_STOWED_TABS]) }
 }
 
 /**
