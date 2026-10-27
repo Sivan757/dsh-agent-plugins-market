@@ -247,11 +247,15 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, in
         // home directory. A named session only widens the lookup to that workspace's
         // project hooks; it never supplies the run directory.
         hookRun: async input => {
+          // A dry run executes a declared command, so it may only reach a suite the
+          // user actually enabled. `enabledSuites` is what every other surface reads,
+          // and a checked-in but disabled suite is exactly the case where running its
+          // command would be a surprise.
           const suites = [...(await catalog.enabledUserSuites())]
           if (input.sessionId !== undefined) {
             const agent = hostCtx.agents.get(SessionId(input.sessionId))
             const cwd = agent?.session.header.cwd
-            if (typeof cwd === 'string' && isAbsolute(cwd)) suites.push(...(await catalog.readProjectCatalog(cwd)).suites)
+            if (typeof cwd === 'string' && isAbsolute(cwd)) suites.push(...(await catalog.readProjectCatalog(cwd)).enabledSuites)
           }
           const resolved = await resolveHookDeclaration(catalog, suites, input)
           if ('error' in resolved) return hookRunFailure(resolved.error)

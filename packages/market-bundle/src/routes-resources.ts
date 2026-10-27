@@ -6,6 +6,7 @@
  * handlers live in their own module so the main route table stays untouched
  * by the window; the composition root mounts both under one disposer.
  */
+import { isTrustedMutation } from './request-trust.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { RESOURCE_ROUTES, resolveFavoriteInput } from '../../market-contracts/src/contracts/resource-window.js'
 import type { ResourceFace } from '../../market-contracts/src/contracts/resource-window.js'
@@ -49,7 +50,7 @@ export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): 
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!sameOrigin(request)) {
+          if (!isTrustedMutation(request)) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
@@ -115,16 +116,6 @@ export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): 
 
   return () => {
     for (const dispose of disposers) dispose()
-  }
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
   }
 }
 

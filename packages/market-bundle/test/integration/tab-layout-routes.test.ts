@@ -148,6 +148,11 @@ describe('tab-layout routes', () => {
     expect(answer.status).toBe(403)
     expect(answer.body).toMatchObject({ ok: false, error: 'cross-origin request rejected' })
     expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: DEFAULT_HIDDEN, order: DEFAULT_ORDER } })
+
+    // A rebound page carries its own domain in both headers, so the pair matches
+    // and the old Origin-equals-Host check allowed it. Only a loopback Host does.
+    const rebound = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['mcp'] }, { host: 'evil.example', origin: 'http://evil.example' })
+    expect(rebound.status).toBe(403)
     dispose()
   })
 
