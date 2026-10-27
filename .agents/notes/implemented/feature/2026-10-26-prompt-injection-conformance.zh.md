@@ -29,7 +29,7 @@ hook 上下文以裸用户散文进入会话记录（`runtime/surfaces/extension
 落地内容：
 
 - 套件指令段落现在是 `## Agent plugin instructions`、一句优先级说明，以及每个贡献者一个 `### <套件>` 标题。同时贡献系统提示词与启动技能的套件读作一块。`renderPrompt` 只用空行连接段落、不加任何标题（`packages/core/system-prompt/src/index.ts:290-295`），所以结构必须长在段落内部。
-- hook 上下文按持久性分流。`SessionStart` 与 `UserPromptSubmit` 的上下文属持久会话指令，成为一条成帧消息，含说明句、优先级句，以及每个贡献套件一个标题。`PreToolUse`、`PostToolUse`、`PostToolUseFailure` 与 `SubagentStart` 的上下文保持纯文本，每个贡献者一块。`Stop` 引导与纠正反馈保持纯文本。
+- hook 上下文按持久性分流，且每条送达的块都带事件标签。`SessionStart` 与 `UserPromptSubmit` 的上下文属持久会话指令，成为一条成帧消息，首行为 `<事件>[:<匹配器>] hook additional context:`，其后是说明句与每个贡献套件一个标题。`PreToolUse`、`PostToolUse`、`PostToolUseFailure` 与 `SubagentStart` 的上下文保持纯文本，每个贡献者一块并带标签。拦截理由带 `<事件> hook error:`。`Stop` 引导与纠正反馈保持纯文本、不带标签。
 - 标注需要合并过程丢弃的身份，因此 `collect` 现在把每条解码结果连同套件标签一起返回，`PointOutcome` 在合并决定之外携带带归属的上下文。
 - `subagent-catalog.ts` 改为导入 `escapeEntry`，不再保留私有副本；该助手委托给 `@deepseek-ai/dsh-skill` 导出的 `escapeText`，也就是宿主技能目录逐条使用的同一个函数。
 - `team-coordination.ts`、`role-composition.ts`、`extension-session-state.ts` 与 `commands-mounts.ts` 本来就合规。它们未被改动，并由测试钉住。
@@ -58,13 +58,13 @@ hook 上下文以裸用户散文进入会话记录（`runtime/surfaces/extension
 
 `packages/market-bundle/test/integration/prompt-injection-conventions.test.ts` 为每条规则配一个用例：
 
-| 规则  | 用例                                                                                                     |
-| ----- | -------------------------------------------------------------------------------------------------------- |
-| R1    | hook 的 `SessionStart` 上下文以成帧形式到达                                                              |
-| R2    | 用户提问上下文成帧而 `Stop` 理由不成帧，`PreToolUse` 上下文保持纯文本                                    |
-| R3    | 段落与目录文本中的尖括号标签只有框架、`<available_skills>`、`<available_subagents>` 与 `<skill_content>` |
-| R4    | 套件 hook 上下文里的闭合标记被转义                                                                       |
-| R5    | 两个 hook 套件可由标题区分，两个指令套件同时带标题与优先级句                                             |
-| R6    | 用户编写的命令正文到达模型时无框架、无标题                                                               |
-| R7    | 指令段落以 Markdown 标题开头且不含框架，空段落不渲染，空正文不贡献标题                                   |
-| GAP D | 纯文本生产者不导入框架模块，团队段落保留 `## Team coordination`，会话状态标记保持纯文本                  |
+| 规则  | 用例                                                                                    |
+| ----- | --------------------------------------------------------------------------------------- |
+| R1    | hook 的 `SessionStart` 上下文以成帧形式到达                                             |
+| R2    | 用户提问上下文成帧而 `Stop` 理由不成帧，`PreToolUse` 上下文保持纯文本但带标签           |
+| R3    | 段落与目录文本中的尖括号标签只有框架、`<available_skills>` 与 `<skill_content>`         |
+| R4    | 套件 hook 上下文里的闭合标记被转义                                                      |
+| R5    | 两个 hook 套件可由标题区分，两个指令套件同时带标题与优先级句                            |
+| R6    | 用户编写的命令正文到达模型时无框架、无标题                                              |
+| R7    | 指令段落以 Markdown 标题开头且不含框架，空段落不渲染，空正文不贡献标题                  |
+| GAP D | 纯文本生产者不导入框架模块，团队段落保留 `## Team coordination`，会话状态标记保持纯文本 |

@@ -21,8 +21,8 @@ The `/tmp/cc-text/` captures are mirrored in this directory under `captures/text
 The reference shape, measured:
 
 - Claude Code reminder wrapper is `<system-reminder>\n${content}\n</system-reminder>` with no blank line (arch §2.1).
-- The first user message is a series of reminder blocks joined by `---`, user text last (CC-base).
-- The system prompt has no tags at all. Headings are single-level `# `, body items are `-` bullets, hard rules are `IMPORTANT:` (arch §1.5, §9).
+- The first user message is a content array: one reminder per block, user text last, no divider line (CC-base, corrected).
+- The system prompt is mostly Markdown: `# ` sections, six `## ` subsections under one of them, `-` bullets, hard rules prefixed `IMPORTANT:`. It also carries one XML taxonomy block and a trailing `<total_tokens>` tag (arch §1.5, §9, corrected).
 - Memory is `Contents of <path> (<type>):` then the body, inside one reminder (arch §5.2, CC-base).
 - A subagent gets its role prompt, then a `Notes:` label with `-` bullets, then `<total_tokens>` (CC-sub, arch §4.2).
 - Hook context is always event-labelled: `<Event>[:<matcher>] hook success: <content>` or `hook additional context: <content>` (CC-hook, arch §7.2-7.5).

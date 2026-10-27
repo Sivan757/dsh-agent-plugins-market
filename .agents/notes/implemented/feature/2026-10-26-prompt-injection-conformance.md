@@ -29,7 +29,7 @@ The host's own decisions define the rules, and they are written down in `docs/re
 Applied:
 
 - The suite instruction section is now `## Agent plugin instructions`, a precedence sentence, and one `### <suite>` heading per contributor. A suite that contributes both a system prompt and a startup skill reads as one block. `renderPrompt` joins sections with blank lines and adds no heading (`packages/core/system-prompt/src/index.ts:290-295`), which is why the structure has to be inside the section.
-- Hook context is split by durability. `SessionStart` and `UserPromptSubmit` context is durable session instruction, so it becomes one framed message with an intro, a precedence sentence, and one heading per contributing suite. `PreToolUse`, `PostToolUse`, `PostToolUseFailure` and `SubagentStart` context stays plain, one block per contributor. `Stop` steering and corrective feedback stay plain.
+- Hook context is split by durability, and every delivered block is event-labelled. `SessionStart` and `UserPromptSubmit` context is durable session instruction, so it becomes one framed message whose lead line is `<Event>[:<matcher>] hook additional context:`, followed by the disclaimer and one heading per contributing suite. `PreToolUse`, `PostToolUse`, `PostToolUseFailure` and `SubagentStart` context stays plain, one labelled block per contributor. A blocking reason carries `<Event> hook error:`. `Stop` steering and corrective feedback stay plain and unlabelled.
 - Attribution needed the identity the merge discards, so `collect` now returns each decoded output with its suite label, and `PointOutcome` carries the attributed contexts beside the merged decision.
 - `subagent-catalog.ts` imports `escapeEntry` instead of keeping a private copy, and that helper delegates to the host's published `escapeText` from `@deepseek-ai/dsh-skill`, the same function the host skill catalog uses on every entry.
 - `team-coordination.ts`, `role-composition.ts`, `extension-session-state.ts` and `commands-mounts.ts` already conform. They are unchanged and pinned by tests.
@@ -61,8 +61,8 @@ Applied:
 | Rule  | Case                                                                                                                                                    |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | R1    | a hook `SessionStart` context arrives framed                                                                                                            |
-| R2    | a user prompt context is framed and a `Stop` reason is not, and a `PreToolUse` context stays plain                                                      |
-| R3    | the only angle-bracket tags in section and catalog text are the frame, `<available_skills>`, `<available_subagents>` and `<skill_content>`              |
+| R2    | a user prompt context is framed and a `Stop` reason is not, and a `PreToolUse` context stays plain but labelled                                         |
+| R3    | the only angle-bracket tags in section and catalog text are the frame, `<available_skills>` and `<skill_content>`                                       |
 | R4    | a closing marker inside suite hook context is escaped                                                                                                   |
 | R5    | two hook suites are separable by heading, and two instruction suites carry headings plus a precedence line                                              |
 | R6    | a user-authored command body reaches the model with no frame and no heading                                                                             |

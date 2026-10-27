@@ -116,11 +116,11 @@ const CONTEXT_INTRO =
 /**
  * The frame a durable session context carries, for one contributing suite.
  *
- * The lead line names the event first: a session-start instruction and a mid-turn
- * callback are different things, and the model has to be able to tell them apart.
+ * The lead line is the measured hook label: event, matcher, status. It is what
+ * separates a hook's text from the person's own words.
  */
-const framedContext = (suite: string, body: string, event = 'SessionStart'): string =>
-  [FRAME_OPEN, event + ' hook. ' + CONTEXT_INTRO, '', '### ' + suite, '', body, FRAME_CLOSE].join('\n')
+const framedContext = (suite: string, body: string, event = 'SessionStart', matcher = 'startup'): string =>
+  [FRAME_OPEN, event + (matcher === '' ? '' : ':' + matcher) + ' hook additional context: ' + CONTEXT_INTRO, '', '### ' + suite, '', body, FRAME_CLOSE].join('\n')
 /**
  * The label a per-call hook context carries.
  *
@@ -229,7 +229,7 @@ describe('ExtensionHooks', () => {
     }))
     expect(await h.ctx.waterfall('agent/pre-step', prompt, enter)).toMatchObject({
       kind: 'enter',
-      messages: [message, { source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: framedContext('one', 'context', 'UserPromptSubmit') }] }]
+      messages: [message, { source: { kind: 'hooks-claude-code' }, content: [{ type: 'text', text: framedContext('one', 'context', 'UserPromptSubmit', '') }] }]
     })
     const allow = vi.fn(async () => ({ kind: 'allow' as const }))
     expect(await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), allow)).toEqual({
@@ -696,7 +696,7 @@ describe('ExtensionHooks', () => {
     const prompt = { agent: a.value, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }
     expect(await h.ctx.waterfall('agent/pre-step', prompt, async () => ({ kind: 'enter' as const, messages: [message] }))).toMatchObject({
       kind: 'enter',
-      messages: [message, { content: [{ type: 'text', text: framedContext('one', 'plain guidance', 'UserPromptSubmit') }] }]
+      messages: [message, { content: [{ type: 'text', text: framedContext('one', 'plain guidance', 'UserPromptSubmit', '') }] }]
     })
     // PostToolUse documents no plain-stdout context, so nothing is folded there.
     expect(await h.ctx.waterfall('tools/post-execute', h.exec(a.value), { content: [], isError: false, value: null }, async () => ({ kind: 'accept' as const }))).toEqual({
