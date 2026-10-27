@@ -484,6 +484,11 @@ export const zh = {
   tabManageLastVisibleHint: '至少保留一个页签可见',
   tabManageMoveLeft: '把 {tab} 向左移一位',
   tabManageMoveRight: '把 {tab} 向右移一位',
+  // The long-hover bubble above one tab.
+  tabHoverStow: '收纳',
+  tabHoverOpenList: '在列表中看',
+  tabHoverGuide: '把指针停在这个页签上一会儿，就能直接调顺序或收纳。',
+  tabHoverGuideDismiss: '知道了',
   tabManageShowAll: '全部显示',
   tabManageDone: '完成',
   tabLayoutLoadFailed: '无法读取页签布局，已显示全部页签：{error}',
@@ -1042,6 +1047,11 @@ export const en: Record<LocaleKey, string> = {
   tabManageLastVisibleHint: 'At least one tab must stay visible',
   tabManageMoveLeft: 'Move {tab} one place left',
   tabManageMoveRight: 'Move {tab} one place right',
+  // The long-hover bubble above one tab.
+  tabHoverStow: 'Stow',
+  tabHoverOpenList: 'Open the list',
+  tabHoverGuide: 'Rest the pointer on a tab for a moment to reorder or stow it.',
+  tabHoverGuideDismiss: 'Got it',
   tabManageShowAll: 'Show all',
   tabManageDone: 'Done',
   tabLayoutLoadFailed: 'Could not read the tab layout, so every tab is shown: {error}',

@@ -26,6 +26,7 @@ vi.mock('../../../packages/market-ui/src/features/output-styles/OutputStylesPane
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 import { PluginWorkspace, TAB_ORDER } from '../../../packages/market-ui/src/workspace/PluginWorkspace.js'
+import { TAB_HOVER_ARM_MS, TAB_HOVER_DISMISS_MS, TAB_HOVER_GUIDE_MS } from '../../../packages/market-ui/src/workspace/TabHoverActions.js'
 import { WORKSPACE_TAB_KEYS } from '../../../packages/market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../../../packages/market-ui/src/index.js'
 
@@ -43,6 +44,8 @@ afterEach(async () => {
   host?.remove()
   window.location.hash = ''
   vi.unstubAllGlobals()
+  vi.useRealTimers()
+  window.localStorage.clear()
   root = undefined
   host = undefined
   stored = { hidden: [] }
@@ -102,7 +105,25 @@ const chipLabels = (): string[] => [...(host?.querySelectorAll('[role="tab"]') ?
 const activePanel = (): string | null => host?.querySelector('[role="tabpanel"] [data-tab]')?.getAttribute('data-tab') ?? null
 const rowCheckbox = (key: string): HTMLInputElement | null => dialog()?.querySelector<HTMLInputElement>('[data-tab-stow-row="' + key + '"] input[type="checkbox"]') ?? null
 const rowHint = (key: string): string => dialog()?.querySelector('[data-tab-stow-row="' + key + '"] > span:last-child')?.textContent ?? ''
-const badge = (): string | null => document.querySelector('[class*="tabStowBadge"]')?.textContent ?? null
+// The count is the trailing control's own content: no badge stacked on a glyph,
+// the number is what the row's edge shows.
+const badge = (): string | null => document.querySelector('[class*="tabStowCount"]')?.textContent ?? null
+
+/** The long-hover actions bubble, when one is armed. */
+const bubble = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-tab-hover]')
+/** The bubble's buttons, in rendered order: left, right, stow, open the list. */
+const bubbleButtons = (): HTMLButtonElement[] => [...(bubble()?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+
+/** Rest the pointer on the tab at one position and let the arm delay pass. */
+async function restOn(index: number): Promise<void> {
+  const tab = host!.querySelectorAll('[role="tab"]')[index]!
+  await act(async () => {
+    tab.dispatchEvent(new Event('pointerover', { bubbles: true }))
+  })
+  await act(async () => {
+    vi.advanceTimersByTime(TAB_HOVER_ARM_MS)
+  })
+}
 
 /** Open the trailing menu. */
 async function openMenu(): Promise<void> {
@@ -442,6 +463,189 @@ describe('workspace tab stowing', () => {
     // The row goes back to what the server has, and the reason is visible.
     expect(chipLabels()).toEqual(start)
     expect(dialog()?.textContent).toContain('tabLayoutWriteFailed')
+  })
+
+  it('does not open the actions bubble before the pointer has rested', async () => {
+    stubServer()
+    await mount()
+    vi.useFakeTimers()
+
+    const tab = host!.querySelectorAll('[role="tab"]')[1]!
+    await act(async () => {
+      tab.dispatchEvent(new Event('pointerover', { bubbles: true }))
+    })
+    // Crossing the row must not open anything: only a pause does.
+    await act(async () => {
+      vi.advanceTimersByTime(TAB_HOVER_ARM_MS - 60)
+    })
+    expect(bubble()).toBeNull()
+
+    await act(async () => {
+      vi.advanceTimersByTime(60)
+    })
+    expect(bubble()).not.toBeNull()
+  })
+
+  it('offers move, stow and the full list in the bubble above a rested tab', async () => {
+    stubServer()
+    await mount()
+    vi.useFakeTimers()
+
+    await restOn(2)
+    expect(bubble()?.getAttribute('data-tab-hover')).toBe('outputStyles')
+    expect(bubbleButtons()).toHaveLength(4)
+    // The second visible tab can move both ways; the arrows are the same pair
+    // the manager offers, so a pointer user never learns a second gesture.
+    expect(bubbleButtons()[0]!.disabled).toBe(false)
+    expect(bubbleButtons()[1]!.disabled).toBe(false)
+
+    await act(async () => bubbleButtons()[1]!.click())
+    await flush()
+    expect(chipLabels().slice(0, 4)).toEqual(['workspaceTabMarket', 'workspaceTabInstructions', 'workspaceTabSkills', 'workspaceTabOutputStyles'])
+    expect(stored.order?.slice(0, 4)).toEqual(['market', 'instructions', 'skills', 'outputStyles'])
+    // Acting on the bubble closes it, so it cannot describe a stale row.
+    expect(bubble()).toBeNull()
+  })
+
+  it('disables the arrow that would move a tab past the pinned one', async () => {
+    stubServer()
+    await mount()
+    vi.useFakeTimers()
+
+    await restOn(1)
+    // The chip beside the pinned tab has nowhere to go left: the pinned tab owns
+    // the first column in every layout.
+    expect(bubbleButtons()[0]!.disabled).toBe(true)
+    expect(bubbleButtons()[1]!.disabled).toBe(false)
+
+    const last = host!.querySelectorAll('[role="tab"]')
+    await restOn(last.length - 1)
+    expect(bubbleButtons()[1]!.disabled).toBe(true)
+  })
+
+  it('stows the tab the bubble belongs to, and drops its chip', async () => {
+    stubServer()
+    await mount()
+    vi.useFakeTimers()
+
+    await restOn(3)
+    const stowed_key = bubble()?.getAttribute('data-tab-hover')
+    expect(stowed_key).toBe('skills')
+    await act(async () => bubbleButtons()[2]!.click())
+    await flush()
+
+    expect(chipLabels()).not.toContain('workspaceTabSkills')
+    expect(stored.hidden).toEqual(['skills'])
+    expect(bubble()).toBeNull()
+  })
+
+  it('opens the manager from the bubble, where every tab is listed', async () => {
+    stubServer()
+    await mount()
+    vi.useFakeTimers()
+
+    await restOn(2)
+    await act(async () => bubbleButtons()[3]!.click())
+    await flush()
+
+    expect(bubble()).toBeNull()
+    expect(dialog()).not.toBeNull()
+    expect(dialog()?.querySelectorAll('input[type="checkbox"]')).toHaveLength(9)
+  })
+
+  it('never opens the bubble on the pinned tab', async () => {
+    stubServer()
+    await mount()
+    vi.useFakeTimers()
+
+    const pinned = host!.querySelectorAll('[role="tab"]')[0]!
+    await act(async () => {
+      pinned.dispatchEvent(new Event('pointerover', { bubbles: true }))
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(TAB_HOVER_ARM_MS * 2)
+    })
+    // The pinned tab has nowhere to move and nothing to stow, so a bubble would
+    // be a card of disabled buttons.
+    expect(bubble()).toBeNull()
+  })
+
+  it('dismisses the bubble on Escape and after the pointer leaves', async () => {
+    stubServer()
+    await mount()
+    vi.useFakeTimers()
+
+    await restOn(2)
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    expect(bubble()).toBeNull()
+
+    await restOn(2)
+    expect(bubble()).not.toBeNull()
+    const tab = host!.querySelectorAll('[role="tab"]')[2]!
+    await act(async () => {
+      tab.dispatchEvent(new Event('pointerout', { bubbles: true }))
+    })
+    // The delay is what lets the pointer travel from the tab into the bubble.
+    await act(async () => {
+      vi.advanceTimersByTime(TAB_HOVER_DISMISS_MS - 40)
+    })
+    expect(bubble()).not.toBeNull()
+    await act(async () => {
+      vi.advanceTimersByTime(40)
+    })
+    expect(bubble()).toBeNull()
+  })
+
+  it('introduces the hover gesture once, then stays out of the way', async () => {
+    vi.useFakeTimers()
+    stubServer()
+    await mount()
+    // The measuring pass retries while the row has not laid out yet, which is also
+    // what a real first paint does; the last attempt is the one that lands.
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    const guide = document.querySelector('[data-tab-hover-guide]')
+    expect(guide).not.toBeNull()
+    // It points at a tab, not at the row: the lesson is about pausing there.
+    expect(guide?.getAttribute('data-tab-hover-guide')).toBe('instructions')
+    expect(window.localStorage.getItem('agent-plugins.tab-hover-guide.v1')).toBeNull()
+
+    await act(async () => {
+      guide?.querySelector('button')?.click()
+    })
+    expect(document.querySelector('[data-tab-hover-guide]')).toBeNull()
+    // Retiring it is what records it, so it cannot nag twice.
+    expect(window.localStorage.getItem('agent-plugins.tab-hover-guide.v1')).toBe('seen')
+  })
+
+  it('skips the guide when this browser has already seen it', async () => {
+    vi.useFakeTimers()
+    window.localStorage.setItem('agent-plugins.tab-hover-guide.v1', 'seen')
+    stubServer()
+    await mount()
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(document.querySelector('[data-tab-hover-guide]')).toBeNull()
+  })
+
+  it('retires the guide on its own so it cannot sit over the workspace', async () => {
+    vi.useFakeTimers()
+    stubServer()
+    await mount()
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(document.querySelector('[data-tab-hover-guide]')).not.toBeNull()
+
+    await act(async () => {
+      vi.advanceTimersByTime(TAB_HOVER_GUIDE_MS + 100)
+    })
+    expect(document.querySelector('[data-tab-hover-guide]')).toBeNull()
   })
 
   it('keeps the default row when the layout read fails, leaves every tab reachable, and reports it in the manager', async () => {

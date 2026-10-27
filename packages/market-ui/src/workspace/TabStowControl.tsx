@@ -41,15 +41,18 @@ export interface TabStowControlProps {
   onStow: (next: readonly string[]) => void
   /** Move a tab within the rendered row. The workspace persists the new order. */
   onReorder: (from: number, to: number) => void
+  /** Whether the manager dialog is open. The long-hover bubble opens the same one. */
+  manageOpen: boolean
+  /** Open or close the manager dialog. */
+  onManageOpenChange: (open: boolean) => void
 }
 
 /** The id the menu gives its manage row; tab keys are the other row ids. */
 const MANAGE_ID = '\u0000manage'
 
 /** One trailing trigger, its stowed-tabs menu, and the tab manager dialog. */
-export function TabStowControl({ t, tabs, visible, hidden, busy, error, onSelect, onStow, onReorder }: TabStowControlProps): ReactNode {
+export function TabStowControl({ t, tabs, visible, hidden, busy, error, onSelect, onStow, onReorder, manageOpen, onManageOpenChange }: TabStowControlProps): ReactNode {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [manageOpen, setManageOpen] = useState(false)
   const stowed = tabs.filter(tab => hidden.includes(tab.key))
   const shownNow = tabs.filter(tab => !hidden.includes(tab.key))
   const count = stowed.length
@@ -76,7 +79,7 @@ export function TabStowControl({ t, tabs, visible, hidden, busy, error, onSelect
       onSelect: id => {
         if (id === MANAGE_ID) {
           setMenuOpen(false)
-          setManageOpen(true)
+          onManageOpenChange(true)
           return
         }
         onSelect(id)
@@ -93,14 +96,16 @@ export function TabStowControl({ t, tabs, visible, hidden, busy, error, onSelect
             {
               variant: 'ghost',
               size: 'sm',
-              className: css.tabStowTrigger,
+              className: count === 0 ? css.tabStowTrigger : css.tabStowTrigger + ' ' + css.tabStowTriggerCounted,
               'aria-label': t('tabMenuTrigger'),
               'aria-haspopup': 'menu',
               'aria-expanded': menuOpen,
               onClick: () => setMenuOpen(value => !value)
             },
-            h(IconEllipsisOutlineMedium),
-            count === 0 ? null : h('span', { className: css.tabStowBadge, 'aria-hidden': true }, String(count))
+            // The count is the control's content: a row that has put something
+            // away says so where the change can be undone, instead of stacking a
+            // badge on a second glyph.
+            count === 0 ? h(IconEllipsisOutlineMedium) : h('span', { className: css.tabStowCount, 'aria-hidden': true }, String(count))
           )
         )
       })
@@ -111,7 +116,7 @@ export function TabStowControl({ t, tabs, visible, hidden, busy, error, onSelect
       Modal,
       {
         open: manageOpen,
-        onClose: () => setManageOpen(false),
+        onClose: () => onManageOpenChange(false),
         title: t('tabManageTitle'),
         description: t('tabManageDesc'),
         closeLabel: t('tabManageDone'),
@@ -119,7 +124,7 @@ export function TabStowControl({ t, tabs, visible, hidden, busy, error, onSelect
           'span',
           { className: css.tabManageFooter },
           h(Button, { variant: 'outline', size: 'sm', disabled: busy || count === 0, onClick: () => onStow([]) }, t('tabManageShowAll')),
-          h(Button, { variant: 'primary', size: 'sm', onClick: () => setManageOpen(false) }, t('tabManageDone'))
+          h(Button, { variant: 'primary', size: 'sm', onClick: () => onManageOpenChange(false) }, t('tabManageDone'))
         )
       },
       h(

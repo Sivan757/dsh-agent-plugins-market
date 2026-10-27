@@ -14,9 +14,11 @@ import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { ResourceTabs } from '../ui/ResourceTabs.js'
 import { TabStowControl } from './TabStowControl.js'
 import { loadTabLayout, saveTabLayout, saveTabOrder } from '../api.js'
+import { TabHoverActions, TabHoverGuide, useTabHover, useTabHoverGuide } from './TabHoverActions.js'
 import {
   defaultTabLayout,
   moveTab,
+  PINNED_TAB_KEY,
   resolveHiddenTabs,
   visibleTabs,
   WORKSPACE_TAB_KEYS,
@@ -132,6 +134,10 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
   const [layout, setLayout] = useState<TabLayoutWire>(() => defaultTabLayout())
   const [layoutError, setLayoutError] = useState<string | undefined>(undefined)
   const [stowing, setStowing] = useState(false)
+  // The manager is a dialog with its own trigger in the trailing control, and
+  // the long-hover bubble opens the same dialog. Owning that flag here is what
+  // lets both entry points reach it without duplicating the panel.
+  const [managing, setManaging] = useState(false)
   /** The last layout the server confirmed, so a failed write can put it back. */
   const confirmed = useRef<TabLayoutWire>(defaultTabLayout())
 
@@ -257,6 +263,37 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     return () => node.removeEventListener('keydown', listener)
   }, [onKeyDown])
 
+  // A pointer resting on a tab is asking about that tab, so the row answers
+  // there rather than in a menu at the far end. The row keeps no button for it.
+  const hover = useTabHover(
+    layout.order.map(tab => ({ key: tab, label: labelKeys[tab] })),
+    PINNED_TAB_KEY
+  )
+  // A gesture with no visible control introduces itself once. The guide waits for
+  // the row to settle and retires itself, so it never blocks the workspace.
+  const guide = useTabHoverGuide(shown.length >= 3)
+  const hovered = hover.target
+  const hoverAt = hovered === undefined ? -1 : shown.indexOf(hovered.key as WorkspaceTab)
+
+  const moveHovered = useCallback(
+    (direction: -1 | 1) => {
+      if (hovered === undefined) return
+      const from = shown.indexOf(hovered.key as WorkspaceTab)
+      hover.close()
+      if (from < 0) return
+      const to = from + direction
+      if (to <= 0 || to >= shown.length) return
+      reorder(from, to)
+    },
+    [hover, hovered, reorder, shown]
+  )
+
+  const stowHovered = useCallback(() => {
+    if (hovered === undefined) return
+    hover.close()
+    stow([...layout.hidden, hovered.key])
+  }, [hover, hovered, layout.hidden, stow])
+
   return h(
     'div',
     { className: mode === 'page' ? `${css.workspace} ${css.pageMode}` : css.workspace, 'data-agent-plugins-workspace': true },
@@ -270,7 +307,7 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     // element exists only to carry the Alt+arrow listener, and it adds no box.
     h(
       'div',
-      { ref: rowRef, className: css.rowKeys },
+      { ref: rowRef, className: css.rowKeys, ...hover.bind },
       h(ResourceTabs<WorkspaceTab>, {
         label: labelKeys.market,
         value: active,
@@ -278,7 +315,9 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
         onChange: setActive,
         items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
         // The trigger renders outside the tablist, so the host's roving tab stop
-        // and walk keys stay exactly what they were.
+        // and walk keys stay exactly what they were. It also sits on the row's
+        // own right edge, so it costs the tabs no column.
+        trailingOverlay: true,
         trailing: h(TabStowControl, {
           t,
           tabs: layout.order.map(tab => ({ key: tab, label: labelKeys[tab] })),
@@ -286,12 +325,31 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
           hidden: layout.hidden,
           busy: stowing,
           error: layoutError,
+          manageOpen: managing,
+          onManageOpenChange: setManaging,
           onSelect: tab => setActive(tab as WorkspaceTab),
           onStow: stow,
           onReorder: reorder
         })
       })
     ),
+    guide.anchor === undefined ? null : h(TabHoverGuide, { t, target: guide.anchor, onDismiss: guide.dismiss }),
+    hovered === undefined
+      ? null
+      : h(TabHoverActions, {
+          t,
+          target: hovered,
+          canMoveLeft: hoverAt > 1,
+          canMoveRight: hoverAt >= 0 && hoverAt < shown.length - 1,
+          onMove: moveHovered,
+          onStow: stowHovered,
+          onOpenList: () => {
+            hover.close()
+            setManaging(true)
+          },
+          onHold: hover.hold,
+          onLeave: hover.close
+        }),
     // Every detail dialog these panels open inherits the fixed settings-sized
     // frame, the same chrome the preset manager's details use.
     h(
