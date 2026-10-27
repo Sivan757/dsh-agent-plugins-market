@@ -64,3 +64,15 @@ Findings the audits checked and found correct. Proposing them again wastes a pas
 - Archive extraction, path containment, and instruction write/delete: all defended, with the defence cited in `security.md`.
 - `resolveHiddenTabs`'s pinned-tab clamp, the per-responsibility state documents, the per-page Guide navigation line, and the generated `docs-site/guide/` copy: each is deliberate.
 - The prompt-side shapes recorded in `docs/scratch/prompt-research/corrections.md`.
+
+## A finding that needs a host change before it can be fixed
+
+Row 8 (CodeMirror at 52.6% of the client bundle) cannot be fixed inside this plugin. Measured from the build path:
+
+- `tsdown.config.ts` builds one CJS entry, `packages/market-ui/src/index.ts`, into one `client/client.js`. A dynamic `import()` inside a CJS bundle resolves at runtime through `require`, not through a chunk loader, so the editor cannot become a lazy chunk here.
+- The host can load more than one file: `packages/client/modules/src/index.ts:563` exposes `__ModuleLoader__`, and `packages/client/web/src/boot.ts:59-79` accepts a `loadBundle` seam plus a plugin manifest with a per-plugin entry list.
+- Using it means the plugin advertises several entries and serves each one over its own route, and every consumer that reads `client/client.js` directly has to learn the extra files. That is a host-contract change with a plugin-version requirement, not a cleanup.
+
+The cheaper option, which needs no host change, is to stop shipping a 960 KB editor for three dialogs and use a plain textarea for the two Markdown bodies, keeping the editor only where JSON structure matters. That is a product decision about editing comfort, so it is recorded here rather than made in a cleanup pass.
+
+Recommendation: take the textarea option for the Markdown editors now, and revisit the multi-entry split only if the host exposes a documented plugin-chunk contract.
