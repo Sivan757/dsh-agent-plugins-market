@@ -24,12 +24,12 @@
   padding: 4px 0;
 }
 
-/* Tab rows are the shared ResourceTabs component: it owns the row policy
-   (equal host columns, ellipsized labels, no sideways scroll) for the workspace
-   and the preset manager alike, so nothing here carries one surface's row. */
+/* Tab rows are the shared TabRail component: it owns the rail, the pills and the
+   drag gesture for the workspace and the preset manager alike, so nothing here
+   carries one surface's row. Its own stylesheet holds those rules. */
 
 /* A wrapper that carries the Alt+arrow listener without adding a box, so the
-   host row layout above is exactly what it was. */
+   rail's own layout above is exactly what it was. */
 .rowKeys {
   display: contents;
 }
