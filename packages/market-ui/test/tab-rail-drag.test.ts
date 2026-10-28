@@ -35,8 +35,9 @@ function layoutTabs(): void {
   }
 }
 
-function pointer(type: string, clientX: number): Event {
+function pointer(type: string, clientX: number, pointerType: 'mouse' | 'touch' = 'mouse'): Event {
   const event = new MouseEvent(type, { bubbles: true, clientX, button: 0 })
+  Object.defineProperty(event, 'pointerType', { value: pointerType })
   return event
 }
 
@@ -63,6 +64,31 @@ describe('tab rail reordering', () => {
       await Promise.resolve()
     })
     expect(onReorder).toHaveBeenCalledWith(0, 2)
+  })
+
+  it('waits for a hold before a touch drags, so a swipe still scrolls the rail', async () => {
+    vi.useFakeTimers()
+    const onReorder = vi.fn()
+    await mount(onReorder)
+    const first = document.querySelectorAll<HTMLElement>('[role="tab"]')[0]!
+    await act(async () => {
+      first.dispatchEvent(pointer('pointerdown', 10, 'touch'))
+      // A swipe before the hold completes belongs to the browser's sideways pan.
+      first.dispatchEvent(pointer('pointermove', 90, 'touch'))
+      window.dispatchEvent(pointer('pointerup', 90, 'touch'))
+      await Promise.resolve()
+    })
+    expect(onReorder).not.toHaveBeenCalled()
+    await act(async () => {
+      first.dispatchEvent(pointer('pointerdown', 10, 'touch'))
+      vi.advanceTimersByTime(400)
+      first.dispatchEvent(pointer('pointermove', 90, 'touch'))
+      window.dispatchEvent(pointer('pointermove', 260, 'touch'))
+      window.dispatchEvent(pointer('pointerup', 260, 'touch'))
+      await Promise.resolve()
+    })
+    expect(onReorder).toHaveBeenCalledWith(0, 2)
+    vi.useRealTimers()
   })
 
   it('treats a press that does not travel as a click, leaving the order alone', async () => {

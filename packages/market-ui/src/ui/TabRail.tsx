@@ -39,9 +39,18 @@ export interface TabRailProps<T extends string> {
   trailing?: ReactNode
 }
 
-/** How far the pointer must travel before a press becomes a drag rather than a click. */
 /** A press shorter than this is a click, so a slightly shaky tap still selects. */
 const DRAG_THRESHOLD_PX = 4
+/**
+ * How long a touch must be held before it drags instead of scrolling.
+ *
+ * The rail scrolls sideways to reach a tab that does not fit, and on a touch screen a
+ * sideways swipe is how that scroll happens. Taking every swipe as a drag would make
+ * the row impossible to scroll, and taking every swipe as a scroll would make it
+ * impossible to reorder, so touch waits for a hold and a mouse does not: its press is
+ * unambiguous.
+ */
+const TOUCH_HOLD_MS = 300
 
 /**
  * One horizontal tab rail with pointer reordering.
@@ -53,7 +62,9 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
   /** Index being dragged, and the position the pointer is currently over. */
   const [drag, setDrag] = useState<{ from: number; to: number } | undefined>(undefined)
   /** The press that may still become a drag. In a ref, so a move alone does not re-render. */
-  const press = useRef<{ index: number; x: number; started: boolean } | undefined>(undefined)
+  const press = useRef<{ index: number; x: number; started: boolean; timer?: ReturnType<typeof setTimeout> } | undefined>(undefined)
+  /** The tab held down on a touch screen, which suppresses the browser's sideways pan. */
+  const [holding, setHolding] = useState<number | undefined>(undefined)
   /** Set when a drag ends, so the click the browser sends next does not select. */
   const swallowClick = useRef(false)
   /** Roving tab stop: exactly one tab is reachable with Tab, the selected one by default. */
@@ -83,6 +94,8 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
 
   /** Finish a drag, committing the move once the highlight has been cleared. */
   const finish = useCallback(() => {
+    if (press.current?.timer !== undefined) clearTimeout(press.current.timer)
+    setHolding(undefined)
     press.current = undefined
     setDrag(current => {
       if (current !== undefined && current.from !== current.to && onReorder !== undefined) {
@@ -140,7 +153,7 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
         const selected = item.value === value
         const dragging = drag !== undefined && drag.from === index
         const landing = drag !== undefined && drag.from !== index && drag.to === index
-        const classes = [css.tab, selected ? css.tabActive : '', dragging ? css.tabDragging : '', landing ? css.tabLanding : '']
+        const classes = [css.tab, selected ? css.tabActive : '', dragging ? css.tabDragging : '', landing ? css.tabLanding : '', holding === index ? css.tabHolding : '']
         return h(
           'button',
           {
@@ -162,14 +175,35 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
               onChange(item.value)
             },
             onFocus: () => setFocused(index),
-            onPointerDown: (event: { button: number; clientX: number }) => {
+            onPointerDown: (event: { button: number; clientX: number; pointerType?: string }) => {
               if (onReorder === undefined || event.button !== 0) return
               press.current = { index, x: event.clientX, started: false }
+              if (event.pointerType === 'mouse' || event.pointerType === undefined) return
+              // A hold on a touch screen takes the gesture over from the sideways pan,
+              // which is the only way a swipe can mean both things.
+              setHolding(index)
+              press.current.timer = setTimeout(() => {
+                const current = press.current
+                if (current === undefined || current.index !== index || current.started) return
+                current.started = true
+                setDrag({ from: index, to: index })
+              }, TOUCH_HOLD_MS)
             },
-            onPointerMove: (event: { clientX: number }) => {
+            onPointerMove: (event: { clientX: number; pointerType?: string }) => {
               const current = press.current
               if (current === undefined || current.index !== index) return
               if (!current.started && Math.abs(event.clientX - current.x) < DRAG_THRESHOLD_PX) return
+              // Before a hold completes, a touch move is the browser scrolling the rail.
+              if (!current.started) {
+                if (event.pointerType !== undefined && event.pointerType !== 'mouse') {
+                  clearTimeout(current.timer)
+                  setHolding(undefined)
+                  press.current = undefined
+                  return
+                }
+                clearTimeout(current.timer)
+                setHolding(undefined)
+              }
               current.started = true
               setDrag({ from: index, to: indexAt(event.clientX) })
             },
@@ -177,6 +211,8 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
               // A press that never became a drag stays a click, which the browser
               // sends as usual; only a real drag swallows the selection change.
               if (press.current?.started === true) swallowClick.current = true
+              if (press.current?.timer !== undefined) clearTimeout(press.current.timer)
+              setHolding(undefined)
               press.current = undefined
             }
           },

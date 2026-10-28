@@ -74,6 +74,12 @@
   opacity: 0.45;
 }
 
+/* A held tab owns the gesture: without this the browser starts panning the rail and
+   cancels the pointer stream, so a touch drag could never begin. */
+.tabHolding {
+  touch-action: none;
+}
+
 /* The drop target keeps its own quiet tint: a moving line would jump between tabs as
    the pointer crosses a midpoint, which reads as flicker rather than as a target. */
 .tabLanding {
