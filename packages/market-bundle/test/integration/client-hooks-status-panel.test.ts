@@ -299,7 +299,7 @@ it('shows the empty state when nothing is configured', async () => {
   expect(document.body.textContent).toContain(en.hooksPanelEmpty)
 })
 
-it('gives the settings workspace a seventh Hooks tab on the shared, non-scrolling row', async () => {
+it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(
@@ -330,25 +330,22 @@ it('gives the settings workspace a seventh Hooks tab on the shared, non-scrollin
     en.workspaceTabLsp,
     en.workspaceTabHooks
   ])
-  // Equal columns come from the host's own inline grid, so no label can take a
-  // wider share than another and the row never has to grow past its frame.
-  expect(tablist.getAttribute('style') ?? '').toContain('minmax(0, 1fr)')
-  // The shared row clips and ellipsizes instead of scrolling: the manager
-  // renders the same module, and no stylesheet asks for a sideways scroll.
-  const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
-  const rowRule = /\.row\s*\{[^}]*/.exec(sharedCss)?.[0] ?? ''
-  expect(rowRule).toMatch(/overflow:\s*hidden/)
-  expect(rowRule).toMatch(/min-width:\s*0/)
-  expect(sharedCss).not.toMatch(/overflow-x:\s*auto/)
-  expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*text-overflow:\s*ellipsis/)
-  expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*white-space:\s*nowrap/)
+  // The row is one scrollable rail rather than an equal-column grid, so a ninth
+  // tab is reached by sliding instead of being cut off at the frame edge.
+  expect(tablist.getAttribute('style') ?? '').not.toContain('minmax(0, 1fr)')
+  const railCss = readFileSync('packages/market-ui/src/ui/tab-rail.module.css', 'utf8')
+  const railRule = /\.rail\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
+  expect(railRule).toMatch(/overflow-x:\s*auto/)
+  expect(railRule).toMatch(/min-width:\s*0/)
+  const tabRule = /\.tab\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
+  expect(tabRule).toMatch(/flex:\s*none/)
+  expect(tabRule).toMatch(/white-space:\s*nowrap/)
   const workspaceCss = readFileSync('packages/market-ui/src/workspace/workspace.module.css', 'utf8')
-  expect(workspaceCss).not.toMatch(/overflow-x:\s*auto/)
   expect(workspaceCss).not.toMatch(/tabRow/)
-  // The rendered row is the shared one and holds the host tablist; the roving
-  // tab stop stays the host's: one selected, focusable tab.
-  const rowClass = (await import('../../../../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
-  expect(document.querySelector('.' + rowClass)!.querySelector('[role="tablist"]')).not.toBeNull()
+  // The rendered row is one tablist whose children are the tabs themselves: the
+  // rail is the list, not a wrapper around a second list, and the roving tab stop
+  // is still exactly one tab.
+  expect([...tablist.children].every(child => child.getAttribute('role') === 'tab')).toBe(true)
   const tabs = [...tablist.querySelectorAll('[role="tab"]')]
   const selected = tabs.filter(tab => tab.getAttribute('aria-selected') === 'true')
   expect(selected).toHaveLength(1)

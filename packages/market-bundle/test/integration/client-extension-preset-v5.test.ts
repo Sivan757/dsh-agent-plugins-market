@@ -420,7 +420,7 @@ const zh = { ...settingsZh, ...extensionPresetsZh } as Record<string, string>
 const tZh = (key: string) => zh[key] ?? key
 
 describe('user hooks configuration row', () => {
-  it('keeps the tab row on equal columns with ellipsized labels instead of a sideways scroll', async () => {
+  it('scrolls the face row instead of truncating a label', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -429,22 +429,23 @@ describe('user hooks configuration row', () => {
         h(ResourceList, { resources: [suite, hooksRow], ids: [], disabled: false, t: tZh, showOriginal: false, onToggleShowOriginal: () => {}, onToggle: toggle, onView: view })
       )
     )
-    // The shared row policy: the host sizes the columns, and a label that does
-    // not fit ellipsizes inside its own share. Nothing scrolls sideways.
-    const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
-    const rowRule = /\.row\s*\{[^}]*/.exec(sharedCss)?.[0] ?? ''
-    expect(rowRule).toMatch(/overflow:\s*hidden/)
-    expect(rowRule).toMatch(/min-width:\s*0/)
-    expect(sharedCss).not.toMatch(/overflow-x:\s*auto/)
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*text-overflow:\s*ellipsis/)
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*white-space:\s*nowrap/)
-    // Equal columns are the host's own inline grid, so the indicator geometry
-    // stays correct at any width.
-    const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
-    expect(faceTablist.getAttribute('style') ?? '').toContain('minmax(0, 1fr)')
-    // The rendered row actually carries the module class the policy rides on.
-    const rowClass = (await import('../../../../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
-    expect(document.querySelector('.' + rowClass)!.querySelector('[role="tablist"]')).not.toBeNull()
+    // The row is one scrollable rail: a face keeps its full label and the rail
+    // slides, which is what stops a ninth tab from being cut off at the edge.
+    const railCss = readFileSync('packages/market-ui/src/ui/tab-rail.module.css', 'utf8')
+    const railRule = /\.rail\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
+    expect(railRule).toMatch(/overflow-x:\s*auto/)
+    expect(railRule).toMatch(/min-width:\s*0/)
+    const tabRule = /\.tab\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
+    expect(tabRule).toMatch(/flex:\s*none/)
+    expect(tabRule).toMatch(/white-space:\s*nowrap/)
+    // The face row is one tablist holding the seven faces directly, and it is not
+    // the host's equal-column grid: no inline grid template is set on it.
+    const faceLists = [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 7)
+    expect(faceLists).toHaveLength(1)
+    expect(faceLists[0]!.getAttribute('style') ?? '').not.toContain('minmax(0, 1fr)')
+    // The row carries the face tabs directly, so the tab list is the rail itself
+    // rather than a nested control inside another row.
+    expect([...faceLists[0]!.children].every(child => child.getAttribute('role') === 'tab')).toBe(true)
   })
 
   it('keeps the user-hooks configuration row out of every face tab in a localized build', async () => {
@@ -734,7 +735,7 @@ describe('hooks tab', () => {
     expect(document.body.textContent).toContain(tZh('epHookEventUnsupported'))
   })
 
-  it('keeps the seven one-line face tabs on the shared tab-row policy', async () => {
+  it('keeps the seven one-line face tabs on the shared scrolling rail', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -752,18 +753,15 @@ describe('hooks tab', () => {
         })
       )
     )
-    const rowClass = (await import('../../../../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
-    // Seven primary faces on one shared component with one one-line,
-    // non-scrolling policy. The secondary event row is gone.
-    const faceRow = document.querySelector('.' + rowClass)!
-    expect(faceRow.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    // Seven primary faces on one rail. The secondary event row is gone.
+    const faceLists = () => [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 7)
+    expect(faceLists()).toHaveLength(1)
     await click(en.epHooksTab)
-    expect([...document.querySelectorAll('.' + rowClass)]).toHaveLength(1)
-    // One line each, and never a sideways scroll: the shared truncation rule is
-    // the only thing that gives on a narrow frame.
-    const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*white-space:\s*nowrap/)
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*text-overflow:\s*ellipsis/)
-    expect(sharedCss).not.toMatch(/overflow-x:\s*auto/)
+    expect(faceLists()).toHaveLength(1)
+    // One line each, and the rail scrolls rather than shrinking a label: a face
+    // keeps its width, which is what makes every entry readable at any frame width.
+    const railCss = readFileSync('packages/market-ui/src/ui/tab-rail.module.css', 'utf8')
+    expect(railCss).toMatch(/\.tab\s*\{[^}]*white-space:\s*nowrap/)
+    expect(railCss).toMatch(/\.rail\s*\{[^}]*overflow-x:\s*auto/)
   })
 })

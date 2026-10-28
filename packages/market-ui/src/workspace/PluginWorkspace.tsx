@@ -10,7 +10,7 @@
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
-import { ResourceTabs } from '../ui/ResourceTabs.js'
+import { TabRail } from '../ui/TabRail.js'
 import { TabStowControl } from './TabStowControl.js'
 import { useTabLayout, type TabLayoutMessages } from './tab-layout-store.js'
 import { TabHoverActions, TabHoverGuide, useTabHover, useTabHoverGuide } from './TabHoverActions.js'
@@ -261,16 +261,15 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     h(
       'div',
       { ref: rowRef, className: css.rowKeys, ...hover.bind },
-      h(ResourceTabs<WorkspaceTab>, {
+      h(TabRail<WorkspaceTab>, {
         label: labelKeys.market,
         value: active,
         // Switching tabs is local state only; the URL stays the host's.
         onChange: setActive,
         items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
-        // The trigger renders outside the tablist, so the host's roving tab stop
-        // and walk keys stay exactly what they were. It also sits on the row's
-        // own right edge, so it costs the tabs no column.
-        trailingOverlay: true,
+        // Dragging moves one tab to another's position: the same write the manager
+        // and the Alt+arrow gesture make, so all three paths persist one order.
+        onReorder: reorder,
         trailing: h(TabStowControl, {
           t,
           tabs: layout.order.map(tab => ({ key: tab, label: labelKeys[tab] })),

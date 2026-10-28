@@ -2,7 +2,7 @@ import { createElement as h, useCallback, useId, useMemo, useState, type ReactNo
 import { Button, IconInfoOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import { CardCount, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from '../../ui/ResourceCard.js'
-import { ResourceTabs } from '../../ui/ResourceTabs.js'
+import { TabRail } from '../../ui/TabRail.js'
 import { HookResourceCard } from '../../ui/HookResourceCard.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
@@ -165,14 +165,14 @@ export function ResourceList({
   const stopKey = (event: import('react').KeyboardEvent) => event.stopPropagation()
   return (
     <div className={workspace.workspace}>
-      <ResourceTabs
+      <TabRail
         value={face}
         onChange={value => {
           if (faces.includes(value)) setFace(value)
         }}
         label={t('epTitle')}
         items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
-        trailingOverlay
+        onReorder={moveFace}
         trailing={
           <TabStowControl
             t={t}

@@ -1,0 +1,99 @@
+/**
+ * The market tab row: one scrollable rail with pills and pointer reordering.
+ *
+ * Colours come from the host's alias tokens with the same fallbacks the workspace
+ * stylesheet uses, so the row follows the active theme in both light and dark.
+ */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The rail scrolls rather than shrinking its tabs, and fades the edge that has more
+   content instead of cutting a label in half. */
+.rail {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border: 1px solid var(--dsw-alias-border-subtle, rgb(0 0 0 / 8%));
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-secondary, rgb(0 0 0 / 4%));
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 16px), transparent 100%);
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--dsw-alias-label-secondary, rgb(0 0 0 / 60%));
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.tab:hover {
+  background: var(--dsw-alias-bg-tertiary, rgb(0 0 0 / 8%));
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--dsw-alias-accent, #4f7cf7);
+  outline-offset: 1px;
+}
+
+/* The selected tab is a raised chip rather than a filled block: the row stays quiet
+   until something is chosen, and the chip is the only element with a shadow. */
+.tabActive {
+  border-color: var(--dsw-alias-border-subtle, rgb(0 0 0 / 10%));
+  background: var(--dsw-alias-bg-primary, #fff);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.tabDragging {
+  opacity: 0.45;
+}
+
+/* The drop target keeps its own quiet tint: a moving line would jump between tabs as
+   the pointer crosses a midpoint, which reads as flicker rather than as a target. */
+.tabLanding {
+  background: var(--dsw-alias-bg-tertiary, rgb(0 0 0 / 8%));
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.tabText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trailing {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+}
