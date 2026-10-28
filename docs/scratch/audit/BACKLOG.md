@@ -296,3 +296,15 @@ The previous round measured 27 unreferenced classes with a name-level mapping an
 None of the ten was deleted, and the reason is unchanged: removing a rule changes a screen, and there is no browser in this session. But the gap between five of them and the other five is now on paper. `detailEmpty`, `inlineCheck`, `modalFooterGrow`, `modalFooterHint` and `pair` appear nowhere in the repository at all; `detail`, `grid`, `list`, `row` and `rowActions` also occur as ordinary string values, so name-level evidence cannot separate a class from a coincidence. The first five are a one-line change whenever a visual pass is possible.
 
 The control: appending `.probeUnused` to a stylesheet produces an eleventh finding and fails the gate.
+
+## Three dimensions checked clean, and why that is worth recording
+
+Not every audit wave finds something. These three were checked with the method named, so the next person does not repeat the measurement.
+
+**Typography and colour discipline.** The plugin's stylesheets use `font-weight: 600` in about ten places. The host does too: 113 uses of 500, 35 of 600 and 7 of 700 across its client packages, with markdown headings at 700. So our 600s for panel titles match the product's own scale rather than violating it, and there is nothing to change. Raw hex colours appear only as mask channels (`linear-gradient(180deg, #000 78%, transparent)`, where the value is alpha geometry, not a colour). No `<img>` without `alt`.
+
+**Documented commands.** 173 Markdown files were scanned for `pnpm run <name>` and `node scripts/<file>` references. Two target scripts do not exist here, and neither is a defect: `scripts/compat-probe.mjs` is specified in a design plan for a probe that has not been written, and `scripts/generate-readme.mjs` belongs to the awesome-list repository whose README the scratch note describes regenerating. The remaining hits are pnpm built-ins (`cache`, `audit`, `store`, `why`, `paths`), not scripts.
+
+**Accessible names.** Every icon-only control in the client carries a label. The one that reads wrong on a failed read was fixed two rounds ago, which is how this check came up.
+
+The reusable part is the second item: a doc that names a command invites the reader to run it, and a scan for that is cheap. It was not turned into a gate because a third of the hits were pnpm's own subcommands, and a gate that needs an allowlist of the package manager's vocabulary is a gate that will be wrong about the next one.
