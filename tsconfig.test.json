@@ -41,6 +41,7 @@
     "packages/market-ui/test/bilingual-description-real-case.test.ts",
     "packages/market-ui/test/bilingual-description.test.ts",
     "packages/market-ui/test/bilingual-toggle.test.ts",
+    "packages/market-ui/test/tab-layout-sharing.test.ts",
     "packages/market-ui/test/client-agent-extension-icon.test.ts",
     "packages/market-ui/test/client-agent-presets-gate.test.ts",
     "packages/market-ui/test/client-api-timeout.test.ts",

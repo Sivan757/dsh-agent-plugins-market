@@ -1,4 +1,4 @@
-import { createElement as h, useId, useState, type ReactNode } from 'react'
+import { createElement as h, useCallback, useId, useMemo, useState, type ReactNode } from 'react'
 import { Button, IconInfoOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import { CardCount, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from '../../ui/ResourceCard.js'
@@ -15,6 +15,9 @@ import rc from '../../ui/resource-card.module.css'
 import css from './presets.module.css'
 import panel from '../../ui/panel.module.css'
 import workspace from '../../workspace/workspace.module.css'
+import { TabStowControl } from '../../workspace/TabStowControl.js'
+import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout-store.js'
+import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
 import { hoverHint } from '../../ui/hover-hint.js'
 const faces = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'hooks'] as const
 const labels = {
@@ -27,6 +30,30 @@ const labels = {
   hooks: 'epHooksTab'
 } as const
 const countLabels = { skills: 'surfaceSkills', commands: 'surfaceCommands', agents: 'surfaceAgents', mcp: 'surfaceMcp', lsp: 'surfaceLsp', hooks: 'surfaceHooks' } as const
+/**
+ * Each face's workspace tab key.
+ *
+ * The two lists name one collection differently: this surface's `agents` face is
+ * the workspace's `personas` tab. The layout is shared, so the mapping has to be
+ * stated once here rather than assumed.
+ */
+const TAB_KEY: Record<(typeof faces)[number], WorkspaceTabKey> = {
+  market: 'market',
+  skills: 'skills',
+  commands: 'commands',
+  agents: 'personas',
+  mcp: 'mcp',
+  lsp: 'lsp',
+  hooks: 'hooks'
+} as const
+/**
+ * One tab key back to this surface's face, when the surface has that tab.
+ *
+ * The mapping is the only authority consulted: a face whose name differs from its
+ * tab key (`agents` against `personas`) is not a member of the tab-key list, so
+ * testing that list first would silently drop the face.
+ */
+const faceOf = (key: WorkspaceTabKey): (typeof faces)[number] | undefined => (Object.keys(TAB_KEY) as (typeof faces)[number][]).find(face => TAB_KEY[face] === key)
 export function ResourceList({
   resources: inventory,
   ids,
@@ -58,7 +85,42 @@ export function ResourceList({
   // configuration parent renders no card anywhere. Project children ride their
   // own face tabs below.
   const [requestedFace, setFace] = useState<ExtensionResource['face']>('market')
-  const face = faces.includes(requestedFace) ? requestedFace : 'market'
+  const [managing, setManaging] = useState(false)
+  // The row is the workspace's row, on the same layout, so the order and the
+  // stow list a user sets in one place are the ones the other renders.
+  const layoutMessages = useMemo<TabLayoutMessages>(
+    () => ({
+      load: (error: unknown) => t('tabLayoutLoadFailed', { error: error instanceof Error ? error.message : String(error) }),
+      write: (error: unknown) => t('tabLayoutWriteFailed', { error: error instanceof Error ? error.message : String(error) })
+    }),
+    [t]
+  )
+  const { state: layoutState, stow: applyStowList, move: applyTabMoveTo } = useTabLayout(layoutMessages)
+  const layout = layoutState.layout
+  // This surface's faces, in the shared order, with the active one always kept.
+  const orderedFaces = visibleTabs(layout.order, layout, TAB_KEY[requestedFace])
+    .map(faceOf)
+    .filter((value): value is (typeof faces)[number] => value !== undefined)
+  const face = orderedFaces.includes(requestedFace) ? requestedFace : (orderedFaces[0] ?? 'market')
+  /** Stow or reveal one face, leaving the keys this surface cannot show alone. */
+  const stowFaces = useCallback(
+    (next: readonly string[]) => {
+      const mine = new Set<string>(faces.map(item => TAB_KEY[item]))
+      const elsewhere = layout.hidden.filter(key => !mine.has(key))
+      applyStowList([...elsewhere, ...next.filter(key => mine.has(key))])
+    },
+    [applyStowList, layout.hidden]
+  )
+  /** Move one face by mapping the rendered positions back onto their keys. */
+  const moveFace = useCallback(
+    (from: number, to: number) => {
+      const moving = orderedFaces[from]
+      const landing = orderedFaces[to]
+      if (moving === undefined || landing === undefined) return
+      applyTabMoveTo(TAB_KEY[moving], TAB_KEY[landing])
+    },
+    [applyTabMoveTo, orderedFaces]
+  )
   const [filter, setFilter] = useState('all'),
     [query, setQuery] = useState('')
   const [view, setView] = useWorkspaceView()
@@ -109,7 +171,26 @@ export function ResourceList({
           if (faces.includes(value)) setFace(value)
         }}
         label={t('epTitle')}
-        items={faces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
+        items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
+        trailingOverlay
+        trailing={
+          <TabStowControl
+            t={t}
+            tabs={orderedFaces.map(value => ({ key: TAB_KEY[value], label: t(labels[value]) }))}
+            visible={orderedFaces.map(value => TAB_KEY[value])}
+            hidden={layout.hidden.filter(key => orderedFaces.some(value => TAB_KEY[value] === key))}
+            busy={layoutState.busy}
+            error={layoutState.error}
+            onSelect={key => {
+              const next = faceOf(key as WorkspaceTabKey)
+              if (next !== undefined) setFace(next)
+            }}
+            onStow={stowFaces}
+            onReorder={moveFace}
+            manageOpen={managing}
+            onManageOpenChange={setManaging}
+          />
+        }
       />
       <div className={panel.shell} role="tabpanel" id={id + '-' + face + '-panel'} aria-labelledby={id + '-' + face}>
         <SearchFilterToolbar

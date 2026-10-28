@@ -8,22 +8,13 @@
  * tabs with different content heights swap.
  * @module client/PluginWorkspace
  */
-import { createElement as h, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { ResourceTabs } from '../ui/ResourceTabs.js'
 import { TabStowControl } from './TabStowControl.js'
-import { loadTabLayout, saveTabLayout, saveTabOrder } from '../api.js'
+import { useTabLayout, type TabLayoutMessages } from './tab-layout-store.js'
 import { TabHoverActions, TabHoverGuide, useTabHover, useTabHoverGuide } from './TabHoverActions.js'
-import {
-  defaultTabLayout,
-  moveTab,
-  PINNED_TAB_KEY,
-  resolveHiddenTabs,
-  visibleTabs,
-  WORKSPACE_TAB_KEYS,
-  type TabLayoutWire,
-  type WorkspaceTabKey
-} from '../../../market-contracts/src/contracts/tab-layout.js'
+import { PINNED_TAB_KEY, resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type TabLayoutWire, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -128,70 +119,44 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     hooks: t('workspaceTabHooks')
   }
 
-  // The stow list is read once and then owned here: the row, the menu and the
-  // dialog all render from this value, so a write cannot leave the row and the
-  // panel disagreeing about which tabs exist. It starts from the same default the
-  // server answers, so the first paint is the row the workspace really has
-  // instead of a full one that collapses a frame later.
-  const [layout, setLayout] = useState<TabLayoutWire>(() => defaultTabLayout())
-  const [layoutError, setLayoutError] = useState<string | undefined>(undefined)
-  const [stowing, setStowing] = useState(false)
+  // The layout is shared with the preset manager, which opens inside this screen,
+  // so both rows render from one store: a reorder or a stow in either is visible
+  // in the other immediately. The store starts from the same default the server
+  // answers, so the first paint is the row the workspace really has.
+  const layoutMessages = useMemo<TabLayoutMessages>(
+    () => ({
+      load: (error: unknown) => t('tabLayoutLoadFailed', { error: messageOf(error) }),
+      write: (error: unknown) => t('tabLayoutWriteFailed', { error: messageOf(error) })
+    }),
+    [t]
+  )
+  const { state: layoutState, stow: applyStowList, move: applyTabMoveTo } = useTabLayout(layoutMessages)
+  const layout = layoutState.layout
+  const layoutError = layoutState.error
+  const stowing = layoutState.busy
   // The manager is a dialog with its own trigger in the trailing control, and
   // the long-hover bubble opens the same dialog. Owning that flag here is what
   // lets both entry points reach it without duplicating the panel.
   const [managing, setManaging] = useState(false)
-  /** The last layout the server confirmed, so a failed write can put it back. */
-  const confirmed = useRef<TabLayoutWire>(defaultTabLayout())
-
-  useEffect(() => {
-    let live = true
-    void loadTabLayout()
-      .then(stored => {
-        if (!live) return
-        confirmed.current = stored
-        setLayout(stored)
-      })
-      .catch((error: unknown) => {
-        // A failed read costs the user their layout, never the workspace: every
-        // tab stays visible and the reason appears where the controls are.
-        if (live) setLayoutError(t('tabLayoutLoadFailed', { error: messageOf(error) }))
-      })
-    return () => {
-      live = false
-    }
-  }, [t])
 
   /**
    * Apply a stow list now and persist it behind the row.
    *
-   * The row paints first because the change is the user's own click, and a
-   * local file write is fast enough that waiting would only make it feel late.
-   * A failed write puts the confirmed layout back and says why, so the row
-   * never shows a layout the server does not have.
+   * The row paints first because the change is the user's own click; the store
+   * owns that ordering, the write and the rollback, because the preset manager
+   * renders the same list and must see the same result.
    */
   const stow = useCallback(
     (next: readonly string[]) => {
-      const resolved: TabLayoutWire = { hidden: resolveHiddenTabs(next), order: layout.order }
+      const hidden = resolveHiddenTabs(next)
       // Stowing the tab the panel shows would leave a panel whose tab is not
       // rendered, so the selection moves to the first tab that stays. This
       // reads the stow list alone rather than the row, so it does not depend on
       // which tab is pinned or where the pinned tab sits in the order.
-      if (resolved.hidden.includes(active)) setActive(resolved.order.find(tab => !resolved.hidden.includes(tab)) ?? 'market')
-      setLayout(resolved)
-      setStowing(true)
-      setLayoutError(undefined)
-      void saveTabLayout(resolved.hidden)
-        .then(committed => {
-          confirmed.current = committed
-          setLayout(committed)
-        })
-        .catch((error: unknown) => {
-          setLayout(confirmed.current)
-          setLayoutError(t('tabLayoutWriteFailed', { error: messageOf(error) }))
-        })
-        .finally(() => setStowing(false))
+      if (hidden.includes(active)) setActive(layout.order.find(tab => !hidden.includes(tab)) ?? 'market')
+      applyStowList(next)
     },
-    [active, layout.order, t]
+    [active, applyStowList, layout.order]
   )
 
   const shown = rowTabs(layout, active)
@@ -207,26 +172,12 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
    */
   const reorder = useCallback(
     (from: number, to: number) => {
-      const row = shown
-      const moving = row[from]
-      const landing = row[to]
-      if (moving === undefined || landing === undefined || moving === landing) return
-      const order = moveTab(layout.order, layout.order.indexOf(moving), layout.order.indexOf(landing))
-      setLayout({ hidden: layout.hidden, order })
-      setStowing(true)
-      setLayoutError(undefined)
-      void saveTabOrder(order)
-        .then(committed => {
-          confirmed.current = committed
-          setLayout(committed)
-        })
-        .catch((error: unknown) => {
-          setLayout(confirmed.current)
-          setLayoutError(t('tabLayoutWriteFailed', { error: messageOf(error) }))
-        })
-        .finally(() => setStowing(false))
+      const moving = shown[from]
+      const landing = shown[to]
+      if (moving === undefined || landing === undefined) return
+      applyTabMoveTo(moving, landing)
     },
-    [layout.hidden, layout.order, shown, t]
+    [applyTabMoveTo, shown]
   )
 
   /**

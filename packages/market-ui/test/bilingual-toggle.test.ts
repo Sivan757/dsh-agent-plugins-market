@@ -35,7 +35,15 @@ const api = vi.hoisted(() => {
     setLspServerEnabled: vi.fn(),
     migrateLspSeam: vi.fn(),
     postAction: vi.fn(),
-    fetchSuiteDetail: vi.fn()
+    fetchSuiteDetail: vi.fn(),
+    // The preset manager's tab row renders from the shared layout, so the module
+    // it reads has to answer the two routes the row is built from.
+    loadTabLayout: vi.fn(async () => ({
+      hidden: ['instructions', 'lsp', 'hooks'],
+      order: ['market', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks']
+    })),
+    saveTabLayout: vi.fn(),
+    saveTabOrder: vi.fn()
   }
 })
 vi.mock('../../../packages/market-ui/src/api.js', () => api)

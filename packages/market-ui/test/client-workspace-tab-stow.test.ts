@@ -26,6 +26,7 @@ vi.mock('../../../packages/market-ui/src/features/output-styles/OutputStylesPane
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 import { PluginWorkspace, TAB_ORDER } from '../../../packages/market-ui/src/workspace/PluginWorkspace.js'
+import { resetTabLayoutStore } from '../../../packages/market-ui/src/workspace/tab-layout-store.js'
 import { TAB_HOVER_ARM_MS, TAB_HOVER_DISMISS_MS, TAB_HOVER_GUIDE_MS } from '../../../packages/market-ui/src/workspace/TabHoverActions.js'
 import { WORKSPACE_TAB_KEYS } from '../../../packages/market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../../../packages/market-ui/src/index.js'
@@ -41,6 +42,9 @@ let writeError: string | undefined
 
 afterEach(async () => {
   await act(async () => root?.unmount())
+  // The layout store outlives a mount on purpose, since both surfaces share it;
+  // a case that left it loaded would seed the next one with its own server.
+  resetTabLayoutStore()
   host?.remove()
   window.location.hash = ''
   vi.unstubAllGlobals()
@@ -274,6 +278,9 @@ describe('workspace tab stowing', () => {
     root = undefined
     host?.remove()
     host = undefined
+    // A changed file is read on the next page load, not on the next mount: the
+    // store is the session's copy, so this second mount starts a fresh session.
+    resetTabLayoutStore()
     await mount()
     expect(chipLabels()).toHaveLength(8)
     expect(chipLabels()).toContain('workspaceTabMarket')
