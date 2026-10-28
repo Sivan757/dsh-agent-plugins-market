@@ -33,3 +33,5 @@ Two cases, and only two. A module the walk cannot follow, such as a file the hos
 ## Why these five are recorded instead of deleted
 
 Each one is still covered by a passing test, and the resource-window trio still has its locale strings in `locales-resources.ts`. Deleting them retires a feature surface, which is a product decision rather than an audit cleanup; the backlog carries it as one item. Recording them here keeps the gate strict about everything else while the decision waits, which is what a ledger is for.
+
+Part of `check:refactor`; [the gate map](gate-map.md) lists what every member protects and what none of them can see.

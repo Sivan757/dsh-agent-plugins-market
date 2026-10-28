@@ -35,3 +35,5 @@ Almost never. The honest answers are to extract the shared body or to delete one
 ## Why this page is empty
 
 The tree measured zero duplicated production bodies when the gate landed, because the audit pass before it removed every pair it found. An empty table is the healthy state, and the gate exists so it stays that way.
+
+Part of `check:refactor`; [the gate map](gate-map.md) lists what every member protects and what none of them can see.

@@ -18,3 +18,5 @@ Measured on the current artifact: 189 modules, 531 relative specifiers, 0 findin
 ## The gap this closed in itself
 
 The first version read only `from '...'` and `import('...')`, so a side-effect import (`import './setup.js'`) was invisible. The negative control caught it: a probe module importing a path the tarball does not carry passed the gate. Side-effect imports now have their own patterns, which matters because the client bundle and the emitted modules both load setup modules that way.
+
+Part of `check:refactor`; [the gate map](gate-map.md) lists what every member protects and what none of them can see.

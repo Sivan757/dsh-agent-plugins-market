@@ -37,3 +37,5 @@ Fifteen entry exports had no consumer when the gate was written, and every one w
 - `market-ui` `REQUIRED_PRIMITIVES` and `missingPrimitives`, both used only by the entry's own primitive check.
 
 A row is the exception, so an empty table is the healthy state.
+
+Part of `check:refactor`; [the gate map](gate-map.md) lists what every member protects and what none of them can see.
