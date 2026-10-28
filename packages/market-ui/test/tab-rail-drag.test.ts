@@ -103,4 +103,15 @@ describe('tab rail reordering', () => {
     })
     expect(onReorder).not.toHaveBeenCalled()
   })
+  it('moves focus with the arrow keys, so the roving tab stop follows the selection', async () => {
+    await mount(() => {})
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
+    tabs[0]!.focus()
+    await act(async () => {
+      tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(tabs[1])
+    expect(tabs[1]!.getAttribute('tabindex')).toBe('0')
+    expect(tabs[0]!.getAttribute('tabindex')).toBe('-1')
+  })
 })

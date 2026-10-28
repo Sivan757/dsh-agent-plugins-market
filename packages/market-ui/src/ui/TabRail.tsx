@@ -131,7 +131,14 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
     }
   }, [finish, indexAt, onReorder])
 
-  /** Arrow keys move the selection, Home and End jump, matching the host's tab walk. */
+  /**
+   * Arrow keys move the selection and the focus together, Home and End jump.
+   *
+   * Moving the selection alone would leave the browser's focus on a tab that now has
+   * `tabIndex` -1: the ring stays behind, Tab leaves the row, and the next arrow key
+   * starts again from the old position. So the key handler moves both, which is what
+   * a roving tab stop means.
+   */
   const onKeyDown = (event: { key: string; preventDefault: () => void }): void => {
     const last = items.length - 1
     const next =
@@ -139,6 +146,7 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
     if (next < 0) return
     event.preventDefault()
     setFocused(next)
+    railRef.current?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus()
     const item = items[next]
     if (item !== undefined) onChange(item.value)
   }
