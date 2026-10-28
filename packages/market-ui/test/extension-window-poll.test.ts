@@ -15,6 +15,20 @@ import { act } from 'react'
 import { EXTENSION_WINDOW_POLL_MS } from '../../../packages/market-contracts/src/contracts/refresh-cadence.js'
 
 const reads = vi.hoisted(() => ({ count: 0 }))
+/** The window a ready session answers with; one copy, so a payload change is one edit. */
+const goodPayload = () => ({
+  sessionId: 's',
+  workspace: '/workspace',
+  started: true,
+  busy: false,
+  library: { revision: 1, presets: [], defaultPresetId: null },
+  state: {
+    revision: 1,
+    selection: { presetId: null, presetName: 'Global', presetRevision: 1, enabledIds: [], modified: false }
+  },
+  resources: [],
+  selectionRevision: 1
+})
 vi.mock('../../../packages/market-ui/src/features/extension-presets/resource.js', () => ({
   readWindow: vi.fn(async () => {
     reads.count += 1
@@ -183,5 +197,32 @@ describe('extension window poll', () => {
       await vi.advanceTimersByTimeAsync(EXTENSION_WINDOW_POLL_MS * 12)
     })
     expect(calls()).toBeGreaterThan(1)
+  })
+  it('reports a session with no extension scope as not ready, and clears it on the first good read', async () => {
+    // The control that shows the window needs the cause: "wait" and "broken" are
+    // different sentences, and the poll already knows which one it is.
+    const module = await import('../../../packages/market-ui/src/features/extension-presets/resource.js')
+    vi.mocked(module.readWindow).mockClear()
+    vi.mocked(module.readWindow).mockRejectedValueOnce(Object.assign(new Error('extension-session-not-found'), { notReady: true }))
+    const seen: Array<{ notReady: boolean; error: string }> = []
+    function Capture(): null {
+      const state = useExtensionWindow('s')
+      seen.push({ notReady: state.notReady, error: state.error })
+      return null
+    }
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(h(Capture))
+    })
+    expect(seen.at(-1)?.notReady).toBe(true)
+    expect(seen.at(-1)?.error).toContain('extension-session-not-found')
+    // The next read answers: the wait was not a failure, so the flag clears.
+    vi.mocked(module.readWindow).mockResolvedValue(goodPayload())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(EXTENSION_WINDOW_POLL_MS * 4)
+    })
+    expect(seen.at(-1)?.notReady).toBe(false)
   })
 })
