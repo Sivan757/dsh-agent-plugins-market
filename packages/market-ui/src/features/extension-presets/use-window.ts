@@ -3,8 +3,15 @@ import type { ExtensionWindowPayload } from '../../../../market-contracts/src/co
 import { EXTENSION_WINDOW_POLL_MS } from '../../../../market-contracts/src/contracts/refresh-cadence.js'
 import { createWriteQueue, readWindow, writeWindow, type Mutation } from './resource.js'
 
-/** A read failure the route will keep answering; `unavailable` is set by that error. */
-const settlesNothing = (reason: unknown): boolean => typeof reason === 'object' && reason !== null && (reason as { unavailable?: boolean }).unavailable === true
+/** A read failure the route will keep answering; the error carries which one. */
+const flags = (reason: unknown): { unavailable: boolean; notReady: boolean } => {
+  if (typeof reason !== 'object' || reason === null) return { unavailable: false, notReady: false }
+  const marked = reason as { unavailable?: boolean; notReady?: boolean }
+  return { unavailable: marked.unavailable === true, notReady: marked.notReady === true }
+}
+
+/** The longest wait between reads of a session that has no extension scope yet. */
+const NOT_READY_MAX_WAIT_MS = EXTENSION_WINDOW_POLL_MS * 12
 
 export interface ExtensionWindowObserver {
   committed(sessionId: string): void
@@ -57,6 +64,8 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
      * asks for re-runs this effect and clears the flag.
      */
     let unavailable = false
+    /** Grows while the session has no extension scope, so a closed loop costs little. */
+    let notReadyWait = EXTENSION_WINDOW_POLL_MS
     current.current = undefined
     setData(undefined)
     const load = async () => {
@@ -72,7 +81,10 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
           notify(next)
         }
       } catch (reason) {
-        if (settlesNothing(reason)) unavailable = true
+        const marked = flags(reason)
+        if (marked.unavailable) unavailable = true
+        if (marked.notReady) notReadyWait = Math.min(NOT_READY_MAX_WAIT_MS, notReadyWait * 2)
+        else notReadyWait = EXTENSION_WINDOW_POLL_MS
         if (alive && sequence === readSequence && stamp === epoch.current && pending.current === 0) setError(String(reason))
       }
       if (alive && sequence === readSequence && !unavailable) {
@@ -82,7 +94,7 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
         else
           timer = setTimeout(() => {
             void load()
-          }, EXTENSION_WINDOW_POLL_MS)
+          }, notReadyWait)
       }
     }
     // Only a paused poll resumes here: a window that was never hidden keeps its

@@ -196,3 +196,17 @@ So the earlier framing was wrong. This is not a bundle item; it is a maintenance
 The decision is therefore about whether the surface should come back, not about its weight. If it should return, the fix is one import and a slot registration. If it should not, deleting it costs one diff and removes a test that currently proves nothing about the product.
 
 **Gate fix that came out of the same probe:** a ledger row naming a module that no longer exists used to report `ledger-stale`, the same code as a module that became reachable again. Those are two mistakes with two different repairs, so a missing file now reports `ledger-missing`.
+
+## The 404 was ours, and the first fix was half wrong
+
+The browser walkthrough found one session spending 336 reads and 336 console errors on `/api/agent-plugins/extension-presets`, every one a 404, with no sign of stopping. The first fix read that as a route the host does not serve and stopped the poll for good.
+
+The response body says otherwise. Our own route answered, with `{"ok":false,"code":"extension-session-not-found"}`, which the handler maps to 404. The route was mounted the whole time; the _service_ was reporting that a session opened from history has no live agent in this process. Opening a session does not create one, so that answer is stable until the session is used.
+
+That makes both extremes wrong. Polling every 2.5s wastes a request per interval on an answer that cannot change. Stopping forever leaves a manager that never notices the session going live. The poll now backs off while the answer is `extension-session-not-found`, doubling the wait to a 30s cap, and keeps asking.
+
+Measured live in the same profile, 45 seconds of wall clock: reads at 0.2s and 30.3s, so two instead of eighteen, and the second one proves the loop is still alive.
+
+**Lesson worth keeping:** the walkthrough caught a real defect, and then reading only the status code nearly turned it into a different one. The body had the answer.
+
+The distinction is now explicit in `readWindow`: our `extension-session-not-found` envelope means not-ready, a 404 without it means no route, and the two get different treatment.

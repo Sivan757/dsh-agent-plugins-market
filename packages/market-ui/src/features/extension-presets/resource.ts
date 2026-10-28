@@ -3,15 +3,33 @@ import { CONFIGURATION_PARENT_IDS, EXTENSION_ROUTES, type ExtensionWindowPayload
 export type Mutation = Exclude<keyof typeof EXTENSION_ROUTES, 'window'>
 
 /**
- * A failure the route keeps answering, so a retry only spends requests.
+ * A session with no extension scope yet, answered by our own route.
  *
- * The extension window polls, and a poll is the right shape for a read that can
- * start working: the host finishes booting, a session settles, a scan completes.
- * It is the wrong shape for a route the server does not serve at all, which is
- * what an older host or a disabled preset surface answers. Measured in a profile
- * where the route was absent, this loop spent 336 reads and 336 console errors on
- * one open session, and would have spent them for as long as the session stayed
- * open.
+ * The route ran and reported `extension-session-not-found`: the session has no
+ * live agent in this process. Opening a session from history does not create one,
+ * so the answer stays the same until the session is used, which makes the normal
+ * poll interval pure waste. Stopping outright would be worse, because a session
+ * that becomes live should start rendering without a page reload, so the poll
+ * backs off instead.
+ */
+export class SessionScopeNotReadyError extends Error {
+  /** Read structurally by the poll, so a caller never needs this module's class identity. */
+  readonly notReady = true
+  /**
+   * @param message - the server's code for the state, kept for the report.
+   */
+  constructor(message: string) {
+    super(message)
+    this.name = 'SessionScopeNotReadyError'
+  }
+}
+
+/**
+ * A 404 or 405 that is not one of our answers: the route is not there.
+ *
+ * Kept apart from {@link SessionScopeNotReadyError} because the two are told
+ * apart by the response body, and a route that does not exist will not start
+ * existing while a page stays open.
  */
 export class UnavailableRouteError extends Error {
   /** Read structurally by the poll, so a caller never needs this module's class identity. */
@@ -33,13 +51,15 @@ export class UnavailableRouteError extends Error {
  * Read one session's extension window.
  * @param sessionId - the session the window describes.
  * @returns the payload the manager renders.
+ * @throws SessionScopeNotReadyError when the session has no live extension scope.
  * @throws UnavailableRouteError when the route itself is missing.
  */
 export async function readWindow(sessionId: string): Promise<ExtensionWindowPayload> {
   const response = await fetch(EXTENSION_ROUTES.window + '?sessionId=' + encodeURIComponent(sessionId), { credentials: 'same-origin', signal: AbortSignal.timeout(15000) })
-  const data = (await response.json().catch(() => ({}))) as ExtensionWindowPayload & { error?: string }
-  // 404 and 405 name a route this host does not serve; anything else may be a
-  // boot, a busy scan or a transient fault, and those are worth polling again.
+  const data = (await response.json().catch(() => ({}))) as ExtensionWindowPayload & { error?: string; code?: string }
+  if (response.status === 404 && data.code === 'extension-session-not-found') throw new SessionScopeNotReadyError(data.code)
+  // Without that envelope, 404 and 405 name a route this host does not serve;
+  // anything else may be a boot, a busy scan or a transient fault.
   if (response.status === 404 || response.status === 405) throw new UnavailableRouteError(response.status, data.error ?? String(response.status))
   if (!response.ok) throw new Error(data.error ?? String(response.status))
   return data

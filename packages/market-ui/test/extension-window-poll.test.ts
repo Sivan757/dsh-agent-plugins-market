@@ -155,4 +155,33 @@ describe('extension window poll', () => {
       })
     expect(vi.mocked(module.readWindow).mock.calls).toHaveLength(1)
   })
+  it('backs off while a session has no extension scope, and keeps asking', async () => {
+    // The route works and answers `extension-session-not-found`: the session exists
+    // but has no live agent. Polling at the normal interval spends a request every
+    // 2.5s on an answer that cannot change until the session is used.
+    const module = await import('../../../packages/market-ui/src/features/extension-presets/resource.js')
+    vi.mocked(module.readWindow).mockClear()
+    const notReady = Object.assign(new Error('extension-session-not-found'), { notReady: true })
+    vi.mocked(module.readWindow).mockRejectedValue(notReady)
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(h(Harness))
+    })
+    const calls = () => vi.mocked(module.readWindow).mock.calls.length
+    expect(calls()).toBe(1)
+    // Each interval that would have been one read now waits longer, so four
+    // intervals of silence produce fewer reads than four.
+    for (let i = 0; i < 4; i += 1)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(EXTENSION_WINDOW_POLL_MS)
+      })
+    expect(calls()).toBeLessThan(5)
+    // It still polls: the wait is capped, not abandoned.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(EXTENSION_WINDOW_POLL_MS * 12)
+    })
+    expect(calls()).toBeGreaterThan(1)
+  })
 })
