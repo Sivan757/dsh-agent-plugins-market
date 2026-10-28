@@ -148,3 +148,19 @@ Converting the deep relative imports to `@dsh-market/*` package specifiers looke
 `pnpm run check:bundle` (`scripts/check-bundle-budget.mjs`) fails the build when `client/client.js` grows past 1,900,000 bytes; the tree measures 1,831,600 today, so the budget sits at 96.4% of the ceiling. It runs in the quality job after `pnpm run build`, because it prices the artifact rather than the source.
 
 That leaves one open decision and nothing else. The CodeMirror and lezer graph is about half the bundle and every one of its six packages is imported, so there is no unused weight to drop. Removing it means giving up syntax highlighting in the Markdown editors, or the host growing a documented plugin-chunk contract; the first is a product call and the second is not this repository's to make. Until one happens the budget holds the line.
+
+## item 8, measured three ways
+
+The row used to say the editor graph is 52.6% of the client bundle. That figure was a static estimate; this is the built artifact, three times, in a throwaway worktree off `dev`:
+
+| Variant                                         | `client/client.js` | Change              | What the user loses                                                              |
+| ----------------------------------------------- | ------------------ | ------------------- | -------------------------------------------------------------------------------- |
+| shipped                                         | 1,831,600 B        | -                   | nothing                                                                          |
+| Markdown grammar dropped, JSON keeps the editor | 1,550,862 B        | -280,738 B (-15.3%) | Markdown highlighting only                                                       |
+| Every editor replaced by a textarea             | 869,357 B          | -962,243 B (-52.5%) | all highlighting, line numbers, bracket matching, the undo keymap and tab indent |
+
+So the 52.6% estimate was accurate, and it is not one decision but two. Dropping only the Markdown grammar keeps JSON structure readable and still returns 15%; dropping the editor entirely returns half the bundle and gives up every editing affordance in three dialogs, which is a product regression rather than a cleanup.
+
+Nothing is applied. The budget gate holds the line at 1,900,000 B until someone chooses, and the choice is a product call about editing comfort, not a defect.
+
+One correction to the earlier note: the JSON editors are the ones that need the editor most (they validate and pretty-print structure), while the Markdown bodies are prose. If a partial change is ever wanted, it goes in that direction.
