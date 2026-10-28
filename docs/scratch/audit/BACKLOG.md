@@ -210,3 +210,13 @@ Measured live in the same profile, 45 seconds of wall clock: reads at 0.2s and 3
 **Lesson worth keeping:** the walkthrough caught a real defect, and then reading only the status code nearly turned it into a different one. The body had the answer.
 
 The distinction is now explicit in `readWindow`: our `extension-session-not-found` envelope means not-ready, a 404 without it means no route, and the two get different treatment.
+
+## Cold-path walkthrough: panels render, and one control reads wrong
+
+Every tab was driven in the built app, in an independent profile: 市场, 输出风格, 技能, 快捷指令, 专家, 连接器, plus the three stowed ones after revealing them (规则, 语言引擎, 钩子). Each rendered content and fired no failing request: 输出风格 369 characters, 连接器 457, 语言引擎 108, 钩子 45 with its empty state, the three list panels in the thousands.
+
+The tab-layout endpoints are sound. `GET /api/agent-plugins/tab-layout` returns the document, and `POST /api/agent-plugins/tab-layout/set` with `{hidden:['lsp','hooks']}` answers `{ok:true, hidden:['lsp','hooks']}` and writes the file. A first probe posted to the read path, which is registered for GET only and answers 200 with the unchanged document, so the write looked lost when it had never been attempted.
+
+**One control reads wrong.** The row's menu lists the stowed tabs, and clicking one selects it. Because the selected tab is always rendered even when stowed, the tab appears: the click looks like "show this tab". Switch to another tab and it disappears again, because the stow list never changed. Observed directly: 语言引擎 appeared after its menu item, and was gone after selecting 钩子.
+
+That is the interaction working as designed and communicating something else. Three ways out, in order of preference: rename the menu group so it reads as a jump ("跳转到已收纳"), have the click un-stow and persist (which is what the words imply), or drop the group and leave the manager as the only path. Not changed here, because it is a product call about what the row should promise.
