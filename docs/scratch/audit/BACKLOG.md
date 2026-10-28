@@ -220,3 +220,13 @@ The tab-layout endpoints are sound. `GET /api/agent-plugins/tab-layout` returns 
 **One control reads wrong.** The row's menu lists the stowed tabs, and clicking one selects it. Because the selected tab is always rendered even when stowed, the tab appears: the click looks like "show this tab". Switch to another tab and it disappears again, because the stow list never changed. Observed directly: 语言引擎 appeared after its menu item, and was gone after selecting 钩子.
 
 That is the interaction working as designed and communicating something else. Three ways out, in order of preference: rename the menu group so it reads as a jump ("跳转到已收纳"), have the click un-stow and persist (which is what the words imply), or drop the group and leave the manager as the only path. Not changed here, because it is a product call about what the row should promise.
+
+## The tarball is whole, and now something checks it
+
+The published artifact was never verified as an installed package; every check here runs against the repository. It is whole: `pnpm pack` plus `npm install` in an empty project ships 189 built modules, all 531 relative specifiers resolve inside them, and both `lib/index.js` and the client bundle parse.
+
+That also settles the deepest worry in this file, the relative cross-package imports recorded as item 24. They are what makes the tarball work: the sibling packages are private with `exports` pointing at `./src/*.ts`, so a package specifier would have resolved here and failed for an installed user.
+
+The gap was that nothing noticed if that stopped being true. `pnpm run check:package` now walks the built graph, resolves every relative specifier against the paths `files` actually ships, and reports `unresolved-import`, `outside-package` or `missing-entry`.
+
+Its first version was wrong in a way only the negative control found. It read `from '...'` and `import('...')` and not a side-effect `import './x.js'`, so a probe importing an unshipped path passed. Side-effect imports have their own patterns now, and the control fails as it should.
