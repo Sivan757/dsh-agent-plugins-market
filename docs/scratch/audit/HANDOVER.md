@@ -13,7 +13,7 @@ This file closes the audit cadence. It exists so the work is reviewable in one p
 
 ## What is guarded, and by what
 
-`check:refactor` runs eleven checks plus two guards in the test suite. [The gate map](../reference/gate-map.md) is the inventory; [its second half](../reference/gate-map.md) lists what no gate sees.
+`check:refactor` runs eleven checks plus two guards in the test suite. [The gate map](../../reference/gate-map.md) is the inventory; [its second half](../../reference/gate-map.md) lists what no gate sees.
 
 Each gate was proved to reject a deliberate violation before it landed. One still shipped with a hole: the package-contents gate ignored side-effect imports until a probe it should have caught went through.
 
@@ -25,7 +25,7 @@ Three items need a product decision, not engineering:
 2. **The resource-window surface.** Three components and their copy are unreachable: the client entry mounts no slot for them. Deleting them typechecks with nothing else touched and moves the bundle by 0.2%, so the decision is whether the feature returns, not what it saves.
 3. **The stowed-tab menu wording.** Clicking a stowed tab selects it, and the selected tab always renders, so it reads as "show". Three options are recorded in the backlog.
 
-One deferred cleanup needs a browser: ten CSS classes no importer names are recorded in [the CSS ledger](../reference/css-classes.md), and five of them appear nowhere in the repository at all.
+One deferred cleanup needs a browser: ten CSS classes no importer names are recorded in [the CSS ledger](../../reference/css-classes.md), and five of them appear nowhere in the repository at all.
 
 ## How to reopen
 
