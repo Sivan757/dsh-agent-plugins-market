@@ -97,6 +97,27 @@ export function parseSkillFrontmatter(text: string, expectedName: string | undef
     // wins; values that still fail the field checks below drop the skill.
     raw = lenientFrontmatter(frontmatter)
   }
+  return skillFieldsFromRecord(raw, expectedName)
+}
+
+/**
+ * Derive a skill's fields from frontmatter a caller has already parsed.
+ *
+ * A panel row needs two things from the same document: the general frontmatter
+ * record, and the skill-specific invocation flags. Parsing the YAML twice to get
+ * both made the second read a third of the frontmatter cost for every skill row
+ * on every scan, so the derivation is separate from the parsing and a caller
+ * that already has a record passes it in.
+ *
+ * This is the strict reading. The caller that uses it must have parsed the
+ * frontmatter without falling back, because the lenient recovery below is the
+ * one place a malformed document still yields fields.
+ * @param raw - the parsed frontmatter, before its object check.
+ * @param expectedName - the skill directory name to match, or `undefined` to
+ *   accept whatever name the frontmatter carries.
+ * @returns the parsed frontmatter, or a rejection string.
+ */
+export function skillFieldsFromRecord(raw: unknown, expectedName: string | undefined): ParsedSkillFrontmatter | string {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'frontmatter is not an object'
   const record = raw as Record<string, unknown>
   const rawName = record['name']

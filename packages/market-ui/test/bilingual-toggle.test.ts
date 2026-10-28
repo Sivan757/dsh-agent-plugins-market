@@ -40,6 +40,7 @@ const api = vi.hoisted(() => {
 })
 vi.mock('../../../packages/market-ui/src/api.js', () => api)
 vi.mock('../../../packages/market-ui/src/features/market/market-resource.js', () => ({
+  peekOverview: () => ({ initial: overview, cached: true }),
   loadOverview: () => ({ initial: overview, revalidating: false, promise: Promise.resolve(overview) }),
   invalidateOverview: vi.fn(),
   startDescriptionRefresh: vi.fn(() => ({ stop: () => {} })),

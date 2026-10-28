@@ -48,6 +48,9 @@ vi.mock('../../../packages/market-ui/src/api.js', () => ({
 }))
 
 vi.mock('../../../packages/market-ui/src/features/market/market-resource.js', () => ({
+  // Render seeds from the cached answer without starting a request; the mount
+  // effect is the only reader. A double must answer both.
+  peekOverview: vi.fn(() => ({ initial: overviewPayload, cached: true })),
   loadOverview: vi.fn(() => ({
     initial: overviewPayload,
     revalidating: false,
