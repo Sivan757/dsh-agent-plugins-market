@@ -24,7 +24,7 @@ interface UserPanelEntries {
   update(name: string, text: string): Promise<void>
   remove(name: string): Promise<void>
 }
-import { ROW_CACHE_MAX_AGE_MS } from '../../../market-contracts/src/contracts/refresh-cadence.js'
+import { ROW_CACHE_MAX_AGE_MS, ROW_SWEEP_MAX_AGE_MS } from '../../../market-contracts/src/contracts/refresh-cadence.js'
 import type { CatalogPort as Catalog } from '../catalog-port.js'
 import type { CatalogSnapshot } from '../../../market-catalog/src/index.js'
 
@@ -198,7 +198,7 @@ class PanelResources implements PanelResourceStore {
    * bounds how old a served row may be. Translation fields are resolved per
    * read, because those do change under a static snapshot.
    */
-  private cached: { snapshot: CatalogSnapshot; mutations: number; complete: boolean; at: number; rows: PanelRow[] } | undefined
+  private cached: { snapshot: CatalogSnapshot; mutations: number; complete: boolean; at: number; rows: PanelRow[]; signatures: Map<string, string> } | undefined
   /** Bumped around every mutation this store performs, so its own edits never read back stale. */
   private mutations = 0
 
@@ -343,15 +343,27 @@ class PanelResources implements PanelResourceStore {
   private async rows(strict: boolean, force = false): Promise<PanelRow[]> {
     const snapshot = this.projectCwd === undefined ? await this.catalog.readUserCatalog() : await this.catalog.readProjectCatalog(this.projectCwd)
     const cached = this.cached
-    const fresh = cached !== undefined && this.catalog.now() - cached.at <= ROW_CACHE_MAX_AGE_MS
-    const reusable = !force && fresh && cached !== undefined && cached.snapshot === snapshot && cached.mutations === this.mutations && (cached.complete || !strict)
-    if (reusable) return cached.rows
+    const age = cached === undefined ? Number.POSITIVE_INFINITY : this.catalog.now() - cached.at
+    const sameInputs = cached !== undefined && cached.snapshot === snapshot && cached.mutations === this.mutations && (cached.complete || !strict)
+    if (!force && sameInputs && cached !== undefined) {
+      if (age <= ROW_CACHE_MAX_AGE_MS) return cached.rows
+      // Past the stat-free bound the rows may still answer, but only when the
+      // documents behind them are provably untouched. The sweep is what keeps a
+      // hand edit visible at the next read without rescanning every poll for
+      // nothing; the multiple caps how long a file added or removed by hand can
+      // stay unseen, because a sweep cannot count a file it never knew about.
+      if (age <= ROW_SWEEP_MAX_AGE_MS && (await this.unchanged(cached.signatures))) {
+        this.cached = { ...cached, at: this.catalog.now() }
+        return cached.rows
+      }
+    }
     const mutations = this.mutations
-    const rows = await this.scan(strict, snapshot)
+    const scanned = await this.scan(strict, snapshot)
+    const rows = scanned.rows
     if (this.mutations === mutations) {
       // A strict scan saw every entry a later relaxed one would: it stays usable.
       const complete = strict || (cached !== undefined && cached.snapshot === snapshot && cached.mutations === mutations && cached.complete)
-      this.cached = { snapshot, mutations, complete, at: this.catalog.now(), rows }
+      this.cached = { snapshot, mutations, complete, at: this.catalog.now(), rows, signatures: scanned.signatures }
     }
     return rows
   }
@@ -399,14 +411,54 @@ class PanelResources implements PanelResourceStore {
     return this.stamp({ ...row, entry: { ...row.entry, ...fields, disabled: (row.suiteDisabled ?? false) || fields.disabled } })
   }
 
-  /** Stamp one row's own last modification; the caller has just read its file. */
-  private async stamp(row: PanelRow): Promise<PanelRow> {
+  /**
+   * Stamp one row's own last modification; the caller has just read its file.
+   * @param row - the row whose document was read.
+   * @param signatures - when set, receives the content signature a later sweep compares.
+   * @returns the row carrying its modification stamp.
+   */
+  private async stamp(row: PanelRow, signatures?: Map<string, string>): Promise<PanelRow> {
     try {
       const stats = await stat(row.entry.path)
+      signatures?.set(row.entry.path, PanelResources.signatureOf(stats))
       return { ...row, entry: { ...row.entry, updatedAt: new Date(stats.mtimeMs).toISOString() } }
     } catch {
+      // An unreadable file leaves no signature, so a later sweep cannot claim
+      // it is unchanged and the next read rescans instead of serving it.
       return row
     }
+  }
+
+  /** The content signature a sweep compares: everything a document edit moves. */
+  private static signatureOf(stats: { mtimeMs: number; size: number }): string {
+    return String(stats.mtimeMs) + ':' + String(stats.size)
+  }
+
+  /**
+   * Whether every document the last scan read still carries its recorded signature.
+   *
+   * One stat per known file, which is what makes serving a scan past its
+   * stat-free bound cheaper than scanning again. A missing signature, an
+   * unreadable file, or any moved number all answer false, so the caller rescans:
+   * this predicate may only ever claim staleness it can prove absent.
+   * An empty signature set answers false rather than true: a scan that recorded
+   * nothing is a scan that could not verify anything, and treating it as
+   * unchanged would let an unreadable panel pretend to be a stable one.
+   * @param signatures - the signatures recorded by the scan that produced the rows.
+   * @returns true only when every recorded document is provably unchanged.
+   */
+  private async unchanged(signatures: Map<string, string>): Promise<boolean> {
+    if (signatures.size === 0) return false
+    const checks = await Promise.all(
+      [...signatures].map(async ([path, signature]) => {
+        try {
+          return PanelResources.signatureOf(await stat(path)) === signature
+        } catch {
+          return false
+        }
+      })
+    )
+    return checks.every(Boolean)
   }
 
   /** Resolve one row's translation fields against the live cache. */
@@ -415,8 +467,13 @@ class PanelResources implements PanelResourceStore {
     return { entry: { ...row.entry, ...localized.fields }, pending: localized.pending }
   }
 
-  /** Read every user and installed-suite document for one snapshot. */
-  private async scan(strict: boolean, snapshot: CatalogSnapshot): Promise<PanelRow[]> {
+  /**
+   * Read every user and installed-suite document for one snapshot.
+   * @param strict - whether an unreadable document other than an absent one is an error.
+   * @param snapshot - the catalog snapshot the rows belong to.
+   * @returns the rows and the content signatures they were read from.
+   */
+  private async scan(strict: boolean, snapshot: CatalogSnapshot): Promise<{ rows: PanelRow[]; signatures: Map<string, string> }> {
     const rows: PanelRow[] = []
     if (this.projectCwd === undefined) for (const entry of await this.users.list(strict)) rows.push({ entry, translationId: entry.id ?? entry.name })
     for (const suite of snapshot.suites) {
@@ -454,7 +511,11 @@ class PanelResources implements PanelResourceStore {
       }
     }
     // One pass stamps each entry's own last modification: the scan reads every
-    // file's text anyway, and both origins get the same treatment here.
-    return await Promise.all(rows.map(row => this.stamp(row)))
+    // file's text anyway, and both origins get the same treatment here. The same
+    // pass records the signature a later sweep compares, so verifying the scan
+    // costs one stat per file rather than another read of every document.
+    const signatures = new Map<string, string>()
+    const stamped = await Promise.all(rows.map(row => this.stamp(row, signatures)))
+    return { rows: stamped, signatures }
   }
 }

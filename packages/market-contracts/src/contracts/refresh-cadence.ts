@@ -70,3 +70,20 @@ export function rowCacheMaxAgeMs(windowPollMs: number, translationPollMs: number
  * when the new value cannot satisfy both edges.
  */
 export const ROW_CACHE_MAX_AGE_MS = rowCacheMaxAgeMs(EXTENSION_WINDOW_POLL_MS, TRANSLATION_POLL_MS, ROW_CACHE_SLACK_MS)
+
+/**
+ * How long a stat-verified scan may answer, as a multiple of the window poll.
+ *
+ * The bound above prices a scan that cannot be checked: it assumes every served
+ * row may be wrong, so it expires before the read that would notice. A scan that
+ * compares each document's mtime and size against the numbers it recorded does
+ * not have to assume that, and paying a full rescan every poll to learn nothing
+ * changed is what this multiple buys back.
+ *
+ * What it cannot see is structure: a document added, removed, or renamed under a
+ * watched directory leaves every recorded signature untouched. That is what caps
+ * the multiple. Two polls means a file dropped into a panel directory by hand is
+ * listed within two window reads, and an edit to a file already listed is still
+ * visible at the next read because its signature moved.
+ */
+export const ROW_SWEEP_MAX_AGE_MS = EXTENSION_WINDOW_POLL_MS * 2

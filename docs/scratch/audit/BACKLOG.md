@@ -120,3 +120,16 @@ Both are the same lesson: a gate that checks one of two owners of a fact is a ga
 ## The gap this pass exposed in CI
 
 The quality workflow ran on `main` pushes and pull requests, not on `dev` pushes. Every direct commit to `dev` in this pass therefore ran no CI at all, and the local gate was the only evidence. That is now fixed by adding `dev` to the push triggers, because `dev` takes direct commits and is what the next release is cut from.
+
+### finding 8, closed
+
+The visible poll no longer rebuilds the panel inventory from a scan when nothing moved. `PanelResources` recorded only the detail-row age, so every poll past it rescanned every document; it now also records each document's `mtime` and `size` at scan time, and a sweep compares those numbers instead of reading the files.
+
+|                    | per poll, 60 documents |
+| ------------------ | ---------------------- |
+| full scan (before) | 1.62 ms median         |
+| stat sweep (after) | 0.32 ms median         |
+
+About 80% off the per-poll cost, and the scan itself is what the audit measured at 45 ms on a real suite panel set, so the saving there is larger. `scans total=5` over one initial read plus four forced scans in the benchmark confirms the four polls in between did no scan at all.
+
+The previous attempt at this was declined because skipping the read would also skip a hand edit. That is still true of a `stale` flag, which only an in-process catalog change sets. It is not true of a stat sweep: an edit moves `mtime` and usually `size`, so the next poll rescans and the new value appears within one interval. What a sweep cannot see is a document added, removed, or renamed, so the sweep only extends the reuse up to `ROW_SWEEP_MAX_AGE_MS`, two window polls, which is how long a hand-dropped file can stay unlisted. Both properties are pinned by tests in `panel-row-sweep.test.ts`, and an empty signature set answers unsafe rather than safe so an unreadable panel still rescans.
