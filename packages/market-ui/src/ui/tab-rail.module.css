@@ -23,9 +23,9 @@
   padding: 4px;
   overflow-x: auto;
   scrollbar-width: none;
-  border: 1px solid var(--dsw-alias-border-subtle, rgb(0 0 0 / 8%));
+  border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
-  background: var(--dsw-alias-bg-secondary, rgb(0 0 0 / 4%));
+  background: var(--dsw-alias-interactive-bg-hover);
   mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 16px), transparent 100%);
 }
 
@@ -41,7 +41,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: none;
-  color: var(--dsw-alias-label-secondary, rgb(0 0 0 / 60%));
+  color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 1;
   white-space: nowrap;
@@ -52,22 +52,22 @@
 }
 
 .tab:hover {
-  background: var(--dsw-alias-bg-tertiary, rgb(0 0 0 / 8%));
-  color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 .tab:focus-visible {
-  outline: 2px solid var(--dsw-alias-accent, #4f7cf7);
+  outline: 2px solid var(--dsw-alias-state-business-primary);
   outline-offset: 1px;
 }
 
 /* The selected tab is a raised chip rather than a filled block: the row stays quiet
    until something is chosen, and the chip is the only element with a shadow. */
 .tabActive {
-  border-color: var(--dsw-alias-border-subtle, rgb(0 0 0 / 10%));
-  background: var(--dsw-alias-bg-primary, #fff);
+  border-color: var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
   box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
-  color: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--dsw-alias-label-primary);
 }
 
 .tabDragging {
@@ -83,8 +83,8 @@
 /* The drop target keeps its own quiet tint: a moving line would jump between tabs as
    the pointer crosses a midpoint, which reads as flicker rather than as a target. */
 .tabLanding {
-  background: var(--dsw-alias-bg-tertiary, rgb(0 0 0 / 8%));
-  color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
 }
 
 .tabText {

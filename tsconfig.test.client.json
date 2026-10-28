@@ -41,6 +41,7 @@
     "packages/market-ui/test/client-workspace-tab-stow.test.ts",
     "packages/market-ui/test/tab-layout-sharing.test.ts",
     "packages/market-ui/test/tab-rail-drag.test.ts",
+    "packages/market-ui/test/theme-tokens.test.ts",
     "packages/market-ui/test/client-workspace-tabs.test.ts",
     "packages/market-ui/test/client-workspace-view.test.ts",
     "packages/market-ui/test/extension-window-poll.test.ts",

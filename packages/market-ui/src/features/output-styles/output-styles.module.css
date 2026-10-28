@@ -84,7 +84,7 @@
 }
 .rowWarn {
   font-size: 12px;
-  color: var(--dsw-alias-state-warning-primary, #d97706);
+  color: var(--dsw-alias-state-warn-label);
   overflow-wrap: anywhere;
 }
 

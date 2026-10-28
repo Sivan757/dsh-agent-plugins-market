@@ -95,7 +95,7 @@
   background: var(--dsw-alias-state-business-primary, #2563eb);
 }
 .budgetFillOver {
-  background: var(--dsw-alias-state-warning-primary, #d97706);
+  background: var(--dsw-alias-state-warn-label);
 }
 .budgetRule {
   margin: 0;
