@@ -27,8 +27,6 @@ export const HOOK_RUN_UNKNOWN_DECLARATION = 'hook-run-unknown-declaration'
 export const HOOK_RUN_NO_COMMAND = 'hook-run-no-command'
 /** No shell executor is mounted in this profile. */
 export const HOOK_RUN_SHELL_UNAVAILABLE = 'hook-run-shell-unavailable'
-/** The executor rejected the run before it produced an outcome. */
-export const HOOK_RUN_FAILED = 'hook-run-failed'
 
 /** The slice of the host shell executor this module uses. */
 export interface HookRunShellRequest {

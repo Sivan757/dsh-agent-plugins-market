@@ -73,7 +73,7 @@ interface SuiteClientContext {
 
 export const name = 'dsh-agent-plugins-market'
 export const inject = ['slots', 'locale', 'remote', 'remote.credentials']
-export const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
+const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
 
 /** Published composer seat after Permissions; blank and ongoing sessions share one icon entry. */
 export const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
@@ -89,7 +89,7 @@ function PresetEntrySlot(props: { sessionId?: string; t: ExtensionTranslate; obs
 }
 
 /** Detect host primitives that predate the exports this UI relies on. */
-export function missingPrimitives(module: Record<string, unknown>, required: readonly string[] = REQUIRED_PRIMITIVES): string[] {
+function missingPrimitives(module: Record<string, unknown>, required: readonly string[] = REQUIRED_PRIMITIVES): string[] {
   return required.filter(name => module[name] === undefined)
 }
 

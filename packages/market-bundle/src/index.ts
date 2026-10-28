@@ -137,30 +137,6 @@ export interface Config {
  * the `dsh-agent-plugins-market` settings namespace (the Plugins panel's
  * configuration page reads it), while the startup fields stay plain.
  */
-/** The schema's input face: every field optional, exactly what a profile patch may carry. */
-export interface ConfigInput {
-  userRoot?: string | null
-  dataRoot?: string | null
-  sources?: unknown
-  git?: {
-    proxy?: string | null
-    insteadOf?: Record<string, unknown>
-    timeoutMs?: number | null
-    cloneRetry?: boolean | null
-    fallbackTarball?: boolean | null
-    allowHttpArchives?: boolean | null
-  }
-  switchSettleMs?: number | null
-  inventoryRetry?: { baseMs?: number | null; maxMs?: number | null } | null
-  mcpEnhanced?: boolean | null
-  scanProjectLayouts?: boolean | null
-  downloadRegion?: 'auto' | 'global' | 'china' | null
-  feedbackEnabled?: boolean | null
-  autoUpdateSources?: boolean | null
-  translationEnabled?: boolean | null
-  agentPresetsEnabled?: boolean | null
-}
-
 export const Config = z.object({
   userRoot: z.union([z.string(), z.const(undefined)]),
   dataRoot: z.union([z.string(), z.const(undefined)]),
