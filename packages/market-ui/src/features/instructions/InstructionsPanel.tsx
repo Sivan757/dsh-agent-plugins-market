@@ -19,7 +19,7 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
-import { budgetPercent, formatBytes, groupInstructionRows, groupLocaleKey, isOverBudget, statusLocaleKey, statusTone } from './instructions-view-model.js'
+import { budgetPercent, groupInstructionRows, groupLocaleKey, isOverBudget, statusLocaleKey, statusTone } from './instructions-view-model.js'
 import css from './instructions.module.css'
 
 /** The one drafting session the editor holds. */
@@ -151,7 +151,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
         'div',
         { className: css.budgetHead },
         h('span', null, t('instructionsBudgetLabel')),
-        h('span', { className: css.budgetUsage }, t('instructionsBudgetUsage', { used: formatBytes(payload.total), budget: formatBytes(payload.budget) }))
+        h('span', { className: css.budgetUsage }, t('instructionsBudgetUsage', { used: payload.total, budget: payload.budget }))
       ),
       h(
         'div',
@@ -235,7 +235,7 @@ function InstructionChainRow(props: { row: InstructionRow; t: Translate; maxSour
         h('code', { className: css.rowPath }, row.displayPath)
       ),
       h(Tag, { tone: statusTone(status) }, t(statusLocaleKey(status))),
-      row.size === undefined ? null : h('span', { className: css.rowSize }, t('instructionsRowSize', { bytes: formatBytes(row.size) })),
+      row.size === undefined ? null : h('span', { className: css.rowSize }, t('instructionsRowSize', { bytes: row.size })),
       h(
         'div',
         { className: css.rowActions },
@@ -252,7 +252,7 @@ function InstructionChainRow(props: { row: InstructionRow; t: Translate; maxSour
           h('dt', null, t('instructionsCwdLabel')),
           h('dd', null, h('code', null, row.path)),
           row.duplicateOf === undefined ? null : h('dd', null, t('instructionsDuplicateOf', { path: row.duplicateOf })),
-          h('dd', null, t('instructionsSourceLimit', { limit: formatBytes(maxSourceBytes) })),
+          h('dd', null, t('instructionsSourceLimit', { limit: maxSourceBytes })),
           row.status === 'truncated' && row.includedBytes !== undefined && row.originalBytes !== undefined
             ? h('dd', null, t('instructionsRowSize', { bytes: `${row.includedBytes} / ${row.originalBytes}` }))
             : null
@@ -286,12 +286,8 @@ function InstructionEditor(props: {
       footer: h(
         'div',
         { className: css.footer },
-        h(
-          'span',
-          { className: overLimit ? `${css.footerCount} ${css.footerCountOver}` : css.footerCount },
-          t('instructionsByteCount', { bytes: formatBytes(bytes), limit: formatBytes(maxSourceBytes) })
-        ),
-        overLimit ? h('span', { className: css.footerHint }, t('instructionsOverLimit', { limit: formatBytes(maxSourceBytes) })) : null,
+        h('span', { className: overLimit ? `${css.footerCount} ${css.footerCountOver}` : css.footerCount }, t('instructionsByteCount', { bytes, limit: maxSourceBytes })),
+        overLimit ? h('span', { className: css.footerHint }, t('instructionsOverLimit', { limit: maxSourceBytes })) : null,
         error === undefined ? null : h('span', { className: css.footerError, role: 'alert' }, error),
         h('div', { className: css.grow }),
         h(Button, { variant: 'outline', onClick: onClose }, t('cancel')),

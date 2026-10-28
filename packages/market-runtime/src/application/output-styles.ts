@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { stripFrontmatter } from '../../../market-catalog/src/index.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
-import type { OutputStyleRow, OutputStyleSource } from '../../../market-contracts/src/contracts/output-styles.js'
+import type { OutputStyleRow } from '../../../market-contracts/src/contracts/output-styles.js'
 
 /** The directory inside the Agent layout root that holds user-authored styles. */
 export const USER_OUTPUT_STYLE_DIRECTORY = 'output-styles'
@@ -279,10 +279,4 @@ export function parseCapturedStyle(stdout: string): string {
     throw new Error('the SessionStart hook output carries no hookSpecificOutput.additionalContext text')
   }
   return trimmed
-}
-
-/** Group one style list by source, keeping the trust order. */
-export function groupStylesBySource(styles: readonly OutputStyleRow[]): Array<{ source: OutputStyleSource; rows: OutputStyleRow[] }> {
-  const order: OutputStyleSource[] = ['builtin', 'user', 'suite']
-  return order.map(source => ({ source, rows: styles.filter(row => row.source === source) })).filter(group => group.rows.length > 0)
 }

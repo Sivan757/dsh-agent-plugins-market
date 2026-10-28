@@ -16,7 +16,6 @@
 import {
   BUILTIN_DEFAULT_NAME,
   deleteUserStyle,
-  groupStylesBySource,
   parseCapturedStyle,
   readBuiltinStyles,
   readUserStyles,
@@ -194,7 +193,8 @@ export class OutputStyleService {
     const users = await readUserStyles(this.agentsRoot)
     const captured = this.cache.get(workspace)?.state.captured
     const suites = await this.suiteRows(captured)
-    return groupStylesBySource([...builtins, ...users, ...suites]).flatMap(group => group.rows)
+    // Already in trust order: builtins, then the person's own, then suite captures.
+    return [...builtins, ...users, ...suites]
   }
 
   /** One suite's own row list, with its capture state. */

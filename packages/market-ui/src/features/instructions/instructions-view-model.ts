@@ -100,8 +100,3 @@ export function budgetPercent(total: number, budget: number): number {
 export function isOverBudget(total: number, budget: number): boolean {
   return budget > 0 && total > budget
 }
-
-/** Show a byte count the way the panel labels sizes. */
-export function formatBytes(bytes: number): string {
-  return String(bytes)
-}

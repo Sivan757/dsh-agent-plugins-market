@@ -302,8 +302,8 @@ export function apply(ctx: SuiteClientContext): void {
   ctx.slots.inject('settings.section', () => {
     settingsSurfaceAvailable = true
     notifyPageModeSurfaceChange()
-    // One section, six top tabs (market / skills / commands / personas /
-    // MCP / LSP) — the PluginWorkspace owns the tab row and per-tab scroll.
+    // One section: PluginWorkspace owns the tab row (one tab per key in
+    // WORKSPACE_TAB_KEYS) and each tab's own scroll region.
     const workspaceDispose = ctx.slots.register(
       {
         name: 'settings.section',

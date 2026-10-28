@@ -1,11 +1,11 @@
 /**
- * Shared panel building blocks for the plugin workspace surfaces
- * (market / skills / commands / personas / MCP / LSP).
+ * Shared panel building blocks for the plugin workspace surfaces.
  *
- * Everything the six panels repeat lives here: the header, the trailing header
- * commands, the busy indicator, the entry editor modal, the danger-confirm
- * modal, and the source badge. The pieces are intentionally small and
- * prop-driven so a panel composes them instead of re-implementing the geometry.
+ * Everything a workspace panel repeats lives here: the header, the trailing
+ * header commands, the busy indicator, the entry editor modal, the
+ * danger-confirm modal, and the source badge. The pieces are intentionally
+ * small and prop-driven so a panel composes them instead of re-implementing the
+ * geometry.
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
