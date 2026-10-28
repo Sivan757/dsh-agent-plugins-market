@@ -38,6 +38,10 @@ jobs:
         run: pnpm run test
       - name: Build published artifacts
         run: pnpm run build
+      # The budget needs the built bundle, so it runs after the build and not in
+      # check:refactor: it prices the artifact a user downloads, not the source.
+      - name: Check the client bundle budget
+        run: pnpm run check:bundle
 
   docs-site:
     name: Docs site

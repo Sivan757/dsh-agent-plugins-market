@@ -133,3 +133,18 @@ The visible poll no longer rebuilds the panel inventory from a scan when nothing
 About 80% off the per-poll cost, and the scan itself is what the audit measured at 45 ms on a real suite panel set, so the saving there is larger. `scans total=5` over one initial read plus four forced scans in the benchmark confirms the four polls in between did no scan at all.
 
 The previous attempt at this was declined because skipping the read would also skip a hand edit. That is still true of a `stale` flag, which only an in-process catalog change sets. It is not true of a stat sweep: an edit moves `mtime` and usually `size`, so the next poll rescans and the new value appears within one interval. What a sweep cannot see is a document added, removed, or renamed, so the sweep only extends the reuse up to `ROW_SWEEP_MAX_AGE_MS`, two window polls, which is how long a hand-dropped file can stay unlisted. Both properties are pinned by tests in `panel-row-sweep.test.ts`, and an empty signature set answers unsafe rather than safe so an unreadable panel still rescans.
+
+## item 24 is rejected, not deferred
+
+Converting the deep relative imports to `@dsh-market/*` package specifiers looked like a mechanical modernization. It is not safe, and the reason is the published artifact:
+
+- The root package ships `files: ["lib", ...]`, and `lib/packages/**` holds the emitted tree. A shipped module reads `from '../../../market-catalog/src/index.js'` (`lib/packages/market-runtime/src/application/panel-resources.js:5`), so the relative path survives compilation and is what makes the artifact self-contained.
+- The sibling packages are `private: true` and their `exports` point at `./src/*.ts`. They are never published, so a `@dsh-market/contracts` specifier in shipped code would resolve at build time and fail at run time for a user who installed the plugin from npm.
+
+`tsdown` bundles the client entry, so the browser side would survive the change. The server side does not. The imports are the price of shipping one package, and the correct fix for their brittleness is a review habit, not a rewrite.
+
+## item 8 now has a number to argue with
+
+`pnpm run check:bundle` (`scripts/check-bundle-budget.mjs`) fails the build when `client/client.js` grows past 1,900,000 bytes; the tree measures 1,831,600 today, so the budget sits at 96.4% of the ceiling. It runs in the quality job after `pnpm run build`, because it prices the artifact rather than the source.
+
+That leaves one open decision and nothing else. The CodeMirror and lezer graph is about half the bundle and every one of its six packages is imported, so there is no unused weight to drop. Removing it means giving up syntax highlighting in the Markdown editors, or the host growing a documented plugin-chunk contract; the first is a product call and the second is not this repository's to make. Until one happens the budget holds the line.

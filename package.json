@@ -48,6 +48,7 @@
     "check:quick": "pnpm run typecheck && pnpm run lint",
     "check:reuse": "node scripts/check-reuse.mjs",
     "check:exports": "node scripts/check-dead-exports.mjs",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse && pnpm run check:exports && pnpm run check:doc-links",
     "prepack": "pnpm run check:host-alignment && pnpm run build",
     "prepare": "node scripts/setup-git-hooks.mjs && pnpm run build"
