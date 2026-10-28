@@ -286,3 +286,13 @@ Twenty CSS modules define 308 class names. Mapping each module's classes against
 Two of those, `pageEntry` and `pageView`, also match unrelated identifiers in the repository, and the whole measurement is name-level: it cannot follow a class reached through a computed key. Deleting on that evidence risks a style that disappears somewhere nobody looked, and there is no browser in this session to check the result.
 
 **Not acted on.** The item needs a real CSS-module parse (the identifier a file binds, then only that file's references) before it can be a gate, and a browser pass before the first deletion. Recorded so it is not rediscovered as new.
+
+## The dead CSS item now has a gate instead of a promise
+
+The previous round measured 27 unreferenced classes with a name-level mapping and left them. That method was wrong twice over: it matched a class against any file rather than the files that import its stylesheet, and it could not see `composes`, which borrows a class from another sheet. The real number, with the identifier each importer binds and `composes` accounted for, is 10.
+
+`pnpm run check:css` now enforces it. A stylesheet is skipped entirely when any importer reaches it by a computed key, a `composes` reference counts as a use, and a class is reported only when it appears neither as `ident.name` nor as a quoted string. On this tree: 20 stylesheets, 15 analyzable, 10 findings, all ten recorded in `docs/reference/css-classes.md`.
+
+None of the ten was deleted, and the reason is unchanged: removing a rule changes a screen, and there is no browser in this session. But the gap between five of them and the other five is now on paper. `detailEmpty`, `inlineCheck`, `modalFooterGrow`, `modalFooterHint` and `pair` appear nowhere in the repository at all; `detail`, `grid`, `list`, `row` and `rowActions` also occur as ordinary string values, so name-level evidence cannot separate a class from a coincidence. The first five are a one-line change whenever a visual pass is possible.
+
+The control: appending `.probeUnused` to a stylesheet produces an eleventh finding and fails the gate.

@@ -2,19 +2,20 @@
 
 `pnpm run check:refactor` is the local bar, and it is the same bar CI runs. Each member below exists because something landed that it would have caught. This page is the map: one line per gate, the failure it owns, and the cases nothing here can see.
 
-| gate                | command              | catches                                                                                                |
-| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------ |
-| types and lint      | `check:quick`        | a change that does not compile, or that the linter rejects                                             |
-| formatting          | `format:check`       | a file Prettier would rewrite, which is how a hand-inserted JSON line broke CI once                    |
-| contracts           | `test:contract`      | published wire and settings contracts drifting from their consumers                                    |
-| layering            | `check:architecture` | an import that crosses a boundary the layering allows only one way                                     |
-| reuse               | `check:reuse`        | a new helper that duplicates one already in the manifest ([reference](reuse-manifest.md))              |
-| dead exports        | `check:exports`      | an exported symbol no other package reads and no ledger row records ([reference](public-exports.md))   |
-| duplicate bodies    | `check:duplication`  | the same function body in two files ([reference](duplicate-functions.md))                              |
-| unreachable modules | `check:modules`      | a source file no package entry reaches and no ledger row records ([reference](module-reachability.md)) |
-| package contents    | `check:package`      | an emitted import that resolves here and not in the tarball ([reference](package-contents.md))         |
-| documentation links | `check:doc-links`    | a relative link to a file or heading that does not exist                                               |
-| bundle budget       | `check:bundle`       | the client bundle growing past its ceiling                                                             |
+| gate                | command              | catches                                                                                                  |
+| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
+| types and lint      | `check:quick`        | a change that does not compile, or that the linter rejects                                               |
+| formatting          | `format:check`       | a file Prettier would rewrite, which is how a hand-inserted JSON line broke CI once                      |
+| contracts           | `test:contract`      | published wire and settings contracts drifting from their consumers                                      |
+| layering            | `check:architecture` | an import that crosses a boundary the layering allows only one way                                       |
+| reuse               | `check:reuse`        | a new helper that duplicates one already in the manifest ([reference](reuse-manifest.md))                |
+| dead exports        | `check:exports`      | an exported symbol no other package reads and no ledger row records ([reference](public-exports.md))     |
+| duplicate bodies    | `check:duplication`  | the same function body in two files ([reference](duplicate-functions.md))                                |
+| unreachable modules | `check:modules`      | a source file no package entry reaches and no ledger row records ([reference](module-reachability.md))   |
+| package contents    | `check:package`      | an emitted import that resolves here and not in the tarball ([reference](package-contents.md))           |
+| unreferenced CSS    | `check:css`          | a class no importer of its stylesheet names and the ledger does not record ([reference](css-classes.md)) |
+| documentation links | `check:doc-links`    | a relative link to a file or heading that does not exist                                                 |
+| bundle budget       | `check:bundle`       | the client bundle growing past its ceiling                                                               |
 
 Two guards live in the test suite instead, because they need the source rather than the tree: the theme-token allowlist (`packages/market-ui/test/theme-tokens.test.ts`) fails on a `--dsw-*` token the host does not define, and the tab-layout sharing cases fail if the two rows that render one layout stop agreeing.
 
