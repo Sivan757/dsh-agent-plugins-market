@@ -172,3 +172,15 @@ Moving both rows onto a new component left the old one imported by nothing: `Res
 The check that found it was asking, after a component swap, what still imports the old one. That is a third gate worth building: every source module under `packages/*/src` must be reachable from a package entry, by import or by dynamic import, or be named in a ledger with the reason it exists (a test-only helper, a script entry the host loads by path). It is the same shape as the dead-export gate one level down, and it would have caught this the moment the swap landed.
 
 Not built here: the honest order is to land the rail first, then build the gate against a tree where its finding is already fixed, which is how the export and duplication gates each started from zero.
+
+## The third gate exists now, and it found a feature nobody mounts
+
+`pnpm run check:modules` walks every import from the eight package entries and fails when a module is never reached. It found five, so the count in the previous section was short.
+
+Four of them are one unwired feature surface: `ResourceWindow.tsx`, `ComposerResourceEntry.tsx` and the client they share under `packages/market-ui/src/features/resource-window/`, plus the locale strings for it in `locales-resources.ts`. The client entry registers composer and settings slots without importing any of them, so nothing mounts that window, while `client-resource-window.test.ts` still passes over it and its copy still ships in the bundle.
+
+The fifth pair are persistence helpers read only by their own tests: `server-config.ts` in the bundle and `surface-toggles.ts` in the runtime. The route groups keep the wired behaviour, so the modules are the older half of a superseded path.
+
+All five are recorded in `docs/reference/module-reachability.md` with the test that reads each one, and left in place. Deleting them retires a feature surface, which is a product decision rather than an audit cleanup; what the ledger buys is a gate that stays strict about everything else while that decision waits.
+
+**Open item:** retire or re-wire the resource-window surface. It is the last known code in this repository that ships, tests and renders nothing.
