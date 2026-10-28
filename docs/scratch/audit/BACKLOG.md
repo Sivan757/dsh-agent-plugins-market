@@ -76,3 +76,35 @@ Row 8 (CodeMirror at 52.6% of the client bundle) cannot be fixed inside this plu
 The cheaper option, which needs no host change, is to stop shipping a 960 KB editor for three dialogs and use a plain textarea for the two Markdown bodies, keeping the editor only where JSON structure matters. That is a product decision about editing comfort, so it is recorded here rather than made in a cleanup pass.
 
 Recommendation: take the textarea option for the Markdown editors now, and revisit the multi-entry split only if the host exposes a documented plugin-chunk contract.
+
+## Where this pass landed
+
+All five waves are on `dev`, one PR each, in this order: #157 conformance, #158 test hardening, #159 Wave 5 cleanup, #160 Wave 2 dedup, #162 Wave 4 docs, #161 Wave 3 performance.
+
+| Wave          | Items                  | Landed as |
+| ------------- | ---------------------- | --------- |
+| 1 security    | 1, 2                   | #156      |
+| 2 dedup       | 3, 4, 6, 7             | #160      |
+| 3 performance | 9, 10, 11, 12, 13      | #161      |
+| 4 docs        | 14, 15, 16, 17, 18, 19 | #162      |
+| 5 cleanup     | 22, 23                 | #159      |
+| tests         | F1 to F8               | #158      |
+| conformance   | the eight prompt fixes | #157      |
+
+Still open, in the order worth doing them:
+
+| Item | Why it is still open |
+| --- | --- |
+| 8 bundle weight | Needs a host contract for plugin chunks, or a product decision to drop the Markdown editors to a textarea. See the section above. |
+| 20 split `extension-hooks.ts` | Deferred because two branches were rewriting it at once. It is 964 lines and nothing else is queued against it now. |
+| 21 dead-export gate | The deletions it would police have landed, so it is buildable now. It is the one addition that would have caught items 22 and 23 mechanically. |
+| 24 deep relative imports | 94 files, mechanical, wants its own pass. |
+| finding 8 | `extension-runtime.ts:421` still rebuilds the inventory on every visible poll: 24 rebuilds a minute, measured at a median 45 ms each on 60 documents. The skip is a 98% cut and was declined because the poll is the only path by which a hand-edited frontmatter change reaches the manager. The recorded repair is a fingerprint guard over the `stat` stamps `stamp` already collects. |
+
+## Two merges that were only green on their own branch
+
+Item 5 and the conformance fix 14 disagreed with a test added in the same wave: fix 14 emptied three bookkeeping messages, and the test still asserted two of their sentences reached the host as `text:` literals. Each PR passed against a base without the other. Resolved in `1a11cf1` by pinning the contract the producer actually has.
+
+The host-alignment gate had the same shape of gap in a different place: it demanded exclusions only for packages the manifest names, while pnpm's release-age policy covers the whole resolved graph. That shipped a tree whose `pnpm install` failed for 26 transitive entries while the gate reported green. Fixed in `ac6a0b3` and `cfbf74b`, with the gate now reading the lockfile.
+
+Both are the same lesson: a gate that checks one of two owners of a fact is a gate that will let the pair drift. The next pass should look for that pattern before adding assertions.
