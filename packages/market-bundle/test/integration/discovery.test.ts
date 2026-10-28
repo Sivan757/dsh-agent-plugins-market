@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { discoverSuitesInSource } from '../../../../packages/market-catalog/src/scanning/suite-scanner.js'
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
@@ -263,6 +263,29 @@ describe('validate: manifest and mcp.json', () => {
   it('rejects a stdio command without ./ prefix when it is a path', async () => {
     const reason = await pathContainmentError('/tmp/root', '../escape')
     expect(reason).toContain('must begin')
+  })
+
+  /**
+   * The second rejection, which the prefix rule never reaches.
+   *
+   * A value that starts `./` still resolves against the plugin root, so a
+   * traversal or an absolute path rides through the prefix check and is caught
+   * only by the containment comparison. Every row below is one production call
+   * site: a stdio `command`, a stdio `cwd`, and a `skills/` child (§4.1
+   * boundary 3). Deleting that comparison left the whole suite green.
+   */
+  it.each([
+    ['a parent traversal', './../escape'],
+    ['an unnormalized traversal through a child', './a/../../escape'],
+    ['an absolute path after the ./ prefix', './' + resolve(tmpdir(), 'market-containment-outside')]
+  ])('rejects %s, which resolves outside the plugin root', async (_label, value) => {
+    expect(await pathContainmentError('/tmp/root', value)).toContain('resolves outside the plugin root')
+  })
+
+  it('accepts a ./ path that stays inside the plugin root, and the ${PLUGIN_ROOT} spelling', async () => {
+    expect(await pathContainmentError('/tmp/root', './inside')).toBeUndefined()
+    expect(await pathContainmentError('/tmp/root', './inside/deeper')).toBeUndefined()
+    expect(await pathContainmentError('/tmp/root', '${PLUGIN_ROOT}/inside')).toBeUndefined()
   })
 
   it('rejects a portable stdio command carrying placeholders (§9.2)', async () => {

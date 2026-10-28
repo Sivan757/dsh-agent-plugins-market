@@ -360,10 +360,13 @@ describe('conforming producers stay plain', () => {
     expect(source).toContain("'## Team coordination'")
   })
 
-  it('the session-state markers carry plain text, with no frame around them', () => {
-    // extension-hooks-metadata.test.ts asserts these strings verbatim. A frame
-    // added here would change that text and fail there first.
-    expect('Session extension selection request.').not.toContain(SYSTEM_REMINDER_OPEN)
-    expect('Session extension readiness restored.').not.toContain(SYSTEM_REMINDER_OPEN)
+  it('the session-state markers reach the host as bare text, with no frame around them', async () => {
+    // Read the producer, so the pin follows the code instead of restating it.
+    // Each marker reaches the host as a bare `text:` literal; framing one would
+    // have to wrap that expression, and a wrapped form does not match here.
+    const source = await readFile(new URL('../../../../packages/market-runtime/src/runtime/host/extension-session-state.ts', import.meta.url), 'utf8')
+    for (const marker of ['Session extension selection request.', 'Session extension readiness restored.']) {
+      expect(source, marker).toContain(`text: '${marker}'`)
+    }
   })
 })
