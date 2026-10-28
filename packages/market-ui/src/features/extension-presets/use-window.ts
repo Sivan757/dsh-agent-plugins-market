@@ -3,6 +3,9 @@ import type { ExtensionWindowPayload } from '../../../../market-contracts/src/co
 import { EXTENSION_WINDOW_POLL_MS } from '../../../../market-contracts/src/contracts/refresh-cadence.js'
 import { createWriteQueue, readWindow, writeWindow, type Mutation } from './resource.js'
 
+/** A read failure the route will keep answering; `unavailable` is set by that error. */
+const settlesNothing = (reason: unknown): boolean => typeof reason === 'object' && reason !== null && (reason as { unavailable?: boolean }).unavailable === true
+
 export interface ExtensionWindowObserver {
   committed(sessionId: string): void
   subscribe(sessionId: string, refresh: () => void): () => void
@@ -46,6 +49,14 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
     let readSequence = 0
     /** Set when a read finished under a hidden document, so the poll has to resume. */
     let paused = false
+    /**
+     * Set when the route answered that it does not exist.
+     *
+     * Polling then spends a request per interval to learn nothing, and the browser
+     * logs every one of them. The surface still reports the state; a retry the user
+     * asks for re-runs this effect and clears the flag.
+     */
+    let unavailable = false
     current.current = undefined
     setData(undefined)
     const load = async () => {
@@ -61,9 +72,10 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
           notify(next)
         }
       } catch (reason) {
+        if (settlesNothing(reason)) unavailable = true
         if (alive && sequence === readSequence && stamp === epoch.current && pending.current === 0) setError(String(reason))
       }
-      if (alive && sequence === readSequence) {
+      if (alive && sequence === readSequence && !unavailable) {
         // A hidden document schedules nothing. The listener below resumes, so a
         // paused poll costs no timer and no read for as long as it stays hidden.
         if (hidden()) paused = true
@@ -76,13 +88,13 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
     // Only a paused poll resumes here: a window that was never hidden keeps its
     // armed timer, so a focus change cannot add a read.
     const onVisibilityChange = (): void => {
-      if (!alive || !paused || hidden()) return
+      if (!alive || unavailable || !paused || hidden()) return
       paused = false
       void load()
     }
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibilityChange)
     const unsubscribe = observer?.subscribe(sessionId, () => {
-      void load()
+      if (!unavailable) void load()
     })
     void load()
     return () => {

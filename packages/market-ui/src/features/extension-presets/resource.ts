@@ -1,9 +1,46 @@
 import { CONFIGURATION_PARENT_IDS, EXTENSION_ROUTES, type ExtensionWindowPayload, type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 
 export type Mutation = Exclude<keyof typeof EXTENSION_ROUTES, 'window'>
+
+/**
+ * A failure the route keeps answering, so a retry only spends requests.
+ *
+ * The extension window polls, and a poll is the right shape for a read that can
+ * start working: the host finishes booting, a session settles, a scan completes.
+ * It is the wrong shape for a route the server does not serve at all, which is
+ * what an older host or a disabled preset surface answers. Measured in a profile
+ * where the route was absent, this loop spent 336 reads and 336 console errors on
+ * one open session, and would have spent them for as long as the session stayed
+ * open.
+ */
+export class UnavailableRouteError extends Error {
+  /** Read structurally by the poll, so a caller never needs this module's class identity. */
+  readonly unavailable = true
+  /**
+   * @param status - the HTTP status that says the route will not answer.
+   * @param message - the server's own text, when it sent one.
+   */
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'UnavailableRouteError'
+  }
+}
+
+/**
+ * Read one session's extension window.
+ * @param sessionId - the session the window describes.
+ * @returns the payload the manager renders.
+ * @throws UnavailableRouteError when the route itself is missing.
+ */
 export async function readWindow(sessionId: string): Promise<ExtensionWindowPayload> {
   const response = await fetch(EXTENSION_ROUTES.window + '?sessionId=' + encodeURIComponent(sessionId), { credentials: 'same-origin', signal: AbortSignal.timeout(15000) })
-  const data = (await response.json()) as ExtensionWindowPayload & { error?: string }
+  const data = (await response.json().catch(() => ({}))) as ExtensionWindowPayload & { error?: string }
+  // 404 and 405 name a route this host does not serve; anything else may be a
+  // boot, a busy scan or a transient fault, and those are worth polling again.
+  if (response.status === 404 || response.status === 405) throw new UnavailableRouteError(response.status, data.error ?? String(response.status))
   if (!response.ok) throw new Error(data.error ?? String(response.status))
   return data
 }

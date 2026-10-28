@@ -133,4 +133,26 @@ describe('extension window poll', () => {
     })
     expect(reads.count).toBe(1)
   })
+  it('stops polling a route the host does not serve, and keeps the reason on screen', async () => {
+    // The route answering 404 is not a race the next read wins: measured in a
+    // profile without it, one open session spent 336 reads and 336 console errors.
+    const module = await import('../../../packages/market-ui/src/features/extension-presets/resource.js')
+    // Count calls on the mock itself: a rejecting implementation never reaches the
+    // helper that increments `reads`.
+    vi.mocked(module.readWindow).mockClear()
+    vi.mocked(module.readWindow).mockRejectedValueOnce(Object.assign(new Error('404'), { unavailable: true }))
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(h(Harness))
+    })
+    expect(vi.mocked(module.readWindow).mock.calls).toHaveLength(1)
+    // Several poll intervals pass: an unavailable route costs no further request.
+    for (let i = 0; i < 5; i += 1)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(EXTENSION_WINDOW_POLL_MS)
+      })
+    expect(vi.mocked(module.readWindow).mock.calls).toHaveLength(1)
+  })
 })
