@@ -657,6 +657,12 @@ describe('role teammates on published Agent Teams', () => {
     expect(identity).toContain('send_message({ target: "lead"')
     expect(identity).toContain('Your role is suite/reviewer')
     expect(identity).not.toContain(opaqueRoleId)
+    // The measured wrapper: the tags sit on their own lines, with no blank line
+    // the wrapper inserts on either side.
+    expect(identity).toContain('<system-reminder>\nYou are teammate')
+    expect(identity).toMatch(/\n<\/system-reminder>$/u)
+    expect(identity).not.toContain('<system-reminder>\n\n')
+    expect(identity).not.toContain('\n\n</system-reminder>')
     const systemForMember = () =>
       JSON.stringify(
         adapter.requests

@@ -51,10 +51,10 @@ describe('prompt frame', () => {
   it('attributes one heading per contributor so two suites stay separable', () => {
     expect(
       attribute([
-        { heading: 'alpha', body: 'one' },
-        { heading: 'beta', body: 'two' }
+        { heading: 'alpha', body: 'one', kind: 'plugin suite' },
+        { heading: 'beta', body: 'two', kind: 'plugin suite' }
       ])
-    ).toBe('### alpha\n\none\n\n### beta\n\ntwo')
+    ).toBe('Instructions from: alpha (plugin suite):\n\none\n\nInstructions from: beta (plugin suite):\n\ntwo')
   })
 
   it('contributes nothing for an empty section', () => {
@@ -64,12 +64,12 @@ describe('prompt frame', () => {
         { heading: 'empty', body: '' },
         { heading: 'kept', body: 'text' }
       ])
-    ).toBe('### kept\n\ntext')
+    ).toBe('Instructions from: kept:\n\ntext')
     expect(attribute([])).toBe('')
   })
 
   it('keeps a contributor heading on one line', () => {
-    expect(attribute([{ heading: 'a\nb\tc', body: 'text' }])).toBe('### a b c\n\ntext')
+    expect(attribute([{ heading: 'a\nb\tc', body: 'text', kind: 'startup skill' }])).toBe('Instructions from: a b c (startup skill):\n\ntext')
   })
 
   it('escapes emphasis-block entry text the way the host does', () => {

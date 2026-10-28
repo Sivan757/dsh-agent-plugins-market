@@ -28,11 +28,17 @@ hook 上下文以裸用户散文进入会话记录（`runtime/surfaces/extension
 
 落地内容：
 
-- 套件指令段落现在是 `## Agent plugin instructions`、一句优先级说明，以及每个贡献者一个 `### <套件>` 标题。同时贡献系统提示词与启动技能的套件读作一块。`renderPrompt` 只用空行连接段落、不加任何标题（`packages/core/system-prompt/src/index.ts:290-295`），所以结构必须长在段落内部。
-- hook 上下文按持久性分流，且每条送达的块都带事件标签。`SessionStart` 与 `UserPromptSubmit` 的上下文属持久会话指令，成为一条成帧消息，首行为 `<事件>[:<匹配器>] hook additional context:`，其后是说明句与每个贡献套件一个标题。`PreToolUse`、`PostToolUse`、`PostToolUseFailure` 与 `SubagentStart` 的上下文保持纯文本，每个贡献者一块并带标签。拦截理由带 `<事件> hook error:`。`Stop` 引导与纠正反馈保持纯文本、不带标签。
+- 套件指令段落是 `## Agent plugin instructions`、宿主自己的优先级句，然后是 `Instructions from: <套件> (<类型>):` 与正文。同时贡献系统提示词与启动技能的套件渲染成两个带标签的块，因为标签必须对底下所有内容为真。`renderPrompt` 只用空行连接段落、不加任何标题（`packages/core/system-prompt/src/index.ts:290-295`），所以结构必须长在段落内部。优先级句沿用宿主的克制措辞而非强制覆盖：同一请求里对同一类内容给出两个强度不同的声明，比如实出更弱的句子与它的邻居一致要糟。
+- hook 上下文按持久性分流，且每条送达的块都带事件标签。`SessionStart` 与 `UserPromptSubmit` 的上下文属持久会话指令，成为一条成帧消息，首行为 `<事件>[:<匹配器>] hook additional context:`，其后是说明句与每个贡献套件一个标题。`PreToolUse`、`PostToolUse`、`PostToolUseFailure` 与 `SubagentStart` 的上下文保持纯文本，每个贡献者一块并带标签。拦截理由带 `<事件> hook error:`。`Stop` 引导保持纯文本但带标签 `Stop hook feedback:`，属标签而非 R2 禁止的框架。
 - 标注需要合并过程丢弃的身份，因此 `collect` 现在把每条解码结果连同套件标签一起返回，`PointOutcome` 在合并决定之外携带带归属的上下文。
 - `subagent-catalog.ts` 改为导入 `escapeEntry`，不再保留私有副本；该助手委托给 `@deepseek-ai/dsh-skill` 导出的 `escapeText`，也就是宿主技能目录逐条使用的同一个函数。
-- `team-coordination.ts`、`role-composition.ts`、`extension-session-state.ts` 与 `commands-mounts.ts` 本来就合规。它们未被改动，并由测试钉住。
+- `team-coordination.ts` 本来就合规，未被改动。
+- `role-composition.ts` 改为陈述绑定关系而非续跑机制：来自启动方代理的消息指导工作，任何代理消息都不是用户同意。
+- `extension-session-state.ts` 的三条簿记消息完全没有内容，即使收件箱过滤器漏掉，句子也无法进入请求。
+- `teammate-role-runtime.ts` 的框架标签内部不再留空行。
+- `commands-mounts.ts` 与 `user-commands.ts` 在用户正文外层带上测量到的斜杠命令元数据，未输入参数时省略参数元素。
+- 两个委派工具的描述改为目的行，然后 `-` 列表，最后是可选的 `## Writing the prompt` 段落。
+- `project-runtime.ts` 不再导出 `mountSuiteInstructions`。两个生产者以不同形态注册同一个段落名，拼装出的提示词因此取决于挂载顺序。真实路径是 `suiteInstructions` 加 `agentInstructionSection`，Kimi 测试改为驱动该路径。
 
 ## Why not the alternatives
 
@@ -58,13 +64,15 @@ hook 上下文以裸用户散文进入会话记录（`runtime/surfaces/extension
 
 `packages/market-bundle/test/integration/prompt-injection-conventions.test.ts` 为每条规则配一个用例：
 
-| 规则  | 用例                                                                                    |
-| ----- | --------------------------------------------------------------------------------------- |
-| R1    | hook 的 `SessionStart` 上下文以成帧形式到达                                             |
-| R2    | 用户提问上下文成帧而 `Stop` 理由不成帧，`PreToolUse` 上下文保持纯文本但带标签           |
-| R3    | 段落与目录文本中的尖括号标签只有框架、`<available_skills>` 与 `<skill_content>`         |
-| R4    | 套件 hook 上下文里的闭合标记被转义                                                      |
-| R5    | 两个 hook 套件可由标题区分，两个指令套件同时带标题与优先级句                            |
-| R6    | 用户编写的命令正文到达模型时无框架、无标题                                              |
-| R7    | 指令段落以 Markdown 标题开头且不含框架，空段落不渲染，空正文不贡献标题                  |
-| GAP D | 纯文本生产者不导入框架模块，团队段落保留 `## Team coordination`，会话状态标记保持纯文本 |
+| 规则  | 用例                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------ |
+| R1    | hook 的 `SessionStart` 上下文以成帧形式到达                                                            |
+| R2    | 用户提问上下文成帧而 `Stop` 理由不成帧，`PreToolUse` 上下文保持纯文本但带标签                          |
+| R3    | 段落与目录文本中的尖括号标签只有框架、`<available_skills>` 与 `<skill_content>`                        |
+| R4    | 套件 hook 上下文里的闭合标记被转义                                                                     |
+| R5    | 两个 hook 套件在同一条成帧块内由贡献者标签区分，两个指令套件同时带 `Instructions from:` 标签与优先级句 |
+| R6    | 用户编写的命令正文到达模型时无框架，外层是测量到的命令元数据                                           |
+| R7    | 指令段落以 Markdown 标题开头且不含框架，空段落不渲染，空正文不贡献标题                                 |
+| GAP D | 纯文本生产者不导入框架模块，团队段落保留 `## Team coordination`，会话状态标记不带文本                  |
+
+`packages/market-bundle/test/integration/prompt-conformance-shapes.test.ts` 逐字钉住这八个已落地的形态：贡献者标签及其两种类型、第二个段落生产者的消失、带参数与不带参数的命令元数据、两个工具描述的指令列表形态，以及目录的列表形态。

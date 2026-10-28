@@ -400,9 +400,14 @@ export class ExtensionHooks {
             return
           }
           this.continuations += 1
+          // Plain text, labelled the way the reference labels Stop output. Rule R2
+          // forbids a <system-reminder> frame on steering, because a framed steer is
+          // what a recorded transcript refused; a plain label is not a frame, and it
+          // is what tells the model this text came from a hook rather than the person.
           for (const message of [reason, ...merged.additionalContext]) {
             if (message === undefined || message.length === 0) continue
-            agent.steer(createUserMessage({ content: [{ type: 'text', text: message }], source: CONTEXT_SOURCE }))
+            const labelled = message === reason ? stopFeedbackText(message) : hookLabel('Stop', undefined, 'additional context') + message
+            agent.steer(createUserMessage({ content: [{ type: 'text', text: labelled }], source: CONTEXT_SOURCE }))
           }
         })
       })
@@ -873,6 +878,27 @@ function contextFromReason(point: Point, reason: string) {
   // two hooks blocking one call.
   const text = reason.startsWith(point + ' hook ') ? reason : hookLabel(point, undefined, 'error') + reason
   return createUserMessage({ content: [{ type: 'text' as const, text }], source: CONTEXT_SOURCE })
+}
+
+/**
+ * The label the reference writes before a Stop hook's reason.
+ *
+ * A Stop deny continues the turn, so its text reads as feedback rather than as an
+ * error. The label stays plain: rule R2 forbids a frame on steering, because a
+ * framed steer is what a recorded transcript treated as third-party metadata.
+ */
+const STOP_FEEDBACK_LABEL = 'Stop hook feedback:\n'
+
+/**
+ * One Stop reason with its label.
+ *
+ * A fallback reason already names its event (`Stop hook kept the turn going`), so
+ * labelling it again would read as two hooks reporting one stop.
+ * @param reason - the hook's own reason text, already resolved.
+ * @returns the labelled reason.
+ */
+function stopFeedbackText(reason: string): string {
+  return reason.startsWith('Stop hook ') ? reason : STOP_FEEDBACK_LABEL + reason
 }
 
 /**

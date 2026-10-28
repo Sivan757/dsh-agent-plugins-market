@@ -47,13 +47,16 @@ export const OUTPUT_STYLE_SECTION_NAME = 'market:output-style'
  * The heading line the section opens with.
  *
  * The host joins prompt sections with a blank line and adds no heading of its
- * own, so the producer supplies one. It is a `##` heading rather than a wrapper
- * section with a nested `###` per style: exactly one style is selected per
- * workspace, so a second level would separate nothing. See
- * \`packages/market-runtime/src/runtime/surfaces/prompt-frame.ts\` and rule R7 in
- * \`docs/reference/prompt-injection-conventions.md\` for the framing decision.
+ * own, so the producer supplies one. The wording matches Claude Code's
+ * `Output Style: <label>`, measured in
+ * `docs/scratch/prompt-research/captures/text/style.messages.txt`. The level stays
+ * `##`, the level the host's own multi-paragraph sections use: this plugin
+ * contributes to a host-assembled prompt rather than authoring it, so a `#`
+ * would outrank every host section beside it. See
+ * `docs/scratch/prompt-research/corrections.md` section 7. Exactly one style is
+ * selected per workspace, so no deeper level is needed.
  */
-export const OUTPUT_STYLE_HEADING_PREFIX = '## Output style: '
+export const OUTPUT_STYLE_HEADING_PREFIX = '## Output Style: '
 
 /**
  * Where the section sorts among the host's own prompt sections.

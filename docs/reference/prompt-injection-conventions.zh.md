@@ -6,30 +6,31 @@
 
 ## 规则
 
-| 规则                    | 内容                                                                                           |
-| ----------------------- | ---------------------------------------------------------------------------------------------- |
-| R1 生产者负责成帧       | 插件为自己的内容成帧，绝不依赖宿主去包裹。                                                     |
-| R2 只给持久指令成帧     | `<system-reminder>` 仅用于持久、会话稳定的指令内容。临时通知、引导理由与一次性回调保持纯文本。 |
-| R3 不发明标签           | 只用熟悉的框架与生态既有的强调标签。不使用 `<agent-plugins-...>`。                             |
-| R4 先转义再计量         | 每个成帧正文都要转义 `</system-reminder>`，并且要在字节计量之前完成。                          |
-| R5 标注贡献者           | 同一块里的两个套件必须可区分：每个贡献者一个标题，另加一句优先级说明。                         |
-| R6 用户输入不成帧       | 用户编写的命令正文与用户命令面板条目永不被包裹。                                               |
-| R7 段落本身就是系统权重 | 系统提示词段落用 Markdown 标题，不用框架。`renderPrompt` 只用空行连接段落，自己不加任何标题。  |
+| 规则                    | 内容                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| R1 生产者负责成帧       | 插件为自己的内容成帧，绝不依赖宿主去包裹。                                                           |
+| R2 只给持久指令成帧     | `<system-reminder>` 仅用于持久、会话稳定的指令内容。临时通知、引导理由与一次性回调保持纯文本。       |
+| R3 不发明标签           | 只用熟悉的框架与生态既有的强调标签。不使用 `<agent-plugins-...>`，也不使用 `<available_subagents>`。 |
+| R4 先转义再计量         | 每个成帧正文都要转义 `</system-reminder>`，并且要在字节计量之前完成。                                |
+| R5 标注贡献者           | 同一块里的两个套件必须可区分：每个贡献者一个标签，写明来源与类型，另加一句优先级说明。               |
+| R6 用户输入不成帧       | 用户编写的命令正文与用户命令面板条目永不被包进框架。正文外层的命令元数据是允许的。                   |
+| R7 段落本身就是系统权重 | 系统提示词段落用 Markdown 标题，不用框架。`renderPrompt` 只用空行连接段落，自己不加任何标题。        |
 
 ## 注入点
 
 | 位置 | 机制 | 形式 | 原因 |
 | --- | --- | --- | --- |
-| `runtime/host/scoped-contributors.ts` 的 `agentInstructionSection` | `systemPrompt.section` | Markdown 段落：`## Agent plugin instructions`，每个贡献者一个 `### <套件>` | 依据 R7 与 R5。它已是系统权重，加框架等于给权重再加权重，而 `renderPrompt` 本身不提供结构。 |
+| `runtime/host/scoped-contributors.ts` 的 `agentInstructionSection` | `systemPrompt.section` | Markdown 段落：`## Agent plugin instructions`、优先级句，然后是 `Instructions from: <套件> (<类型>):` 与正文 | 依据 R7 与 R5。它已是系统权重，加框架等于给权重再加权重，而 `renderPrompt` 本身不提供结构。贡献者标签沿用宿主自己的 `Instructions from: <路径>` 形态，类型用于区分启动技能与系统提示词。 |
 | `runtime/surfaces/extension-hooks.ts` 的 `contextFrom(…)`，用于 `SessionStart` 与 `UserPromptSubmit` | `agent.inject` 或进入步骤的消息 | 成帧，首行为 `<事件> hook.`，每个贡献者一个 `### <套件>`，并转义 | 依据 R2、R4、R5。这是持久会话指令，而事件名正是让模型区分会话起始规则与中途回调的依据。 |
 | `extension-hooks.ts` 的 `contextFrom(…)`，用于 `PreToolUse`、`PostToolUse`、`PostToolUseFailure`、`SubagentStart` | `agent.inject` 或下游决定 | 纯文本，首行为 `<事件>[:<工具>] hook additional context:`，每个贡献者一块 | 依据 R2。单次工具调用的回调不是常驻指令，但不加来源标签的钩子文本会被模型读成用户发言。 |
 | `extension-hooks.ts` 的 `contextFromReason` | `agent.inject` | 纯文本，首行为 `<事件> hook error:` | 依据 R2。被拦截的那次调用仍保留标签，因为此时模型最不该把钩子误当成用户。 |
-| `extension-hooks.ts` 的 `Stop` 引导 | `agent.steer` | 纯文本 | 依据 R2。被加标签的引导正是那份记录里被模型拒绝的形态。 |
+| `extension-hooks.ts` 的 `Stop` 引导 | `agent.steer` | 纯文本并带标签 `Stop hook feedback:\n<文本>`，上下文用 `Stop hook additional context: <文本>` | 依据 R2，引导不得成帧，因为带框架的引导正是那份记录里被模型拒绝的形态。纯文本标签不是框架，它告诉模型这段文字来自钩子。 |
 | `runtime/agents/subagent-catalog.ts` 的 `renderCatalogText` | `agent.inject` | 成帧，每个角色一行不加引号的 `- <名称>: <描述>`，无嵌套标签，经 `prompt-frame.ts` 转义 | 与参考实现的角色列表一致。嵌在里面的 `<available_subagents>` 与内部标题，是同一个块的第二套命名。 |
 | `runtime/agents/team-coordination.ts` | `systemPrompt.section` | `## Team coordination` Markdown 段落 | 依据 R7。指令段落沿用的正是这个形态。 |
-| `runtime/agents/role-composition.ts` 的 `roleChildNotice` | 子代理上的 `inject` | 纯文本 | 依据 R2。一句绑定说明，属模型可读事实而非指令内容。 |
-| `runtime/host/extension-session-state.ts` 的唤醒与意图标记 | `inject`、`steer` | 纯文本，`form: 'context'` | 关于插件自身状态的元数据，不是指令。 |
-| `runtime/surfaces/commands-mounts.ts` 的命令正文 | `agent.followup` | 纯文本用户消息 | 依据 R6。由用户编写，因此保持用户权重。 |
+| `runtime/agents/role-composition.ts` 的 `roleChildNotice` | 子代理上的 `inject` | 纯文本，两句写明绑定关系 | 依据 R2。它说明是什么在指导子代理，绝不写子代理无法据此行动的持久化机制。 |
+| `runtime/host/extension-session-state.ts` 的选择、意图与唤醒标记 | `agent.inject`、`agent.steer` | 完全没有内容块，记录由来源类型承载 | 它们用于记录持久事件并在请求前被移除。空的载体即使过滤器漏掉也无法被读取。 |
+| `runtime/surfaces/commands-mounts.ts` 与 `runtime/panels/user-commands.ts` 的命令正文 | `agent.followup` | 纯文本用户消息，外层为 `<command-message>`、`<command-name>`、可选 `<command-args>`，再是分隔线、正文与可选 `ARGUMENTS:` 行 | 依据 R6。正文保持用户权重，所以不加框架。元数据告诉模型执行了斜杠命令，以及哪个元素承载参数。 |
+| `runtime/agents/agent-role-router.ts` 与 `teammate-role-tool.ts` 的工具描述 | 工具 schema | 目的行、一个空行，然后是 `-` 列表与可选的 `## Writing the prompt` 段落 | 测量到的 Claude Code 工具描述形态。单段规则会被略读，而其中最难发现的恰是跳过规则。 |
 
 ## 框架形态
 

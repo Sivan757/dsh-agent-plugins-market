@@ -8,11 +8,13 @@
  * without it a reader of the assembled prompt cannot tell where the style
  * starts.
  *
- * The heading is `##`-level rather than a wrapper `##` section with a nested
- * `###` per contributor. `attribute()` exists to keep several contributors
- * separable (rule R5), and exactly one style is selected per workspace, so a
- * second level would separate nothing and would nest the style under a heading
- * that names no contributor.
+ * The wording matches Claude Code's own `Output Style: <label>`, measured in
+ * `docs/scratch/prompt-research/captures/text/style.messages.txt`. The level stays
+ * `##`, which is what the host's own multi-paragraph sections use; this plugin
+ * contributes sections to a host-assembled prompt rather than authoring it.
+ * `attribute()` exists to keep several contributors separable (rule R5), and
+ * exactly one style is selected per workspace, so no deeper level would
+ * separate anything.
  *
  * The body goes through `escapeFrameBody` even though this section carries no
  * frame. A style is authored text that may be reused inside one later, the

@@ -30,6 +30,38 @@ export interface CommandSpec {
   suiteData?: string
 }
 
+/**
+ * Wrap a resolved command body in the measured slash-command metadata.
+ *
+ * Claude Code tells the model that a slash command ran and which element holds
+ * the argument (`captures/text/command.messages.txt`): a command name, a call
+ * name, the raw argument, then a horizontals rule, the body, and an `ARGUMENTS:`
+ * trailer. Without it the model cannot tell an authored command from something
+ * the person typed.
+ *
+ * The body keeps user weight: this adds metadata around it and never a
+ * `<system-reminder>` frame, which rule R6 forbids on user-authored text. The
+ * trailer appears only when the invocation carried an argument, because it would
+ * otherwise say nothing.
+ * @param name - the call name the command registered under.
+ * @param body - the authored body with its placeholders already resolved.
+ * @param rawInput - the text the person typed after the command name.
+ * @returns the follow-up text for the model.
+ */
+export function forwardCommandText(name: string, body: string, rawInput: string): string {
+  const input = rawInput.trim()
+  return [
+    '<command-message>' + name + '</command-message>',
+    '<command-name>/' + name + '</command-name>',
+    ...(input === '' ? [] : ['<command-args>' + input + '</command-args>']),
+    '',
+    '---',
+    body,
+    '',
+    ...(input === '' ? [] : ['ARGUMENTS: ' + input])
+  ].join('\n')
+}
+
 export interface CommandReadOptions {
   /** Preserve valid disabled declarations without changing their document or the default runtime policy. */
   includeDisabled?: boolean

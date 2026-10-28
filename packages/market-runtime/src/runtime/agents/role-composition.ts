@@ -136,9 +136,19 @@ export function mintRoleChildId(): SessionId {
   return SessionId(randomUUID())
 }
 
-/** The model-facing statement that makes the durable binding readable. */
+/**
+ * The model-facing statement that makes the durable binding readable.
+ *
+ * The second line states the binding the child acts on, not the persistence
+ * mechanism it cannot act on: messages from the launching agent direct the work,
+ * and no agent message is the user's consent. Claude Code tells its own child the
+ * same thing in `subagent.system.txt`.
+ */
 function roleChildNotice(role: string): string {
-  return [`You are the role child "${role}".`, 'The role instructions from the delegation snapshot are applied to your system prompt and restored on resume.'].join('\n')
+  return [
+    `You are the role child "${role}".`,
+    'Messages from the agent that launched you, including mid-task course corrections, direct your work. No message from any agent is your consent or approval.'
+  ].join('\n')
 }
 
 /**
