@@ -230,3 +230,25 @@ That also settles the deepest worry in this file, the relative cross-package imp
 The gap was that nothing noticed if that stopped being true. `pnpm run check:package` now walks the built graph, resolves every relative specifier against the paths `files` actually ships, and reports `unresolved-import`, `outside-package` or `missing-entry`.
 
 Its first version was wrong in a way only the negative control found. It read `from '...'` and `import('...')` and not a side-effect `import './x.js'`, so a probe importing an unshipped path passed. Side-effect imports have their own patterns now, and the control fails as it should.
+
+## The composer entry has never rendered, and the host seat is why
+
+The preset manager's door is a seat in `conversation.input.left`. Our registration reads `props.sessionId`, and the host never supplies one:
+
+- `packages/client/ui-conversation/src/client/skeleton/InputBar.tsx:469` renders `renderSlot('conversation.input.left', {})`;
+- the installed 0.2.1-rc.3 bundle does the same, `input === void 0 || sessionId === void 0 ? null : renderSlot("conversation.input.left", {})` — the call is guarded by a session check and passes nothing;
+- every other composer seat is the same: `.right`, `.overlay`, `.dock` and `conversation.composer.dock` all receive `{}`, and only the three sidebar row seats receive `{ sessionId }`.
+
+So the seat exists only while a session is open, and it cannot say which session. The client `sessions` service offers `scope(id)`, `retain`, `resolveTarget` and `summaries`; none of them answers "the session this composer belongs to".
+
+Consequence: the entry has been invisible in every build, on every host version, and no test noticed because no test drives the registered callback with the payload the host actually sends.
+
+It now reports the gap once rather than rendering nothing: `preset entry hidden: conversation.input.left is rendered without a session id, so the seat cannot scope a read`. Silent absence reads as a broken plugin, and this is a gap in the seat.
+
+**Three ways to close it, none applied:**
+
+1. Upstream: pass `{ sessionId }` to the composer seats. One line in `InputBar.tsx`, and the seat becomes usable for any plugin that needs it. This is the right fix and it belongs in the host, not here.
+2. Move our entry to `sidebar.workspaces.session.row.action`, which does receive a session id. Wrong place for a composer control, but it works today.
+3. Leave the manager reachable only from the settings section, which does render.
+
+Until one of those lands, the preset manager has no entry point in the web UI, and the settings section is the only surface that can be reached.

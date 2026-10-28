@@ -78,12 +78,24 @@ const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as 
 /** Published composer seat after Permissions; blank and ongoing sessions share one icon entry. */
 export const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
 
+/** Reported once, because a slot that re-renders would otherwise repeat it. */
+let reportedMissingSession = false
+
 /**
  * The slot's payload, behind the preset switch: nothing renders while the
  * setting is off, and a flip shows the entry without a reload.
+ *
+ * The host renders `conversation.input.left` with `{}` — it wraps that call in a
+ * session check without passing the id — so the entry cannot name the session it
+ * belongs to and renders nothing. It says so once instead: silently missing UI is
+ * indistinguishable from a broken plugin, and this one is a gap in the seat.
  */
 function PresetEntrySlot(props: { sessionId?: string; t: ExtensionTranslate; observer: ExtensionWindowObserver }): ReactNode {
   const enabled = useAgentPresetsEnabled()
+  if (enabled && !props.sessionId && !reportedMissingSession) {
+    reportedMissingSession = true
+    console.warn('[dsh-agent-plugins-market] preset entry hidden: ' + COMPOSER_TOGGLE_SLOT + ' is rendered without a session id, so the seat cannot scope a read')
+  }
   if (!enabled || !props.sessionId) return null
   return h(ExtensionPresetEntry, { sessionId: props.sessionId, t: props.t, observer: props.observer, renderDetail: detail => h(ExtensionDetailView, detail) })
 }
