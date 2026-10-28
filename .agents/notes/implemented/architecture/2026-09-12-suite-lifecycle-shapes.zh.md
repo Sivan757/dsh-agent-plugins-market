@@ -39,7 +39,7 @@ export interface Suite extends DiscoveredSuite {
 
 ## Consequences
 
-**边界立刻抓到了一个潜在缺陷。** `packages/market-bundle/test/integration/real-layouts.test.ts` 用 `as never` 伪造了一个 `Catalog`，把**扫描态**套件交给了消费方，而消费方按投影态读取——现在它在 `src/runtime/project-runtime.ts` 抛错。这正是上面说的"静默挂载全部"失败模式，而由于那个 cast，它一直对 `tsc` 不可见。测试里的 host cast 仍然存在，所以 cast 依然可以藏住这一类错误；不要把类型检查全绿读成"没有任何 cast 藏得住东西"。
+**边界立刻抓到了一个潜在缺陷。** `packages/market-bundle/test/integration/real-layouts.test.ts` 用 `as never` 伪造了一个 `Catalog`，把**扫描态**套件交给了消费方，而消费方按投影态读取——现在它在 `packages/market-runtime/src/runtime/surfaces/project-runtime.ts` 抛错。这正是上面说的"静默挂载全部"失败模式，而由于那个 cast，它一直对 `tsc` 不可见。测试里的 host cast 仍然存在，所以 cast 依然可以藏住这一类错误；不要把类型检查全绿读成"没有任何 cast 藏得住东西"。
 
 **两个合成套件需要一份真实的集合。** `loadUserMcpSuite` 与直连 LSP 的套件字面量是在 `project()` 之外构造的，现在它们带上 `effectiveSurfaces(undefined)`——六个 surface 全开，这与字段缺失时每一处读取所得到的结果按位相同。
 

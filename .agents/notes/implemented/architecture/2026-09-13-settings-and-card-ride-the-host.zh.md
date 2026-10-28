@@ -18,11 +18,11 @@ Status: implemented
 
 翻译读取方。`packages/market-ui/src/ui/translation-enabled.ts` 使用已发布的快照 store，将共享宿主表单投影为一个只读布尔可订阅对象，不启用持久化或帧调度。面板 hook 和菜单集成读取同一个对象。替换绑定会退订旧表单、保留消费者订阅，并防止旧 disposer 清除新绑定。解除绑定时恢复契约默认值。设置与菜单的注入回调直接返回清理函数，服务替换时即可释放订阅，不必等到根插件卸载。
 
-卡片表单。`src/client/plugin-card-controller.ts` 暂存编辑、保存时提交，与 `settings.plugin.item` 槽位里每个卡片遵循的契约一致。控制器把状态投影成 `@deepseek-ai/dsh-client-store` 快照，经槽位的 `hooks` 座位发布，由宿主渲染器合成卡片的选择器 hook，`src/client/McpPluginCard.tsx` 因此只是一个渲染器。命名空间未送达时卡片不渲染任何内容；只有用户层确实带着该字段时才标记为已自定义；重置走 `scope.unset`，让字段重新跟随插件，而不是把当前值钉死。
+卡片表单。`src/client/plugin-card-controller.ts` 暂存编辑、保存时提交，与 `settings.plugin.item` 槽位里每个卡片遵循的契约一致。控制器把状态投影成 `@deepseek-ai/dsh-client-store` 快照，经槽位的 `hooks` 座位发布，由宿主渲染器合成卡片的选择器 hook，`packages/market-ui/src/features/settings-card/McpPluginCard.tsx` 因此只是一个渲染器。命名空间未送达时卡片不渲染任何内容；只有用户层确实带着该字段时才标记为已自定义；重置走 `scope.unset`，让字段重新跟随插件，而不是把当前值钉死。
 
 浏览器状态。网格/列表偏好使用平台的快照 store 加 `persist`，这正是宿主自己的浏览器本地持久化方式。
 
-宿主 seam。`src/runtime/mcp-client/host-seams.ts` 从 `@deepseek-ai/dsh-timeout`、`dsh-subprocess`、`dsh-credentials`、`dsh-attachment` 重新导出 `MAX_TIMER_DELAY_MS`、`scrubbedParentEnv`、`credentialKey` 与图片准入错误词汇。工具观察改读 `ctx.tools.schemas()`。宿主语言偏好改读设置服务对 `locale` 条目的投影（`describe()` → `ns === 'locale'` → `value.preference`），也就是 harness 自己的桌面外壳读取它的接口；此前的 `settings.get(ns)` 取值方法与随后的 `settings.yaml` 解析都已删除，记录见[宿主语言来源 Note](../bug-fix/2026-09-24-host-locale-source-read-and-lifetime.md)。
+宿主 seam。`packages/market-mcp/src/runtime/mcp/bridge/host-seams.ts` 从 `@deepseek-ai/dsh-timeout`、`dsh-subprocess`、`dsh-credentials`、`dsh-attachment` 重新导出 `MAX_TIMER_DELAY_MS`、`scrubbedParentEnv`、`credentialKey` 与图片准入错误词汇。工具观察改读 `ctx.tools.schemas()`。宿主语言偏好改读设置服务对 `locale` 条目的投影（`describe()` → `ns === 'locale'` → `value.preference`），也就是 harness 自己的桌面外壳读取它的接口；此前的 `settings.get(ns)` 取值方法与随后的 `settings.yaml` 解析都已删除，记录见[宿主语言来源 Note](../bug-fix/2026-09-24-host-locale-source-read-and-lifetime.md)。
 
 ## Alternatives considered
 
@@ -42,7 +42,7 @@ Status: implemented
 
 - **MCP 桥接、脱敏启发式与 `/api/agent-plugins/*` HTTP 面保留。** 宿主 MCP 客户端没有 OAuth 也没有 SSE；宿主脱敏由 schema 驱动，而第三方的 `mcp.json` 没有 schema 可声明；把 HTTP 面迁到宿主的 Remote seam 是重写全部路由与客户端调用，属于重写而不是复用。
 
-定时器**不在**这个清单里。`src/runtime/timer-seat.ts` 读的是宿主的 `timer` 服务，因此在任何挂载了 `@deepseek-ai/cordis-plugin-timer` 的组合里，重复、延迟与合并调度都随插件 fiber 一起释放——base bundle 在每个标准 profile 都会挂载它。该服务同时把 `interval` / `timeout` / `debounce` 混入上下文，但 Cordis 的访问器要经服务解析，所以未 `inject` `timer` 的 fiber 上 `ctx.interval` 会报 `cannot get property "timer" without inject`；读服务本身才让这个座位保持可选。裸句柄兜底只服务于测试构建的极简上下文与未挂载该插件的组合，也是唯一需要 `unref` 的路径。此前「本插件依赖 unref 才能让 DSH 进程退出」的说法是错的：`ctx.appExit` 的定义就是「树 dispose 之后再退出」，而 dispose 本就会跑本插件的清理，所以兜底里的 unref 属于卫生习惯而非承重保证。
+定时器**不在**这个清单里。`packages/market-runtime/src/runtime/core/timer-seat.ts` 读的是宿主的 `timer` 服务，因此在任何挂载了 `@deepseek-ai/cordis-plugin-timer` 的组合里，重复、延迟与合并调度都随插件 fiber 一起释放——base bundle 在每个标准 profile 都会挂载它。该服务同时把 `interval` / `timeout` / `debounce` 混入上下文，但 Cordis 的访问器要经服务解析，所以未 `inject` `timer` 的 fiber 上 `ctx.interval` 会报 `cannot get property "timer" without inject`；读服务本身才让这个座位保持可选。裸句柄兜底只服务于测试构建的极简上下文与未挂载该插件的组合，也是唯一需要 `unref` 的路径。此前「本插件依赖 unref 才能让 DSH 进程退出」的说法是错的：`ctx.appExit` 的定义就是「树 dispose 之后再退出」，而 dispose 本就会跑本插件的清理，所以兜底里的 unref 属于卫生习惯而非承重保证。
 
 `settlesWithin` 同样不再是偏离：它只是在宿主 `deadline` 之上的薄竞速，定时器与 `TimeoutReason` 都归宿主。只有「工作到底有没有 settle」这一层折叠留在本地，因为宿主原语刻意只做通知。有一个陷阱值得记住：宿主把非正的超时读作「不设定时器」，而这里的调用方把它读作「不等」，因此该辅助函数给等待设了下限，而不是把零直接透传。
 

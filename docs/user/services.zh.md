@@ -26,7 +26,7 @@ MCP 详情仅为失败的托管服务或残留挂载显示重试；当前后端�
 
 ## Hooks 与 LSP
 
-Hooks 使用桥接映射支持的 command-hook 子集，接入 SessionStart、UserPromptSubmit、PreToolUse、PostToolUse、Stop、SubagentStart、SubagentStop。这不代表完整兼容 Claude Code 运行时。 Hooks 页签中的 hook 行打开一张声明卡：支持情况、事件与匹配条件三个标签压在完整命令之上，下面是概览网格（来源、匹配条件、超时、声明位置、类型、来源套件与运行目录），再下面是一行默认折叠的声明区，展开后以 JSON 显示该声明。被校验拒绝的声明改为显示校验诊断，不显示命令。已接纳的声明提供试运行：命令在用户根目录用合成事件数据运行一次，详情显示退出码与两路输出。
+Hooks 使用已发布的 hook 协议，接入十个事件：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PostToolUse`、`PostToolUseFailure`、`Stop`、`SubagentStart`、`SubagentStop`、`PreCompact` 与 `SessionEnd`。这不代表完整兼容 Claude Code 运行时。 Hooks 页签中的 hook 行打开一张声明卡：支持情况、事件与匹配条件三个标签压在完整命令之上，下面是概览网格（来源、匹配条件、超时、声明位置、类型、来源套件与运行目录），再下面是一行默认折叠的声明区，展开后以 JSON 显示该声明。被校验拒绝的声明改为显示校验诊断，不显示命令。已接纳的声明提供试运行：命令在用户根目录用合成事件数据运行一次，详情显示退出码与两路输出。
 
 LSP 的启用套件声明和直接配置的服务使用同一挂载生命周期。LSP 支持包随插件自带，用户只需自备语言服务器可执行程序；可执行程序缺失、声明无效，或安装损坏导致 LSP 支持包无法加载，都会展示诊断。能够预览声明不代表服务已经运行。
 

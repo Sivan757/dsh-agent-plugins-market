@@ -61,7 +61,7 @@ ctx.effect(
 
 `readLocalePreference()` 现在是同步函数。解析 `$DSH_HOME/settings.yaml`、`node:fs` 读取与异步包装 `loadHostLocale` 都已删除，因为唯一的来源直接给出值；`refreshHostLocale` 用它绑定字典并使两个技能提供者失效。曾经承载服务实例的注入回调保留为「服务晚于本插件挂载」时的触发点。
 
-`src/runtime/host-locale.ts` 里的 `LocaleSettingsSource` 声明了本模块调用的那段服务接口，紧邻那条说明 harness `601d6761e4` 移除了它要替代的取值方法。
+`packages/market-runtime/src/runtime/host/host-locale.ts` 里的 `LocaleSettingsSource` 声明了本模块调用的那段服务接口，紧邻那条说明 harness `601d6761e4` 移除了它要替代的取值方法。
 
 ## Alternatives considered
 

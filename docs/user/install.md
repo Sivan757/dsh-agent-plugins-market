@@ -7,7 +7,7 @@ English | [简体中文](install.zh.md) | [README](../../README.md)
 ## Host requirements
 
 - Node.js 22 or later, a DSH Web profile and the host skill service (`ctx.skills`). Git sources require Git.
-- The current package declares the DSH host packages it needs in the `^0.2.0-rc.2` range. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
+- The current package declares the DSH host packages it needs in one support window, `>=0.2.0-rc.2 <0.3.0-0`. This is a dependency declaration, not a verified minimum version for every feature or historical Web shell.
 - Slash commands require the host command service. Role delegation requires agents, tools, LLM, subagents and persistence. Without Agent Teams, `subagent_role` returns a durable child by default (omitted/true); false waits for a foreground report. With Agent Teams, `spawn_teammate_role` and a compact role catalog replace that entry and guidance. It creates a fresh Team member using role instructions and model settings; native Team tools own messaging and tasks. Team mode additionally needs session query and system-prompt services and explicit user intent to use Teams.
 - MCP uses the built-in bridge by default. Host-client compatibility mode additionally needs `@deepseek-ai/dsh-mcp-client`. Session-scoped hooks use the published hook protocol and require the host shell and session-projection services.
 - LSP support installs and mounts its own `@deepseek-ai/dsh-lsp`, `dsh-lsp-stdio` and `dsh-tool-lsp` packages as soon as an enabled suite declares language servers, so no profile step is needed. The language-server executables themselves must be available on the machine.
