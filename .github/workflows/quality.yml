@@ -2,7 +2,10 @@ name: quality
 
 on:
   push:
-    branches: [main]
+    # dev takes direct commits as well as merges, and a push there is what the next
+    # release is cut from. Without it here, only PRs are gated and a direct commit
+    # can reach dev having run nothing.
+    branches: [main, dev]
   pull_request:
     types: [opened, synchronize, reopened]
 

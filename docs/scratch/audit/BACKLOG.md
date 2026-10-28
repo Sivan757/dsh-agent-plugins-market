@@ -108,3 +108,15 @@ Item 5 and the conformance fix 14 disagreed with a test added in the same wave: 
 The host-alignment gate had the same shape of gap in a different place: it demanded exclusions only for packages the manifest names, while pnpm's release-age policy covers the whole resolved graph. That shipped a tree whose `pnpm install` failed for 26 transitive entries while the gate reported green. Fixed in `ac6a0b3` and `cfbf74b`, with the gate now reading the lockfile.
 
 Both are the same lesson: a gate that checks one of two owners of a fact is a gate that will let the pair drift. The next pass should look for that pattern before adding assertions.
+
+## Second pass
+
+| Item | Outcome |
+| --- | --- |
+| 21 dead-export gate | **done** as `4c2f9ef`. `scripts/check-dead-exports.mjs` plus `docs/reference/public-exports.md`, wired into `check:refactor`. It found fifteen entry exports with no consumer outside their package, all stale rather than hidden contracts, so all fifteen were removed instead of recorded. Proved in both directions. |
+| 20 split `extension-hooks.ts` | **declined, with the reason.** The file is 964 lines but nothing measured says its size costs anything: no compile, load or review wait traces to it, and the hook protocol is the one surface every other feature touches. A split would add module indirection and a merge point for no measured gain. The condition that would change this is a second feature needing the same internals, which is when the shared part should be extracted on its own evidence. |
+| 24 deep relative imports | **deferred on cost, not value.** Ninety-four files for a mechanical import rewrite. It touches every package at once, so it blocks any branch in flight and cannot be reviewed by reading. Worth doing as the first commit of a quiet week rather than inside an audit pass. |
+
+## The gap this pass exposed in CI
+
+The quality workflow ran on `main` pushes and pull requests, not on `dev` pushes. Every direct commit to `dev` in this pass therefore ran no CI at all, and the local gate was the only evidence. That is now fixed by adding `dev` to the push triggers, because `dev` takes direct commits and is what the next release is cut from.
