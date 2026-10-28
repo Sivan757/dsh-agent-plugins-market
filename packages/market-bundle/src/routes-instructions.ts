@@ -13,6 +13,7 @@
  */
 import { isTrustedMutation } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
+import { queryOf, readJsonBody, sendJson } from './route-http.js'
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
@@ -39,8 +40,6 @@ interface RouteHost {
   /** Receives a failure's full detail, including the paths the browser never sees. */
   logger?: RouteLogger
 }
-
-const MAX_BODY_BYTES = 64 * 1024
 
 /** Mount the instruction routes; returns the disposer releasing them all. */
 export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteDeps): () => void {
@@ -118,41 +117,4 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
   return () => {
     for (const dispose of disposers) dispose()
   }
-}
-
-/** Parse the query string of one request into a URLSearchParams. */
-function queryOf(request: IncomingMessage): URLSearchParams {
-  return new URL(request.url ?? '/', 'http://dsh.local').searchParams
-}
-
-/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
-function readJsonBody(request: IncomingMessage): Promise<unknown> {
-  return new Promise(resolve => {
-    let size = 0
-    const chunks: Buffer[] = []
-    request.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        resolve(undefined)
-        request.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    request.on('end', () => {
-      if (size > MAX_BODY_BYTES) return
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-      } catch {
-        resolve(undefined)
-      }
-    })
-    request.on('error', () => resolve(undefined))
-  })
-}
-
-function sendJson(response: ServerResponse, status: number, payload: unknown): void {
-  const body = JSON.stringify(payload)
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) })
-  response.end(body)
 }

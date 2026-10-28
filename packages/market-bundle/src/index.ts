@@ -48,7 +48,7 @@ import { mountSuiteRoutes } from './routes.js'
 import { mountResourceRoutes } from './routes-resources.js'
 import { mountTabLayoutRoutes } from './routes-tab-layout.js'
 import { mountInstructionRoutes } from './routes-instructions.js'
-import { resolveInstructionLimits } from './application/instructions.js'
+import { INSTRUCTION_LIMITS } from './application/instructions.js'
 import { mountOutputStyleRoutes } from './routes-output-styles.js'
 import { createOutputStyleSuitePort } from './application/output-styles-suites.js'
 import { OutputStyleService, mountOutputStyleSection } from '../../market-runtime/src/index.js'
@@ -130,19 +130,6 @@ export interface Config {
   translationEnabled: Volatile<boolean | undefined>
   /** Agent preset manager switch; updated live through the host settings service. */
   agentPresetsEnabled: Volatile<boolean | undefined>
-  /**
-   * Byte cap on the whole workspace instruction baseline the instructions page
-   * reports. Defaults to 65536, the host loader's own default: keep the two
-   * equal, or the page would describe a budget the model does not get. `0`
-   * disables instruction loading, exactly as the host row's `maxBytes` does.
-   */
-  instructionMaxBytes?: number
-  /**
-   * Byte cap on one instruction file. Defaults to 1048576, the host loader's
-   * own default; a larger file never loads. Keep equal to the host
-   * `agent-instructions` row's `maxSourceBytes`.
-   */
-  instructionMaxSourceBytes?: number
 }
 
 /**
@@ -172,8 +159,6 @@ export interface ConfigInput {
   autoUpdateSources?: boolean | null
   translationEnabled?: boolean | null
   agentPresetsEnabled?: boolean | null
-  instructionMaxBytes?: number | null
-  instructionMaxSourceBytes?: number | null
 }
 
 export const Config = z.object({
@@ -202,9 +187,7 @@ export const Config = z.object({
   feedbackEnabled: MarketSettingsFields.feedbackEnabled.volatile(),
   autoUpdateSources: MarketSettingsFields.autoUpdateSources.volatile(),
   translationEnabled: MarketSettingsFields.translationEnabled.volatile(),
-  agentPresetsEnabled: MarketSettingsFields.agentPresetsEnabled.volatile(),
-  instructionMaxBytes: z.union([z.natural(), z.const(undefined)]),
-  instructionMaxSourceBytes: z.union([z.natural(), z.const(undefined)])
+  agentPresetsEnabled: MarketSettingsFields.agentPresetsEnabled.volatile()
 })
 
 const undefinedRef = { get: () => undefined as never }
@@ -233,9 +216,9 @@ export async function apply(
     ...(config.inventoryRetry?.maxMs == null ? {} : { maxMs: config.inventoryRetry.maxMs })
   })
   // The instruction page reads and rewrites the same AGENTS.md chain the host
-  // injects, so its two byte caps must be the values that chain runs under.
-  // Resolved once, validated here: a typo fails at load, not at the first read.
-  const instructionLimits = resolveInstructionLimits(config)
+  // injects. Its two byte caps are the host's own shipped values, reported
+  // rather than configured: see INSTRUCTION_LIMITS.
+  const instructionLimits = INSTRUCTION_LIMITS
   const agentsRoot = resolveAgentsRoot()
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
@@ -406,7 +389,6 @@ export async function apply(
     mcpDemandedMounts: () => runtime.demandedMcpMounts(),
     lspStatusSource: runtime.lsp,
     mcpBackend: () => settings.backend(),
-    setMcpBackend: backend => settings.setBackend(backend),
     downloadRegion: () => settings.downloadRegion(),
     localePreference: () => localePreference,
     // Read per call, like every port here: the registries change on each

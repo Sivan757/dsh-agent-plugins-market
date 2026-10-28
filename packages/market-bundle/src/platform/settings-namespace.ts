@@ -118,15 +118,6 @@ export class MarketSettingsNamespace {
     return this.settings().mcpEnhanced ? 'builtin' : 'host'
   }
 
-  /**
-   * Legacy write path for the backend choice: the value now lives in the host
-   * settings document, edited from the Plugins panel's configuration page, so
-   * this accepts the request and lets the volatile reference decide.
-   */
-  async setBackend(backend: McpBackend): Promise<void> {
-    this.ctx.logger?.info?.(`[dsh-agent-plugins-market] legacy MCP backend write (${backend}) ignored — the value lives in the host settings document`)
-  }
-
   /** The persisted download-region setting. */
   async downloadRegion(): Promise<DownloadRegionSetting> {
     return this.settings().downloadRegion

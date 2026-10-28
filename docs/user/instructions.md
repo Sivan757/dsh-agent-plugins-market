@@ -31,7 +31,7 @@ Inside one candidate group, a file whose trimmed content matches an earlier one 
 
 ## The byte budget
 
-`instructionMaxBytes` caps the whole injected baseline, and `instructionMaxSourceBytes` caps one file. Their defaults are 65536 and 1048576, the values the host row uses. Keep both equal to the host value, or the page describes a budget the model does not get.
+The page reports two caps: 65536 bytes for the whole injected baseline and 1048576 bytes for one file. Both are the values the harness ships and reads a chain under. They are display-only, not settings, because the harness does not export its resolved values. A profile that raises its own `maxBytes` or `maxSourceBytes` makes the page report the shipped numbers, and nothing here can detect that. Stated rather than configurable is the deliberate trade: an independent plugin setting would describe a budget the model never got.
 
 Over the budget, broader files are omitted first and only the most specific file is truncated. A file over the per-file cap never loads at all, and the page names that reason instead of the omission list. A budget of 0 or less switches instruction loading off entirely.
 
@@ -42,7 +42,7 @@ Over the budget, broader files are omitted first and only the most specific file
 | Loaded              | The file's text is in the injected prompt.                          |
 | Truncated           | The file is the most specific one, cut to fit the remaining budget. |
 | Over budget         | A broader file the budget omitted.                                  |
-| Over the file limit | Larger than `instructionMaxSourceBytes`, so it never loads.         |
+| Over the file limit | Larger than the 1048576 byte per-file cap, so it never loads.       |
 | Repeated content    | The same trimmed text as an earlier file in its group, shown once.  |
 | Not injected        | Existing but absent from the prompt for no attributable reason.     |
 | Not created         | The file does not exist. Creating it is the offered action.         |
@@ -51,7 +51,7 @@ Over the budget, broader files are omitted first and only the most specific file
 
 Every action writes one file the chain can load. A request names a scope, a project-relative directory and a candidate file name, never a path, so the page cannot reach a file this session does not inject.
 
-Writes are atomic, they create the parent directory only for a location the chain already lists, and the editor refuses text over `instructionMaxSourceBytes` because such a file would never load. The editor counts bytes against both limits as you type.
+Writes are atomic, they create the parent directory only for a location the chain already lists, and the editor refuses text over the 1048576 byte per-file cap because such a file would never load. The editor counts bytes against both caps as you type.
 
 One file can carry two names on the chain, for example `CLAUDE.md` symlinked to `AGENTS.md`. Deleting either name reports the other one, and whether the deleted entry was a link, so you know what the remaining name still resolves to.
 

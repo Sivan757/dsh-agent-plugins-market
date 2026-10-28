@@ -556,11 +556,6 @@ export class Catalog implements MarketService {
     return this.mcp.backendInfo()
   }
 
-  /** Switch the MCP mount backend and remount every suite server through it. */
-  async setMcpBackend(backend: McpBackend): Promise<void> {
-    await this.mcp.setBackend(backend)
-  }
-
   /**
    * Drop one MCP server's OAuth grant record so the next mount re-runs the
    * browser authorization.

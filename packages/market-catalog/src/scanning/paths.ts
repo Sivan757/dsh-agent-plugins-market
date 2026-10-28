@@ -15,10 +15,9 @@
  * already reads from a project's `.agents/`, so user-authored resources are
  * plain Markdown and ordinary JSON that other Agent tools can consume too.
  */
-import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { expandHomePath, resolveDshHome as resolveHarnessHome } from '@deepseek-ai/dsh-home-paths'
+import { expandHomePath, resolveAgentsHome, resolveDshHome as resolveHarnessHome } from '@deepseek-ai/dsh-home-paths'
 import { stripArchiveSuffix } from '../../../market-contracts/src/model/types.js'
 
 /** Source checkouts live under `<dimensionRoot>/.sources/<sourceId>/`. */
@@ -51,12 +50,14 @@ export function resolveUserRoot(_configUserRoot?: string): string {
 /**
  * Resolve the shared user-level Agent layout root (`$DSH_AGENTS_HOME` or
  * `~/.agents`): where this plugin stores the resources and service
- * declarations the user authors by hand. A blank override reads as unset, the
- * same rule the harness applies to its own home.
+ * declarations the user authors by hand.
+ *
+ * The harness helper owns the rule, so this plugin reads the root exactly as
+ * the harness's own instruction and skill loaders do: precedence, tilde
+ * expansion, normalization, and the blank-override-is-unset case.
  */
 export function resolveAgentsRoot(): string {
-  const configured = process.env.DSH_AGENTS_HOME
-  return configured === undefined || configured.trim().length === 0 ? join(homedir(), '.agents') : resolve(expandHome(configured))
+  return resolveAgentsHome()
 }
 
 /**
@@ -68,11 +69,36 @@ export function resolveDataRoot(_configDataRoot?: string, _configUserRoot?: stri
   return join(resolveUserRoot(), 'data')
 }
 
-/** Resolve a project root from a workspace cwd: nearest ancestor with `.git`. */
-export async function findProjectRoot(cwd: string): Promise<string> {
+/** Directory entries that identify a project root while walking upward. */
+export const PROJECT_ROOT_MARKERS = ['.git'] as const
+
+/** Whether one path error means "not there" rather than "cannot tell". */
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+}
+
+/**
+ * Resolve a project root from a workspace cwd: the nearest ancestor holding any
+ * project root marker, or the cwd itself when none exists.
+ *
+ * One owner, here in the lowest package that needs the climb, so the catalog's
+ * project dimension and the instructions page cannot start from different
+ * directories. A probe that fails for any reason other than absence propagates,
+ * so a caller reports the reason instead of inventing a root.
+ * @param cwd - the absolute directory to start from.
+ * @returns the absolute project root.
+ */
+export async function projectRootOf(cwd: string): Promise<string> {
   let current = resolve(cwd)
   for (;;) {
-    if (existsSync(join(current, '.git'))) return current
+    for (const marker of PROJECT_ROOT_MARKERS) {
+      try {
+        await stat(join(current, marker))
+        return current
+      } catch (error) {
+        if (!isMissingPathError(error)) throw error
+      }
+    }
     const parent = dirname(current)
     if (parent === current) return resolve(cwd)
     current = parent
@@ -81,7 +107,7 @@ export async function findProjectRoot(cwd: string): Promise<string> {
 
 /** Resolve the project-dimension suite root for a workspace cwd. */
 export async function resolveProjectRoot(cwd: string): Promise<string> {
-  return join(await findProjectRoot(cwd), '.dsh', 'agent-plugins')
+  return join(await projectRootOf(cwd), '.dsh', 'agent-plugins')
 }
 
 /** Directory holding every source checkout of one dimension root. */

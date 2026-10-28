@@ -1,5 +1,16 @@
 /** Explicit cross-domain entry surface. Internal modules are not import targets for siblings. */
-export { expandHome, isWithin, qualifiedSuiteId, resolveAgentsRoot, resolveDataRoot, resolveDshHome, resolveUserRoot, suiteDataDir } from './scanning/paths.js'
+export {
+  expandHome,
+  isWithin,
+  PROJECT_ROOT_MARKERS,
+  projectRootOf,
+  qualifiedSuiteId,
+  resolveAgentsRoot,
+  resolveDataRoot,
+  resolveDshHome,
+  resolveUserRoot,
+  suiteDataDir
+} from './scanning/paths.js'
 export { parseSkillFrontmatter, skillEntryRejection, stripFrontmatter } from './scanning/skills-parse.js'
 export { CatalogContext } from './application/catalog-context.js'
 export type { CatalogGitOptions, CatalogOptions } from './application/catalog-context.js'

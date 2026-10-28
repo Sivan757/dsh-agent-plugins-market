@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { INSTRUCTION_ROUTES } from '../../../../packages/market-contracts/src/contracts/instructions.js'
 import type { InstructionsPayload } from '../../../../packages/market-contracts/src/contracts/instructions.js'
 import { mountInstructionRoutes, type InstructionRouteDeps } from '../../../../packages/market-bundle/src/routes-instructions.js'
-import { readInstructions, resolveInstructionLimits } from '../../../../packages/market-bundle/src/application/instructions.js'
+import { INSTRUCTION_LIMITS, readInstructions } from '../../../../packages/market-bundle/src/application/instructions.js'
 
 /**
  * The published host module is the oracle. It is imported here, never through
@@ -168,7 +168,7 @@ function writePath(route: string): string {
  */
 const projectPath = (...segments: string[]): string => segments.join(sep)
 
-const LIMITS = resolveInstructionLimits({})
+const LIMITS = INSTRUCTION_LIMITS
 
 /** The three host calls a parity assertion compares against. */
 async function hostAnswer(cwd: string, options: { maxBytes?: number; maxSourceBytes?: number } = {}) {
@@ -191,7 +191,7 @@ describe('instruction test harness', () => {
     // A helper that defaulted to the process directory once pointed a delete
     // test at this repository's own AGENTS.md. That must fail before any
     // request, not delete a tracked file.
-    expect(() => mounted({ limits: resolveInstructionLimits({}), cwd: process.cwd() })).toThrow('every fixture must live under')
+    expect(() => mounted({ limits: INSTRUCTION_LIMITS, cwd: process.cwd() })).toThrow('every fixture must live under')
   })
 })
 
@@ -256,7 +256,7 @@ describe('instruction chain parity with the host module', () => {
     useHomes(join(root, 'home'), join(root, 'agents'))
     const cwd = join(root, 'apps', 'site')
     // A budget that omits every broader file and truncates the most specific one.
-    const limits = resolveInstructionLimits({ instructionMaxBytes: 120 })
+    const limits = { ...INSTRUCTION_LIMITS, maxBytes: 120 }
 
     const { routes } = mounted({ limits, cwd })
     const payload = (await get(routes, readPath())).body as unknown as InstructionsPayload
@@ -285,7 +285,7 @@ describe('instruction chain parity with the host module', () => {
     const body = '# ' + 'x'.repeat(40) + '\n'
     const root = await tree({ '.git/HEAD': 'x\n', 'AGENTS.md': body })
     useHomes(join(root, 'home'), join(root, 'agents'))
-    const limits = resolveInstructionLimits({ instructionMaxSourceBytes: 30 })
+    const limits = { ...INSTRUCTION_LIMITS, maxSourceBytes: 30 }
 
     const { routes } = mounted({ limits, cwd: root })
     const payload = (await get(routes, readPath())).body as unknown as InstructionsPayload
@@ -316,7 +316,7 @@ describe('instruction chain parity with the host module', () => {
     const body = '# Shared\n'
     const root = await tree({ '.git/HEAD': 'x\n', 'AGENTS.md': body, 'CLAUDE.md': body, 'apps/site/AGENTS.md': '# Site\n' + 's'.repeat(200) })
     useHomes(join(root, 'home'), join(root, 'agents'))
-    const limits = resolveInstructionLimits({ instructionMaxBytes: 400 })
+    const limits = { ...INSTRUCTION_LIMITS, maxBytes: 400 }
 
     const payload = await readInstructions(join(root, 'apps', 'site'), limits)
 
@@ -388,10 +388,40 @@ describe('instruction chain parity with the host module', () => {
     expect(payload.rows).toEqual([])
   })
 
+  // A permission bit is the one probe failure a fixture can produce on purpose,
+  // and it only exists where POSIX modes do: on Windows chmod toggles the
+  // read-only attribute, and a root user ignores the bits entirely.
+  const permissionBits = process.platform !== 'win32' && process.getuid?.() !== 0
+
+  it.skipIf(!permissionBits)('reports an unreadable ancestor instead of naming one above it as the project root', async () => {
+    const root = await tree({ '.git/HEAD': 'x\n', 'AGENTS.md': '# Root\n', 'mid/deep/AGENTS.md': '# Deep\n' })
+    useHomes(join(root, 'home'), join(root, 'agents'))
+    const deep = join(root, 'mid', 'deep')
+    // The climb from `deep` reaches `mid` before it reaches the root, so an
+    // unreadable `mid` is exactly the case where a swallowing probe would skip
+    // it and answer with the root.
+    await chmod(join(root, 'mid'), 0o000)
+    try {
+      const { routes } = mounted({ limits: LIMITS, cwd: deep })
+      const answer = await get(routes, readPath())
+      const payload = answer.body as unknown as InstructionsPayload
+
+      expect(answer.status).toBe(200)
+      expect(payload.error).toContain('EACCES')
+      expect(payload.rows).toEqual([])
+      // The page names the directory it was given, never the ancestor it could
+      // not verify its way to.
+      expect(payload.projectRoot).toBe(resolve(deep))
+      expect(payload.projectRoot).not.toBe(resolve(root))
+    } finally {
+      await chmod(join(root, 'mid'), 0o755)
+    }
+  })
+
   it('says so when the byte budget disables loading entirely', async () => {
     const root = await tree({ '.git/HEAD': 'x\n', 'AGENTS.md': '# Root\n' })
     useHomes(join(root, 'home'), join(root, 'agents'))
-    const limits = resolveInstructionLimits({ instructionMaxBytes: 0 })
+    const limits = { ...INSTRUCTION_LIMITS, maxBytes: 0 }
 
     const payload = await readInstructions(root, limits)
     const oracle = await hostAnswer(root, { maxBytes: 0 })
@@ -484,7 +514,7 @@ describe('instruction writes', () => {
   it('refuses text over the per-file cap, because it would never load', async () => {
     const root = await tree({ '.git/HEAD': 'x\n' })
     useHomes(join(root, 'home'), join(root, 'agents'))
-    const limits = resolveInstructionLimits({ instructionMaxSourceBytes: 16 })
+    const limits = { ...INSTRUCTION_LIMITS, maxSourceBytes: 16 }
     const { routes } = mounted({ limits, cwd: root })
 
     const answer = await post(routes, writePath(INSTRUCTION_ROUTES.save), { scope: 'project', directory: '.', candidate: 'AGENTS.md', text: 'x'.repeat(32) })
