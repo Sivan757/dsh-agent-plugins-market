@@ -266,3 +266,23 @@ It now says which one: `扩展尚未就绪，先给这个会话发一条消息` 
 Verified in the running build: the seat button's label is the new sentence, and the generic `无法加载扩展` remains for failures that are not the scope.
 
 Two wrong diagnoses in two rounds on one control is the useful part of this entry. Both came from reading source and grepping labels; the probe that settled it took one console line and one DOM query.
+
+## State of the backlog after six waves
+
+Every audit finding this repository produced has been fixed, rejected with a reason, or handed to a product decision. What remains is not engineering work:
+
+| item | who decides | evidence on file |
+| --- | --- | --- |
+| CodeMirror editor weight | product | three builds measured: shipped 1,831,600 bytes, Markdown grammar dropped 1,550,862 (−15.3%), all editors to textarea 869,357 (−52.5%, loses highlighting, line numbers, bracket matching, undo keymap, tab indent) |
+| resource-window surface | product | deletion typechecks with nothing else touched and moves the bundle 1,843,056 to 1,839,328 bytes (0.2%); the cost is 528 lines, two modules, 74 locale lines and a test over a screen nothing mounts |
+| stowed-tab menu wording | product | the menu selects a stowed tab, and because the selected tab always renders it looks like "show"; switching away hides it again. Three options recorded |
+
+Guards now in `check:refactor`: dead exports, duplicate function bodies, unreachable modules, twice for package contents and bundle budget, plus the theme-token allowlist in the test suite. Each was proved to reject a deliberate violation before landing.
+
+## Dead CSS: measured, deliberately not touched
+
+Twenty CSS modules define 308 class names. Mapping each module's classes against the identifier its importers bind gives 27 with no reference in code; `market.module.css` holds 15 of them (`pluginCard`, `pluginCardHeader`, `pluginCardTitle`, `pluginChevron`, `detailItemRow`, `detailItemOpen`, `pageEntry`, `pageView`, `grid`).
+
+Two of those, `pageEntry` and `pageView`, also match unrelated identifiers in the repository, and the whole measurement is name-level: it cannot follow a class reached through a computed key. Deleting on that evidence risks a style that disappears somewhere nobody looked, and there is no browser in this session to check the result.
+
+**Not acted on.** The item needs a real CSS-module parse (the identifier a file binds, then only that file's references) before it can be a gate, and a browser pass before the first deletion. Recorded so it is not rediscovered as new.
