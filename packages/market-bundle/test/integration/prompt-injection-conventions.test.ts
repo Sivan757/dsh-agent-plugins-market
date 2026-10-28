@@ -360,13 +360,16 @@ describe('conforming producers stay plain', () => {
     expect(source).toContain("'## Team coordination'")
   })
 
-  it('the session-state markers reach the host as bare text, with no frame around them', async () => {
+  it('the session-state bookkeeping messages carry no model-facing text at all', async () => {
     // Read the producer, so the pin follows the code instead of restating it.
-    // Each marker reaches the host as a bare `text:` literal; framing one would
-    // have to wrap that expression, and a wrapped form does not match here.
+    // These messages exist to record a durable event; the inbox filter removes them
+    // before a request, and a sentence in one would be text a model could act on if
+    // the filter ever missed. The empty block list is the contract, so a marker
+    // sentence reappearing here means the fix was undone.
     const source = await readFile(new URL('../../../../packages/market-runtime/src/runtime/host/extension-session-state.ts', import.meta.url), 'utf8')
+    expect(source).toContain('content: NO_MODEL_CONTENT')
     for (const marker of ['Session extension selection request.', 'Session extension readiness restored.']) {
-      expect(source, marker).toContain(`text: '${marker}'`)
+      expect(source, marker).not.toContain(marker)
     }
   })
 })
