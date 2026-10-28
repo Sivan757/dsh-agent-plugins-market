@@ -252,3 +252,17 @@ It now reports the gap once rather than rendering nothing: `preset entry hidden:
 3. Leave the manager reachable only from the settings section, which does render.
 
 Until one of those lands, the preset manager has no entry point in the web UI, and the settings section is the only surface that can be reached.
+
+## Corrected: the seat does pass a session id
+
+The section above is wrong about the host. `conversation.input.left` is rendered with `{}` as _owner_ props, and the renderer merges a session standard kit on top: `ui-session` declares `SessionStandardProps { useSession, sessionId, useProjection, useAccess }` and the renderer adds it to every entry whose scope is `session`. Measured, not read: a temporary probe in the registration printed `seat props: ["sessionId","t","observer"] sessionId=session-6a77a7be…` on the installed runtime.
+
+So the entry has been rendering all along, and my own searches missed it twice: it is icon-only, so no text matched, and its label on a failed read is `无法加载扩展`, so no `预设` label matched either. The DOM says it plainly, `[data-slot="conversation.input.left"] > span > button.o75Rhq_entryButton`.
+
+What is actually wrong is smaller and real: the read fails because the session has no extension scope yet, and the control said the same thing it says for a read that broke. That is the difference between "wait" and "something is broken", and it was invisible.
+
+It now says which one: `扩展尚未就绪，先给这个会话发一条消息` / `Extensions are not ready yet. Send a message in this session first.` The window hook already knew the cause, because the poll distinguishes `extension-session-not-found` from a broken route; it now passes the distinction to the control.
+
+Verified in the running build: the seat button's label is the new sentence, and the generic `无法加载扩展` remains for failures that are not the scope.
+
+Two wrong diagnoses in two rounds on one control is the useful part of this entry. Both came from reading source and grepping labels; the probe that settled it took one console line and one DOM query.

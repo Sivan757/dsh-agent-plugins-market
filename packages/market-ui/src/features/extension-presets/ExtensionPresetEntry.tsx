@@ -46,7 +46,7 @@ export function ExtensionPresetEntry(props: ExtensionPresetEntryProps): ReactNod
   return h(SessionEntry, { ...props, key: props.sessionId })
 }
 function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetEntryProps): ReactNode {
-  const { data, error, mutate, retry } = useExtensionWindow(sessionId, observer)
+  const { data, error, notReady, mutate, retry } = useExtensionWindow(sessionId, observer)
   const selected = data?.intendedSelection ?? data?.state.selection
   const [menu, setMenu] = useState(false),
     [manager, setManager] = useState(false)
@@ -245,7 +245,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     ? t('epNotReady')
     : data
       ? (selected?.presetName ?? t('epGlobal')) + (selected?.modified ? ' · ' + t('epModified') : '')
-      : t(error ? 'epLoadFailed' : 'epLoading')
+      : t(error ? (notReady ? 'epSessionInactive' : 'epLoadFailed') : 'epLoading')
   const savedDirty = dirty && !libraryDraft
   const duplicate = data?.library.presets.some(p => p.name === newName.trim() && (naming !== 'rename' || p.id !== editing)) === true
   const editableClipboard = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input, textarea, select, [contenteditable="true"]')
@@ -295,7 +295,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           ...(data?.status?.inventoryPending === true && !unready ? [{ type: 'label' as const, id: 'inventory-pending', text: t('epInventoryPending') }] : []),
           ...(error
             ? [
-                { type: 'label' as const, id: 'error', text: t('epLoadFailed') + ' ' + error },
+                { type: 'label' as const, id: 'error', text: t(notReady ? 'epSessionInactive' : 'epLoadFailed') + ' ' + error },
                 { id: 'retry', label: t('epRetry') }
               ]
             : [])

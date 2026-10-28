@@ -34,6 +34,12 @@ function hidden(): boolean {
 export function useExtensionWindow(sessionId: string, observer?: ExtensionWindowObserver) {
   const [data, setData] = useState<ExtensionWindowPayload>()
   const [error, setError] = useState('')
+  /**
+   * The read failed because this session has no extension scope yet, which is a
+   * different message to a read that broke: the first resolves when the session is
+   * used, and saying so is what stops a waiting control reading as a broken one.
+   */
+  const [notReady, setNotReady] = useState(false)
   const [reload, setReload] = useState(0)
   const current = useRef<ExtensionWindowPayload>(undefined)
   const active = useRef(false)
@@ -78,11 +84,13 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
           current.current = next
           setData(next)
           setError('')
+          setNotReady(false)
           notify(next)
         }
       } catch (reason) {
         const marked = flags(reason)
         if (marked.unavailable) unavailable = true
+        if (marked.notReady) setNotReady(true)
         if (marked.notReady) notReadyWait = Math.min(NOT_READY_MAX_WAIT_MS, notReadyWait * 2)
         else notReadyWait = EXTENSION_WINDOW_POLL_MS
         if (alive && sequence === readSequence && stamp === epoch.current && pending.current === 0) setError(String(reason))
@@ -161,5 +169,5 @@ export function useExtensionWindow(sessionId: string, observer?: ExtensionWindow
         epoch.current++
       })
   }
-  return { data, error, mutate, retry: () => setReload(value => value + 1) }
+  return { data, error, notReady, mutate, retry: () => setReload(value => value + 1) }
 }
