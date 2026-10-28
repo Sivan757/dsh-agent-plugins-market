@@ -164,3 +164,11 @@ So the 52.6% estimate was accurate, and it is not one decision but two. Dropping
 Nothing is applied. The budget gate holds the line at 1,900,000 B until someone chooses, and the choice is a product call about editing comfort, not a defect.
 
 One correction to the earlier note: the JSON editors are the ones that need the editor most (they validate and pretty-print structure), while the Markdown bodies are prose. If a partial change is ever wanted, it goes in that direction.
+
+## The gap this pass found by hand
+
+Moving both rows onto a new component left the old one imported by nothing: `ResourceTabs.tsx` and its stylesheet, 156 lines that compiled, linted and tested exactly like live code. Neither existing gate could see it. `check:exports` compares package-entry exports, and this module was never an entry export; `check:duplication` looks for bodies in two places, and this was one body in zero.
+
+The check that found it was asking, after a component swap, what still imports the old one. That is a third gate worth building: every source module under `packages/*/src` must be reachable from a package entry, by import or by dynamic import, or be named in a ledger with the reason it exists (a test-only helper, a script entry the host loads by path). It is the same shape as the dead-export gate one level down, and it would have caught this the moment the swap landed.
+
+Not built here: the honest order is to land the rail first, then build the gate against a tree where its finding is already fixed, which is how the export and duplication gates each started from zero.
