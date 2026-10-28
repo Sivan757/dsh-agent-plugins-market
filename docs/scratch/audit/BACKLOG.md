@@ -184,3 +184,15 @@ The fifth pair are persistence helpers read only by their own tests: `server-con
 All five are recorded in `docs/reference/module-reachability.md` with the test that reads each one, and left in place. Deleting them retires a feature surface, which is a product decision rather than an audit cleanup; what the ledger buys is a gate that stays strict about everything else while that decision waits.
 
 **Open item:** retire or re-wire the resource-window surface. It is the last known code in this repository that ships, tests and renders nothing.
+
+## The unwired surface is cheap in bytes and expensive in attention
+
+Built in a throwaway worktree with the resource-window surface deleted: typecheck passes with nothing else touched, so the four modules and their copy are self-contained. The bundle moved from 1,843,056 to 1,839,328 bytes, which is 3,728 bytes, or 0.2%.
+
+That is smaller than expected, and the reason is worth writing down: the bundler already tree-shakes an unreachable module, so the compiled JavaScript of that surface was never in the shipped file. What a deletion actually recovers is the locale strings and a few exports, not the 660 lines.
+
+So the earlier framing was wrong. This is not a bundle item; it is a maintenance item. What the surface costs today is a 528-line component, two supporting modules and 74 locale lines that no screen reaches, one integration test that passes over them, and a reader who cannot tell from the file tree which market features are live. The byte saving is a rounding error by comparison.
+
+The decision is therefore about whether the surface should come back, not about its weight. If it should return, the fix is one import and a slot registration. If it should not, deleting it costs one diff and removes a test that currently proves nothing about the product.
+
+**Gate fix that came out of the same probe:** a ledger row naming a module that no longer exists used to report `ledger-stale`, the same code as a module that became reachable again. Those are two mistakes with two different repairs, so a missing file now reports `ledger-missing`.

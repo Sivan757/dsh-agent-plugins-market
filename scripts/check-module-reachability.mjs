@@ -172,7 +172,11 @@ function main() {
   }
   const found = new Set(orphans)
   for (const row of rows) {
-    if (!found.has(row.module)) findings.push({ code: 'ledger-stale', message: ledgerPath + ' records ' + row.module + ', which is now reachable' })
+    // A row for a deleted module and a row for a module that is wired again are two
+    // different mistakes, and a reader fixes them differently: one deletes the row,
+    // the other finds out why the import came back.
+    if (!existsSync(join(ROOT, row.module))) findings.push({ code: 'ledger-missing', message: ledgerPath + ' records ' + row.module + ', which no longer exists' })
+    else if (!found.has(row.module)) findings.push({ code: 'ledger-stale', message: ledgerPath + ' records ' + row.module + ', which is now reachable' })
   }
   if (useJson) {
     console.log(JSON.stringify({ entries: entries.length, modules: modules.length, unreachable: orphans.length, recorded: rows.length, findings }, null, 2))
