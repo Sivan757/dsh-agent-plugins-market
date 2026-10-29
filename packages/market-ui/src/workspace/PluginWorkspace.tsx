@@ -12,7 +12,7 @@ import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, 
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { TabRail } from '../ui/TabRail.js'
 import { useTabLayout, type TabLayoutMessages } from './tab-layout-store.js'
-import { PINNED_TAB_KEY, resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type TabLayoutWire, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
+import { WORKSPACE_TAB_KEYS, visibleTabs, type TabLayoutWire, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -128,28 +128,8 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     }),
     [t]
   )
-  const { state: layoutState, stow: applyStowList, move: applyTabMoveTo } = useTabLayout(layoutMessages)
+  const { state: layoutState, move: applyTabMoveTo } = useTabLayout(layoutMessages)
   const layout = layoutState.layout
-
-  /**
-   * Apply a stow list now and persist it behind the row.
-   *
-   * The row paints first because the change is the user's own click; the store
-   * owns that ordering, the write and the rollback, because the preset manager
-   * renders the same list and must see the same result.
-   */
-  const stow = useCallback(
-    (next: readonly string[]) => {
-      const hidden = resolveHiddenTabs(next)
-      // Stowing the tab the panel shows would leave a panel whose tab is not
-      // rendered, so the selection moves to the first tab that stays. This
-      // reads the stow list alone rather than the row, so it does not depend on
-      // which tab is pinned or where the pinned tab sits in the order.
-      if (hidden.includes(active)) setActive(layout.order.find(tab => !hidden.includes(tab)) ?? 'market')
-      applyStowList(next)
-    },
-    [active, applyStowList, layout.order]
-  )
 
   const shown = rowTabs(layout, active)
 
@@ -164,12 +144,14 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
    */
   const reorder = useCallback(
     (from: number, to: number) => {
-      const moving = shown[from]
-      const landing = shown[to]
+      // The row renders every tab in the stored order, so the gesture's indices are positions
+      // in that same list; reading them against a filtered list would move another tab.
+      const moving = layout.order[from]
+      const landing = layout.order[to]
       if (moving === undefined || landing === undefined) return
       applyTabMoveTo(moving, landing)
     },
-    [applyTabMoveTo, shown]
+    [applyTabMoveTo, layout.order]
   )
 
   /**
@@ -227,23 +209,12 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
         value: active,
         // Switching tabs is local state only; the URL stays the host's.
         onChange: setActive,
-        items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
-        // The stowed group keeps the stored order, so putting a tab back returns it to
-        // the place the user last saw it rather than to the end of the row.
-        stowed: layout.order
-          .filter(tab => layout.hidden.includes(tab))
-          .map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
+        // Every tab, in the stored order: the row is a record of the workspace, and a tab
+        // the user is not looking at is still a tab they can reach with one click.
+        items: layout.order.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
         // Dragging moves one tab to another's position: the same write the Alt+arrow
         // gesture makes, so both paths persist one order.
-        onReorder: reorder,
-        // Two tabs never move: the pinned one, and the last one still showing. The row
-        // refuses the gesture rather than accepting it and drawing an empty rail.
-        onStow: tab => {
-          if (tab === PINNED_TAB_KEY) return
-          if (shown.length <= 1) return
-          stow([...layout.hidden, tab])
-        },
-        onUnstow: tab => stow(layout.hidden.filter(key => key !== tab))
+        onReorder: reorder
       })
     ),
     layoutState.error === undefined ? null : h('div', { className: css.tabNotice, role: 'status' }, layoutState.error),

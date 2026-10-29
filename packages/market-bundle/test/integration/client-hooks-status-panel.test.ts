@@ -346,9 +346,7 @@ it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail'
   // The rendered row is one tablist whose children are the tabs themselves plus the
   // selection pill: the rail is the list, not a wrapper around a second list, and the
   // roving tab stop is still exactly one tab.
-  const others = [...tablist.children].filter(child => child.getAttribute('role') !== 'tab')
-  expect(others).toHaveLength(1)
-  expect(others[0]!.getAttribute('aria-hidden')).toBe('true')
+  expect([...tablist.children].every(child => child.getAttribute('role') === 'tab')).toBe(true)
   const tabs = [...tablist.querySelectorAll('[role="tab"]')]
   const selected = tabs.filter(tab => tab.getAttribute('aria-selected') === 'true')
   expect(selected).toHaveLength(1)

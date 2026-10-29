@@ -93,7 +93,7 @@ export function ResourceList({
     }),
     [t]
   )
-  const { state: layoutState, stow: applyStowList, move: applyTabMoveTo } = useTabLayout(layoutMessages)
+  const { state: layoutState, move: applyTabMoveTo } = useTabLayout(layoutMessages)
   const layout = layoutState.layout
   // This surface's faces, in the shared order, with the active one always kept.
   const orderedFaces = visibleTabs(layout.order, layout, TAB_KEY[requestedFace])
@@ -101,14 +101,6 @@ export function ResourceList({
     .filter((value): value is (typeof faces)[number] => value !== undefined)
   const face = orderedFaces.includes(requestedFace) ? requestedFace : (orderedFaces[0] ?? 'market')
   /** Stow or reveal one face, leaving the keys this surface cannot show alone. */
-  const stowFaces = useCallback(
-    (next: readonly string[]) => {
-      const mine = new Set<string>(faces.map(item => TAB_KEY[item]))
-      const elsewhere = layout.hidden.filter(key => !mine.has(key))
-      applyStowList([...elsewhere, ...next.filter(key => mine.has(key))])
-    },
-    [applyStowList, layout.hidden]
-  )
   /** Move one face by mapping the rendered positions back onto their keys. */
   const moveFace = useCallback(
     (from: number, to: number) => {
@@ -169,18 +161,8 @@ export function ResourceList({
           if (faces.includes(value)) setFace(value)
         }}
         label={t('epTitle')}
-        items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
         onReorder={moveFace}
-        // The faces this manager owns, in the stored order, so a face put away here comes
-        // back where the workspace row also expects it.
-        stowed={layout.order.flatMap(key => {
-          if (!layout.hidden.includes(key) || !orderedFaces.some(value => TAB_KEY[value] === key)) return []
-          const value = faceOf(key)
-          if (value === undefined) return []
-          return [{ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }]
-        })}
-        onStow={value => stowFaces([...layout.hidden, TAB_KEY[value]])}
-        onUnstow={value => stowFaces(layout.hidden.filter(key => key !== TAB_KEY[value]))}
+        items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
       />
       <div className={panel.shell} role="tabpanel" id={id + '-' + face + '-panel'} aria-labelledby={id + '-' + face}>
         <SearchFilterToolbar

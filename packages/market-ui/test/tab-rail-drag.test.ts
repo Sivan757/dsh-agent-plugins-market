@@ -123,52 +123,22 @@ describe('tab rail reordering', () => {
     expect(tabs[1]!.getAttribute('tabindex')).toBe('0')
     expect(tabs[0]!.getAttribute('tabindex')).toBe('-1')
   })
-  it('draws the selection pill on the measured box of the selected tab', async () => {
-    // The pill is what makes a switch read as movement: it is one element that travels,
-    // not a background on whichever chip is current. jsdom reports zero-sized boxes, so
-    // the measurement is stubbed and the assertion is that the pill takes exactly it.
-    host = document.createElement('div')
-    document.body.append(host)
-    root = createRoot(host)
-    await act(async () => {
-      root!.render(h(TabRail<string>, { value: 'tab-1', onChange: () => {}, label: 'row', items }))
-    })
-    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
-    for (const [index, tab] of tabs.entries()) {
-      Object.defineProperty(tab, 'offsetLeft', { configurable: true, value: index * 100 })
-      Object.defineProperty(tab, 'offsetWidth', { configurable: true, value: 96 })
-    }
-    await act(async () => {
-      window.dispatchEvent(new Event('resize'))
-    })
-    const pill = document.querySelector<HTMLElement>('[class*="pill"]')
-    expect(pill).not.toBeNull()
-    expect(pill!.style.transform).toBe('translateX(100px)')
-    expect(pill!.style.width).toBe('96px')
-    expect(pill!.getAttribute('aria-hidden')).toBe('true')
-  })
-  it('keeps the motion and the reduced-motion override in the stylesheet', async () => {
-    // The interaction is the feature here, so its absence should fail a test rather than
-    // be noticed in front of a user: the pill must animate, hover must respond, and the
-    // reduced-motion block must switch all of it off.
+  it('keeps the chip, the fade and the reduced-motion override in the stylesheet', async () => {
     const { readFileSync } = await import('node:fs')
     const css = readFileSync('packages/market-ui/src/ui/tab-rail.module.css', 'utf8')
     const rule = (selector: string): string => new RegExp('\\' + selector + '\\s*\\{[^}]*').exec(css)?.[0] ?? ''
-    expect(rule('.pill')).toMatch(/transition:[^;]*transform/)
-    expect(rule('.pill')).toMatch(/cubic-bezier\(0\.22, 1, 0\.36, 1\)/)
-    expect(rule('.tab')).toMatch(/transition:/)
-    // Hover must not move the tab: a row that lifts under the pointer makes aiming at a
-    // neighbour harder. The feedback is colour and a tint instead.
-    expect(rule('.tab:hover')).not.toMatch(/transform:/)
-    expect(rule('.tab:hover')).toMatch(/background: var\(--dsw-alias-interactive-bg-hover\)/)
-    expect(rule('.tab')).toMatch(/font-weight: 400/)
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
-    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
-    expect(reduced).toMatch(/\.pill,/)
-    expect(reduced).toMatch(/transition: none/)
-    // The label sits at body size and weight: 12px over 400, not a bold chip.
+    // The selected tab is a chip of its own; there is no separate travelling pill.
+    expect(rule('.tabActive')).toMatch(/background: var\(--dsw-alias-bg-layer-1\)/)
+    expect(css).not.toMatch(/\\.pill/)
+    // Only a clipped side fades, and the fade is a gradient rather than a hard edge.
+    expect(rule('.fadeRight')).toMatch(/mask-image: linear-gradient/)
+    expect(rule('.fadeLeft')).toMatch(/mask-image: linear-gradient/)
     expect(rule('.tab')).toMatch(/font-size: 12px/)
+    expect(rule('.tab')).toMatch(/font-weight: 400/)
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(reduced).toMatch(/transition: none/)
   })
+
   it('scrolls sideways with the wheel and shows a chevron for each side it can reach', async () => {
     // A mouse has no sideways gesture and the row hides its scrollbar, so the row maps the
     // wheel to its own axis and offers a chevron per reachable side.
@@ -194,14 +164,14 @@ describe('tab rail reordering', () => {
       window.dispatchEvent(new Event('resize'))
     })
     // At the start: the right chevron exists, the left one does not.
-    expect(document.querySelector('[aria-label="row · 向后"]')).not.toBeNull()
-    expect(document.querySelector('[aria-label="row · 向前"]')).toBeNull()
+    expect(document.querySelector('[aria-label="row · 向后一个"]')).not.toBeNull()
+    expect(document.querySelector('[aria-label="row · 向前一个"]')).toBeNull()
     await act(async () => {
       element.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 240 }))
     })
     expect(calls.at(-1)?.left).toBe(240)
     await act(async () => {
-      document.querySelector<HTMLButtonElement>('[aria-label="row · 向后"]')!.click()
+      document.querySelector<HTMLButtonElement>('[aria-label="row · 向后一个"]')!.click()
     })
     expect(calls.at(-1)?.left).toBeGreaterThan(0)
     void rail

@@ -1,34 +1,26 @@
 /**
- * The tab rail: one scrolling row, a sliding selection pill, and dimmed put-away tabs.
+ * The tab rail: one row of tabs, the host's chip look, and a step button per clipped side.
  *
- * The row carries no group label and no divider. A tab that is put away is simply dimmer
- * than the others and sits at the end; clicking it brings it back. The scroll buttons are
- * overlays that appear while the pointer is over the row, so they cost no width and never
- * sit as permanent furniture beside a short row.
+ * The selected tab carries the raised background itself; there is no separate moving pill
+ * and no group chrome. A clipped edge fades, which says "there is more" without a border
+ * or a label, and each step button moves exactly one tab.
  */
 
 .row {
   display: flex;
   align-items: center;
-  min-width: 0;
-}
-
-.wrap {
-  position: relative;
-  display: flex;
-  flex: 1 1 auto;
+  gap: 6px;
   min-width: 0;
 }
 
 .rail {
-  position: relative;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 3px;
+  padding: 4px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 10px;
   background: var(--dsw-alias-interactive-bg-hover);
@@ -36,37 +28,31 @@
   overflow-y: hidden;
   scrollbar-width: none;
   scroll-behavior: smooth;
-  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 12px), transparent 100%);
 }
 
 .rail::-webkit-scrollbar {
   display: none;
 }
 
-/* One element travels between tabs. Its width is animated too, so labels of different
-   lengths are a continuous move rather than a jump. */
-.pill {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  left: 0;
-  z-index: 0;
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-1);
-  box-shadow: 0 1px 1px rgb(0 0 0 / 14%);
-  transition:
-    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    width 300ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform, width;
+/* The fade is the overflow signal: only the side that hides content fades, so a row that
+   fits shows no edge treatment at all. */
+.fadeRight {
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 24px), transparent 100%);
+}
+
+.fadeLeft {
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 100%);
+}
+
+.fadeLeft.fadeRight {
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
 }
 
 .tab {
-  position: relative;
-  z-index: 1;
   flex: none;
   border: 0;
   border-radius: 8px;
-  padding: 4px 9px;
+  padding: 5px 10px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
@@ -80,8 +66,7 @@
     background-color 140ms ease;
 }
 
-/* Hover changes colour only. A row that moves under the pointer makes aiming at the
-   neighbouring tab harder, so nothing here shifts or scales. */
+/* Colour only: a row that moves under the pointer makes aiming at a neighbour harder. */
 .tab:hover {
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-interactive-bg-hover);
@@ -93,23 +78,11 @@
 
 .tabActive {
   color: var(--dsw-alias-label-primary);
-}
-
-/* A put-away tab stays in the row so the state is visible at a glance, and stays
-   clickable so one click brings it back. */
-.tabStowed {
-  color: var(--dsw-alias-label-tertiary);
-  opacity: 0.55;
-  font-size: 11px;
-}
-
-.tabStowed:hover {
-  color: var(--dsw-alias-label-secondary);
-  opacity: 1;
+  background: var(--dsw-alias-bg-layer-1);
 }
 
 .tabDragging {
-  opacity: 0.4;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .tabLanding {
@@ -120,14 +93,11 @@
   touch-action: none;
 }
 
-/* Overlay scroll buttons: hidden until the pointer is over the row, then one on each
-   side that can still scroll. They sit above the tabs, tinted with the row's own
-   background so the labels passing beneath stay readable. */
-.scrollButton {
-  position: absolute;
-  top: 50%;
-  z-index: 2;
+/* One tab's worth of movement per click, and the button only exists while that side has
+   something to reach. */
+.stepButton {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 22px;
@@ -135,35 +105,21 @@
   padding: 0;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 7px;
-  background: var(--dsw-alias-bg-layer-1);
+  background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-  opacity: 0;
-  transform: translateY(-50%);
   transition:
-    opacity 160ms ease,
     color 140ms ease,
     background-color 140ms ease;
-  pointer-events: none;
 }
 
-.wrap:hover .scrollVisible,
-.scrollButton:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.scrollButton:hover {
+.stepButton:hover {
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-.scrollLeft {
-  left: 4px;
-}
-
-.scrollRight {
-  right: 4px;
+.stepButton:active {
+  background: var(--dsw-alias-interactive-bg-active);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -171,9 +127,8 @@
     scroll-behavior: auto;
   }
 
-  .pill,
   .tab,
-  .scrollButton {
+  .stepButton {
     transition: none;
   }
 }

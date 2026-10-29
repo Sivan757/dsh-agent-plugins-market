@@ -58,9 +58,7 @@ describe('PluginWorkspace tab row', () => {
     expect(tablist!.getAttribute('aria-label')).toBe('workspaceTabMarket')
     // Six of the nine surfaces are visible; the default stow list holds the other
     // three, which stay reachable from the row's own entry.
-    // Six showing, plus the three the default layout puts away.
-    expect(host!.querySelectorAll('[role="tab"][data-stowed="false"]').length).toBe(6)
-    expect(host!.querySelectorAll('[role="tab"][data-stowed="true"]').length).toBe(3)
+    expect(host!.querySelectorAll('[role="tab"]').length).toBe(9)
     // Exactly one tab stop: the selected tab only.
     expect(tab(0)?.getAttribute('aria-selected')).toBe('true')
     expect(host!.querySelectorAll('[role="tab"][tabindex="0"]').length).toBe(1)
@@ -70,7 +68,7 @@ describe('PluginWorkspace tab row', () => {
     expect(panel?.getAttribute('aria-labelledby')).toBe('agent-plugins-tab-market')
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('market')
 
-    await act(async () => tab(5)!.click())
+    await act(async () => tabByKey('mcp')!.click())
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
   })
 

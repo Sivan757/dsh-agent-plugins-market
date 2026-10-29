@@ -449,9 +449,7 @@ describe('user hooks configuration row', () => {
     const children = [...faceLists[0]!.children]
     // One child is not a tab: the moving selection pill, drawn behind the labels. The row
     // carries no group wrapper and no divider.
-    const others = children.filter(child => child.getAttribute('role') !== 'tab')
-    expect(others).toHaveLength(1)
-    expect(others[0]!.getAttribute('aria-hidden')).toBe('true')
+    expect(children.every(child => child.getAttribute('role') === 'tab')).toBe(true)
     expect(children.filter(child => child.getAttribute('role') === 'tab')).toHaveLength(7)
   })
 

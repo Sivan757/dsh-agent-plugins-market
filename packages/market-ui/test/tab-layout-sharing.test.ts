@@ -24,7 +24,7 @@ vi.mock('../../../packages/market-ui/src/features/output-styles/OutputStylesPane
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 import { PluginWorkspace } from '../../../packages/market-ui/src/workspace/PluginWorkspace.js'
-import { applyStow, resetTabLayoutStore } from '../../../packages/market-ui/src/workspace/tab-layout-store.js'
+import { applyTabMove, resetTabLayoutStore } from '../../../packages/market-ui/src/workspace/tab-layout-store.js'
 import { ResourceList } from '../../../packages/market-ui/src/features/extension-presets/ResourceList.js'
 import type { Translate } from '../../../packages/market-ui/src/index.js'
 
@@ -70,17 +70,16 @@ function stubServer(hidden: string[], order: string[] = ORDER): void {
 }
 
 /** Labels of one row's tabs, split by whether they are stowed. */
-function labelsOf(list: Element | undefined, stowed: 'true' | 'false'): string[] {
+function labelsOf(list: Element | undefined): string[] {
   if (list === undefined) return []
-  return [...list.querySelectorAll('[role="tab"][data-stowed="' + stowed + '"]')].map(tab => (tab.textContent ?? '').trim())
+  return [...list.querySelectorAll('[role="tab"]')].map(tab => (tab.textContent ?? '').trim())
 }
 /** The workspace row: the only list whose active tab is the market one. */
 const workspaceList = (): Element | undefined => [...document.querySelectorAll('[role="tablist"]')].find(list => (list.textContent ?? '').includes('workspaceTabMarket'))
 /** The preset manager row: the only one that renders its own hooks tab label. */
 const presetList = (): Element | undefined => [...document.querySelectorAll('[role="tablist"]')].find(list => (list.textContent ?? '').includes('epHooksTab'))
-const visibleRow = (): string[] => labelsOf(workspaceList(), 'false')
-const stowedRow = (): string[] => labelsOf(workspaceList(), 'true')
-const presetVisible = (): string[] => labelsOf(presetList(), 'false')
+const visibleRow = (): string[] => labelsOf(workspaceList())
+const presetVisible = (): string[] => labelsOf(presetList())
 
 async function mountBoth(): Promise<void> {
   host = document.createElement('div')
@@ -103,39 +102,22 @@ async function mountBoth(): Promise<void> {
 }
 
 describe('shared tab layout', () => {
-  it('renders both rows from one layout, honouring the order and the stow list', async () => {
-    // Skills sits second in the authored order and is stowed, so both surfaces
-    // have to lose it while keeping the sequence around it.
-    stubServer(['skills'], ['market', 'skills', 'instructions', 'outputStyles', 'commands', 'personas', 'mcp', 'lsp', 'hooks'])
+  it('renders both rows from one layout order', async () => {
+    // An authored order with skills second: both surfaces read the same document, so the
+    // face they share has to sit in the same place on each.
+    stubServer([], ['market', 'skills', 'instructions', 'outputStyles', 'commands', 'personas', 'mcp', 'lsp', 'hooks'])
     await mountBoth()
-    const workspace = visibleRow()
-    expect(workspace).toEqual([
-      'workspaceTabMarket',
-      'workspaceTabInstructions',
-      'workspaceTabOutputStyles',
-      'workspaceTabCommands',
-      'workspaceTabPersonas',
-      'workspaceTabMcp',
-      'workspaceTabLsp',
-      'workspaceTabHooks'
-    ])
-    // Every tab is in the row now; the stowed ones are after the divider, marked instead
-    // of removed, which is the whole point of the rework.
-    expect(visibleRow()).toHaveLength(8)
-    expect(visibleRow()).not.toContain('workspaceTabSkills')
-    expect(stowedRow()).toEqual(['workspaceTabSkills'])
-    expect(presetVisible()).toEqual(['workspaceTabMarket', 'workspaceTabCommands', 'workspaceTabPersonas', 'workspaceTabMcp', 'workspaceTabLsp', 'epHooksTab'])
+    expect(visibleRow().slice(0, 3)).toEqual(['workspaceTabMarket', 'workspaceTabSkills', 'workspaceTabInstructions'])
+    expect(presetVisible().slice(0, 2)).toEqual(['workspaceTabMarket', 'workspaceTabSkills'])
   })
 
-  it('shows a stow made in one row in the other without a remount', async () => {
-    stubServer([])
+  it('shows an order change made in one row in the other without a remount', async () => {
+    stubServer([], ['market', 'skills', 'instructions', 'outputStyles', 'commands', 'personas', 'mcp', 'lsp', 'hooks'])
     await mountBoth()
-    expect(presetVisible()).toContain('workspaceTabSkills')
     await act(async () => {
-      await applyStow(['skills'], () => 'write failed')
+      await applyTabMove('hooks', 'skills', () => 'write failed')
     })
-    expect(visibleRow()).not.toContain('workspaceTabSkills')
-    expect(stowedRow()).toContain('workspaceTabSkills')
-    expect(presetVisible()).not.toContain('workspaceTabSkills')
+    expect(visibleRow().indexOf('workspaceTabHooks')).toBeLessThan(visibleRow().indexOf('workspaceTabSkills'))
+    expect(presetVisible().indexOf('epHooksTab')).toBeGreaterThan(-1)
   })
 })

@@ -61,7 +61,7 @@
     "packages/market-ui/test/client-shared-labels.test.ts",
     "packages/market-ui/test/client-skill-refresh.test.ts",
     "packages/market-ui/test/client-user-entry-detail-translation.test.ts",
-    "packages/market-ui/test/client-workspace-tab-stow.test.ts",
+    "packages/market-ui/test/client-workspace-tab-row.test.ts",
     "packages/market-ui/test/client-workspace-tabs.test.ts",
     "packages/market-ui/test/client-workspace-view.test.ts",
     "packages/market-ui/test/extension-window-poll.test.ts",
