@@ -135,6 +135,11 @@ describe('tab rail reordering', () => {
     expect(css).toMatch(/\.fadeRight \{[^}]*linear-gradient\(270deg/)
     expect(css).toMatch(/\.fadeLeft \{[^}]*linear-gradient\(90deg/)
     expect(rule('.tab')).toMatch(/font-size: 14px/)
+    // The row is a strip: a column parent must not stretch it, or the tabs float in a
+    // panel-sized empty box and the panel below is pushed off screen.
+    const wrapRule = /\.wrap \{[^}]*/.exec(css)?.[0] ?? ''
+    expect(wrapRule).toMatch(/flex: none/)
+    expect(wrapRule).not.toMatch(/flex: 1 1 auto/)
     // The step arrow is a wide, short overlay inside the rail, hidden until the row is hovered.
     expect(rule('.stepRight')).toMatch(/width: 28px/)
     expect(rule('.stepRight')).toMatch(/height: 18px/)
