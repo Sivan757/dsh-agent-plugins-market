@@ -178,16 +178,14 @@ export interface TabHoverActionsProps {
   onMove: (direction: -1 | 1) => void
   /** Stow the target. */
   onStow: () => void
-  /** Open the manager, where every tab and its state is editable. */
-  onOpenList: () => void
   /** Keep the bubble alive while the pointer is inside it. */
   onHold: () => void
   /** Start the dismissal countdown when the pointer leaves. */
   onLeave: () => void
 }
 
-/** The bubble itself: four actions, anchored above the tab that was paused on. */
-export function TabHoverActions({ t, target, canMoveLeft, canMoveRight, onMove, onStow, onOpenList, onHold, onLeave }: TabHoverActionsProps): ReactNode {
+/** The bubble itself: three actions, anchored above the tab that was paused on. */
+export function TabHoverActions({ t, target, canMoveLeft, canMoveRight, onMove, onStow, onHold, onLeave }: TabHoverActionsProps): ReactNode {
   return h(
     'div',
     {
@@ -228,8 +226,7 @@ export function TabHoverActions({ t, target, canMoveLeft, canMoveRight, onMove, 
       )
     ),
     h('span', { className: css.tabHoverDivider, 'aria-hidden': true }),
-    h(Button, { variant: 'ghost', size: 'sm', className: css.tabHoverButton, onClick: onStow }, t('tabHoverStow')),
-    h(Button, { variant: 'ghost', size: 'sm', className: css.tabHoverButton, onClick: onOpenList }, t('tabHoverOpenList'))
+    h(Button, { variant: 'ghost', size: 'sm', className: css.tabHoverButton, onClick: onStow }, t('tabHoverStow'))
   )
 }
 // One-time onboarding: a gesture with no visible control has to introduce itself

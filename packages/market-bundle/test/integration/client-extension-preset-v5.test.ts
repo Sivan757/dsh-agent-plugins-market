@@ -443,9 +443,14 @@ describe('user hooks configuration row', () => {
     const faceLists = [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 7)
     expect(faceLists).toHaveLength(1)
     expect(faceLists[0]!.getAttribute('style') ?? '').not.toContain('minmax(0, 1fr)')
-    // The row carries the face tabs directly, so the tab list is the rail itself
-    // rather than a nested control inside another row.
-    expect([...faceLists[0]!.children].every(child => child.getAttribute('role') === 'tab')).toBe(true)
+    // The row carries the face tabs directly, so the tab list is the rail itself rather
+    // than a nested control inside another row. The stowed group is the one other child:
+    // a divider plus the tabs already moved past it.
+    const children = [...faceLists[0]!.children]
+    // Two children are not tabs: the moving selection pill, drawn behind them, and the
+    // stowed group the rail keeps for the tabs put away.
+    expect(children.filter(child => child.getAttribute('role') !== 'tab')).toHaveLength(2)
+    expect(children.filter(child => child.getAttribute('role') === 'tab')).toHaveLength(7)
   })
 
   it('keeps the user-hooks configuration row out of every face tab in a localized build', async () => {

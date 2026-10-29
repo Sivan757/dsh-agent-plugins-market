@@ -1,31 +1,31 @@
 /**
- * The market tab row: one scrollable rail with pills and pointer reordering.
+ * The tab rail: one scrolling row, a sliding selection pill, and an inline stowed group.
  *
- * Colours come from the host's alias tokens with the same fallbacks the workspace
- * stylesheet uses, so the row follows the active theme in both light and dark.
+ * Motion explains a change rather than decorating one. The pill slides to the tab it now
+ * belongs to, a dragged tab lifts, a tab crossing the divider fades between groups, and
+ * every one of those turns off under `prefers-reduced-motion`.
  */
 
 .row {
   display: flex;
   align-items: center;
-  gap: 8px;
   min-width: 0;
 }
 
-/* The rail scrolls rather than shrinking its tabs, and fades the edge that has more
-   content instead of cutting a label in half. */
 .rail {
+  position: relative;
   display: flex;
-  flex: 1;
-  min-width: 0;
   align-items: center;
   gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   background: var(--dsw-alias-interactive-bg-hover);
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
   mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 16px), transparent 100%);
 }
 
@@ -33,73 +33,159 @@
   display: none;
 }
 
+/* The pill is one element that moves, not a background on whichever tab is current.
+   Travel between two labels of different width is the effect a chip cannot give. */
+.pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  z-index: 0;
+  border-radius: 9px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 18%),
+    0 6px 18px rgb(0 0 0 / 12%);
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms linear;
+  will-change: transform, width;
+}
+
 .tab {
-  display: inline-flex;
+  position: relative;
+  z-index: 1;
   flex: none;
-  align-items: center;
-  padding: 7px 13px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: none;
+  border: 0;
+  border-radius: 9px;
+  padding: 6px 12px;
+  background: transparent;
   color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 1;
+  font: inherit;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    color 120ms ease;
+    color 140ms ease,
+    background-color 160ms ease,
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Hover lifts a hair and warms the label: enough to read as "this responds", small
+   enough that moving along the row does not look like a wave. */
 .tab:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
+  transform: translateY(-1px);
 }
 
-.tab:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 1px;
+.tab:active {
+  transform: translateY(0) scale(0.98);
 }
 
-/* The selected tab is a raised chip rather than a filled block: the row stays quiet
-   until something is chosen, and the chip is the only element with a shadow. */
 .tabActive {
-  border-color: var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-bg-layer-1);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
   color: var(--dsw-alias-label-primary);
+}
+
+/* Stowed tabs stay in the row so the state is readable at a glance. */
+.tabStowed {
+  color: var(--dsw-alias-label-tertiary);
+  opacity: 0.72;
+}
+
+.tabStowed:hover {
+  color: var(--dsw-alias-label-secondary);
+  opacity: 1;
 }
 
 .tabDragging {
   opacity: 0.45;
+  transform: scale(0.98);
 }
 
-/* A held tab owns the gesture: without this the browser starts panning the rail and
-   cancels the pointer stream, so a touch drag could never begin. */
+/* Where the dragged tab will land: a caret that grows in, rather than the target tab
+   jumping to make room before the drop is committed. */
+.tabLanding {
+  box-shadow: inset 2px 0 0 var(--dsw-alias-state-business-primary);
+}
+
+.tabEntering {
+  animation: stow-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .tabHolding {
   touch-action: none;
 }
 
-/* The drop target keeps its own quiet tint: a moving line would jump between tabs as
-   the pointer crosses a midpoint, which reads as flicker rather than as a target. */
-.tabLanding {
-  background: var(--dsw-alias-interactive-bg-active);
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  transition: opacity 180ms ease;
+}
+
+/* Crossing the divider is the gesture that puts a tab away, so the group answers the
+   drag before the drop: the divider tints and the label brightens. */
+.groupActive > .divider {
+  background: var(--dsw-alias-state-business-primary);
+  transform: scaleY(1.2);
+}
+
+.groupActive > .groupLabel {
   color: var(--dsw-alias-label-primary);
 }
 
-.tabText {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.divider {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--dsw-alias-border-l1);
+  transition:
+    background-color 160ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.trailing {
-  display: flex;
+.groupLabel {
   flex: none;
-  align-items: center;
+  margin: 0 4px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: color 160ms ease;
+}
+
+@keyframes stow-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 0.72;
+    transform: translateX(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab {
+  .rail {
+    scroll-behavior: auto;
+  }
+
+  .pill,
+  .tab,
+  .divider,
+  .group,
+  .groupLabel {
     transition: none;
+  }
+
+  .tab:hover {
+    transform: none;
+  }
+
+  .tabEntering {
+    animation: none;
   }
 }

@@ -319,6 +319,7 @@ it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail'
   await act(async () => root!.render(h(PluginWorkspace, { t })))
   const tablist = document.querySelector('[role="tablist"]')!
   const labels = [...tablist.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)
+  // This stub answers no layout, so nothing is stowed and the rail shows the stored order.
   expect(labels).toEqual([
     en.workspaceTabMarket,
     en.workspaceTabInstructions,
@@ -342,10 +343,14 @@ it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail'
   expect(tabRule).toMatch(/white-space:\s*nowrap/)
   const workspaceCss = readFileSync('packages/market-ui/src/workspace/workspace.module.css', 'utf8')
   expect(workspaceCss).not.toMatch(/tabRow/)
-  // The rendered row is one tablist whose children are the tabs themselves: the
-  // rail is the list, not a wrapper around a second list, and the roving tab stop
-  // is still exactly one tab.
-  expect([...tablist.children].every(child => child.getAttribute('role') === 'tab')).toBe(true)
+  // The rendered row is one tablist whose children are the tabs themselves plus the
+  // pill and the stowed group: the rail is the list, not a wrapper around a second
+  // list, and the roving tab stop is still exactly one tab.
+  const others = [...tablist.children].filter(child => child.getAttribute('role') !== 'tab')
+  expect(others).toHaveLength(2)
+  expect(
+    others.every(child => child.getAttribute('aria-hidden') === 'true' || child.getAttribute('role') === 'separator' || child.querySelector('[role="separator"]') !== null)
+  ).toBe(true)
   const tabs = [...tablist.querySelectorAll('[role="tab"]')]
   const selected = tabs.filter(tab => tab.getAttribute('aria-selected') === 'true')
   expect(selected).toHaveLength(1)

@@ -28,10 +28,16 @@ afterEach(async () => {
   host = undefined
 })
 
-/** Give every tab a 100px box so midpoints land at 50, 150 and 250. */
+/** Give every tab a 100px box so midpoints land at 50, 150 and 250, and put the divider
+ * past the last one: a zero-width divider sits at 0, which would make every drop look
+ * like a drop into the stowed group. */
 function layoutTabs(): void {
   for (const [index, tab] of [...document.querySelectorAll<HTMLElement>('[role="tab"]')].entries()) {
     tab.getBoundingClientRect = () => ({ left: index * 100, width: 100, right: index * 100 + 100, top: 0, bottom: 20, height: 20, x: index * 100, y: 0, toJSON: () => ({}) })
+  }
+  const divider = document.querySelector<HTMLElement>('[role="separator"]')
+  if (divider !== null) {
+    divider.getBoundingClientRect = () => ({ left: 320, width: 1, right: 321, top: 0, bottom: 20, height: 20, x: 320, y: 0, toJSON: () => ({}) })
   }
 }
 

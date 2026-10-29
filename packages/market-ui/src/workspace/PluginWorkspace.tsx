@@ -11,7 +11,6 @@
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { TabRail } from '../ui/TabRail.js'
-import { TabStowControl } from './TabStowControl.js'
 import { useTabLayout, type TabLayoutMessages } from './tab-layout-store.js'
 import { TabHoverActions, TabHoverGuide, useTabHover, useTabHoverGuide } from './TabHoverActions.js'
 import { PINNED_TAB_KEY, resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type TabLayoutWire, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
@@ -132,12 +131,6 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
   )
   const { state: layoutState, stow: applyStowList, move: applyTabMoveTo } = useTabLayout(layoutMessages)
   const layout = layoutState.layout
-  const layoutError = layoutState.error
-  const stowing = layoutState.busy
-  // The manager is a dialog with its own trigger in the trailing control, and
-  // the long-hover bubble opens the same dialog. Owning that flag here is what
-  // lets both entry points reach it without duplicating the panel.
-  const [managing, setManaging] = useState(false)
 
   /**
    * Apply a stow list now and persist it behind the row.
@@ -267,24 +260,25 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
         // Switching tabs is local state only; the URL stays the host's.
         onChange: setActive,
         items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
-        // Dragging moves one tab to another's position: the same write the manager
-        // and the Alt+arrow gesture make, so all three paths persist one order.
+        // The stowed group keeps the stored order, so putting a tab back returns it to
+        // the place the user last saw it rather than to the end of the row.
+        stowed: layout.order
+          .filter(tab => layout.hidden.includes(tab))
+          .map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
+        // Dragging moves one tab to another's position: the same write the Alt+arrow
+        // gesture makes, so both paths persist one order.
         onReorder: reorder,
-        trailing: h(TabStowControl, {
-          t,
-          tabs: layout.order.map(tab => ({ key: tab, label: labelKeys[tab] })),
-          visible: shown,
-          hidden: layout.hidden,
-          busy: stowing,
-          error: layoutError,
-          manageOpen: managing,
-          onManageOpenChange: setManaging,
-          onSelect: tab => setActive(tab as WorkspaceTab),
-          onStow: stow,
-          onReorder: reorder
-        })
+        // Two tabs never move: the pinned one, and the last one still showing. The row
+        // refuses the gesture rather than accepting it and drawing an empty rail.
+        onStow: tab => {
+          if (tab === PINNED_TAB_KEY) return
+          if (shown.length <= 1) return
+          stow([...layout.hidden, tab])
+        },
+        onUnstow: tab => stow(layout.hidden.filter(key => key !== tab))
       })
     ),
+    layoutState.error === undefined ? null : h('div', { className: css.tabNotice, role: 'status' }, layoutState.error),
     guide.anchor === undefined ? null : h(TabHoverGuide, { t, target: guide.anchor, onDismiss: guide.dismiss }),
     hovered === undefined
       ? null
@@ -295,10 +289,6 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
           canMoveRight: hoverAt >= 0 && hoverAt < shown.length - 1,
           onMove: moveHovered,
           onStow: stowHovered,
-          onOpenList: () => {
-            hover.close()
-            setManaging(true)
-          },
           onHold: hover.hold,
           onLeave: hover.close
         }),

@@ -15,7 +15,6 @@ import rc from '../../ui/resource-card.module.css'
 import css from './presets.module.css'
 import panel from '../../ui/panel.module.css'
 import workspace from '../../workspace/workspace.module.css'
-import { TabStowControl } from '../../workspace/TabStowControl.js'
 import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout-store.js'
 import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
 import { hoverHint } from '../../ui/hover-hint.js'
@@ -85,7 +84,6 @@ export function ResourceList({
   // configuration parent renders no card anywhere. Project children ride their
   // own face tabs below.
   const [requestedFace, setFace] = useState<ExtensionResource['face']>('market')
-  const [managing, setManaging] = useState(false)
   // The row is the workspace's row, on the same layout, so the order and the
   // stow list a user sets in one place are the ones the other renders.
   const layoutMessages = useMemo<TabLayoutMessages>(
@@ -173,24 +171,16 @@ export function ResourceList({
         label={t('epTitle')}
         items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
         onReorder={moveFace}
-        trailing={
-          <TabStowControl
-            t={t}
-            tabs={orderedFaces.map(value => ({ key: TAB_KEY[value], label: t(labels[value]) }))}
-            visible={orderedFaces.map(value => TAB_KEY[value])}
-            hidden={layout.hidden.filter(key => orderedFaces.some(value => TAB_KEY[value] === key))}
-            busy={layoutState.busy}
-            error={layoutState.error}
-            onSelect={key => {
-              const next = faceOf(key as WorkspaceTabKey)
-              if (next !== undefined) setFace(next)
-            }}
-            onStow={stowFaces}
-            onReorder={moveFace}
-            manageOpen={managing}
-            onManageOpenChange={setManaging}
-          />
-        }
+        // The faces this manager owns, in the stored order, so a face put away here comes
+        // back where the workspace row also expects it.
+        stowed={layout.order.flatMap(key => {
+          if (!layout.hidden.includes(key) || !orderedFaces.some(value => TAB_KEY[value] === key)) return []
+          const value = faceOf(key)
+          if (value === undefined) return []
+          return [{ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }]
+        })}
+        onStow={value => stowFaces([...layout.hidden, TAB_KEY[value]])}
+        onUnstow={value => stowFaces(layout.hidden.filter(key => key !== TAB_KEY[value]))}
       />
       <div className={panel.shell} role="tabpanel" id={id + '-' + face + '-panel'} aria-labelledby={id + '-' + face}>
         <SearchFilterToolbar
