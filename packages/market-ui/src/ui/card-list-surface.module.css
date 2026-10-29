@@ -1,12 +1,5 @@
 /* The card body: title and chip on one line, one sentence, then the quiet detail line.
    Spacing matches the catalog cards these panels sit beside. */
-.surface {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .tag {
   align-self: flex-start;
   padding: 1px 6px;
