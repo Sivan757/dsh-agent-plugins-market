@@ -131,9 +131,14 @@ describe('tab rail reordering', () => {
     expect(rule('.tabActive')).toMatch(/background: var\(--dsw-alias-bg-layer-1\)/)
     expect(css).not.toMatch(/\\.pill/)
     // Only a clipped side fades, and the fade is a gradient rather than a hard edge.
-    expect(rule('.fadeRight')).toMatch(/mask-image: linear-gradient/)
-    expect(rule('.fadeLeft')).toMatch(/mask-image: linear-gradient/)
+    // The fade is a narrow band inside the border, so the rail's own border stays whole.
+    expect(css).toMatch(/\.fadeRight \{[^}]*linear-gradient\(270deg/)
+    expect(css).toMatch(/\.fadeLeft \{[^}]*linear-gradient\(90deg/)
     expect(rule('.tab')).toMatch(/font-size: 14px/)
+    // The step arrow is a wide, short overlay inside the rail, hidden until the row is hovered.
+    expect(rule('.stepRight')).toMatch(/width: 28px/)
+    expect(rule('.stepRight')).toMatch(/height: 18px/)
+    expect(rule('.stepRight')).toMatch(/opacity: 0/)
     // The hold must be visible: a ring that fills, and a lifted, shadowed tab while dragged.
     expect(css).toMatch(/\.tabPressing::after/)
     expect(css).toMatch(/@keyframes hold-fill/)

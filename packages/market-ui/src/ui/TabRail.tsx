@@ -185,15 +185,12 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
 
   return h(
     'div',
-    { className: css.row },
-    edges.left
-      ? h('button', { type: 'button', className: css.stepButton, 'aria-label': label + ' · 向前一个', onClick: () => step(-1) }, h(IconChevronLeftOutlineMedium, { size: 14 }))
-      : null,
+    { className: css.wrap },
     h(
       'div',
       {
         ref: railRef,
-        className: [css.rail, edges.left ? css.fadeLeft : '', edges.right ? css.fadeRight : ''].filter(Boolean).join(' '),
+        className: css.rail,
         role: 'tablist',
         'aria-label': label,
         onKeyDown,
@@ -257,10 +254,6 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
               press.current = undefined
             },
             onPointerUp: () => {
-              // React's handler on the button runs before the window listener, so this is
-              // the first place a release is seen. A press that had become a drag must be
-              // finished here as well: clearing the press alone leaves the lifted tab on
-              // screen with nothing left to end it.
               if (press.current?.started === true) {
                 swallowClick.current = true
                 finish()
@@ -275,8 +268,16 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
         )
       })
     ),
+    // Both overlays sit inside the rail's border, over the tabs: the fade masks the letters
+    // running under the edge, and the arrow floats above it. Neither is laid out, so the row
+    // keeps its width when they appear.
+    edges.left ? h('span', { 'aria-hidden': 'true', className: css.fadeLeft }) : null,
+    edges.right ? h('span', { 'aria-hidden': 'true', className: css.fadeRight }) : null,
+    edges.left
+      ? h('button', { type: 'button', className: css.stepLeft, 'aria-label': label + ' · 向前一个', onClick: () => step(-1) }, h(IconChevronLeftOutlineMedium, { size: 12 }))
+      : null,
     edges.right
-      ? h('button', { type: 'button', className: css.stepButton, 'aria-label': label + ' · 向后一个', onClick: () => step(1) }, h(IconChevronRightOutlineMedium, { size: 14 }))
+      ? h('button', { type: 'button', className: css.stepRight, 'aria-label': label + ' · 向后一个', onClick: () => step(1) }, h(IconChevronRightOutlineMedium, { size: 12 }))
       : null
   )
 }
