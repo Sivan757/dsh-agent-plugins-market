@@ -27,7 +27,6 @@
     "packages/market-bundle/test/integration/client-mcp-detail.test.ts",
     "packages/market-bundle/test/integration/client-plugin-card.test.ts",
     "packages/market-bundle/test/integration/client-plugins-item-views.test.ts",
-    "packages/market-bundle/test/integration/client-resource-window.test.ts",
     "packages/market-bundle/test/integration/client-role-reasoning.test.ts",
     "packages/market-bundle/test/integration/client-server-config-policy.test.ts",
     "packages/market-bundle/test/integration/client-service-editor-parity.test.ts",
