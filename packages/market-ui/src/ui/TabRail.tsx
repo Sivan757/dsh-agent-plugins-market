@@ -153,13 +153,20 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
       swallowClick.current = true
       finish()
     }
+    // A release outside the page never reaches us: the window loses focus instead, which
+    // is the last chance to put the tab down. Without this the row can stay mid-drag.
+    const abandon = (): void => {
+      if (press.current?.started === true) finish()
+    }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
     window.addEventListener('pointercancel', up)
+    window.addEventListener('blur', abandon)
     return () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
+      window.removeEventListener('blur', abandon)
     }
   }, [finish, indexAt, onReorder])
 
@@ -250,7 +257,15 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
               press.current = undefined
             },
             onPointerUp: () => {
-              if (press.current?.started === true) swallowClick.current = true
+              // React's handler on the button runs before the window listener, so this is
+              // the first place a release is seen. A press that had become a drag must be
+              // finished here as well: clearing the press alone leaves the lifted tab on
+              // screen with nothing left to end it.
+              if (press.current?.started === true) {
+                swallowClick.current = true
+                finish()
+                return
+              }
               if (press.current?.timer !== undefined) clearTimeout(press.current.timer)
               setHolding(undefined)
               press.current = undefined

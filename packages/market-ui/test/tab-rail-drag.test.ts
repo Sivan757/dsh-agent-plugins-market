@@ -210,4 +210,27 @@ describe('tab rail reordering', () => {
     expect(first.style.transform).toBe('')
     vi.useRealTimers()
   })
+  it('ends the drag when the release lands on the tab, not on the window', async () => {
+    // React's handler on the button runs before the window listener, so a release over the
+    // tab used to clear the press without ending the drag: the lifted tab stayed on screen
+    // over its neighbours with nothing left to put it down.
+    vi.useFakeTimers()
+    const onReorder = vi.fn()
+    await mount(onReorder)
+    const first = document.querySelectorAll<HTMLElement>('[role="tab"]')[0]!
+    await act(async () => {
+      first.dispatchEvent(pointer('pointerdown', 10))
+      vi.advanceTimersByTime(400)
+      window.dispatchEvent(pointer('pointermove', 260))
+    })
+    expect(first.className).toContain('Dragging')
+    await act(async () => {
+      first.dispatchEvent(pointer('pointerup', 260))
+      await Promise.resolve()
+    })
+    expect(first.className).not.toContain('Dragging')
+    expect(first.style.transform).toBe('')
+    expect(onReorder).toHaveBeenCalledWith(0, 2)
+    vi.useRealTimers()
+  })
 })
