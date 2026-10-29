@@ -20,7 +20,7 @@ import { CodeEditor } from '../../ui/CodeEditor.js'
 import { CardListSurface } from '../../ui/CardListSurface.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
-import { budgetPercent, isOverBudget, statusLocaleKey } from './instructions-view-model.js'
+import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
 
 /** The one drafting session the editor holds. */
@@ -39,7 +39,7 @@ interface InstructionsPanelProps {
   sessionId?: string
 }
 
-/** UTF-8 byte length, the unit both the budget and the source cap count in. */
+/** UTF-8 byte length, the unit the per-file source cap counts in. */
 function byteLength(text: string): number {
   return new TextEncoder().encode(text).length
 }
@@ -125,48 +125,36 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     )
   }
 
-  const percent = budgetPercent(payload.total, payload.budget)
-  const over = isOverBudget(payload.total, payload.budget)
-  const disabled = !(payload.budget > 0)
-
   return h(
     'div',
     { className: css.surface },
     h(PanelHeader, {
       subtitle: t('instructionsSubtitle'),
-      actions: h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
+      actions: h(PanelActions, {
+        // A file that does not exist is not listed, so the header carries the way to create
+        // one: the first candidate the host reports as missing.
+        addLabel: t('instructionsCreate'),
+        onAdd: () => {
+          const missing = payload.rows.find(row => row.scope !== 'project' && !row.exists)
+          if (missing !== undefined) openEditor(missing)
+        },
+        refreshLabel: t('refresh'),
+        onRefresh: refresh,
+        busy: loading
+      })
     }),
     error === undefined ? null : h('div', { className: css.error, role: 'alert' }, error),
     payload.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
-    h(
-      'section',
-      { className: css.budget, 'data-instructions-budget': true },
-      h(
-        'div',
-        { className: css.budgetHead },
-        h('span', null, t('instructionsBudgetLabel')),
-        h('span', { className: css.budgetUsage }, t('instructionsBudgetUsage', { used: payload.total, budget: payload.budget }))
-      ),
-      h(
-        'div',
-        { className: css.budgetTrack, role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent },
-        h('div', { className: over ? `${css.budgetFill} ${css.budgetFillOver}` : css.budgetFill, style: { width: `${percent}%` } })
-      ),
-      h('p', { className: css.budgetRule }, disabled ? t('instructionsBudgetDisabled') : t('instructionsBudgetRule'))
-    ),
-    // The user-level files, as the same cards the other catalog panels draw: the project
-    // candidates and the session directory answered where the session runs rather than what
-    // it loads, and a click opens the file the way every other panel opens an entry.
+    // Only files that exist: a list of things that are not there cannot be seen, found, or used.
     h(CardListSurface, {
       items: payload.rows
-        .filter(row => row.scope !== 'project')
+        .filter(row => row.scope !== 'project' && row.exists)
         .map(row => ({
           id: `${row.scope}:${row.directory}:${row.candidate}`,
           name: row.displayPath,
           tag: t(statusLocaleKey(row.status)),
-          meta: row.size === undefined ? '' : t('instructionsRowSize', { bytes: row.size }),
-          disabled: !row.exists
+          meta: row.size === undefined ? '' : t('instructionsRowSize', { bytes: row.size })
         })),
       emptyText: t('instructionsPreviewEmpty'),
       onOpen: id => {
@@ -174,22 +162,6 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
         if (row !== undefined) openEditor(row)
       }
     }),
-    h(
-      'section',
-      { className: css.preview, 'data-instructions-preview': true },
-      h('h3', { className: css.groupTitle }, t('instructionsPreviewTitle')),
-      payload.rendered.text === '' ? h('p', { className: css.empty }, t('instructionsPreviewEmpty')) : h('pre', { className: css.previewText }, payload.rendered.text),
-      payload.rendered.omitted.length === 0
-        ? null
-        : h('p', { className: css.previewMeta }, t('instructionsPreviewOmitted', { paths: payload.rendered.omitted.map(file => file.displayPath).join(', ') })),
-      payload.rendered.truncated.length === 0
-        ? null
-        : h(
-            'p',
-            { className: css.previewMeta },
-            t('instructionsPreviewTruncated', { paths: payload.rendered.truncated.map(item => `${item.displayPath} (${item.includedBytes}/${item.originalBytes})`).join(', ') })
-          )
-    ),
     editor === undefined
       ? null
       : h(InstructionEditor, {

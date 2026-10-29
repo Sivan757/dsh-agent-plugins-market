@@ -151,14 +151,19 @@ describe('instructions panel', () => {
     expect(host!.textContent).not.toContain('instructionsSessionHint')
   })
 
-  it('shows the rendered total against the budget', async () => {
-    await mount()
-    const bar = host!.querySelector('[role="progressbar"]')
-    expect(bar?.getAttribute('aria-valuenow')).toBe('0')
-    expect(host!.textContent).toContain('instructionsBudgetUsage')
+  it('leaves the file rows out when the file does not exist', async () => {
+    await mount({
+      ...PAYLOAD,
+      rows: PAYLOAD.rows.map(row => (row.scope === 'agents-global' ? { ...row, exists: false, status: 'missing' as const, size: undefined, content: undefined } : row))
+    })
+    // A list of things that are not there cannot be seen, found, or used.
+    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md'])
+  })
 
-    await mount({ ...PAYLOAD, total: 32768 })
-    expect(host!.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('50')
+  it('shows neither a budget bar nor the injected text', async () => {
+    await mount()
+    expect(host!.querySelector('[role="progressbar"]')).toBeNull()
+    expect(host!.querySelector('[data-instructions-preview]')).toBeNull()
   })
 
   it('names the package when the profile does not provide it', async () => {
@@ -167,14 +172,6 @@ describe('instructions panel', () => {
     expect(state).not.toBeNull()
     expect(state!.textContent).toContain('@deepseek-ai/dsh-agent-instructions')
     expect(cards()).toEqual([])
-  })
-
-  it('previews the injected text and names the omitted and truncated files', async () => {
-    await mount()
-    const preview = host!.querySelector('[data-instructions-preview]')
-    expect(preview?.querySelector('pre')?.textContent).toBe(String(PAYLOAD.rendered.text))
-    expect(preview?.textContent).toContain('instructionsPreviewOmitted')
-    expect(preview?.textContent).toContain('instructionsPreviewTruncated')
   })
 
   it('opens a card for editing and saves the draft', async () => {
@@ -207,7 +204,9 @@ describe('instructions panel', () => {
       ...PAYLOAD,
       rows: PAYLOAD.rows.map(row => (row.scope === 'user-global' ? { ...row, exists: false, status: 'missing' as const, size: undefined, content: undefined } : row))
     })
-    await act(async () => cards()[0]!.click())
+    // The file is not listed, so creation starts from the header action.
+    const add = [...host!.querySelectorAll('button')].find(button => button.getAttribute('aria-label') === 'instructionsCreate')
+    await act(async () => add!.click())
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
     expect(editor?.value).toBe('')
     const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')
