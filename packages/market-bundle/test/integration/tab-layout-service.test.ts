@@ -36,12 +36,13 @@ describe('tab layout store', () => {
     expect(await loadTabLayout(root, workspace)).toEqual({ hidden: DEFAULT_HIDDEN, order: DEFAULT_ORDER })
 
     await saveTabLayout(root, workspace, ['lsp', 'hooks'])
-    expect(await hiddenOf(root)).toEqual(['lsp', 'hooks'])
+    expect(await hiddenOf(root)).toEqual(['hooks', 'lsp'])
 
     // The document is versioned and names its workspace, so a moved file is
     // recognisable rather than silently applied to another project.
     const document = JSON.parse(await readFile(tabLayoutPath(root, workspace), 'utf8')) as Record<string, unknown>
-    expect(document).toEqual({ version: 1, workspace, hidden: ['lsp', 'hooks'], order: DEFAULT_ORDER })
+    // The stow list is stored in display order, so it reads back the way the row shows it.
+    expect(document).toEqual({ version: 2, workspace, hidden: ['hooks', 'lsp'], order: DEFAULT_ORDER })
   })
 
   it('round trips one workspace row order', async () => {
@@ -108,7 +109,7 @@ describe('tab layout store', () => {
 
     // Named keys first in the authored order, then every unnamed key in display
     // order: the row always renders from one complete array.
-    expect((await loadTabLayout(root, workspace)).order).toEqual(['market', 'mcp', 'skills', 'instructions', 'outputStyles', 'commands', 'personas', 'lsp', 'hooks'])
+    expect((await loadTabLayout(root, workspace)).order).toEqual(['market', 'mcp', 'skills', 'personas', 'commands', 'instructions', 'outputStyles', 'hooks', 'lsp'])
   })
 
   it('keeps the pinned tab first whatever a file or a caller asks for', async () => {
@@ -158,7 +159,7 @@ describe('tab layout store', () => {
 
     // Each mutation read the default, added one tab, and wrote the result; the
     // lock is what makes the third see the first two.
-    expect(await hiddenOf(root)).toEqual(['instructions', 'mcp', 'lsp', 'hooks'])
+    expect(await hiddenOf(root)).toEqual(['mcp', 'hooks', 'lsp'])
   })
 })
 describe('TabLayoutService', () => {
@@ -203,7 +204,7 @@ describe('TabLayoutService', () => {
     const layout = await service.setOrder(['market', 'hooks'])
 
     // A caller that sends two keys still cannot hide seven.
-    expect(layout.order).toEqual(['market', 'hooks', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp'])
+    expect(layout.order).toEqual(['market', 'hooks', 'skills', 'personas', 'commands', 'mcp', 'instructions', 'outputStyles', 'lsp'])
   })
 
   it('shows every tab again, keeping the row order', async () => {
@@ -259,8 +260,8 @@ describe('TabLayoutService', () => {
     const root = await dataRoot()
     const service = new TabLayoutService(root, undefined)
     expect(await service.setHidden(['mcp'])).toEqual({ hidden: ['mcp'], order: DEFAULT_ORDER })
-    expect((await service.setOrder(['market', 'hooks'])).order).toEqual(['market', 'hooks', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp'])
-    expect(service.currentLayout()).toEqual({ hidden: ['mcp'], order: ['market', 'hooks', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp'] })
+    expect((await service.setOrder(['market', 'hooks'])).order).toEqual(['market', 'hooks', 'skills', 'personas', 'commands', 'mcp', 'instructions', 'outputStyles', 'lsp'])
+    expect(service.currentLayout()).toEqual({ hidden: ['mcp'], order: ['market', 'hooks', 'skills', 'personas', 'commands', 'mcp', 'instructions', 'outputStyles', 'lsp'] })
     // Nothing was written for a composition that has no workspace, so a read of
     // the empty path still answers the default.
     expect(await loadTabLayout(root, '')).toEqual({ hidden: DEFAULT_HIDDEN, order: DEFAULT_ORDER })

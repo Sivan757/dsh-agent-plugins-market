@@ -314,10 +314,10 @@ it('uses the same source, count and name classes as current settings cards', asy
   expect(labels).toEqual([
     settingsEn.workspaceTabMarket,
     settingsEn.workspaceTabSkills,
-    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabPersonas,
+    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
-    settingsEn.workspaceTabLsp
+    en.epHooksTab
   ])
   expect(card.querySelector('.' + rc.default.switchWrap)).not.toBeNull()
   expect(document.querySelector('[role="group"] .' + source.default.srcTabMain)).not.toBeNull()
@@ -360,11 +360,11 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
   const faceTabs = [
     settingsEn.workspaceTabMarket,
     settingsEn.workspaceTabSkills,
-    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabPersonas,
+    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
-    settingsEn.workspaceTabLsp,
-    en.epHooksTab
+    en.epHooksTab,
+    settingsEn.workspaceTabLsp
   ]
   const faceTabLabels = () =>
     [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!.querySelectorAll('[role="tab"]')
@@ -466,11 +466,11 @@ describe('user hooks configuration row', () => {
     const tabs = [
       tZh('workspaceTabMarket'),
       tZh('workspaceTabSkills'),
-      tZh('workspaceTabCommands'),
       tZh('workspaceTabPersonas'),
+      tZh('workspaceTabCommands'),
       tZh('workspaceTabMcp'),
-      tZh('workspaceTabLsp'),
-      tZh('epHooksTab')
+      tZh('epHooksTab'),
+      tZh('workspaceTabLsp')
     ]
     const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
     expect([...faceTablist.querySelectorAll('[role="tab"]')].map(node => node.textContent)).toEqual(tabs)
@@ -600,11 +600,11 @@ describe('hooks tab', () => {
     expect([...faceTablist.querySelectorAll('[role="tab"]')].map(node => node.textContent)).toEqual([
       settingsEn.workspaceTabMarket,
       settingsEn.workspaceTabSkills,
-      settingsEn.workspaceTabCommands,
       settingsEn.workspaceTabPersonas,
+      settingsEn.workspaceTabCommands,
       settingsEn.workspaceTabMcp,
-      settingsEn.workspaceTabLsp,
-      en.epHooksTab
+      en.epHooksTab,
+      settingsEn.workspaceTabLsp
     ])
     await click(en.epHooksTab)
     // No secondary event row remains: every declaration lists at once, and each

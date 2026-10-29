@@ -133,7 +133,7 @@ describe('tab rail reordering', () => {
     // Only a clipped side fades, and the fade is a gradient rather than a hard edge.
     expect(rule('.fadeRight')).toMatch(/mask-image: linear-gradient/)
     expect(rule('.fadeLeft')).toMatch(/mask-image: linear-gradient/)
-    expect(rule('.tab')).toMatch(/font-size: 12px/)
+    expect(rule('.tab')).toMatch(/font-size: 13px/)
     // The hold must be visible: a ring that fills, and a lifted, shadowed tab while dragged.
     expect(css).toMatch(/\.tabPressing::after/)
     expect(css).toMatch(/@keyframes hold-fill/)

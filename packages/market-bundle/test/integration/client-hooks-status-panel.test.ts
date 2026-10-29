@@ -322,14 +322,14 @@ it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail'
   // This stub answers no layout, so nothing is stowed and the rail shows the stored order.
   expect(labels).toEqual([
     en.workspaceTabMarket,
+    en.workspaceTabSkills,
+    en.workspaceTabPersonas,
+    en.workspaceTabCommands,
+    en.workspaceTabMcp,
     en.workspaceTabInstructions,
     en.workspaceTabOutputStyles,
-    en.workspaceTabSkills,
-    en.workspaceTabCommands,
-    en.workspaceTabPersonas,
-    en.workspaceTabMcp,
-    en.workspaceTabLsp,
-    en.workspaceTabHooks
+    en.workspaceTabHooks,
+    en.workspaceTabLsp
   ])
   // The row is one scrollable rail rather than an equal-column grid, so a ninth
   // tab is reached by sliding instead of being cut off at the frame edge.

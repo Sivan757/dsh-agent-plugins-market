@@ -9,7 +9,7 @@
  * when a tab is added to one and not the other, which is the moment to extend
  * this list.
  */
-export const WORKSPACE_TAB_KEYS = ['market', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks'] as const
+export const WORKSPACE_TAB_KEYS = ['market', 'skills', 'personas', 'commands', 'mcp', 'instructions', 'outputStyles', 'hooks', 'lsp'] as const
 
 /** One workspace tab. */
 export type WorkspaceTabKey = (typeof WORKSPACE_TAB_KEYS)[number]
@@ -23,8 +23,24 @@ export type WorkspaceTabKey = (typeof WORKSPACE_TAB_KEYS)[number]
  */
 export const PINNED_TAB_KEY: WorkspaceTabKey = 'market'
 
-/** Version of the persisted tab-layout document this release reads and writes. */
-export const TAB_LAYOUT_VERSION = 1
+/**
+ * Version of the persisted tab-layout document this release reads and writes.
+ *
+ * Version 2 changed the display order itself, so an order recorded under version 1
+ * names a sequence this release no longer starts from. Those documents keep their
+ * stow list and read their order from the display order, which is what a reader of
+ * that file would have seen anyway.
+ */
+export const TAB_LAYOUT_VERSION = 2
+
+/**
+ * The display order version 1 shipped with.
+ *
+ * A stored order that still equals this sequence is the default nobody edited, so it
+ * migrates to the new display order. A stored order that differs is someone's own
+ * arrangement and survives the migration untouched.
+ */
+export const LEGACY_DISPLAY_ORDER = ['market', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks'] as const
 
 /** One workspace's tab row, as the host and the client exchange them. */
 export interface TabLayoutWire {
@@ -50,7 +66,7 @@ export interface TabLayoutWire {
  * stay one action away from the row's own entry, and the first edit replaces
  * this default with whatever the person chose.
  */
-export const DEFAULT_STOWED_TABS = ['instructions', 'lsp', 'hooks'] as const
+export const DEFAULT_STOWED_TABS = [] as const
 
 /**
  * The layout a workspace with no usable document gets.

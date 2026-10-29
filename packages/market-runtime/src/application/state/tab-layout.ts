@@ -16,7 +16,14 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
-import { defaultTabLayout, resolveHiddenTabs, resolveTabOrder, TAB_LAYOUT_VERSION, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
+import {
+  defaultTabLayout,
+  LEGACY_DISPLAY_ORDER,
+  resolveHiddenTabs,
+  resolveTabOrder,
+  TAB_LAYOUT_VERSION,
+  type TabLayoutWire
+} from '../../../../market-contracts/src/contracts/tab-layout.js'
 
 /** One workspace's stowed tabs as this store keeps them. */
 export type TabLayout = TabLayoutWire
@@ -69,9 +76,19 @@ export async function loadTabLayout(dataRoot: string, workspace: string): Promis
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return defaultTabLayout()
   const hidden = (value as Record<string, unknown>)['hidden']
   if (!Array.isArray(hidden)) return defaultTabLayout()
+  // A document from before the display order changed names a sequence this release no
+  // longer starts from; its stow list is read and its order is taken from the display
+  // order, which is what a reader of that file saw at the time.
+  const version = (value as Record<string, unknown>)['version']
+  const stored = resolveTabOrder((value as Record<string, unknown>)['order'])
+  // Version 2 changed the display order itself. A stored order that still equals the
+  // sequence version 1 shipped with is the default nobody edited, so it moves to the new
+  // one; an order someone arranged by hand is theirs and survives the migration.
+  if (typeof version === 'number' && version < TAB_LAYOUT_VERSION && stored.join() === LEGACY_DISPLAY_ORDER.join())
+    return { hidden: resolveHiddenTabs(hidden), order: resolveTabOrder(undefined) }
   // A document written before ordering carries no `order`; it renders in display
   // order, which is exactly what that document meant when it was written.
-  return { hidden: resolveHiddenTabs(hidden), order: resolveTabOrder((value as Record<string, unknown>)['order']) }
+  return { hidden: resolveHiddenTabs(hidden), order: stored }
 }
 
 /**

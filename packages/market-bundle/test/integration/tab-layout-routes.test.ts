@@ -97,8 +97,8 @@ describe('tab-layout routes', () => {
 
     const written = await post(routes, MARKET_ROUTES.setTabLayout, { hidden: ['lsp', 'hooks'] })
     expect(written.status).toBe(200)
-    expect(written.body).toEqual({ ok: true, hidden: ['lsp', 'hooks'], order: DEFAULT_ORDER })
-    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: ['lsp', 'hooks'], order: DEFAULT_ORDER } })
+    expect(written.body).toEqual({ ok: true, hidden: ['hooks', 'lsp'], order: DEFAULT_ORDER })
+    expect(await get(routes, MARKET_ROUTES.tabLayout)).toEqual({ status: 200, body: { hidden: ['hooks', 'lsp'], order: DEFAULT_ORDER } })
     dispose()
   })
 
