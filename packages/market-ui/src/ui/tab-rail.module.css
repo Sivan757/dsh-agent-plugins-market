@@ -1,85 +1,62 @@
 /**
- * The tab rail: one scrolling row, a sliding selection pill, and an inline stowed group.
+ * The tab rail: one scrolling row, a sliding selection pill, and dimmed put-away tabs.
  *
- * Motion explains a change rather than decorating one. The pill slides to the tab it now
- * belongs to, a dragged tab lifts, a tab crossing the divider fades between groups, and
- * every one of those turns off under `prefers-reduced-motion`.
+ * The row carries no group label and no divider. A tab that is put away is simply dimmer
+ * than the others and sits at the end; clicking it brings it back. The scroll buttons are
+ * overlays that appear while the pointer is over the row, so they cost no width and never
+ * sit as permanent furniture beside a short row.
  */
 
 .row {
   display: flex;
   align-items: center;
-  gap: 4px;
   min-width: 0;
 }
 
-/* A mouse has no sideways gesture, so an overflowing row shows one chevron per side it
-   can still scroll. They are buttons, not decoration: each one moves most of a viewport. */
-.scrollButton {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
-  transition:
-    color 140ms ease,
-    background-color 140ms ease;
-}
-
-.scrollButton:hover {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.scrollButton:active {
-  background: var(--dsw-alias-interactive-bg-active);
+.wrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .rail {
   position: relative;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 4px;
+  padding: 3px;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--dsw-alias-interactive-bg-hover);
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
   scroll-behavior: smooth;
-  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 12px), transparent 100%);
 }
 
 .rail::-webkit-scrollbar {
   display: none;
 }
 
-/* The pill is one element that moves, not a background on whichever tab is current.
-   Travel between two labels of different width is the effect a chip cannot give. */
+/* One element travels between tabs. Its width is animated too, so labels of different
+   lengths are a continuous move rather than a jump. */
 .pill {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: 3px;
+  bottom: 3px;
   left: 0;
   z-index: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 18%),
-    0 6px 18px rgb(0 0 0 / 12%);
+  box-shadow: 0 1px 1px rgb(0 0 0 / 14%);
   transition:
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
-    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms linear;
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 300ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform, width;
 }
 
@@ -88,23 +65,23 @@
   z-index: 1;
   flex: none;
   border: 0;
-  border-radius: 9px;
-  padding: 6px 12px;
+  border-radius: 8px;
+  padding: 4px 9px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  /* The label sits at body weight: 500 read as bold beside the host's own 400 rows. */
+  font-size: 12px;
   font-weight: 400;
+  line-height: 18px;
   white-space: nowrap;
   cursor: pointer;
   transition:
     color 140ms ease,
-    background-color 160ms ease,
-    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    background-color 140ms ease;
 }
 
-/* Hover warms the label and tints the chip. It does not move the tab: a row that lifts
-   under the pointer makes aiming at a neighbour harder, which is the opposite of help. */
+/* Hover changes colour only. A row that moves under the pointer makes aiming at the
+   neighbouring tab harder, so nothing here shifts or scales. */
 .tab:hover {
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-interactive-bg-hover);
@@ -118,10 +95,12 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Stowed tabs stay in the row so the state is readable at a glance. */
+/* A put-away tab stays in the row so the state is visible at a glance, and stays
+   clickable so one click brings it back. */
 .tabStowed {
   color: var(--dsw-alias-label-tertiary);
-  opacity: 0.72;
+  opacity: 0.55;
+  font-size: 11px;
 }
 
 .tabStowed:hover {
@@ -130,73 +109,61 @@
 }
 
 .tabDragging {
-  opacity: 0.45;
-  transform: scale(0.98);
+  opacity: 0.4;
 }
 
-/* Where the dragged tab will land: a caret that grows in, rather than the target tab
-   jumping to make room before the drop is committed. */
 .tabLanding {
   box-shadow: inset 2px 0 0 var(--dsw-alias-state-business-primary);
-}
-
-.tabEntering {
-  animation: stow-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .tabHolding {
   touch-action: none;
 }
 
-.group {
+/* Overlay scroll buttons: hidden until the pointer is over the row, then one on each
+   side that can still scroll. They sit above the tabs, tinted with the row's own
+   background so the labels passing beneath stay readable. */
+.scrollButton {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  flex: none;
-  transition: opacity 180ms ease;
-}
-
-/* Crossing the divider is the gesture that puts a tab away, so the group answers the
-   drag before the drop: the divider tints and the label brightens. */
-.groupActive > .divider {
-  background: var(--dsw-alias-state-business-primary);
-  transform: scaleY(1.2);
-}
-
-.groupActive > .groupLabel {
-  color: var(--dsw-alias-label-primary);
-}
-
-.divider {
-  flex: none;
-  width: 1px;
-  height: 20px;
-  margin: 0 6px;
-  background: var(--dsw-alias-border-l1);
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 7px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%);
   transition:
-    background-color 160ms ease,
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 160ms ease,
+    color 140ms ease,
+    background-color 140ms ease;
+  pointer-events: none;
 }
 
-.groupLabel {
-  flex: none;
-  margin: 0 4px 0 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  transition: color 160ms ease;
+.wrap:hover .scrollVisible,
+.scrollButton:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-@keyframes stow-in {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 0.72;
-    transform: translateX(0);
-  }
+.scrollButton:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.scrollLeft {
+  left: 4px;
+}
+
+.scrollRight {
+  right: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -206,18 +173,7 @@
 
   .pill,
   .tab,
-  .divider,
-  .group,
-  .groupLabel,
   .scrollButton {
     transition: none;
-  }
-
-  .tab:hover {
-    transform: none;
-  }
-
-  .tabEntering {
-    animation: none;
   }
 }

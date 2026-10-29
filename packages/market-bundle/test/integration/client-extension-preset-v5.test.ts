@@ -447,9 +447,11 @@ describe('user hooks configuration row', () => {
     // than a nested control inside another row. The stowed group is the one other child:
     // a divider plus the tabs already moved past it.
     const children = [...faceLists[0]!.children]
-    // Two children are not tabs: the moving selection pill, drawn behind them, and the
-    // stowed group the rail keeps for the tabs put away.
-    expect(children.filter(child => child.getAttribute('role') !== 'tab')).toHaveLength(2)
+    // One child is not a tab: the moving selection pill, drawn behind the labels. The row
+    // carries no group wrapper and no divider.
+    const others = children.filter(child => child.getAttribute('role') !== 'tab')
+    expect(others).toHaveLength(1)
+    expect(others[0]!.getAttribute('aria-hidden')).toBe('true')
     expect(children.filter(child => child.getAttribute('role') === 'tab')).toHaveLength(7)
   })
 

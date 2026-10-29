@@ -12,7 +12,6 @@ import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, 
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { TabRail } from '../ui/TabRail.js'
 import { useTabLayout, type TabLayoutMessages } from './tab-layout-store.js'
-import { TabHoverActions, TabHoverGuide, useTabHover, useTabHoverGuide } from './TabHoverActions.js'
 import { PINNED_TAB_KEY, resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type TabLayoutWire, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
@@ -209,37 +208,6 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     return () => node.removeEventListener('keydown', listener)
   }, [onKeyDown])
 
-  // A pointer resting on a tab is asking about that tab, so the row answers
-  // there rather than in a menu at the far end. The row keeps no button for it.
-  const hover = useTabHover(
-    layout.order.map(tab => ({ key: tab, label: labelKeys[tab] })),
-    PINNED_TAB_KEY
-  )
-  // A gesture with no visible control introduces itself once. The guide waits for
-  // the row to settle and retires itself, so it never blocks the workspace.
-  const guide = useTabHoverGuide(shown.length >= 3)
-  const hovered = hover.target
-  const hoverAt = hovered === undefined ? -1 : shown.indexOf(hovered.key as WorkspaceTab)
-
-  const moveHovered = useCallback(
-    (direction: -1 | 1) => {
-      if (hovered === undefined) return
-      const from = shown.indexOf(hovered.key as WorkspaceTab)
-      hover.close()
-      if (from < 0) return
-      const to = from + direction
-      if (to <= 0 || to >= shown.length) return
-      reorder(from, to)
-    },
-    [hover, hovered, reorder, shown]
-  )
-
-  const stowHovered = useCallback(() => {
-    if (hovered === undefined) return
-    hover.close()
-    stow([...layout.hidden, hovered.key])
-  }, [hover, hovered, layout.hidden, stow])
-
   return h(
     'div',
     { className: mode === 'page' ? `${css.workspace} ${css.pageMode}` : css.workspace, 'data-agent-plugins-workspace': true },
@@ -253,7 +221,7 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     // element exists only to carry the Alt+arrow listener, and it adds no box.
     h(
       'div',
-      { ref: rowRef, className: css.rowKeys, ...hover.bind },
+      { ref: rowRef, className: css.rowKeys },
       h(TabRail<WorkspaceTab>, {
         label: labelKeys.market,
         value: active,
@@ -279,19 +247,6 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
       })
     ),
     layoutState.error === undefined ? null : h('div', { className: css.tabNotice, role: 'status' }, layoutState.error),
-    guide.anchor === undefined ? null : h(TabHoverGuide, { t, target: guide.anchor, onDismiss: guide.dismiss }),
-    hovered === undefined
-      ? null
-      : h(TabHoverActions, {
-          t,
-          target: hovered,
-          canMoveLeft: hoverAt > 1,
-          canMoveRight: hoverAt >= 0 && hoverAt < shown.length - 1,
-          onMove: moveHovered,
-          onStow: stowHovered,
-          onHold: hover.hold,
-          onLeave: hover.close
-        }),
     // Every detail dialog these panels open inherits the fixed settings-sized
     // frame, the same chrome the preset manager's details use.
     h(

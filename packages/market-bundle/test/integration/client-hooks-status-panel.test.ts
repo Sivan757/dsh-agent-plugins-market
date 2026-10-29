@@ -344,13 +344,11 @@ it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail'
   const workspaceCss = readFileSync('packages/market-ui/src/workspace/workspace.module.css', 'utf8')
   expect(workspaceCss).not.toMatch(/tabRow/)
   // The rendered row is one tablist whose children are the tabs themselves plus the
-  // pill and the stowed group: the rail is the list, not a wrapper around a second
-  // list, and the roving tab stop is still exactly one tab.
+  // selection pill: the rail is the list, not a wrapper around a second list, and the
+  // roving tab stop is still exactly one tab.
   const others = [...tablist.children].filter(child => child.getAttribute('role') !== 'tab')
-  expect(others).toHaveLength(2)
-  expect(
-    others.every(child => child.getAttribute('aria-hidden') === 'true' || child.getAttribute('role') === 'separator' || child.querySelector('[role="separator"]') !== null)
-  ).toBe(true)
+  expect(others).toHaveLength(1)
+  expect(others[0]!.getAttribute('aria-hidden')).toBe('true')
   const tabs = [...tablist.querySelectorAll('[role="tab"]')]
   const selected = tabs.filter(tab => tab.getAttribute('aria-selected') === 'true')
   expect(selected).toHaveLength(1)

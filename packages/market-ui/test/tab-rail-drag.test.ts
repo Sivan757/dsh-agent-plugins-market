@@ -58,18 +58,21 @@ async function mount(onReorder: (from: number, to: number) => void): Promise<voi
 }
 
 describe('tab rail reordering', () => {
-  it('commits a move when a press travels past the drag threshold', async () => {
+  it('commits a move when a press is held and then travels past the drag threshold', async () => {
+    vi.useFakeTimers()
     const onReorder = vi.fn()
     await mount(onReorder)
     const first = document.querySelectorAll<HTMLElement>('[role="tab"]')[0]!
     await act(async () => {
       first.dispatchEvent(pointer('pointerdown', 10))
+      vi.advanceTimersByTime(400)
       first.dispatchEvent(pointer('pointermove', 40))
       window.dispatchEvent(pointer('pointermove', 260))
       window.dispatchEvent(pointer('pointerup', 260))
       await Promise.resolve()
     })
     expect(onReorder).toHaveBeenCalledWith(0, 2)
+    vi.useRealTimers()
   })
 
   it('waits for a hold before a touch drags, so a swipe still scrolls the rail', async () => {
@@ -162,7 +165,9 @@ describe('tab rail reordering', () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
     expect(reduced).toMatch(/\.pill,/)
-    expect(reduced).toMatch(/animation: none/)
+    expect(reduced).toMatch(/transition: none/)
+    // The label sits at body size and weight: 12px over 400, not a bold chip.
+    expect(rule('.tab')).toMatch(/font-size: 12px/)
   })
   it('scrolls sideways with the wheel and shows a chevron for each side it can reach', async () => {
     // A mouse has no sideways gesture and the row hides its scrollbar, so the row maps the

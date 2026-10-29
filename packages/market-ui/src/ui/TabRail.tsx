@@ -1,16 +1,10 @@
 /**
  * The market tab row.
  *
- * One horizontal rail that scrolls instead of shrinking its items, so a label is never
- * truncated. Tabs the user puts away stay in the same rail, after a divider and dimmed,
- * because a control whose state can only be read from a number is a control the user has
- * to remember. Clicking a dimmed tab puts it back, dragging one across the divider puts it
- * away, and both directions animate so the tab is seen to move rather than to jump.
- *
- * Motion is here to explain a change, not to decorate it: the selection pill slides to the
- * tab it now belongs to, a dragged tab lifts, the landing caret shows where it will go, and
- * a tab crossing the divider fades between the two groups. All of it turns off under
- * `prefers-reduced-motion`.
+ * One horizontal rail that scrolls instead of shrinking its items. Tabs the user puts
+ * away stay in the same rail, dimmed at the end, with no group label and no divider: the
+ * row is a list of tabs and nothing else. Sorting is a long press followed by a drag, for
+ * a mouse and a finger alike, so a click never turns into a move by accident.
  * @module client/ui/TabRail
  */
 import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
@@ -31,9 +25,9 @@ export interface TabRailProps<T extends string> {
   onChange: (value: T) => void
   /** Localized accessible name of the tab list. */
   label: string
-  /** Tabs shown in the rail, in their stored order. */
+  /** Tabs shown in the row, in their stored order. */
   items: readonly TabRailItem<T>[]
-  /** Tabs put away: same rail, after the divider, dimmed. */
+  /** Tabs put away: same row, after the visible ones, dimmed. */
   stowed?: readonly TabRailItem<T>[]
   /** Commit a move between two positions of the visible row. */
   onReorder?: (from: number, to: number) => void
@@ -46,46 +40,35 @@ export interface TabRailProps<T extends string> {
 /** A press shorter than this is a click, so a slightly shaky tap still selects. */
 const DRAG_THRESHOLD_PX = 4
 /**
- * How long a touch must be held before it drags instead of scrolling.
+ * How long a press must be held before it drags.
  *
- * The rail scrolls sideways, and on a touch screen a sideways swipe is how that scroll
- * happens. Taking every swipe as a drag would make the row impossible to scroll, and
- * every swipe as a scroll would make it impossible to reorder, so touch waits for a hold.
+ * Sorting is a deliberate act. A press that moves before the hold is spent scrolling the
+ * rail, or is a click that wobbled; either way it must not reorder anything, and a mouse
+ * held for the same time reads as the same intent as a finger.
  */
-const TOUCH_HOLD_MS = 300
+const DRAG_HOLD_MS = 280
 
-/** Where a drag currently sits: over the visible row, or over the stowed group. */
+/** Where a drag currently sits: over the row, or past its right edge. */
 interface DragState {
   from: number
   /** Landing position among the visible tabs. */
   to: number
-  /** True when the pointer is past the divider, which means "put this away". */
+  /** True when the pointer is past the last visible tab, which means "put this away". */
   away: boolean
 }
 
 /**
- * One horizontal tab rail with pointer reordering and an inline stowed group.
- * @param props - the row's tabs, its stowed tabs, and the callbacks that move them.
+ * One horizontal tab rail with long-press reordering and a dimmed put-away tail.
+ * @param props - the row's tabs, its put-away tabs, and the callbacks that move them.
  * @returns the rail; the selected tab carries the moving pill.
  */
 export function TabRail<T extends string>({ value, onChange, label, items, stowed = [], onReorder, onStow, onUnstow }: TabRailProps<T>): ReactNode {
   const railRef = useRef<HTMLDivElement | null>(null)
-  const dividerRef = useRef<HTMLSpanElement | null>(null)
   const [drag, setDrag] = useState<DragState | undefined>(undefined)
   const press = useRef<{ index: number; x: number; started: boolean; away: boolean; timer?: ReturnType<typeof setTimeout> } | undefined>(undefined)
   const [holding, setHolding] = useState<number | undefined>(undefined)
   const swallowClick = useRef(false)
-  /** The pill's box in rail coordinates; `undefined` until the first measurement. */
   const [pill, setPill] = useState<{ left: number; width: number } | undefined>(undefined)
-  /** Keys that arrived in the stowed group since the last render, so they animate in. */
-  const previousStowed = useRef<readonly string[]>(stowed.map(item => item.value))
-  const [entering, setEntering] = useState<readonly string[]>([])
-  /**
-   * Which ways the rail can still scroll.
-   *
-   * A hidden scrollbar and a fade are not enough on a desktop: a mouse has no sideways
-   * gesture, so the row offers two chevrons and maps the wheel to the axis it scrolls on.
-   */
   const [edges, setEdges] = useState({ left: false, right: false })
   const all = [...items, ...stowed]
   const [focused, setFocused] = useState<number>(() =>
@@ -94,54 +77,25 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
       all.findIndex(item => item.value === value)
     )
   )
-
-  // Both callers build their item lists inline, so the layout is compared by key: an
-  // array identity would re-run this sync after every render and undo an arrow-key move.
   const layoutKey = items.map(item => item.value).join('|') + '#' + stowed.map(item => item.value).join('|')
+
   useEffect(() => {
     const index = all.findIndex(item => item.value === value)
     if (index >= 0) setFocused(index)
   }, [value, layoutKey])
 
-  // A tab that just moved into the stowed group fades in from the divider, so the eye
-  // follows it instead of finding it already there.
-  useEffect(() => {
-    const now = stowed.map(item => item.value)
-    const added = now.filter(key => !previousStowed.current.includes(key))
-    previousStowed.current = now
-    if (added.length === 0) return
-    setEntering(added)
-    const timer = setTimeout(() => setEntering([]), 260)
-    return () => clearTimeout(timer)
-  }, [stowed])
-
-  // The pill is measured, not inferred: labels differ in width, and a font can arrive
-  // after first paint. A ResizeObserver on the rail covers both without polling.
-  useLayoutEffect(() => {
+  const measurePill = useCallback(() => {
     const rail = railRef.current
     if (rail === null) return
-    const measure = (): void => {
-      const active = rail.querySelector<HTMLElement>('[data-value="' + value + '"]')
-      if (active === null) {
-        setPill(current => (current === undefined ? current : undefined))
-        return
-      }
-      const next = { left: active.offsetLeft, width: active.offsetWidth }
-      // A same-sized box is not a change; without this the object would be new every
-      // measure and re-render forever, which jsdom's zero-width boxes would hit at once.
-      setPill(current => (current !== undefined && current.left === next.left && current.width === next.width ? current : next))
+    const active = rail.querySelector<HTMLElement>('[data-value="' + value + '"]')
+    if (active === null) {
+      setPill(current => (current === undefined ? current : undefined))
+      return
     }
-    measure()
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
-    observer?.observe(rail)
-    window.addEventListener('resize', measure)
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', measure)
-    }
-  }, [value, layoutKey])
+    const next = { left: active.offsetLeft, width: active.offsetWidth }
+    setPill(current => (current !== undefined && current.left === next.left && current.width === next.width ? current : next))
+  }, [value])
 
-  /** Re-read which edges can scroll; called on scroll, resize and a layout change. */
   const measureEdges = useCallback(() => {
     const rail = railRef.current
     if (rail === null) return
@@ -150,37 +104,39 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
     setEdges(current => (current.left === left && current.right === right ? current : { left, right }))
   }, [])
 
-  useEffect(() => {
-    const rail = railRef.current
-    if (rail === null) return
+  useLayoutEffect(() => {
+    measurePill()
     measureEdges()
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measureEdges)
-    observer?.observe(rail)
-    window.addEventListener('resize', measureEdges)
+    const rail = railRef.current
+    const observer =
+      typeof ResizeObserver === 'undefined' || rail === null
+        ? undefined
+        : new ResizeObserver(() => {
+            measurePill()
+            measureEdges()
+          })
+    if (rail !== null) observer?.observe(rail)
+    const onResize = (): void => {
+      measurePill()
+      measureEdges()
+    }
+    window.addEventListener('resize', onResize)
     return () => {
       observer?.disconnect()
-      window.removeEventListener('resize', measureEdges)
+      window.removeEventListener('resize', onResize)
     }
-  }, [measureEdges, layoutKey])
+  }, [layoutKey, measureEdges, measurePill])
 
-  /**
-   * Map the wheel to the rail's own axis.
-   *
-   * A vertical wheel over a horizontal row does nothing by default, which leaves a mouse
-   * user dragging a scrollbar the row hides. The conversion only happens when the row can
-   * scroll that way, so a wheel over a short row still scrolls the page.
-   */
+  /** Map the wheel to the row's own axis while it can scroll that way. */
   const onWheel = (event: { deltaX: number; deltaY: number; preventDefault: () => void }): void => {
     const rail = railRef.current
-    if (rail === null) return
-    if (rail.scrollWidth - rail.clientWidth <= 1) return
+    if (rail === null || rail.scrollWidth - rail.clientWidth <= 1) return
     const delta = event.deltaX !== 0 ? event.deltaX : event.deltaY
     if (delta === 0) return
     event.preventDefault()
     rail.scrollBy({ left: delta, behavior: 'auto' })
   }
 
-  /** Scroll one chevron's worth: most of a viewport, never a single tab. */
   const scrollBy = (direction: -1 | 1): void => {
     const rail = railRef.current
     if (rail === null) return
@@ -199,11 +155,14 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
     return Math.max(0, tabs.length - 1)
   }, [])
 
-  /** True when the pointer is past the divider, which is the gesture that puts a tab away. */
+  /** True once the pointer is past the last visible tab, which is the put-away gesture. */
   const awayAt = useCallback((x: number): boolean => {
-    const divider = dividerRef.current
-    if (divider === null) return false
-    return x >= divider.getBoundingClientRect().left
+    const rail = railRef.current
+    if (rail === null) return false
+    const tabs = [...rail.querySelectorAll<HTMLElement>('[role="tab"][data-stowed="false"]')]
+    const last = tabs[tabs.length - 1]
+    if (last === undefined) return false
+    return x > last.getBoundingClientRect().right + 16
   }, [])
 
   const finish = useCallback(() => {
@@ -228,10 +187,11 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
   useEffect(() => {
     if (onReorder === undefined && onStow === undefined) return
     const move = (event: PointerEvent): void => {
-      if (press.current?.started !== true) return
+      const pending = press.current
+      if (pending === undefined || !pending.started) return
       const away = awayAt(event.clientX)
-      press.current.away = away
-      setDrag(current => (current === undefined ? current : { from: current.from, to: indexAt(event.clientX), away }))
+      pending.away = away
+      setDrag({ from: pending.index, to: indexAt(event.clientX), away })
     }
     const up = (): void => {
       if (press.current?.started !== true) return
@@ -250,9 +210,7 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
 
   /**
    * Arrow keys move selection and focus together, Home and End jump, and Alt with an
-   * arrow puts the focused tab away or back. Moving the selection alone would leave
-   * focus on a tab that just became unreachable, which is what a roving tab stop exists
-   * to prevent.
+   * arrow puts the focused tab away or back.
    */
   const onKeyDown = (event: { key: string; altKey?: boolean; preventDefault: () => void }): void => {
     const last = all.length - 1
@@ -273,13 +231,10 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
     railRef.current?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus()
     const item = all[next]
     if (item === undefined) return
-    // Selecting a stowed tab means asking for it back; leaving it selected while stowed
-    // would render a tab the row claims is put away.
     if (stowed.some(entry => entry.value === item.value)) onUnstow?.(item.value)
     onChange(item.value)
   }
 
-  /** One tab button, shared by both groups so a tab looks the same on either side. */
   const tabButton = (item: TabRailItem<T>, index: number, isStowed: boolean): ReactNode => {
     const selected = item.value === value
     const dragging = drag !== undefined && !isStowed && drag.from === index
@@ -290,7 +245,6 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
       isStowed ? css.tabStowed : '',
       dragging ? css.tabDragging : '',
       landing ? css.tabLanding : '',
-      entering.includes(item.value) ? css.tabEntering : '',
       holding === index ? css.tabHolding : ''
     ]
     return h(
@@ -316,37 +270,25 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
           onChange(item.value)
         },
         onFocus: () => setFocused(index),
-        onPointerDown: (event: { button: number; clientX: number; pointerType?: string }) => {
-          if ((onReorder === undefined && onStow === undefined) || event.button !== 0) return
-          if (isStowed) return
+        onPointerDown: (event: { button: number; clientX: number }) => {
+          if ((onReorder === undefined && onStow === undefined) || event.button !== 0 || isStowed) return
           press.current = { index, x: event.clientX, started: false, away: false }
-          if (event.pointerType === 'mouse' || event.pointerType === undefined) return
           setHolding(index)
           press.current.timer = setTimeout(() => {
             const pending = press.current
             if (pending === undefined || pending.index !== index || pending.started) return
             pending.started = true
             setDrag({ from: index, to: index, away: false })
-          }, TOUCH_HOLD_MS)
+          }, DRAG_HOLD_MS)
         },
-        onPointerMove: (event: { clientX: number; pointerType?: string }) => {
+        onPointerMove: (event: { clientX: number }) => {
           const pending = press.current
-          if (pending === undefined || pending.index !== index) return
-          if (!pending.started && Math.abs(event.clientX - pending.x) < DRAG_THRESHOLD_PX) return
-          if (!pending.started) {
-            if (event.pointerType !== undefined && event.pointerType !== 'mouse') {
-              clearTimeout(pending.timer)
-              setHolding(undefined)
-              press.current = undefined
-              return
-            }
-            clearTimeout(pending.timer)
-            setHolding(undefined)
-          }
-          pending.started = true
-          const away = awayAt(event.clientX)
-          pending.away = away
-          setDrag({ from: index, to: indexAt(event.clientX), away })
+          if (pending === undefined || pending.index !== index || pending.started) return
+          if (Math.abs(event.clientX - pending.x) < DRAG_THRESHOLD_PX) return
+          // Moved before the hold: this press belongs to the browser, not to sorting.
+          if (pending.timer !== undefined) clearTimeout(pending.timer)
+          setHolding(undefined)
+          press.current = undefined
         },
         onPointerUp: () => {
           if (press.current?.started === true) swallowClick.current = true
@@ -362,30 +304,37 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
   return h(
     'div',
     { className: css.row },
-    // The chevrons exist only while the row can scroll that way, so a short row gains no
-    // dead controls and the affordance appears exactly when a mouse needs it.
-    edges.left
-      ? h('button', { type: 'button', className: css.scrollButton, 'aria-label': label + ' · 向前', onClick: () => scrollBy(-1) }, h(IconChevronLeftOutlineMedium, { size: 14 }))
-      : null,
     h(
       'div',
-      { ref: railRef, className: css.rail, role: 'tablist', 'aria-label': label, onKeyDown, onWheel, onScroll: measureEdges },
-      pill === undefined
-        ? null
-        : h('span', { key: 'pill', 'aria-hidden': 'true', className: css.pill, style: { transform: 'translateX(' + String(pill.left) + 'px)', width: String(pill.width) + 'px' } }),
-      items.map((item, index) => tabButton(item, index, false)),
-      // The group exists even when empty: the divider is the drop target that puts a tab
-      // away, so a row with nothing stowed yet still has to offer the gesture.
+      { className: css.wrap },
       h(
-        'span',
-        { key: 'stow-group', className: drag?.away === true ? css.groupActive : css.group },
-        h('span', { ref: dividerRef, role: 'separator', 'aria-orientation': 'vertical', 'aria-label': label + ' · 已收起', tabIndex: -1, className: css.divider }),
-        stowed.length === 0 ? null : h('span', { className: css.groupLabel, 'aria-hidden': 'true' }, '已收起 ' + String(stowed.length)),
+        'div',
+        { ref: railRef, className: css.rail, role: 'tablist', 'aria-label': label, onKeyDown, onWheel, onScroll: measureEdges },
+        pill === undefined
+          ? null
+          : h('span', {
+              key: 'pill',
+              'aria-hidden': 'true',
+              className: css.pill,
+              style: { transform: 'translateX(' + String(pill.left) + 'px)', width: String(pill.width) + 'px' }
+            }),
+        items.map((item, index) => tabButton(item, index, false)),
         stowed.map((item, offset) => tabButton(item, items.length + offset, true))
-      )
-    ),
-    edges.right
-      ? h('button', { type: 'button', className: css.scrollButton, 'aria-label': label + ' · 向后', onClick: () => scrollBy(1) }, h(IconChevronRightOutlineMedium, { size: 14 }))
-      : null
+      ),
+      edges.left
+        ? h(
+            'button',
+            { type: 'button', className: css.scrollButton + ' ' + css.scrollLeft + ' ' + css.scrollVisible, 'aria-label': label + ' · 向前', onClick: () => scrollBy(-1) },
+            h(IconChevronLeftOutlineMedium, { size: 14 })
+          )
+        : null,
+      edges.right
+        ? h(
+            'button',
+            { type: 'button', className: css.scrollButton + ' ' + css.scrollRight + ' ' + css.scrollVisible, 'aria-label': label + ' · 向后', onClick: () => scrollBy(1) },
+            h(IconChevronRightOutlineMedium, { size: 14 })
+          )
+        : null
+    )
   )
 }

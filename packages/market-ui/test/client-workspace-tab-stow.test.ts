@@ -146,27 +146,27 @@ describe('workspace tab stowing', () => {
     expect(stored.hidden).toHaveLength(WORKSPACE_TAB_KEYS.length - 1)
   })
 
-  it('puts a tab away when a drag ends past the divider', async () => {
+  it('puts a tab away when a held drag ends past the last visible tab', async () => {
+    vi.useFakeTimers()
     stubServer()
     await mount()
     const tab = host!.querySelector<HTMLElement>('[role="tab"][data-value="commands"]')!
-    const divider = host!.querySelector<HTMLElement>('[role="separator"]')
-    // jsdom boxes are zero-sized, so the geometry the gesture reads is stubbed.
     const box = { left: 40, right: 100, top: 0, bottom: 24, width: 60, height: 24, x: 40, y: 0, toJSON: () => ({}) }
     tab.getBoundingClientRect = () => box
-    if (divider !== null) {
-      const line = { left: 320, right: 321, top: 0, bottom: 24, width: 1, height: 24, x: 320, y: 0, toJSON: () => ({}) }
-      divider.getBoundingClientRect = () => line
-    }
+    // The last visible tab's right edge is where the put-away zone begins.
+    const last = host!.querySelector<HTMLElement>('[role="tab"][data-value="mcp"]')
+    if (last !== null) last.getBoundingClientRect = () => ({ ...box, left: 800, right: 900, width: 100, x: 800 })
     await act(async () => {
       tab.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 60, pointerType: 'mouse' }))
+      vi.advanceTimersByTime(400)
       tab.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 70, pointerType: 'mouse' }))
-      window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 400, pointerType: 'mouse' }))
-      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 400, pointerType: 'mouse' }))
+      window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 980, pointerType: 'mouse' }))
+      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 980, pointerType: 'mouse' }))
     })
     await flush()
     expect(stowed()).toContain('commands')
     expect(stored.hidden).toEqual(['commands'])
+    vi.useRealTimers()
   })
 
   it('reverts the row and keeps the reason when the write fails', async () => {
