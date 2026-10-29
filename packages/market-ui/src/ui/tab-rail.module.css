@@ -59,7 +59,8 @@
   background: linear-gradient(270deg, var(--dsw-alias-interactive-bg-hover) 55%, transparent 100%);
 }
 
-/* Wider than tall, floating over the tabs, and hidden until the pointer is on the row. */
+/* Tall and narrow, no plate behind it: the chevron alone floats over the tabs and only
+   appears while the pointer is on the row. */
 .stepLeft,
 .stepRight {
   position: absolute;
@@ -68,20 +69,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 18px;
+  width: 14px;
+  height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
-  background: var(--dsw-alias-bg-layer-1);
+  background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
   opacity: 0;
   transform: translateY(-50%);
   transition:
     opacity 140ms ease,
-    color 140ms ease,
-    background-color 140ms ease;
+    color 140ms ease;
   pointer-events: none;
 }
 
@@ -104,7 +103,6 @@
 .stepLeft:hover,
 .stepRight:hover {
   color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-active);
 }
 
 .tab {

@@ -141,9 +141,10 @@ describe('tab rail reordering', () => {
     expect(wrapRule).toMatch(/flex: none/)
     expect(wrapRule).not.toMatch(/flex: 1 1 auto/)
     // The step arrow is a wide, short overlay inside the rail, hidden until the row is hovered.
-    expect(rule('.stepRight')).toMatch(/width: 28px/)
-    expect(rule('.stepRight')).toMatch(/height: 18px/)
+    expect(rule('.stepRight')).toMatch(/width: 14px/)
+    expect(rule('.stepRight')).toMatch(/height: 26px/)
     expect(rule('.stepRight')).toMatch(/opacity: 0/)
+    expect(rule('.stepRight')).toMatch(/background: transparent/)
     // The hold must be visible: a ring that fills, and a lifted, shadowed tab while dragged.
     expect(css).toMatch(/\.tabPressing::after/)
     expect(css).toMatch(/@keyframes hold-fill/)
