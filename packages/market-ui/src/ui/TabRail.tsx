@@ -51,7 +51,7 @@ const DRAG_HOLD_MS = 280
  */
 export function TabRail<T extends string>({ value, onChange, label, items, onReorder }: TabRailProps<T>): ReactNode {
   const railRef = useRef<HTMLDivElement | null>(null)
-  const [drag, setDrag] = useState<{ from: number; to: number } | undefined>(undefined)
+  const [drag, setDrag] = useState<{ from: number; to: number; dx: number } | undefined>(undefined)
   const press = useRef<{ index: number; x: number; started: boolean; timer?: ReturnType<typeof setTimeout> } | undefined>(undefined)
   const [holding, setHolding] = useState<number | undefined>(undefined)
   const swallowClick = useRef(false)
@@ -146,7 +146,7 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
     const move = (event: PointerEvent): void => {
       const pending = press.current
       if (pending === undefined || !pending.started) return
-      setDrag({ from: pending.index, to: indexAt(event.clientX) })
+      setDrag({ from: pending.index, to: indexAt(event.clientX), dx: event.clientX - pending.x })
     }
     const up = (): void => {
       if (press.current?.started !== true) return
@@ -208,9 +208,18 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
             'aria-controls': item.panelId,
             'data-value': item.value,
             tabIndex: index === focused ? 0 : -1,
-            className: [css.tab, selected ? css.tabActive : '', dragging ? css.tabDragging : '', landing ? css.tabLanding : '', holding === index ? css.tabHolding : '']
+            // Pressing draws the hold ring; once the hold is spent the tab lifts and follows
+            // the pointer, which is the only way a drag can be told from a click.
+            className: [
+              css.tab,
+              selected ? css.tabActive : '',
+              dragging ? css.tabDragging : '',
+              landing ? css.tabLanding : '',
+              holding === index ? (drag === undefined ? css.tabPressing : css.tabHolding) : ''
+            ]
               .filter(Boolean)
               .join(' '),
+            style: dragging ? { transform: 'translate(' + String(drag.dx) + 'px, -2px) scale(1.03)' } : undefined,
             draggable: false,
             onClick: () => {
               if (swallowClick.current) {
@@ -228,7 +237,7 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
                 const pending = press.current
                 if (pending === undefined || pending.index !== index || pending.started) return
                 pending.started = true
-                setDrag({ from: index, to: index })
+                setDrag({ from: index, to: index, dx: 0 })
               }, DRAG_HOLD_MS)
             },
             onPointerMove: (event: { clientX: number }) => {

@@ -134,6 +134,12 @@ describe('tab rail reordering', () => {
     expect(rule('.fadeRight')).toMatch(/mask-image: linear-gradient/)
     expect(rule('.fadeLeft')).toMatch(/mask-image: linear-gradient/)
     expect(rule('.tab')).toMatch(/font-size: 12px/)
+    // The hold must be visible: a ring that fills, and a lifted, shadowed tab while dragged.
+    expect(css).toMatch(/\.tabPressing::after/)
+    expect(css).toMatch(/@keyframes hold-fill/)
+    expect(rule('.tabDragging')).toMatch(/box-shadow:/)
+    expect(rule('.tabDragging')).toMatch(/cursor: grabbing/)
+    expect(rule('.tab')).toMatch(/cursor: grab/)
     expect(rule('.tab')).toMatch(/font-weight: 400/)
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
     expect(reduced).toMatch(/transition: none/)
@@ -175,5 +181,33 @@ describe('tab rail reordering', () => {
     })
     expect(calls.at(-1)?.left).toBeGreaterThan(0)
     void rail
+  })
+  it('shows the hold filling, then lifts the tab and follows the pointer', async () => {
+    // The complaint this answers: a hold with no visible change leaves the user unsure
+    // whether a drag is even possible. The ring fills while pressing, and once the hold is
+    // spent the tab lifts and moves with the pointer.
+    vi.useFakeTimers()
+    const onReorder = vi.fn()
+    await mount(onReorder)
+    const first = document.querySelectorAll<HTMLElement>('[role="tab"]')[0]!
+    await act(async () => {
+      first.dispatchEvent(pointer('pointerdown', 10))
+    })
+    expect(first.className).toContain('Pressing')
+    await act(async () => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(first.className).toContain('Dragging')
+    expect(first.className).not.toContain('Pressing')
+    await act(async () => {
+      window.dispatchEvent(pointer('pointermove', 130))
+    })
+    expect(first.style.transform).toContain('translate(120px')
+    expect(first.style.transform).toContain('scale(1.03)')
+    await act(async () => {
+      window.dispatchEvent(pointer('pointerup', 130))
+    })
+    expect(first.style.transform).toBe('')
+    vi.useRealTimers()
   })
 })
