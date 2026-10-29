@@ -3,10 +3,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { OutputStyleService } from '../src/runtime/host/output-style-service.js'
-import { BUILTIN_DEFAULT_NAME, parseCapturedStyle, readBuiltinStyles, suiteStyleFingerprint, userStylePath, writeUserStyle } from '../src/application/output-styles.js'
+import { parseCapturedStyle, suiteStyleFingerprint, userStylePath, writeUserStyle } from '../src/application/output-styles.js'
 import { defaultOutputStyleState, loadOutputStyle, outputStylePath, saveOutputStyleSelection } from '../src/application/state/output-style.js'
 import { renderOutputStyleSection } from '../src/runtime/host/output-style-render.js'
-import { OUTPUT_STYLE_DEFAULT_ID, OUTPUT_STYLE_SECTION_ORDER } from '../../market-contracts/src/contracts/output-styles.js'
+import { OUTPUT_STYLE_NONE_ID, OUTPUT_STYLE_SECTION_ORDER } from '../../market-contracts/src/contracts/output-styles.js'
 import { attribute, escapeFrameBody } from '../src/runtime/surfaces/prompt-frame.js'
 import { mountOutputStyleSection } from '../src/runtime/host/output-style-section.js'
 import type { OutputStyleSuitePort } from '../src/runtime/host/output-style-service.js'
@@ -49,20 +49,17 @@ describe('the injected section text', () => {
     expect(renderOutputStyleSection('concise', 'Answer first.\n')).toBe('## Output Style: concise\nAnswer first.')
   })
 
-  it('contributes nothing for an empty body or the default style', async () => {
-    // The default builtin ships an empty body, so the selection that turns
-    // styles off is a style like any other and renders to nothing.
-    const builtins = await readBuiltinStyles()
-    const fallback = builtins.find(row => row.label === BUILTIN_DEFAULT_NAME)
-    expect(fallback?.body.trim()).toBe('')
-    expect(renderOutputStyleSection(fallback?.label ?? '', fallback?.body ?? '')).toBe('')
+  it('contributes nothing when no style is selected', async () => {
+    // The plugin ships no styles of its own, so a workspace starts with nothing
+    // selected and the prompt carries no output-style section.
+    expect(renderOutputStyleSection('', '')).toBe('')
 
     const { dataRoot, agentsRoot } = await roots_pair()
     const service = new OutputStyleService(dataRoot, agentsRoot)
     await service.refresh(WORKSPACE)
     expect(service.sectionText(WORKSPACE)).toBe('')
     const payload = await service.payload(WORKSPACE)
-    expect(payload.selected).toBe(OUTPUT_STYLE_DEFAULT_ID)
+    expect(payload.selected).toBe(OUTPUT_STYLE_NONE_ID)
     expect(payload.injected).toBe('')
   })
 
@@ -88,11 +85,12 @@ describe('the injected section text', () => {
     expect(renderOutputStyleSection('concise', '  Answer first.\n\n')).toBe('## Output Style: concise\nAnswer first.')
   })
 
-  it('renders a selected builtin style with its heading', async () => {
+  it('renders a selected user style with its heading', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
+    await writeUserStyle(agentsRoot, 'concise', 'Short answers', 'Answer first.')
     const service = new OutputStyleService(dataRoot, agentsRoot)
-    const payload = await service.select(WORKSPACE, 'builtin:concise')
-    expect(payload.selected).toBe('builtin:concise')
+    const payload = await service.select(WORKSPACE, 'user:concise')
+    expect(payload.selected).toBe('user:concise')
     expect(payload.injected.startsWith('## Output Style: concise\n')).toBe(true)
     expect(payload.injected).toContain('Answer first.')
     expect(service.sectionText(WORKSPACE)).toBe(payload.injected)
@@ -111,19 +109,19 @@ describe('the section and the preview', () => {
     // reads is the section text, escaped heading included.
     const { dataRoot, agentsRoot } = await roots_pair()
     const service = new OutputStyleService(dataRoot, agentsRoot)
-    await service.select(WORKSPACE, 'builtin:explanatory')
+    await writeUserStyle(agentsRoot, 'explanatory', 'Explains', 'Reasons first.')
+    await service.select(WORKSPACE, 'user:explanatory')
     const payload = await service.payload(WORKSPACE)
-    const builtin = (await readBuiltinStyles()).find(row => row.id === 'builtin:explanatory')
-    expect(builtin).toBeDefined()
-    expect(payload.injected).toBe(renderOutputStyleSection(builtin!.label, builtin!.body))
+    expect(payload.injected).toBe(renderOutputStyleSection('explanatory', 'Reasons first.'))
     expect(payload.injected).toBe(service.sectionText(WORKSPACE))
-    expect(payload.injected.startsWith('## Output Style: explanatory\n')).toBe(true)
+    expect(payload.injected.startsWith('## Output Style: explanatory')).toBe(true)
   })
 
   it('never opens a system-reminder frame, which rule R7 reserves for user-role content', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
+    await writeUserStyle(agentsRoot, 'concise', 'Short answers', 'Answer first.')
     const service = new OutputStyleService(dataRoot, agentsRoot)
-    await service.select(WORKSPACE, 'builtin:concise')
+    await service.select(WORKSPACE, 'user:concise')
     const injected = (await service.payload(WORKSPACE)).injected
     // A `##` section, the level the host's own multi-paragraph sections use.
     expect(injected.startsWith('## ')).toBe(true)
@@ -144,21 +142,30 @@ describe('the section and the preview', () => {
 describe('the selection document', () => {
   it('round-trips a selection through its own file', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
-    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'builtin:concise')
-    expect(await loadOutputStyle(dataRoot, WORKSPACE)).toEqual({ styleId: 'builtin:concise' })
+    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'user:concise')
+    expect(await loadOutputStyle(dataRoot, WORKSPACE)).toEqual({ styleId: 'user:concise' })
     const stored = JSON.parse(await readFile(outputStylePath(dataRoot, WORKSPACE), 'utf8')) as Record<string, unknown>
-    expect(stored).toMatchObject({ version: 1, workspace: WORKSPACE, styleId: 'builtin:concise' })
+    expect(stored).toMatchObject({ version: 1, workspace: WORKSPACE, styleId: 'user:concise' })
     expect(agentsRoot).toBeTruthy()
   })
 
   it('reads an unusable document as the default selection', async () => {
     const { dataRoot } = await roots_pair()
-    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'builtin:concise')
+    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'user:concise')
     const path = outputStylePath(dataRoot, WORKSPACE)
     await writeFile(path, '{ this is not json')
     expect(await loadOutputStyle(dataRoot, WORKSPACE)).toEqual(defaultOutputStyleState())
     await writeFile(path, JSON.stringify({ version: 1, workspace: WORKSPACE }))
     expect(await loadOutputStyle(dataRoot, WORKSPACE)).toEqual(defaultOutputStyleState())
+  })
+
+  it('reads a selection recorded while the plugin shipped its own styles as no style', async () => {
+    // Documents written by an earlier release name a builtin id. Nothing renders it now,
+    // so it reads as no selection instead of erroring or pointing at a missing style.
+    const { dataRoot } = await roots_pair()
+    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'builtin:concise')
+    expect((await loadOutputStyle(dataRoot, WORKSPACE)).styleId).toBe(OUTPUT_STYLE_NONE_ID)
+    expect(await loadOutputStyle(dataRoot, WORKSPACE)).toEqual({ styleId: OUTPUT_STYLE_NONE_ID })
   })
 
   it('keeps a capture only while its own suite stays selected', async () => {
@@ -169,7 +176,7 @@ describe('the selection document', () => {
     await saveOutputStyleCapture(dataRoot, WORKSPACE, captured)
     expect((await loadOutputStyle(dataRoot, WORKSPACE)).captured).toEqual(captured)
 
-    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'builtin:concise')
+    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'user:other')
     expect((await loadOutputStyle(dataRoot, WORKSPACE)).captured).toBeUndefined()
   })
 
@@ -177,11 +184,11 @@ describe('the selection document', () => {
     const { dataRoot } = await roots_pair()
     const { mutateOutputStyle } = await import('../src/application/state/output-style.js')
     await Promise.all([
-      mutateOutputStyle(dataRoot, WORKSPACE, () => ({ styleId: 'builtin:concise' })),
-      mutateOutputStyle(dataRoot, WORKSPACE, () => ({ styleId: 'builtin:explanatory' }))
+      mutateOutputStyle(dataRoot, WORKSPACE, () => ({ styleId: 'user:concise' })),
+      mutateOutputStyle(dataRoot, WORKSPACE, () => ({ styleId: 'user:explanatory' }))
     ])
     const final = await loadOutputStyle(dataRoot, WORKSPACE)
-    expect(['builtin:concise', 'builtin:explanatory']).toContain(final.styleId)
+    expect(['user:concise', 'user:explanatory']).toContain(final.styleId)
     // One committed document, parseable and complete: neither writer truncated it.
     const stored = JSON.parse(await readFile(outputStylePath(dataRoot, WORKSPACE), 'utf8')) as Record<string, unknown>
     expect(stored['styleId']).toBe(final.styleId)
@@ -189,23 +196,22 @@ describe('the selection document', () => {
 })
 
 describe('the style list', () => {
-  it('falls back to the default when the selected id no longer exists', async () => {
+  it('reads an id nothing renders as no style at all', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
     const service = new OutputStyleService(dataRoot, agentsRoot)
-    await service.select(WORKSPACE, 'builtin:concise')
     await saveOutputStyleSelection(dataRoot, WORKSPACE, 'user:deleted-style')
     const payload = await service.payload(WORKSPACE)
-    expect(payload.selected).toBe(OUTPUT_STYLE_DEFAULT_ID)
+    expect(payload.selected).toBe(OUTPUT_STYLE_NONE_ID)
     expect(payload.injected).toBe('')
     expect(payload.styles.some(row => row.id === 'user:deleted-style')).toBe(false)
   })
 
-  it('lists builtin, user and suite styles in trust order', async () => {
+  it('lists user and suite styles in trust order', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
     await writeUserStyle(agentsRoot, 'mine', 'My style', 'Answer in French.')
     const service = new OutputStyleService(dataRoot, agentsRoot, suitePort())
     const { styles } = await service.payload(WORKSPACE)
-    expect(styles.map(row => row.source)).toEqual(['builtin', 'builtin', 'builtin', 'user', 'suite'])
+    expect(styles.map(row => row.source)).toEqual(['user', 'suite'])
     expect(styles.find(row => row.id === 'user:mine')).toMatchObject({ label: 'mine', description: 'My style', body: 'Answer in French.' })
   })
 
@@ -296,15 +302,16 @@ describe('user styles', () => {
     await service.saveUserStyle('brief', 'Short answers', 'Be brief.')
     await service.select(WORKSPACE, 'user:brief')
     await service.removeUserStyle(WORKSPACE, 'brief')
-    expect((await loadOutputStyle(dataRoot, WORKSPACE)).styleId).toBe(OUTPUT_STYLE_DEFAULT_ID)
+    expect((await loadOutputStyle(dataRoot, WORKSPACE)).styleId).toBe(OUTPUT_STYLE_NONE_ID)
   })
 })
 
 describe('the per-agent section', () => {
   it('registers one section per agent on that agent own scope, and disposes it', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
+    await writeUserStyle(agentsRoot, 'concise', 'Short answers', 'Answer first.')
     const service = new OutputStyleService(dataRoot, agentsRoot)
-    await service.select(WORKSPACE, 'builtin:concise')
+    await service.select(WORKSPACE, 'user:concise')
 
     const registered: Array<{ name: string; order: number; interpolate?: boolean; text: () => string }> = []
     const disposers: string[] = []

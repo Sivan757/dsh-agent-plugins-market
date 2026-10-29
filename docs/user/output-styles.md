@@ -25,13 +25,12 @@ The preview on the page shows this exact text. It is the same function the serve
 
 ## Where styles come from
 
-| Source   | Lives in                                                     | Notes                                                                          |
-| -------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Built-in | `plugins/output-styles/styles/` in this repository           | Three styles: default, explanatory, concise. Shipped with the plugin.          |
-| Yours    | `<Agent layout root>/output-styles/<name>.md`                | Frontmatter `description:` plus the style text. Created and edited in the tab. |
-| A suite  | A market suite that prints its text from a SessionStart hook | Captured once, explicitly, then stored as text.                                |
+| Source  | Lives in                                                     | Notes                                                                          |
+| ------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Yours   | `<Agent layout root>/output-styles/<name>.md`                | Frontmatter `description:` plus the style text. Created and edited in the tab. |
+| A suite | A market suite that prints its text from a SessionStart hook | Captured once, explicitly, then stored as text.                                |
 
-A built-in style needs no capture. A style you author is stored as a Markdown file, so it travels with your Agent layout root and any other tool can read it.
+The plugin ships no styles of its own: a style you author is stored as a Markdown file, so it travels with your Agent layout root and any other tool can read it. With nothing selected the prompt carries no output-style section.
 
 ## Suite styles and the capture
 

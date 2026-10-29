@@ -30,15 +30,16 @@ export const OUTPUT_STYLE_ROUTES = {
 } as const
 
 /** Where a style comes from, in order of trust. */
-export type OutputStyleSource = 'builtin' | 'user' | 'suite'
+export type OutputStyleSource = 'user' | 'suite'
 
 /**
  * The selection that injects nothing.
  *
- * A style whose body is empty contributes no section at all, so turning styles
- * off is a selection rather than a separate switch.
+ * The plugin ships no styles of its own, so this is where a workspace starts: no
+ * style is chosen until someone picks one, and the prompt carries no
+ * output-style section until then.
  */
-export const OUTPUT_STYLE_DEFAULT_ID = 'builtin:default'
+export const OUTPUT_STYLE_NONE_ID = ''
 
 /** The system-prompt section name the selection registers. */
 export const OUTPUT_STYLE_SECTION_NAME = 'market:output-style'

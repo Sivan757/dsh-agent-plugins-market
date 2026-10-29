@@ -16,9 +16,9 @@ Third, whatever is chosen changes every answer in the workspace, so a person has
 
 ## Decision
 
-A style is a record: `{ id, label, description, body, source }` with `source` one of `builtin`, `user`, `suite`. Exactly one is selected per workspace, stored in its own document, and injected as one system-prompt section. The default style carries an empty body and renders no section at all, so turning styles off is a selection rather than a separate switch.
+A style is a record: `{ id, label, description, body, source }` with `source` one of `user` or `suite`. Exactly one is selected per workspace, stored in its own document, and injected as one system-prompt section. A workspace starts with nothing selected, which renders no section at all, so the plugin ships no style of its own.
 
-**Builtin styles ship as Markdown** under `plugins/output-styles/styles/`, inside the Agent Plugins v1 plugin the first-party collection already lists. The runtime reads them through the same package-root walk the vendored schemas use, and `plugins/output-styles` is a `files` entry so a tarball carries them. A guard test fails when the shipped directory or the `files` coverage drifts, because the default style lives there and losing it would leave the page without the way to turn styles off.
+**No style ships with the plugin.** Styles come from a market plugin that declares one, or from the person editing a Markdown file under the Agent layout root. The plugin once carried three of its own; they were removed because a style is the plugin author's statement about how a model answers, not the catalogue's.
 
 **User styles are Markdown files** under `<Agent layout root>/output-styles/<name>.md`, carried by frontmatter `description:` and the body below it. The name is validated as a file stem, and the resolved path is checked to stay inside the style directory, so a create can never write outside it.
 
@@ -81,7 +81,7 @@ The renderer lives in `market-runtime`, not in the contracts package: the archit
 
 `packages/market-bundle/test/integration/output-style-routes.test.ts` covers the read, the select, an unknown style id, a cross-origin write, a capture of a suite that does not exist, capture then select, a suite style with no capture, user style create and delete, an invalid user name, and an unknown session.
 
-`packages/market-bundle/test/repo/published-output-styles.test.ts` guards the shipped builtin directory against the `files` entries.
+`packages/market-bundle/test/repo/published-output-styles.test.ts` guards the opposite: no built-in directory and no `files` entry for one.
 
 `packages/market-ui/test/client-output-styles-panel.test.ts` renders the panel in jsdom: the grouped rows and the marked selection, selecting a style and seeing the injected text, the empty default preview, the capture action and the stale notice, a suite row enabled only once its capture is current, the user-style editor round trip, and creation from the header action.
 
@@ -95,7 +95,7 @@ A suite style costs one explicit action, and a person who never captures one nev
 
 The fingerprint does not catch a script edited without a version or declaration change until the next capture. The page always offers that capture, and the row cannot claim currency for a suite it has not seen change.
 
-Nothing here runs at request time except a capture a person requested. The builtin directory is read per page read, which is three small files, and the document read happens per page read and per agent creation.
+Nothing here runs at request time except a capture a person requested. Style directories are read per page read, and the document read happens per page read and per agent creation.
 
 ## Related
 

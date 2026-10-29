@@ -20,7 +20,6 @@
     "lib",
     "client",
     "packages/market-catalog/schemas",
-    "plugins/output-styles",
     "locale",
     "assets/dsh-agent-plugins.png",
     "cordis.patch.yml",

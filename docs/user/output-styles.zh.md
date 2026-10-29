@@ -27,11 +27,10 @@ Answer first. The first line is the result, the fix, or the direct answer...
 
 | 来源 | 位置                                     | 说明                                                    |
 | ---- | ---------------------------------------- | ------------------------------------------------------- |
-| 内置 | 本仓库 `plugins/output-styles/styles/`   | 三个：default、explanatory、concise，随插件发布。       |
 | 自建 | `<Agent 布局根>/output-styles/<名称>.md` | frontmatter `description:` 加正文，在页签里创建和编辑。 |
 | 套件 | 通过 SessionStart 钩子打印文本的市场套件 | 明确抓取一次，之后保存为文本。                          |
 
-内置风格不需要抓取。你自建的风格存成 Markdown 文件，跟随你的 Agent 布局根，其它工具也能读。
+插件不自带风格。你自建的风格存成 Markdown 文件，跟随你的 Agent 布局根，其它工具也能读。未选择任何风格时，提示里没有 output-style 段。
 
 ## 套件风格与抓取
 

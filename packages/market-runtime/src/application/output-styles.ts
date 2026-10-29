@@ -13,10 +13,8 @@
  * @module application/output-styles
  */
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { stripFrontmatter } from '../../../market-catalog/src/index.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
@@ -25,42 +23,8 @@ import type { OutputStyleRow } from '../../../market-contracts/src/contracts/out
 /** The directory inside the Agent layout root that holds user-authored styles. */
 export const USER_OUTPUT_STYLE_DIRECTORY = 'output-styles'
 
-/** The one builtin style name the default selection points at. */
-export const BUILTIN_DEFAULT_NAME = 'default'
-
 /** A user style name is a file stem: no separators, no traversal, no leading dot. */
 const STYLE_NAME = /^[a-z0-9][a-z0-9._-]*$/
-
-/**
- * Walk up to this package's root and return the builtin style directory.
- *
- * The workspace package and the packed artifact expose the collection at the
- * same relative spot, exactly like the vendored schemas: beside this package in
- * the checkout, and under the `plugins/output-styles` path preserved by the npm
- * "files" entry. The walk stops at the first manifest naming this package, so a
- * nested workspace package cannot answer for it.
- * @returns the absolute builtin style directory.
- * @throws when neither layout exists, because a missing builtin source would
- * silently drop the style that turns styles off.
- */
-export function builtinStyleDirectory(): string {
-  let directory = dirname(fileURLToPath(import.meta.url))
-  for (;;) {
-    const manifest = join(directory, 'package.json')
-    if (existsSync(manifest)) {
-      const name = (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string }).name
-      // `plugins/output-styles` is the Agent Plugins v1 plugin in the first-party
-      // collection; the style documents are its `styles/` directory.
-      if (name === '@dsh-market/runtime') return join(directory, '..', '..', 'plugins', 'output-styles', 'styles')
-      if (name === 'dsh-agent-plugins-market') return join(directory, 'plugins', 'output-styles', 'styles')
-    }
-    const parent = dirname(directory)
-    // One level per pass: a walk that skips a level could step over the package
-    // root the next manifest would have named.
-    if (parent === directory) throw new Error('dsh-agent-plugins-market package root is unavailable')
-    directory = parent
-  }
-}
 
 /** One Markdown style document: its frontmatter description and its body. */
 interface StyleDocument {
@@ -100,36 +64,6 @@ async function readStyleDocument(path: string, name: string): Promise<StyleDocum
         .find(line => line !== '') ?? ''
   }
   return { label: name, description, body }
-}
-
-/**
- * Read every builtin style.
- *
- * A missing directory answers an empty list rather than throwing: the collection
- * is a shipped artifact, and a profile that lacks it keeps every other source
- * working while the page reports no builtin styles.
- * @param directory - the builtin style directory; overridden by tests.
- * @returns the builtin rows in file-name order.
- */
-export async function readBuiltinStyles(directory: string = builtinStyleDirectory()): Promise<OutputStyleRow[]> {
-  let names: string[]
-  try {
-    names = (await readdir(directory)).filter(entry => entry.endsWith('.md')).sort()
-  } catch {
-    return []
-  }
-  const rows: OutputStyleRow[] = []
-  for (const entry of names) {
-    const name = entry.slice(0, -'.md'.length)
-    try {
-      const document = await readStyleDocument(join(directory, entry), name)
-      rows.push({ id: `builtin:${name}`, label: document.label, description: document.description, body: document.body, source: 'builtin' })
-    } catch {
-      // One unreadable file costs that style, never the list.
-      continue
-    }
-  }
-  return rows
 }
 
 /** The directory holding the user's authored styles for one Agent layout root. */

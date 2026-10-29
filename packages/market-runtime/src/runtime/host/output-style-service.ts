@@ -13,20 +13,11 @@
  * than replaying text nobody re-approved.
  * @module runtime/host/output-style-service
  */
-import {
-  BUILTIN_DEFAULT_NAME,
-  deleteUserStyle,
-  parseCapturedStyle,
-  readBuiltinStyles,
-  readUserStyles,
-  suiteStyleFingerprint,
-  writeUserStyle,
-  type SuiteStyleCandidate
-} from '../../application/output-styles.js'
+import { deleteUserStyle, parseCapturedStyle, readUserStyles, suiteStyleFingerprint, writeUserStyle, type SuiteStyleCandidate } from '../../application/output-styles.js'
 import { renderOutputStyleSection } from './output-style-render.js'
 import { loadOutputStyle, saveOutputStyleCapture, saveOutputStyleSelection, defaultOutputStyleState, type OutputStyleState } from '../../application/state/output-style.js'
 import {
-  OUTPUT_STYLE_DEFAULT_ID,
+  OUTPUT_STYLE_NONE_ID,
   type OutputStyleCaptureResult,
   type OutputStyleCaptured,
   type OutputStyleRow,
@@ -175,7 +166,7 @@ export class OutputStyleService {
     await deleteUserStyle(this.agentsRoot, name)
     await this.enqueue(async () => {
       const state = await loadOutputStyle(this.dataRoot, workspace)
-      if (state.styleId === `user:${name}`) await saveOutputStyleSelection(this.dataRoot, workspace, OUTPUT_STYLE_DEFAULT_ID)
+      if (state.styleId === `user:${name}`) await saveOutputStyleSelection(this.dataRoot, workspace, OUTPUT_STYLE_NONE_ID)
     })
     await this.refresh(workspace)
   }
@@ -189,12 +180,11 @@ export class OutputStyleService {
    * @param workspace - the workspace whose captured record the suite rows compare to.
    */
   async rows(workspace: string): Promise<OutputStyleRow[]> {
-    const builtins = await readBuiltinStyles()
     const users = await readUserStyles(this.agentsRoot)
     const captured = this.cache.get(workspace)?.state.captured
     const suites = await this.suiteRows(captured)
-    // Already in trust order: builtins, then the person's own, then suite captures.
-    return [...builtins, ...users, ...suites]
+    // Styles come from plugins and from the person: the plugin ships none of its own.
+    return [...users, ...suites]
   }
 
   /** One suite's own row list, with its capture state. */
@@ -248,13 +238,8 @@ export class OutputStyleService {
    */
   private async resolve(workspace: string, state: OutputStyleState): Promise<WorkspaceState> {
     const candidates = await this.candidates()
-    const builtins = await readBuiltinStyles()
     const users = await readUserStyles(this.agentsRoot)
     const selected = state.styleId
-    const builtin = builtins.find(row => row.id === selected)
-    if (builtin !== undefined) {
-      return { state, injected: renderOutputStyleSection(builtin.label, builtin.body), capture: 'current' }
-    }
     const user = users.find(row => row.id === selected)
     if (user !== undefined) {
       return { state, injected: renderOutputStyleSection(user.label, user.body), capture: 'current' }
@@ -273,10 +258,13 @@ export class OutputStyleService {
     }
     // Nothing renders this id: fall back to the style that injects nothing, and
     // report that selection so the page shows what the prompt actually carries.
-    const fallback = builtins.find(row => row.id === OUTPUT_STYLE_DEFAULT_ID) ?? builtins.find(row => row.label === BUILTIN_DEFAULT_NAME)
+    // Nothing renders this id: the prompt carries no output-style section, and the
+    // selection records that rather than pointing at a style that is not there. A capture
+    // already on record stays with the workspace, because selecting the suite that owns it
+    // is what makes it current.
     return {
-      state: { styleId: OUTPUT_STYLE_DEFAULT_ID },
-      injected: fallback === undefined ? '' : renderOutputStyleSection(fallback.label, fallback.body),
+      state: state.captured === undefined ? { styleId: OUTPUT_STYLE_NONE_ID } : { styleId: OUTPUT_STYLE_NONE_ID, captured: state.captured },
+      injected: '',
       capture: 'current'
     }
   }

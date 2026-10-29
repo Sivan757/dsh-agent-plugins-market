@@ -18,22 +18,20 @@ export interface OutputStyleGroup {
 /**
  * Group the styles by source, keeping the trust order.
  *
- * The order is fixed rather than derived from the header: builtin styles are
- * this plugin's own, user styles are the person's, and a suite style carries
- * text a person captured, so the list reads from most to least certain.
+ * The order is fixed rather than derived from the header: user styles are the
+ * person's own, and a suite style carries text a person captured, so the list
+ * reads from most to least certain.
  * @param rows - every style the server returned.
  * @returns the groups that hold at least one row.
  */
 export function groupOutputStyles(rows: readonly OutputStyleRow[]): OutputStyleGroup[] {
-  const order: OutputStyleSource[] = ['builtin', 'user', 'suite']
+  const order: OutputStyleSource[] = ['user', 'suite']
   return order.map(source => ({ source, rows: rows.filter(row => row.source === source) })).filter(group => group.rows.length > 0)
 }
 
 /** The heading key of one group. */
 export function groupLocaleKey(source: OutputStyleSource): LocaleKey {
   switch (source) {
-    case 'builtin':
-      return 'outputStylesGroupBuiltin'
     case 'user':
       return 'outputStylesGroupUser'
     case 'suite':

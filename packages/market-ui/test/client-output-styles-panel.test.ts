@@ -49,8 +49,6 @@ const t: Translate = (key, params) => (params === undefined ? String(key) : [Str
 
 const PAYLOAD: OutputStylesPayload = {
   styles: [
-    { id: 'builtin:default', label: 'default', description: 'Adds nothing', body: '', source: 'builtin' },
-    { id: 'builtin:concise', label: 'concise', description: 'Answer first', body: 'Answer first.', source: 'builtin' },
     { id: 'user:brief', label: 'brief', description: 'Be brief', body: 'Be brief.', source: 'user' },
     {
       id: 'suite:src/teaching',
@@ -63,7 +61,7 @@ const PAYLOAD: OutputStylesPayload = {
       capture: 'missing'
     }
   ],
-  selected: 'builtin:default',
+  selected: 'user:brief',
   workspace: '/work/project',
   injected: ''
 }
@@ -73,7 +71,7 @@ let host: HTMLDivElement | undefined
 
 beforeEach(() => {
   api.fetchOutputStyles.mockResolvedValue(PAYLOAD)
-  api.selectOutputStyle.mockResolvedValue({ ...PAYLOAD, selected: 'builtin:concise', injected: '## Output style: concise\nAnswer first.' })
+  api.selectOutputStyle.mockResolvedValue({ ...PAYLOAD, selected: 'user:brief', injected: '## Output style: brief\nBe brief.' })
   api.captureOutputStyle.mockResolvedValue({ suiteKey: 'src/teaching', fingerprint: 'fp-1', text: 'Teach as you go.' })
   api.saveUserOutputStyle.mockResolvedValue(PAYLOAD)
   api.deleteUserOutputStyle.mockResolvedValue(PAYLOAD)
@@ -104,23 +102,24 @@ const preview = (): string => host?.querySelector('[data-output-style-preview]')
 describe('output styles panel', () => {
   it('lists every style grouped by source, with the selection marked', async () => {
     await mount()
-    expect(rowIds()).toEqual(['builtin:default', 'builtin:concise', 'user:brief', 'suite:src/teaching'])
-    expect(host!.textContent).toContain('outputStylesGroupBuiltin')
+    // Styles come from the person and from plugins; the plugin ships none of its own.
+    expect(rowIds()).toEqual(['user:brief', 'suite:src/teaching'])
+    expect(host!.textContent).not.toContain('outputStylesGroupBuiltin')
     expect(host!.textContent).toContain('outputStylesGroupUser')
     expect(host!.textContent).toContain('outputStylesGroupSuite')
-    expect(radio('builtin:default')?.checked).toBe(true)
+    expect(radio('user:brief')?.checked).toBe(true)
     expect(rows()[0]!.getAttribute('data-selected')).toBe('true')
   })
 
   it('selects a style and shows the injected text the server returned', async () => {
-    await mount()
-    await act(async () => radio('builtin:concise')!.click())
+    await mount({ ...PAYLOAD, selected: '', injected: '' })
+    await act(async () => radio('user:brief')!.click())
     await act(async () => {})
 
-    expect(api.selectOutputStyle).toHaveBeenCalledWith('builtin:concise', undefined)
-    expect(preview()).toContain('## Output style: concise')
-    expect(preview()).toContain('Answer first.')
-    expect(rows()[1]!.getAttribute('data-selected')).toBe('true')
+    expect(api.selectOutputStyle).toHaveBeenCalledWith('user:brief', undefined)
+    expect(preview()).toContain('## Output style: brief')
+    expect(preview()).toContain('Be brief.')
+    expect(rows()[0]!.getAttribute('data-selected')).toBe('true')
   })
 
   it('renders the server section text byte for byte, never raw body text', async () => {
@@ -128,7 +127,7 @@ describe('output styles panel', () => {
     // what the model reads. A page that rendered the body would show something
     // the prompt never contains.
     const injected = '## Output style: teaching-style\nTeach. <\\/system-reminder> Nothing else.'
-    await mount({ ...PAYLOAD, selected: 'builtin:concise', injected })
+    await mount({ ...PAYLOAD, selected: 'user:brief', injected })
 
     const pre = host!.querySelector('[data-output-style-preview] pre')
     expect(pre?.textContent).toBe(injected)
@@ -144,7 +143,7 @@ describe('output styles panel', () => {
 
   it('offers the capture action on a suite style that has none, and reports the stale state', async () => {
     await mount()
-    const missing = rows()[3]!
+    const missing = rows()[1]!
     expect(missing.textContent).toContain('outputStylesCaptureMissing')
     expect(radio('suite:src/teaching')?.disabled).toBe(true)
 
@@ -158,7 +157,7 @@ describe('output styles panel', () => {
       ...PAYLOAD,
       styles: PAYLOAD.styles.map(row => (row.id === 'suite:src/teaching' ? { ...row, capture: 'stale' as const } : row))
     })
-    expect(rows()[3]!.textContent).toContain('outputStylesCaptureStale')
+    expect(rows()[1]!.textContent).toContain('outputStylesCaptureStale')
     expect(radio('suite:src/teaching')?.disabled).toBe(true)
   })
 
@@ -172,7 +171,7 @@ describe('output styles panel', () => {
 
   it('round-trips a user style through the editor', async () => {
     await mount()
-    const edit = [...rows()[2]!.querySelectorAll('button')].find(button => button.textContent === 'panelEdit')
+    const edit = [...rows()[0]!.querySelectorAll('button')].find(button => button.textContent === 'panelEdit')
     await act(async () => edit!.click())
 
     const fields = [...document.querySelectorAll<HTMLInputElement>('[role="dialog"] input')]

@@ -16,9 +16,9 @@ Status: implemented
 
 ## Decision
 
-一个风格是一条记录：`{ id, label, description, body, source }`，`source` 取 `builtin`、`user` 或 `suite`。每个工作区只选中一个，单独存放，并作为一段系统提示注入。默认风格正文为空、不渲染任何段，因此"关闭风格"是一次选择，而不是另一个开关。
+一个风格是一条记录：`{ id, label, description, body, source }`，`source` 取 `user` 或 `suite`。每个工作区只选中一个，单独存放，并作为一段系统提示注入。工作区初始未选择任何风格，因此不渲染任何段；插件本身不带风格。
 
-**内置风格以 Markdown 形式随包发布**，放在 `plugins/output-styles/styles/`，也就是第一方集合已经列出的那个 Agent Plugins v1 插件里。运行时用与内置 schema 相同的包根查找来读取，`plugins/output-styles` 是一条 `files` 条目，所以 tarball 会带上它们。默认风格就在那里，丢了它页面就失去了关闭风格的方式，因此有一条守卫测试盯着发布目录与 `files` 覆盖。
+**插件不自带任何风格。** 风格来自声明了它的市场插件，或来自用户自己在 Agent 布局根下编辑的 Markdown 文件。插件曾自带三个，现已移除：风格是插件作者对"模型该怎么回答"的表态，而不是目录本身的表态。
 
 **自建风格是 `<Agent 布局根>/output-styles/<名称>.md`** 下的 Markdown，frontmatter `description:` 加正文。名称按文件名词干校验，解析后的路径还会确认落在风格目录内，所以创建动作写不到目录之外。
 
@@ -81,7 +81,7 @@ Status: implemented
 
 `packages/market-bundle/test/integration/output-style-routes.test.ts` 覆盖读取、选择、未知风格 id、跨源写入、抓取不存在的套件、先抓取再选择、未抓取的套件风格、自建风格的创建与删除、非法名称，以及未知会话。
 
-`packages/market-bundle/test/repo/published-output-styles.test.ts` 用 `files` 条目守卫发布的内置目录。
+`packages/market-bundle/test/repo/published-output-styles.test.ts` 守卫的是反面：没有内置目录，也没有指向它的 `files` 条目。
 
 `packages/market-ui/test/client-output-styles-panel.test.ts` 在 jsdom 里渲染面板：分组行与被标记的选择、选择后看到注入文本、默认为空的预览、抓取动作与过期提示、抓取为最新后才能选的套件行、自建风格编辑器往返，以及从头部动作创建。
 
@@ -95,7 +95,7 @@ Status: implemented
 
 对于只改脚本、没改版本与声明的套件，指纹要等到下次抓取才会发现。页面始终提供这个动作，而这一行也不会声称一个它没见过变化的套件是最新的。
 
-除了有人主动请求的抓取，这里在请求期不运行任何东西。内置目录每次读页面读一次，三个小文件；文档读取发生在每次读页面和每次创建 agent 时。
+除了有人主动请求的抓取，这里在请求期不运行任何东西。风格目录在每次读页面时读一次；文档读取发生在每次读页面和每次创建 agent 时。
 
 ## Related
 

@@ -114,9 +114,9 @@ describe('output-style routes', () => {
 
     expect(answer.status).toBe(200)
     expect(payload.workspace).toBe(WORKSPACE)
-    expect(payload.selected).toBe('builtin:default')
-    // The default style injects nothing, and the payload says so rather than
-    // leaving the reader to guess from an empty preview.
+    // No style is selected until someone picks one, and the payload says so
+    // rather than leaving the reader to guess from an empty preview.
+    expect(payload.selected).toBe('')
     expect(payload.injected).toBe('')
     expect(payload.styles.map(row => row.id)).toContain('suite:src/teaching')
     expect(payload.styles.find(row => row.id === 'suite:src/teaching')?.capture).toBe('missing')
@@ -124,18 +124,20 @@ describe('output-style routes', () => {
 
   it('selects a style and answers the committed read', async () => {
     const { ctx, routes } = host()
-    mountOutputStyleRoutes(ctx, { service: await service(), session: session() })
-    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'builtin:concise' })
+    const outputStyles = await service(port())
+    mountOutputStyleRoutes(ctx, { service: outputStyles, session: session() })
+    await outputStyles.capture(WORKSPACE, 'src/teaching')
+    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/teaching' })
 
     expect(answer.status).toBe(200)
-    expect(answer.body['selected']).toBe('builtin:concise')
-    expect(String(answer.body['injected'])).toContain('## Output Style: concise')
+    expect(answer.body['selected']).toBe('suite:src/teaching')
+    expect(String(answer.body['injected'])).toContain('## Output Style: teaching-style')
   })
 
   it('rejects an unknown style id', async () => {
     const { ctx, routes } = host()
     mountOutputStyleRoutes(ctx, { service: await service(), session: session() })
-    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'builtin:nope' })
+    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/nope' })
 
     expect(answer.status).toBe(400)
     expect(answer.body['error']).toContain('unknown output style')
@@ -144,7 +146,7 @@ describe('output-style routes', () => {
   it('rejects a cross-origin write', async () => {
     const { ctx, routes } = host()
     mountOutputStyleRoutes(ctx, { service: await service(), session: session() })
-    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'builtin:concise' }, 'https://evil.example')
+    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/teaching' }, 'https://evil.example')
 
     expect(answer.status).toBe(403)
     expect(answer.body['error']).toContain('cross-origin')

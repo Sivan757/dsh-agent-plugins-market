@@ -18,7 +18,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
-import { OUTPUT_STYLE_DEFAULT_ID, type OutputStyleCaptured } from '../../../../market-contracts/src/contracts/output-styles.js'
+import { OUTPUT_STYLE_NONE_ID, type OutputStyleCaptured } from '../../../../market-contracts/src/contracts/output-styles.js'
 
 /** Version of the persisted selection document this release reads and writes. */
 export const OUTPUT_STYLE_VERSION = 1
@@ -33,7 +33,7 @@ export interface OutputStyleState {
 
 /** The default selection: the style that injects nothing. */
 export function defaultOutputStyleState(): OutputStyleState {
-  return { styleId: OUTPUT_STYLE_DEFAULT_ID }
+  return { styleId: OUTPUT_STYLE_NONE_ID }
 }
 
 /**
@@ -75,7 +75,10 @@ export async function loadOutputStyle(dataRoot: string, workspace: string): Prom
   }
   if (typeof value !== 'object' || value === null) return defaultOutputStyleState()
   const record = value as Record<string, unknown>
-  const styleId = typeof record['styleId'] === 'string' && record['styleId'] !== '' ? record['styleId'] : OUTPUT_STYLE_DEFAULT_ID
+  const recorded = typeof record['styleId'] === 'string' ? record['styleId'] : ''
+  // A selection recorded while the plugin still shipped styles of its own names a style
+  // this release does not have, so it reads as no selection.
+  const styleId = recorded === '' || recorded.startsWith('builtin:') ? OUTPUT_STYLE_NONE_ID : recorded
   const captured = parseCaptured(record['captured'])
   return { styleId, ...(captured === undefined ? {} : { captured }) }
 }

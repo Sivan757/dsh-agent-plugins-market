@@ -55,7 +55,7 @@ export type { OutputStyleSuitePort } from './runtime/host/output-style-service.j
 export { mountOutputStyleSection } from './runtime/host/output-style-section.js'
 export { renderOutputStyleSection } from './runtime/host/output-style-render.js'
 export { loadOutputStyle, mutateOutputStyle, outputStylePath, saveOutputStyleCapture, saveOutputStyleSelection } from './application/state/output-style.js'
-export { BUILTIN_DEFAULT_NAME, parseCapturedStyle, readBuiltinStyles, suiteStyleFingerprint, userStylePath, writeUserStyle } from './application/output-styles.js'
+export { parseCapturedStyle, suiteStyleFingerprint, userStylePath, writeUserStyle } from './application/output-styles.js'
 export type { SuiteStyleCandidate } from './application/output-styles.js'
 export { DEFAULT_INVENTORY_RETRY, INVENTORY_RETRY_BASE_MS, INVENTORY_RETRY_MAX_MS, inventoryRetryDelay, resolveInventoryRetry } from './runtime/host/inventory-retry.js'
 export type { InventoryRetryPolicy } from './runtime/host/inventory-retry.js'
