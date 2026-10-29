@@ -120,4 +120,44 @@ describe('tab rail reordering', () => {
     expect(tabs[1]!.getAttribute('tabindex')).toBe('0')
     expect(tabs[0]!.getAttribute('tabindex')).toBe('-1')
   })
+  it('draws the selection pill on the measured box of the selected tab', async () => {
+    // The pill is what makes a switch read as movement: it is one element that travels,
+    // not a background on whichever chip is current. jsdom reports zero-sized boxes, so
+    // the measurement is stubbed and the assertion is that the pill takes exactly it.
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(h(TabRail<string>, { value: 'tab-1', onChange: () => {}, label: 'row', items }))
+    })
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
+    for (const [index, tab] of tabs.entries()) {
+      Object.defineProperty(tab, 'offsetLeft', { configurable: true, value: index * 100 })
+      Object.defineProperty(tab, 'offsetWidth', { configurable: true, value: 96 })
+    }
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    const pill = document.querySelector<HTMLElement>('[class*="pill"]')
+    expect(pill).not.toBeNull()
+    expect(pill!.style.transform).toBe('translateX(100px)')
+    expect(pill!.style.width).toBe('96px')
+    expect(pill!.getAttribute('aria-hidden')).toBe('true')
+  })
+  it('keeps the motion and the reduced-motion override in the stylesheet', async () => {
+    // The interaction is the feature here, so its absence should fail a test rather than
+    // be noticed in front of a user: the pill must animate, hover must respond, and the
+    // reduced-motion block must switch all of it off.
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync('packages/market-ui/src/ui/tab-rail.module.css', 'utf8')
+    const rule = (selector: string): string => new RegExp('\\' + selector + '\\s*\\{[^}]*').exec(css)?.[0] ?? ''
+    expect(rule('.pill')).toMatch(/transition:[^;]*transform/)
+    expect(rule('.pill')).toMatch(/cubic-bezier\(0\.22, 1, 0\.36, 1\)/)
+    expect(rule('.tab')).toMatch(/transition:/)
+    expect(rule('.tab:hover')).toMatch(/transform: translateY\(-1px\)/)
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(reduced).toMatch(/\.pill,/)
+    expect(reduced).toMatch(/animation: none/)
+  })
 })
