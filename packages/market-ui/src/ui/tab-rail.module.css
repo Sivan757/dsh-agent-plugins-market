@@ -9,7 +9,37 @@
 .row {
   display: flex;
   align-items: center;
+  gap: 4px;
   min-width: 0;
+}
+
+/* A mouse has no sideways gesture, so an overflowing row shows one chevron per side it
+   can still scroll. They are buttons, not decoration: each one moves most of a viewport. */
+.scrollButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.scrollButton:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.scrollButton:active {
+  background: var(--dsw-alias-interactive-bg-active);
 }
 
 .rail {
@@ -63,7 +93,8 @@
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-weight: 500;
+  /* The label sits at body weight: 500 read as bold beside the host's own 400 rows. */
+  font-weight: 400;
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -72,15 +103,15 @@
     transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Hover lifts a hair and warms the label: enough to read as "this responds", small
-   enough that moving along the row does not look like a wave. */
+/* Hover warms the label and tints the chip. It does not move the tab: a row that lifts
+   under the pointer makes aiming at a neighbour harder, which is the opposite of help. */
 .tab:hover {
   color: var(--dsw-alias-label-primary);
-  transform: translateY(-1px);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .tab:active {
-  transform: translateY(0) scale(0.98);
+  background: var(--dsw-alias-interactive-bg-active);
 }
 
 .tabActive {
@@ -177,7 +208,8 @@
   .tab,
   .divider,
   .group,
-  .groupLabel {
+  .groupLabel,
+  .scrollButton {
     transition: none;
   }
 

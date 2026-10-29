@@ -154,10 +154,51 @@ describe('tab rail reordering', () => {
     expect(rule('.pill')).toMatch(/transition:[^;]*transform/)
     expect(rule('.pill')).toMatch(/cubic-bezier\(0\.22, 1, 0\.36, 1\)/)
     expect(rule('.tab')).toMatch(/transition:/)
-    expect(rule('.tab:hover')).toMatch(/transform: translateY\(-1px\)/)
+    // Hover must not move the tab: a row that lifts under the pointer makes aiming at a
+    // neighbour harder. The feedback is colour and a tint instead.
+    expect(rule('.tab:hover')).not.toMatch(/transform:/)
+    expect(rule('.tab:hover')).toMatch(/background: var\(--dsw-alias-interactive-bg-hover\)/)
+    expect(rule('.tab')).toMatch(/font-weight: 400/)
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
     expect(reduced).toMatch(/\.pill,/)
     expect(reduced).toMatch(/animation: none/)
+  })
+  it('scrolls sideways with the wheel and shows a chevron for each side it can reach', async () => {
+    // A mouse has no sideways gesture and the row hides its scrollbar, so the row maps the
+    // wheel to its own axis and offers a chevron per reachable side.
+    const rail = document.createElement('div')
+    const calls: Array<{ left: number }> = []
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', items }))
+    })
+    const element = document.querySelector<HTMLElement>('[role="tablist"]')!
+    Object.defineProperty(element, 'scrollWidth', { configurable: true, value: 900 })
+    Object.defineProperty(element, 'clientWidth', { configurable: true, value: 300 })
+    Object.defineProperty(element, 'scrollLeft', { configurable: true, writable: true, value: 0 })
+    element.scrollBy = (options?: ScrollToOptions | number) => {
+      const left = typeof options === 'number' ? options : (options?.left ?? 0)
+      calls.push({ left })
+      Object.defineProperty(element, 'scrollLeft', { configurable: true, writable: true, value: Math.max(0, element.scrollLeft + left) })
+      element.dispatchEvent(new Event('scroll'))
+    }
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    // At the start: the right chevron exists, the left one does not.
+    expect(document.querySelector('[aria-label="row · 向后"]')).not.toBeNull()
+    expect(document.querySelector('[aria-label="row · 向前"]')).toBeNull()
+    await act(async () => {
+      element.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 240 }))
+    })
+    expect(calls.at(-1)?.left).toBe(240)
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('[aria-label="row · 向后"]')!.click()
+    })
+    expect(calls.at(-1)?.left).toBeGreaterThan(0)
+    void rail
   })
 })

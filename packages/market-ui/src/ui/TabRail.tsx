@@ -14,6 +14,7 @@
  * @module client/ui/TabRail
  */
 import { createElement as h, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { IconChevronLeftOutlineMedium, IconChevronRightOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './tab-rail.module.css'
 
 /** One tab: its wire value, its rendered label, and the ids the ARIA wiring needs. */
@@ -79,6 +80,13 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
   /** Keys that arrived in the stowed group since the last render, so they animate in. */
   const previousStowed = useRef<readonly string[]>(stowed.map(item => item.value))
   const [entering, setEntering] = useState<readonly string[]>([])
+  /**
+   * Which ways the rail can still scroll.
+   *
+   * A hidden scrollbar and a fade are not enough on a desktop: a mouse has no sideways
+   * gesture, so the row offers two chevrons and maps the wheel to the axis it scrolls on.
+   */
+  const [edges, setEdges] = useState({ left: false, right: false })
   const all = [...items, ...stowed]
   const [focused, setFocused] = useState<number>(() =>
     Math.max(
@@ -132,6 +140,52 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
       window.removeEventListener('resize', measure)
     }
   }, [value, layoutKey])
+
+  /** Re-read which edges can scroll; called on scroll, resize and a layout change. */
+  const measureEdges = useCallback(() => {
+    const rail = railRef.current
+    if (rail === null) return
+    const left = rail.scrollLeft > 1
+    const right = rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 1
+    setEdges(current => (current.left === left && current.right === right ? current : { left, right }))
+  }, [])
+
+  useEffect(() => {
+    const rail = railRef.current
+    if (rail === null) return
+    measureEdges()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measureEdges)
+    observer?.observe(rail)
+    window.addEventListener('resize', measureEdges)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measureEdges)
+    }
+  }, [measureEdges, layoutKey])
+
+  /**
+   * Map the wheel to the rail's own axis.
+   *
+   * A vertical wheel over a horizontal row does nothing by default, which leaves a mouse
+   * user dragging a scrollbar the row hides. The conversion only happens when the row can
+   * scroll that way, so a wheel over a short row still scrolls the page.
+   */
+  const onWheel = (event: { deltaX: number; deltaY: number; preventDefault: () => void }): void => {
+    const rail = railRef.current
+    if (rail === null) return
+    if (rail.scrollWidth - rail.clientWidth <= 1) return
+    const delta = event.deltaX !== 0 ? event.deltaX : event.deltaY
+    if (delta === 0) return
+    event.preventDefault()
+    rail.scrollBy({ left: delta, behavior: 'auto' })
+  }
+
+  /** Scroll one chevron's worth: most of a viewport, never a single tab. */
+  const scrollBy = (direction: -1 | 1): void => {
+    const rail = railRef.current
+    if (rail === null) return
+    rail.scrollBy({ left: direction * Math.max(120, Math.round(rail.clientWidth * 0.8)), behavior: 'smooth' })
+  }
 
   /** The visible position the pointer sits over, from each tab's midpoint. */
   const indexAt = useCallback((x: number): number => {
@@ -308,9 +362,14 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
   return h(
     'div',
     { className: css.row },
+    // The chevrons exist only while the row can scroll that way, so a short row gains no
+    // dead controls and the affordance appears exactly when a mouse needs it.
+    edges.left
+      ? h('button', { type: 'button', className: css.scrollButton, 'aria-label': label + ' · 向前', onClick: () => scrollBy(-1) }, h(IconChevronLeftOutlineMedium, { size: 14 }))
+      : null,
     h(
       'div',
-      { ref: railRef, className: css.rail, role: 'tablist', 'aria-label': label, onKeyDown },
+      { ref: railRef, className: css.rail, role: 'tablist', 'aria-label': label, onKeyDown, onWheel, onScroll: measureEdges },
       pill === undefined
         ? null
         : h('span', { key: 'pill', 'aria-hidden': 'true', className: css.pill, style: { transform: 'translateX(' + String(pill.left) + 'px)', width: String(pill.width) + 'px' } }),
@@ -324,6 +383,9 @@ export function TabRail<T extends string>({ value, onChange, label, items, stowe
         stowed.length === 0 ? null : h('span', { className: css.groupLabel, 'aria-hidden': 'true' }, '已收起 ' + String(stowed.length)),
         stowed.map((item, offset) => tabButton(item, items.length + offset, true))
       )
-    )
+    ),
+    edges.right
+      ? h('button', { type: 'button', className: css.scrollButton, 'aria-label': label + ' · 向后', onClick: () => scrollBy(1) }, h(IconChevronRightOutlineMedium, { size: 14 }))
+      : null
   )
 }

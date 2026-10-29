@@ -308,3 +308,9 @@ Not every audit wave finds something. These three were checked with the method n
 **Accessible names.** Every icon-only control in the client carries a label. The one that reads wrong on a failed read was fixed two rounds ago, which is how this check came up.
 
 The reusable part is the second item: a doc that names a command invites the reader to run it, and a scan for that is cheap. It was not turned into a gate because a third of the hits were pnpm's own subcommands, and a gate that needs an allowlist of the package manager's vocabulary is a gate that will be wrong about the next one.
+
+## Editor weight: closed as "not doing"
+
+The CodeMirror question is settled by dropping it, not by measuring it again. The host ships a read-only highlighter (shiki through `useCodeHighlighter`) and a plain `InlineEditor` textarea, and no editable code editor at all, so the only host-native path would remove live highlighting, line numbers, bracket matching and the undo keymap from three dialogs that edit text files.
+
+That trade was the product decision, and it went the other way. The item is closed; the bundle budget gate keeps the 1.8 MB line while the editor stays.
