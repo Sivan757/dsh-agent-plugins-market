@@ -12,14 +12,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InstructionDeleteResult, InstructionRow, InstructionsPayload, InstructionRowStatus, InstructionScope } from '../../api.js'
+import type { InstructionDeleteResult, InstructionRow, InstructionsPayload, InstructionScope } from '../../api.js'
 import { deleteInstructionFile, fetchInstructions, saveInstructionFile } from '../../api.js'
 import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
-import { budgetPercent, groupInstructionRows, groupLocaleKey, isOverBudget, statusLocaleKey, statusTone } from './instructions-view-model.js'
+import { budgetPercent, isOverBudget, statusLocaleKey, statusTone } from './instructions-view-model.js'
 import css from './instructions.module.css'
 
 /** The one drafting session the editor holds. */
@@ -87,7 +87,8 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     }
   }
 
-  const askDelete = (row: InstructionRow): void => {
+  const askDelete = (target: { scope: InstructionScope; directory: string; candidate: string; displayPath: string }): void => {
+    const row = target
     setNotice(undefined)
     setConfirm({
       title: t('instructionsDeleteTitle', { path: row.displayPath }),
@@ -134,13 +135,6 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       subtitle: t('instructionsSubtitle'),
       actions: h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
     }),
-    h(
-      'div',
-      { className: css.session },
-      h('span', { className: css.sessionLabel }, t('instructionsCwdLabel')),
-      h('code', { className: css.sessionPath }, payload.cwd),
-      sessionId === undefined ? h('span', { className: css.sessionHint }, t('instructionsSessionHint')) : null
-    ),
     error === undefined ? null : h('div', { className: css.error, role: 'alert' }, error),
     payload.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
@@ -160,26 +154,29 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       ),
       h('p', { className: css.budgetRule }, disabled ? t('instructionsBudgetDisabled') : t('instructionsBudgetRule'))
     ),
-    ...groupInstructionRows(payload.rows).map(group =>
-      h(
-        'section',
-        { key: group.key, className: css.group },
-        h('h3', { className: css.groupTitle }, t(groupLocaleKey(group.key))),
-        h(
-          'ul',
-          { className: css.chain },
-          group.rows.map(row =>
-            h(InstructionChainRow, {
+    // The user-level chain only: the project rows and the session directory answer questions
+    // about where the session runs, which the row's own tabs already answer. One card per
+    // file, and a click opens it the way every other panel opens an entry.
+    h(
+      'div',
+      { className: css.cards },
+      payload.rows
+        .filter(row => row.scope !== 'project')
+        .map(row =>
+          h(
+            'button',
+            {
               key: `${row.scope}:${row.directory}:${row.candidate}`,
-              row,
-              t,
-              maxSourceBytes: payload.maxSourceBytes,
-              onEdit: () => openEditor(row),
-              onDelete: () => askDelete(row)
-            })
+              type: 'button',
+              className: css.card,
+              'data-instruction-status': row.status,
+              onClick: () => openEditor(row)
+            },
+            h('code', { className: css.cardName }, row.displayPath),
+            h('span', { className: css.cardMeta }, h(Tag, { tone: statusTone(row.status) }, t(statusLocaleKey(row.status)))),
+            row.size === undefined ? null : h('span', { className: css.cardSize }, t('instructionsRowSize', { bytes: row.size }))
           )
         )
-      )
     ),
     h(
       'section',
@@ -199,7 +196,24 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     ),
     editor === undefined
       ? null
-      : h(InstructionEditor, { t, draft: editor, maxSourceBytes: payload.maxSourceBytes, onChange: setEditor, onClose: () => setEditor(undefined), onSave: save, error }),
+      : h(InstructionEditor, {
+          t,
+          draft: editor,
+          maxSourceBytes: payload.maxSourceBytes,
+          onChange: setEditor,
+          onClose: () => setEditor(undefined),
+          onSave: save,
+          error,
+          // Deleting lives in the dialog the card opened, the way every other panel keeps its
+          // destructive action one step inside the entry rather than on the list.
+          onDelete: editor.exists
+            ? () => {
+                const target = editor
+                setEditor(undefined)
+                askDelete(target)
+              }
+            : undefined
+        }),
     h(ConfirmModal, { state: confirm, confirmLabel: t('panelDelete'), cancelLabel: t('cancel'), onClose: () => setConfirm(undefined) })
   )
 }
@@ -212,55 +226,6 @@ function reportDeletion(t: Translate, result: InstructionDeleteResult, setNotice
   if (parts.length > 0) setNotice(parts.join(' '))
 }
 
-/** One candidate on the chain: name, chip, size and the two actions. */
-function InstructionChainRow(props: { row: InstructionRow; t: Translate; maxSourceBytes: number; onEdit: () => void; onDelete: () => void }): ReactNode {
-  const { row, t, maxSourceBytes, onEdit, onDelete } = props
-  const [open, setOpen] = useState(false)
-  const status: InstructionRowStatus = row.status
-  return h(
-    'li',
-    { className: css.row, 'data-instruction-status': status },
-    h(
-      'div',
-      { className: css.rowHead },
-      h(
-        'button',
-        {
-          type: 'button',
-          className: css.rowToggle,
-          'aria-expanded': open,
-          // The path is the row's identity; the chip and the size say the state.
-          onClick: () => setOpen(value => !value)
-        },
-        h('code', { className: css.rowPath }, row.displayPath)
-      ),
-      h(Tag, { tone: statusTone(status) }, t(statusLocaleKey(status))),
-      row.size === undefined ? null : h('span', { className: css.rowSize }, t('instructionsRowSize', { bytes: row.size })),
-      h(
-        'div',
-        { className: css.rowActions },
-        row.exists
-          ? h(Button, { variant: 'ghost', size: 'sm', onClick: onEdit }, t('panelEdit'))
-          : h(Button, { variant: 'ghost', size: 'sm', onClick: onEdit }, t('instructionsCreate')),
-        row.exists ? h(Button, { variant: 'ghost', size: 'sm', onClick: onDelete }, t('panelDelete')) : null
-      )
-    ),
-    open
-      ? h(
-          'dl',
-          { className: css.rowDetail },
-          h('dt', null, t('instructionsCwdLabel')),
-          h('dd', null, h('code', null, row.path)),
-          row.duplicateOf === undefined ? null : h('dd', null, t('instructionsDuplicateOf', { path: row.duplicateOf })),
-          h('dd', null, t('instructionsSourceLimit', { limit: maxSourceBytes })),
-          row.status === 'truncated' && row.includedBytes !== undefined && row.originalBytes !== undefined
-            ? h('dd', null, t('instructionsRowSize', { bytes: `${row.includedBytes} / ${row.originalBytes}` }))
-            : null
-        )
-      : null
-  )
-}
-
 /** The editor dialog: one candidate's whole document, with both limits live. */
 function InstructionEditor(props: {
   t: Translate
@@ -270,8 +235,10 @@ function InstructionEditor(props: {
   onChange: (draft: EditorState) => void
   onClose: () => void
   onSave: (draft: EditorState) => Promise<boolean>
+  /** Removes the file the dialog shows; omitted for a file that does not exist yet. */
+  onDelete?: () => void
 }): ReactNode {
-  const { t, draft, maxSourceBytes, error, onChange, onClose, onSave } = props
+  const { t, draft, maxSourceBytes, error, onChange, onClose, onSave, onDelete } = props
   const [busy, setBusy] = useState(false)
   const bytes = byteLength(draft.text)
   const overLimit = bytes > maxSourceBytes
@@ -290,6 +257,7 @@ function InstructionEditor(props: {
         overLimit ? h('span', { className: css.footerHint }, t('instructionsOverLimit', { limit: maxSourceBytes })) : null,
         error === undefined ? null : h('span', { className: css.footerError, role: 'alert' }, error),
         h('div', { className: css.grow }),
+        onDelete === undefined ? null : h(Button, { variant: 'ghost', onClick: onDelete }, t('panelDelete')),
         h(Button, { variant: 'outline', onClick: onClose }, t('cancel')),
         h(
           Button,

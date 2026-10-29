@@ -136,18 +136,19 @@ async function mount(payload: InstructionsPayload = PAYLOAD): Promise<void> {
   await act(async () => {})
 }
 
-const rows = (): HTMLLIElement[] => [...(host?.querySelectorAll<HTMLLIElement>('li[data-instruction-status]') ?? [])]
-const paths = (): string[] => rows().map(row => row.querySelector('code')?.textContent ?? '')
-const statuses = (): string[] => rows().map(row => row.getAttribute('data-instruction-status') ?? '')
+const cards = (): HTMLButtonElement[] => [...(host?.querySelectorAll<HTMLButtonElement>('button[data-instruction-status]') ?? [])]
+const paths = (): string[] => cards().map(card => card.querySelector('code')?.textContent ?? '')
+const statuses = (): string[] => cards().map(card => card.getAttribute('data-instruction-status') ?? '')
 
 describe('instructions panel', () => {
-  it('renders the chain in load order with a chip per status', async () => {
+  it('lists the user-level files as clickable cards, in load order', async () => {
     await mount()
-    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md', 'AGENTS.md', 'CLAUDE.md', 'apps/AGENTS.md', 'apps/site/AGENTS.md'])
-    expect(statuses()).toEqual(['loaded', 'duplicate', 'loaded', 'missing', 'missing', 'truncated'])
-    // A duplicate names the earlier candidate that carries the content.
-    await act(async () => rows()[1]!.querySelector('button')!.click())
-    expect(rows()[1]!.textContent).toContain('instructionsDuplicateOf')
+    // The project candidates and the session directory are not listed: the row answers which
+    // files this session loads, and the cards open them the way every other panel does.
+    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md'])
+    expect(statuses()).toEqual(['loaded', 'duplicate'])
+    expect(host!.textContent).not.toContain('instructionsGroupProject')
+    expect(host!.textContent).not.toContain('instructionsSessionHint')
   })
 
   it('shows the rendered total against the budget', async () => {
@@ -165,30 +166,7 @@ describe('instructions panel', () => {
     const state = host!.querySelector('[data-instructions-unavailable]')
     expect(state).not.toBeNull()
     expect(state!.textContent).toContain('@deepseek-ai/dsh-agent-instructions')
-    expect(rows()).toEqual([])
-  })
-
-  it('renders a platform-separated display path verbatim', async () => {
-    // The host emits a project display path with the platform separator, so a
-    // Windows profile shows backslashes. The page must show what the host
-    // injects and never reformat it, or the row would name a file the prompt
-    // does not.
-    const windowsPath = 'apps\\site\\AGENTS.md'
-    const payload: InstructionsPayload = {
-      ...PAYLOAD,
-      rows: PAYLOAD.rows.map(row => (row.displayPath === 'apps/site/AGENTS.md' ? { ...row, displayPath: windowsPath, duplicateOf: undefined } : row)),
-      rendered: {
-        text: `Workspace instruction budget 120 bytes: truncated ${windowsPath} from 32 to 0 bytes`,
-        omitted: [],
-        truncated: [{ displayPath: windowsPath, originalBytes: 32, includedBytes: 0 }]
-      }
-    }
-    await mount(payload)
-
-    expect(paths()).toContain(windowsPath)
-    expect(paths()).not.toContain('apps/site/AGENTS.md')
-    // The preview carries the same spelling the host produced.
-    expect(host!.querySelector('[data-instructions-preview]')?.textContent).toContain(windowsPath)
+    expect(cards()).toEqual([])
   })
 
   it('previews the injected text and names the omitted and truncated files', async () => {
@@ -199,53 +177,56 @@ describe('instructions panel', () => {
     expect(preview?.textContent).toContain('instructionsPreviewTruncated')
   })
 
-  it('opens an existing file for editing and saves the draft', async () => {
+  it('opens a card for editing and saves the draft', async () => {
     await mount()
-    const edit = [...rows()[2]!.querySelectorAll('button')].find(button => button.textContent === 'panelEdit')
-    await act(async () => edit!.click())
+    await act(async () => cards()[0]!.click())
 
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
     expect(editor).not.toBeNull()
-    expect(editor!.value).toBe('# Root\n')
-    // React tracks the DOM value itself, so the native setter is what a real
-    // keystroke goes through before the change event fires.
+    expect(editor!.value).toBe('# Global\n')
+    // React tracks the DOM value itself, so the native setter is what a real keystroke goes
+    // through before the change event fires.
     await act(async () => {
       const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
       // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
       const setValue = descriptor?.set
-      setValue?.call(editor, '# Root edited\n')
+      setValue?.call(editor, '# Global edited\n')
       editor!.dispatchEvent(new Event('input', { bubbles: true }))
     })
     const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')
     await act(async () => save!.click())
     await act(async () => {})
 
-    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'project', directory: '.', candidate: 'AGENTS.md', text: '# Root edited\n' }, undefined)
-    // The save re-reads the chain, which is how the row reflects the new bytes.
+    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md', text: '# Global edited\n' }, undefined)
+    // The save re-reads the files, which is how the card reflects the new bytes.
     expect(api.fetchInstructions).toHaveBeenCalledTimes(2)
   })
 
-  it('offers creation on a directory that has no file yet', async () => {
-    await mount()
-    const create = [...rows()[3]!.querySelectorAll('button')].find(button => button.textContent === 'instructionsCreate')
-    await act(async () => create!.click())
+  it('offers creation on a global file that does not exist yet', async () => {
+    await mount({
+      ...PAYLOAD,
+      rows: PAYLOAD.rows.map(row => (row.scope === 'user-global' ? { ...row, exists: false, status: 'missing' as const, size: undefined, content: undefined } : row))
+    })
+    await act(async () => cards()[0]!.click())
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
     expect(editor?.value).toBe('')
     const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')
     await act(async () => save!.click())
     await act(async () => {})
-    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'project', directory: '.', candidate: 'CLAUDE.md', text: '' }, undefined)
+    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md', text: '' }, undefined)
   })
 
   it('warns about the other names a deletion leaves behind', async () => {
     api.deleteInstructionFile.mockResolvedValue({ aliases: ['CLAUDE.md'], targetIsLink: false })
     await mount()
-    const remove = [...rows()[2]!.querySelectorAll('button')].find(button => button.textContent === 'panelDelete')
+    await act(async () => cards()[0]!.click())
+    // The destructive action sits inside the dialog the card opened.
+    const remove = [...document.querySelectorAll('button')].find(button => button.textContent === 'panelDelete')
     await act(async () => remove!.click())
     const confirm = [...document.querySelectorAll('button')].filter(button => button.textContent === 'panelDelete').at(-1)
     await act(async () => confirm!.click())
     await act(async () => {})
-    expect(api.deleteInstructionFile).toHaveBeenCalledWith({ scope: 'project', directory: '.', candidate: 'AGENTS.md' }, undefined)
+    expect(api.deleteInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md' }, undefined)
     expect(host!.textContent).toContain('CLAUDE.md')
   })
 })

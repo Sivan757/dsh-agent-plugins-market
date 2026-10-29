@@ -10,169 +10,60 @@
   overflow-y: auto;
 }
 
-.session {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-}
-.sessionLabel {
-  flex: none;
-}
-.sessionPath {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--dsw-alias-label-secondary, #57606a);
-  overflow-wrap: anywhere;
-}
-.sessionHint {
-  flex: 1 1 100%;
-}
-
-.empty {
-  padding: 24px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 12px;
-  text-align: center;
-}
-.error {
-  margin: 8px 0;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-.notice {
-  margin: 8px 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.unavailable {
-  margin: 16px 0;
-  padding: 16px;
-  border: 1px solid var(--dsw-alias-border-l1, #e5e7eb);
-  border-radius: 8px;
-}
-.unavailableTitle {
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 600;
-}
-.unavailableBody {
-  margin: 0;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary, #57606a);
-}
-
-.budget {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: none;
-}
-.budgetHead {
-  display: flex;
-  justify-content: space-between;
+/* One card per file, the same grid every other panel lists its entries in. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 8px;
-  font-size: 12px;
-}
-.budgetUsage {
-  font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-secondary, #57606a);
-}
-.budgetTrack {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
-  overflow: hidden;
-}
-.budgetFill {
-  height: 100%;
-  background: var(--dsw-alias-state-business-primary, #2563eb);
-}
-.budgetFillOver {
-  background: var(--dsw-alias-state-warn-label);
-}
-.budgetRule {
-  margin: 0;
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
 }
 
-.group {
+.card {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 6px;
-  flex: none;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
 }
-.groupTitle {
-  margin: 8px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-secondary, #57606a);
+
+.card:hover {
+  border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
-.chain {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+
+.card:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
 }
-.row {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--dsw-alias-border-l1, #e5e7eb);
-  border-radius: 6px;
+
+.cardName {
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.rowHead {
-  display: flex;
+
+.cardMeta {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  min-width: 0;
-}
-.rowToggle {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-.rowPath {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
 }
-.rowSize {
-  flex: none;
+
+.cardSize {
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-}
-.rowActions {
-  display: flex;
-  flex: none;
-  gap: 4px;
-}
-.rowDetail {
-  margin: 0;
-  padding: 0 10px 10px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary, #57606a);
-}
-.rowDetail dt {
-  font-weight: 600;
-}
-.rowDetail dd {
-  margin: 0 0 4px;
-  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .preview {
