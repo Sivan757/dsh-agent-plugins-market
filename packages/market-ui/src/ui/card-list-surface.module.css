@@ -1,0 +1,39 @@
+/* The card body: title and chip on one line, one sentence, then the quiet detail line.
+   Spacing matches the catalog cards these panels sit beside. */
+.surface {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tag {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.meta {
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: 16px 2px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}

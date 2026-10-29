@@ -11,15 +11,16 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InstructionDeleteResult, InstructionRow, InstructionsPayload, InstructionScope } from '../../api.js'
 import { deleteInstructionFile, fetchInstructions, saveInstructionFile } from '../../api.js'
 import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
+import { CardListSurface } from '../../ui/CardListSurface.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
-import { budgetPercent, isOverBudget, statusLocaleKey, statusTone } from './instructions-view-model.js'
+import { budgetPercent, isOverBudget, statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
 
 /** The one drafting session the editor holds. */
@@ -154,30 +155,25 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       ),
       h('p', { className: css.budgetRule }, disabled ? t('instructionsBudgetDisabled') : t('instructionsBudgetRule'))
     ),
-    // The user-level chain only: the project rows and the session directory answer questions
-    // about where the session runs, which the row's own tabs already answer. One card per
-    // file, and a click opens it the way every other panel opens an entry.
-    h(
-      'div',
-      { className: css.cards },
-      payload.rows
+    // The user-level files, as the same cards the other catalog panels draw: the project
+    // candidates and the session directory answered where the session runs rather than what
+    // it loads, and a click opens the file the way every other panel opens an entry.
+    h(CardListSurface, {
+      items: payload.rows
         .filter(row => row.scope !== 'project')
-        .map(row =>
-          h(
-            'button',
-            {
-              key: `${row.scope}:${row.directory}:${row.candidate}`,
-              type: 'button',
-              className: css.card,
-              'data-instruction-status': row.status,
-              onClick: () => openEditor(row)
-            },
-            h('code', { className: css.cardName }, row.displayPath),
-            h('span', { className: css.cardMeta }, h(Tag, { tone: statusTone(row.status) }, t(statusLocaleKey(row.status)))),
-            row.size === undefined ? null : h('span', { className: css.cardSize }, t('instructionsRowSize', { bytes: row.size }))
-          )
-        )
-    ),
+        .map(row => ({
+          id: `${row.scope}:${row.directory}:${row.candidate}`,
+          name: row.displayPath,
+          tag: t(statusLocaleKey(row.status)),
+          meta: row.size === undefined ? '' : t('instructionsRowSize', { bytes: row.size }),
+          disabled: !row.exists
+        })),
+      emptyText: t('instructionsPreviewEmpty'),
+      onOpen: id => {
+        const row = payload.rows.find(entry => `${entry.scope}:${entry.directory}:${entry.candidate}` === id)
+        if (row !== undefined) openEditor(row)
+      }
+    }),
     h(
       'section',
       { className: css.preview, 'data-instructions-preview': true },

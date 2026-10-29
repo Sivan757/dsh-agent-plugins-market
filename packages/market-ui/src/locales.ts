@@ -483,7 +483,7 @@ export const zh = {
   /* ---- Workspace instructions tab (AGENTS.md chain) ---- */
   // "规则" rather than "指令": the commands tab reads 快捷指令, and two tabs whose
   // Chinese labels share 指令 cannot be told apart at a glance in a narrow row.
-  workspaceTabInstructions: '规则',
+  workspaceTabInstructions: '系统提示词',
   instructionsSubtitle: '按宿主加载顺序显示本会话注入的 AGENTS.md 链条，并可直接创建、编辑或删除。',
   instructionsGroupGlobal: '用户级',
   instructionsGroupProject: '项目',
@@ -1033,7 +1033,7 @@ export const en: Record<LocaleKey, string> = {
   /* ---- Workspace instructions tab (AGENTS.md chain) ---- */
   // "Rules" rather than "Instructions": the row is narrow and the label has to
   // read as its own thing beside Shortcuts, not as a longer Shortcuts.
-  workspaceTabInstructions: 'Rules',
+  workspaceTabInstructions: 'System prompt',
   instructionsSubtitle: 'Shows the AGENTS.md chain this session injects, in the host load order, and lets you create, edit or delete any file in it.',
   instructionsGroupGlobal: 'User-global',
   instructionsGroupProject: 'Project',

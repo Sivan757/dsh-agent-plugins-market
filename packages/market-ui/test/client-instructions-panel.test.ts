@@ -136,9 +136,9 @@ async function mount(payload: InstructionsPayload = PAYLOAD): Promise<void> {
   await act(async () => {})
 }
 
-const cards = (): HTMLButtonElement[] => [...(host?.querySelectorAll<HTMLButtonElement>('button[data-instruction-status]') ?? [])]
-const paths = (): string[] => cards().map(card => card.querySelector('code')?.textContent ?? '')
-const statuses = (): string[] => cards().map(card => card.getAttribute('data-instruction-status') ?? '')
+const cards = (): HTMLElement[] => [...(host?.querySelectorAll<HTMLElement>('[data-resource-state]') ?? [])]
+const paths = (): string[] => cards().map(card => card.firstElementChild?.textContent ?? '')
+const statuses = (): string[] => cards().map(card => card.getAttribute('data-resource-state') ?? '')
 
 describe('instructions panel', () => {
   it('lists the user-level files as clickable cards, in load order', async () => {
@@ -146,7 +146,7 @@ describe('instructions panel', () => {
     // The project candidates and the session directory are not listed: the row answers which
     // files this session loads, and the cards open them the way every other panel does.
     expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md'])
-    expect(statuses()).toEqual(['loaded', 'duplicate'])
+    expect(statuses()).toEqual(['active', 'active'])
     expect(host!.textContent).not.toContain('instructionsGroupProject')
     expect(host!.textContent).not.toContain('instructionsSessionHint')
   })
