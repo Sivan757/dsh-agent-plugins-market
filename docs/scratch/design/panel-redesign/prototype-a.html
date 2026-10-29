@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <title>市场面板原型 · 系统提示词 / 输出风格</title>
+    <title>市场面板原型 A（输出风格不分组）</title>
     <style>
       :root {
         --bg: #191919;
@@ -25,25 +25,26 @@
       }
       body {
         margin: 0;
-        padding: 28px;
+        padding: 24px;
         background: var(--bg);
         color: var(--text);
         font:
           400 13px/1.5 -apple-system,
           'SF Pro Text',
           'PingFang SC',
-          'Microsoft YaHei',
           sans-serif;
       }
       .stage {
-        max-width: 1180px;
+        max-width: 1120px;
         margin: 0 auto;
       }
 
-      /* ---------- 页签行 ---------- */
       .wrap {
         position: relative;
         display: flex;
+        width: 100%;
+        min-width: 0;
+        flex: none;
       }
       .rail {
         display: flex;
@@ -72,9 +73,6 @@
         font-size: 14px;
         cursor: pointer;
         white-space: nowrap;
-        transition:
-          color 140ms ease,
-          background-color 140ms ease;
       }
       .tab:hover {
         color: var(--text);
@@ -117,14 +115,13 @@
         opacity: 0;
         transition:
           opacity 140ms ease,
-          color 140ms ease,
-          background-color 140ms ease;
+          color 140ms ease;
       }
       .step.left {
-        left: 8px;
+        left: 6px;
       }
       .step.right {
-        right: 8px;
+        right: 6px;
       }
       .wrap:hover .step {
         opacity: 1;
@@ -133,7 +130,6 @@
         color: var(--text);
       }
 
-      /* ---------- 面板头部 ---------- */
       .panel {
         display: none;
         margin-top: 14px;
@@ -149,12 +145,11 @@
       .head p {
         margin: 0;
         color: var(--text2);
-        font-size: 13px;
       }
       .head .actions {
         margin-left: auto;
         display: flex;
-        gap: 6px;
+        gap: 4px;
       }
       .iconbtn {
         width: 28px;
@@ -173,7 +168,6 @@
         color: var(--text);
       }
 
-      /* ---------- 工具条 ---------- */
       .toolbar {
         display: flex;
         align-items: center;
@@ -242,7 +236,13 @@
         color: var(--text);
       }
 
-      /* ---------- 卡片 ---------- */
+      .groupTitle {
+        grid-column: 1 / -1;
+        margin: 6px 0 0;
+        color: var(--text2);
+        font-weight: 400;
+        font-size: 12px;
+      }
       .cards {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -260,13 +260,10 @@
         border: 1px solid var(--border);
         border-radius: 10px;
         background: var(--layer1);
-        cursor: pointer;
-        text-align: start;
-        font: inherit;
         color: inherit;
-        transition:
-          background-color 140ms ease,
-          border-color 140ms ease;
+        font: inherit;
+        text-align: start;
+        cursor: pointer;
       }
       .card::before {
         content: '';
@@ -278,12 +275,6 @@
         border-radius: 3px;
         background: var(--green);
       }
-      .card[data-tone='muted']::before {
-        background: var(--text3);
-      }
-      .card[data-tone='warn']::before {
-        background: var(--amber);
-      }
       .card:hover {
         background: var(--layer2);
         border-color: var(--border2);
@@ -294,25 +285,18 @@
       }
       .card .name {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 13px;
-        color: var(--text);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
       .card .tag {
         align-self: flex-start;
+        width: fit-content;
         padding: 1px 7px;
         border-radius: 6px;
         background: var(--hover);
         color: var(--text2);
         font-size: 11px;
-      }
-      .card[data-tone='ok'] .tag {
-        color: var(--green);
-      }
-      .card[data-tone='warn'] .tag {
-        color: var(--amber);
       }
       .card .desc {
         margin: 0;
@@ -333,64 +317,6 @@
         font-size: 12px;
       }
 
-      /* ---------- 预算 / 预览 ---------- */
-      .budget {
-        margin-top: 16px;
-      }
-      .budget .row {
-        display: flex;
-        align-items: baseline;
-        gap: 10px;
-        font-size: 12px;
-        color: var(--text2);
-      }
-      .budget .row b {
-        margin-left: auto;
-        font-weight: 400;
-        color: var(--text);
-      }
-      .track {
-        margin-top: 6px;
-        height: 4px;
-        border-radius: 2px;
-        background: var(--active);
-        overflow: hidden;
-      }
-      .track i {
-        display: block;
-        height: 100%;
-        width: 11%;
-        background: var(--blue);
-      }
-      .note {
-        margin: 6px 0 0;
-        color: var(--text3);
-        font-size: 12px;
-      }
-      details.preview {
-        margin-top: 18px;
-      }
-      details.preview summary {
-        cursor: pointer;
-        color: var(--text2);
-        font-size: 12px;
-      }
-      details.preview pre {
-        margin: 8px 0 0;
-        padding: 12px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: var(--layer1);
-        color: var(--text2);
-        font:
-          12px/1.6 ui-monospace,
-          monospace;
-        white-space: pre-wrap;
-        max-height: 220px;
-        overflow: auto;
-      }
-
-      /* ---------- 对话框 ---------- */
       .scrim {
         position: fixed;
         inset: 0;
@@ -420,7 +346,6 @@
       }
       .dialog header .name {
         font-family: ui-monospace, monospace;
-        font-size: 13px;
       }
       .dialog header .close {
         margin-left: auto;
@@ -431,7 +356,7 @@
       }
       .dialog textarea {
         width: 100%;
-        min-height: 260px;
+        min-height: 240px;
         padding: 12px;
         border: 1px solid var(--border);
         border-radius: 10px;
@@ -477,7 +402,7 @@
         color: var(--red);
       }
       .legend {
-        margin-top: 26px;
+        margin-top: 22px;
         padding: 12px 14px;
         border: 1px dashed var(--border2);
         border-radius: 10px;
@@ -500,69 +425,35 @@
         <button class="step right" id="stepRight" aria-label="向后一个">›</button>
       </div>
 
-      <!-- 系统提示词 -->
       <section class="panel active" id="panel-instructions">
         <div class="head">
           <p>按宿主加载顺序列出会注入本会话的指令文件，可编辑、可删除。</p>
-          <div class="actions">
-            <button class="iconbtn" title="刷新">⟳</button>
-          </div>
+          <div class="actions"><button class="iconbtn" title="新建">＋</button><button class="iconbtn" title="刷新">⟳</button></div>
         </div>
-
         <div class="toolbar">
           <label class="search">🔍<input id="q1" placeholder="搜索路径或摘要…" /></label>
           <div class="segments" id="f1"></div>
           <div class="view"><button aria-pressed="true" data-view="grid">▦</button><button aria-pressed="false" data-view="list">☰</button></div>
         </div>
         <div class="cards" id="cards1"></div>
-
-        <div class="budget">
-          <div class="row"><span>注入预算</span><b>7 191 / 65 536 字节</b></div>
-          <div class="track"><i></i></div>
-          <p class="note">超出预算时先省略较宽的目录，只有最具体的那个文件会被截断。</p>
-        </div>
-
-        <details class="preview">
-          <summary>注入给模型的文本</summary>
-          <pre>
-&lt;system-reminder&gt;
-The following workspace instructions may be relevant to your work. Use
-them as guidance when applicable. More specific instructions take
-precedence over broader ones.
-&lt;/system-reminder&gt;</pre>
-        </details>
       </section>
 
-      <!-- 输出风格 -->
       <section class="panel" id="panel-styles">
         <div class="head">
-          <p>内置风格由插件提供，用户风格可通过新建对话框添加。</p>
-          <div class="actions">
-            <button class="iconbtn" title="新建风格">＋</button>
-            <button class="iconbtn" title="刷新">⟳</button>
-          </div>
+          <p>列出插件提供的输出风格，可查看正文；用户风格可新建与编辑。</p>
+          <div class="actions"><button class="iconbtn" title="新建">＋</button><button class="iconbtn" title="刷新">⟳</button></div>
         </div>
-
         <div class="toolbar">
           <label class="search">🔍<input id="q2" placeholder="搜索风格名或说明…" /></label>
           <div class="segments" id="f2"></div>
           <div class="view"><button aria-pressed="true" data-view="grid">▦</button><button aria-pressed="false" data-view="list">☰</button></div>
         </div>
         <div class="cards" id="cards2"></div>
-
-        <details class="preview">
-          <summary>注入给模型的文本</summary>
-          <pre>
-&lt;output-style&gt;
-Concise, evidence-first. Lead with the conclusion, then the reasoning,
-then the next action.
-&lt;/output-style&gt;</pre>
-        </details>
       </section>
 
       <p class="legend">
         <b>原型说明：</b
-        >两个页签都可交互——搜索即时过滤、分段计数可切换、网格/列表可切换、点卡片打开详情、系统提示词可保存与删除、页签行悬停出现箭头与渐隐、边框始终完整。数据为演示用固定样本。
+        >搜索即时过滤、分段计数可切换、网格/列表可切换、点卡片打开详情（可保存；系统提示词已存在的文件可删除）。页签行的箭头是竖长、无底色的浮层，只在鼠标进入该行时出现；被裁一侧的窄渐隐在边框之内。数据为演示样本。
       </p>
     </div>
 
@@ -572,7 +463,7 @@ then the next action.
         <div class="body"><textarea id="dlgText" spellcheck="false"></textarea></div>
         <footer>
           <span id="dlgMeta"></span><span class="grow"></span>
-          <button class="btn ghost" id="dlgDelete">删除</button>
+          <button class="btn ghost" id="dlgDelete" hidden>删除</button>
           <button class="btn" id="dlgCancel">取消</button>
           <button class="btn primary" id="dlgSave">保存</button>
         </footer>
@@ -581,7 +472,7 @@ then the next action.
 
     <script>
       const TABS = ['市场', '技能', '专家', '快捷指令', '连接器', '系统提示词', '钩子', '输出风格', '语言引擎']
-      const ACTIVE = '系统提示词'
+      const PANEL_OF = { 系统提示词: 'panel-instructions', 输出风格: 'panel-styles' }
       const rail = document.getElementById('rail')
       for (const name of TABS) {
         const b = document.createElement('button')
@@ -589,154 +480,128 @@ then the next action.
         b.type = 'button'
         b.role = 'tab'
         b.textContent = name
-        b.setAttribute('aria-selected', String(name === ACTIVE))
+        b.setAttribute('aria-selected', String(name === '系统提示词'))
         b.onclick = () => select(name)
         rail.append(b)
       }
-      const PANEL_OF = { 系统提示词: 'panel-instructions', 输出风格: 'panel-styles' }
       function select(name) {
         for (const b of rail.children) b.setAttribute('aria-selected', String(b.textContent === name))
         for (const el of document.querySelectorAll('.panel')) el.classList.toggle('active', el.id === PANEL_OF[name])
-        const tab = [...rail.children].find(b => b.textContent === name)
-        tab?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
       }
-      /* 溢出：窄渐隐 + 扁长箭头，仅在悬停时显示 */
       const wrap = document.getElementById('wrap')
       function sync() {
         const left = rail.scrollLeft > 2
         const right = rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 2
-        document.getElementById('fadeLeft').style.display = left ? 'block' : 'none'
-        document.getElementById('fadeRight').style.display = right ? 'block' : 'none'
-        document.getElementById('stepLeft').style.display = left ? 'inline-flex' : 'none'
-        document.getElementById('stepRight').style.display = right ? 'inline-flex' : 'none'
+        for (const [el, show] of [
+          [document.getElementById('fadeLeft'), left],
+          [document.getElementById('fadeRight'), right],
+          [document.getElementById('stepLeft'), left],
+          [document.getElementById('stepRight'), right]
+        ]) {
+          el.style.display = show ? (el.classList.contains('step') ? 'inline-flex' : 'block') : 'none'
+        }
       }
       rail.addEventListener('scroll', sync)
       window.addEventListener('resize', sync)
-      function step(dir) {
-        const first = rail.querySelector('.tab')
-        const w = (first?.offsetWidth ?? 90) + 2
-        rail.scrollBy({ left: dir * w, behavior: 'smooth' })
-      }
-      document.getElementById('stepLeft').onclick = () => step(-1)
-      document.getElementById('stepRight').onclick = () => step(1)
+      document.getElementById('stepLeft').onclick = () => rail.scrollBy({ left: -110, behavior: 'smooth' })
+      document.getElementById('stepRight').onclick = () => rail.scrollBy({ left: 110, behavior: 'smooth' })
 
-      /* 数据 */
+      /* 只有存在的文件才列出：不存在的文件不能被看见、找到或使用。 */
       const instructions = [
         {
           id: 'user-global',
           name: '~/.dsh/AGENTS.md',
           tag: '已加载',
-          tone: 'ok',
           desc: '全局工作协议：判断与决策、执行边界、证据与验证、语言与文档。',
           meta: '6 880 字节',
           text: '# Global Working Agreement\n\nWork with me as a technical lead...'
         },
-        { id: 'agents-global', name: '~/.agents/AGENTS.md', tag: '未创建', tone: 'muted', desc: '点击创建第二份全局指令文件，内容会排在上一份之后。', meta: '', text: '' }
+        { id: 'agents-global', name: '~/.agents/AGENTS.md', tag: '重复', desc: '内容与上一份相同，宿主按重复项折叠处理。', meta: '6 880 字节', text: '# Global Working Agreement' }
       ]
+      /* 输出风格来自插件解析，不是内置对象。 */
       const styles = [
+        { id: 'adhd', name: 'adhd', tag: '插件', desc: '短句、直给结论，先行动后解释。', meta: 'adhd-output-style', text: 'Be terse. Lead with the action.' },
         {
-          id: 'concise',
-          name: 'concise',
-          tag: '内置',
-          tone: 'ok',
-          desc: '结论先行，随后证据，最后下一步。',
-          meta: 'plugin · output-styles',
-          text: 'Lead with the conclusion, then the evidence, then the next action.'
+          id: 'modernize',
+          name: 'modernize',
+          tag: '插件',
+          desc: '按现代化阶段推进：评估、抽取规则、重建、复核。',
+          meta: 'code-modernization',
+          text: 'Follow the modernization stages.'
         },
-        {
-          id: 'explanatory',
-          name: 'explanatory',
-          tag: '内置',
-          tone: 'ok',
-          desc: '解释推理过程，适合教学与评审场景。',
-          meta: 'plugin · output-styles',
-          text: 'Explain the reasoning step by step before the recommendation.'
-        },
-        {
-          id: 'verbatim',
-          name: 'verbatim',
-          tag: '内置',
-          tone: 'ok',
-          desc: '逐字保留引用与错误信息，不做改写。',
-          meta: 'plugin · output-styles',
-          text: 'Preserve quoted text and error messages verbatim.'
-        },
+        { id: 'review', name: 'review', tag: '插件', desc: '只报告高置信度问题，每条给出文件与行号。', meta: 'toolkit', text: 'Report only high-confidence findings.' },
         {
           id: 'my-style',
           name: 'my-style',
           tag: '用户',
-          tone: 'ok',
-          desc: '我自己的风格：中文短文，编号步骤，不给收尾问句。',
+          desc: '中文作答，先结论，步骤不超过五条。',
           meta: '~/.dsh/output-styles/my-style.md',
-          text: '用中文回答；先给结论；步骤不超过五条；不要以提问收尾。'
+          text: '用中文回答；先给结论；步骤不超过五条。'
         }
       ]
 
-      /* 工具条：搜索 + 计数分段 + 视图 */
-      const state = {
-        1: { q: '', filter: 'all', view: 'grid' },
-        2: { q: '', filter: 'all', view: 'grid' }
+      const state = { 1: { q: '', filter: 'all', view: 'grid' }, 2: { q: '', filter: 'all', view: 'grid' } }
+      const FILTERS = {
+        1: [
+          ['all', '全部 {n}'],
+          ['loaded', '已加载 {n}', '已加载'],
+          ['dup', '重复 {n}', '重复']
+        ],
+        2: [
+          ['all', '全部 {n}'],
+          ['plugin', '插件 {n}', '插件'],
+          ['user', '用户 {n}', '用户']
+        ]
       }
-      function segments(el, items, key, labels) {
-        el.innerHTML = ''
-        for (const [id, label] of labels) {
-          const count = id === 'all' ? items.length : items.filter(i => i.tag === label.tag).length
+      const DATA = { 1: instructions, 2: styles }
+      function countFor(key, id) {
+        const meta = FILTERS[key].find(f => f[0] === id)
+        return id === 'all' ? DATA[key].length : DATA[key].filter(i => i.tag === meta[2]).length
+      }
+      function renderSegments(key) {
+        const host = document.getElementById('f' + key)
+        host.innerHTML = ''
+        for (const [id, label] of FILTERS[key]) {
           const b = document.createElement('button')
           b.className = 'seg'
           b.type = 'button'
-          b.textContent = label.text.replace('{n}', count)
+          b.textContent = label.replace('{n}', String(countFor(key, id)))
           b.setAttribute('aria-pressed', String(state[key].filter === id))
           b.onclick = () => {
             state[key].filter = id
             render(key)
           }
-          el.append(b)
+          host.append(b)
         }
       }
-      const FILTERS = {
-        1: [
-          ['all', { text: '全部 {n}' }],
-          ['loaded', { text: '已加载 {n}', tag: '已加载' }],
-          ['missing', { text: '未创建 {n}', tag: '未创建' }]
-        ],
-        2: [
-          ['all', { text: '全部 {n}' }],
-          ['builtin', { text: '内置 {n}', tag: '内置' }],
-          ['user', { text: '用户 {n}', tag: '用户' }]
-        ]
-      }
-      function matches(item, key) {
-        const s = state[key]
-        const f = FILTERS[key].find(([id]) => id === s.filter)
-        const byFilter = s.filter === 'all' || item.tag === f[1].tag
-        const q = s.q.trim().toLowerCase()
-        const byText = q === '' || item.name.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q)
-        return byFilter && byText
+      function cardOf(item, key) {
+        const card = document.createElement('button')
+        card.className = 'card'
+        card.type = 'button'
+        card.innerHTML = '<span class="name"></span><span class="tag"></span>' + (item.desc ? '<p class="desc"></p>' : '') + (item.meta ? '<span class="meta"></span>' : '')
+        card.querySelector('.name').textContent = item.name
+        card.querySelector('.tag').textContent = item.tag
+        if (item.desc) card.querySelector('.desc').textContent = item.desc
+        if (item.meta) card.querySelector('.meta').textContent = item.meta
+        card.onclick = () => openDialog(item, key)
+        return card
       }
       function render(key) {
-        const data = key === 1 ? instructions : styles
+        renderSegments(key)
         const host = document.getElementById('cards' + key)
-        const shown = data.filter(item => matches(item, key))
-        segments(document.getElementById('f' + key), data, key, FILTERS[key])
         host.className = 'cards' + (state[key].view === 'list' ? ' list' : '')
         host.innerHTML = ''
+        const meta = FILTERS[key].find(f => f[0] === state[key].filter)
+        const needle = state[key].q.trim().toLowerCase()
+        const shown = DATA[key].filter(
+          i => (state[key].filter === 'all' || i.tag === meta[2]) && (needle === '' || i.name.toLowerCase().includes(needle) || i.desc.toLowerCase().includes(needle))
+        )
         if (shown.length === 0) {
           host.innerHTML = '<p class="empty">没有匹配的条目。</p>'
           return
         }
-        for (const item of shown) {
-          const card = document.createElement('button')
-          card.className = 'card'
-          card.type = 'button'
-          card.dataset.tone = item.tone
-          card.innerHTML = '<span class="name"></span><span class="tag"></span>' + (item.desc ? '<p class="desc"></p>' : '') + (item.meta ? '<span class="meta"></span>' : '')
-          card.querySelector('.name').textContent = item.name
-          card.querySelector('.tag').textContent = item.tag
-          if (item.desc) card.querySelector('.desc').textContent = item.desc
-          if (item.meta) card.querySelector('.meta').textContent = item.meta
-          card.onclick = () => openDialog(item, key)
-          host.append(card)
-        }
+
+        for (const item of shown) host.append(cardOf(item, key))
       }
       document.getElementById('q1').oninput = e => {
         state[1].q = e.target.value
@@ -757,19 +622,16 @@ then the next action.
         })
       }
 
-      /* 详情对话框 */
       let current = null
       let currentKey = 1
       function openDialog(item, key) {
         current = item
         currentKey = key
         document.getElementById('dlgName').textContent = item.name
-        const tag = document.getElementById('dlgTag')
-        tag.className = 'tag'
-        tag.textContent = item.tag
+        document.getElementById('dlgTag').textContent = item.tag
         document.getElementById('dlgText').value = item.text
-        document.getElementById('dlgMeta').textContent = item.meta || '尚未创建，保存后创建该文件'
-        document.getElementById('dlgDelete').style.display = key === 1 && item.tag !== '未创建' ? 'inline-block' : 'none'
+        document.getElementById('dlgMeta').textContent = item.meta
+        document.getElementById('dlgDelete').hidden = !(key === 1)
         document.getElementById('scrim').classList.add('open')
       }
       function closeDialog() {
@@ -777,18 +639,12 @@ then the next action.
       }
       document.getElementById('dlgClose').onclick = closeDialog
       document.getElementById('dlgCancel').onclick = closeDialog
+      document.getElementById('dlgDelete').onclick = closeDialog
       document.getElementById('dlgSave').onclick = () => {
         if (current) {
           current.text = document.getElementById('dlgText').value
-          current.tag = '已加载'
-          current.tone = 'ok'
-          const bytes = new TextEncoder().encode(current.text).length
-          current.meta = bytes === 0 ? '' : bytes.toLocaleString() + ' 字节'
           render(currentKey)
         }
-        closeDialog()
-      }
-      document.getElementById('dlgDelete').onclick = () => {
         closeDialog()
       }
       document.getElementById('scrim').addEventListener('click', e => {
@@ -801,7 +657,6 @@ then the next action.
       render(1)
       render(2)
       sync()
-      requestAnimationFrame(sync)
     </script>
   </body>
 </html>
