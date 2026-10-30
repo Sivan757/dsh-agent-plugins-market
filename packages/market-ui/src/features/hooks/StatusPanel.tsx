@@ -9,15 +9,10 @@ import type { ExtensionTranslate } from '../../i18n.js'
 import { fetchHooksOverview } from '../../api.js'
 import type { ExtensionDetail, ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
-import { HookResourceCard } from '../../ui/HookResourceCard.js'
-import { ResourceCollection } from '../../ui/ResourceCard.js'
-import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { useWorkspaceView } from '../../ui/workspace-view.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { HookDetailModal } from '../../ui/HookDetailModal.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import css from '../mcp/mcp-status.module.css'
-
-type Filter = 'all' | 'supported' | 'limited'
 
 /** One hook's detail address, as the shared card opens it. */
 type HookDetail = Extract<ExtensionDetail, { kind: 'hook' }>
@@ -27,9 +22,6 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   const [rows, setRows] = useState<ExtensionResource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [view, setView] = useWorkspaceView()
   const [detail, setDetail] = useState<HookDetail | undefined>(undefined)
 
   const refresh = (): void => {
@@ -46,24 +38,6 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   }, [])
 
   const limited = (row: ExtensionResource): boolean => row.control === 'global-only'
-  const needle = search.trim().toLowerCase()
-  // Every event lists together: the stage travels on each card, so no tab row
-  // hides the other events.
-  const filtered = rows.filter(
-    row => (filter === 'all' || (filter === 'supported') === !limited(row)) && (needle === '' || (row.name + ' ' + row.source).toLowerCase().includes(needle))
-  )
-  const filters = [
-    { id: 'all' as const, label: t('tabAll'), count: rows.length, active: filter === 'all', onSelect: () => setFilter('all') },
-    {
-      id: 'supported' as const,
-      label: t('hooksFilterSupported'),
-      count: rows.filter(row => !limited(row)).length,
-      active: filter === 'supported',
-      onSelect: () => setFilter('supported')
-    },
-    { id: 'limited' as const, label: t('hooksFilterLimited'), count: rows.filter(limited).length, active: filter === 'limited', onSelect: () => setFilter('limited') }
-  ]
-  const filterId = 'hooks-panel-filter'
   // One opener for the whole panel: the card reports the row, and the detail
   // comes from that row's own address, so no other hook can be opened here.
   const openDetail = (row: ExtensionResource): void => {
@@ -77,41 +51,34 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
       subtitle: t('hooksPanelSubtitle'),
       actions: h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
     }),
-    h(SearchFilterToolbar, {
-      className: css.toolbar,
-      search,
+    // The shared renderer draws the list; this panel only supplies entries and the detail.
+    h(ResourceSurface, {
+      t,
+      entries: rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        // The tag names the stage; the support verdict is the warning below it.
+        tag: row.description,
+        // The authored command is what this row is; the stage is the tag.
+        description: row.detail.kind === 'hook' ? row.detail.command : row.description,
+        warning: limited(row) ? t(row.unavailableReason === 'hook-event-partial' ? 'hooksEventPartial' : 'hooksEventUnsupported') : undefined,
+        meta: row.source,
+        state: limited(row) ? ('warning' as const) : ('active' as const),
+        // This surface cannot switch a hook: the declaration belongs to its suite.
+        hideToggle: true
+      })),
       searchLabel: t('hooksPanelSearch'),
       searchPlaceholder: t('hooksPanelSearch'),
-      onSearchChange: setSearch,
-      filters,
-      filterId,
-      filterLabel: t('workspaceTabHooks'),
-      view,
-      toListLabel: t('switchToList'),
-      toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView)
+      filters: [
+        { id: 'supported', label: t('hooksFilterSupported'), match: entry => entry.state !== 'warning' },
+        { id: 'limited', label: t('hooksFilterLimited'), match: entry => entry.state === 'warning' }
+      ],
+      emptyText: loading && rows.length === 0 ? t('loading') : t('hooksPanelEmpty'),
+      onOpen: rowId => {
+        const row = rows.find(item => item.id === rowId)
+        if (row !== undefined) openDetail(row)
+      }
     }),
-    error !== undefined
-      ? h('div', { className: css.error, role: 'status' }, error)
-      : loading && rows.length === 0
-        ? h('div', { className: css.empty, role: 'status' }, t('loading'))
-        : filtered.length === 0
-          ? h('div', { className: css.empty, role: 'status' }, t('hooksPanelEmpty'))
-          : h(
-              ResourceCollection,
-              { view },
-              filtered.map(row =>
-                h(HookResourceCard, {
-                  key: row.id,
-                  row,
-                  t,
-                  // Read-only chrome: a limited declaration warns, everything
-                  // else the host can run reads active.
-                  state: limited(row) ? 'warning' : 'active',
-                  onView: openDetail
-                })
-              )
-            ),
     detail === undefined ? null : h(HookDetailModal, { detail, t, onClose: () => setDetail(undefined) })
   )
 }
