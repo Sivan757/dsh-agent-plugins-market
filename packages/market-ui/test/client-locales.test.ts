@@ -28,6 +28,26 @@ describe('Agent Plugins Market client compatibility', () => {
     expect(en.detailCommand).toBe('Command')
   })
 
+  it('keeps every panel intro within the header line budget', () => {
+    // A panel intro sits on one line under the header. Chinese gets 20 characters,
+    // English 70, and an ASCII name such as MCP or AGENTS.md counts as its visible
+    // length. The market and the three user panels name their intro *Description.
+    const zhLimit = 20
+    const enLimit = 70
+    const introKeys = [
+      ...Object.keys(zh).filter(key => key.endsWith('Subtitle')),
+      'navDescription',
+      'skillsPanelDescription',
+      'commandsPanelDescription',
+      'personasPanelDescription'
+    ]
+    expect(introKeys).toEqual(expect.arrayContaining(['mcpStatusSubtitle', 'hooksPanelSubtitle', 'lspStatusSubtitle', 'instructionsSubtitle', 'outputStylesSubtitle']))
+    for (const key of introKeys) {
+      expect(Array.from(zh[key as keyof typeof zh].trim()).length, `zh ${key}`).toBeLessThanOrEqual(zhLimit)
+      expect(Array.from(en[key as keyof typeof en].trim()).length, `en ${key}`).toBeLessThanOrEqual(enLimit)
+    }
+  })
+
   it('uses the legacy page only when the settings page is unavailable', () => {
     expect(shouldUseLegacyPageMode(false, true)).toBe(true)
     expect(shouldUseLegacyPageMode(true, true)).toBe(false)
