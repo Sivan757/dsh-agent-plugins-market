@@ -1,0 +1,43 @@
+/* The list body. Card composition lives in resource-card.module.css; this file only
+   positions the pieces a surface adds: the switch, the counts line, and the detail line. */
+.surface {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+}
+
+.description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.meta {
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: 16px 2px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}

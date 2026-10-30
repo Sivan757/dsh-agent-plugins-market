@@ -17,7 +17,7 @@ import { deleteInstructionFile, fetchInstructions, saveInstructionFile } from '.
 import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
-import { CardListSurface } from '../../ui/CardListSurface.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
@@ -149,7 +149,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     payload.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
     // Only files that exist: a list of things that are not there cannot be seen, found, or used.
-    h(CardListSurface, {
+    h(ResourceSurface, {
       t,
       searchLabel: t('cardSearch'),
       searchPlaceholder: t('instructionsSearchPh'),
@@ -160,7 +160,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
         { id: 'duplicate', label: t('instructionsStatusDuplicate'), match: item => item.tagId === 'duplicate' }
       ],
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
-      items: payload.rows
+      entries: payload.rows
         .filter(row => row.scope !== 'project' && row.exists)
         .map(row => ({
           id: `${row.scope}:${row.directory}:${row.candidate}`,

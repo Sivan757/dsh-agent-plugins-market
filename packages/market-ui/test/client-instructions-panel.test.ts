@@ -137,7 +137,7 @@ async function mount(payload: InstructionsPayload = PAYLOAD): Promise<void> {
 }
 
 const cards = (): HTMLElement[] => [...(host?.querySelectorAll<HTMLElement>('[data-resource-state]') ?? [])]
-const paths = (): string[] => cards().map(card => card.firstElementChild?.textContent ?? '')
+const paths = (): string[] => cards().map(card => card.querySelector('span')?.textContent ?? '')
 const statuses = (): string[] => cards().map(card => card.getAttribute('data-resource-state') ?? '')
 
 describe('instructions panel', () => {

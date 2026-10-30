@@ -23,7 +23,7 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
-import { CardListSurface } from '../../ui/CardListSurface.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { captureAction, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
 import css from './output-styles.module.css'
@@ -147,7 +147,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
     // One card per style, the same grid the catalogue panels draw: the list is for
     // scanning and the card opens everything a person can do with that style.
-    h(CardListSurface, {
+    h(ResourceSurface, {
       t,
       searchLabel: t('cardSearch'),
       searchPlaceholder: t('outputStylesSearchPh'),
@@ -157,7 +157,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         { id: 'suite', label: t('outputStylesGroupSuite'), match: item => item.tagId === 'suite' }
       ],
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
-      items: payload.styles.map(row => ({
+      entries: payload.styles.map(row => ({
         id: row.id,
         name: row.label,
         tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
