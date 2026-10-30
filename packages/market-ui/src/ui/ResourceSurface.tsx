@@ -42,6 +42,10 @@ export interface ResourceEntry {
   warning?: string
   /** Whether the entry can be used as it stands. */
   disabled?: boolean
+  /** Explicit card chrome when the surface needs a state the flag cannot express. */
+  state?: 'active' | 'disabled' | 'warning' | 'error'
+  /** The switch does not apply to this entry at all, so the card shows no control. */
+  hideToggle?: boolean
 }
 
 /** What one surface allows. A capability that is false removes the control, not the card. */
@@ -131,48 +135,58 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
           onViewChange: setView,
           beforeView
         }),
-    shown.length === 0
-      ? h('p', { className: surface.empty }, emptyText)
-      : h(
-          ResourceCollection,
-          { view },
-          shown.map(entry =>
-            h(
-              ResourceCard,
-              {
-                key: entry.id,
-                state: entry.disabled === true ? 'disabled' : 'active',
-                ...interactiveCardProps(() => onOpen(entry.id))
-              },
-              h(CardIdentity, { text: entry.name, hint: entry.hint, mono: entry.mono, tag: entry.tag }),
-              capabilities.toggle === true && onToggle !== undefined
-                ? h(
-                    'span',
-                    {
-                      className: surface.toggle,
-                      onClick: (event: { stopPropagation(): void }) => event.stopPropagation(),
-                      onKeyDown: (event: { stopPropagation(): void }) => event.stopPropagation()
-                    },
-                    h(Switch, {
-                      checked: isOn?.(entry.id) === true,
-                      disabled: isToggleDisabled?.(entry.id) === true,
-                      onChange: (enabled: boolean) => onToggle(entry.id, enabled),
-                      label: entry.name
-                    })
-                  )
-                : null,
-              entry.description === undefined ? null : h('p', { className: surface.description }, entry.description),
-              entry.warning === undefined ? null : h(CardWarning, null, entry.warning),
-              capabilities.counts === true && entry.counts !== undefined
-                ? h(
-                    'span',
-                    { className: surface.counts },
-                    entry.counts.map(item => h(CardCount, { key: item.label, label: item.label, count: item.count }))
-                  )
-                : null,
-              entry.meta === undefined ? null : h('span', { className: surface.meta }, entry.meta)
+    // The segmented control points aria-controls at one panel per filter, so every filter
+    // owns a panel and the active one is the one holding the collection.
+    h(
+      'div',
+      { role: 'tabpanel', id: filterId + '-' + filter + '-panel', 'aria-labelledby': filterId + '-' + filter },
+      shown.length === 0
+        ? h('p', { className: surface.empty }, emptyText)
+        : h(
+            ResourceCollection,
+            { view },
+            shown.map(entry =>
+              h(
+                ResourceCard,
+                {
+                  key: entry.id,
+                  'data-resource-id': entry.id,
+                  state: entry.state ?? (entry.disabled === true ? 'disabled' : 'active'),
+                  ...interactiveCardProps(() => onOpen(entry.id))
+                },
+                h(CardIdentity, { text: entry.name, hint: entry.hint, mono: entry.mono, tag: entry.tag }),
+                capabilities.toggle === true && onToggle !== undefined && entry.hideToggle !== true
+                  ? h(
+                      'span',
+                      {
+                        className: surface.toggle,
+                        onClick: (event: { stopPropagation(): void }) => event.stopPropagation(),
+                        onKeyDown: (event: { stopPropagation(): void }) => event.stopPropagation()
+                      },
+                      h(Switch, {
+                        checked: isOn?.(entry.id) === true,
+                        disabled: isToggleDisabled?.(entry.id) === true,
+                        onChange: (enabled: boolean) => onToggle(entry.id, enabled),
+                        label: entry.name
+                      })
+                    )
+                  : null,
+                entry.description === undefined ? null : h('p', { className: surface.description }, entry.description),
+                entry.warning === undefined ? null : h(CardWarning, { text: entry.warning, label: entry.warning }),
+                capabilities.counts === true && entry.counts !== undefined
+                  ? h(
+                      'span',
+                      { className: surface.counts },
+                      entry.counts.map(item => h(CardCount, { key: item.label, label: item.label, count: item.count }))
+                    )
+                  : null,
+                entry.meta === undefined ? null : h('span', { className: surface.meta }, entry.meta)
+              )
             )
           )
-        )
+    ),
+    ['all', ...filters.map(entry => entry.id)]
+      .filter(value => value !== filter)
+      .map(value => h('div', { key: value, hidden: true, id: filterId + '-' + value + '-panel', role: 'tabpanel', 'aria-labelledby': filterId + '-' + value }))
   )
 }

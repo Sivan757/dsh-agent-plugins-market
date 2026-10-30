@@ -16,6 +16,7 @@
   // files) live beside packages/market-ui and belong to tsconfig.test.client.json.
   "include": ["packages/*/test/**/*.ts"],
   "exclude": [
+    "packages/market-ui/test/resource-surface.test.ts",
     "packages/market-bundle/test/integration/client-document-translation.test.ts",
     "packages/market-bundle/test/integration/client-extension-preset-details.test.ts",
     "packages/market-bundle/test/integration/client-extension-preset-v5.test.ts",

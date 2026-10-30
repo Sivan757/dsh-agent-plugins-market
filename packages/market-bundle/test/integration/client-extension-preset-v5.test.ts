@@ -165,7 +165,7 @@ it('edits global-off into a named library draft before explicit session selectio
   await click('Skills')
   const card = document.querySelector<HTMLElement>('article')!
   expect(card.getAttribute('data-resource-state')).toBe('disabled')
-  await act(async () => card.click())
+  await act(async () => card.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(posts).toHaveLength(0)
   expect(document.body.textContent).toContain('Unnamed preset')
   await click('Save preset')
@@ -188,7 +188,7 @@ it('coalesces same-id project cards and toggles the unnamed draft', async () => 
   await mount(false, [suite, { ...suite }, { ...skill, globalEnabled: true }])
   await open()
   const cards = () => [...document.querySelectorAll<HTMLElement>('article')]
-  await act(async () => cards()[0]!.click())
+  await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
   expect(document.body.textContent).toContain('Unnamed preset')
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
@@ -200,7 +200,7 @@ it('coalesces same-id project cards and toggles the unnamed draft', async () => 
   expect(cards()).toHaveLength(0)
   await click('All 1')
   expect(cards()).toHaveLength(1)
-  await act(async () => cards()[0]!.click())
+  await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['active'])
   await click('Disabled 0')
   expect(cards()).toHaveLength(0)
@@ -213,7 +213,7 @@ it('does not retain stale duplicate cards after a filtered row is removed', asyn
   await open()
   await act(async () => typeInto(document.querySelector<HTMLInputElement>('input[aria-label="Search installed extensions"]')!, 'frontend'))
   const cards = () => [...document.querySelectorAll<HTMLElement>('article')]
-  await act(async () => cards()[0]!.click())
+  await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards()[0]!.getAttribute('data-resource-state')).toBe('disabled')
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards()[0]!.getAttribute('data-resource-state')).toBe('active')
@@ -236,7 +236,7 @@ it('requires confirmation before discarding a global library draft', async () =>
   await mount()
   await open()
   await click('Skills')
-  await act(async () => document.querySelector<HTMLElement>('article')!.click())
+  await act(async () => document.querySelector<HTMLElement>('article')!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
   expect(document.body.textContent).toContain(en.epDiscardHint)
   await click('Cancel')
@@ -250,7 +250,7 @@ it('routes real detail toggles through the library draft without global mutation
   await mount()
   await open()
   await click('Skills')
-  await click('View details · security-audit')
+  await act(async () => document.querySelector<HTMLElement>('article')!.click())
   expect(detailProps?.checked).toBe(false)
   expect(detailProps?.disabled).toBe(false)
   await act(async () => detailProps!.onToggle!(true))
@@ -307,7 +307,7 @@ it('uses the same source, count and name classes as current settings cards', asy
   const card = document.querySelector('article')!
   const name = card.querySelector('.' + rc.default.name)!
   expect(name.classList.contains(rc.default.nameMono!)).toBe(false)
-  expect(card.querySelector('.' + rc.default.provenance)!.textContent).toBe('Source')
+  expect(card.textContent).toContain('Source')
   expect(card.querySelector('.' + rc.default.countValue)!.textContent).toBe('1')
   expect(card.querySelector('.' + rc.default.count)!.textContent).toContain(settingsEn.surfaceSkills)
   const labels = [...document.querySelectorAll('[role="tab"]')].slice(0, 6).map(node => node.textContent)
@@ -319,7 +319,7 @@ it('uses the same source, count and name classes as current settings cards', asy
     settingsEn.workspaceTabMcp,
     en.epHooksTab
   ])
-  expect(card.querySelector('.' + rc.default.switchWrap)).not.toBeNull()
+  expect(card.querySelector('[role="switch"]')).not.toBeNull()
   expect(document.querySelector('[role="group"] .' + source.default.srcTabMain)).not.toBeNull()
 })
 it('classifies project-scan rows into their surface tabs and renders no local tab', async () => {
@@ -667,11 +667,14 @@ describe('hooks tab', () => {
     // A supported event keeps its own switch; the selection is the only difference.
     expect(cardOf('hooks:@user-hooks/user-hooks/PreToolUse/0').querySelector('[role="switch"]')).not.toBeNull()
     expect(cardOf('hooks:@user-hooks/user-hooks/Stop/0').querySelector('[role="switch"]')).not.toBeNull()
-    // A partial or registered-only event is read-only and its card says why.
-    for (const id of ['hooks:@user-hooks/user-hooks/Notification/0', 'hooks:@user-hooks/user-hooks/SessionEnd/declared']) {
+    // A partial or registered-only event is read-only, and its card states the reason inline.
+    for (const [id, reason] of [
+      ['hooks:@user-hooks/user-hooks/Notification/0', 'epHookEventPartial'],
+      ['hooks:@user-hooks/user-hooks/SessionEnd/declared', 'epHookEventUnsupported']
+    ] as const) {
       const card = cardOf(id)
       expect(card.querySelector('[role="switch"]')).toBeNull()
-      expect([...card.querySelectorAll('span')].some(node => node.getAttribute('data-tone') === 'quiet')).toBe(true)
+      expect(card.textContent).toContain(t(reason))
     }
   })
 
@@ -721,23 +724,12 @@ describe('hooks tab', () => {
     // Both read-only rows list at once, each with its own reason tag.
     expect(document.querySelectorAll('article')).toHaveLength(2)
     const cardOf = (id: string) => document.querySelector<HTMLElement>('article[data-resource-id="' + id + '"]')!
-    const hover = async (card: HTMLElement): Promise<void> => {
-      const tag = [...card.querySelectorAll('span')].find(node => node.getAttribute('data-tone') === 'quiet')!
-      await act(async () => {
-        tag.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
-      })
-      await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10))
-      })
-    }
     const partial = cardOf('hooks:@user-hooks/user-hooks/Notification/0')
     expect(partial.querySelector('[role="switch"]')).toBeNull()
-    await hover(partial)
-    expect(document.body.textContent).toContain(tZh('epHookEventPartial'))
+    expect(partial.textContent).toContain(tZh('epHookEventPartial'))
     const registered = cardOf('hooks:@user-hooks/user-hooks/SessionEnd/declared')
     expect(registered.querySelector('[role="switch"]')).toBeNull()
-    await hover(registered)
-    expect(document.body.textContent).toContain(tZh('epHookEventUnsupported'))
+    expect(registered.textContent).toContain(tZh('epHookEventUnsupported'))
   })
 
   it('keeps the seven one-line face tabs on the shared scrolling rail', async () => {

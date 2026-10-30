@@ -15,7 +15,13 @@ export function ResourceCard({
   className,
   children,
   ...props
-}: HTMLAttributes<HTMLElement> & { state: ResourceState; surface?: ResourceSurface; children?: ReactNode }): ReactNode {
+}: HTMLAttributes<HTMLElement> & {
+  state: ResourceState
+  surface?: ResourceSurface
+  /** Stable identity of the entry the card renders, for tests and for focus restoration. */
+  'data-resource-id'?: string
+  children?: ReactNode
+}): ReactNode {
   return h('article', { ...props, className: `${className ?? ''} ${css.card}`, 'data-resource-state': state, 'data-resource-surface': surface }, children)
 }
 

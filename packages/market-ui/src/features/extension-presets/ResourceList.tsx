@@ -1,23 +1,17 @@
 import { createElement as h, useCallback, useId, useMemo, useState, type ReactNode } from 'react'
-import { Button, IconInfoOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+
 import { type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
-import { CardCount, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from '../../ui/ResourceCard.js'
 import { TabRail } from '../../ui/TabRail.js'
-import { HookResourceCard } from '../../ui/HookResourceCard.js'
-import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { displayText } from '../../ui/translated-text.js'
 import { useTranslationEnabled } from '../../ui/translation-enabled.js'
-import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { resourceSelected } from './resource.js'
 import type { ExtensionTranslate } from './types.js'
-import rc from '../../ui/resource-card.module.css'
-import css from './presets.module.css'
 import panel from '../../ui/panel.module.css'
 import workspace from '../../workspace/workspace.module.css'
 import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout-store.js'
 import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
-import { hoverHint } from '../../ui/hover-hint.js'
 const faces = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'hooks'] as const
 const labels = {
   market: 'workspaceTabMarket',
@@ -111,9 +105,6 @@ export function ResourceList({
     },
     [applyTabMoveTo, orderedFaces]
   )
-  const [filter, setFilter] = useState('all'),
-    [query, setQuery] = useState('')
-  const [view, setView] = useWorkspaceView()
   const id = useId()
   const selected = (row: ExtensionResource) => row.available && resourceSelected(row, ids)
   const rows = resources.filter(row => row.face === face && row.configuration === undefined)
@@ -142,17 +133,34 @@ export function ResourceList({
           ? t('epHookEventUnsupported')
           : t('epGlobalManaged')
       : (row.unavailableReason ?? t(row.configuration ? 'epConfigurationUnavailable' : 'epUnavailable'))
-  // The Hooks face lists every event together: the stage travels on each card,
-  // so no tab row hides the other events.
-  const filtered = rows.filter(
-    row =>
-      (filter === 'all' || (filter === 'on') === selected(row)) &&
-      // Both texts stay searchable: a reader who saw the translation can still
-      // find the row after flipping to the authored text, and the reverse.
-      (displayName(row) + ' ' + row.name + ' ' + (row.description ?? '') + ' ' + (row.translatedDescription ?? '') + ' ' + row.source).toLowerCase().includes(query.toLowerCase())
-  )
-  const stopClick = (event: import('react').MouseEvent) => event.stopPropagation()
-  const stopKey = (event: import('react').KeyboardEvent) => event.stopPropagation()
+  // One entry per row; the renderer owns the toolbar, the collection and the card.
+  const rowById = new Map(rows.map(row => [row.id, row]))
+  const selectedById = (rowId: string): boolean => {
+    const row = rowById.get(rowId)
+    return row !== undefined && selected(row)
+  }
+  const entries = rows.map(row => ({
+    id: row.id,
+    name: displayName(row),
+    hint: row.version,
+    mono: row.face === 'commands',
+    tag: ownerLabel(row),
+    description: displayDescription(row),
+    // A row with no switch still shows whether the host has it on.
+    meta: row.control === 'global-only' ? row.source + ' · ' + t(selected(row) ? 'epOn' : 'epOff') : row.source,
+    counts:
+      row.face === 'market'
+        ? faces
+            .filter(value => value !== 'market')
+            .map(value => ({ label: t(countLabels[value]), count: resources.filter(child => child.suiteResourceId === row.id && child.face === value).length }))
+            .filter(item => item.count > 0)
+        : undefined,
+    warning: !row.available || row.control === 'global-only' ? hints(row) : undefined,
+    // A row the host manages globally has no switch of its own: the card says why instead.
+    hideToggle: row.control === 'global-only',
+    // Off rows wear the quiet chrome; unavailable ones wear the warning chrome.
+    state: !row.available ? (row.control === 'global-only' ? ('disabled' as const) : ('warning' as const)) : selected(row) ? ('active' as const) : ('disabled' as const)
+  }))
   return (
     <div className={workspace.workspace}>
       <TabRail
@@ -165,98 +173,36 @@ export function ResourceList({
         items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
       />
       <div className={panel.shell} role="tabpanel" id={id + '-' + face + '-panel'} aria-labelledby={id + '-' + face}>
-        <SearchFilterToolbar
-          search={query}
-          onSearchChange={setQuery}
+        <ResourceSurface
+          t={t}
+          entries={entries}
+          capabilities={{ toggle: true, counts: true }}
           searchLabel={t('epSearch')}
           searchPlaceholder={t('epSearchPlaceholder')}
-          filterId={id + '-filter'}
-          filterLabel={t('epSearch')}
-          filters={['all', 'on', 'off'].map(value => ({
-            id: value,
-            label: t(value === 'all' ? 'epAll' : value === 'on' ? 'epOn' : 'epOff'),
-            count: rows.filter(row => value === 'all' || (value === 'on') === selected(row)).length,
-            active: filter === value,
-            onSelect: () => setFilter(value)
-          }))}
-          view={view}
-          onViewChange={setView}
-          toListLabel={t('epList')}
-          toGridLabel={t('epGrid')}
+          filters={[
+            { id: 'on', label: t('epOn'), match: entry => selectedById(entry.id) },
+            { id: 'off', label: t('epOff'), match: entry => !selectedById(entry.id) }
+          ]}
           beforeView={h(BilingualToggle, { t, showOriginal, onToggle: onToggleShowOriginal })}
+          emptyText={t('epEmpty')}
+          // A card opens the entry; the switch beside it toggles. The view action that used
+          // to be an icon on every card is what the card click now does.
+          onOpen={entryId => {
+            const row = rowById.get(entryId)
+            if (row !== undefined) onView(row)
+          }}
+          onToggle={(entryId, enabled) => {
+            const row = rowById.get(entryId)
+            if (row !== undefined) onToggle(row, enabled)
+          }}
+          isOn={entryId => selectedById(entryId)}
+          isToggleDisabled={entryId => {
+            const row = rowById.get(entryId)
+            return row === undefined || !controlled(row)
+          }}
         />
-        <div className={css.listRegion} role="tabpanel" id={id + '-filter-' + filter + '-panel'} aria-labelledby={id + '-filter-' + filter}>
-          <ResourceCollection view={view}>
-            {filtered.map(row => {
-              const description = displayDescription(row)
-              return row.face === 'hooks' ? (
-                <HookResourceCard
-                  key={row.id}
-                  row={row}
-                  t={t}
-                  state={!row.available ? (row.control === 'global-only' ? 'disabled' : 'warning') : selected(row) ? 'active' : 'disabled'}
-                  {...(row.followsSuite === true
-                    ? {}
-                    : { toggle: { selected: selected(row), disabled: !controlled(row), onChange: (enabled: boolean) => onToggle(row, enabled) } })}
-                  onView={onView}
-                />
-              ) : (
-                <ResourceCard
-                  key={row.id}
-                  data-resource-id={row.id}
-                  surface={row.face === 'agents' ? 'personas' : row.face}
-                  state={!row.available ? (row.control === 'global-only' ? 'disabled' : 'warning') : selected(row) ? 'active' : 'disabled'}
-                  {...(controlled(row) ? { ...interactiveCardProps(() => onToggle(row, !selected(row))), 'aria-pressed': selected(row), 'aria-label': displayName(row) } : {})}
-                >
-                  <CardIdentity text={row.name} mono={row.face === 'commands'} version={row.version} tag={ownerLabel(row)} />
-                  {description === undefined || description === '' ? null : hoverHint(description, h('p', { className: rc.rowBody + ' ' + rc.desc }, description))}
-                  <div className={rc.rowFoot}>
-                    {hoverHint(row.source, h('span', { className: rc.provenance }, row.source))}
-                    {row.face === 'market' &&
-                      faces
-                        .filter(value => value !== 'market')
-                        .map(value => {
-                          const count = resources.filter(child => child.suiteResourceId === row.id && child.face === value).length
-                          return count ? h(CardCount, { key: value, label: t(countLabels[value]), count }) : null
-                        })}
-                    {(!row.available || row.control === 'global-only') &&
-                      h(CardWarning, {
-                        text: t(row.control === 'global-only' ? 'epGlobalManagedShort' : 'epUnavailable'),
-                        label: hints(row),
-                        tone: row.control === 'global-only' ? 'quiet' : 'warning',
-                        side: 'top',
-                        portal: true,
-                        interactive: true
-                      })}
-                  </div>
-                  <div className={rc.rowActions} onClick={stopClick} onKeyDown={stopKey} onKeyUp={stopKey}>
-                    <Button size="sm" variant="ghost" className={rc.iconBtn} aria-label={t('epView') + ' · ' + displayName(row)} onClick={() => onView(row)}>
-                      <IconInfoOutlineMedium size={16} />
-                    </Button>
-                    {row.control === 'global-only' ? (
-                      <Tag tone="quiet">{t(selected(row) ? 'epOn' : 'epOff')}</Tag>
-                    ) : (
-                      <span className={rc.switchWrap}>
-                        <Switch checked={selected(row)} disabled={!controlled(row)} label={displayName(row)} onChange={on => onToggle(row, on)} />
-                      </span>
-                    )}
-                  </div>
-                </ResourceCard>
-              )
-            })}
-          </ResourceCollection>
-          {!filtered.length && (
-            <div className={panel.empty} role="status">
-              {t('epEmpty')}
-            </div>
-          )}
-        </div>
-        {['all', 'on', 'off']
-          .filter(value => value !== filter)
-          .map(value => (
-            <div key={value} hidden id={id + '-filter-' + value + '-panel'} role="tabpanel" aria-labelledby={id + '-filter-' + value} />
-          ))}
       </div>
+
       {faces
         .filter(value => value !== face)
         .map(value => (

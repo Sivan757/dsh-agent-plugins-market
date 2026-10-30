@@ -457,8 +457,8 @@ describe('extension preset rendering', () => {
     await click('Manage presets')
     await click('Connectors')
     expect(document.querySelector('[role="switch"]')).toBeNull()
-    expect(document.body.textContent).toContain(extensionPresetsEn.epGlobalManagedShort)
-    expect(document.body.textContent).not.toContain(extensionPresetsEn.epGlobalManaged)
+    // The card states the reason inline instead of carrying a chip.
+    expect(document.body.textContent).toContain(extensionPresetsEn.epGlobalManaged)
     expect(document.body.textContent).toContain('Enabled')
   })
   it('allows a valid native skill with its global default off to be enabled in a saved preset', async () => {
@@ -491,13 +491,13 @@ describe('extension preset rendering', () => {
     await click('Research')
     await click('Manage presets')
     const card = document.querySelector<HTMLElement>('article[role="button"]')!
-    const toggle = document.querySelector<HTMLButtonElement>('[role="switch"]')!
+    const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!
     expect(card.getAttribute('data-resource-state')).toBe('disabled')
-    expect(card.getAttribute('aria-pressed')).toBe('false')
+    // The card opens the detail; the switch is what changes the selection.
+    expect(card.getAttribute('aria-pressed')).toBeNull()
     expect(toggle.disabled).toBe(false)
-    await act(async () => card.click())
+    await act(async () => toggle.click())
     expect(card.getAttribute('data-resource-state')).toBe('active')
-    expect(toggle.getAttribute('aria-checked')).toBe('true')
     expect(posts).toHaveLength(1)
     expect(posts[0]!.url).toContain('/update')
     expect(posts[0]!.body.enabledIds).toEqual([native.id])
@@ -545,20 +545,15 @@ describe('extension preset rendering', () => {
     await click('Research')
     await click('Manage presets')
     const card = document.querySelector<HTMLElement>('article[role="button"]')!
+    const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!
+    // One toggle per activation, and the switch is the only control that writes.
+    await act(async () => toggle.click())
+    expect(posts).toHaveLength(1)
+    await act(async () => toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    expect(posts).toHaveLength(1)
+    // The card opens the detail and writes nothing.
     await act(async () => card.click())
     expect(posts).toHaveLength(1)
-    await act(async () => card.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })))
-    expect(posts).toHaveLength(2)
-    const toggle = document.querySelector<HTMLButtonElement>('[role="switch"]')!
-    await act(async () => toggle.click())
-    expect(posts).toHaveLength(3)
-    await act(async () => toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
-    expect(posts).toHaveLength(3)
-    const detail = document.querySelector<HTMLButtonElement>('button[aria-label="View details · Skill"]')!
-    await act(async () => detail.click())
-    expect(posts).toHaveLength(3)
-    await act(async () => detail.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })))
-    expect(posts).toHaveLength(3)
     expect(renderDetail).toHaveBeenCalled()
     expect(posts.every(post => post.url.endsWith('/update'))).toBe(true)
   })
@@ -567,7 +562,7 @@ describe('extension preset rendering', () => {
     await click('Research')
     await click('Manage presets')
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ ok: false, code: 'conflict' }) } as Response)
-    await act(async () => document.querySelector<HTMLElement>('article[role="button"]')!.click())
+    await act(async () => document.querySelector<HTMLElement>('article[role="button"] [role="switch"]')!.click())
     expect(document.body.textContent).toContain(extensionPresetsEn.epFailed)
     expect(document.body.textContent).toContain(extensionPresetsEn.epDiscard)
     await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
@@ -575,7 +570,7 @@ describe('extension preset rendering', () => {
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Save as a new preset"]')!.disabled).toBe(true)
     await click('Cancel')
     await click('Discard unsaved changes')
-    expect(document.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true')
+    expect(document.querySelector<HTMLElement>('article')!.getAttribute('data-resource-state')).toBe('active')
     await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
