@@ -32,3 +32,28 @@
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* The "more" row closes the collection: it spans the grid so it never lands in a
+   card slot, and the button is the same action the sentinel takes by itself. */
+.more {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 10px;
+}
+
+.moreButton {
+  padding: 5px 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.moreButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}

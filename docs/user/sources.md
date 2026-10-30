@@ -27,7 +27,7 @@ Install, enable and surface switches answer as soon as their state is saved. The
 
 Cloning from the UI times out on a restricted network? Clone the repository yourself into the checkout root (`~/.dsh/agent-plugins/.sources/<id>/`) — the market page lists it under **unregistered local checkouts** with a one-click **adopt** action that registers it in place, no re-clone and no rename. The directory itself is removed only if you later delete the source and tick the delete-files option. Adding a URL whose checkout already exists with a matching `origin` remote adopts it automatically instead of cloning a second copy. Adopted sources are ordinary sources in the UI — they carry no extra badge.
 
-The source strip at the top of the market page is an equal-width grid of pills: it folds to two rows with a bottom fade and expands as an overlay on hover or keyboard focus, so the card grid never moves; picking a source folds it again right away. The picked source moves next to `全部` so it stays visible while folded, and the rest keep their id order.
+The source strip at the top of the market page is an equal-width grid of pills: it folds to two rows with a bottom fade and expands as an overlay on hover or keyboard focus, so the card grid never moves; picking a source folds it again right away. The picked source moves next to `全部` so it stays visible while folded, and the rest keep their id order. The card grid pages itself: it renders the first 120 matches and appends the next page as you scroll to the end, or when you press **show more**, so a market of a thousand suites opens without mounting all of them.
 
 Git/archive acquisition is tunable through the host config:
 

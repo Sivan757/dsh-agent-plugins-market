@@ -11,7 +11,7 @@
  *
  * @module client/ui/ResourceSurface
  */
-import { createElement as h, useId, useMemo, useState, type ReactNode } from 'react'
+import { createElement as h, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { CardActions, CardBody, CardCount, CardFoot, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from './ResourceCard.js'
 import { hintProps, hoverHint } from './hover-hint.js'
@@ -20,6 +20,13 @@ import { useWorkspaceView } from './workspace-view.js'
 import type { Translate } from '../i18n.js'
 import surface from './resource-surface.module.css'
 import card from './resource-card.module.css'
+
+/**
+ * How many cards one page of the collection renders before the reader asks for
+ * more. A market with a thousand suites should open in one frame, not spend a
+ * third of a second mounting every card the reader will scroll past.
+ */
+export const RESOURCE_PAGE_SIZE = 120
 
 /** One entry a surface lists. */
 export interface ResourceEntry {
@@ -179,6 +186,32 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
       )
     })
   }, [active, entries, search])
+  // The list pages itself: a filter or a search starts over, because keeping the
+  // page would drop the reader into the middle of a set they never scrolled.
+  const [page, setPage] = useState(1)
+  useEffect(() => {
+    setPage(1)
+  }, [filter, search])
+  const visible = shown.slice(0, page * RESOURCE_PAGE_SIZE)
+  const remaining = shown.length - visible.length
+  const moreRef = useRef<HTMLDivElement | null>(null)
+  // The sentinel grows the page as it comes into view; the button beside it is
+  // the same action for a reader who cannot scroll to it (and for a host without
+  // IntersectionObserver).
+  useEffect(() => {
+    if (remaining <= 0) return
+    const node = moreRef.current
+    if (node === null || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      records => {
+        if (records.some(record => record.isIntersecting)) setPage(current => current + 1)
+      },
+      { rootMargin: '240px' }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [remaining, visible.length])
+  const grow = (): void => setPage(current => current + 1)
   const segments = [
     { id: 'all', label: t('filterAll'), count: entries.length, active: filter === 'all', onSelect: () => setFilter('all') },
     ...filters.map(entry => ({
@@ -219,7 +252,7 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
         : h(
             ResourceCollection,
             { view },
-            shown.map(entry => {
+            visible.map(entry => {
               const stop = (event: { stopPropagation(): void }): void => event.stopPropagation()
               // One anatomy for every entry: identity row, body row, source row, actions.
               // Each slot is a named grid area, so a card never auto-places a slot into
@@ -352,7 +385,16 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                   : h(CardBody, null, hoverHint(entry.description, h('p', hintProps({ className: entry.monoBody === true ? card.monoLine : card.desc }), entry.description))),
                 foot.length === 0 ? null : h(CardFoot, null, ...foot)
               )
-            })
+            }),
+            // The collection pages itself: revealing the rest as the sentinel
+            // arrives keeps a thousand-suite market to one frame of work.
+            remaining <= 0
+              ? null
+              : h(
+                  'div',
+                  { ref: moreRef, className: surface.more, 'data-resource-more': '' },
+                  h('button', { type: 'button', className: surface.moreButton, onClick: grow }, t('showMore', { count: String(Math.min(RESOURCE_PAGE_SIZE, remaining)) }))
+                )
           )
     ),
     ['all', ...filters.map(entry => entry.id)]
