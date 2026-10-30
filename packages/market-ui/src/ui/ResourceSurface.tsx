@@ -286,13 +286,16 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                   h(
                     // The primary action stays visible at rest: it is the one
                     // thing a reader is meant to press on this row. Only the
-                    // secondary icons fade in.
+                    // secondary icons fade in. In a grid of a thousand cards a
+                    // filled button on every one of them competes with the
+                    // content it sits on, so the grid reads it as quiet text and
+                    // the list, one row per action, keeps the filled weight.
                     'span',
                     { key: 'primary', className: card.switchWrap, onClick: stop, onKeyDown: stop },
                     h(
                       Button,
                       {
-                        variant: 'primary',
+                        variant: view === 'list' ? 'primary' : 'ghost',
                         size: 'sm',
                         disabled: primary.disabled === true,
                         ...(primary.title === undefined ? {} : { title: primary.title }),

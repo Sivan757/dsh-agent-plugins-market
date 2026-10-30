@@ -99,6 +99,23 @@ describe('resource surface contract', () => {
     expect(cards().map(card => card.getAttribute('data-resource-id'))).toEqual(['b'])
   })
 
+  it('weighs its primary action by the view: quiet in the grid, filled in the list', async () => {
+    // A thousand-card market with a filled button on every card competes with
+    // the content; one row per action can carry the filled weight.
+    await mount({
+      entries: [{ id: 'p', name: 'installable', primary: { label: 'install-now', onSelect: () => {} } }],
+      searchLabel: 'search',
+      toListLabel: 'switch to list',
+      toGridLabel: 'switch to grid'
+    })
+    const primary = (): HTMLButtonElement => [...host!.querySelectorAll<HTMLButtonElement>('button')].find(node => (node.textContent ?? '').includes('install-now'))!
+    expect(primary().className).toContain('ghost')
+    const toggle = host!.querySelector<HTMLButtonElement>('[aria-label="switch to list"]')!
+    await act(async () => toggle.click())
+    expect(primary().className).not.toContain('ghost')
+    expect(primary().className).toContain('primary')
+  })
+
   it('draws the one card anatomy, with every slot in its own row', async () => {
     await mount({ capabilities: { toggle: true, counts: true }, onToggle: () => {}, isOn: () => true, onEdit: () => {} })
     const card = cardOf('a')
