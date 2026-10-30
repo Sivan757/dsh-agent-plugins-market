@@ -543,6 +543,11 @@ export class Catalog implements MarketService {
     await this.mcp.retryMounts()
   }
 
+  /** Rebuild one LSP mount (or every live one) without changing any catalog state. */
+  async restartLspServers(id?: string): Promise<void> {
+    await this.lsp.restart(id)
+  }
+
   /** The persisted MCP backend choice without the host-client probe. */
   async mcpBackend(): Promise<McpBackend> {
     return this.mcp.backend()

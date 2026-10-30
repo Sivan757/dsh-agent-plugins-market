@@ -11,6 +11,7 @@ vi.mock('../../../../packages/market-ui/src/api.js', () => ({
   fetchLspStatus: vi.fn(),
   addLspServer: vi.fn(),
   migrateLspSeam: vi.fn(),
+  restartLspServers: vi.fn(),
   fetchServerConfig: vi.fn(),
   saveServerConfig: vi.fn()
 }))
@@ -38,12 +39,16 @@ const base: LspStatusEntry = {
   state: 'failed'
 }
 
-async function mount(entry: LspStatusEntry = base, translate: Translate = t): Promise<void> {
+async function mount(entry: LspStatusEntry = base, translate: Translate = t, onRestart?: (entry: LspStatusEntry) => Promise<LspStatusEntry>): Promise<void> {
   const host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  await act(async () => root.render(h(LspDetailModal, { entry, t: translate, onClose: vi.fn() })))
+  await act(async () => root.render(h(LspDetailModal, { entry, t: translate, onClose: vi.fn(), ...(onRestart === undefined ? {} : { onRestart }) })))
 }
+
+/** The band's one recovery action, found by the label it renders. */
+const restartButton = (): HTMLButtonElement | undefined =>
+  [...document.querySelectorAll<HTMLButtonElement>('[data-status-band] button')].find(node => node.textContent?.includes('lspRestart'))
 
 /** The host disclosure row is a `role="button"` div when the whole row expands. */
 const disclosure = (text: string): HTMLElement | undefined => [...document.querySelectorAll<HTMLElement>('[data-disclosure-row]')].find(node => node.textContent === text)
@@ -90,4 +95,38 @@ it('reads in the interface language, with the recorded diagnostic only in the di
 it('reports nothing when the row carries no reason', async () => {
   await mount({ ...base, state: 'mounted' })
   expect(disclosure('failureDetailToggle')).toBeUndefined()
+})
+
+it('offers a restart on a row whose process may have died and echoes what it did', async () => {
+  // The seam reports no death, so a mounted row is exactly the one the user
+  // needs this action for: nothing else re-verifies that mount.
+  const attempted: LspStatusEntry[] = []
+  const onRestart = async (entry: LspStatusEntry): Promise<LspStatusEntry> => {
+    attempted.push(entry)
+    return { ...entry, state: 'mounted' }
+  }
+  await mount({ ...base, state: 'mounted' }, t, onRestart)
+  expect(restartButton()).toBeDefined()
+  await act(async () => restartButton()!.click())
+  expect(attempted).toHaveLength(1)
+  expect(document.body.textContent).toContain('lspRestartDone')
+})
+
+it('reports a row that is still failing after the restart', async () => {
+  await mount({ ...base, state: 'failed', code: 'mount-failed', reason: 'mount failed: spawn ENOENT' }, t, async entry => entry)
+  await act(async () => restartButton()!.click())
+  expect(document.body.textContent).toContain('lspRestartFailed')
+})
+
+it('withholds the restart where the repair is a different action', async () => {
+  await mount({ ...base, state: 'conflict', reason: 'seam conflict' }, t, async entry => entry)
+  expect(restartButton()).toBeUndefined()
+  await act(async () => root.unmount())
+  await mount({ ...base, state: 'host-missing', code: 'host-missing', reason: 'the package is not installed' }, t, async entry => entry)
+  expect(restartButton()).toBeUndefined()
+})
+
+it('hides the restart on a read-only surface', async () => {
+  await mount({ ...base, state: 'mounted' })
+  expect(restartButton()).toBeUndefined()
 })

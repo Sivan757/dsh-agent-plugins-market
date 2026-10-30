@@ -269,6 +269,20 @@ export async function fetchLspStatus(background = false, sessionId?: string): Pr
   return background ? load() : withBusyOperation(load, { blocking: false })
 }
 
+/**
+ * Rebuild every live language-server mount: the manual LSP recovery path.
+ *
+ * The host reports a dead language-server process only on the next request, so
+ * a row can read mounted after its process exited. A restart tears the mount
+ * down and re-mounts it, which is the one action that replaces the provider
+ * before the next request discovers it is gone.
+ */
+export async function restartLspServers(id?: string): Promise<void> {
+  return withBusyOperation(async () => {
+    await postAction('lsp-restart', id === undefined ? {} : { id })
+  })
+}
+
 /** Add one direct LSP server to the user's table. */
 export async function addLspServer(name: string, config: Record<string, unknown>): Promise<void> {
   return withBusyOperation(async () => {

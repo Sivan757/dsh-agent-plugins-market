@@ -179,6 +179,25 @@ export class RuntimeReconciler {
     this.mcp.forceRemountAll()
   }
 
+  /**
+   * Flag one LSP mount for a rebuild on the next reconcile.
+   *
+   * The LSP seam exposes no provider snapshot and no process probe, so a
+   * language server that died underneath its mount keeps matching its own
+   * config and its status row keeps reading `mounted`. Rebuilding that one
+   * mount is the only path that re-verifies it, and it leaves every other
+   * provider's in-flight work alone.
+   * @param id - the status-row id, which is also the mount key.
+   */
+  forceLspRemount(id: string): void {
+    this.lspRegistry.forceRemount(id)
+  }
+
+  /** Flag every live LSP mount for a rebuild; the whole-workspace recovery path. */
+  forceLspRemountAll(): void {
+    this.lspRegistry.forceRemountAll()
+  }
+
   /** The mount key owning one derived serverName; undefined when not mounted here. */
   mcpServerOwner(serverName: string): { suiteId: string; serverKey: string } | undefined {
     return this.mcp.serverOwner(serverName)

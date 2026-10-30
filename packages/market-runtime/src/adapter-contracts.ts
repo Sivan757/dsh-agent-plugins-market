@@ -64,6 +64,10 @@ export interface LspMountPort extends LspMountStatusSource {
   setDemandedProviderIdsProvider(provider: () => ReadonlySet<string>): void
   /** Current global disabled ids, without merging session demand. */
   globalDisabledProviderIds(): Promise<ReadonlySet<string>>
+  /** Flag one live provider mount for an explicit rebuild on the next reconcile. */
+  forceRemount(id: string): void
+  /** Flag every live provider mount for an explicit rebuild on the next reconcile. */
+  forceRemountAll(): void
   providerOwnership(): ExtensionLspProvider[]
   ownsTool(): boolean
   reconcile(enabledSuites: Suite[]): Promise<LspMountDiagnostic[]>

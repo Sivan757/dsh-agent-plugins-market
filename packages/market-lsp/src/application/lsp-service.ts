@@ -115,6 +115,23 @@ export class LspService {
     })
   }
 
+  /**
+   * Rebuild one language-server mount, or every live one when no id is given:
+   * the manual recovery path.
+   *
+   * The seam exposes no provider snapshot and no process probe, so a server
+   * that died or wedged underneath its mount keeps matching its own config and
+   * its row keeps reading `mounted`. Flagging every live mount and re-running
+   * the pass is the one path that re-verifies them, and a failed remount lands
+   * as a fresh mount diagnostic. The wait is bounded, so a slow remount reports
+   * its outcome to the status surface instead of holding the request open.
+   */
+  async restart(id?: string): Promise<void> {
+    this.ports.lspRestart?.(id)
+    await this.context.notifyChanged(true)
+    await this.context.refreshSettled()
+  }
+
   /** Read one LSP declaration without credential literals, or an unsaved creation template. */
   async serverConfig(id: string, create = false): Promise<ServerConfigPayload> {
     if (create) {

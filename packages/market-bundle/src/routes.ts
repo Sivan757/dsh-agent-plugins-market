@@ -564,6 +564,15 @@ export function mountSuiteRoutes(
     await manager.setLspServerEnabled(id, enabled)
     return {}
   })
+  // Manual LSP rebuild: tears down and re-mounts the named language server, or
+  // every live one when the body names none, without touching any catalog
+  // state. The seam exposes no death signal, so a provider whose process died
+  // keeps matching its own config until this runs.
+  post(MARKET_ROUTES.lspRestart, async body => {
+    const id = body['id'] === undefined ? undefined : textField(body['id'], 'LSP server id').trim()
+    await manager.restartLspServers(id === '' ? undefined : id)
+    return {}
+  })
   // Upgrade repair: drop the hand-written profile layer an older release told
   // the user to add for LSP. It edits a file the user owns, so the profile
   // name is matched against what is on disk and nothing else is touched.

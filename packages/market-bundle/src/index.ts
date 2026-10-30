@@ -368,6 +368,9 @@ export async function apply(
     // every backoff edge.
     mcpConnections: () => mcpConnectionSnapshot(),
     lspStatusSource: runtime.lsp,
+    // One row's restart names its mount; no id means every live mount, which is
+    // the recovery path when the caller cannot name a single server.
+    lspRestart: id => (id === undefined ? runtime.forceLspRemountAll() : runtime.forceLspRemount(id)),
     mcpBackend: () => settings.backend(),
     downloadRegion: () => settings.downloadRegion(),
     localePreference: () => localePreference,

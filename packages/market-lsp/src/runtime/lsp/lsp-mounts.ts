@@ -133,6 +133,14 @@ export class LspMountRegistry {
   private readonly passes = new SerialPassQueue()
   /** Delayed re-attempts for mounts that are not live yet. */
   private readonly retries: RetryScheduler
+  /**
+   * Mount keys flagged for an explicit rebuild: the next reconcile tears the
+   * live provider down and mounts a fresh one even though its resolved config
+   * is unchanged. A provider whose server died underneath it still matches its
+   * own fingerprint, and `ctx.lsp` exposes no death signal, so this flag is the
+   * only way a live mount is ever re-verified.
+   */
+  private readonly forcedRemounts = new Set<string>()
   /** Snapshot of the last reconciled suite set, replayed by retry passes. */
   private lastEnabled: Suite[] = []
   /** Host module loader; overridable for tests. */
@@ -185,6 +193,27 @@ export class LspMountRegistry {
   /** Queue one reconciliation behind any in-flight mount/unmount pass. */
   reconcile(enabledSuites: Suite[]): Promise<LspMountDiagnostic[]> {
     return this.passes.run(() => this.reconcileNow(enabledSuites))
+  }
+
+  /**
+   * Flag one mount for an explicit rebuild on the next reconcile.
+   *
+   * The flag only matters for a live mount, because that is the one a config
+   * comparison would otherwise keep: a key with no live mount is mounted by
+   * the ordinary pass. A flag whose teardown fails survives to the next pass.
+   * @param key - the provider id the mount was created under, `${suiteId}/${serverKey}`.
+   */
+  forceRemount(key: string): void {
+    if (this.live.has(key)) this.forcedRemounts.add(key)
+  }
+
+  /**
+   * Flag every live mount for an explicit rebuild on the next reconcile: the
+   * manual restart path, and the only way to replace a language-server process
+   * that died or wedged underneath its own mount.
+   */
+  forceRemountAll(): void {
+    for (const key of this.live.keys()) this.forcedRemounts.add(key)
   }
 
   /** Mount/unmount LSP servers to match the enabled suites plus direct config exactly. */
@@ -251,12 +280,21 @@ export class LspMountRegistry {
     }
     for (const [key, live] of [...this.live]) {
       const target = wantedProviders.get(key)
-      if (target === undefined || live.fingerprint !== JSON.stringify(target.entry.config)) {
-        const reason = await this.unmount(key, live)
-        this.lastDiagnostics.delete(key)
-        if (reason !== undefined) diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
-      }
+      // A forced key skips the fingerprint match on purpose: a provider whose
+      // server died underneath it still matches its own config, so only the
+      // explicit restart tears it down and lets the next query spawn afresh.
+      if (target !== undefined && !this.forcedRemounts.has(key) && live.fingerprint === JSON.stringify(target.entry.config)) continue
+      const reason = await this.unmount(key, live)
+      // A flag survives a failed teardown so the next pass retries it, and is
+      // spent once the mount is actually gone.
+      if (reason === undefined) this.forcedRemounts.delete(key)
+      this.lastDiagnostics.delete(key)
+      if (reason !== undefined) diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
     }
+    // A flag on a key with no live mount has nothing to tear down: the mount
+    // loop below covers it for the ordinary reason, so the flag is dropped
+    // rather than kept until something else notices it.
+    for (const key of this.forcedRemounts) if (!this.live.has(key)) this.forcedRemounts.delete(key)
     if (wantedProviders.size === 0 && this.live.size === 0) await this.releaseCapability()
     const capabilityFailure = wantedProviders.size > 0 ? await this.ensureCapability() : undefined
     for (const [key, { suiteId, entry }] of wantedProviders) {
@@ -538,6 +576,7 @@ export class LspMountRegistry {
       await this.releaseCapability()
     })
     this.retries.clear()
+    this.forcedRemounts.clear()
   }
 }
 

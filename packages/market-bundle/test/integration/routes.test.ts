@@ -50,6 +50,7 @@ function service(): MarketService {
     setLspServerEnabled: async () => {},
     migrateLegacyLspSeam: async profile => ({ profile, patchPath: '/p/cordis.patch.yml', backupPath: '/p/cordis.patch.yml.bak', restartRequired: false }),
     retryMounts: async () => {},
+    restartLspServers: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
     mcpBackendInfo: async () => ({
@@ -192,6 +193,35 @@ describe('market HTTP routes', () => {
     await routes.get(MARKET_ROUTES.mcpRetry)?.(postRequest(MARKET_ROUTES.mcpRetry, {}), retryResponse)
     await settle()
     expect(retryResponse.value()).toMatchObject({ ok: true })
+
+    // Manual LSP restart: same-origin POST rebuilds the named language-server
+    // mount, or every live one when the body names none. It is the one recovery
+    // action the seam can offer, because nothing observes a language-server
+    // process after its mount succeeds.
+    const lspRestartCalls: Array<string | undefined> = []
+    const restartRoutes: RouteTable = new Map()
+    const disposeRestart = mountSuiteRoutes(
+      { webServer: strictWebServer(restartRoutes) },
+      {
+        ...service(),
+        restartLspServers: async (id?: string) => {
+          lspRestartCalls.push(id)
+        }
+      }
+    )
+    const lspRestartResponse = response()
+    await restartRoutes.get(MARKET_ROUTES.lspRestart)?.(postRequest(MARKET_ROUTES.lspRestart, {}), lspRestartResponse)
+    await settle()
+    expect(lspRestartResponse.value()).toMatchObject({ ok: true })
+    expect(lspRestartCalls).toEqual([undefined])
+    // A named restart carries the row id, so restarting one service in its
+    // dialog leaves every other language server's in-flight work alone.
+    const namedRestart = response()
+    await restartRoutes.get(MARKET_ROUTES.lspRestart)?.(postRequest(MARKET_ROUTES.lspRestart, { id: 'official/lsp-suite/ts' }), namedRestart)
+    await settle()
+    expect(namedRestart.value()).toMatchObject({ ok: true })
+    expect(lspRestartCalls).toEqual([undefined, 'official/lsp-suite/ts'])
+    disposeRestart()
 
     // Re-authorize: drops the grant record for the named server.
     const reauthCalls: Array<string> = []

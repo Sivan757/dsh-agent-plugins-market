@@ -168,6 +168,13 @@ export interface CatalogPorts {
   mcpConnections?: (() => readonly McpConnectionObservation[]) | undefined
   /** Latest LSP mount diagnostics. */
   lspStatusSource: LspMountStatusSource
+  /**
+   * Flags an LSP mount for an explicit rebuild on the next reconcile: the one
+   * named row's mount, or every live mount when no id is given. Optional: a
+   * composition without an LSP registry rebuilds nothing, and the panel's
+   * restart action then reports whatever state it finds.
+   */
+  lspRestart?: ((id?: string) => void) | undefined
   /** The persisted MCP mount backend choice. */
   mcpBackend(): Promise<McpBackend>
   /** The persisted download-region setting. */
@@ -218,6 +225,7 @@ export const defaultCatalogPorts: CatalogPorts = {
   mcpDemandedMounts: () => [],
   mcpConnections: () => [],
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
+  lspRestart: () => {},
   mcpBackend: async () => 'builtin',
   localePreference: () => 'zh',
   menuRowIdentities: async () => [],

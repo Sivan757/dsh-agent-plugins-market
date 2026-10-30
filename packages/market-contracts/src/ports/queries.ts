@@ -76,6 +76,12 @@ export interface MarketMutations {
   migrateLegacyLspSeam(profile: string): Promise<LspLegacySeamMigration>
   /** Re-run the MCP reconcile pass: retries failed mounts and clears residual tools. */
   retryMounts(): Promise<void>
+  /**
+   * Rebuild one language-server mount, or every live one when no id is given:
+   * the manual LSP recovery path, and the only way to replace a provider whose
+   * process died in place.
+   */
+  restartLspServers(id?: string): Promise<void>
   reauthorizeMcpServer(serverName: string): Promise<void>
   mcpReauthorizeAvailable(): boolean
   /** The active MCP backend, host-client probe, and download region. */

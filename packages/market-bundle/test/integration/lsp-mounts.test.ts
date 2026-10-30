@@ -163,6 +163,53 @@ function provisionRegistry(
   return new LspMountRegistry(ctx as never, hostLoader('ok', mounted) as never, service as never, tool as never, locateSeams)
 }
 
+/** One macrotask turn, so a queued reconcile would have started had it been able to. */
+const settleTurn = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
+
+/** Wait until the predicate holds, so a gated pass is provably mid-flight. */
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 100 && !predicate(); attempt += 1) await settleTurn()
+  expect(predicate()).toBe(true)
+}
+
+/** A loader for a capability plugin, whose mount takes no `servers` config. */
+const capabilityLoader = () => async (): Promise<{ default: () => void }> => ({ default: () => {} })
+
+interface ProviderMountRecord {
+  config: MountedConfig
+  disposed: boolean
+}
+
+/**
+ * A ctx whose provider mount blocks until released, so a pass can be held
+ * mid-flight. Capability mounts resolve at once, so the provider handle is the
+ * only thing a test can park.
+ */
+function gatedMountCtx(): { ctx: unknown; providerMounts: ProviderMountRecord[]; release: () => void } {
+  const providerMounts: ProviderMountRecord[] = []
+  let release!: () => void
+  const gate = new Promise<void>(resolve => {
+    release = resolve
+  })
+  const ctx = {
+    logger: { warn: () => {}, info: vi.fn() },
+    plugin(_plugin: unknown, config: MountedConfig) {
+      const provider = Object.hasOwn(config, 'servers')
+      const record: ProviderMountRecord = { config, disposed: false }
+      if (provider) providerMounts.push(record)
+      return {
+        await: async () => {
+          if (provider) await gate
+        },
+        dispose: async () => {
+          record.disposed = true
+        }
+      }
+    }
+  }
+  return { ctx, providerMounts, release }
+}
+
 describe('LspMountRegistry', () => {
   it('replaces a live mount when the effective server configuration changes', async () => {
     const mounted: MountedConfig[] = []
@@ -181,6 +228,82 @@ describe('LspMountRegistry', () => {
     expect(provider.command).toBe('replacement-language-server')
     await registry.reconcile([suite])
     expect(mounted).toHaveLength(2)
+    await registry.disposeAll()
+  })
+
+  it('rebuilds a live mount on an explicit restart even though its config is unchanged', async () => {
+    const mounted: MountedConfig[] = []
+    const { build, disposedConfigs } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    const suite = lspSuite('ts')
+    await registry.reconcile([suite])
+    expect(mounted).toHaveLength(1)
+    // A plain pass compares fingerprints and keeps the live provider: this is
+    // the state a language server that died underneath its mount keeps.
+    await registry.reconcile([suite])
+    expect(mounted).toHaveLength(1)
+    expect(disposedConfigs()).toEqual([])
+
+    // A restart skips the fingerprint match: the provider is torn down and a
+    // fresh one mounts with the same resolved configuration.
+    registry.forceRemountAll()
+    expect(await registry.reconcile([suite])).toEqual([])
+    expect(disposedConfigs().filter(config => Object.hasOwn(config, 'servers'))).toHaveLength(1)
+    expect(mounted).toHaveLength(2)
+    expect(mounted[1]).toEqual(mounted[0])
+    // The flag is spent by the pass that used it, so the next one is quiet.
+    await registry.reconcile([suite])
+    expect(mounted).toHaveLength(2)
+    await registry.disposeAll()
+  })
+
+  it('restarts only the named mount and leaves its neighbours running', async () => {
+    const mounted: MountedConfig[] = []
+    const { build, disposedConfigs } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    const alpha = lspSuite('alpha')
+    const beta = lspSuite('beta')
+    await registry.reconcile([alpha, beta])
+    expect(mounted).toHaveLength(2)
+    // The row id is the mount key: one service's dialog names one mount.
+    registry.forceRemount('src/alpha/typescript')
+    await registry.reconcile([alpha, beta])
+    expect(disposedConfigs().filter(config => Object.hasOwn(config, 'servers'))).toHaveLength(1)
+    expect(mounted).toHaveLength(3)
+    await registry.disposeAll()
+  })
+
+  it('queues a restart issued during a pass instead of overlapping it', async () => {
+    const { ctx, providerMounts, release } = gatedMountCtx()
+    const registry = new LspMountRegistry(ctx as never, hostLoader('ok') as never, capabilityLoader(), capabilityLoader(), noProfiles)
+    const suite = lspSuite('ts')
+    const first = registry.reconcile([suite])
+    // Pass one is held at its provider mount.
+    await waitFor(() => providerMounts.length === 1)
+    // A restart lands while that pass is still in flight, so its follow-up is
+    // queued behind the pass rather than racing it.
+    const second = registry.reconcile([suite])
+    await settleTurn()
+    expect(providerMounts).toHaveLength(1)
+    release()
+    await Promise.all([first, second])
+    // The queued pass ran after the mount settled, found it live with the same
+    // config, and neither remounted nor disposed it.
+    expect(providerMounts).toHaveLength(1)
+    expect(providerMounts[0]?.disposed).toBe(false)
+    await registry.disposeAll()
+  })
+
+  it('ignores a restart flag for a key that has no live mount', async () => {
+    const mounted: MountedConfig[] = []
+    const { build, disposedConfigs } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    // Nothing is live yet, so the flag has nothing to tear down and the
+    // ordinary mount path is what mounts the server.
+    registry.forceRemount('src/ts/typescript')
+    expect(await registry.reconcile([lspSuite('ts')])).toEqual([])
+    expect(mounted).toHaveLength(1)
+    expect(disposedConfigs()).toEqual([])
     await registry.disposeAll()
   })
 

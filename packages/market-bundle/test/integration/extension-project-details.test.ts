@@ -97,6 +97,7 @@ function marketService(): MarketService {
     setLspServerEnabled: async () => {},
     migrateLegacyLspSeam: async profile => ({ profile, patchPath: '/p', backupPath: '/p.bak', restartRequired: false }),
     retryMounts: async () => {},
+    restartLspServers: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
     mcpBackendInfo: async () => ({

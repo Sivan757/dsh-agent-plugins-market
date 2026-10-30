@@ -11,7 +11,7 @@
  */
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigModal } from '../../ui/ServerConfigModal.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
@@ -19,6 +19,7 @@ import type { Translate } from '../../i18n.js'
 import {
   fetchLspStatus,
   migrateLspSeam,
+  restartLspServers,
   setLspServerEnabled,
   type LspLegacySeam,
   type LspLegacySeamMigration,
@@ -90,6 +91,22 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         setError(clientErrorMessage(t, caught))
       })
   }
+
+  // A restart is the one action that replaces a provider whose process died
+  // underneath its mount: `ctx.lsp` reports no death, so nothing else would
+  // ever re-verify that row. It names this row's mount, so a restart in one
+  // service's dialog leaves every other language server's work alone. The
+  // refreshed row goes back into the dialog, which is also what the echo below
+  // the band reports from.
+  const restart = (entry: LspStatusEntry): Promise<LspStatusEntry> =>
+    restartLspServers(entry.id)
+      .then(() => fetchLspStatus(true))
+      .then(next => {
+        setPayload(next)
+        const refreshed = next.entries.find(item => item.id === entry.id) ?? entry
+        setSelected(refreshed)
+        return refreshed
+      })
 
   useEffect(() => {
     refresh()
@@ -187,6 +204,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       : h(LspDetailModal, {
           entry: selected,
           t,
+          onRestart: restart,
           onClose: () => {
             setSelected(undefined)
             refresh()
@@ -293,8 +311,40 @@ function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | '
   return 'warning'
 }
 
-export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Translate; onClose: () => void }): ReactNode {
+export function LspDetailModal({
+  entry,
+  t,
+  onClose,
+  onRestart
+}: {
+  entry: LspStatusEntry
+  t: Translate
+  onClose: () => void
+  /** Rebuild this server's mount; absent in a read-only surface, which hides the action. */
+  onRestart?: (entry: LspStatusEntry) => Promise<LspStatusEntry>
+}): ReactNode {
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
+  const [pending, setPending] = useState(false)
+  const [feedback, setFeedback] = useState<{ error: boolean; text: string }>()
+  // A dead process and a failed mount are both replaced by the same rebuild. A
+  // disabled, missing-package or conflicting row needs a different repair, so
+  // the action is not offered for it.
+  const restartable = onRestart !== undefined && (entry.state === 'mounted' || entry.state === 'failed')
+  const restart = async (): Promise<void> => {
+    if (onRestart === undefined) return
+    setPending(true)
+    setFeedback(undefined)
+    try {
+      const next = await onRestart(entry)
+      // The reason itself is the band's own from the refreshed row, so this
+      // echo only says what the action did.
+      setFeedback({ error: next.state === 'failed', text: next.state === 'failed' ? t('lspRestartFailed') : t('lspRestartDone') })
+    } catch (reason) {
+      setFeedback({ error: true, text: t('actionFail') + ': ' + clientErrorMessage(t, reason) })
+    } finally {
+      setPending(false)
+    }
+  }
   return h(DetailModal, {
     open: true,
     onClose,
@@ -316,6 +366,26 @@ export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t
           h(Tag, null, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')),
           entry.kind === 'plugin' ? h(Tag, { tone: 'quiet' }, entry.suiteName) : null
         ),
+        ...(restartable
+          ? {
+              action: h(
+                Button,
+                {
+                  variant: 'outline',
+                  size: 'sm',
+                  disabled: pending,
+                  title: t('lspRestartHint'),
+                  'aria-label': t('lspRestart'),
+                  onClick: () => {
+                    void restart()
+                  }
+                },
+                h(IconRefreshOutlineMedium),
+                t('lspRestart')
+              )
+            }
+          : {}),
+        ...(feedback === undefined ? {} : { echo: feedback }),
         ...(guidance === undefined ? {} : { guidance }),
         ...(entry.reason === undefined ? {} : { reason: entry.reason }),
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
