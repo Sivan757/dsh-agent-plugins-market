@@ -202,6 +202,15 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
   }, [filter, search])
   const visible = shown.slice(0, page * RESOURCE_PAGE_SIZE)
   const remaining = shown.length - visible.length
+  // A search, a filter or a page growth replaces the collection silently for a
+  // screen reader: the list is not a live region, so nothing is announced. One
+  // status line says what the list now holds, after the change has landed.
+  const [statusText, setStatusText] = useState('')
+  useEffect(() => {
+    // The total is the matched set, not the whole inventory: after a search the
+    // reader is told what the search found, and paging reads "120 of 971".
+    setStatusText(t('resultsStatus', { shown: String(visible.length), total: String(shown.length) }))
+  }, [visible.length, shown.length, entries.length, search, filter, t])
   const moreRef = useRef<HTMLDivElement | null>(null)
   // The sentinel grows the page as it comes into view; the button beside it is
   // the same action for a reader who cannot scroll to it (and for a host without
@@ -264,6 +273,10 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
         className: surface.results,
         ...(hasFilters ? { role: 'tabpanel', id: filterId + '-' + filter + '-panel', 'aria-labelledby': filterId + '-' + filter } : {})
       },
+      // Announced, not shown: the counts that matter are already on the tabs and
+      // in the "show more" button, but a reader who cannot see the list shrink
+      // needs to be told it happened.
+      h('p', { className: surface.srOnly, role: 'status', 'aria-live': 'polite', 'data-resource-status': '' }, statusText),
       shown.length === 0
         ? h('p', { className: surface.empty }, emptyText)
         : h(

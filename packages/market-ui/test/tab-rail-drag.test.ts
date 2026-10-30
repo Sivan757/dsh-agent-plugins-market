@@ -157,6 +157,34 @@ describe('tab rail reordering', () => {
     expect(reduced).toMatch(/transition: none/)
   })
 
+  it('reorders from the keyboard with Alt and an arrow, the way the workspace row does', async () => {
+    // Reordering was pointer-only: down, hold, move. The workspace row beside it
+    // already had Alt+arrow, and both render this component.
+    const moves: Array<[number, number]> = []
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(
+        h(TabRail<string>, {
+          value: 'tab-0',
+          onChange: () => {},
+          label: 'row',
+          stepPreviousLabel: '向前一个',
+          stepNextLabel: '向后一个',
+          items,
+          onReorder: (from, to) => moves.push([from, to])
+        })
+      )
+    })
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
+    await act(async () => tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true, cancelable: true })))
+    expect(moves).toEqual([[0, 1]])
+    // Without Alt the same key only moves the selection, never the row.
+    await act(async () => tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })))
+    expect(moves).toEqual([[0, 1]])
+  })
+
   it('measures once more after the frame, so a row that settles late still gets its affordance', async () => {
     // The settings dialog mounts its content while the layout is still settling:
     // the first measurement can see a row that fits, and nothing dispatches a

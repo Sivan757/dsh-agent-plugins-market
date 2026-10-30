@@ -97,6 +97,12 @@ describe('resource surface contract', () => {
       field.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(cards().map(card => card.getAttribute('data-resource-id'))).toEqual(['b'])
+    // A screen reader cannot see the list shrink: the status line says so, and
+    // its total is what the search matched rather than the whole inventory.
+    const status = host!.querySelector('[data-resource-status]')!
+    expect(status.getAttribute('role')).toBe('status')
+    expect(status.getAttribute('aria-live')).toBe('polite')
+    expect(status.textContent).toBe('resultsStatus 1 1')
   })
 
   it('weighs its primary action by the view: quiet in the grid, filled in the list', async () => {

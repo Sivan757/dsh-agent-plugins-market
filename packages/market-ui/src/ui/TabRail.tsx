@@ -207,8 +207,28 @@ export function TabRail<T extends string>({ value, onChange, label, stepPrevious
     }
   }, [finish, indexAt, onReorder])
 
-  /** Arrow keys move selection and focus together; Home and End jump. */
-  const onKeyDown = (event: { key: string; preventDefault: () => void }): void => {
+  /**
+   * Arrow keys move selection and focus together; Home and End jump; Alt with an
+   * arrow moves the tab itself.
+   *
+   * Reordering by pointer alone left the one action this row offers unreachable
+   * from the keyboard, and the workspace row beside it already had the Alt+arrow
+   * pair. Both surfaces share this component, so both get the same keys.
+   */
+  const onKeyDown = (event: { key: string; altKey?: boolean; preventDefault: () => void }): void => {
+    if (event.altKey === true && onReorder !== undefined && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
+      const to = event.key === 'ArrowRight' ? focused + 1 : focused - 1
+      if (to < 0 || to >= items.length) return
+      event.preventDefault()
+      setFocused(to)
+      onReorder(focused, to)
+      // The row re-renders in the new order; focus follows the moved tab so a
+      // second Alt+arrow continues from where the reader left it.
+      requestAnimationFrame(() => {
+        railRef.current?.querySelectorAll<HTMLElement>('[role="tab"]')[to]?.focus()
+      })
+      return
+    }
     const last = items.length - 1
     const next =
       event.key === 'ArrowRight' ? Math.min(last, focused + 1) : event.key === 'ArrowLeft' ? Math.max(0, focused - 1) : event.key === 'Home' ? 0 : event.key === 'End' ? last : -1
