@@ -9,7 +9,7 @@
  * background, so those two shapes cannot be reconciled from the outside.
  * @module client/ui/DetailRows
  */
-import { createElement as h, type ReactNode } from 'react'
+import { createElement as h, useId, type ReactNode } from 'react'
 import { IconChevronDownOutlineMedium, IconChevronRightOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import { hintProps, hoverHint } from './hover-hint.js'
 import css from './detail-rows.module.css'
@@ -85,6 +85,8 @@ export function DetailRow(props: {
 }): ReactNode {
   const expandable = props.expandable !== false
   const open = props.open === true
+  // The disclosure names its own body, so a reader can jump to what it opened.
+  const bodyId = useId()
   const header = [
     hoverHint(props.name, h('span', hintProps({ key: 'name', className: css.name }), props.name)),
     props.summary === undefined || props.summary === '' ? null : hoverHint(props.summary, h('span', hintProps({ key: 'summary', className: css.summary }), props.summary)),
@@ -100,15 +102,23 @@ export function DetailRow(props: {
       h(
         'div',
         { className: css.actionHeader, 'data-detail-header': true, 'data-open': open },
-        h('button', { type: 'button', className: css.actionToggle, 'aria-expanded': open, onClick: props.onToggle }, header[0], header[1]),
-        h('div', { className: css.headerActions }, props.headerActions),
         h(
           'button',
-          { type: 'button', className: css.collapseToggle, 'aria-expanded': open, 'aria-label': props.name, onClick: props.onToggle },
-          h('span', { className: css.chevron, 'aria-hidden': true }, open ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
+          { type: 'button', className: css.actionToggle, 'aria-expanded': open, ...(open ? { 'aria-controls': bodyId } : {}), onClick: props.onToggle },
+          header[0],
+          header[1]
+        ),
+        h('div', { className: css.headerActions }, props.headerActions),
+        // The chevron is the same disclosure seen from the pointer's side: a
+        // second focusable control here announced the row twice, with the same
+        // state and the same action.
+        h(
+          'span',
+          { className: css.collapseToggle, 'aria-hidden': true, onClick: props.onToggle },
+          h('span', { className: css.chevron }, open ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
         )
       ),
-      open ? h('div', { className: css.body, 'data-detail-body': true }, props.children) : null
+      open ? h('div', { className: css.body, id: bodyId, 'data-detail-body': true }, props.children) : null
     )
   }
   return h(
@@ -120,13 +130,14 @@ export function DetailRow(props: {
         type: 'button',
         className: css.row,
         'aria-expanded': open,
+        ...(open ? { 'aria-controls': bodyId } : {}),
         onClick: props.onToggle
       },
       header[0],
       header[1],
       h('span', { className: css.chevron, 'aria-hidden': true }, open ? h(IconChevronDownOutlineMedium) : h(IconChevronRightOutlineMedium))
     ),
-    open ? h('div', { className: css.body }, props.children) : null
+    open ? h('div', { className: css.body, id: bodyId }, props.children) : null
   )
 }
 
