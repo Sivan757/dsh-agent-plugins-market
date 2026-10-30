@@ -39,6 +39,25 @@ export function mcpStateLabel(t: Translate, state: McpStatusEntry['state']): str
   return t('panelFilterDisabled')
 }
 
+/**
+ * The live connection's sentence, when a supervisor reports a lost connection.
+ *
+ * The mount diagnostic explains a server that never came up. This explains the
+ * other failure: one that connected, dropped, and is being retried or has
+ * stopped. It reads the supervisor's phase rather than the row state, so a row
+ * whose tools are still registered says what is actually happening.
+ *
+ * @param t - the panel's translator.
+ * @param entry - the status row, carrying the observation when one exists.
+ * @returns the sentence, or undefined when the connection is fine or unobserved.
+ */
+export function mcpConnectionNote(t: Translate, entry: McpStatusEntry): string | undefined {
+  const connection = entry.connection
+  if (connection === undefined || connection.phase === 'connected') return undefined
+  const lead = connection.phase === 'failed' ? t('mcpReconnectStopped') : t('mcpReconnecting', { attempt: String(connection.attempt), max: String(connection.maxAttempts) })
+  return connection.error === undefined ? lead : lead + ' · ' + t('mcpLastError', { error: connection.error })
+}
+
 /** The card dot colour: the states the detail dialog also reports. */
 export function mcpDotState(state: McpStatusEntry['state']): 'done' | 'warning' | 'error' | 'idle' {
   if (state === 'connected') return 'done'

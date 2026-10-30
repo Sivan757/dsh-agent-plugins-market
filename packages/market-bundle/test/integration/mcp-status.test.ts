@@ -64,6 +64,53 @@ describe('MCP status aggregation', () => {
     expect(direct.tools[0]?.name).toBe('read_file')
   })
 
+  it('reports a dropped connection instead of a healthy row with stale tools', () => {
+    // Tools stay registered while the supervisor retries, so the snapshot alone
+    // reads as connected. The observation is what turns the row honest.
+    const connections = [{ serverName: 'codex__app', phase: 'reconnecting' as const, since: 1, attempt: 2, maxAttempts: 10, retryAt: 5, error: 'read ECONNRESET' }]
+    const payload = buildMcpStatus([suite()], [], [{ name: 'mcp__codex__app__read_file', description: 'Read a file' }], new Map(), undefined, [], connections)
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.state).toBe('degraded')
+    expect(app.code).toBe('reconnecting')
+    expect(app.reason).toBe('read ECONNRESET')
+    expect(app.connection).toMatchObject({ phase: 'reconnecting', attempt: 2, maxAttempts: 10 })
+    expect(app.retryable).toBe(true)
+    // The tools stay listed: they are live registrations, and hiding them would
+    // hide what the retry is protecting.
+    expect(app.tools.map(tool => tool.name)).toEqual(['read_file'])
+  })
+
+  it('reports a supervisor that stopped, and lets a mount diagnostic outrank both', () => {
+    const stopped = buildMcpStatus(
+      [suite()],
+      [],
+      [],
+      new Map(),
+      undefined,
+      [],
+      [{ serverName: 'codex__app', phase: 'failed' as const, since: 1, attempt: 11, maxAttempts: 10, reason: 'gave-up' as const, error: 'spawn ENOENT' }]
+    )
+    const failed = stopped.entries.find(entry => entry.serverKey === 'app')!
+    expect(failed.state).toBe('failed')
+    expect(failed.code).toBe('reconnect-stopped')
+    expect(failed.reason).toBe('spawn ENOENT')
+
+    // A row that never mounted keeps the mount diagnostic's own words.
+    const diagnosed = buildMcpStatus(
+      [suite()],
+      [{ suiteId: 'codex-plugin/codex', serverKey: 'app', reason: 'connection refused', code: 'mount-failed' }],
+      [],
+      new Map(),
+      undefined,
+      [],
+      [{ serverName: 'codex__app', phase: 'reconnecting' as const, since: 1, attempt: 1, maxAttempts: 10 }]
+    )
+    const refused = diagnosed.entries.find(entry => entry.serverKey === 'app')!
+    expect(refused.code).toBe('mount-failed')
+    expect(refused.reason).toBe('connection refused')
+    expect(refused.connection).toBeUndefined()
+  })
+
   it('prints the user’s own declarations under their bare server name', () => {
     // The user's own mcp.json owns the top-level namespace, so its row reads
     // the same name its tools carry — no suite prefix in between.

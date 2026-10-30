@@ -86,7 +86,11 @@ export class McpService {
     // preset selection. The builder needs the demand to name that cause instead
     // of reporting tools the switch never managed to stop.
     const demanded = this.ports.mcpDemandedMounts?.() ?? []
-    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), localization, demanded)
+    // The supervisors' live phases travel beside the tool snapshot: a dropped
+    // connection keeps its tools registered while it is retried, so the
+    // snapshot alone cannot tell that row from a healthy one.
+    const connections = this.ports.mcpConnections?.() ?? []
+    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), localization, demanded, connections)
     for (const entry of payload.entries)
       if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
         entry.kind = 'direct'

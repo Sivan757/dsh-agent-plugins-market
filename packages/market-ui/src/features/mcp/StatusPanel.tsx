@@ -10,7 +10,7 @@ import { CardActions, CardBody, CardFoot, CardIdentity, interactiveCardProps, Re
 import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './mcp-status-view-model.js'
-import { mcpCardState, mcpDisplayName } from './state-helpers.js'
+import { mcpCardState, mcpConnectionNote, mcpDisplayName } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
@@ -177,6 +177,21 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     }
   }, [])
 
+  // A reconnecting row moves on its own — the supervisor advances its attempt
+  // and its next retry time without anyone clicking. Follow it while one exists,
+  // so the card and the open detail tell the truth during the wait; a stopped or
+  // healthy row costs no reads.
+  const reconnecting = payload.entries.some(entry => entry.connection !== undefined && (entry.connection.phase === 'reconnecting' || entry.connection.phase === 'connecting'))
+  useEffect(() => {
+    if (!reconnecting) return
+    const timer = setTimeout(() => {
+      refresh()
+    }, 1_500)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [reconnecting, payload])
+
   const { activeEntries, filtered, filterCounts } = deriveMcpStatusViewModel(payload, filter, search)
   // The filter tablist names this region, and the host derives its panel id
   // (`<filterId>-<value>-panel`) from the same base the toolbar receives.
@@ -328,6 +343,9 @@ function McpCard({
   // The identity a reader recognizes; the runtime's full mount name stays in
   // the tooltip on that same row.
   const displayName = mcpDisplayName(entry)
+  // One sentence for the card and the detail band: the live supervisor's phase
+  // when the connection dropped, absent when there is nothing to report.
+  const connectionNote = mcpConnectionNote(t, entry)
   return h(
     ResourceCard,
     {
@@ -389,8 +407,15 @@ function McpCard({
         })
       )
     ),
-    // The card clips this line to one row, so it carries the endpoint as a hint.
-    h(CardBody, null, hoverHint(entry.endpoint ?? t('mcpObservedEndpoint'), h('p', hintProps({ className: rc.monoLine }), entry.endpoint ?? t('mcpObservedEndpoint')))),
+    // The body line reports the connection first: while a server is reconnecting
+    // or stopped, the endpoint is still declared but nothing answers on it.
+    h(
+      CardBody,
+      null,
+      connectionNote === undefined
+        ? hoverHint(entry.endpoint ?? t('mcpObservedEndpoint'), h('p', hintProps({ className: rc.monoLine }), entry.endpoint ?? t('mcpObservedEndpoint')))
+        : h('p', { className: rc.desc }, connectionNote)
+    ),
     h(
       CardFoot,
       null,

@@ -17,6 +17,37 @@ export type McpStatusKind = 'plugin' | 'direct'
 /** Operational state rendered for an MCP row. `foreign` = mounted by another MCP client (informational). */
 export type McpStatusState = 'connected' | 'degraded' | 'failed' | 'needs-credentials' | 'orphaned' | 'disabled' | 'foreign'
 
+/** Where one MCP server's live connection stands, as its supervisor observes it. */
+export type McpConnectionPhase = 'connecting' | 'connected' | 'reconnecting' | 'failed'
+
+/** Why the supervisor left the connected phase, so the row can say what happened. */
+export type McpConnectionLossReason = 'transport-closed' | 'attempt-failed' | 'authorization-pending' | 'reconnect-disabled' | 'transport-stuck' | 'gave-up'
+
+/**
+ * One supervisor's observation of a server's connection.
+ *
+ * Mount diagnostics say why a server never came up. This record says what a
+ * server that did come up is doing now — reconnecting after its process died,
+ * waiting out the next backoff, or stopped for good. Without it a dead
+ * connection reads as a healthy row with stale tools.
+ */
+export interface McpConnectionObservation {
+  serverName: string
+  phase: McpConnectionPhase
+  /** Epoch ms at which this phase began. */
+  since: number
+  /** 1-based attempt within the current outage; 0 while connected. */
+  attempt: number
+  /** Attempts one outage may use before the supervisor stops. */
+  maxAttempts: number
+  /** Epoch ms of the next scheduled attempt; present only while reconnecting. */
+  retryAt?: number
+  /** Redacted message from the transport or the failed attempt. */
+  error?: string
+  /** Why this phase was entered. */
+  reason?: McpConnectionLossReason
+}
+
 /**
  * Why a row carries a reason. The mount failures explain a failed connection;
  * the remaining entries are the states that have something to say without
@@ -38,6 +69,10 @@ export type McpStatusCode =
   | 'disabled-override'
   /** A stored override changed the configuration the suite declares. */
   | 'modified-override'
+  /** The server connected once, dropped, and the supervisor is retrying. */
+  | 'reconnecting'
+  /** The supervisor used its attempt budget or was told not to retry. */
+  | 'reconnect-stopped'
 
 /**
  * One MCP suite/server pair a live session's selection keeps mounted.
@@ -88,6 +123,8 @@ export interface McpStatusEntry {
   advertisedTools?: boolean
   /** Whether a failed server will be retried automatically. */
   retryable?: boolean
+  /** The live connection's phase while a supervisor watches this server. */
+  connection?: McpConnectionObservation
   /** A remote server whose suite declares no `auth` block: the bridge still
    *  runs the OAuth flow when the server answers 401, which the redacted
    *  configuration alone cannot show. */

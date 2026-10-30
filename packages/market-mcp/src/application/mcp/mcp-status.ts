@@ -1,7 +1,15 @@
 import type { TranslationFields } from '../../../../market-contracts/src/contracts/translation.js'
 import type { McpSuiteOverrides } from './mcp-overrides.js'
 import { credentialRefsInServer, effectiveMcpServers, deriveServerName } from './mcp-config.js'
-import type { McpDemandedMount, McpStatusEntry, McpStatusCode, McpStatusPayload, McpStatusState, McpStatusTool } from '../../../../market-contracts/src/contracts/mcp-status.js'
+import type {
+  McpConnectionObservation,
+  McpDemandedMount,
+  McpStatusEntry,
+  McpStatusCode,
+  McpStatusPayload,
+  McpStatusState,
+  McpStatusTool
+} from '../../../../market-contracts/src/contracts/mcp-status.js'
 import type { Localization, McpToolSnapshot } from '../../../../market-contracts/src/ports/ports.js'
 import { redactMcpConfig, redactUrl } from '../../../../market-contracts/src/redaction.js'
 import { qualifiedSuiteId } from '../../../../market-catalog/src/index.js'
@@ -61,8 +69,12 @@ export function buildMcpStatus(
   observed: readonly McpToolSnapshot[],
   overrides: Map<string, McpSuiteOverrides> = new Map(),
   localization?: Localization,
-  demanded: readonly McpDemandedMount[] = []
+  demanded: readonly McpDemandedMount[] = [],
+  connections: readonly McpConnectionObservation[] = []
 ): McpStatusPayload {
+  // Keyed by the derived serverName, which is also what the bridge publishes:
+  // the suite/server key the row carries is a different identity.
+  const connectionByServer = new Map(connections.map(observation => [observation.serverName, observation]))
   const entries: McpStatusEntry[] = []
   // Counted so a caller can re-read until the translated text lands, exactly as
   // the market overview reports its own pending count.
@@ -118,19 +130,29 @@ export function buildMcpStatus(
       // on it too — that does not make it connected: its own diagnostic says
       // another source's mount is the one serving.
       const servedElsewhere = diagnostic?.code === 'duplicate-mount'
-      const state: McpStatusState = orphaned
-        ? 'orphaned'
-        : diagnostic?.code === 'missing-credential'
-          ? 'needs-credentials'
-          : servedElsewhere || diagnostic?.code === 'foreign-mount'
-            ? 'foreign'
-            : diagnostic !== undefined
-              ? 'failed'
-              : disabled
-                ? 'disabled'
-                : tools.length > 0
-                  ? 'connected'
-                  : 'degraded'
+      // A supervisor's live phase outranks the tool snapshot: tools stay
+      // registered while a dropped connection is retried, so a dead server
+      // would otherwise read as connected with stale tools. A mount diagnostic
+      // still wins — that row never came up at all.
+      const connection = diagnostic === undefined && !orphaned && !disabled ? connectionByServer.get(serverName) : undefined
+      const connectionLost = connection !== undefined && connection.phase !== 'connected'
+      const state: McpStatusState = connectionLost
+        ? connection.phase === 'reconnecting' || connection.phase === 'connecting'
+          ? 'degraded'
+          : 'failed'
+        : orphaned
+          ? 'orphaned'
+          : diagnostic?.code === 'missing-credential'
+            ? 'needs-credentials'
+            : servedElsewhere || diagnostic?.code === 'foreign-mount'
+              ? 'foreign'
+              : diagnostic !== undefined
+                ? 'failed'
+                : disabled
+                  ? 'disabled'
+                  : tools.length > 0
+                    ? 'connected'
+                    : 'degraded'
       // A diagnostic's reason keeps the code the mount pipeline gave it. The
       // notes this builder adds describe the declaration's own state — an
       // override switched it off, an override rewrote it, its surface is gone
@@ -145,9 +167,14 @@ export function buildMcpStatus(
         ? 'this service is selected by the active session preset, which keeps it mounted; the panel switch cannot unmount it while that preset is active'
         : undefined
       const overrideNote = override === undefined || (state !== 'disabled' && tools.length > 0) ? undefined : disabled ? 'disabled by override' : 'modified by override'
-      const reason = orphanNote ?? presetDemandNote ?? diagnostic?.reason ?? overrideNote
-      const code: McpStatusCode | undefined =
-        orphanNote !== undefined
+      // The supervisor's last error is the one thing the row can say about a
+      // drop; when it has none, the panel writes the phase from `connection`.
+      const reason = connectionLost ? connection.error : (orphanNote ?? presetDemandNote ?? diagnostic?.reason ?? overrideNote)
+      const code: McpStatusCode | undefined = connectionLost
+        ? connection.phase === 'failed'
+          ? 'reconnect-stopped'
+          : 'reconnecting'
+        : orphanNote !== undefined
           ? 'orphaned-tools'
           : presetDemandNote !== undefined
             ? 'preset-demand'
@@ -168,7 +195,8 @@ export function buildMcpStatus(
         tools: disabled && !orphaned && !presetDemand ? [] : observedTools(tools, serverName, localization === undefined ? undefined : localize),
         ...(localization === undefined ? {} : localize(serverName, { name: serverName })),
         advertisedTools: tools.length > 0,
-        retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed',
+        retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed' || connectionLost,
+        ...(connectionLost ? { connection } : {}),
         ...(effective.type === 'stdio' || effective.auth !== undefined ? {} : { oauthDefault: true }),
         ...(policy.enabledTools === undefined ? {} : { suiteEnabledTools: policy.enabledTools }),
         ...(policy.suiteDisabledTools === undefined ? {} : { suiteDisabledTools: policy.suiteDisabledTools }),
@@ -206,14 +234,20 @@ export function buildMcpStatus(
       })
       continue
     }
+    // A directly declared server is supervised by the same bridge, so its row
+    // reports the live phase too: the tools of a dropped connection are stale.
+    const connection = connectionByServer.get(serverName)
+    const connectionLost = connection !== undefined && connection.phase !== 'connected'
     entries.push({
       id: `direct:${serverName}`,
       name: serverName,
       kind: 'direct',
-      state: 'connected',
+      state: connectionLost ? (connection.phase === 'reconnecting' || connection.phase === 'connecting' ? 'degraded' : 'failed') : 'connected',
       transport: 'observed',
       tools: observedTools(tools, serverName, localization === undefined ? undefined : localize),
-      ...(localization === undefined ? {} : localize(serverName, { name: serverName }))
+      ...(localization === undefined ? {} : localize(serverName, { name: serverName })),
+      ...(connectionLost ? { retryable: true, code: connection.phase === 'failed' ? ('reconnect-stopped' as const) : ('reconnecting' as const), connection } : {}),
+      ...(connectionLost && connection.error !== undefined ? { reason: connection.error } : {})
     })
   }
 

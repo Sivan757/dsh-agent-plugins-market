@@ -29,7 +29,7 @@ import { ReconcileScheduler } from '../../market-runtime/src/index.js'
 import { MarketSettingsNamespace } from './platform/settings-namespace.js'
 import { SurfaceToggleService } from '../../market-runtime/src/index.js'
 import { ALL_SURFACES_ON } from '../../market-contracts/src/contracts/surface-toggles.js'
-import { deleteMcpAuthGrant } from '../../market-mcp/src/index.js'
+import { deleteMcpAuthGrant, mcpConnectionSnapshot } from '../../market-mcp/src/index.js'
 import { inspectToolRegistry, toolsServiceOf } from '../../market-runtime/src/index.js'
 import { createLlmTranslator } from '../../market-translation/src/index.js'
 import { createTranslationProviders } from '../../market-translation/src/index.js'
@@ -363,6 +363,10 @@ export async function apply(
     // Read per call: the set is rebuilt by every mount pass, so a snapshot here
     // would report the demand of whichever pass happened to run at apply time.
     mcpDemandedMounts: () => runtime.demandedMcpMounts(),
+    // Live phases published by the bridge supervisors: read per call for the
+    // same reason as the demand list, since a reconnect rewrites the row on
+    // every backoff edge.
+    mcpConnections: () => mcpConnectionSnapshot(),
     lspStatusSource: runtime.lsp,
     mcpBackend: () => settings.backend(),
     downloadRegion: () => settings.downloadRegion(),

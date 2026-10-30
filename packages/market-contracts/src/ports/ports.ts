@@ -14,7 +14,7 @@ import type { MenuRowSource } from '../contracts/market.js'
 export type { McpBackendInfo } from '../contracts/market.js'
 import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../contracts/mcp.js'
-import type { McpDemandedMount } from '../contracts/mcp-status.js'
+import type { McpConnectionObservation, McpDemandedMount } from '../contracts/mcp-status.js'
 import type { LspMountDiagnostic } from '../contracts/lsp.js'
 import type { DocumentTranslation, TranslationFields, TranslationProvider, TranslationSurfaceKind } from '../contracts/translation.js'
 
@@ -157,6 +157,15 @@ export interface CatalogPorts {
    * session layer demands nothing, and the status reads exactly as before.
    */
   mcpDemandedMounts?: (() => readonly McpDemandedMount[]) | undefined
+  /**
+   * Live connection phases, one per supervised MCP server.
+   *
+   * A server that connected once and then dropped keeps its tools registered
+   * while the supervisor retries, so the tool snapshot alone cannot tell a
+   * healthy row from a dead one. Optional: a composition with no bridge leaves
+   * every row without a connection phase, which is exactly the old reading.
+   */
+  mcpConnections?: (() => readonly McpConnectionObservation[]) | undefined
   /** Latest LSP mount diagnostics. */
   lspStatusSource: LspMountStatusSource
   /** The persisted MCP mount backend choice. */
@@ -207,6 +216,7 @@ export const defaultCatalogPorts: CatalogPorts = {
   mcpRemountAll: () => {},
   mcpServerOwner: () => undefined,
   mcpDemandedMounts: () => [],
+  mcpConnections: () => [],
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
   mcpBackend: async () => 'builtin',
   localePreference: () => 'zh',

@@ -6,7 +6,7 @@ English | [简体中文](services.zh.md) | [README](../../README.md)
 
 ## Runtime and security
 
-MCP details offer retry only for failed managed services or residual mounts, and OAuth reset only when the active backend supports it and the server does not supply its own Authorization header — a header-authenticated server has no browser authorization to restart. Retrying checks all managed services without clearing credentials, and rebuilds every live bridge so a service that stopped answering after being reported connected is re-verified. Reauthorization explicitly confirms grant removal and possible interruption. Unsaved configuration disables connection actions. Results are based on refreshed status, not HTTP success; missing credentials must be configured first.
+MCP details offer retry for a failed or residual mount and for any live connection that dropped, and OAuth reset only when the active backend supports it and the server does not supply its own Authorization header — a header-authenticated server has no browser authorization to restart. Retrying checks all managed services without clearing credentials, and rebuilds every live bridge so a service that stopped answering after being reported connected is re-verified. A service that disconnects says so on its card and in its detail: the retry attempt, the wait before the next one, and the last error, while the panel keeps re-reading until the connection settles. Reauthorization explicitly confirms grant removal and possible interruption. Unsaved configuration disables connection actions. Results are based on refreshed status, not HTTP success; missing credentials must be configured first.
 
 ## MCP configuration
 

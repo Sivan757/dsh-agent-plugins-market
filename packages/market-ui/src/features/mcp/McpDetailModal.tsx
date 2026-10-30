@@ -13,7 +13,7 @@ import { kvCell } from '../../ui/DetailRows.js'
 import { displayText } from '../../ui/translated-text.js'
 import { useTranslationEnabled } from '../../ui/translation-enabled.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
-import { mcpCardState, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
+import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
 import { setMcpServerTool } from '../../api.js'
 import css from './mcp-status.module.css'
@@ -134,6 +134,9 @@ export function McpDetailModal({
       )
     )
   }
+  // The live phase sentence, when a supervisor reports a lost connection: it
+  // carries the attempt the user is waiting on and the last error.
+  const connectionNote = mcpConnectionNote(t, entry)
   return h(DetailModal, {
     open: true,
     onClose: () => {
@@ -163,7 +166,9 @@ export function McpDetailModal({
         ...(recovery.length === 0 ? {} : { action: recovery }),
         ...(feedback === undefined ? {} : { echo: feedback }),
         ...(guidance === undefined ? {} : { guidance }),
-        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        // A dropped connection's own sentence outranks the recorded diagnostic:
+        // it names the phase and the attempt the user is waiting on.
+        ...((connectionNote ?? entry.reason) === undefined ? {} : { reason: connectionNote ?? entry.reason }),
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
         mono: entry.endpoint ?? t('mcpObservedEndpoint')
       }),
