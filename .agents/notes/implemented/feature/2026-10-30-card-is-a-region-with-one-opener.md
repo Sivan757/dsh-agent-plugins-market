@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Supersedes in part the keyboard guard in [the card-controls note](../bug-fix/2026-10-30-card-controls-answer-their-own-keys.md): the guard has nothing left to guard, because the card no longer handles keys. That note's three naming decisions still stand.
+
 ## Problem
 
 The accessibility review left two findings on the shared card, and both came from the same decision: the card was painted as a button.

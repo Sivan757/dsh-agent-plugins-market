@@ -267,6 +267,8 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       // Text the card does not render, so search still finds it.
       keywords: [entry.name, entry.description, entry.suiteName ?? '', entry.path].join(' '),
       state: entry.disabled ? ('disabled' as const) : ('active' as const),
+      // The rail is colour only; this is what a screen reader hears.
+      stateLabel: entry.disabled ? t('disabledLabel') : t('enabledLabel'),
       canEdit: editable,
       editDisabled: busy,
       toggleLabel: entry.disabled ? t('enable') : t('disable')

@@ -28,9 +28,29 @@ export function ResourceCard({
   surface?: ResourceSurface
   /** Stable identity of the entry the card renders, for tests and for focus restoration. */
   'data-resource-id'?: string
+  /**
+   * Where this card sits in the set the surface matched, so assistive technology
+   * can say "3 of 971" rather than "3 of 120 rendered". The collection pages
+   * itself, so the DOM alone cannot tell the difference.
+   */
+  position?: number
+  /** How many entries the surface matched, including the ones not rendered yet. */
+  count?: number
   children?: ReactNode
 }): ReactNode {
-  return h('article', { ...props, className: `${className ?? ''} ${css.card}`, 'data-resource-state': state, 'data-resource-surface': surface }, children)
+  return h(
+    'article',
+    {
+      ...props,
+      className: `${className ?? ''} ${css.card}`,
+      role: 'listitem',
+      ...(props.position === undefined ? {} : { 'aria-posinset': props.position }),
+      ...(props.count === undefined ? {} : { 'aria-setsize': props.count }),
+      'data-resource-state': state,
+      'data-resource-surface': surface
+    },
+    children
+  )
 }
 
 /** A shared, shrinkable scroll area: grid and list never stretch individual cards vertically. */
@@ -40,7 +60,9 @@ export function ResourceCollection({
   children,
   ...rest
 }: { view: 'grid' | 'list'; className?: string; children?: ReactNode } & Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'children'>): ReactNode {
-  return h('div', { className: `${className ?? ''} ${css.collection}`, 'data-resource-view': view, ...rest }, children)
+  // A list, so a reader learns the set has a size and where each card sits in
+  // it; the grid/flex display is unaffected by the role.
+  return h('div', { className: `${className ?? ''} ${css.collection}`, role: 'list', 'data-resource-view': view, ...rest }, children)
 }
 
 /**

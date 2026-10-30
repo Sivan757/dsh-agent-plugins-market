@@ -159,7 +159,9 @@ export function ResourceList({
     // A row the host manages globally has no switch of its own: the card says why instead.
     hideToggle: row.control === 'global-only',
     // Off rows wear the quiet chrome; unavailable ones wear the warning chrome.
-    state: !row.available ? (row.control === 'global-only' ? ('disabled' as const) : ('warning' as const)) : selected(row) ? ('active' as const) : ('disabled' as const)
+    state: !row.available ? (row.control === 'global-only' ? ('disabled' as const) : ('warning' as const)) : selected(row) ? ('active' as const) : ('disabled' as const),
+    // The rail is colour only; this is what a screen reader hears.
+    stateLabel: !row.available ? t('stateUnavailable') : selected(row) ? t('enabledLabel') : t('disabledLabel')
   }))
   return (
     <div className={workspace.workspace}>

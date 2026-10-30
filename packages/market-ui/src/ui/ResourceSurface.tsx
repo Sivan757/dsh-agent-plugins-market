@@ -287,7 +287,7 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
         : h(
             ResourceCollection,
             { view },
-            visible.map(entry => {
+            visible.map((entry, index) => {
               const stop = (event: { stopPropagation(): void }): void => event.stopPropagation()
               // One anatomy for every entry: identity row, body row, source row, actions.
               // Each slot is a named grid area, so a card never auto-places a slot into
@@ -405,6 +405,10 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                 {
                   key: entry.id,
                   'data-resource-id': entry.id,
+                  // The set is what the filter and the search matched, not the
+                  // whole inventory and not the rendered page.
+                  position: index + 1,
+                  count: shown.length,
                   state: entry.state ?? (entry.disabled === true ? 'disabled' : 'active'),
                   ...(entry.surface === undefined ? {} : { surface: entry.surface }),
                   // The card is a region, not a button: it holds a switch, an

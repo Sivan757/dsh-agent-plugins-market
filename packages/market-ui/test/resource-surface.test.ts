@@ -177,7 +177,8 @@ describe('resource surface contract', () => {
     const onOpen = vi.fn()
     await mount({ onOpen })
     const all = cards()
-    expect(all[0]!.getAttribute('role')).toBeNull()
+    // A list item, not a button, and not a tab stop of its own.
+    expect(all[0]!.getAttribute('role')).toBe('listitem')
     expect(all[0]!.tabIndex).toBe(-1)
     const openers = all.map(card => card.querySelector<HTMLButtonElement>('[data-card-open]')!)
     expect(openers[1]!.tagName).toBe('BUTTON')

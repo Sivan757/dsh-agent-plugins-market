@@ -50,6 +50,18 @@ const cards = (): HTMLElement[] => [...(host?.querySelectorAll<HTMLElement>('[da
 const more = (): HTMLButtonElement | undefined => host?.querySelector<HTMLButtonElement>('[data-resource-more] button') ?? undefined
 
 describe('resource collection paging', () => {
+  it('reads as a list whose size is the set, not the page', async () => {
+    // The page holds 120 cards out of 150; a reader must hear the set, not the
+    // page, or "item 120 of 120" would claim the list ends there.
+    await mount(many)
+    expect(host!.querySelector('[role="list"]')).not.toBeNull()
+    const rendered = cards()
+    expect(rendered[0]!.getAttribute('role')).toBe('listitem')
+    expect(rendered[0]!.getAttribute('aria-posinset')).toBe('1')
+    expect(rendered[0]!.getAttribute('aria-setsize')).toBe(String(many.length))
+    expect(rendered.at(-1)!.getAttribute('aria-posinset')).toBe(String(RESOURCE_PAGE_SIZE))
+  })
+
   it('mounts one page and offers the rest', async () => {
     await mount(many)
     expect(cards()).toHaveLength(RESOURCE_PAGE_SIZE)

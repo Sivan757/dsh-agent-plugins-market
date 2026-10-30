@@ -2,6 +2,8 @@
 
 Status: implemented
 
+部分取代[卡片键盘守卫笔记](../bug-fix/2026-10-30-card-controls-answer-their-own-keys.zh.md)：那道守卫不再需要，卡片已无键盘处理；该笔记的三处命名决定仍然有效。
+
 ## Problem
 
 无障碍评审在共享卡片上留了两条结论，它们来自同一个决定：卡片被画成了按钮。

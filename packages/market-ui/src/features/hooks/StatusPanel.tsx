@@ -65,6 +65,9 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
         warning: limited(row) ? t(row.unavailableReason === 'hook-event-partial' ? 'hooksEventPartial' : 'hooksEventUnsupported') : undefined,
         meta: row.source,
         state: limited(row) ? ('warning' as const) : ('active' as const),
+        // The rail is colour only; this is what a screen reader hears, and the
+        // warning line on a limited row says why.
+        stateLabel: limited(row) ? t('hookStateLimited') : t('hooksFilterSupported'),
         // This surface cannot switch a hook: the declaration belongs to its suite.
         hideToggle: true
       })),

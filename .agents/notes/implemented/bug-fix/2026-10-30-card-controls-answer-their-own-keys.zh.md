@@ -2,6 +2,8 @@
 
 Status: implemented
 
+部分被[卡片区域笔记](../feature/2026-10-30-card-is-a-region-with-one-opener.zh.md)取代：卡片不再处理键盘事件，下面记录的守卫已无可守。三处命名决定（开关名、筛选条名、视图切换）仍然有效。
+
 ## Problem
 
 共享列表的无障碍评审发现卡片的键盘处理吞掉了卡片内部的控件。`interactiveCardProps` 给卡片加了 `role="button"` 和一个 keydown 处理器：按 Enter 或空格时调用 `preventDefault()` 并打开条目。编辑按钮和每个图标动作只阻止了 click、没有阻止 keydown，于是在**编辑**上按 Enter 会冒泡到卡片，按钮自身的激活被取消，结果打开的是详情而不是编辑器：任何界面上，键盘用户都无法编辑或执行图标动作。
@@ -10,7 +12,7 @@ Status: implemented
 
 ## Decision
 
-- **键事件指向哪个控件，就归哪个控件。** 卡片处理器除非 `event.target === event.currentTarget` 否则直接返回。这道判断放在 `interactiveCardProps` 里，所有界面的所有卡片一次获得。
+- **键事件指向哪个控件，就归哪个控件。** 卡片处理器当时除非 `event.target === event.currentTarget` 否则直接返回，判断放在 `interactiveCardProps` 里，所有界面的所有卡片一次获得。现在卡片已是普通区域、只有名字按钮，没有键盘处理需要守卫。
 - **开关同时说动词与对象。** `toggleLabel + ' ' + name`（「停用 firebase」），正是旁边编辑按钮早已采用的形状。
 - **筛选条自己命名。** `ResourceSurface` 接受 `filterLabel`（默认取新增的「按状态筛选」/"Filter by status" 键），不再借搜索框的标签当 tablist 的名字。
 - **视图切换只陈述动作，不陈述模式。** 去掉 `aria-pressed`；名字继续说明点击去向，模式由 `data-view-switch` 承载，供需要读它的代码使用。

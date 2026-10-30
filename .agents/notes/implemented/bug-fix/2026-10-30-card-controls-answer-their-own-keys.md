@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Superseded in part by [the card-region note](../feature/2026-10-30-card-is-a-region-with-one-opener.md): the card no longer handles keys at all, so the guard recorded below had nothing left to guard. The three naming decisions (switch names, filter label, view switch) still stand.
+
 ## Problem
 
 An accessibility review of the shared list found that the card's own keyboard handling swallowed the controls inside it. `interactiveCardProps` gave the card `role="button"` plus a keydown handler that called `preventDefault()` and opened the entry on Enter or Space. The edit button and every icon action stopped the click and not the keydown, so pressing Enter on **编辑** bubbled to the card, had the button's own activation cancelled, and opened the detail instead of the editor: no keyboard user could edit or run an icon action on any surface.
@@ -10,7 +12,7 @@ The same review found three naming defects around the same cluster: every switch
 
 ## Decision
 
-- **A key event aimed at a control is that control's.** The card handler returns unless `event.target === event.currentTarget`. The guard lives in `interactiveCardProps`, so every card, on every surface, gets it once.
+- **A key event aimed at a control is that control's.** The card handler returned unless `event.target === event.currentTarget`, in `interactiveCardProps`, so every card, on every surface, got it once. The card is now a plain region with a name button and has no key handling to guard.
 - **A switch names its verb and its row.** `toggleLabel + ' ' + name` ("停用 firebase"), which is the shape the edit button beside it already used.
 - **The filter strip names itself.** `ResourceSurface` takes a `filterLabel` (defaulting to a new `按状态筛选` / "Filter by status" key) and no longer borrows the search field's label for the tablist.
 - **The view switch states the action, not the mode.** `aria-pressed` is gone; the name continues to say where a click leads, and `data-view-switch` carries the mode for anything that needs it.
