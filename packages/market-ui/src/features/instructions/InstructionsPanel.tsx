@@ -18,6 +18,7 @@ import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { CardListSurface } from '../../ui/CardListSurface.js'
+import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
 import { statusLocaleKey } from './instructions-view-model.js'
@@ -51,6 +52,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
   const [error, setError] = useState<string | undefined>(undefined)
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [editor, setEditor] = useState<EditorState | undefined>(undefined)
+  const [showOriginal, setShowOriginal] = useState(false)
   const [confirm, setConfirm] = useState<PanelConfirmState | undefined>(undefined)
 
   const refresh = (): void => {
@@ -148,12 +150,23 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
     // Only files that exist: a list of things that are not there cannot be seen, found, or used.
     h(CardListSurface, {
+      t,
+      searchLabel: t('cardSearch'),
+      searchPlaceholder: t('instructionsSearchPh'),
+      // Two states matter here: a file the prompt loads, and a duplicate the host folds
+      // into an earlier one.
+      filters: [
+        { id: 'loaded', label: t('instructionsStatusLoaded'), match: item => item.tagId === 'loaded' },
+        { id: 'duplicate', label: t('instructionsStatusDuplicate'), match: item => item.tagId === 'duplicate' }
+      ],
+      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
       items: payload.rows
         .filter(row => row.scope !== 'project' && row.exists)
         .map(row => ({
           id: `${row.scope}:${row.directory}:${row.candidate}`,
           name: row.displayPath,
           tag: t(statusLocaleKey(row.status)),
+          tagId: row.status,
           meta: row.size === undefined ? '' : t('instructionsRowSize', { bytes: row.size })
         })),
       emptyText: t('instructionsPreviewEmpty'),

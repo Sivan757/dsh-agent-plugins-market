@@ -153,4 +153,28 @@ describe('output styles panel', () => {
     await act(async () => {})
     expect(api.deleteUserOutputStyle).toHaveBeenCalledWith('brief', undefined)
   })
+  it('searches the list, filters by source, and switches the layout', async () => {
+    await mount()
+    const field = host!.querySelector<HTMLInputElement>('[data-panel-toolbar] input')!
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, 'teach')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(cards()).toHaveLength(1)
+    expect(cards()[0]!.textContent).toContain('teaching-style')
+
+    const user = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('outputStylesGroupUser'))!
+    await act(async () => user.click())
+    expect(cards()).toHaveLength(0)
+
+    const suite = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('outputStylesGroupSuite'))!
+    await act(async () => suite.click())
+    expect(cards()).toHaveLength(1)
+
+    const toList = host!.querySelector<HTMLButtonElement>('[data-panel-toolbar] button[aria-label="list"]')!
+    await act(async () => toList.click())
+    expect(host!.querySelector('[data-resource-view]')?.getAttribute('data-resource-view')).toBe('list')
+  })
 })

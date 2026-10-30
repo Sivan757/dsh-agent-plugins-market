@@ -228,4 +228,31 @@ describe('instructions panel', () => {
     expect(api.deleteInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md' }, undefined)
     expect(host!.textContent).toContain('CLAUDE.md')
   })
+  it('searches the list, filters by state, and switches the layout', async () => {
+    await mount()
+    const field = host!.querySelector<HTMLInputElement>('[data-panel-toolbar] input')!
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, 'DSH_AGENTS')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(paths()).toEqual(['$DSH_AGENTS_HOME/AGENTS.md'])
+
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, '')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    // The state segment keeps only the rows in that state.
+    const duplicate = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('instructionsStatusDuplicate'))!
+    await act(async () => duplicate.click())
+    expect(paths()).toEqual(['$DSH_AGENTS_HOME/AGENTS.md'])
+
+    // The view switch re-lays the same collection out as a list.
+    const toList = host!.querySelector<HTMLButtonElement>('[data-panel-toolbar] button[aria-label="list"]')!
+    await act(async () => toList.click())
+    expect(host!.querySelector('[data-resource-view]')?.getAttribute('data-resource-view')).toBe('list')
+  })
 })

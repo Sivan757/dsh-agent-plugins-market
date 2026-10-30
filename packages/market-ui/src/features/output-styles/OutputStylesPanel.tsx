@@ -24,6 +24,7 @@ import { CodeEditor } from '../../ui/CodeEditor.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
 import { CardListSurface } from '../../ui/CardListSurface.js'
+import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { captureAction, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
 import css from './output-styles.module.css'
 
@@ -51,6 +52,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
   const [editor, setEditor] = useState<EditorState | undefined>(undefined)
   const [confirm, setConfirm] = useState<PanelConfirmState | undefined>(undefined)
   const [detail, setDetail] = useState<OutputStyleRow | undefined>(undefined)
+  const [showOriginal, setShowOriginal] = useState(false)
 
   const refresh = (): void => {
     setLoading(true)
@@ -146,10 +148,20 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
     // One card per style, the same grid the catalogue panels draw: the list is for
     // scanning and the card opens everything a person can do with that style.
     h(CardListSurface, {
+      t,
+      searchLabel: t('cardSearch'),
+      searchPlaceholder: t('outputStylesSearchPh'),
+      // Source is the only axis these entries differ on, so it is the filter.
+      filters: [
+        { id: 'user', label: t('outputStylesGroupUser'), match: item => item.tagId === 'user' },
+        { id: 'suite', label: t('outputStylesGroupSuite'), match: item => item.tagId === 'suite' }
+      ],
+      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
       items: payload.styles.map(row => ({
         id: row.id,
         name: row.label,
         tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
+        tagId: row.source,
         description: row.description,
         meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
         disabled: !isSelectable(row)
