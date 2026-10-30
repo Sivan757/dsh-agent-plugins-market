@@ -53,11 +53,6 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.listRegion {
-  min-height: 0;
-  flex: 1;
-  overflow: auto;
-}
 .footer {
   display: flex;
   justify-content: flex-end;
