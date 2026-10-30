@@ -6,7 +6,7 @@ import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
+import { CardActions, CardBody, CardFoot, CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
 import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './mcp-status-view-model.js'
@@ -339,8 +339,8 @@ function McpCard({
     // beside it would say the same thing twice.
     h(CardIdentity, { text: displayName, hint: entry.name, mono: true, tag: entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect'), chip: true }),
     h(
-      'div',
-      { className: rc.rowActions },
+      CardActions,
+      null,
       // The editor is the dialog the add flow uses; it sits just before the
       // switch, where the row's actions end.
       switchable
@@ -390,10 +390,10 @@ function McpCard({
       )
     ),
     // The card clips this line to one row, so it carries the endpoint as a hint.
-    hoverHint(entry.endpoint ?? t('mcpObservedEndpoint'), h('p', hintProps({ className: `${rc.rowBody} ${rc.monoLine}` }), entry.endpoint ?? t('mcpObservedEndpoint'))),
+    h(CardBody, null, hoverHint(entry.endpoint ?? t('mcpObservedEndpoint'), h('p', hintProps({ className: rc.monoLine }), entry.endpoint ?? t('mcpObservedEndpoint')))),
     h(
-      'div',
-      { className: rc.rowFoot },
+      CardFoot,
+      null,
       hoverHint(
         entry.suiteId ?? entry.source ?? '',
         h('span', hintProps({ className: rc.provenance }), entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'))

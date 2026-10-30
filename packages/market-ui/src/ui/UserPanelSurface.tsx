@@ -12,7 +12,7 @@ import { cachedUserPanel, loadUserPanel } from './user-panel-resource.js'
 import { commandCallName } from '../../../market-contracts/src/model/command-names.js'
 import type { Translate } from '../i18n.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
-import { CardIdentity, ResourceCard, ResourceCollection } from './ResourceCard.js'
+import { CardActions, CardBody, CardFoot, CardIdentity, ResourceCard, ResourceCollection } from './ResourceCard.js'
 import { useDisplayText } from './translated-text.js'
 import { hintProps, hoverHint } from './hover-hint.js'
 import { BilingualToggle } from './BilingualToggle.js'
@@ -462,8 +462,8 @@ function UserEntryRow(props: {
     { state: entry.disabled ? 'disabled' : 'active', surface: props.kind === 'agents' ? 'personas' : props.kind, ...interactive },
     h(CardIdentity, { text: title, hint: entry.name, mono, tag: entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin') }),
     h(
-      'div',
-      { className: rc.rowActions },
+      CardActions,
+      null,
       props.onEdit === undefined
         ? null
         : h(
@@ -505,10 +505,10 @@ function UserEntryRow(props: {
       )
     ),
     // Two lines fit; anything longer stays readable through the hint.
-    description === undefined || description === '' ? null : hoverHint(description, h('p', hintProps({ className: `${rc.rowBody} ${rc.desc}` }), description)),
+    description === undefined || description === '' ? null : h(CardBody, null, hoverHint(description, h('p', hintProps({ className: rc.desc }), description))),
     h(
-      'div',
-      { className: rc.rowFoot },
+      CardFoot,
+      null,
       // The source row names where the entry comes from: the owning suite for a
       // plugin-provided file, the file's own location for a user-authored one.
       hoverHint(

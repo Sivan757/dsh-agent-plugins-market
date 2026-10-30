@@ -99,6 +99,26 @@ describe('resource surface contract', () => {
     expect(cards().map(card => card.getAttribute('data-resource-id'))).toEqual(['b'])
   })
 
+  it('draws the one card anatomy, with every slot in its own row', async () => {
+    await mount({ capabilities: { toggle: true, counts: true }, onToggle: () => {}, isOn: () => true, onEdit: () => {} })
+    const card = cardOf('a')
+    // Identity, actions, body, foot: the card is a grid with named areas, so a slot
+    // without a row would be auto-placed into the first free cell — beside the name.
+    expect([...card.querySelectorAll('[data-card-row]')].map(row => row.getAttribute('data-card-row'))).toEqual(['id', 'actions', 'body', 'foot'])
+    expect(card.querySelector('[data-card-row="body"]')?.textContent).toBe('First entry')
+    expect(card.querySelector('[data-card-row="foot"]')?.textContent).toContain('meta-a')
+    // The switch ends the action cluster, and it is the only control there when
+    // the surface offers no editor.
+    const actions = card.querySelector('[data-card-row="actions"]')!
+    expect(actions.querySelector('[role="switch"]')).not.toBeNull()
+  })
+
+  it('omits the rows an entry has nothing to fill', async () => {
+    await mount({ entries: [{ id: 'bare', name: 'bare' }] })
+    const card = cardOf('bare')
+    expect([...card.querySelectorAll('[data-card-row]')].map(row => row.getAttribute('data-card-row'))).toEqual(['id'])
+  })
+
   it('opens the entry from the keyboard, not only from a pointer', async () => {
     const onOpen = vi.fn()
     await mount({ onOpen })

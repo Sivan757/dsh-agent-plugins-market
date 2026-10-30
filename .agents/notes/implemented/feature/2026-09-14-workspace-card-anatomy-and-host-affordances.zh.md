@@ -2,7 +2,7 @@
 
 Status: implemented
 
-由[卡片的实时交互与工作台的查询容器](2026-09-16-workspace-live-card-affordances.zh.md)、[六个编辑器的弹窗外壳](2026-09-16-workspace-editor-chrome.zh.md)与[详情弹窗的行与文档正文](2026-09-16-detail-row-and-document-body.zh.md)修订：让窄容器规则真正生效的容器、整簇显隐、MCP/LSP 的启停开关，以及编辑器的副行、窗格 chip、字段提示与底部提示。
+由[卡片的实时交互与工作台的查询容器](2026-09-16-workspace-live-card-affordances.zh.md)、[六个编辑器的弹窗外壳](2026-09-16-workspace-editor-chrome.zh.md)、[详情弹窗的行与文档正文](2026-09-16-detail-row-and-document-body.zh.md)与[卡片的行与不再隐身的开关](../bug-fix/2026-10-30-card-rows-and-the-switch-that-never-hides.zh.md)修订：让窄容器规则真正生效的容器、MCP/LSP 的启停开关、编辑器的副行、窗格 chip、字段提示与底部提示，以及每个页面都填充的行组件。
 
 ## Problem
 
@@ -17,7 +17,7 @@ Status: implemented
 ## Decision
 
 - **一套卡片句法，由共享层持有。** `ui/resource-card.module.css` 定义盒模型、行网格（网格 `'id act' / 'body body' / 'foot foot'`，列表 `'id foot body act'`）以及所有页面共同填充的槽位类（`rowId`、`rowBody`、`rowFoot`、`rowActions`、`name`、`desc`、`monoLine`、`provenance`、`count`、`countValue`、`iconBtn`、`revealOnHover`）。页面只负责行内槽位样式。`data-resource-state` / `data-resource-view` 上的属性选择器让这一层在样式表顺序无关的前提下压过各页面的单类规则。
-- **一个操作簇，放在身份行。** 次要图标操作（刷新、编辑、删除）、未安装套件的主操作与启用开关共用身份行右端的同一个簇。它只占身份行，正文行与来源行因此各自整宽，描述不再被挤压。在窄容器的网格里它脱离文档流、由身份行预留宽度，整簇（含开关与主操作）在悬停或 `:focus-within` 时淡入。MCP 与 LSP 卡片带同一个启用开关，不必进详情就能停掉一个服务；重试与重新授权仍留在详情底部。
+- **一个操作簇，放在身份行。** 次要图标操作（刷新、编辑、删除）、未安装套件的主操作与启用开关共用身份行右端的同一个簇。它只占身份行，正文行与来源行因此各自整宽，描述不再被挤压。在窄容器的网格里它仍留在身份行、不再脱离文档流，于是表达启用状态的开关不会隐身；只有次要图标淡入，长名称在簇旁省略。MCP 与 LSP 卡片带同一个启用开关，不必进详情就能停掉一个服务；重试与重新授权仍留在详情底部。
 - **来源行在两种视图里都写出处。** 它先给出归属套件（与身份行同一套等宽字体），再给出用户扫视的计数；套件名会在计数之前先被省略。用户内容卡片对插件提供的条目显示归属套件，对用户自撰条目显示磁盘路径。
 - **确定的尺寸。** 宽容器下 `auto-fill minmax(280px, 1fr)` 列加 122px 行高，列表行 56px，断点按面板容器查询——插件始终渲染在可伸缩的设置列里，原先的 `@media` 断点在真实环境从不命中。设置列只给资源列表约 560px，280px 轨道在那里只排得下一列；因此窄容器分支强制两列 `minmax(0, 1fr)`、间距 4px、行高随内容，于是单行描述的卡就是更矮的卡，网格行高等于该行最高的一张。描述封顶两行而不预留两行，三行从顶部堆叠（`align-content: start`），描述到来源行恒定 4px。每个渲染资源栅格的页面都必须落在查询容器里——用户内容面板由 `panel.module.css .shell` 提供，市场页在 `.market` 上自行声明。
 - **每一行都带上自己的区域类。** 只带槽位类的正文会被网格自动排进第一个空位——没有操作的卡片那个空的 act 列——于是 MCP 或 LSP 的端点跑到名称旁边、名称被压成 “j…”。现在每个正文都带 `rowBody`。

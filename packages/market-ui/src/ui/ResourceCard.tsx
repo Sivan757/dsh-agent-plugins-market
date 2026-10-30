@@ -54,17 +54,43 @@ export function interactiveCardProps(onClick: () => void): Pick<HTMLAttributes<H
 export function CardIdentity({ text, hint, mono, version, tag, chip }: { text: string; hint?: string; mono?: boolean; version?: string; tag?: string; chip?: boolean }): ReactNode {
   return h(
     'div',
-    { className: css.rowId },
+    { className: css.rowId, 'data-card-row': 'id' },
     hoverHint(hint ?? text, h('span', hintProps({ className: mono === true ? `${css.name} ${css.nameMono}` : css.name }), text)),
     version === undefined ? null : h('span', { className: css.version }, `v${version}`),
     tag === undefined ? null : chip === true ? h('span', { className: css.provenanceChip }, h(Tag, { tone: 'neutral' }, tag)) : h(Tag, { tone: 'neutral' }, tag)
   )
 }
 
+/**
+ * The card's body row: the surface's subject, clamped to two lines by `.desc`.
+ *
+ * A row, not a bare paragraph: the card is a grid with named areas, so a slot that
+ * carries no area class is auto-placed into the first free cell — the action column
+ * of a card that has no action — and its text lands beside the name.
+ */
+export function CardBody({ children }: { children?: ReactNode }): ReactNode {
+  return h('div', { className: css.rowBody, 'data-card-row': 'body' }, children)
+}
+
+/** The card's source row: provenance, counts, and warnings on one quiet line. */
+export function CardFoot({ children }: { children?: ReactNode }): ReactNode {
+  return h('div', { className: css.rowFoot, 'data-card-row': 'foot' }, children)
+}
+
+/**
+ * The card's action cluster, ending in the switch.
+ *
+ * The cluster is in flow in both views, so the control that says whether an entry
+ * is on never hides behind a hover; only the secondary icons fade in.
+ */
+export function CardActions({ children }: { children?: ReactNode }): ReactNode {
+  return h('div', { className: css.rowActions, 'data-card-row': 'actions' }, children)
+}
+
 /** Shared count and separator for settings and preset cards. */
-export function CardCount({ label, count }: { label: string; count: number }): ReactNode {
+export function CardCount({ label, count, first = false }: { label: string; count: number; first?: boolean }): ReactNode {
   return [
-    h('span', { key: `sep-${label}`, className: css.separator }, '·'),
+    first ? null : h('span', { key: `sep-${label}`, className: css.separator }, '·'),
     h('span', { key: label, className: css.count }, label, ' ', h('span', { className: css.countValue }, String(count)))
   ]
 }

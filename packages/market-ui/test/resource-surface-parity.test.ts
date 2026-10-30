@@ -109,6 +109,8 @@ interface Skeleton {
   state: string | null
   pressed: string | null
   hasSwitch: boolean
+  /** The named rows the card fills, in document order. */
+  rows: (string | null)[]
   descendants: { tag: string; role: string | null; state: string | null; id: string | null }[]
 }
 
@@ -126,6 +128,7 @@ function skeleton(card: HTMLElement): Skeleton {
     state: card.getAttribute('data-resource-state'),
     pressed: card.getAttribute('aria-pressed'),
     hasSwitch: card.querySelector('[role="switch"]') !== null,
+    rows: [...card.querySelectorAll('[data-card-row]')].map(row => row.getAttribute('data-card-row')),
     descendants
   }
 }
@@ -145,6 +148,9 @@ describe('the two merged surfaces share one card contract', () => {
     expect(settings.hasSwitch).toBe(settings.hasSwitch && surface.hasSwitch)
     // Same elements, same order: identity, chip, description slot, meta line.
     expect(settings.descendants.map(node => node.tag)).toEqual(surface.descendants.map(node => node.tag))
+    // Same rows around them, so a slot cannot land in another card's cell.
+    expect(settings.rows).toEqual(surface.rows)
+    expect(settings.rows).toEqual(['id', 'foot'])
   })
 
   it('means the same thing by a click on both surfaces', async () => {

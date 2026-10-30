@@ -13,11 +13,13 @@
  */
 import { createElement as h, useId, useMemo, useState, type ReactNode } from 'react'
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
-import { CardCount, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from './ResourceCard.js'
+import { CardActions, CardBody, CardCount, CardFoot, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from './ResourceCard.js'
+import { hintProps, hoverHint } from './hover-hint.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { useWorkspaceView } from './workspace-view.js'
 import type { Translate } from '../i18n.js'
 import surface from './resource-surface.module.css'
+import card from './resource-card.module.css'
 
 /** One entry a surface lists. */
 export interface ResourceEntry {
@@ -141,14 +143,62 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
     // owns a panel and the active one is the one holding the collection.
     h(
       'div',
-      { role: 'tabpanel', id: filterId + '-' + filter + '-panel', 'aria-labelledby': filterId + '-' + filter },
+      { className: surface.results, role: 'tabpanel', id: filterId + '-' + filter + '-panel', 'aria-labelledby': filterId + '-' + filter },
       shown.length === 0
         ? h('p', { className: surface.empty }, emptyText)
         : h(
             ResourceCollection,
             { view },
-            shown.map(entry =>
-              h(
+            shown.map(entry => {
+              const stop = (event: { stopPropagation(): void }): void => event.stopPropagation()
+              // One anatomy for every entry: identity row, body row, source row, actions.
+              // Each slot is a named grid area, so a card never auto-places a slot into
+              // another's cell when the surface renders fewer pieces than its neighbours.
+              const actions: ReactNode[] = []
+              if (props.onEdit !== undefined) {
+                actions.push(
+                  h(
+                    'button',
+                    {
+                      key: 'edit',
+                      type: 'button',
+                      className: `${card.iconBtn} ${card.revealOnHover}`,
+                      'aria-label': t('panelEdit') + ' ' + entry.name,
+                      title: t('panelEdit'),
+                      onClick: (event: { stopPropagation(): void }) => {
+                        event.stopPropagation()
+                        props.onEdit?.(entry.id)
+                      }
+                    },
+                    '✎'
+                  )
+                )
+              }
+              if (capabilities.toggle === true && onToggle !== undefined && entry.hideToggle !== true) {
+                actions.push(
+                  h(
+                    'span',
+                    { key: 'toggle', className: card.switchWrap, onClick: stop, onKeyDown: stop },
+                    h(Switch, {
+                      checked: isOn?.(entry.id) === true,
+                      disabled: isToggleDisabled?.(entry.id) === true,
+                      onChange: (enabled: boolean) => onToggle(entry.id, enabled),
+                      label: entry.name
+                    })
+                  )
+                )
+              }
+              const foot: ReactNode[] = []
+              const meta = entry.meta ?? ''
+              if (meta !== '') foot.push(hoverHint(meta, h('span', hintProps({ className: card.provenance }), meta)))
+              if (capabilities.counts === true && entry.counts !== undefined) {
+                for (const item of entry.counts) foot.push(h(CardCount, { label: item.label, count: item.count, first: foot.length === 0 }))
+              }
+              if (entry.warning !== undefined) {
+                if (foot.length > 0) foot.push(h('span', { className: card.separator }, '·'))
+                foot.push(h(CardWarning, { text: entry.warning, label: entry.warning }))
+              }
+              return h(
                 ResourceCard,
                 {
                   key: entry.id,
@@ -157,45 +207,11 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                   ...interactiveCardProps(() => onOpen(entry.id))
                 },
                 h(CardIdentity, { text: entry.name, hint: entry.hint, mono: entry.mono, tag: entry.tag }),
-                capabilities.toggle === true && onToggle !== undefined && entry.hideToggle !== true
-                  ? h(
-                      'span',
-                      {
-                        className: surface.toggle,
-                        onClick: (event: { stopPropagation(): void }) => event.stopPropagation(),
-                        onKeyDown: (event: { stopPropagation(): void }) => event.stopPropagation()
-                      },
-                      h(Switch, {
-                        checked: isOn?.(entry.id) === true,
-                        disabled: isToggleDisabled?.(entry.id) === true,
-                        onChange: (enabled: boolean) => onToggle(entry.id, enabled),
-                        label: entry.name
-                      })
-                    )
-                  : null,
-                props.onEdit === undefined
-                  ? null
-                  : h(
-                      'span',
-                      {
-                        className: surface.edit,
-                        onClick: (event: { stopPropagation(): void }) => event.stopPropagation(),
-                        onKeyDown: (event: { stopPropagation(): void }) => event.stopPropagation()
-                      },
-                      h('button', { type: 'button', className: surface.editButton, 'aria-label': t('panelEdit') + ' ' + entry.name, onClick: () => props.onEdit?.(entry.id) }, '✎')
-                    ),
-                entry.description === undefined ? null : h('p', { className: surface.description }, entry.description),
-                entry.warning === undefined ? null : h(CardWarning, { text: entry.warning, label: entry.warning }),
-                capabilities.counts === true && entry.counts !== undefined
-                  ? h(
-                      'span',
-                      { className: surface.counts },
-                      entry.counts.map(item => h(CardCount, { key: item.label, label: item.label, count: item.count }))
-                    )
-                  : null,
-                entry.meta === undefined ? null : h('span', { className: surface.meta }, entry.meta)
+                actions.length === 0 ? null : h(CardActions, null, ...actions),
+                entry.description === undefined ? null : h(CardBody, null, hoverHint(entry.description, h('p', hintProps({ className: card.desc }), entry.description))),
+                foot.length === 0 ? null : h(CardFoot, null, ...foot)
               )
-            )
+            })
           )
     ),
     ['all', ...filters.map(entry => entry.id)]

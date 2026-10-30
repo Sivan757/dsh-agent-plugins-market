@@ -10,7 +10,7 @@ import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Switch } from
 import type { SuiteCardData } from '../../api.js'
 import type { Translate } from '../../i18n.js'
 import rc from '../../ui/resource-card.module.css'
-import { CardCount, CardIdentity, CardWarning, ResourceCard } from '../../ui/ResourceCard.js'
+import { CardActions, CardBody, CardCount, CardFoot, CardIdentity, CardWarning, ResourceCard } from '../../ui/ResourceCard.js'
 
 /** Surface counts render as `label <number>`, separated by a middot. */
 function countList(t: Translate, suite: SuiteCardData): Array<[string, number]> {
@@ -134,12 +134,12 @@ export function SuiteCard(props: SuiteCardProps): ReactNode {
     ResourceCard,
     { state: suite.installed && suite.enabled ? 'active' : 'disabled', surface: 'market', onClick: props.onOpen },
     h(CardIdentity, { text: suite.name, version: suite.version, tag: provenance }),
-    h('div', { className: rc.rowActions }, ...actions),
+    h(CardActions, null, ...actions),
     // Two lines fit; anything longer stays readable through the hint.
-    description === '' ? null : hoverHint(description, h('p', hintProps({ className: `${rc.rowBody} ${rc.desc}` }), description)),
+    description === '' ? null : h(CardBody, null, hoverHint(description, h('p', hintProps({ className: rc.desc }), description))),
     h(
-      'div',
-      { className: rc.rowFoot },
+      CardFoot,
+      null,
       hoverHint(suite.sourceId, h('span', hintProps({ className: rc.provenance }), suite.sourceId)),
       ...counts.flatMap(([label, count]) => h(CardCount, { label, count })),
       suite.errors.length === 0 ? null : h('span', { key: 'errors', className: rc.separator }, '·'),

@@ -1,38 +1,29 @@
-/* The list body. Card composition lives in resource-card.module.css; this file only
-   positions the pieces a surface adds: the switch, the counts line, and the detail line. */
+/* The list body.
+ *
+ * Card composition lives in resource-card.module.css: a surface supplies the pieces and
+ * the renderer decides which row each one fills. This file only owns the two boxes the
+ * list needs inside a panel — the surface column and the scroll area under the toolbar —
+ * so a list fills the height its panel gives it instead of growing past the frame.
+ */
 .surface {
   display: flex;
   min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 10px;
-}
-
-.toggle {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: inline-flex;
-}
-
-.description {
-  margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.meta {
   overflow: hidden;
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+/* The filter panel's box: the collection is the only child and takes the height left
+   under the toolbar. Without this box the grid would size to its content, and a panel
+   that clips (the preset dialog) would cut the last row off with no way to scroll. */
+.results {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .empty {
@@ -40,25 +31,4 @@
   padding: 16px 2px;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
-}
-.edit {
-  position: absolute;
-  top: 12px;
-  right: 52px;
-  display: inline-flex;
-}
-
-.editButton {
-  width: 22px;
-  height: 22px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
-}
-
-.editButton:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
 }
