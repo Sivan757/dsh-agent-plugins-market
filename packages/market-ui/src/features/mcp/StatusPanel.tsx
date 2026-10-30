@@ -7,7 +7,7 @@ import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
-import { matchesMcpFilter, MCP_FILTERS, type McpStatusFilter } from './mcp-status-view-model.js'
+import { matchesMcpFilter, MCP_FILTERS, nextConnectionRead, type McpStatusFilter } from './mcp-status-view-model.js'
 import { mcpCardState, mcpConnectionNote, mcpDisplayName } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
@@ -173,20 +173,31 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     }
   }, [])
 
-  // A reconnecting row moves on its own — the supervisor advances its attempt
-  // and its next retry time without anyone clicking. Follow it while one exists,
-  // so the card and the open detail tell the truth during the wait; a stopped or
-  // healthy row costs no reads.
-  const reconnecting = payload.entries.some(entry => entry.connection !== undefined && (entry.connection.phase === 'reconnecting' || entry.connection.phase === 'connecting'))
+  // A reconnecting row moves on its own, and the supervisor says when it will
+  // try again. Sleep until just after that attempt instead of polling: a minute
+  // of backoff costs one read, not forty. A row that names no time keeps a short
+  // interval, and a healthy or stopped row costs no reads at all.
+  const nextRead = nextConnectionRead(payload)
   useEffect(() => {
-    if (!reconnecting) return
+    if (nextRead === undefined) return
     const timer = setTimeout(() => {
       refresh()
-    }, 1_500)
+    }, nextRead)
     return () => {
       clearTimeout(timer)
     }
-  }, [reconnecting, payload])
+  }, [nextRead, payload])
+
+  // The countdown in that sentence has to move, or "45 秒后重试" would sit there
+  // reading 45 long after the attempt was due. One tick per second, only while a
+  // row is actually waiting.
+  const waiting = payload.entries.some(entry => entry.connection?.retryAt !== undefined && entry.connection.retryAt > Date.now())
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!waiting) return
+    const timer = setInterval(() => setNow(Date.now()), 1_000)
+    return () => clearInterval(timer)
+  }, [waiting, payload])
 
   // The renderer owns the toolbar, the filters, the search and the collection;
   // this panel maps its rows onto the shared entry contract and keeps only the
@@ -196,7 +207,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     const displayName = mcpDisplayName(entry)
     // One sentence for the card and the detail band: the live supervisor's
     // phase when the connection dropped, absent otherwise.
-    const connectionNote = mcpConnectionNote(t, entry)
+    const connectionNote = mcpConnectionNote(t, entry, now)
     const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
     const disabled = entry.state === 'disabled'
     return {
@@ -284,6 +295,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       ? null
       : h(McpDetailModal, {
           entry: selected,
+          now,
           t,
           backend: payload.backend ?? 'builtin',
           showOriginal: showOriginal || payloadLanguage !== language,

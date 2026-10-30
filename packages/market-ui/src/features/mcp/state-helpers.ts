@@ -49,13 +49,17 @@ export function mcpStateLabel(t: Translate, state: McpStatusEntry['state']): str
  *
  * @param t - the panel's translator.
  * @param entry - the status row, carrying the observation when one exists.
+ * @param now - the clock, so the wait counts down while the panel ticks.
  * @returns the sentence, or undefined when the connection is fine or unobserved.
  */
-export function mcpConnectionNote(t: Translate, entry: McpStatusEntry): string | undefined {
+export function mcpConnectionNote(t: Translate, entry: McpStatusEntry, now = Date.now()): string | undefined {
   const connection = entry.connection
   if (connection === undefined || connection.phase === 'connected') return undefined
   const lead = connection.phase === 'failed' ? t('mcpReconnectStopped') : t('mcpReconnecting', { attempt: String(connection.attempt), max: String(connection.maxAttempts) })
-  return connection.error === undefined ? lead : lead + ' · ' + t('mcpLastError', { error: connection.error })
+  // The wait belongs in the sentence: "第 2/5 次" says how often, not how long.
+  const wait = connection.retryAt === undefined || connection.retryAt <= now ? '' : ' · ' + t('mcpRetryIn', { seconds: String(Math.ceil((connection.retryAt - now) / 1000)) })
+  const error = connection.error === undefined ? '' : ' · ' + t('mcpLastError', { error: connection.error })
+  return lead + wait + error
 }
 
 /** The card dot colour: the states the detail dialog also reports. */

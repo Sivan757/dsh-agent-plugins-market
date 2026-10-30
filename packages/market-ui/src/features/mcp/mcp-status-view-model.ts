@@ -25,6 +25,43 @@ export function matchesMcpFilter(entry: McpStatusEntry, filter: McpStatusFilter)
   return entry.kind === filter
 }
 
+/** How long the panel waits when a moving connection names no next attempt. */
+export const CONNECTION_READ_FALLBACK_MS = 1_500
+/** The longest wait, so a panel still notices a change made somewhere else. */
+export const CONNECTION_READ_CEILING_MS = 15_000
+/** Read just after the supervisor's own attempt, so the answer is the attempt's. */
+export const CONNECTION_READ_LEAD_MS = 250
+/** The shortest wait, so a nearly-due retry still gets read. */
+export const CONNECTION_READ_FLOOR_MS = 500
+
+/**
+ * How long until the panel should read the status again by itself.
+ *
+ * A reconnecting row carries the supervisor's own next attempt time, so the
+ * panel does not have to poll to find out: it sleeps until just after that
+ * attempt. Polling every second and a half instead costs dozens of reads across
+ * a minute-long backoff and still shows the old attempt number most of the time.
+ *
+ * @param payload - the last status read.
+ * @param now - the clock, injectable for tests.
+ * @returns milliseconds to wait, or undefined when nothing moves on its own.
+ */
+export function nextConnectionRead(payload: { entries: readonly McpStatusEntry[] }, now = Date.now()): number | undefined {
+  let moving = false
+  let earliest: number | undefined
+  for (const entry of payload.entries) {
+    const connection = entry.connection
+    if (connection === undefined || (connection.phase !== 'reconnecting' && connection.phase !== 'connecting')) continue
+    moving = true
+    if (connection.retryAt === undefined) continue
+    if (earliest === undefined || connection.retryAt < earliest) earliest = connection.retryAt
+  }
+  if (!moving) return undefined
+  if (earliest === undefined) return CONNECTION_READ_FALLBACK_MS
+  const wait = earliest - now + CONNECTION_READ_LEAD_MS
+  return Math.min(CONNECTION_READ_CEILING_MS, Math.max(CONNECTION_READ_FLOOR_MS, wait))
+}
+
 /** One row of the detail dialog's tool list. */
 export interface McpToolRow {
   name: string

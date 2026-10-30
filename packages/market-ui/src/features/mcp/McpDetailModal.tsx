@@ -21,6 +21,7 @@ import panelCss from '../../ui/panel.module.css'
 
 export function McpDetailModal({
   entry,
+  now = Date.now(),
   t,
   backend,
   showOriginal = false,
@@ -32,6 +33,8 @@ export function McpDetailModal({
   onDelete
 }: {
   entry: McpStatusEntry
+  /** The panel's clock, so a retry countdown reads the same here as on the card. */
+  now?: number
   t: Translate
   /** The mount backend; `host` cannot enforce tool filters. */
   backend: 'builtin' | 'host'
@@ -163,7 +166,7 @@ export function McpDetailModal({
   }
   // The live phase sentence, when a supervisor reports a lost connection: it
   // carries the attempt the user is waiting on and the last error.
-  const connectionNote = mcpConnectionNote(t, entry)
+  const connectionNote = mcpConnectionNote(t, entry, now)
   return h(DetailModal, {
     open: true,
     onClose: () => {
