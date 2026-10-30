@@ -51,6 +51,7 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
       subtitle: t('hooksPanelSubtitle'),
       actions: h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
     }),
+    error === undefined ? null : h('div', { className: css.error, role: 'status' }, error),
     // The shared renderer draws the list; this panel only supplies entries and the detail.
     h(ResourceSurface, {
       t,
