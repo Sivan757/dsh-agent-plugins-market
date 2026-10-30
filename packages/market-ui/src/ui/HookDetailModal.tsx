@@ -68,8 +68,8 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
       ),
       h(
         'section',
-        { className: css.section },
-        h('h3', { className: css.sectionTitle }, t('hookDetailOverview')),
+        { className: panel.block },
+        h('h3', { className: panel.blockHead }, t('hookDetailOverview')),
         h(
           'dl',
           { className: panel.kvGrid },
@@ -85,8 +85,8 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
       ),
       h(
         'section',
-        { className: css.section },
-        h('h3', { className: css.sectionTitle }, t('hookDetailDeclaration')),
+        { className: panel.block },
+        h('h3', { className: panel.blockHead }, t('hookDetailDeclaration')),
         // One declaration is one record, so it reads as one row: the event names
         // it, the command previews it, and the row opens on the JSON itself.
         h(
@@ -103,15 +103,15 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
       ),
       detail.diagnostic === undefined
         ? null
-        : h('section', { className: css.section }, h('h3', { className: css.sectionTitle }, t('hookDetailDiagnostic')), h('p', { className: css.status }, detail.diagnostic)),
+        : h('section', { className: panel.block }, h('h3', { className: panel.blockHead }, t('hookDetailDiagnostic')), h('p', { className: css.status }, detail.diagnostic)),
       runnable
         ? h(
             'section',
-            { className: css.section },
+            { className: panel.block },
             h(
               'div',
               { className: css.sectionHead },
-              h('h3', { className: css.sectionTitle }, t('hookDetailRunResult')),
+              h('h3', { className: panel.blockHead }, t('hookDetailRunResult')),
               h(Button, { variant: 'primary', disabled: run?.status === 'running', onClick: start }, t('hookRunStart'))
             ),
             run === undefined ? h('p', { className: css.status }, t('hookRunIdle')) : resultBlock(run, t)

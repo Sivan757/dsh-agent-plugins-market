@@ -3,6 +3,28 @@ import type { ServerPolicyPayload } from '../../../market-contracts/src/contract
 export type ServerKind = 'mcp' | 'lsp'
 export type ServerConfig = Record<string, unknown>
 
+/** Why a server document could not be read; also the key the editor localizes it by. */
+export type ServerFormErrorCode = 'not-object' | 'service-key' | 'policy-key' | 'single-service' | 'service-object'
+
+/**
+ * A rejected server document, carrying the code the editor localizes.
+ *
+ * The message stays English for logs and tests; what a reader sees is the
+ * editor's sentence for {@link code}, because an English sentence inside a
+ * Chinese dialog is the defect this type exists to remove.
+ */
+export class ServerFormError extends Error {
+  readonly code: ServerFormErrorCode
+  /** The service key the reader has to restore, when the code names one. */
+  readonly serviceKey?: string
+  constructor(code: ServerFormErrorCode, message: string, serviceKey?: string) {
+    super(message)
+    this.name = 'ServerFormError'
+    this.code = code
+    if (serviceKey !== undefined) this.serviceKey = serviceKey
+  }
+}
+
 /** The largest timeout a bridge config and the host timer can hold. */
 export const TIMEOUT_MAX_MS = 2_147_483_647
 
@@ -87,7 +109,7 @@ export function policyRequestOfDocuments(initial: Record<string, unknown>, curre
 
 export function parseServerConfig(text: string): ServerConfig {
   const value: unknown = JSON.parse(text)
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('Configuration must be a JSON object')
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new ServerFormError('not-object', 'Configuration must be a JSON object')
   return value as ServerConfig
 }
 
@@ -177,16 +199,16 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  */
 export function parseServerDocument(text: string, key: string): ServerDocument {
   const parsed: unknown = JSON.parse(text)
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Configuration must be a JSON object')
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new ServerFormError('not-object', 'Configuration must be a JSON object')
   const record = parsed as Record<string, unknown>
   if (key === '') return { config: record, policy: {} }
   const servers = asRecord(record['mcpServers'])
   const config = asRecord(servers?.[key])
   if (config === undefined || Object.keys(servers!).some(name => name !== key))
-    throw new Error(`mcpServers must contain only the service key "${key}"; restore that key before editing the name`)
+    throw new ServerFormError('service-key', `mcpServers must contain only the service key "${key}"; restore that key before editing the name`, key)
   const namespace = asRecord(record[HARNESS_NAMESPACE])
   const policies = asRecord(namespace?.['mcpServers'])
-  if (policies !== undefined && Object.keys(policies).some(name => name !== key)) throw new Error(`MCP policy must use the service key "${key}"`)
+  if (policies !== undefined && Object.keys(policies).some(name => name !== key)) throw new ServerFormError('policy-key', `MCP policy must use the service key "${key}"`, key)
   const policy = asRecord(policies?.[key]) ?? {}
   return { config, policy }
 }
@@ -208,7 +230,7 @@ export function parseServerDocument(text: string, key: string): ServerDocument {
  */
 export function readDraftServerDocument(text: string, draftKey: string): ServerDocument & { key: string; keyed: boolean } {
   const parsed: unknown = JSON.parse(text)
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Configuration must be a JSON object')
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new ServerFormError('not-object', 'Configuration must be a JSON object')
   const record = parsed as Record<string, unknown>
   const namespace = asRecord(record[HARNESS_NAMESPACE])
   const policies = asRecord(namespace?.['mcpServers'])
@@ -222,9 +244,9 @@ export function readDraftServerDocument(text: string, draftKey: string): ServerD
   const servers = asRecord(record['mcpServers'])
   const keys = servers === undefined ? [] : Object.keys(servers)
   const key = keys[0]
-  if (key === undefined || keys.length !== 1) throw new Error('mcpServers must name exactly one service while a service is being created')
+  if (key === undefined || keys.length !== 1) throw new ServerFormError('single-service', 'mcpServers must name exactly one service while a service is being created')
   const config = asRecord(servers?.[key])
-  if (config === undefined) throw new Error(`mcpServers must name a JSON object for the service key "${key}"`)
+  if (config === undefined) throw new ServerFormError('service-object', `mcpServers must name a JSON object for the service key "${key}"`, key)
   return { key, keyed: true, config, policy: asRecord(policies?.[key]) ?? {} }
 }
 

@@ -5,10 +5,11 @@
  * same labelled grid and block rhythm. Values come from the platform tokens
  * only, so dark mode needs no branch.
  */
+/* The sections carry their own top margin (the shared `.block`), so the column
+   adds no second rhythm on top of it. */
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 22px;
 }
 
 .card {
@@ -53,25 +54,11 @@
   overflow-wrap: anywhere;
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .sectionHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.sectionTitle {
-  margin: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
 }
 
 .status {
