@@ -206,7 +206,7 @@
     "@deepseek-ai/dsh-timeout": "0.2.1-rc.3",
     "@deepseek-ai/dsh-tools": "0.2.1-rc.3",
     "@deepseek-ai/dsh-util-code-language": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-util-workspace-path": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-util-workspace-path": "0.2.1-rc.4",
     "@eslint/js": "^10.0.1",
     "@shikijs/langs": "^4.4.3",
     "@tsdown/css": "^0.22.14",
