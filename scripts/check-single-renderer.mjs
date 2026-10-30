@@ -22,8 +22,6 @@ const SOURCE_ROOT = 'packages/market-ui/src'
 const RENDERER = 'ui/ResourceSurface.tsx'
 /** Surfaces still rendering their own list. Empty is the goal. */
 const REMAINING = new Set([
-  // The settings user panels (skills, agents, shortcuts).
-  'ui/UserPanelSurface.tsx',
   // The market browse surface.
   'features/market/MarketSection.tsx'
 ])

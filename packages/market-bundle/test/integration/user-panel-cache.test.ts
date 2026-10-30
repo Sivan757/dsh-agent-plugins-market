@@ -178,7 +178,7 @@ describe('user panel row cache', () => {
       .mockResolvedValueOnce(settle([entry({ id: 'user:note-skill', name: 'note-skill' })]))
       .mockResolvedValueOnce(settle([entry({ id: 'user:note-skill', name: 'note-skill', description: 'After the save' })]))
     await render()
-    await click('panelEditTitle')
+    await click('panelEdit note-skill')
     await click('panelSave')
     expect(api.updateUserPanelEntry).toHaveBeenCalled()
 

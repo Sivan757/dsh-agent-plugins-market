@@ -5,24 +5,19 @@
  * one implementation, three surfaces, identical interaction language.
  * @module client/ui/UserPanelSurface
  */
-import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { IconEditOutlineMedium, IconTrashOutlineMedium, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { createElement as h, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanelEntry, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
 import { cachedUserPanel, loadUserPanel } from './user-panel-resource.js'
 import { commandCallName } from '../../../market-contracts/src/model/command-names.js'
 import type { Translate } from '../i18n.js'
-import { SearchFilterToolbar } from './SearchFilterToolbar.js'
-import { CardActions, CardBody, CardFoot, CardIdentity, ResourceCard, ResourceCollection } from './ResourceCard.js'
-import { useDisplayText } from './translated-text.js'
-import { hintProps, hoverHint } from './hover-hint.js'
+import { ResourceSurface } from './ResourceSurface.js'
+import { displayText } from './translated-text.js'
 import { BilingualToggle } from './BilingualToggle.js'
-import { useTranslationRefresh } from './translation-enabled.js'
-import { useWorkspaceView } from './workspace-view.js'
+import { useTranslationEnabled, useTranslationRefresh } from './translation-enabled.js'
 import { pollUntilTranslated } from './translation-settle.js'
 import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
 import formCss from './form.module.css'
-import rc from './resource-card.module.css'
 import { RoleMetadataFields } from './RoleMetadataFields.js'
 import { UserEntryDetailModal } from './UserEntryDetail.js'
 import { readArgumentHint, readRoleFields, setSkillInvocationEnabled, updateFrontmatter } from './frontmatter.js'
@@ -39,8 +34,6 @@ function draftTemplate(kind: UserPanelKind, t: Translate): string {
   return ['---', `description: ${t('panelDraftPersonaDesc')}`, '---', '', t('panelDraftPersonaBody'), ''].join('\n')
 }
 
-type PanelFilter = 'all' | 'disabled' | 'user' | 'plugin'
-
 /** The generic user-panel surface for one panel kind. */
 export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): ReactNode {
   const { t, kind } = props
@@ -48,12 +41,6 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<PanelFilter>('all')
-  // The filter tablist names the body below; the host derives its panel id from
-  // the same base the toolbar receives, and the kind keeps panels apart.
-  const filterId = `${kind}-panel-filter`
-  const [view, setView] = useWorkspaceView()
   const [editor, setEditor] = useState<PanelEditorState | undefined>(undefined)
   // The document editor shows one view at a time; the switch lives above it.
   const [showPreview, setShowPreview] = useState(false)
@@ -62,6 +49,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
   // One reading mode for the whole panel: the switch lifts to this surface so a
   // single click re-reads every card and the detail dialog under it.
   const [showOriginal, setShowOriginal] = useState(false)
+  // The panel-wide view plus the deployment's own switch: a field with no
+  // translation reads the authored text either way.
+  const translationEnabled = useTranslationEnabled()
   const language = t('localeProbeLang')
   const languageRef = useRef(language)
   languageRef.current = language
@@ -132,8 +122,6 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     const cached = cachedUserPanel(kind)
     setEntries(cached ?? [])
     setLoading(cached === undefined)
-    setSearch('')
-    setFilter('all')
     setEditor(undefined)
     setConfirm(undefined)
     setDetail(undefined)
@@ -163,19 +151,6 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     },
     [refresh]
   )
-
-  const needle = search.trim().toLowerCase()
-  const visible = useMemo(
-    () =>
-      entries.filter(entry => {
-        if ((filter === 'user' || filter === 'plugin') && entry.origin !== filter) return false
-        if (filter === 'disabled' && !entry.disabled) return false
-        if (needle !== '' && !`${entry.name} ${entry.description} ${entry.suiteName ?? ''} ${entry.path}`.toLowerCase().includes(needle)) return false
-        return true
-      }),
-    [entries, needle, filter]
-  )
-  const disabledCount = entries.filter(entry => entry.disabled).length
 
   const openCreate = (): void => {
     setError(undefined)
@@ -269,8 +244,34 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     })
   }
 
-  const panelTitle = kind === 'skills' ? t('workspaceTabSkills') : kind === 'commands' ? t('workspaceTabCommands') : t('workspaceTabPersonas')
   const panelDescription = kind === 'skills' ? t('skillsPanelDescription') : kind === 'commands' ? t('commandsPanelDescription') : t('personasPanelDescription')
+  // The renderer owns the toolbar, the filters, the search and the collection:
+  // this panel maps entries onto the shared contract and keeps the work that is
+  // its own — open, toggle, edit, delete, and the dialogs behind each.
+  const byId = new Map(entries.map(entry => [entry.id ?? entry.name, entry]))
+  const rows = entries.map(entry => {
+    const title = kind === 'commands' ? commandCallName(entry.name) : entry.name
+    const description = displayText(entry.translatedDescription, entry.description, t, { original: !translationEnabled || showOriginal || entriesLanguage !== language })
+    // Plugin documents are the suite's, except an agent persona's model
+    // routing: the server accepts exactly that frontmatter diff.
+    const editable = entry.origin === 'user' || (entry.origin === 'plugin' && kind === 'agents')
+    return {
+      id: entry.id ?? entry.name,
+      name: title,
+      hint: entry.name === title ? undefined : entry.name,
+      mono: kind === 'commands',
+      tag: entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin'),
+      surface: kind === 'agents' ? ('personas' as const) : kind,
+      description: description === '' ? undefined : description,
+      source: entry.origin === 'plugin' && entry.suiteName !== undefined ? entry.suiteName : entry.path,
+      // Text the card does not render, so search still finds it.
+      keywords: [entry.name, entry.description, entry.suiteName ?? '', entry.path].join(' '),
+      state: entry.disabled ? ('disabled' as const) : ('active' as const),
+      canEdit: editable,
+      editDisabled: busy,
+      toggleLabel: entry.disabled ? t('enable') : t('disable')
+    }
+  })
 
   return h(
     'div',
@@ -293,64 +294,42 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     }),
     error === undefined ? null : h('div', { className: css.editorError }, error),
     busy ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
-    h(SearchFilterToolbar, {
-      search,
+    h(ResourceSurface, {
+      t,
+      entries: rows,
+      capabilities: { toggle: true },
       searchLabel: t('panelSearchLabel'),
       searchPlaceholder: t('panelSearchLabel'),
-      onSearchChange: setSearch,
       filters: [
-        { id: 'all', label: t('panelFilterAll'), count: entries.length, active: filter === 'all', onSelect: () => setFilter('all') },
-        ...(['user', 'plugin'] as const).map(origin => ({
-          id: origin,
-          label: t(origin === 'user' ? 'panelSourceUser' : 'panelSourcePlugin'),
-          count: entries.filter(entry => entry.origin === origin).length,
-          active: filter === origin,
-          onSelect: () => setFilter(origin)
-        })),
-        { id: 'disabled', label: t('panelFilterDisabled'), count: disabledCount, active: filter === 'disabled', onSelect: () => setFilter('disabled') }
+        { id: 'user', label: t('panelSourceUser'), match: (entry: { id: string }) => byId.get(entry.id)?.origin === 'user' },
+        { id: 'plugin', label: t('panelSourcePlugin'), match: (entry: { id: string }) => byId.get(entry.id)?.origin === 'plugin' },
+        { id: 'disabled', label: t('panelFilterDisabled'), match: (entry: { id: string }) => byId.get(entry.id)?.disabled === true }
       ],
-      filterId,
-      // The panel header's title names the filter segment for assistive tech.
-      filterLabel: panelTitle,
-      view,
+      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView),
-      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) })
-    }),
-    h(
-      'div',
-      {
-        className: css.body,
-        role: 'tabpanel',
-        id: `${filterId}-${filter}-panel`,
-        'aria-labelledby': `${filterId}-${filter}`
+      emptyText: loading && entries.length === 0 ? t('loading') : t('panelEmpty'),
+      onOpen: id => {
+        const row = byId.get(id)
+        if (row !== undefined) openDetail(row)
       },
-      loading && entries.length === 0
-        ? h('div', { className: css.empty }, t('loading'))
-        : visible.length === 0
-          ? h('div', { className: css.empty }, t('panelEmpty'))
-          : h(
-              ResourceCollection,
-              { view },
-              visible.map(entry =>
-                h(UserEntryRow, {
-                  key: entry.id ?? entry.name,
-                  entry,
-                  t,
-                  kind,
-                  busy,
-                  showOriginal: showOriginal || entriesLanguage !== language,
-                  onOpen: () => openDetail(entry),
-                  // The pencil on a plugin persona edits routing only; the document stays
-                  // the suite's, so plugin skills/commands carry no edit affordance.
-                  onEdit: entry.origin === 'user' || (entry.origin === 'plugin' && kind === 'agents') ? () => openEdit(entry) : undefined,
-                  onToggle: () => toggleDisabled(entry),
-                  onDelete: entry.origin === 'user' ? () => openDelete(entry) : undefined
-                })
-              )
-            )
-    ),
+      onToggle: id => {
+        const row = byId.get(id)
+        if (row !== undefined) toggleDisabled(row)
+      },
+      onEdit: id => {
+        const row = byId.get(id)
+        if (row !== undefined) openEdit(row)
+      },
+      isOn: id => byId.get(id)?.disabled !== true,
+      // A rejected document cannot be switched on: its state is recomputed from
+      // the document, so the fix is editing the document.
+      isToggleDisabled: id => {
+        const row = byId.get(id)
+        return busy || row === undefined || row.metadata['validationError'] !== undefined
+      }
+    }),
+
     h(EntryEditorModal, {
       t,
       open: editor !== undefined,
@@ -404,7 +383,20 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
           kind,
           entry: detail,
           showOriginal: showOriginal || entriesLanguage !== language,
-          onClose: () => setDetail(undefined)
+          onClose: () => setDetail(undefined),
+          // Suite-owned files uninstall with their suite and their content stays
+          // suite-authored, so only a user-authored entry offers the delete.
+          ...(detail.origin === 'user'
+            ? {
+                onDelete: () => {
+                  // The confirmation replaces the dialog, so the outcome is not
+                  // hidden behind a dialog that already ran its action.
+                  const target = detail
+                  setDetail(undefined)
+                  openDelete(target)
+                }
+              }
+            : {})
         }),
     h(ConfirmModal, {
       state: confirm,
@@ -413,108 +405,5 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       busy,
       onClose: () => setConfirm(undefined)
     })
-  )
-}
-
-/**
- * One entry card: identity (name, provenance, disabled state) with the action
- * cluster on its trailing edge, a full-width description, and the provenance
- * row. Opening the card shows the entry's document; the pencil edits it.
- */
-function UserEntryRow(props: {
-  entry: UserPanelEntry
-  t: Translate
-  kind: UserPanelKind
-  busy: boolean
-  /** Panel-wide text view: the authored text instead of the translation. */
-  showOriginal: boolean
-  onOpen: () => void
-  onEdit?: () => void
-  onToggle: () => void
-  onDelete?: () => void
-}): ReactNode {
-  const { entry, t } = props
-  // A command registers under its flattened call name and every other kind under
-  // its own name: a name is never translated — it is the identity the user types,
-  // searches and sorts by.
-  const title = props.kind === 'commands' ? commandCallName(entry.name) : entry.name
-  const description = useDisplayText(entry.translatedDescription, entry.description, t, { original: props.showOriginal })
-  const mono = props.kind === 'commands'
-  // A rejected document cannot be switched on: its state is recomputed from the
-  // document, so the fix is editing the document.
-  const locked = props.busy || entry.metadata['validationError'] !== undefined
-  const stop = (callback: () => void) => (event: { stopPropagation(): void }) => {
-    event.stopPropagation()
-    callback()
-  }
-  const interactive = {
-    role: 'button' as const,
-    tabIndex: 0,
-    onClick: props.onOpen,
-    onKeyDown: (event: { key: string; preventDefault: () => void }) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return
-      event.preventDefault()
-      props.onOpen()
-    }
-  }
-  return h(
-    ResourceCard,
-    { state: entry.disabled ? 'disabled' : 'active', surface: props.kind === 'agents' ? 'personas' : props.kind, ...interactive },
-    h(CardIdentity, { text: title, hint: entry.name, mono, tag: entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin') }),
-    h(
-      CardActions,
-      null,
-      props.onEdit === undefined
-        ? null
-        : h(
-            'button',
-            {
-              type: 'button',
-              className: `${rc.iconBtn} ${rc.revealOnHover}`,
-              'aria-label': t('panelEditTitle'),
-              disabled: props.busy,
-              title: t('panelEditTitle'),
-              onClick: stop(props.onEdit)
-            },
-            h(IconEditOutlineMedium)
-          ),
-      props.onDelete === undefined
-        ? null
-        : h(
-            'button',
-            {
-              type: 'button',
-              className: `${rc.iconBtn} ${rc.iconBtnDanger} ${rc.revealOnHover}`,
-              'aria-label': t('panelDelete'),
-              disabled: props.busy,
-              title: t('panelDelete'),
-              onClick: stop(props.onDelete)
-            },
-            h(IconTrashOutlineMedium)
-          ),
-      h(
-        'span',
-        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
-        h(Switch, {
-          checked: !entry.disabled,
-          disabled: locked,
-          label: entry.disabled ? t('enable') : t('disable'),
-          title: entry.disabled ? t('enable') : t('disable'),
-          onChange: props.onToggle
-        })
-      )
-    ),
-    // Two lines fit; anything longer stays readable through the hint.
-    description === undefined || description === '' ? null : h(CardBody, null, hoverHint(description, h('p', hintProps({ className: rc.desc }), description))),
-    h(
-      CardFoot,
-      null,
-      // The source row names where the entry comes from: the owning suite for a
-      // plugin-provided file, the file's own location for a user-authored one.
-      hoverHint(
-        entry.suiteName ?? entry.path,
-        h('span', hintProps({ className: rc.provenance }), entry.origin === 'plugin' && entry.suiteName !== undefined ? entry.suiteName : entry.path)
-      )
-    )
   )
 }

@@ -248,6 +248,8 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
         }
       })),
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: flipOriginal }),
+      toListLabel: t('switchToList'),
+      toGridLabel: t('switchToGrid'),
       emptyText: loading && payload.entries.length === 0 ? t('loading') : t('mcpEmpty'),
       onOpen: id => {
         const row = byId.get(id)

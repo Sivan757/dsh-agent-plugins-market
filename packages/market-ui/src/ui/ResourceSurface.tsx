@@ -99,6 +99,9 @@ export interface ResourceSurfaceProps {
   filters?: readonly ResourceFilter[]
   /** Trailing control before the view switch, such as the text toggle. */
   beforeView?: ReactNode
+  /** Accessible names of the view switch, each saying where a click leads. */
+  toListLabel?: string
+  toGridLabel?: string
   /** Shown when nothing matches. */
   emptyText: string
   /** Opens one entry. Required: the card's click always means "open", never "toggle". */
@@ -119,7 +122,22 @@ export interface ResourceSurfaceProps {
  * @returns the toolbar and the cards, or an empty line.
  */
 export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
-  const { t, entries, capabilities = {}, searchLabel, searchPlaceholder, filters = [], beforeView, emptyText, onOpen, onToggle, isOn, isToggleDisabled } = props
+  const {
+    t,
+    entries,
+    capabilities = {},
+    searchLabel,
+    searchPlaceholder,
+    filters = [],
+    beforeView,
+    toListLabel,
+    toGridLabel,
+    emptyText,
+    onOpen,
+    onToggle,
+    isOn,
+    isToggleDisabled
+  } = props
   const [view, setView] = useWorkspaceView()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -164,8 +182,8 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
           filterId,
           filterLabel: searchLabel,
           view,
-          toListLabel: t('list'),
-          toGridLabel: t('grid'),
+          toListLabel: toListLabel ?? t('list'),
+          toGridLabel: toGridLabel ?? t('grid'),
           onViewChange: setView,
           beforeView
         }),
@@ -218,8 +236,10 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                       disabled: isToggleDisabled?.(entry.id) === true,
                       onChange: (enabled: boolean) => onToggle(entry.id, enabled),
                       // "Enable" and "Disable" say what the press does; the entry
-                      // name alone leaves the direction to the state dot.
-                      label: entry.toggleLabel ?? entry.name
+                      // name alone leaves the direction to the state dot. The
+                      // same words title the control, so a hover reads them too.
+                      label: entry.toggleLabel ?? entry.name,
+                      ...(entry.toggleLabel === undefined ? {} : { title: entry.toggleLabel })
                     })
                   )
                 )

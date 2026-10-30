@@ -10,7 +10,7 @@ The MCP services panel still assembled its own toolbar, collection and inventory
 
 - **The entry contract gains the fields an inventory needs.** `source` leads the source row as its provenance token, `monoBody` sets an endpoint or command in the mono face, `keywords` widen the search haystack to text the card does not render, `toggleLabel` names the switch by what it does, `canEdit` and `editDisabled` gate the editor per row, `chip` and `surface` carry the entries that wear a provenance chip and the layout that hides it, and a filter can carry a hint. None of them is surface-specific: each is a fact a list can state about one row.
 - **The panel keeps only its domain work.** It maps status rows onto entries, then handles open, toggle and edit by id; the renderer owns the toolbar, the filters, the search, the view switch and the cards.
-- **Deleting moves into the detail dialog.** The card's click means "open", the one irreversible action waits one step inside it, and the panel's existing confirmation still owns the confirm-and-re-read flow. This matches [the card rows note](2026-10-30-card-rows-and-the-switch-that-never-hides.md) and the two surfaces that already keep destruction inside the detail.
+- **Deleting moves into the detail dialog.** The card's click means "open", the one irreversible action waits one step inside it, and the panel's existing confirmation still owns the confirm-and-re-read flow. This matches [the card rows note](../bug-fix/2026-10-30-card-rows-and-the-switch-that-never-hides.md) and the two surfaces that already keep destruction inside the detail.
 - **The superseded view model goes.** `deriveMcpStatusViewModel` lost its last caller; `matchesMcpFilter` stays because it is the one predicate the renderer counts tabs through, so a tab's number is still exactly the rows clicking it shows.
 - **The ratchet shrinks.** `features/mcp/StatusPanel.tsx` leaves the single-renderer list, and the panel's dead toolbar and empty styles go with it.
 
@@ -26,7 +26,7 @@ The MCP services panel still assembled its own toolbar, collection and inventory
 - Deleting a user-declared service now takes one more click: open the service, then delete.
 - The narrow-grid chip rule keeps working through `chip` and `surface`, so the MCP card still drops its provenance tag where the source row already names the suite.
 - The panel no longer keeps its own search or filter state; the renderer's view switch and filter tabs are the only ones.
-- Two lists still assemble themselves: the settings user panels and the market page.
+- One list still assembles itself: the market page. [The user panels note](2026-10-30-user-panels-render-through-the-one-renderer.md) records their migration onto the same contract.
 
 ## Verification
 
