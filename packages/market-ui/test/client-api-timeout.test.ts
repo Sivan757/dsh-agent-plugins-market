@@ -102,7 +102,7 @@ describe('client request bounds', () => {
   })
 
   it('reads a timeout as the shared label and keeps every other message', () => {
-    const t = (key: 'requestTimeout'): string => `label:${key}`
+    const t = (key: string): string => `label:${key}`
     expect(clientErrorMessage(t, new RequestTimeoutError(1_000))).toBe('label:requestTimeout')
     expect(clientErrorMessage(t, new Error('mount failed'))).toBe('mount failed')
     expect(clientErrorMessage(t, 'plain text')).toBe('plain text')

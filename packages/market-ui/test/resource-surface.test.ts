@@ -130,6 +130,28 @@ describe('resource surface contract', () => {
     expect(actions.querySelector('[role="switch"]')).not.toBeNull()
   })
 
+  it('lets a control inside the card answer its own Enter instead of opening the entry', async () => {
+    // The card is a role="button", so a key event aimed at a nested control used
+    // to bubble up, have its own activation cancelled and open the detail: the
+    // edit button and every icon action were unreachable from the keyboard.
+    const onOpen = vi.fn()
+    const onEdit = vi.fn()
+    await mount({ onOpen, onEdit, capabilities: { toggle: true }, onToggle: () => {}, isOn: () => true })
+    const edit = cardOf('a').querySelector<HTMLButtonElement>('button[aria-label="panelEdit alpha"]')!
+    expect(edit).not.toBeNull()
+    await act(async () => edit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    expect(onOpen).not.toHaveBeenCalled()
+    // The click the browser would synthesize for that Enter still reaches the button.
+    await act(async () => edit.click())
+    expect(onEdit).toHaveBeenCalledWith('a')
+  })
+
+  it('names each switch by its verb and its row', async () => {
+    // "Disable" alone said nothing about which of a thousand rows it disables.
+    await mount({ capabilities: { toggle: true }, onToggle: () => {}, isOn: () => true, entries: [{ id: 'a', name: 'alpha', toggleLabel: 'disable' }] })
+    expect(cardOf('a').querySelector('[role="switch"]')?.getAttribute('aria-label')).toBe('disable alpha')
+  })
+
   it('omits the rows an entry has nothing to fill', async () => {
     await mount({ entries: [{ id: 'bare', name: 'bare' }] })
     const card = cardOf('bare')

@@ -49,7 +49,12 @@ export function interactiveCardProps(onClick: () => void): Pick<HTMLAttributes<H
     role: 'button',
     tabIndex: 0,
     onClick,
-    onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+    onKeyDown: (event: { key: string; target: unknown; currentTarget: unknown; preventDefault: () => void }) => {
+      // A control inside the card owns its own activation. Without this guard a
+      // keyboard Enter on the edit button bubbled here, the preventDefault below
+      // cancelled the button's own activation, and the card opened its detail
+      // instead: every icon action was unreachable from the keyboard.
+      if (event.target !== event.currentTarget) return
       // Enter and Space activate a role="button" the same way a native one does.
       if (event.key !== 'Enter' && event.key !== ' ') return
       event.preventDefault()

@@ -127,6 +127,12 @@ export interface ResourceSurfaceProps {
   searchPlaceholder?: string
   /** Extra filters beside "all". */
   filters?: readonly ResourceFilter[]
+  /**
+   * Accessible name of the filter tab strip. It must say what the tabs filter,
+   * not repeat the search field's name: "Search plugins…" named a strip of
+   * status tabs and described the wrong control.
+   */
+  filterLabel?: string
   /** Trailing control before the view switch, such as the text toggle. */
   beforeView?: ReactNode
   /** Accessible names of the view switch, each saying where a click leads. */
@@ -159,6 +165,7 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
     searchLabel,
     searchPlaceholder,
     filters = [],
+    filterLabel,
     beforeView,
     toListLabel,
     toGridLabel,
@@ -241,7 +248,7 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
           onSearchChange: setSearch,
           filters: segments,
           filterId,
-          filterLabel: searchLabel,
+          filterLabel: filterLabel ?? t('filterByStatus'),
           view,
           toListLabel: toListLabel ?? t('list'),
           toGridLabel: toGridLabel ?? t('grid'),
@@ -348,10 +355,10 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                       checked: isOn?.(entry.id) === true,
                       disabled: isToggleDisabled?.(entry.id) === true,
                       onChange: (enabled: boolean) => onToggle(entry.id, enabled),
-                      // "Enable" and "Disable" say what the press does; the entry
-                      // name alone leaves the direction to the state dot. The
-                      // same words title the control, so a hover reads them too.
-                      label: entry.toggleLabel ?? entry.name,
+                      // The verb says what the press does, the object says which
+                      // row: a screen reader hears "停用 firebase" instead of 971
+                      // indistinguishable "停用" switches.
+                      label: entry.toggleLabel === undefined ? entry.name : entry.toggleLabel + ' ' + entry.name,
                       ...(entry.toggleLabel === undefined ? {} : { title: entry.toggleLabel })
                     })
                   )

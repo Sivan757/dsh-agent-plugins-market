@@ -73,10 +73,12 @@ describe('SearchFilterToolbar', () => {
     // Two filter segments plus the single view button, all keyboard-reachable.
     expect(host.querySelectorAll('[role="tab"]').length).toBe(2)
     expect(host.querySelectorAll('button[aria-label]').length).toBe(1)
-    // The view control reports the mode in force: the grid glyph is showing,
-    // so its name offers the list, and it is pressed.
+    // The view control names where a click leads, and carries the mode in a data
+    // attribute for anything that needs to read the state: a pressed state beside
+    // an action name says both at once ("Switch to list, pressed").
     expect(host.querySelector('button[aria-label="Switch to list"]')).not.toBeNull()
-    expect(host.querySelector('button[aria-label="Switch to list"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(host.querySelector('button[aria-label="Switch to list"]')?.getAttribute('aria-pressed')).toBeNull()
+    expect(host.querySelector('button[aria-label="Switch to list"]')?.getAttribute('data-view-switch')).toBe('grid')
     // The drawn glyph has to paint: an unfilled shape with no stroke of its own
     // renders as an empty pill, which is what this control had shipped as.
     const gridGlyph = host.querySelector<SVGSVGElement>('button[aria-label="Switch to list"] svg')!

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { describeCredential, setCredential, unsetCredential } from '../../../packages/market-ui/src/credentials.js'
+import { CredentialError, describeCredential, setCredential, unsetCredential } from '../../../packages/market-ui/src/credentials.js'
+import { clientErrorMessage } from '../../../packages/market-ui/src/ui/error-message.js'
 
 describe('client credentials adapter', () => {
   it('projects only the value-free credential view', async () => {
@@ -29,5 +30,15 @@ describe('client credentials adapter', () => {
 
     await expect(setCredential(api, 'API_TOKEN', 'secret')).rejects.toThrow('read-only credential')
     await expect(unsetCredential(api, 'API_TOKEN')).rejects.toThrow('read-only credential')
+  })
+
+  it('answers its own fallback in the panel language and keeps a host reason verbatim', () => {
+    // The host's sentence names the scope it refused; only the plugin's own
+    // fallback is something a reader should see translated.
+    const t = (key: string): string => 'zh:' + key
+    expect(clientErrorMessage(t, new CredentialError('lookup', 'credential lookup failed'))).toBe('zh:credentialLookupFailed')
+    expect(clientErrorMessage(t, new CredentialError('save', 'credential save failed'))).toBe('zh:credentialSaveFailed')
+    expect(clientErrorMessage(t, new CredentialError('removal', 'credential removal failed'))).toBe('zh:credentialRemovalFailed')
+    expect(clientErrorMessage(t, new CredentialError('save', 'scope credentials:write was denied'))).toBe('scope credentials:write was denied')
   })
 })

@@ -106,8 +106,9 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
         type: 'button',
         className: `${rc.iconBtn} ${css.viewSwitch}`,
         title: viewLabel,
+        // The name says where a click leads. A pressed state would describe the
+        // mode instead, and reading "Switch to list, pressed" says both.
         'aria-label': viewLabel,
-        'aria-pressed': grid,
         'data-view-switch': props.view,
         onClick: () => props.onViewChange(grid ? 'list' : 'grid')
       },
