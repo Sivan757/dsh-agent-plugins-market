@@ -37,30 +37,12 @@
   display: none;
 }
 
-/* The fade is a narrow band inside the edge, so the border stays whole and the letters
-   running under it stop before they reach it. */
-.fadeLeft,
-.fadeRight {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  width: 34px;
-  border-radius: 9px;
-  pointer-events: none;
-}
+/* The clipped edge dissolves through the row's own mask (see TabRail's edgeMask),
+   so no colour is involved and the fade follows the panel's surface in either theme. */
 
-.fadeLeft {
-  left: 2px;
-  background: linear-gradient(90deg, var(--dsw-alias-interactive-bg-hover) 55%, transparent 100%);
-}
-
-.fadeRight {
-  right: 2px;
-  background: linear-gradient(270deg, var(--dsw-alias-interactive-bg-hover) 55%, transparent 100%);
-}
-
-/* Tall and narrow, no plate behind it: the chevron alone floats over the tabs and only
-   appears while the pointer is on the row. */
+/* Tall and narrow, no plate behind it: the chevron alone floats over the tabs. It exists
+   only while its side is clipped, so it stays visible at rest — a row that runs past the
+   edge has to say so before the pointer finds it — and reads fully on hover or focus. */
 .stepLeft,
 .stepRight {
   position: absolute;
@@ -76,12 +58,10 @@
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-  opacity: 0;
   transform: translateY(-50%);
   transition:
     opacity 140ms ease,
     color 140ms ease;
-  pointer-events: none;
 }
 
 .stepLeft {
@@ -92,12 +72,9 @@
   right: 8px;
 }
 
-.wrap:hover .stepLeft,
-.wrap:hover .stepRight,
 .stepLeft:focus-visible,
 .stepRight:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
+  color: var(--dsw-alias-state-business-primary);
 }
 
 .stepLeft:hover,

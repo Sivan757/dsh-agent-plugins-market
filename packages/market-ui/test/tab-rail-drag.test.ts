@@ -130,21 +130,22 @@ describe('tab rail reordering', () => {
     // The selected tab is a chip of its own; there is no separate travelling pill.
     expect(rule('.tabActive')).toMatch(/background: var\(--dsw-alias-bg-layer-1\)/)
     expect(css).not.toMatch(/\\.pill/)
-    // Only a clipped side fades, and the fade is a gradient rather than a hard edge.
-    // The fade is a narrow band inside the border, so the rail's own border stays whole.
-    expect(css).toMatch(/\.fadeRight \{[^}]*linear-gradient\(270deg/)
-    expect(css).toMatch(/\.fadeLeft \{[^}]*linear-gradient\(90deg/)
+    // A clipped side dissolves through the row's own mask, not a coloured band: the
+    // band carried no colour the panel surface could be trusted to match in both themes.
+    expect(css).not.toMatch(/\.fadeRight/)
+    expect(css).not.toMatch(/\.fadeLeft/)
     expect(rule('.tab')).toMatch(/font-size: 14px/)
     // The row is a strip: a column parent must not stretch it, or the tabs float in a
     // panel-sized empty box and the panel below is pushed off screen.
     const wrapRule = /\.wrap \{[^}]*/.exec(css)?.[0] ?? ''
     expect(wrapRule).toMatch(/flex: none/)
     expect(wrapRule).not.toMatch(/flex: 1 1 auto/)
-    // The step arrow is a wide, short overlay inside the rail, hidden until the row is hovered.
+    // The step arrow is a narrow overlay inside the rail. It exists only while its side
+    // is clipped, so it reads at rest: a row that runs past the edge says so before hover.
     expect(rule('.stepRight')).toMatch(/width: 14px/)
     expect(rule('.stepRight')).toMatch(/height: 26px/)
-    expect(rule('.stepRight')).toMatch(/opacity: 0/)
     expect(rule('.stepRight')).toMatch(/background: transparent/)
+    expect(rule('.stepRight')).not.toMatch(/opacity: 0\)/)
     // The hold must be visible: a ring that fills, and a lifted, shadowed tab while dragged.
     expect(css).toMatch(/\.tabPressing::after/)
     expect(css).toMatch(/@keyframes hold-fill/)
@@ -180,9 +181,12 @@ describe('tab rail reordering', () => {
     await act(async () => {
       window.dispatchEvent(new Event('resize'))
     })
-    // At the start: the right chevron exists, the left one does not.
+    // At the start: the right chevron exists, the left one does not, and the row
+    // dissolves at the one edge it hides content behind.
     expect(document.querySelector('[aria-label="row · 向后一个"]')).not.toBeNull()
     expect(document.querySelector('[aria-label="row · 向前一个"]')).toBeNull()
+    expect(element.style.maskImage).toContain('linear-gradient')
+    expect(element.style.maskImage).toContain('calc(100% - 40px)')
     await act(async () => {
       element.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 240 }))
     })

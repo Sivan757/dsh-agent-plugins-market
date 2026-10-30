@@ -63,6 +63,21 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
     )
   )
   const layoutKey = items.map(item => item.value).join('|')
+  /**
+   * The dissolve at a clipped edge, as a mask over the row itself.
+   *
+   * A mask is the only version that needs no colour: the tabs fade into whatever
+   * surface the panel sits on, in either theme, so the band cannot read as a
+   * stray strip of the wrong background.
+   */
+  const edgeMask =
+    edges.left && edges.right
+      ? 'linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%)'
+      : edges.left
+        ? 'linear-gradient(to right, transparent 0, #000 40px)'
+        : edges.right
+          ? 'linear-gradient(to right, #000 calc(100% - 40px), transparent 100%)'
+          : undefined
 
   useEffect(() => {
     const index = items.findIndex(item => item.value === value)
@@ -195,7 +210,8 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
         'aria-label': label,
         onKeyDown,
         onWheel,
-        onScroll: measureEdges
+        onScroll: measureEdges,
+        style: edgeMask === undefined ? undefined : { maskImage: edgeMask, WebkitMaskImage: edgeMask }
       },
       items.map((item, index) => {
         const selected = item.value === value
@@ -271,8 +287,7 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
     // Both overlays sit inside the rail's border, over the tabs: the fade masks the letters
     // running under the edge, and the arrow floats above it. Neither is laid out, so the row
     // keeps its width when they appear.
-    edges.left ? h('span', { 'aria-hidden': 'true', className: css.fadeLeft }) : null,
-    edges.right ? h('span', { 'aria-hidden': 'true', className: css.fadeRight }) : null,
+
     edges.left
       ? h('button', { type: 'button', className: css.stepLeft, 'aria-label': label + ' · 向前一个', onClick: () => step(-1) }, h(IconChevronLeftOutlineMedium, { size: 12 }))
       : null,
