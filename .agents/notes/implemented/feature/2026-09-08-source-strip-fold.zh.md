@@ -8,7 +8,7 @@ Status: implemented
 
 ## 决策
 
-- **胶囊带仍是等宽网格。** `.sourceTabsRow` 保留 `repeat(auto-fill, minmax(118px, 1fr))`，同一行里每枚胶囊等宽，长 id 省略而不是把列撑开。承载方式是网格本身——不是下拉菜单，也不是横向滚动条。
+- **胶囊带仍是可换行的胶囊行。** 承载方式是胶囊行本身——不是下拉菜单，也不是横向滚动条。单元原为等宽、下限 118px；[源胶囊改为按 id 宽度排布](../feature/2026-10-30-source-chips-hug-their-ids.zh.md)替换了这套轨道尺寸，同时保留本记录的折叠、浮层与选后收起规则。
 - **网格折到两行，并用底部渐隐自我提示。** `.sourceTabsBoxFold` 预留 52px（两枚 24px 胶囊加 4px 间距）；网格以 `inset: -6px -6px auto` 脱离文档流，`max-height: 58px`（52px 内容加 6px 顶部内边距；折叠态不留底部内边距，否则会在工具条上方压出一条白带）加 `overflow: hidden` 裁剪，再用 `mask-image` 让最后一行渐隐。
 - **悬停或键盘聚焦时，同一个网格以浮层展开。** `.sourceTabsBoxFold:hover .sourceTabsRow` 与 `.sourceTabsBoxFold:has(:focus-visible) .sourceTabsRow` 抬高 `max-height`、加上描边与投影并去掉遮罩，于是胶囊带盖在工具条和卡片之上展开，下方内容不发生任何回流。展开完全由 CSS 完成：没有开关控件、没有下拉、也不多占一行。聚焦那半用 `:focus-visible`，绝不用 `:focus-within`：鼠标点击会让被选中的胶囊保持聚焦，而普通聚焦会在点选抑制失效后自己把胶囊带重新撑开。
 - **选中一个源后胶囊带立即折回。** 胶囊的选中回调会置起 `picked`，指针仍在带内时也保持折叠高度。清除它要等 `onMouseLeave` 之后 300ms（`LEAVE_GRACE_MS`）：折叠本身可能把指针扫出胶囊盒，没有这段宽限，下一次指针移动就会立刻重新展开。焦点离开胶囊带（`onBlur` 配合 `relatedTarget` 判断）则立即清除。

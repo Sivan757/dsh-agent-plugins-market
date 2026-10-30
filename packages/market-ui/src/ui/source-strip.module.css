@@ -18,19 +18,38 @@
 
 /* --- source tabs (top, primary) -------------------------------------------------- */
 
-/* Equal-width pill grid, exactly as the header always laid chips out. When the
-   list needs more than two rows the strip folds to that height and the grid is
-   lifted out of the flow, so hovering or focusing it expands as an overlay —
-   the card grid below never moves. */
+/* Natural-width pills that wrap. An id is how a reader tells one source from
+   another, and two ids can share their first eighteen characters
+   (`claude-code-plugins-plus-skills`, `claude-code-workflows`): an equal-width
+   cell truncated both to the same stump. Chips now take the width of their
+   label up to a cap, and the fold below keeps the header height fixed whatever
+   the labels say. */
 .sourceTabsBox {
   position: relative;
   min-width: 0;
 }
 
 .sourceTabsRow {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
+  min-width: 0;
+}
+
+/* A chip is as wide as its label, up to the same cap the one-line variant uses;
+   past the cap it ellipsizes rather than stretching a row. */
+.sourceTabsRow .srcTab,
+.sourceTabsRow .srcTabOn {
+  flex: 0 0 auto;
+  max-width: 220px;
+  min-width: 0;
+}
+
+.sourceTabsRow .srcTabMain,
+.sourceTabsRow .srcTabOn .srcTabMain {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-width: 0;
 }
 

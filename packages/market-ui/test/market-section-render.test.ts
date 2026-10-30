@@ -178,6 +178,19 @@ describe('MarketSection rendering', () => {
     expect(bodyText).not.toContain('f0e9fdf066c1')
   })
 
+  it('gives each source pill its label width, capped, so two long ids stay distinguishable', async () => {
+    // Equal-width cells truncated `claude-code-plugins-plus-skills` and
+    // `claude-code-workflows` to the same stump; an id is how a reader picks a
+    // source, so the pill takes its label's width up to a cap.
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync('packages/market-ui/src/ui/source-strip.module.css', 'utf8')
+    const rowRule = /\.sourceTabsRow \{[^}]*\}/.exec(css)?.[0] ?? ''
+    expect(rowRule).toMatch(/display: flex/)
+    expect(rowRule).toMatch(/flex-wrap: wrap/)
+    expect(css).not.toMatch(/minmax\(118px/)
+    expect(css).toMatch(/max-width: 220px/)
+  })
+
   it('renders the selected source chip with reachable edit and delete controls', async () => {
     // The selected chip renders with .srcTabOn (not .srcTab), so the hover-reveal
     // selector must cover both classes — the regression that hid the ✎/× plate.
