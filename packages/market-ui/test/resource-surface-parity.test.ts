@@ -143,8 +143,12 @@ describe('the two merged surfaces share one card contract', () => {
     const surfaceCard = surfaceCards[0]
     const surface = skeleton(surfaceCard!)
     expect(settings.tag).toBe('article')
-    expect(settings.role).toBe('button')
+    // The card is a region on both surfaces: its controls are real controls, and
+    // the one control that opens it is the name button inside.
+    expect(settings.role).toBeNull()
+    expect(settings.tabIndex).toBeNull()
     expect(settings.pressed).toBeNull()
+    expect(surface.role).toBeNull()
     expect(settings.hasSwitch).toBe(settings.hasSwitch && surface.hasSwitch)
     // Same elements, same order: identity, chip, description slot, meta line.
     expect(settings.descendants.map(node => node.tag)).toEqual(surface.descendants.map(node => node.tag))

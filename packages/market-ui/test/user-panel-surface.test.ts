@@ -194,7 +194,7 @@ describe('unified Markdown resource panel', () => {
     // path the panel addresses the document by.
     expect([...host.querySelectorAll('span')].some(span => span.textContent === 'git-commit')).toBe(true)
 
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     expect(card).not.toBeNull()
     await act(async () => card!.click())
     expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('git-commit')
@@ -203,7 +203,8 @@ describe('unified Markdown resource panel', () => {
   it('offers the document edit on user and persona cards, and the delete only in a user entry detail', async () => {
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     await mountPanel()
-    const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
+    // The cards themselves: the controls beside the opener are siblings of it.
+    const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('article')]
     // The card's click means "open": no destructive action sits on either card.
     expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
     expect(userCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
@@ -213,13 +214,13 @@ describe('unified Markdown resource panel', () => {
     expect(userCard?.querySelector('button[aria-label^="panelEdit "]')).not.toBeNull()
     // Suite-owned files uninstall with their suite, so their detail carries no
     // delete; a user entry's detail is where that one action lives.
-    await act(async () => pluginCard!.click())
+    await act(async () => pluginCard!.querySelector<HTMLElement>('[data-card-open]')!.click())
     expect(host.querySelector('[role="dialog"] button[aria-label="panelDelete"]')).toBeNull()
     await act(async () => root.unmount())
     host.remove()
     await mountPanel()
-    const [, userCardAgain] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
-    await act(async () => userCardAgain!.click())
+    const [, userCardAgain] = [...host.querySelectorAll<HTMLElement>('article')]
+    await act(async () => userCardAgain!.querySelector<HTMLElement>('[data-card-open]')!.click())
     expect(host.querySelector('[role="dialog"] button[aria-label="panelDelete"]')).not.toBeNull()
   })
 
@@ -243,7 +244,7 @@ describe('unified Markdown resource panel', () => {
   it('shows persona routing frontmatter as its own rows in the detail', async () => {
     api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: { model: 'inherit', provider: 'vendor', reasoning_effort: 'high', tools: ['Read'] } }])
     await mountPanel()
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     await act(async () => card!.click())
     const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
     // The same three words the routing editor labels these fields with.
@@ -264,7 +265,7 @@ describe('unified Markdown resource panel', () => {
   it('states the route a persona inherits when it declares none of its own', async () => {
     api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: {} }])
     await mountPanel()
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     await act(async () => card!.click())
     const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
     // A missing row cannot answer "what will this agent run on", so the three
@@ -362,7 +363,7 @@ describe('unified Markdown resource panel', () => {
     api.fetchUserPanel.mockResolvedValue([user])
     api.fetchUserPanelEntry.mockResolvedValue({ ...user, rawText: '---\ndescription: Review implementation\n---\nFRESHDOCBODY' })
     await mountPanel()
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     await act(async () => card!.click())
     // The dialog opens on the document, so that read rides the open rather than
     // a second click. The list read still carries no document of its own.

@@ -199,6 +199,14 @@ describe('MarketSection rendering', () => {
     expect(stateOf('Running Suite')).toBe('active')
     expect(stateOf('Off Suite')).toBe('disabled')
     expect(stateOf('Absent Suite')).toBe('absent')
+    // Colour is not a state for everyone: each card says its state in words too.
+    const stateWords = (name: string): string | null => {
+      const card = [...el.querySelectorAll<HTMLElement>('article')].find(node => (node.textContent ?? '').includes(name))!
+      return card.querySelector('[class*="srOnly"]')?.textContent ?? null
+    }
+    expect(stateWords('Running Suite')).toBe('enabledLabel')
+    expect(stateWords('Off Suite')).toBe('disabledLabel')
+    expect(stateWords('Absent Suite')).toBe('notInstalledLabel')
   })
 
   it('gives each source pill its label width, capped, so two long ids stay distinguishable', async () => {

@@ -152,6 +152,12 @@ describe('resource surface contract', () => {
     expect(onEdit).toHaveBeenCalledWith('a')
   })
 
+  it('says the state in words, because the rail is colour only', async () => {
+    await mount({ entries: [{ id: 'a', name: 'alpha', state: 'absent', stateLabel: 'not installed' }] })
+    const hidden = cardOf('a').querySelector<HTMLElement>('[class*="srOnly"]')
+    expect(hidden?.textContent).toBe('not installed')
+  })
+
   it('names each switch by its verb and its row', async () => {
     // "Disable" alone said nothing about which of a thousand rows it disables.
     await mount({ capabilities: { toggle: true }, onToggle: () => {}, isOn: () => true, entries: [{ id: 'a', name: 'alpha', toggleLabel: 'disable' }] })
@@ -164,15 +170,25 @@ describe('resource surface contract', () => {
     expect([...card.querySelectorAll('[data-card-row]')].map(row => row.getAttribute('data-card-row'))).toEqual(['id'])
   })
 
-  it('opens the entry from the keyboard, not only from a pointer', async () => {
+  it('opens the entry from the keyboard through the name button, not the card', async () => {
+    // The card holds a switch, an editor and icon actions, so it cannot itself be
+    // a button: ARIA would flatten those controls out of the tree. The name is
+    // the card's control, the card is a region that a pointer may click anywhere.
     const onOpen = vi.fn()
     await mount({ onOpen })
     const all = cards()
-    expect(all[0]!.tabIndex).toBe(0)
-    expect(all[1]!.tabIndex).toBe(0)
-    await act(async () => all[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    expect(all[0]!.getAttribute('role')).toBeNull()
+    expect(all[0]!.tabIndex).toBe(-1)
+    const openers = all.map(card => card.querySelector<HTMLButtonElement>('[data-card-open]')!)
+    expect(openers[1]!.tagName).toBe('BUTTON')
+    await act(async () => openers[1]!.click())
     expect(onOpen).toHaveBeenLastCalledWith('b')
-    await act(async () => all[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })))
+    // A pointer anywhere on the card still opens it.
+    await act(async () => all[0]!.click())
     expect(onOpen).toHaveBeenLastCalledWith('a')
+    // A mutation click on the region does not double-fire what the opener did.
+    onOpen.mockClear()
+    await act(async () => openers[0]!.click())
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 })

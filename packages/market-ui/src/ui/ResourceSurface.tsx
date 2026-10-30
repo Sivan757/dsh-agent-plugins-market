@@ -13,7 +13,7 @@
  */
 import { createElement as h, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
-import { CardActions, CardBody, CardCount, CardFoot, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from './ResourceCard.js'
+import { CardActions, CardBody, CardCount, CardFoot, CardIdentity, CardWarning, ResourceCard, ResourceCollection } from './ResourceCard.js'
 import type { ResourceState } from './ResourceCard.js'
 import { hintProps, hoverHint } from './hover-hint.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
@@ -84,6 +84,11 @@ export interface ResourceEntry {
   disabled?: boolean
   /** Explicit card chrome when the surface needs a state the flag cannot express. */
   state?: ResourceState
+  /**
+   * The state in words for assistive technology. The rail is colour only, so a
+   * reader who cannot see it would otherwise get no state at all.
+   */
+  stateLabel?: string
   /** The switch does not apply to this entry at all, so the card shows no control. */
   hideToggle?: boolean
 }
@@ -402,13 +407,19 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                   'data-resource-id': entry.id,
                   state: entry.state ?? (entry.disabled === true ? 'disabled' : 'active'),
                   ...(entry.surface === undefined ? {} : { surface: entry.surface }),
-                  ...interactiveCardProps(() => onOpen(entry.id))
+                  // The card is a region, not a button: it holds a switch, an
+                  // editor and icon actions, and a button around them hides them
+                  // from assistive technology. The pointer may still open it by
+                  // clicking anywhere; the keyboard gets the name button below.
+                  onClick: () => onOpen(entry.id)
                 },
                 h(CardIdentity, {
                   text: entry.name,
                   hint: entry.hint,
                   mono: entry.mono,
                   tag: entry.tag,
+                  onOpen: () => onOpen(entry.id),
+                  ...(entry.stateLabel === undefined ? {} : { stateLabel: entry.stateLabel }),
                   ...(entry.version === undefined ? {} : { version: entry.version }),
                   ...(entry.chip === true ? { chip: true } : {})
                 }),

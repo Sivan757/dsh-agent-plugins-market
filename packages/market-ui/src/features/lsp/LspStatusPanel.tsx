@@ -168,7 +168,9 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         // A mounted row whose last call failed is the one thing this panel can
         // say about a server that stopped answering: the seam has no death signal.
         ...(entry.observation === undefined || entry.observation.ok ? {} : { warning: t('lspLastCallShort') }),
-        state: lspCardState(entry.state)
+        state: lspCardState(entry.state),
+        // The rail is colour only; this is what a screen reader hears.
+        stateLabel: stateLabel(t, entry.state)
       })),
       capabilities: { toggle: true },
       searchLabel: t('lspSearch'),

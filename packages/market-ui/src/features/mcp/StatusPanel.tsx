@@ -8,7 +8,7 @@ import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, 
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { matchesMcpFilter, MCP_FILTERS, nextConnectionRead, type McpStatusFilter } from './mcp-status-view-model.js'
-import { mcpCardState, mcpConnectionNote, mcpDisplayName } from './state-helpers.js'
+import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpStateLabel } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
@@ -226,6 +226,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       // Text the card does not render, so search still finds it.
       keywords: [entry.name, entry.endpoint ?? '', entry.transport, entry.reason ?? '', ...(entry.credentialRefs ?? [])].join(' '),
       state: mcpCardState(entry.state),
+      stateLabel: mcpStateLabel(t, entry.state),
       canEdit: switchable,
       toggleLabel: disabled ? t('enable') : t('disable')
     }

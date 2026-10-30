@@ -490,7 +490,7 @@ describe('extension preset rendering', () => {
     )
     await click('Research')
     await click('Manage presets')
-    const card = document.querySelector<HTMLElement>('article[role="button"]')!
+    const card = document.querySelector<HTMLElement>('article')!
     const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!
     expect(card.getAttribute('data-resource-state')).toBe('disabled')
     // The card opens the detail; the switch is what changes the selection.
@@ -544,7 +544,7 @@ describe('extension preset rendering', () => {
     await mount()
     await click('Research')
     await click('Manage presets')
-    const card = document.querySelector<HTMLElement>('article[role="button"]')!
+    const card = document.querySelector<HTMLElement>('article')!
     const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!
     // One toggle per activation, and the switch is the only control that writes.
     await act(async () => toggle.click())
@@ -562,7 +562,7 @@ describe('extension preset rendering', () => {
     await click('Research')
     await click('Manage presets')
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ ok: false, code: 'conflict' }) } as Response)
-    await act(async () => document.querySelector<HTMLElement>('article[role="button"] [role="switch"]')!.click())
+    await act(async () => document.querySelector<HTMLElement>('article [role="switch"]')!.click())
     expect(document.body.textContent).toContain(extensionPresetsEn.epFailed)
     expect(document.body.textContent).toContain(extensionPresetsEn.epDiscard)
     await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())

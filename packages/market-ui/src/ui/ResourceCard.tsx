@@ -43,34 +43,64 @@ export function ResourceCollection({
   return h('div', { className: `${className ?? ''} ${css.collection}`, 'data-resource-view': view, ...rest }, children)
 }
 
-/** Spread onto a card so it opens like a button: keyboard users included. */
-export function interactiveCardProps(onClick: () => void): Pick<HTMLAttributes<HTMLElement>, 'role' | 'tabIndex' | 'onClick' | 'onKeyDown'> {
-  return {
-    role: 'button',
-    tabIndex: 0,
-    onClick,
-    onKeyDown: (event: { key: string; target: unknown; currentTarget: unknown; preventDefault: () => void }) => {
-      // A control inside the card owns its own activation. Without this guard a
-      // keyboard Enter on the edit button bubbled here, the preventDefault below
-      // cancelled the button's own activation, and the card opened its detail
-      // instead: every icon action was unreachable from the keyboard.
-      if (event.target !== event.currentTarget) return
-      // Enter and Space activate a role="button" the same way a native one does.
-      if (event.key !== 'Enter' && event.key !== ' ') return
-      event.preventDefault()
-      onClick()
-    }
-  }
-}
-
-/** Shared name and owner row for settings and preset cards. */
-export function CardIdentity({ text, hint, mono, version, tag, chip }: { text: string; hint?: string; mono?: boolean; version?: string; tag?: string; chip?: boolean }): ReactNode {
+/**
+ * Shared name and owner row for settings and preset cards.
+ *
+ * The name is the card's own control when the card can be opened: the card is a
+ * plain region and the pointer may still click anywhere on it, but a region that
+ * contains a switch, an editor and icon actions cannot itself be the button —
+ * ARIA flattens the controls inside a button into its name, and every real
+ * control disappears from the accessibility tree. One opener, named by the entry,
+ * beside the controls rather than around them.
+ */
+export function CardIdentity({
+  text,
+  hint,
+  mono,
+  version,
+  tag,
+  chip,
+  stateLabel,
+  onOpen
+}: {
+  text: string
+  hint?: string
+  mono?: boolean
+  version?: string
+  tag?: string
+  chip?: boolean
+  /**
+   * The state in words, for a reader who cannot decode the 3px rail's colour.
+   * Rendered for assistive technology only: the visible cue is the rail.
+   */
+  stateLabel?: string
+  /** Opens the entry; when absent the name is plain text. */
+  onOpen?: () => void
+}): ReactNode {
+  const name = hoverHint(hint ?? text, h('span', hintProps({ className: mono === true ? `${css.name} ${css.nameMono}` : css.name }), text))
   return h(
     'div',
     { className: css.rowId, 'data-card-row': 'id' },
-    hoverHint(hint ?? text, h('span', hintProps({ className: mono === true ? `${css.name} ${css.nameMono}` : css.name }), text)),
+    onOpen === undefined
+      ? name
+      : h(
+          'button',
+          {
+            type: 'button',
+            className: css.nameButton,
+            'data-card-open': '',
+            // The pointer already opens the card anywhere; this click must not
+            // reach the card's own handler and open it twice.
+            onClick: (event: { stopPropagation: () => void }) => {
+              event.stopPropagation()
+              onOpen()
+            }
+          },
+          name
+        ),
     version === undefined ? null : h('span', { className: css.version }, `v${version}`),
-    tag === undefined ? null : chip === true ? h('span', { className: css.provenanceChip }, h(Tag, { tone: 'neutral' }, tag)) : h(Tag, { tone: 'neutral' }, tag)
+    tag === undefined ? null : chip === true ? h('span', { className: css.provenanceChip }, h(Tag, { tone: 'neutral' }, tag)) : h(Tag, { tone: 'neutral' }, tag),
+    stateLabel === undefined ? null : h('span', { className: css.srOnly }, stateLabel)
   )
 }
 

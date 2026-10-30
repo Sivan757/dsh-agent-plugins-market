@@ -252,6 +252,8 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       // installed at all. The last one used to paint the "off" grey, which made a
       // market of 971 uninstalled suites read as a wall of disabled ones.
       state: !suite.installed ? ('absent' as const) : suite.enabled ? ('active' as const) : ('disabled' as const),
+      // The rail is colour only; this is what a screen reader hears.
+      stateLabel: !suite.installed ? t('notInstalledLabel') : suite.enabled ? t('enabledLabel') : t('disabledLabel'),
       hideToggle: !suite.installed,
       toggleLabel: suite.enabled ? t('disable') : t('enable'),
       ...(suite.installed

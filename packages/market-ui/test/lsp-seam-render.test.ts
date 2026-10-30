@@ -133,7 +133,7 @@ describe('LSP card actions', () => {
     expect(edit).not.toBeNull()
 
     // The report itself carries no edit entry.
-    const card = [...el.querySelectorAll('[role="button"]')].find(node => (node.textContent ?? '').startsWith('typescript'))
+    const card = [...el.querySelectorAll('[data-card-open]')].find(node => (node.textContent ?? '').startsWith('typescript'))
     await act(async () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
