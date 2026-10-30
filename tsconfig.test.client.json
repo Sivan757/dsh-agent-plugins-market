@@ -24,6 +24,7 @@
     "packages/market-ui/test/client-agent-presets-gate.test.ts",
     "packages/market-ui/test/client-api-timeout.test.ts",
     "packages/market-ui/test/resource-surface.test.ts",
+    "packages/market-ui/test/resource-surface-parity.test.ts",
     "packages/market-ui/test/client-busy-overlay.test.ts",
     "packages/market-ui/test/client-credentials.test.ts",
     "packages/market-ui/test/client-description-refresh.test.ts",

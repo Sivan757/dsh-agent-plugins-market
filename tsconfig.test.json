@@ -17,6 +17,7 @@
   "include": ["packages/*/test/**/*.ts"],
   "exclude": [
     "packages/market-ui/test/resource-surface.test.ts",
+    "packages/market-ui/test/resource-surface-parity.test.ts",
     "packages/market-bundle/test/integration/client-document-translation.test.ts",
     "packages/market-bundle/test/integration/client-extension-preset-details.test.ts",
     "packages/market-bundle/test/integration/client-extension-preset-v5.test.ts",
