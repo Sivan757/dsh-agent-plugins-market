@@ -52,7 +52,8 @@
     "check:modules": "node scripts/check-module-reachability.mjs",
     "check:package": "node scripts/check-package-contents.mjs",
     "check:css": "node scripts/check-css-classes.mjs",
-    "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse && pnpm run check:exports && pnpm run check:duplication && pnpm run check:modules && pnpm run check:package && pnpm run check:css && pnpm run check:doc-links",
+    "check:single-renderer": "node scripts/check-single-renderer.mjs",
+    "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse && pnpm run check:exports && pnpm run check:duplication && pnpm run check:modules && pnpm run check:package && pnpm run check:css && pnpm run check:single-renderer && pnpm run check:doc-links",
     "prepack": "pnpm run check:host-alignment && pnpm run build",
     "prepare": "node scripts/setup-git-hooks.mjs && pnpm run build"
   },

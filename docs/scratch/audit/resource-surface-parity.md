@@ -84,3 +84,32 @@ B 的每卡节点是 C 的 2.2 倍。合并时若保留 B 的全部装饰（版�
 - 节点重量：用 `ResourceCard` + `CardIdentity` 与各自卡片内控件在 jsdom 中挂载 29 项、预热后二次计时（临时测试已删除，正式版本随交付物 3 落地为基准测试）。
 - 结构判断：`UserPanelSurface.tsx:453,497`，`ResourceList.tsx:209,233`。
 - 样式归属：`grep -c '^[.@a-z].*{' <file>`。
+
+## 9. 实施中的发现：表面不止两个（第 5 轮更新）
+
+单实现门禁（`scripts/check-single-renderer.mjs`）扫描"谁在组装列表"（导入 `ResourceCollection` 或 `SearchFilterToolbar`），结果比原判断更大：
+
+| 模块                                              | 归属                      | 状态      |
+| ------------------------------------------------- | ------------------------- | --------- |
+| `ui/ResourceSurface.tsx`                          | 唯一渲染器                | ✅ 已存在 |
+| `features/instructions`、`features/output-styles` | 设置 · 文件面板           | ✅ 已迁入 |
+| `features/extension-presets/ResourceList.tsx`     | 预设弹窗                  | ✅ 已迁入 |
+| `ui/UserPanelSurface.tsx`                         | 设置 · 技能/专家/快捷指令 | ⏳ 未迁   |
+| `features/mcp/StatusPanel.tsx`                    | 设置 · 连接器             | ⏳ 未迁   |
+| `features/lsp/LspStatusPanel.tsx`                 | 设置 · 语言引擎           | ⏳ 未迁   |
+| `features/hooks/StatusPanel.tsx`                  | 设置 · 钩子               | ⏳ 未迁   |
+| `features/market/MarketSection.tsx`               | 设置 · 市场浏览           | ⏳ 未迁   |
+
+结论：所谓"两个表面"其实是**设置工作区内部的六个列表 + 一个弹窗列表**。已合并 3 个，剩余 5 个；门禁把这 5 个记为存量（ratchet），新增第 7 个列表会直接失败，存量迁移后必须从名单删除，否则门禁报 stale。
+
+## 10. 交付物状态
+
+| 交付物                       | 状态                                           |
+| ---------------------------- | ---------------------------------------------- |
+| 1. parity 报告               | ✅                                             |
+| 2. 单一渲染器 + 契约类型     | ✅                                             |
+| 2. 重复实现删除              | 3/8 已迁；5 个存量由门禁盯住                   |
+| 3. 一致性测试                | ✅ DOM 契约 + 点击语义（两表面）；黄金截图未做 |
+| 4. 单实现断言                | ✅ `check:single-renderer`（ratchet 形式）     |
+| 5. 29 条 × 3 宽度 × 明暗主题 | 未做                                           |
+| 独立 profile 会话验证        | 未做                                           |
