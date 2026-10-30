@@ -96,10 +96,28 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
   useLayoutEffect(() => {
     measureEdges()
     const rail = railRef.current
-    const observer = typeof ResizeObserver === 'undefined' || rail === null ? undefined : new ResizeObserver(measureEdges)
+    // A dialog that mounts its content while the layout is still settling reports
+    // a row that fits, and the observer's callback can run in that same frame
+    // before the scroll width is final. Measure once after the frame and once the
+    // fonts are in, so the affordance matches the row the reader sees.
+    let alive = true
+    const remeasure = (): void => {
+      if (alive) measureEdges()
+    }
+    const frame = requestAnimationFrame(remeasure)
+    void document.fonts?.ready.then(remeasure)
+    const observer =
+      typeof ResizeObserver === 'undefined' || rail === null
+        ? undefined
+        : new ResizeObserver(() => {
+            remeasure()
+            requestAnimationFrame(remeasure)
+          })
     if (rail !== null) observer?.observe(rail)
     window.addEventListener('resize', measureEdges)
     return () => {
+      alive = false
+      cancelAnimationFrame(frame)
       observer?.disconnect()
       window.removeEventListener('resize', measureEdges)
     }

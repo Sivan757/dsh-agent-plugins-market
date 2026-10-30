@@ -157,6 +157,28 @@ describe('tab rail reordering', () => {
     expect(reduced).toMatch(/transition: none/)
   })
 
+  it('measures once more after the frame, so a row that settles late still gets its affordance', async () => {
+    // The settings dialog mounts its content while the layout is still settling:
+    // the first measurement can see a row that fits, and nothing dispatches a
+    // resize afterwards. One frame later the row overflows, and the mask and the
+    // chevron have to exist by then.
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', items }))
+    })
+    const element = document.querySelector<HTMLElement>('[role="tablist"]')!
+    expect(element.style.maskImage).toBe('')
+    Object.defineProperty(element, 'scrollWidth', { configurable: true, value: 900 })
+    Object.defineProperty(element, 'clientWidth', { configurable: true, value: 300 })
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 40))
+    })
+    expect(element.style.maskImage).toContain('linear-gradient')
+    expect(document.querySelector('[aria-label="row · 向后一个"]')).not.toBeNull()
+  })
+
   it('scrolls sideways with the wheel and shows a chevron for each side it can reach', async () => {
     // A mouse has no sideways gesture and the row hides its scrollbar, so the row maps the
     // wheel to its own axis and offers a chevron per reachable side.

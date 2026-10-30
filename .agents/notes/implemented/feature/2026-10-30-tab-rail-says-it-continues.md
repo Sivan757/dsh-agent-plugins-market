@@ -11,6 +11,7 @@ Nine settings surfaces rarely fit one row, and the rail's two affordances were i
 - **The clipped edge dissolves through a mask on the row, not a coloured band.** `TabRail` measures its edges already, so it now writes a `mask-image` that fades the last 40px of content to transparent. A mask involves no colour, so it works in either theme and over any panel surface; a band had to guess the surface and, with the wash it was given, guessed "invisible".
 - **The chevron stays visible while its side is clipped.** It only exists when content hides behind that edge, so it is a fact rather than noise: a reader learns the row continues without moving the pointer. Hover still brightens it, and focus draws the business ring.
 - **The affordance is per side.** Both are masked when the row is scrolled to the middle, only the left when it reaches the end, only the right at the start.
+- **The row measures again after the frame and after the fonts.** A dialog that mounts its content while the layout is still settling reports a row that fits, and the resize observer can run in that same frame: the first real host session showed a hard clip with no dissolve and no chevron until something scrolled the rail. One frame later, and once the fonts are in, the same measurement runs again, so the affordance matches the row the reader sees.
 
 ## Alternatives considered
 
@@ -26,5 +27,6 @@ Nine settings surfaces rarely fit one row, and the rail's two affordances were i
 
 ## Verification
 
-- `packages/market-ui/test/tab-rail-drag.test.ts` asserts the rail carries a mask gradient at a clipped edge, that the stylesheet no longer holds fade rules, and that the step chevron has no zero-opacity start.
+- `packages/market-ui/test/tab-rail-drag.test.ts` asserts the rail carries a mask gradient at a clipped edge, that the stylesheet no longer holds fade rules, that the step chevron has no zero-opacity start, and that a row which only overflows after the first frame still gets its mask and chevron.
+- The `market-dev` profile served the built bundle in the real host: opening settings on Agent 扩展 showed the right dissolve and the right chevron immediately, where the previous build showed a hard clip.
 - The preview harness renders nine tabs at 560px and 760px: at 560 the last tab dissolves into the surface, at 760 nothing fades because nothing hides.
