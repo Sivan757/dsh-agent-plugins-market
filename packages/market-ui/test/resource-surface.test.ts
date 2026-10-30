@@ -98,4 +98,16 @@ describe('resource surface contract', () => {
     })
     expect(cards().map(card => card.getAttribute('data-resource-id'))).toEqual(['b'])
   })
+
+  it('opens the entry from the keyboard, not only from a pointer', async () => {
+    const onOpen = vi.fn()
+    await mount({ onOpen })
+    const all = cards()
+    expect(all[0]!.tabIndex).toBe(0)
+    expect(all[1]!.tabIndex).toBe(0)
+    await act(async () => all[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    expect(onOpen).toHaveBeenLastCalledWith('b')
+    await act(async () => all[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })))
+    expect(onOpen).toHaveBeenLastCalledWith('a')
+  })
 })
