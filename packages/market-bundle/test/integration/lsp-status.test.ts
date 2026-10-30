@@ -47,6 +47,20 @@ describe('buildLspStatus', () => {
     expect(payload.entries[0]?.state).toBe('mounted')
   })
 
+  it("gives each suite its own liveness instead of borrowing a sibling's mount", () => {
+    // One suite mounted, the other never came up. The registry-wide flag says
+    // "something is live", which used to make both rows read mounted.
+    const perSuite: LspMountStatusSource = {
+      ...registry([], true),
+      liveKeys: () => new Set(['src/ts/typescript'])
+    }
+    const payload = buildLspStatus([lspSuite('ts'), lspSuite('py')], perSuite)
+    expect(payload.entries.map(entry => [entry.suiteId, entry.state])).toEqual([
+      ['src/ts', 'mounted'],
+      ['src/py', 'starting']
+    ])
+  })
+
   it('marks an enabled declaration as mounted when mounts are live and no diagnostic exists', () => {
     const payload = buildLspStatus([lspSuite('ts')], registry([], true))
     expect(payload.entries).toHaveLength(1)

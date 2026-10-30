@@ -100,6 +100,9 @@ export function buildLspStatus(
   // lsp tool. A mounted row whose last call failed is the state the seam cannot
   // report by itself; the row carries the evidence instead of inventing a state.
   const observations = registry.observationSnapshot?.() ?? new Map<string, LspCallObservation>()
+  // Per-suite liveness when the registry can report it: a suite whose own mount
+  // never came up must not read as mounted because a sibling's did.
+  const liveKeys = registry.liveKeys?.()
   const entries: LspStatusEntry[] = []
   const mountedSuiteIds = new Set<number | string>()
   for (const suite of suites) {
@@ -110,12 +113,16 @@ export function buildLspStatus(
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
     const disabled = suite.activeSurfaces.lsp === false
     const diagnostic = diagnostics.get(suiteKey)
-    const { state, reason, code, causes, retryable } = deriveState(disabled, diagnostic, anyLive)
-    if (state === 'mounted') mountedSuiteIds.add(suiteKey)
     for (const spec of Object.values(suite.lsp.servers)) {
-      const observation = observations.get(`${suiteKey}/${spec.key}`)
+      // Liveness is per provider: the registry mounts one child per server, so a
+      // suite's second server can fail while the first is answering. The row id
+      // is the mount key, and it is what the registry reports.
+      const rowId = `${suiteKey}/${spec.key}`
+      const { state, reason, code, causes, retryable } = deriveState(disabled, diagnostic, liveKeys === undefined ? anyLive : liveKeys.has(rowId))
+      if (state === 'mounted') mountedSuiteIds.add(suiteKey)
+      const observation = observations.get(rowId)
       entries.push({
-        id: `${suiteKey}/${spec.key}`,
+        id: rowId,
         serverKey: spec.key,
         suiteId: suiteKey,
         suiteName: suite.manifest.name,
@@ -124,7 +131,7 @@ export function buildLspStatus(
         command: spec.command,
         args: spec.args,
         extensions: spec.extensionToLanguage,
-        state: disabled || disabledServers.has(`${suiteKey}/${spec.key}`) ? 'disabled' : state,
+        state: disabled || disabledServers.has(rowId) ? 'disabled' : state,
         ...(localization === undefined ? {} : localization.localizeFields('lsp', spec.key, { name: spec.key }, localization.locale).fields),
         ...(reason === undefined ? {} : { reason }),
         ...(code === undefined ? {} : { code }),
@@ -137,12 +144,19 @@ export function buildLspStatus(
   // Direct user-configured rows: no install state or surface toggle of their
   // own — configured means on; the mount diagnostic decides the state.
   const directDiagnostic = diagnostics.get(DIRECT_LSP_SUITE_ID)
-  const { state: directState, reason: directReason, code: directCode, causes: directCauses, retryable: directRetryable } = deriveState(false, directDiagnostic, anyLive)
-  if (directState === 'mounted') mountedSuiteIds.add(DIRECT_LSP_SUITE_ID)
   for (const spec of Object.values(direct.servers)) {
-    const observation = observations.get(`${DIRECT_LSP_SUITE_ID}/${spec.key}`)
+    const rowId = `${DIRECT_LSP_SUITE_ID}/${spec.key}`
+    const {
+      state: directState,
+      reason: directReason,
+      code: directCode,
+      causes: directCauses,
+      retryable: directRetryable
+    } = deriveState(false, directDiagnostic, liveKeys === undefined ? anyLive : liveKeys.has(rowId))
+    if (directState === 'mounted') mountedSuiteIds.add(DIRECT_LSP_SUITE_ID)
+    const observation = observations.get(rowId)
     entries.push({
-      id: `${DIRECT_LSP_SUITE_ID}/${spec.key}`,
+      id: rowId,
       serverKey: spec.key,
       suiteId: DIRECT_LSP_SUITE_ID,
       suiteName: spec.key,

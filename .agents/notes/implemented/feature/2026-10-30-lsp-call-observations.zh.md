@@ -11,6 +11,7 @@ Status: implemented
 - **只有一个观察点，就是工具调用。** `RuntimeReconciler` 监听 `tools/post-execute`；一个纯函数（`runtime/core/lsp-call-observation.ts`）判断这次调用是不是宿主的 `lsp` 工具、结果如何，监听器据此记账。不做推断：从不被调用的 provider 不会留下证据，这正是对接缝已知范围的诚实表达。
 - **按文件扩展名归属。** 接缝把一次请求路由给声明该扩展名的 provider，并在挂载时拒绝重复声明，所以一个路径最多命名一个存活 provider。没有存活 provider 声明的路径不记任何东西，而不是猜一个。
 - **证据归注册表所有，并随挂载一起消失。** `LspMountRegistry.observe` 按 provider id 保存最近结果，`observationSnapshot` 把它交给状态构建器，卸载 provider 时删除该记录：重启后的进程不该继承上一个进程的失败。
+- **存活判断按 provider，和挂载粒度一致。** 注册表为每个服务各挂一个子实例，所以状态构建器改为判断这一行自己的挂载是否存活，而不是「是否有任何挂载」：某个套件的第二个服务从未起来时报告 `starting`，而不是借用兄弟服务的健康状态。
 - **行上把观察放在状态旁边，而不是替代状态。** 调用失败但仍在挂载的行显示「最近调用失败」告警，详情写明错误并提供重启。状态保持 mounted，因为挂载还活着，而一次失败既可能是死进程，也可能只是文件不存在或超时。
 
 ## Alternatives considered
@@ -30,5 +31,5 @@ Status: implemented
 
 - `packages/market-runtime/test/lsp-call-observation.test.ts` 钉住提取：成功调用、带消息的失败，以及所有不可归属的形状（别的工具、没有路径、空路径）。
 - `packages/market-bundle/test/integration/lsp-mounts.test.ts` 钉住归属与遗忘：扩展名所有者收到记录、无主扩展名不记录、卸载挂载时清除。
-- `packages/market-bundle/test/integration/lsp-status.test.ts` 钉住状态行：观察随行携带，状态仍是挂载自己的判断。
+- `packages/market-bundle/test/integration/lsp-status.test.ts` 钉住状态行：观察随行携带，状态仍是挂载自己的判断；一个套件存活不再让兄弟套件也读成已挂载。
 - `packages/market-bundle/test/integration/client-lsp-detail.test.ts` 钉住对话框：最近调用与错误被渲染，重启动作就在一步之外。

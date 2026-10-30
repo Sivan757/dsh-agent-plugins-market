@@ -273,6 +273,18 @@ describe('LspMountRegistry', () => {
     await registry.disposeAll()
   })
 
+  it('names the suites whose mount is live, so the status rows do not share one flag', async () => {
+    const mounted: MountedConfig[] = []
+    const { build } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    expect([...registry.liveKeys()]).toEqual([])
+    await registry.reconcile([lspSuite('ts')])
+    // One child per provider, so the key names the provider the status row names.
+    expect([...registry.liveKeys()]).toEqual(['src/ts/typescript'])
+    await registry.disposeAll()
+    expect([...registry.liveKeys()]).toEqual([])
+  })
+
   it('records a call outcome against the provider that owns the extension, and forgets it on unmount', async () => {
     const mounted: MountedConfig[] = []
     const { build } = mountCtx('ok', true)

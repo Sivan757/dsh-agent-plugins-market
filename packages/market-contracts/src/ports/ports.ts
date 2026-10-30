@@ -88,6 +88,13 @@ export interface LspMountStatusSource {
   disabledServers?(): Set<string>
   /** The latest `lsp` call outcome per provider id, when the registry observes them. */
   observationSnapshot?(): ReadonlyMap<string, LspCallObservation>
+  /**
+   * The suite keys whose mount is live right now, when the registry can tell
+   * them apart. A row reads its own suite's liveness; without this the builder
+   * falls back to the registry-wide flag, which lets a row borrow a sibling's
+   * health.
+   */
+  liveKeys?(): ReadonlySet<string>
 }
 
 /** A new source: its location, optional branch, and acquisition kind. */

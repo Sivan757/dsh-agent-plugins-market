@@ -522,6 +522,11 @@ export class LspMountRegistry {
     return this.live.size > 0
   }
 
+  /** The suite keys whose mount is live right now, so a row reads its own health. */
+  liveKeys(): ReadonlySet<string> {
+    return new Set(this.live.keys())
+  }
+
   /**
    * Record what the last `lsp` call routed to one provider did.
    *

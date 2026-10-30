@@ -11,6 +11,7 @@ Status: implemented
 - **One observation point, and it is the tool call.** `RuntimeReconciler` listens on `tools/post-execute`; a pure helper (`runtime/core/lsp-call-observation.ts`) answers whether the call was the host's `lsp` tool and what it did, and the listener records that against the provider. Nothing is estimated: a provider that is never asked leaves no evidence, which is honest about what the seam knows.
 - **Attribution is by file extension.** The seam routes one request to the provider claiming that extension and rejects a duplicate claim at mount time, so a path names at most one live provider. A path no live provider claims records nothing rather than guessing.
 - **The registry owns the evidence, and forgets it with the mount.** `LspMountRegistry.observe` stores the latest outcome per provider id, `observationSnapshot` publishes it to the status builder, and unmounting a provider drops its record: a restarted process must not inherit the old one's failure.
+- **Liveness is per provider, like the mount.** The registry mounts one child per server, so the status builder now asks whether that row's own mount is live instead of whether anything is: a suite whose second server never came up reports `starting` rather than borrowing its sibling's health.
 - **The row carries the observation beside the state, not instead of it.** A mounted row with a failed call shows a "last call failed" warning and the detail names the error and offers the restart. The state stays mounted, because the mount is alive and one failed call can mean a missing file or a timeout as easily as a dead process.
 
 ## Alternatives considered
@@ -30,5 +31,5 @@ Status: implemented
 
 - `packages/market-runtime/test/lsp-call-observation.test.ts` pins the extraction: a successful call, a failure carrying its message, and every non-attributable shape (another tool, no path, an empty path).
 - `packages/market-bundle/test/integration/lsp-mounts.test.ts` pins attribution and forgetting: the extension owner receives the record, an unclaimed extension records nothing, and disposing the mount clears it.
-- `packages/market-bundle/test/integration/lsp-status.test.ts` pins the row: the observation rides the row while the state stays the mount's own judgment.
+- `packages/market-bundle/test/integration/lsp-status.test.ts` pins the row: the observation rides the row while the state stays the mount's own judgment, and one live suite no longer makes a sibling read mounted.
 - `packages/market-bundle/test/integration/client-lsp-detail.test.ts` pins the dialog: the last call and its error render, with the restart action one click away.
