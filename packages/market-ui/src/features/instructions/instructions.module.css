@@ -1,3 +1,53 @@
+/* The loading line, the read failure and the unavailable card had no rules at
+   all: they rendered with browser defaults (an `h3` carrying its own margins)
+   inside a panel that insets everything else. These mirror the output-styles
+   panel, so the two list panels of the same shape read the same. */
+.empty {
+  padding: 24px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 12px;
+  text-align: center;
+}
+
+.error {
+  margin: 8px 0;
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.unavailable {
+  margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1, #e5e7eb);
+  border-radius: 10px;
+  background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
+}
+
+.unavailableTitle {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+
+.unavailableBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  overflow-wrap: anywhere;
+}
+
 .surface {
   composes: shell from '../../ui/panel.module.css';
   display: flex;

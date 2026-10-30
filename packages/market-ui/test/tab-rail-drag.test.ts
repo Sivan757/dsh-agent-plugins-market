@@ -52,7 +52,7 @@ async function mount(onReorder: (from: number, to: number) => void): Promise<voi
   document.body.append(host)
   root = createRoot(host)
   await act(async () => {
-    root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', items, onReorder }))
+    root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', stepPreviousLabel: '向前一个', stepNextLabel: '向后一个', items, onReorder }))
   })
   layoutTabs()
 }
@@ -166,7 +166,7 @@ describe('tab rail reordering', () => {
     document.body.append(host)
     root = createRoot(host)
     await act(async () => {
-      root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', items }))
+      root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', stepPreviousLabel: '向前一个', stepNextLabel: '向后一个', items }))
     })
     const element = document.querySelector<HTMLElement>('[role="tablist"]')!
     expect(element.style.maskImage).toBe('')
@@ -188,7 +188,7 @@ describe('tab rail reordering', () => {
     document.body.append(host)
     root = createRoot(host)
     await act(async () => {
-      root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', items }))
+      root!.render(h(TabRail<string>, { value: 'tab-0', onChange: () => {}, label: 'row', stepPreviousLabel: '向前一个', stepNextLabel: '向后一个', items }))
     })
     const element = document.querySelector<HTMLElement>('[role="tablist"]')!
     Object.defineProperty(element, 'scrollWidth', { configurable: true, value: 900 })

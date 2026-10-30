@@ -255,4 +255,16 @@ describe('instructions panel', () => {
     await act(async () => toList.click())
     expect(host!.querySelector('[data-resource-view]')?.getAttribute('data-resource-view')).toBe('list')
   })
+
+  it('gives every class it applies a rule in its own stylesheet', async () => {
+    // The loading line, the read failure and the unavailable card applied six
+    // class names that existed nowhere, so they rendered with browser defaults
+    // (an `h3` with its own margins) inside a panel that insets everything else.
+    const { readFileSync } = await import('node:fs')
+    const source = readFileSync('packages/market-ui/src/features/instructions/InstructionsPanel.tsx', 'utf8')
+    const styles = readFileSync('packages/market-ui/src/features/instructions/instructions.module.css', 'utf8')
+    const used = [...new Set([...source.matchAll(/css\.([A-Za-z0-9_]+)/g)].map(match => match[1]))]
+    const defined = new Set([...styles.matchAll(/^\.([A-Za-z0-9_]+)/gm)].map(match => match[1]))
+    expect(used.filter(name => !defined.has(name))).toEqual([])
+  })
 })

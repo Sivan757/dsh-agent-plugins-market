@@ -169,6 +169,8 @@ export function ResourceList({
           if (faces.includes(value)) setFace(value)
         }}
         label={t('epTitle')}
+        stepPreviousLabel={t('tabStepPrevious')}
+        stepNextLabel={t('tabStepNext')}
         onReorder={moveFace}
         items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
       />

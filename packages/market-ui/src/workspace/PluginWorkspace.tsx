@@ -206,6 +206,10 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
       { ref: rowRef, className: css.rowKeys },
       h(TabRail<WorkspaceTab>, {
         label: labelKeys.market,
+        // The step buttons name their direction in the reader's language: the
+        // rail carries no translator of its own.
+        stepPreviousLabel: t('tabStepPrevious'),
+        stepNextLabel: t('tabStepNext'),
         value: active,
         // Switching tabs is local state only; the URL stays the host's.
         onChange: setActive,

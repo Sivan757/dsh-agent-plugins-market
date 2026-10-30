@@ -27,6 +27,10 @@ export interface TabRailProps<T extends string> {
   onChange: (value: T) => void
   /** Localized accessible name of the tab list. */
   label: string
+  /** Localized name of the button that steps back one tab. */
+  stepPreviousLabel: string
+  /** Localized name of the button that steps forward one tab. */
+  stepNextLabel: string
   /** Tabs, in their stored order. */
   items: readonly TabRailItem<T>[]
   /** Commit a move between two positions. */
@@ -49,7 +53,7 @@ const DRAG_HOLD_MS = 280
  * @param props - the row's tabs and the callback that persists a move.
  * @returns the rail, with a step button on each side that can scroll.
  */
-export function TabRail<T extends string>({ value, onChange, label, items, onReorder }: TabRailProps<T>): ReactNode {
+export function TabRail<T extends string>({ value, onChange, label, stepPreviousLabel, stepNextLabel, items, onReorder }: TabRailProps<T>): ReactNode {
   const railRef = useRef<HTMLDivElement | null>(null)
   const [drag, setDrag] = useState<{ from: number; to: number; dx: number } | undefined>(undefined)
   const press = useRef<{ index: number; x: number; started: boolean; timer?: ReturnType<typeof setTimeout> } | undefined>(undefined)
@@ -307,10 +311,18 @@ export function TabRail<T extends string>({ value, onChange, label, items, onReo
     // keeps its width when they appear.
 
     edges.left
-      ? h('button', { type: 'button', className: css.stepLeft, 'aria-label': label + ' · 向前一个', onClick: () => step(-1) }, h(IconChevronLeftOutlineMedium, { size: 12 }))
+      ? h(
+          'button',
+          { type: 'button', className: css.stepLeft, 'aria-label': label + ' · ' + stepPreviousLabel, onClick: () => step(-1) },
+          h(IconChevronLeftOutlineMedium, { size: 12 })
+        )
       : null,
     edges.right
-      ? h('button', { type: 'button', className: css.stepRight, 'aria-label': label + ' · 向后一个', onClick: () => step(1) }, h(IconChevronRightOutlineMedium, { size: 12 }))
+      ? h(
+          'button',
+          { type: 'button', className: css.stepRight, 'aria-label': label + ' · ' + stepNextLabel, onClick: () => step(1) },
+          h(IconChevronRightOutlineMedium, { size: 12 })
+        )
       : null
   )
 }
