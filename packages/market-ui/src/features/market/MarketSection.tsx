@@ -248,7 +248,10 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       ...(surfaceError === undefined ? {} : { warning: `⚠ ${surfaceError}` }),
       // Text the card does not render, so search still finds it.
       keywords: [suite.name, suite.description ?? '', ...suite.keywords].join(' '),
-      state: suite.enabled && suite.installed ? ('active' as const) : ('disabled' as const),
+      // Three facts, three edges: running, installed but switched off, and not
+      // installed at all. The last one used to paint the "off" grey, which made a
+      // market of 971 uninstalled suites read as a wall of disabled ones.
+      state: !suite.installed ? ('absent' as const) : suite.enabled ? ('active' as const) : ('disabled' as const),
       hideToggle: !suite.installed,
       toggleLabel: suite.enabled ? t('disable') : t('enable'),
       ...(suite.installed

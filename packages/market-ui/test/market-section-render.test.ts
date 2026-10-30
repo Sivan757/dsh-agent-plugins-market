@@ -178,6 +178,29 @@ describe('MarketSection rendering', () => {
     expect(bodyText).not.toContain('f0e9fdf066c1')
   })
 
+  it('paints three edges: running, installed but off, and not installed at all', async () => {
+    // An uninstalled suite used to wear the same grey "off" edge as a suite the
+    // reader had switched off, so a market of 971 uninstalled suites read as a
+    // wall of disabled ones. The three facts now have three chromes.
+    const base = overviewPayload.suites[0]!
+    await stubOverview({
+      ...overviewPayload,
+      suites: [
+        { ...base, suiteId: 'running', name: 'Running Suite', installed: true, enabled: true },
+        { ...base, suiteId: 'switched-off', name: 'Off Suite', installed: true, enabled: false },
+        { ...base, suiteId: 'absent', name: 'Absent Suite', installed: false, enabled: false }
+      ]
+    })
+    const el = await mountSection()
+    const stateOf = (name: string): string | null => {
+      const card = [...el.querySelectorAll<HTMLElement>('article')].find(node => (node.textContent ?? '').includes(name))
+      return card?.getAttribute('data-resource-state') ?? null
+    }
+    expect(stateOf('Running Suite')).toBe('active')
+    expect(stateOf('Off Suite')).toBe('disabled')
+    expect(stateOf('Absent Suite')).toBe('absent')
+  })
+
   it('gives each source pill its label width, capped, so two long ids stay distinguishable', async () => {
     // Equal-width cells truncated `claude-code-plugins-plus-skills` and
     // `claude-code-workflows` to the same stump; an id is how a reader picks a

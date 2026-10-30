@@ -3,7 +3,15 @@ import { Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { hintProps, hoverHint } from './hover-hint.js'
 import css from './resource-card.module.css'
 
-export type ResourceState = 'active' | 'disabled' | 'warning' | 'error'
+/**
+ * The card's chrome.
+ *
+ * `absent` is an entry the surface lists but does not own yet — an uninstalled
+ * suite. It keeps the rail's width so a grid of them still lines up, and paints
+ * nothing: "switched off" and "not here yet" are different facts, and the reader
+ * acts on them differently.
+ */
+export type ResourceState = 'active' | 'disabled' | 'warning' | 'error' | 'absent'
 
 /** The surface a card belongs to; a few narrow-container rules key off it. */
 export type ResourceSurface = 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'

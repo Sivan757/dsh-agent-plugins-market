@@ -45,6 +45,11 @@
 .card[data-resource-state='disabled'] {
   border-left-color: var(--dsw-alias-label-tertiary);
 }
+/* Not in the workspace at all: the rail keeps its width so the grid lines up,
+   and paints nothing, so it never claims a state it does not have. */
+.card[data-resource-state='absent'] {
+  border-left-color: transparent;
+}
 .card[data-resource-state='warning'] {
   border-left-color: var(--dsw-alias-state-warn-primary);
 }

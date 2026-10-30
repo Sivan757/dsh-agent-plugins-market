@@ -14,6 +14,7 @@
 import { createElement as h, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { CardActions, CardBody, CardCount, CardFoot, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from './ResourceCard.js'
+import type { ResourceState } from './ResourceCard.js'
 import { hintProps, hoverHint } from './hover-hint.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
 import { useWorkspaceView } from './workspace-view.js'
@@ -82,7 +83,7 @@ export interface ResourceEntry {
   /** Whether the entry can be used as it stands. */
   disabled?: boolean
   /** Explicit card chrome when the surface needs a state the flag cannot express. */
-  state?: 'active' | 'disabled' | 'warning' | 'error'
+  state?: ResourceState
   /** The switch does not apply to this entry at all, so the card shows no control. */
   hideToggle?: boolean
 }
