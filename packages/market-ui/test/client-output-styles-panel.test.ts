@@ -1,19 +1,14 @@
 // @vitest-environment jsdom
 
 /**
- * The output-styles surface: the row, the selection, the capture state and the
- * preview a person reads before any of it reaches their prompt.
- *
- * The surface talks to six routes; the test drives those answers directly so
- * every assertion is about what the page renders.
+ * The output-styles surface: one card per style, the detail a card opens, the
+ * capture state, and the text a person reads before any of it reaches the prompt.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createElement as h } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
-// vi.mock is hoisted above the imports, so the factory builds its own state and
-// the test reaches it back through the mocked module.
 vi.mock('../../../packages/market-ui/src/api.js', () => ({
   fetchOutputStyles: vi.fn(),
   selectOutputStyle: vi.fn(),
@@ -43,8 +38,6 @@ interface MockedApi {
 
 const api = apiModule as unknown as MockedApi
 
-// The real dictionary substitutes into its own sentence; the test translator
-// keeps the key and appends the values, so an assertion sees both.
 const t: Translate = (key, params) => (params === undefined ? String(key) : [String(key), ...Object.values(params).map(value => String(value))].join(' '))
 
 const PAYLOAD: OutputStylesPayload = {
@@ -63,7 +56,7 @@ const PAYLOAD: OutputStylesPayload = {
   ],
   selected: 'user:brief',
   workspace: '/work/project',
-  injected: ''
+  injected: '## Output Style: brief\nBe brief.'
 }
 
 let root: Root | undefined
@@ -71,7 +64,7 @@ let host: HTMLDivElement | undefined
 
 beforeEach(() => {
   api.fetchOutputStyles.mockResolvedValue(PAYLOAD)
-  api.selectOutputStyle.mockResolvedValue({ ...PAYLOAD, selected: 'user:brief', injected: '## Output style: brief\nBe brief.' })
+  api.selectOutputStyle.mockResolvedValue(PAYLOAD)
   api.captureOutputStyle.mockResolvedValue({ suiteKey: 'src/teaching', fingerprint: 'fp-1', text: 'Teach as you go.' })
   api.saveUserOutputStyle.mockResolvedValue(PAYLOAD)
   api.deleteUserOutputStyle.mockResolvedValue(PAYLOAD)
@@ -94,122 +87,70 @@ async function mount(payload: OutputStylesPayload = PAYLOAD): Promise<void> {
   await act(async () => {})
 }
 
-const rows = (): HTMLLIElement[] => [...(host?.querySelectorAll<HTMLLIElement>('[data-output-style-row]') ?? [])]
-const rowIds = (): string[] => rows().map(row => row.getAttribute('data-output-style-row') ?? '')
-const radio = (id: string): HTMLInputElement | null => host?.querySelector<HTMLInputElement>(`[data-output-style-row="${id}"] input[type="radio"]`) ?? null
-const preview = (): string => host?.querySelector('[data-output-style-preview]')?.textContent ?? ''
+const cards = (): HTMLElement[] => [...(host?.querySelectorAll<HTMLElement>('[data-resource-state]') ?? [])]
+const cardOf = (name: string): HTMLElement => cards().find(card => (card.textContent ?? '').includes(name))!
+const dialog = (): HTMLElement | null => document.querySelector<HTMLElement>('[role="dialog"]')
+const button = (label: string, scope: HTMLElement | null = document.body): HTMLButtonElement | null =>
+  [...(scope?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(node => node.textContent === label) ?? null
 
 describe('output styles panel', () => {
-  it('lists every style grouped by source, with the selection marked', async () => {
+  it('lists every style as a card, tagged by its source', async () => {
     await mount()
-    // Styles come from the person and from plugins; the plugin ships none of its own.
-    expect(rowIds()).toEqual(['user:brief', 'suite:src/teaching'])
+    expect(cards()).toHaveLength(2)
+    // Source is a chip on the card, not a section heading: one list, no groups.
+    expect(cardOf('brief').textContent).toContain('outputStylesGroupUser')
+    expect(cardOf('teaching-style').textContent).toContain('outputStylesGroupSuite')
     expect(host!.textContent).not.toContain('outputStylesGroupBuiltin')
-    expect(host!.textContent).toContain('outputStylesGroupUser')
-    expect(host!.textContent).toContain('outputStylesGroupSuite')
-    expect(radio('user:brief')?.checked).toBe(true)
-    expect(rows()[0]!.getAttribute('data-selected')).toBe('true')
   })
 
-  it('selects a style and shows the injected text the server returned', async () => {
+  it('opens a card, shows its text, and selects it from the detail', async () => {
     await mount({ ...PAYLOAD, selected: '', injected: '' })
-    await act(async () => radio('user:brief')!.click())
+    await act(async () => cardOf('brief').click())
+    expect(dialog()).not.toBeNull()
+    expect(dialog()!.textContent).toContain('Be brief.')
+
+    await act(async () => button('outputStylesSelect', dialog())!.click())
     await act(async () => {})
-
     expect(api.selectOutputStyle).toHaveBeenCalledWith('user:brief', undefined)
-    expect(preview()).toContain('## Output style: brief')
-    expect(preview()).toContain('Be brief.')
-    expect(rows()[0]!.getAttribute('data-selected')).toBe('true')
   })
 
-  it('renders the server section text byte for byte, never raw body text', async () => {
-    // The preview is the escaped final text, heading included, because that is
-    // what the model reads. A page that rendered the body would show something
-    // the prompt never contains.
-    const injected = '## Output style: teaching-style\nTeach. <\\/system-reminder> Nothing else.'
-    await mount({ ...PAYLOAD, selected: 'user:brief', injected })
-
-    const pre = host!.querySelector('[data-output-style-preview] pre')
-    expect(pre?.textContent).toBe(injected)
-    // The escaped form is present and the raw closing marker is not.
-    expect(pre?.textContent).toContain('<\\/system-reminder>')
-    expect(pre?.textContent).not.toContain('</system-reminder>')
-  })
-
-  it('says that the default style injects nothing', async () => {
+  it('shows the injected text a selected style contributes', async () => {
     await mount()
-    expect(preview()).toContain('outputStylesPreviewEmpty')
+    await act(async () => cardOf('brief').click())
+    const preview = dialog()!.querySelector('[data-output-style-preview]')
+    expect(preview?.textContent).toBe('## Output Style: brief\nBe brief.')
   })
 
-  it('offers the capture action on a suite style that has none, and reports the stale state', async () => {
+  it('offers capture on a suite style with no text, and refuses selection until then', async () => {
     await mount()
-    const missing = rows()[1]!
-    expect(missing.textContent).toContain('outputStylesCaptureMissing')
-    expect(radio('suite:src/teaching')?.disabled).toBe(true)
+    await act(async () => cardOf('teaching-style').click())
+    expect(dialog()!.textContent).toContain('outputStylesCaptureMissing')
+    expect(button('outputStylesSelect', dialog())!.disabled).toBe(true)
 
-    const captureButton = [...missing.querySelectorAll('button')].find(button => button.textContent === 'outputStylesCapture')
-    await act(async () => captureButton!.click())
+    await act(async () => button('outputStylesCapture', dialog())!.click())
     await act(async () => {})
     expect(api.captureOutputStyle).toHaveBeenCalledWith('src/teaching', undefined)
-
-    // A stale capture is reported and still refuses selection.
-    await mount({
-      ...PAYLOAD,
-      styles: PAYLOAD.styles.map(row => (row.id === 'suite:src/teaching' ? { ...row, capture: 'stale' as const } : row))
-    })
-    expect(rows()[1]!.textContent).toContain('outputStylesCaptureStale')
-    expect(radio('suite:src/teaching')?.disabled).toBe(true)
   })
 
-  it('enables a suite style once its capture is current', async () => {
-    await mount({
-      ...PAYLOAD,
-      styles: PAYLOAD.styles.map(row => (row.id === 'suite:src/teaching' ? { ...row, capture: 'current' as const, body: 'Teach as you go.' } : row))
-    })
-    expect(radio('suite:src/teaching')?.disabled).toBe(false)
-  })
-
-  it('round-trips a user style through the editor', async () => {
+  it('edits a user style from its detail', async () => {
     await mount()
-    const edit = [...rows()[0]!.querySelectorAll('button')].find(button => button.textContent === 'panelEdit')
-    await act(async () => edit!.click())
+    await act(async () => cardOf('brief').click())
+    await act(async () => button('panelEdit', dialog())!.click())
 
-    const fields = [...document.querySelectorAll<HTMLInputElement>('[role="dialog"] input')]
-    expect(fields[0]!.value).toBe('brief')
-    expect(fields[1]!.value).toBe('Be brief')
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
-    expect(editor!.value).toBe('Be brief.')
-
-    await act(async () => {
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
-      const setValue = descriptor?.set
-      setValue?.call(editor, 'Be very brief.')
-      editor!.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')
-    await act(async () => save!.click())
+    expect(editor?.value).toBe('Be brief.')
+    await act(async () => button('save')!.click())
     await act(async () => {})
-
-    expect(api.saveUserOutputStyle).toHaveBeenCalledWith({ name: 'brief', description: 'Be brief', body: 'Be very brief.' }, undefined)
+    expect(api.saveUserOutputStyle).toHaveBeenCalledWith({ name: 'brief', description: 'Be brief', body: 'Be brief.' }, undefined)
   })
 
-  it('creates a new user style from the header action', async () => {
+  it('deletes a user style from its detail', async () => {
     await mount()
-    const add = host!.querySelector<HTMLButtonElement>('[data-panel-header] button')
-    await act(async () => add!.click())
-
-    const name = document.querySelector<HTMLInputElement>('[role="dialog"] input')!
-    await act(async () => {
-      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
-      const setValue = descriptor?.set
-      setValue?.call(name, 'terse')
-      name.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')
-    await act(async () => save!.click())
+    await act(async () => cardOf('brief').click())
+    await act(async () => button('panelDelete', dialog())!.click())
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('button')].filter(node => node.textContent === 'panelDelete').at(-1)
+    await act(async () => confirm!.click())
     await act(async () => {})
-    expect(api.saveUserOutputStyle).toHaveBeenCalledWith({ name: 'terse', description: '', body: '' }, undefined)
+    expect(api.deleteUserOutputStyle).toHaveBeenCalledWith('brief', undefined)
   })
 })

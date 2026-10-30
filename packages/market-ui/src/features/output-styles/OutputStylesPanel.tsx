@@ -23,7 +23,8 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
-import { captureAction, groupLocaleKey, groupOutputStyles, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
+import { CardListSurface } from '../../ui/CardListSurface.js'
+import { captureAction, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
 import css from './output-styles.module.css'
 
 interface OutputStylesPanelProps {
@@ -49,6 +50,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
   const [busyStyle, setBusyStyle] = useState<string | undefined>(undefined)
   const [editor, setEditor] = useState<EditorState | undefined>(undefined)
   const [confirm, setConfirm] = useState<PanelConfirmState | undefined>(undefined)
+  const [detail, setDetail] = useState<OutputStyleRow | undefined>(undefined)
 
   const refresh = (): void => {
     setLoading(true)
@@ -141,36 +143,46 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
     }),
     error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('outputStylesErrorTitle'), ' ', error),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
-    ...groupOutputStyles(payload.styles).map(group =>
-      h(
-        'section',
-        { key: group.source, className: css.group },
-        h('h3', { className: css.groupTitle }, t(groupLocaleKey(group.source))),
-        h(
-          'ul',
-          { className: css.list },
-          group.rows.map(row =>
-            h(StyleRow, {
-              key: row.id,
-              row,
-              t,
-              selected: row.id === payload.selected,
-              busy: busyStyle === row.id,
-              onSelect: () => select(row),
-              onCapture: () => capture(row),
-              onEdit: () => setEditor({ name: userNameOf(row) ?? '', description: row.description, body: row.body, exists: true }),
-              onDelete: () => askDelete(row)
-            })
-          )
-        )
-      )
-    ),
-    h(
-      'section',
-      { className: css.preview, 'data-output-style-preview': true },
-      h('h3', { className: css.groupTitle }, t('outputStylesPreviewTitle')),
-      payload.injected === '' ? h('p', { className: css.empty }, t('outputStylesPreviewEmpty')) : h('pre', { className: css.previewText }, payload.injected)
-    ),
+    // One card per style, the same grid the catalogue panels draw: the list is for
+    // scanning and the card opens everything a person can do with that style.
+    h(CardListSurface, {
+      items: payload.styles.map(row => ({
+        id: row.id,
+        name: row.label,
+        tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
+        description: row.description,
+        meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
+        disabled: !isSelectable(row)
+      })),
+      emptyText: t('outputStylesEmpty'),
+      onOpen: id => setDetail(payload.styles.find(row => row.id === id))
+    }),
+    detail === undefined
+      ? null
+      : h(StyleDetail, {
+          t,
+          row: detail,
+          selected: detail.id === payload.selected,
+          injected: payload.injected,
+          busy: busyStyle === detail.id,
+          onSelect: () => {
+            select(detail)
+            setDetail(undefined)
+          },
+          onCapture: () => {
+            capture(detail)
+            setDetail(undefined)
+          },
+          onEdit: () => {
+            setEditor({ name: userNameOf(detail) ?? '', description: detail.description, body: detail.body, exists: true })
+            setDetail(undefined)
+          },
+          onDelete: () => {
+            askDelete(detail)
+            setDetail(undefined)
+          },
+          onClose: () => setDetail(undefined)
+        }),
     editor === undefined ? null : h(StyleEditor, { t, draft: editor, error, onChange: setEditor, onClose: () => setEditor(undefined), onSave: save }),
     h(ConfirmModal, { state: confirm, confirmLabel: t('panelDelete'), cancelLabel: t('cancel'), onClose: () => setConfirm(undefined) })
   )
@@ -253,47 +265,55 @@ function StyleEditor(props: {
   )
 }
 
-/** One style row: a selection control, the label, its state, and its actions. */
-function StyleRow(props: {
-  row: OutputStyleRow
+/** One style's detail: its text, what the prompt would carry, and the actions it allows. */
+function StyleDetail(props: {
   t: Translate
+  row: OutputStyleRow
   selected: boolean
+  injected: string
   busy: boolean
   onSelect: () => void
   onCapture: () => void
   onEdit: () => void
   onDelete: () => void
+  onClose: () => void
 }): ReactNode {
-  const { row, t, selected, busy, onSelect, onCapture, onEdit, onDelete } = props
+  const { t, row, selected, injected, busy, onSelect, onCapture, onEdit, onDelete, onClose } = props
   const userStyle = row.source === 'user'
   const selectable = isSelectable(row)
   const action = captureAction(row)
-  const group = 'output-style-' + row.id.replace(/[^a-z0-9]+/gi, '-')
+  // A selected style shows the bytes the prompt receives; another style shows its own
+  // text, because that is what selecting it would send.
+  const shown = selected && injected !== '' ? injected : row.body
   return h(
-    'li',
-    { className: selected ? css.rowSelected : css.row, 'data-output-style-row': row.id, 'data-selected': selected ? 'true' : 'false' },
-    h('input', {
-      type: 'radio',
-      name: 'output-style',
-      id: group,
-      checked: selected,
-      disabled: busy || !selectable,
-      'aria-label': row.label,
-      onChange: onSelect
-    }),
+    DetailModal,
+    {
+      open: true,
+      size: 'lg',
+      onClose,
+      title: row.label,
+      closeLabel: t('cancel'),
+      footer: h(
+        'div',
+        { className: css.footer },
+        selected ? h(Tag, { tone: 'success' }, t('outputStylesSelected')) : null,
+        h('div', { className: css.grow }),
+        action === 'none'
+          ? null
+          : h(Button, { variant: 'outline', disabled: busy, onClick: onCapture }, action === 'first' ? t('outputStylesCapture') : t('outputStylesRecapture')),
+        userStyle ? h(Button, { variant: 'outline', disabled: busy, onClick: onEdit }, t('panelEdit')) : null,
+        userStyle ? h(Button, { variant: 'ghost', disabled: busy, onClick: onDelete }, t('panelDelete')) : null,
+        h(Button, { variant: 'primary', disabled: busy || !selectable || selected, onClick: onSelect }, t('outputStylesSelect'))
+      )
+    },
     h(
-      'label',
-      { className: css.rowBody, htmlFor: group, title: row.description },
-      h('span', { className: css.rowLabel }, row.label),
-      h('span', { className: css.rowDescription }, row.description),
-      row.capture === 'missing' ? h('span', { className: css.rowWarn }, t('outputStylesCaptureMissing')) : null,
-      row.capture === 'stale' ? h('span', { className: css.rowWarn }, t('outputStylesCaptureStale')) : null
-    ),
-    selected ? h(Tag, { tone: 'success' }, t('outputStylesSelected')) : null,
-    action === 'none'
-      ? null
-      : h(Button, { variant: 'ghost', size: 'sm', disabled: busy, onClick: onCapture }, action === 'first' ? t('outputStylesCapture') : t('outputStylesRecapture')),
-    userStyle ? h(Button, { variant: 'ghost', size: 'sm', disabled: busy, onClick: onEdit }, t('panelEdit')) : null,
-    userStyle ? h(Button, { variant: 'ghost', size: 'sm', disabled: busy, onClick: onDelete }, t('panelDelete')) : null
+      'div',
+      { className: css.editorStack },
+      h('p', { className: css.rowDescription }, row.description),
+      row.capture === 'missing' ? h('p', { className: css.rowWarn }, t('outputStylesCaptureMissing')) : null,
+      row.capture === 'stale' ? h('p', { className: css.rowWarn }, t('outputStylesCaptureStale')) : null,
+      h('h4', { className: css.groupTitle }, t('outputStylesPreviewTitle')),
+      shown === '' ? h('p', { className: css.empty }, t('outputStylesPreviewEmpty')) : h('pre', { className: css.previewText, 'data-output-style-preview': true }, shown)
+    )
   )
 }

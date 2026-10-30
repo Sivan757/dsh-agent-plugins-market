@@ -523,7 +523,6 @@ export const zh = {
   /* ---- Output styles tab (the injected prompt section) ---- */
   workspaceTabOutputStyles: '输出风格',
   outputStylesSubtitle: '为当前工作区选择一个输出风格。选中的风格会作为一段系统提示注入，预览里就是模型实际收到的文字。',
-  outputStylesGroupBuiltin: '内置',
   outputStylesGroupUser: '自建',
   outputStylesGroupSuite: '来自套件',
   outputStylesSelected: '已选中',
@@ -534,7 +533,6 @@ export const zh = {
   outputStylesRecapture: '重新抓取',
   outputStylesCaptureMissing: '这个套件还没抓取过文本，抓取一次才能选用。',
   outputStylesCaptureStale: '套件已变更，抓取到的文字已过期，请重新抓取。',
-  outputStylesCaptureHint: '抓取会运行该套件自己的 SessionStart 钩子一次，保存它输出的文本。选取的始终是你抓取并预览过的那段文字。',
   outputStylesCapturedAt: '抓取时间',
   outputStylesEditTitle: '编辑输出风格 {name}',
   outputStylesCreateTitle: '新建输出风格',
@@ -546,7 +544,8 @@ export const zh = {
   outputStylesDeleteTitle: '删除输出风格 {name}',
   outputStylesDeleteDesc: '删除这个自建风格的文件，操作无法撤销。',
   outputStylesErrorTitle: '读取输出风格失败',
-  outputStylesRequired: '未加入提示'
+  outputStylesRequired: '未加入提示',
+  outputStylesEmpty: '还没有任何风格。插件可以提供，你也可以新建一个。'
 }
 
 export type LocaleKey = keyof typeof zh
@@ -1074,7 +1073,6 @@ export const en: Record<LocaleKey, string> = {
   workspaceTabOutputStyles: 'Output styles',
   outputStylesSubtitle:
     'Choose one output style for this workspace. The selected style is injected as a system prompt section, and the preview shows exactly what the model receives.',
-  outputStylesGroupBuiltin: 'Built-in',
   outputStylesGroupUser: 'Yours',
   outputStylesGroupSuite: 'From suites',
   outputStylesSelected: 'Selected',
@@ -1085,7 +1083,6 @@ export const en: Record<LocaleKey, string> = {
   outputStylesRecapture: 'Capture again',
   outputStylesCaptureMissing: 'This suite has not been captured yet. Capture it once before you can use it.',
   outputStylesCaptureStale: 'The suite changed, so the captured text is out of date. Capture it again.',
-  outputStylesCaptureHint: 'Capturing runs the suite own SessionStart hook once and stores the text it prints. You always use text you captured and previewed.',
   outputStylesCapturedAt: 'Captured',
   outputStylesEditTitle: 'Edit output style {name}',
   outputStylesCreateTitle: 'New output style',
@@ -1097,5 +1094,6 @@ export const en: Record<LocaleKey, string> = {
   outputStylesDeleteTitle: 'Delete output style {name}',
   outputStylesDeleteDesc: 'Deletes this style file. This cannot be undone.',
   outputStylesErrorTitle: 'Reading output styles failed',
-  outputStylesRequired: 'Not added to the prompt'
+  outputStylesRequired: 'Not added to the prompt',
+  outputStylesEmpty: 'No styles yet. A plugin can provide one, and you can create one.'
 }
