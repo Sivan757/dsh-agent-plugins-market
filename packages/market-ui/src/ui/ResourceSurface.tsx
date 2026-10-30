@@ -80,6 +80,8 @@ export interface ResourceSurfaceProps {
   onOpen: (id: string) => void
   /** Called when an entry's switch changes; required when `capabilities.toggle` is set. */
   onToggle?: (id: string, enabled: boolean) => void
+  /** Opens the entry's own editor. Editing is not destructive, so it stays on the card. */
+  onEdit?: (id: string) => void
   /** Which entries are currently on; the switch state. */
   isOn?: (id: string) => boolean
   /** Whether an entry's switch is disabled. */
@@ -171,6 +173,17 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                       })
                     )
                   : null,
+                props.onEdit === undefined
+                  ? null
+                  : h(
+                      'span',
+                      {
+                        className: surface.edit,
+                        onClick: (event: { stopPropagation(): void }) => event.stopPropagation(),
+                        onKeyDown: (event: { stopPropagation(): void }) => event.stopPropagation()
+                      },
+                      h('button', { type: 'button', className: surface.editButton, 'aria-label': t('panelEdit') + ' ' + entry.name, onClick: () => props.onEdit?.(entry.id) }, '✎')
+                    ),
                 entry.description === undefined ? null : h('p', { className: surface.description }, entry.description),
                 entry.warning === undefined ? null : h(CardWarning, { text: entry.warning, label: entry.warning }),
                 capabilities.counts === true && entry.counts !== undefined

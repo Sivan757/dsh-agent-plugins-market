@@ -41,3 +41,24 @@
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
+.edit {
+  position: absolute;
+  top: 12px;
+  right: 52px;
+  display: inline-flex;
+}
+
+.editButton {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.editButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}

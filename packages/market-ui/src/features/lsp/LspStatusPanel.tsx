@@ -11,7 +11,7 @@
  */
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, IconEditOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigModal } from '../../ui/ServerConfigModal.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
@@ -26,19 +26,16 @@ import {
   type LspStatusPayload,
   type LspStatusState
 } from '../../api.js'
-import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { failureGuidanceKey } from '../../ui/failure-guidance.js'
-import { CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection, type ResourceState } from '../../ui/ResourceCard.js'
+import { type ResourceState } from '../../ui/ResourceCard.js'
 import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
-import { useWorkspaceView } from '../../ui/workspace-view.js'
-import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './lsp-status-view-model.js'
+import { type LspStatusFilter } from './lsp-status-view-model.js'
 import css from '../mcp/mcp-status.module.css'
-import rc from '../../ui/resource-card.module.css'
 import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
-import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 
 interface LspStatusPanelProps {
   t: Translate
@@ -59,22 +56,11 @@ function lspFilterLabel(t: Translate, kind: LspStatusFilter): string {
   return t('lspAll')
 }
 
-/** Tooltip text per filter: the counts alone do not explain the grouping. */
-function lspFilterHint(t: Translate, kind: LspStatusFilter): string {
-  if (kind === 'plugin') return t('lspFilterPluginHint')
-  if (kind === 'direct') return t('lspFilterDirectHint')
-  if (kind === 'disabled') return t('lspFilterDisabledHint')
-  return t('lspFilterAllHint')
-}
-
 /** Language-server inventory with per-state overview and per-server detail. */
 export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const [payload, setPayload] = useState<LspStatusPayload>(EMPTY_STATUS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [filter, setFilter] = useState<LspStatusFilter>('all')
-  const [search, setSearch] = useState('')
-  const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<LspStatusEntry | undefined>(undefined)
   const [editing, setEditing] = useState<LspStatusEntry>()
   const [editorOpen, setEditorOpen] = useState(false)
@@ -136,15 +122,8 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     }
   }, [anyStarting])
 
-  const { filtered, filterCounts } = deriveLspStatusViewModel(payload, filter, search)
   // The filter tablist names this region, and the host derives its panel id
   // (`<filterId>-<value>-panel`) from the same base the toolbar receives.
-  const filterId = 'lsp-status-filter'
-  const panelProps = {
-    role: 'tabpanel' as const,
-    id: `${filterId}-${filter}-panel`,
-    'aria-labelledby': `${filterId}-${filter}`
-  }
 
   return h(
     'div',
@@ -167,48 +146,42 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
             refresh()
           }
         }),
-    h(SearchFilterToolbar, {
-      className: css.toolbar,
-      search,
+    error !== undefined ? h('div', { className: css.error }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry'))) : null,
+    // The shared renderer draws the list; the panel supplies entries, the detail and the editor.
+    h(ResourceSurface, {
+      t,
+      entries: payload.entries.map(entry => ({
+        id: entry.id,
+        name: entry.serverKey,
+        mono: true,
+        tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'),
+        description: entry.command,
+        meta: entry.suiteName === undefined ? String(Object.keys(entry.extensions).length) : entry.suiteName,
+        state: lspCardState(entry.state)
+      })),
+      capabilities: { toggle: true },
       searchLabel: t('lspSearch'),
       searchPlaceholder: t('lspSearch'),
-      onSearchChange: setSearch,
-      filters: LSP_FILTERS.map(key => ({
-        id: key,
-        label: lspFilterLabel(t, key),
-        count: filterCounts[key],
-        active: filter === key,
-        onSelect: () => setFilter(key),
-        hint: lspFilterHint(t, key)
-      })),
-      // The panel's own title names the filter segment for assistive tech.
-      filterId,
-      filterLabel: t('lspStatusTitle'),
-      view,
-      toListLabel: t('switchToList'),
-      toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView)
+      filters: [
+        { id: 'direct', label: lspFilterLabel(t, 'direct'), match: entry => entry.tag === t('lspDirect') },
+        { id: 'plugin', label: lspFilterLabel(t, 'plugin'), match: entry => entry.tag === t('lspPlugin') },
+        { id: 'disabled', label: lspFilterLabel(t, 'disabled'), match: entry => entry.state === 'disabled' }
+      ],
+      emptyText: loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),
+      onOpen: entryId => {
+        const entry = payload.entries.find(item => item.id === entryId)
+        if (entry !== undefined) setSelected(entry)
+      },
+      onToggle: entryId => {
+        const entry = payload.entries.find(item => item.id === entryId)
+        if (entry !== undefined) toggle(entry)
+      },
+      onEdit: entryId => {
+        const entry = payload.entries.find(item => item.id === entryId)
+        if (entry !== undefined) setEditing(entry)
+      },
+      isOn: entryId => payload.entries.find(item => item.id === entryId)?.state !== 'disabled'
     }),
-    error !== undefined
-      ? h('div', { className: css.error, ...panelProps }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
-      : loading && payload.entries.length === 0
-        ? h('div', { className: css.empty, ...panelProps }, t('loading'))
-        : filtered.length === 0
-          ? h('div', { className: css.empty, ...panelProps }, t('lspEmpty'))
-          : h(
-              ResourceCollection,
-              { view, ...panelProps },
-              filtered.map(entry =>
-                h(LspRow, {
-                  key: entry.id,
-                  entry,
-                  t,
-                  onOpen: () => setSelected(entry),
-                  onToggle: () => toggle(entry),
-                  onEdit: () => setEditing(entry)
-                })
-              )
-            ),
     selected === undefined
       ? null
       : h(LspDetailModal, {
@@ -318,66 +291,6 @@ function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | '
   if (state === 'failed' || state === 'conflict') return 'danger'
   if (state === 'disabled') return 'neutral'
   return 'warning'
-}
-
-/**
- * One language-server card: the server key with its state tag on the identity
- * row and the enable switch on its trailing edge; the command on the body row;
- * the declaring suite and the extension count on the source row.
- */
-function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry; t: Translate; onOpen: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
-  const interactive = interactiveCardProps(onOpen)
-  const extensions = Object.keys(entry.extensions).length
-  const disabled = entry.state === 'disabled'
-  return h(
-    ResourceCard,
-    { state: lspCardState(entry.state), surface: 'lsp', ...interactive },
-    // The state rail on the card's leading edge carries the state; a written
-    // label beside it would say the same thing twice.
-    h(CardIdentity, { text: entry.serverKey, mono: true, tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'), chip: true }),
-    h(
-      'div',
-      { className: rc.rowActions },
-      // The editor is the dialog the add flow uses; it sits just before the
-      // switch, where the row's actions end.
-      h(
-        'button',
-        {
-          type: 'button',
-          className: rc.iconBtn,
-          title: t('panelEdit'),
-          'aria-label': `${t('panelEdit')} ${entry.serverKey}`,
-          onClick: (event: { stopPropagation(): void }) => {
-            event.stopPropagation()
-            onEdit()
-          }
-        },
-        h(IconEditOutlineMedium)
-      ),
-      h(
-        'span',
-        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
-        h(Switch, {
-          checked: !disabled,
-          label: disabled ? t('enable') : t('disable'),
-          title: disabled ? t('enable') : t('disable'),
-          onChange: onToggle
-        })
-      )
-    ),
-    // The card clips this line to one row, so it carries the full command as a hint.
-    hoverHint([entry.command, ...entry.args].join(' '), h('p', hintProps({ className: `${rc.rowBody} ${rc.monoLine}` }), [entry.command, ...entry.args].join(' '))),
-    h(
-      'div',
-      { className: rc.rowFoot },
-      hoverHint(
-        entry.kind === 'plugin' ? entry.suiteName : entry.serverKey,
-        h('span', hintProps({ className: rc.provenance }), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'))
-      ),
-      h('span', { className: rc.separator }, '·'),
-      h('span', { className: rc.count }, h('span', { className: rc.countValue }, String(extensions)), ' ', t('lspExtensionCount'))
-    )
-  )
 }
 
 export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Translate; onClose: () => void }): ReactNode {
