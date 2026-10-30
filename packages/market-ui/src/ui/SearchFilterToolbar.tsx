@@ -78,22 +78,24 @@ export function SearchFilterToolbar(props: SearchFilterToolbarProps): ReactNode 
         onChange: event => props.onSearchChange(event.target.value)
       })
     ),
-    // The host control derives each tab's id from this base id; the caller owns
-    // the panels the tabs name and reuses the same base for their ids.
-    h(SegmentedControl, {
-      id: props.filterId,
-      value: props.filters.find(filter => filter.active)?.id ?? props.filters[0]?.id ?? '',
-      // The host option label is a plain string, so the count rides the same
-      // text the previous pills put in their accessible name.
-      options: props.filters.map(filter => ({
-        value: filter.id,
-        label: `${filter.label} ${filter.count}`,
-        ...(filter.hint === undefined ? {} : { title: filter.hint })
-      })),
-      onChange: id => props.filters.find(filter => filter.id === id)?.onSelect(),
-      label: props.filterLabel,
-      className: css.segment
-    }),
+    // A surface with no cut of its own supplies no options, and a one-tab strip
+    // would only say "all" about a list that is already all.
+    props.filters.length === 0
+      ? null
+      : h(SegmentedControl, {
+          id: props.filterId,
+          value: props.filters.find(filter => filter.active)?.id ?? props.filters[0]?.id ?? '',
+          // The host option label is a plain string, so the count rides the same
+          // text the previous pills put in their accessible name.
+          options: props.filters.map(filter => ({
+            value: filter.id,
+            label: `${filter.label} ${filter.count}`,
+            ...(filter.hint === undefined ? {} : { title: filter.hint })
+          })),
+          onChange: id => props.filters.find(filter => filter.id === id)?.onSelect(),
+          label: props.filterLabel,
+          className: css.segment
+        }),
     props.beforeView === undefined ? null : h('div', { className: css.beforeView }, props.beforeView),
     // One flat glyph, the same geometry as every other panel action: the icon
     // shows the mode in force, `aria-pressed` reports it, and the accessible

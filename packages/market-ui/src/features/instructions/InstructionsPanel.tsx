@@ -153,12 +153,9 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       t,
       searchLabel: t('cardSearch'),
       searchPlaceholder: t('instructionsSearchPh'),
-      // Two states matter here: a file the prompt loads, and a duplicate the host folds
-      // into an earlier one.
-      filters: [
-        { id: 'loaded', label: t('instructionsStatusLoaded'), match: item => item.tagId === 'loaded' },
-        { id: 'duplicate', label: t('instructionsStatusDuplicate'), match: item => item.tagId === 'duplicate' }
-      ],
+      // No tabs: this list is at most two rows, the tag already names each status,
+      // and a "loaded" tab would hide exactly the truncated rows someone opens the
+      // page to find.
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
       entries: payload.rows
         .filter(row => row.scope !== 'project' && row.exists)

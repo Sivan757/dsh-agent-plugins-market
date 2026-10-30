@@ -17,12 +17,16 @@ const mcpStatus: McpStatusPayload = {
 }
 
 describe('client MCP filters', () => {
-  it('filters MCP rows by scope, keeping switched-off rows reachable', () => {
+  it('isolates the rows that need a click, and the rows the user switched off', () => {
+    // A status surface earns its tabs from states, not from who declared the
+    // row: the declaring suite is a chip the row already prints.
     const ids = (filter: McpStatusFilter): string[] => mcpStatus.entries.filter(entry => matchesMcpFilter(entry, filter)).map(entry => entry.id)
     expect(ids('all')).toEqual(['plugin:one', 'direct:two', 'disabled:three'])
-    expect(ids('direct')).toEqual(['direct:two'])
-    // A switched-off row keeps its own scope as well as the switched-off tab.
-    expect(ids('plugin')).toEqual(['plugin:one', 'disabled:three'])
+    // `direct:two` is the failed row; a connected one and a switched-off one stay out.
+    expect(ids('attention')).toEqual(['direct:two'])
     expect(ids('disabled')).toEqual(['disabled:three'])
+    // The renderer's own "all" tab has no filter definition, and every row is
+    // reachable from it.
+    expect(mcpStatus.entries.length).toBe(3)
   })
 })

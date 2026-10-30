@@ -32,7 +32,6 @@ import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { failureGuidanceKey } from '../../ui/failure-guidance.js'
 import { type ResourceState } from '../../ui/ResourceCard.js'
 import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
-import { type LspStatusFilter } from './lsp-status-view-model.js'
 import css from '../mcp/mcp-status.module.css'
 import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
@@ -47,14 +46,6 @@ const EMPTY_STATUS: LspStatusPayload = {
   observedAt: '',
   totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 },
   hostMissing: true
-}
-
-/** Filter tab label; the switched-off tab reuses the shared panel wording. */
-function lspFilterLabel(t: Translate, kind: LspStatusFilter): string {
-  if (kind === 'plugin') return t('lspPlugin')
-  if (kind === 'direct') return t('lspDirect')
-  if (kind === 'disabled') return t('panelFilterDisabled')
-  return t('lspAll')
 }
 
 /** Language-server inventory with per-state overview and per-server detail. */
@@ -183,9 +174,16 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       searchLabel: t('lspSearch'),
       searchPlaceholder: t('lspSearch'),
       filters: [
-        { id: 'direct', label: lspFilterLabel(t, 'direct'), match: entry => entry.tag === t('lspDirect') },
-        { id: 'plugin', label: lspFilterLabel(t, 'plugin'), match: entry => entry.tag === t('lspPlugin') },
-        { id: 'disabled', label: lspFilterLabel(t, 'disabled'), match: entry => entry.state === 'disabled' }
+        // A status surface earns its tabs from states, not from who declared the
+        // row: the declaring suite is a chip the row already prints. Matching the
+        // card's own state also drops the old comparison against translated copy.
+        {
+          id: 'attention',
+          label: t('lspFilterAttention'),
+          hint: t('lspFilterAttentionHint'),
+          match: entry => entry.state === 'warning' || entry.state === 'error'
+        },
+        { id: 'disabled', label: t('panelFilterDisabled'), hint: t('lspFilterDisabledHint'), match: entry => entry.state === 'disabled' }
       ],
       emptyText: loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),
       onOpen: entryId => {

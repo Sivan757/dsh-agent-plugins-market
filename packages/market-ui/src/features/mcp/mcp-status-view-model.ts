@@ -1,11 +1,20 @@
 /** Pure MCP status filtering: the predicate the shared renderer counts tabs through. */
 import type { McpStatusEntry } from '../../api.js'
 
-/** MCP status list filter; `disabled` isolates the rows the user switched off. */
-export type McpStatusFilter = 'all' | 'plugin' | 'direct' | 'disabled'
+/**
+ * MCP status list filter.
+ *
+ * `attention` is the cut a status surface exists for: the rows that need a click.
+ * Which suite declared a row is a chip on the row itself, and at seven
+ * connectors that distinction fits on one screen, so it earns no tab.
+ */
+export type McpStatusFilter = 'all' | 'attention' | 'disabled'
 
-/** Filter tabs in display order: scope first, the switched-off rows last. */
-export const MCP_FILTERS: readonly McpStatusFilter[] = ['all', 'direct', 'plugin', 'disabled']
+/** Filter tabs in display order; the renderer adds `all` itself. */
+export const MCP_FILTERS: readonly McpStatusFilter[] = ['attention', 'disabled']
+
+/** The states a reader can act on: something is wrong or missing. */
+const NEEDS_ACTION: ReadonlySet<string> = new Set(['failed', 'degraded', 'needs-credentials', 'orphaned'])
 
 /**
  * Whether one row belongs to a filter.
@@ -22,7 +31,7 @@ export const MCP_FILTERS: readonly McpStatusFilter[] = ['all', 'direct', 'plugin
 export function matchesMcpFilter(entry: McpStatusEntry, filter: McpStatusFilter): boolean {
   if (filter === 'all') return true
   if (filter === 'disabled') return entry.state === 'disabled'
-  return entry.kind === filter
+  return NEEDS_ACTION.has(entry.state)
 }
 
 /** How long the panel waits when a moving connection names no next attempt. */

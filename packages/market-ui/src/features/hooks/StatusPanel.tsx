@@ -70,10 +70,8 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
       })),
       searchLabel: t('hooksPanelSearch'),
       searchPlaceholder: t('hooksPanelSearch'),
-      filters: [
-        { id: 'supported', label: t('hooksFilterSupported'), match: entry => entry.state !== 'warning' },
-        { id: 'limited', label: t('hooksFilterLimited'), match: entry => entry.state === 'warning' }
-      ],
+      // No tabs: "supported" equals "all" whenever nothing is limited, and the
+      // card's own warning already says why a row is limited.
       emptyText: loading && rows.length === 0 ? t('loading') : t('hooksPanelEmpty'),
       onOpen: rowId => {
         const row = rows.find(item => item.id === rowId)

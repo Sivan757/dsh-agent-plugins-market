@@ -347,16 +347,14 @@ function deletable(entry: McpStatusEntry): boolean {
  * that information without a second red stamp.
  */
 function filterLabel(t: Translate, kind: Filter): string {
-  if (kind === 'plugin') return t('mcpPlugin')
-  if (kind === 'direct') return t('mcpDirect')
+  if (kind === 'attention') return t('mcpFilterAttention')
   if (kind === 'disabled') return t('panelFilterDisabled')
-  return t('mcpAll')
+  return t('filterAll')
 }
 
 /** Hover/aria explanation for each MCP filter tab. */
 function mcpFilterHint(t: Translate, kind: Filter): string {
-  if (kind === 'plugin') return t('mcpFilterPluginHint')
-  if (kind === 'direct') return t('mcpFilterDirectHint')
+  if (kind === 'attention') return t('mcpFilterAttentionHint')
   if (kind === 'disabled') return t('mcpFilterDisabledHint')
-  return t('mcpFilterAllHint')
+  return t('filterAll')
 }

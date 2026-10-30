@@ -212,17 +212,22 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
     return () => observer.disconnect()
   }, [remaining, visible.length])
   const grow = (): void => setPage(current => current + 1)
-  const segments = [
-    { id: 'all', label: t('filterAll'), count: entries.length, active: filter === 'all', onSelect: () => setFilter('all') },
-    ...filters.map(entry => ({
-      id: entry.id,
-      label: entry.label,
-      count: entries.filter(item => entry.match(item)).length,
-      active: filter === entry.id,
-      onSelect: () => setFilter(entry.id),
-      ...(entry.hint === undefined ? {} : { hint: entry.hint })
-    }))
-  ]
+  // A surface with no cut of its own gets no filter segment at all: a tab strip
+  // with one tab ("all") is chrome that says nothing.
+  const hasFilters = filters.length > 0
+  const segments = !hasFilters
+    ? []
+    : [
+        { id: 'all', label: t('filterAll'), count: entries.length, active: filter === 'all', onSelect: () => setFilter('all') },
+        ...filters.map(entry => ({
+          id: entry.id,
+          label: entry.label,
+          count: entries.filter(item => entry.match(item)).length,
+          active: filter === entry.id,
+          onSelect: () => setFilter(entry.id),
+          ...(entry.hint === undefined ? {} : { hint: entry.hint })
+        }))
+      ]
   return h(
     'div',
     { className: surface.surface },
@@ -243,10 +248,14 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
           beforeView
         }),
     // The segmented control points aria-controls at one panel per filter, so every filter
-    // owns a panel and the active one is the one holding the collection.
+    // owns a panel and the active one is the one holding the collection. Without a
+    // filter segment there is no tab to label this box, so it stays a plain region.
     h(
       'div',
-      { className: surface.results, role: 'tabpanel', id: filterId + '-' + filter + '-panel', 'aria-labelledby': filterId + '-' + filter },
+      {
+        className: surface.results,
+        ...(hasFilters ? { role: 'tabpanel', id: filterId + '-' + filter + '-panel', 'aria-labelledby': filterId + '-' + filter } : {})
+      },
       shown.length === 0
         ? h('p', { className: surface.empty }, emptyText)
         : h(
@@ -400,7 +409,9 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                 )
           )
     ),
-    ['all', ...filters.map(entry => entry.id)]
+    // One empty panel per filter the tab strip does not have active. Without a
+    // strip there are no panels to point at.
+    (hasFilters ? ['all', ...filters.map(entry => entry.id)] : [])
       .filter(value => value !== filter)
       .map(value => h('div', { key: value, hidden: true, id: filterId + '-' + value + '-panel', role: 'tabpanel', 'aria-labelledby': filterId + '-' + value }))
   )

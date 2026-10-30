@@ -245,10 +245,9 @@ describe('instructions panel', () => {
       setter?.call(field, '')
       field.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    // The state segment keeps only the rows in that state.
-    const duplicate = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('instructionsStatusDuplicate'))!
-    await act(async () => duplicate.click())
-    expect(paths()).toEqual(['$DSH_AGENTS_HOME/AGENTS.md'])
+    // No status tabs: the list is at most two rows, so the card's own tag is what
+    // names the state, and every row stays reachable while browsing.
+    expect(host!.querySelectorAll('[data-panel-toolbar] [role="tab"]')).toHaveLength(0)
 
     // The view switch re-lays the same collection out as a list.
     const toList = host!.querySelector<HTMLButtonElement>('[data-panel-toolbar] button[aria-label="list"]')!
