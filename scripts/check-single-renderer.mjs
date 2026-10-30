@@ -24,8 +24,6 @@ const RENDERER = 'ui/ResourceSurface.tsx'
 const REMAINING = new Set([
   // The settings user panels (skills, agents, shortcuts).
   'ui/UserPanelSurface.tsx',
-  // The settings status panels: each lists its services with its own toolbar.
-  'features/mcp/StatusPanel.tsx',
   // The market browse surface.
   'features/market/MarketSection.tsx'
 ])

@@ -350,30 +350,40 @@ describe('MCP delete actions', () => {
     return mountPanel()
   }
 
-  it('offers the card delete only for a user-owned declaration', async () => {
-    // A suite declares its servers in its own `mcp.json`, so its card offers the
-    // editor but never a delete.
+  it('offers the delete only inside the detail of a user-owned declaration', async () => {
+    // A suite declares its servers in its own `mcp.json`, so its detail offers
+    // the editor but never a delete.
     const pluginPanel = await mountPanel()
-    expect(pluginPanel.querySelector('[aria-label="panelEdit service"]')).not.toBeNull()
-    expect(pluginPanel.querySelector('[aria-label^="mcpDelete"]')).toBeNull()
+    await openCard(pluginPanel)
+    expect(byText('mcpDelete')).toBeUndefined()
     await act(async () => root?.unmount())
     document.body.replaceChildren()
 
     const direct = await mountDirect()
-    expect(direct.querySelector('[aria-label="mcpDelete kuboard"]')).not.toBeNull()
+    await openCard(direct)
+    expect(byText('mcpDelete')).not.toBeUndefined()
   })
 
-  it('confirms a card delete, then removes the declaration and re-reads the list', async () => {
+  it('keeps the card free of a destructive action', async () => {
+    // The card's click means "open": the one irreversible action waits one step
+    // inside the dialog, behind the shared confirmation.
+    const el = await mountDirect()
+    expect(el.querySelector('[aria-label^="mcpDelete"]')).toBeNull()
+    await openCard(el)
+    expect(byText('mcpDelete')).not.toBeUndefined()
+  })
+
+  it('confirms a delete from the detail, then removes the declaration and re-reads the list', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     const el = await mountDirect()
+    await openCard(el)
     await act(async () => {
-      el.querySelector<HTMLButtonElement>('[aria-label="mcpDelete kuboard"]')!.click()
+      byText('mcpDelete')!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The card opens the shared danger confirmation rather than deleting on one
-    // click, and that is not the detail dialog.
+    // The confirmation is the shared danger dialog, and nothing is removed on
+    // the first click.
     expect(document.body.textContent).toContain('mcpDeleteTitle')
-    expect(document.body.textContent).not.toContain('overviewSection')
     expect(api.removeMcpServer).not.toHaveBeenCalled()
     const reads = vi.mocked(api.fetchMcpStatus).mock.calls.length
     await act(async () => {
@@ -385,23 +395,14 @@ describe('MCP delete actions', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('keeps the detail dialog free of a delete action', async () => {
-    // Deleting belongs to the card's action row: the detail dialog reports the
-    // service and offers recovery, so a destructive button in its footer would
-    // sit beside the read-only facts it describes.
-    const el = await mountDirect()
-    await openCard(el)
-    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
-    expect(byText('mcpDelete')).toBeUndefined()
-  })
-
   it('reports a failed delete in the panel without dropping the row', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     const el = await mountDirect()
     const reads = vi.mocked(api.fetchMcpStatus).mock.calls.length
     vi.mocked(api.removeMcpServer).mockRejectedValueOnce(new Error('cannot remove kuboard'))
+    await openCard(el)
     await act(async () => {
-      el.querySelector<HTMLButtonElement>('[aria-label="mcpDelete kuboard"]')!.click()
+      byText('mcpDelete')!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     await act(async () => {
@@ -410,7 +411,9 @@ describe('MCP delete actions', () => {
     })
     // The failure is the panel's one error line, and nothing is re-read: the
     // declaration is still there, so the next refresh reports it as it stands.
+    // The dialog closes, because the error has to be visible where the retry is.
     expect(document.body.textContent).toContain('cannot remove kuboard')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(vi.mocked(api.fetchMcpStatus).mock.calls.length).toBe(reads)
   })
 })

@@ -28,7 +28,8 @@ export function McpDetailModal({
   onClose,
   onRetry,
   onReauthorize,
-  onRefresh
+  onRefresh,
+  onDelete
 }: {
   entry: McpStatusEntry
   t: Translate
@@ -42,6 +43,12 @@ export function McpDetailModal({
   onRetry: (entryId: string) => Promise<McpStatusEntry>
   onReauthorize: (id: string, serverName: string) => Promise<McpStatusEntry>
   onRefresh: (id: string) => Promise<McpStatusEntry>
+  /**
+   * Removes this service's declaration. Offered only for a row the panel owns,
+   * and only here: the card's click opens this dialog, and the one irreversible
+   * action waits one step inside it behind the shared confirmation.
+   */
+  onDelete?: () => void
 }): ReactNode {
   const [pending, setPending] = useState(false)
   const [confirmAuth, setConfirmAuth] = useState(false)
@@ -112,6 +119,26 @@ export function McpDetailModal({
         },
         h(IconRefreshOutlineMedium),
         t('mcpRetryConnection')
+      )
+    )
+  }
+  if (!readOnly && onDelete !== undefined) {
+    recovery.push(
+      h(
+        Button,
+        {
+          key: 'delete',
+          variant: 'ghost',
+          size: 'sm',
+          title: t('mcpDeleteDesc'),
+          'aria-label': t('mcpDelete'),
+          onClick: () => {
+            // The panel owns the confirmation and the re-read; the dialog only
+            // asks, so both entry points share one destructive flow.
+            onDelete()
+          }
+        },
+        t('mcpDelete')
       )
     )
   }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { deriveMarketViewModel } from '../../../../packages/market-ui/src/features/market/market-view-model.js'
-import { deriveMcpStatusViewModel } from '../../../../packages/market-ui/src/features/mcp/mcp-status-view-model.js'
+import { matchesMcpFilter, type McpStatusFilter } from '../../../../packages/market-ui/src/features/mcp/mcp-status-view-model.js'
 import type { OverviewData } from '../../../../packages/market-ui/src/api.js'
 import type { McpStatusPayload } from '../../../../packages/market-contracts/src/contracts/mcp-status.js'
 
@@ -70,15 +70,15 @@ describe('client catalog view models', () => {
     expect(result.filtered.map(suite => suite.suiteId)).toEqual(['one'])
   })
 
-  it('derives MCP rows and counts, keeping switched-off rows reachable by filter', () => {
-    const result = deriveMcpStatusViewModel(mcpStatus, 'direct', 'https://two')
-    expect(result.activeEntries.map(entry => entry.id)).toEqual(['plugin:one', 'direct:two', 'disabled:three'])
-    expect(result.filterCounts).toEqual({ all: 3, plugin: 2, direct: 1, disabled: 1 })
-    expect(result.filtered.map(entry => entry.id)).toEqual(['direct:two'])
-
-    // The switched-off tab lists exactly the rows it counted.
-    const off = deriveMcpStatusViewModel(mcpStatus, 'disabled', '')
-    expect(off.filtered.map(entry => entry.id)).toEqual(['disabled:three'])
+  it('filters MCP rows by scope, keeping switched-off rows reachable', () => {
+    // The shared renderer counts each tab through this one predicate, so the
+    // number on a tab is exactly the rows clicking it shows.
+    const ids = (filter: McpStatusFilter): string[] => mcpStatus.entries.filter(entry => matchesMcpFilter(entry, filter)).map(entry => entry.id)
+    expect(ids('all')).toEqual(['plugin:one', 'direct:two', 'disabled:three'])
+    expect(ids('direct')).toEqual(['direct:two'])
+    // A switched-off row keeps its own scope as well as the switched-off tab.
+    expect(ids('plugin')).toEqual(['plugin:one', 'disabled:three'])
+    expect(ids('disabled')).toEqual(['disabled:three'])
   })
 
   it('records a repeat-filtering baseline for a 5,000-card payload', () => {

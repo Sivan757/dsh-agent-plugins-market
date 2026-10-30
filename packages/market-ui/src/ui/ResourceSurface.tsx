@@ -40,6 +40,27 @@ export interface ResourceEntry {
   counts?: readonly { label: string; count: number }[]
   /** The quiet line at the bottom: size, source, or file name. */
   meta?: string
+  /**
+   * The provenance token that leads the source row, in the identity row's mono
+   * face: the owning suite, or the file's own location. A surface that names a
+   * source keeps it apart from `meta`, which carries a trailing value such as a
+   * transport or a size.
+   */
+  source?: string
+  /** Render the body line in a monospace face, for endpoints and commands. */
+  monoBody?: boolean
+  /** Extra search text the eye cannot read off the card, such as a transport or a reason. */
+  keywords?: string
+  /** Accessible name of the switch; defaults to the entry name. */
+  toggleLabel?: string
+  /** Whether the surface offers an editor for this entry at all; undefined means yes. */
+  canEdit?: boolean
+  /** Whether that editor is unavailable right now, such as while a write is in flight. */
+  editDisabled?: boolean
+  /** Whether the chip rides the narrow-grid provenance slot, so that layout can hide it. */
+  chip?: boolean
+  /** The surface this entry belongs to, for the one layout that treats MCP and LSP chips differently. */
+  surface?: 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'
   /** A warning the entry needs beside its title. */
   warning?: string
   /** Whether the entry can be used as it stands. */
@@ -62,6 +83,8 @@ export interface ResourceCapabilities {
 export interface ResourceFilter {
   id: string
   label: string
+  /** Extended hover and accessible explanation; falls back to the label and count. */
+  hint?: string
   match: (entry: ResourceEntry) => boolean
 }
 
@@ -107,7 +130,13 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
     return entries.filter(entry => {
       if (active !== undefined && !active.match(entry)) return false
       if (needle === '') return true
-      return entry.name.toLowerCase().includes(needle) || (entry.description ?? '').toLowerCase().includes(needle)
+      return (
+        entry.name.toLowerCase().includes(needle) ||
+        (entry.description ?? '').toLowerCase().includes(needle) ||
+        // Text the card renders elsewhere or not at all still has to be findable:
+        // an endpoint, a transport, a recorded reason.
+        (entry.keywords ?? '').toLowerCase().includes(needle)
+      )
     })
   }, [active, entries, search])
   const segments = [
@@ -117,7 +146,8 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
       label: entry.label,
       count: entries.filter(item => entry.match(item)).length,
       active: filter === entry.id,
-      onSelect: () => setFilter(entry.id)
+      onSelect: () => setFilter(entry.id),
+      ...(entry.hint === undefined ? {} : { hint: entry.hint })
     }))
   ]
   return h(
@@ -155,7 +185,10 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
               // Each slot is a named grid area, so a card never auto-places a slot into
               // another's cell when the surface renders fewer pieces than its neighbours.
               const actions: ReactNode[] = []
-              if (props.onEdit !== undefined) {
+              // An entry can withhold its editor (a foreign mount, a row this
+              // surface cannot write) and can be busy right now; both are the
+              // entry's facts, not the surface's.
+              if (props.onEdit !== undefined && entry.canEdit !== false) {
                 actions.push(
                   h(
                     'button',
@@ -165,6 +198,7 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                       className: `${card.iconBtn} ${card.revealOnHover}`,
                       'aria-label': t('panelEdit') + ' ' + entry.name,
                       title: t('panelEdit'),
+                      disabled: entry.editDisabled === true,
                       onClick: (event: { stopPropagation(): void }) => {
                         event.stopPropagation()
                         props.onEdit?.(entry.id)
@@ -183,16 +217,26 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                       checked: isOn?.(entry.id) === true,
                       disabled: isToggleDisabled?.(entry.id) === true,
                       onChange: (enabled: boolean) => onToggle(entry.id, enabled),
-                      label: entry.name
+                      // "Enable" and "Disable" say what the press does; the entry
+                      // name alone leaves the direction to the state dot.
+                      label: entry.toggleLabel ?? entry.name
                     })
                   )
                 )
               }
+              // The source row reads as one line of technical tokens in the
+              // order the surface cares about: where it comes from, the counts
+              // that are scanned for, then a trailing value such as a transport.
               const foot: ReactNode[] = []
-              const meta = entry.meta ?? ''
-              if (meta !== '') foot.push(hoverHint(meta, h('span', hintProps({ className: card.provenance }), meta)))
+              const source = entry.source ?? ''
+              if (source !== '') foot.push(hoverHint(source, h('span', hintProps({ className: card.provenance }), source)))
               if (capabilities.counts === true && entry.counts !== undefined) {
                 for (const item of entry.counts) foot.push(h(CardCount, { label: item.label, count: item.count, first: foot.length === 0 }))
+              }
+              const meta = entry.meta ?? ''
+              if (meta !== '') {
+                if (foot.length > 0) foot.push(h('span', { className: card.separator }, '·'))
+                foot.push(hoverHint(meta, h('span', hintProps({ className: card.provenance }), meta)))
               }
               if (entry.warning !== undefined) {
                 if (foot.length > 0) foot.push(h('span', { className: card.separator }, '·'))
@@ -204,11 +248,14 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                   key: entry.id,
                   'data-resource-id': entry.id,
                   state: entry.state ?? (entry.disabled === true ? 'disabled' : 'active'),
+                  ...(entry.surface === undefined ? {} : { surface: entry.surface }),
                   ...interactiveCardProps(() => onOpen(entry.id))
                 },
-                h(CardIdentity, { text: entry.name, hint: entry.hint, mono: entry.mono, tag: entry.tag }),
+                h(CardIdentity, { text: entry.name, hint: entry.hint, mono: entry.mono, tag: entry.tag, ...(entry.chip === true ? { chip: true } : {}) }),
                 actions.length === 0 ? null : h(CardActions, null, ...actions),
-                entry.description === undefined ? null : h(CardBody, null, hoverHint(entry.description, h('p', hintProps({ className: card.desc }), entry.description))),
+                entry.description === undefined
+                  ? null
+                  : h(CardBody, null, hoverHint(entry.description, h('p', hintProps({ className: entry.monoBody === true ? card.monoLine : card.desc }), entry.description))),
                 foot.length === 0 ? null : h(CardFoot, null, ...foot)
               )
             })

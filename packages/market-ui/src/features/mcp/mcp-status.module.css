@@ -8,17 +8,12 @@
   color: var(--dsw-alias-label-primary, #1f2328);
 }
 
-.toolbar {
-  flex: none;
-}
-
 @media (max-width: 760px) {
   .grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-.empty,
 .detailEmpty {
   padding: 24px;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
@@ -238,10 +233,6 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 @media (max-width: 760px) {
-  .toolbar {
-    padding-left: 0;
-    padding-right: 0;
-  }
   .grid {
     grid-template-columns: minmax(0, 1fr);
   }
