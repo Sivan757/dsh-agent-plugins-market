@@ -26,7 +26,7 @@ The MCP services panel still assembled its own toolbar, collection and inventory
 - Deleting a user-declared service now takes one more click: open the service, then delete.
 - The narrow-grid chip rule keeps working through `chip` and `surface`, so the MCP card still drops its provenance tag where the source row already names the suite.
 - The panel no longer keeps its own search or filter state; the renderer's view switch and filter tabs are the only ones.
-- One list still assembles itself: the market page. [The user panels note](2026-10-30-user-panels-render-through-the-one-renderer.md) records their migration onto the same contract.
+- The user panels and the market page followed on the same contract; [their notes](2026-10-30-user-panels-render-through-the-one-renderer.md) record those migrations.
 
 ## Verification
 

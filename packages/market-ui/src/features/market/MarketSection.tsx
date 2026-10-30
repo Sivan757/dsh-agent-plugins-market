@@ -7,25 +7,22 @@
  * with light-mode fallbacks so the page follows the active theme.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from '../../api.js'
 import { loadOverview, peekOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from './market-resource.js'
-import { deriveMarketViewModel, type MarketCategory, type MarketFilter } from './market-view-model.js'
 import { SourceTabsRow, type SourceTabItem } from '../../ui/SourceTabsRow.js'
 import { SourceEditorModal, type EditorState } from './SourceEditorModal.js'
 import { InstallConfirmModal, type InstallConfirmState } from './InstallConfirmModal.js'
-import { SuiteCard } from './SuiteCard.js'
 import type { Translate } from '../../i18n.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
-import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
-import { useTranslationRefresh } from '../../ui/translation-enabled.js'
+import { useTranslationEnabled, useTranslationRefresh } from '../../ui/translation-enabled.js'
 import { BusyIndicator } from '../../ui/panel.js'
 import css from './market.module.css'
-import { useWorkspaceView } from '../../ui/workspace-view.js'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
-import { ResourceCollection } from '../../ui/ResourceCard.js'
+import { displayText } from '../../ui/translated-text.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 
 /** Host step keys -> translation keys, resolved against the active t(). */
@@ -41,8 +38,8 @@ export interface MarketSectionProps {
   mode?: 'settings' | 'page'
 }
 
-type Tab = MarketFilter
-type Category = MarketCategory
+/** The source scope in force; `all` selects every source. */
+type Category = string
 
 interface ToastState {
   key: number
@@ -67,13 +64,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   // the single owner of that request, and render must not race it.
   const [overview, setOverview] = useState<OverviewData>(() => peekOverview().initial)
   const [loading, setLoading] = useState(() => !peekOverview().cached)
-  const [search, setSearch] = useState('')
-  const [tab, setTab] = useState<Tab>('all')
-  // The filter tablist names the collection below; the host derives its panel id
-  // from the same base the toolbar receives.
-  const marketFilterId = 'market-status-filter'
   const [category, setCategory] = useState<Category>('all')
-  const [view, setView] = useWorkspaceView()
   const [busy, setBusy] = useState<string | undefined>(undefined)
   const [toast, setToast] = useState<ToastState | undefined>(undefined)
   const [confirm, setConfirm] = useState<ConfirmState | undefined>(undefined)
@@ -90,6 +81,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const languageRef = useRef(language)
   languageRef.current = language
   const [overviewLanguage, setOverviewLanguage] = useState<string | undefined>()
+  const translationEnabled = useTranslationEnabled()
   const refreshSequence = useRef(0)
   // The irreversible uninstall is gated behind the host's risk acknowledgement.
   const [uninstallAck, setUninstallAck] = useState(false)
@@ -164,9 +156,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
     [refresh, t]
   )
 
-  const viewModel = useMemo(() => deriveMarketViewModel(overview, search, tab, category), [overview, search, tab, category])
-  const { scopeTotals, filtered } = viewModel
-
   const openUninstall = useCallback((suite: SuiteCardData) => {
     setUninstallAck(false)
     setConfirm({ kind: 'uninstall', sourceId: suite.sourceId, suiteId: suite.suiteId, deleteCheckout: false })
@@ -219,6 +208,84 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
     [action]
   )
   const unmanaged = overview.unmanaged ?? []
+
+  // The renderer owns the toolbar, the search and the status tabs; this page
+  // narrows the suites to the selected source and maps each one onto the shared
+  // entry contract. The install or add-source button is the card's primary
+  // action, the switch says whether an installed suite is enabled, and the
+  // destructive uninstall stays in the detail dialog.
+  const scoped = overview.suites.filter(suite => category === 'all' || suite.sourceId === category)
+  const suiteById = new Map(scoped.map(suite => [`${suite.sourceId}/${suite.suiteId}`, suite]))
+  const entries = scoped.map(suite => {
+    const isRemote = suite.remoteUrl !== undefined
+    const provenance = isRemote ? t('remoteRef') : suite.dimension === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
+    const description = displayText(suite.translatedDescription, suite.description, t, {
+      original: !translationEnabled || showOriginal || overviewLanguage !== language
+    })
+    const counts = (
+      [
+        [t('surfaceSkills'), suite.surfaces.skills],
+        [t('surfaceMcp'), suite.surfaces.mcp],
+        [t('surfaceHooks'), suite.surfaces.hooks],
+        [t('surfaceCommands'), suite.surfaces.commands],
+        [t('surfaceAgents'), suite.surfaces.agents],
+        [t('surfaceLsp'), suite.surfaces.lsp]
+      ] as Array<[string, number]>
+    )
+      .filter(([, count]) => count > 0)
+      .map(([label, count]) => ({ label, count }))
+    const mcpErrorCount = suite.mcpErrors?.length ?? 0
+    const surfaceError = suite.errors.length > 0 ? `${t('errors')} ${suite.errors.length}` : mcpErrorCount > 0 ? `${t('mcpSection')} ${mcpErrorCount}` : undefined
+    return {
+      id: `${suite.sourceId}/${suite.suiteId}`,
+      name: suite.name,
+      ...(suite.version === null || suite.version === undefined ? {} : { version: suite.version }),
+      tag: provenance,
+      surface: 'market' as const,
+      description: description === '' ? undefined : description,
+      source: suite.sourceId,
+      counts,
+      ...(surfaceError === undefined ? {} : { warning: `⚠ ${surfaceError}` }),
+      // Text the card does not render, so search still finds it.
+      keywords: [suite.name, suite.description ?? '', ...suite.keywords].join(' '),
+      state: suite.enabled && suite.installed ? ('active' as const) : ('disabled' as const),
+      hideToggle: !suite.installed,
+      toggleLabel: suite.enabled ? t('disable') : t('enable'),
+      ...(suite.installed
+        ? {
+            actions: [
+              {
+                id: 'refresh',
+                label: t('refresh'),
+                icon: h(IconRefreshOutlineMedium),
+                disabled: busy !== undefined,
+                onSelect: () => {
+                  void action(`r:${suite.suiteId}`, 'sources/refresh', { id: suite.sourceId })
+                }
+              }
+            ]
+          }
+        : {
+            primary: {
+              label: isRemote ? t('addSource') : t('install'),
+              ...(isRemote ? { title: suite.remoteUrl } : {}),
+              disabled: busy !== undefined,
+              onSelect: () => {
+                const source = overview.sources.find(entry => entry.id === suite.sourceId)
+                if (isRemote) {
+                  if (suite.remoteUrl !== undefined) void action(`a:${suite.suiteId}`, 'sources/add', { url: suite.remoteUrl })
+                  return
+                }
+                setInstallConfirm({
+                  suite,
+                  ...(source?.lockCommit === undefined ? {} : { lockCommit: source.lockCommit }),
+                  ...(source?.local === true ? { localSource: true } : {})
+                })
+              }
+            }
+          })
+    }
+  })
 
   return h(ErrorBoundary, {
     fallback: error => h('div', { className: css.empty }, `${t('actionFail')}: ${error.message}`),
@@ -282,83 +349,36 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                     )
                   )
                 )
-              ),
-          h(SearchFilterToolbar, {
-            search,
-            searchLabel: t('searchPh'),
-            searchPlaceholder: t('searchPh'),
-            onSearchChange: setSearch,
-            filters: [
-              { id: 'all', label: t('tabAll'), count: scopeTotals.all, active: tab === 'all', onSelect: () => setTab('all') },
-              {
-                id: 'installed',
-                label: t('tabInstalled'),
-                count: scopeTotals.installed,
-                active: tab === 'installed',
-                onSelect: () => setTab('installed')
-              },
-              {
-                id: 'uninstalled',
-                label: t('tabUninstalled'),
-                count: scopeTotals.all - scopeTotals.installed,
-                active: tab === 'uninstalled',
-                onSelect: () => setTab('uninstalled')
-              }
-            ],
-            filterId: marketFilterId,
-            // The market panel's title is the filter segment's accessible name.
-            filterLabel: t('nav'),
-            view,
-            toListLabel: t('switchToList'),
-            toGridLabel: t('switchToGrid'),
-            onViewChange: nextView => setView(nextView),
-            beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) })
-          })
+              )
         )
       ),
       // Keep the global mask until both the mutation and list refresh finish.
       busy !== undefined ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
-      h(
-        ResourceCollection,
-        {
-          view,
-          role: 'tabpanel',
-          id: `${marketFilterId}-${tab}-panel`,
-          'aria-labelledby': `${marketFilterId}-${tab}`
+      h(ResourceSurface, {
+        t,
+        entries,
+        capabilities: { toggle: true, counts: true },
+        searchLabel: t('searchPh'),
+        searchPlaceholder: t('searchPh'),
+        filters: [
+          { id: 'installed', label: t('tabInstalled'), match: (entry: { id: string }) => suiteById.get(entry.id)?.installed === true },
+          { id: 'uninstalled', label: t('tabUninstalled'), match: (entry: { id: string }) => suiteById.get(entry.id)?.installed !== true }
+        ],
+        beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
+        toListLabel: t('switchToList'),
+        toGridLabel: t('switchToGrid'),
+        emptyText: loading ? t('loading') : t('empty'),
+        onOpen: id => {
+          const suite = suiteById.get(id)
+          if (suite !== undefined) setDetail(suite)
         },
-        loading
-          ? h('div', { className: css.empty }, t('loading'))
-          : filtered.length === 0
-            ? h('div', { className: css.empty }, tab === 'installed' ? t('installedEmpty') : t('empty'))
-            : filtered.map(suite =>
-                h(SuiteCard, {
-                  key: `${suite.sourceId}/${suite.suiteId}`,
-                  t,
-                  suite,
-                  busy: busy !== undefined,
-                  showOriginal: showOriginal || overviewLanguage !== language,
-                  onOpen: () => setDetail(suite),
-                  onInstall: () => {
-                    const source = overview.sources.find(entry => entry.id === suite.sourceId)
-                    setInstallConfirm({
-                      suite,
-                      ...(source?.lockCommit === undefined ? {} : { lockCommit: source.lockCommit }),
-                      ...(source?.local === true ? { localSource: true } : {})
-                    })
-                  },
-                  onAddSource: () => {
-                    if (suite.remoteUrl !== undefined) void action(`a:${suite.suiteId}`, 'sources/add', { url: suite.remoteUrl })
-                  },
-                  onToggle: () => {
-                    void action(`e:${suite.suiteId}`, 'set-enabled', { sourceId: suite.sourceId, suiteId: suite.suiteId, enabled: !suite.enabled })
-                  },
-                  onRefresh: () => {
-                    void action(`r:${suite.suiteId}`, 'sources/refresh', { id: suite.sourceId })
-                  },
-                  onUninstall: () => openUninstall(suite)
-                })
-              )
-      ),
+        onToggle: (id, enabled) => {
+          const suite = suiteById.get(id)
+          if (suite !== undefined) void action(`e:${suite.suiteId}`, 'set-enabled', { sourceId: suite.sourceId, suiteId: suite.suiteId, enabled })
+        },
+        isOn: id => suiteById.get(id)?.enabled === true,
+        isToggleDisabled: () => busy !== undefined
+      }),
       toast === undefined ? null : h(Toast, { key: toast.key, text: toast.message, onDone: () => setToast(undefined) }),
       installConfirm === undefined
         ? null

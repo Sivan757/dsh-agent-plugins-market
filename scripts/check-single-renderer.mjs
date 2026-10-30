@@ -21,10 +21,7 @@ const SOURCE_ROOT = 'packages/market-ui/src'
 /** The renderer itself: the one module that may assemble a list. */
 const RENDERER = 'ui/ResourceSurface.tsx'
 /** Surfaces still rendering their own list. Empty is the goal. */
-const REMAINING = new Set([
-  // The market browse surface.
-  'features/market/MarketSection.tsx'
-])
+const REMAINING = new Set()
 // A list is a toolbar plus a collection: importing the card alone is presentational,
 // importing either of these means the module assembles a list of its own.
 const PRIMITIVES = /from '[^']*(ResourceCollection|SearchFilterToolbar)/

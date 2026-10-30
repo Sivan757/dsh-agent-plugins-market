@@ -23,7 +23,7 @@ The skills, commands and persona panels share one component that still assembled
 
 - Deleting a user-authored entry now takes one more click: open the entry, then delete.
 - The filter tabs, the search and the view switch belong to the renderer, so the panel no longer keeps that state or its own empty line.
-- One list still assembles itself: the market page.
+- The market page followed on the same contract; [its note](2026-10-30-market-page-renders-through-the-one-renderer.md) records that migration, and the single-renderer ratchet now holds an empty list.
 
 ## Verification
 

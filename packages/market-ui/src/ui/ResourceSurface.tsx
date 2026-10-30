@@ -12,7 +12,7 @@
  * @module client/ui/ResourceSurface
  */
 import { createElement as h, useId, useMemo, useState, type ReactNode } from 'react'
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { CardActions, CardBody, CardCount, CardFoot, CardIdentity, CardWarning, ResourceCard, ResourceCollection, interactiveCardProps } from './ResourceCard.js'
 import { hintProps, hoverHint } from './hover-hint.js'
 import { SearchFilterToolbar } from './SearchFilterToolbar.js'
@@ -26,7 +26,9 @@ export interface ResourceEntry {
   id: string
   /** The card title: a file path, a style name, a plugin name. */
   name: string
-  /** A quiet qualifier after the title, such as the entry's own name or its version. */
+  /** The version chip the identity row carries, for a suite. */
+  version?: string
+  /** A quiet qualifier after the title, such as the entry's own name or its raw name. */
   hint?: string
   /** Render the title in a monospace face, for paths and identifiers. */
   mono?: boolean
@@ -57,8 +59,15 @@ export interface ResourceEntry {
   canEdit?: boolean
   /** Whether that editor is unavailable right now, such as while a write is in flight. */
   editDisabled?: boolean
-  /** Whether the chip rides the narrow-grid provenance slot, so that layout can hide it. */
+  /** The chip rides the narrow-grid provenance slot, so that layout can hide it. */
   chip?: boolean
+  /**
+   * One primary action on the card, such as installing a suite: the text button
+   * that follows the icon actions and precedes the switch. Never destructive.
+   */
+  primary?: { label: string; title?: string; disabled?: boolean; onSelect: () => void }
+  /** Flat icon actions that trail the cluster before the primary action. */
+  actions?: readonly ResourceCardAction[]
   /** The surface this entry belongs to, for the one layout that treats MCP and LSP chips differently. */
   surface?: 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'
   /** A warning the entry needs beside its title. */
@@ -77,6 +86,19 @@ export interface ResourceCapabilities {
   toggle?: boolean
   /** The card shows a count line (market cards). */
   counts?: boolean
+}
+
+/** One flat icon action a surface wants on the card. */
+export interface ResourceCardAction {
+  /** Stable id, also the React key. */
+  id: string
+  /** Accessible name and hover title. */
+  label: string
+  icon: ReactNode
+  onSelect: () => void
+  disabled?: boolean
+  /** A destructive action reads in the danger hover. */
+  danger?: boolean
 }
 
 /** One selectable subset: the "all" filter is added by the surface itself. */
@@ -203,6 +225,51 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
               // Each slot is a named grid area, so a card never auto-places a slot into
               // another's cell when the surface renders fewer pieces than its neighbours.
               const actions: ReactNode[] = []
+              // Secondary icon actions first, then the entry's primary action,
+              // then the switch — the one control that always reads last.
+              for (const action of entry.actions ?? []) {
+                actions.push(
+                  h(
+                    'button',
+                    {
+                      key: action.id,
+                      type: 'button',
+                      className: `${card.iconBtn} ${action.danger === true ? card.iconBtnDanger : ''} ${card.revealOnHover}`,
+                      'aria-label': action.label,
+                      title: action.label,
+                      disabled: action.disabled === true,
+                      onClick: (event: { stopPropagation(): void }) => {
+                        event.stopPropagation()
+                        action.onSelect()
+                      }
+                    },
+                    action.icon
+                  )
+                )
+              }
+              if (entry.primary !== undefined) {
+                const primary = entry.primary
+                actions.push(
+                  h(
+                    // The primary action stays visible at rest: it is the one
+                    // thing a reader is meant to press on this row. Only the
+                    // secondary icons fade in.
+                    'span',
+                    { key: 'primary', className: card.switchWrap, onClick: stop, onKeyDown: stop },
+                    h(
+                      Button,
+                      {
+                        variant: 'primary',
+                        size: 'sm',
+                        disabled: primary.disabled === true,
+                        ...(primary.title === undefined ? {} : { title: primary.title }),
+                        onClick: primary.onSelect
+                      },
+                      primary.label
+                    )
+                  )
+                )
+              }
               // An entry can withhold its editor (a foreign mount, a row this
               // surface cannot write) and can be busy right now; both are the
               // entry's facts, not the surface's.
@@ -271,7 +338,14 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                   ...(entry.surface === undefined ? {} : { surface: entry.surface }),
                   ...interactiveCardProps(() => onOpen(entry.id))
                 },
-                h(CardIdentity, { text: entry.name, hint: entry.hint, mono: entry.mono, tag: entry.tag, ...(entry.chip === true ? { chip: true } : {}) }),
+                h(CardIdentity, {
+                  text: entry.name,
+                  hint: entry.hint,
+                  mono: entry.mono,
+                  tag: entry.tag,
+                  ...(entry.version === undefined ? {} : { version: entry.version }),
+                  ...(entry.chip === true ? { chip: true } : {})
+                }),
                 actions.length === 0 ? null : h(CardActions, null, ...actions),
                 entry.description === undefined
                   ? null

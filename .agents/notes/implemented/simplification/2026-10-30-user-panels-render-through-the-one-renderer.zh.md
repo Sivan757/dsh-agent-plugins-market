@@ -23,7 +23,7 @@ Status: implemented
 
 - 删除用户自建条目现在多一次点击：先打开条目，再删除。
 - 筛选标签、搜索与视图切换归渲染器所有，面板不再持有这些状态，也不再自己画空态行。
-- 还有一张清单自建：市场页。
+- 市场页随后迁到同一份契约，[那条记录](2026-10-30-market-page-renders-through-the-one-renderer.zh.md)写明了过程；单渲染器棘轮现在是一份空名单。
 
 ## Verification
 
