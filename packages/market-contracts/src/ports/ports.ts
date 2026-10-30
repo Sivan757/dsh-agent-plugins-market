@@ -16,6 +16,7 @@ import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../contracts/mcp.js'
 import type { McpConnectionObservation, McpDemandedMount } from '../contracts/mcp-status.js'
 import type { LspMountDiagnostic } from '../contracts/lsp.js'
+import type { LspCallObservation } from '../contracts/lsp-status.js'
 import type { DocumentTranslation, TranslationFields, TranslationProvider, TranslationSurfaceKind } from '../contracts/translation.js'
 
 /**
@@ -85,6 +86,8 @@ export interface LspMountStatusSource {
   diagnosticsSnapshot(): Map<string, LspMountDiagnostic>
   hasLiveMounts(): boolean
   disabledServers?(): Set<string>
+  /** The latest `lsp` call outcome per provider id, when the registry observes them. */
+  observationSnapshot?(): ReadonlyMap<string, LspCallObservation>
 }
 
 /** A new source: its location, optional branch, and acquisition kind. */

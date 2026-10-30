@@ -54,6 +54,23 @@ const restartButton = (): HTMLButtonElement | undefined =>
 const disclosure = (text: string): HTMLElement | undefined => [...document.querySelectorAll<HTMLElement>('[data-disclosure-row]')].find(node => node.textContent === text)
 const band = (): HTMLElement => document.querySelector<HTMLElement>('[data-status-band]')!
 
+it('shows the last call an lsp provider answered, so a mounted server that stopped answering says why', async () => {
+  // The shared stub returns keys; this case reads the interpolated sentence too.
+  const interpolate = ((key: string, params?: Record<string, string>) => (params === undefined ? key : [key, ...Object.values(params)].join(' '))) as Translate
+  await mount(
+    {
+      ...base,
+      state: 'mounted',
+      observation: { at: 1_700_000_000_000, ok: false, error: 'language server exited with code 1' }
+    },
+    interpolate
+  )
+  const text = document.body.textContent ?? ''
+  expect(text).toContain('lspLastCall')
+  expect(text).toContain('lspLastCallFailed')
+  expect(text).toContain('language server exited with code 1')
+})
+
 it('leads the band with the sentence for the failure and discloses the recorded diagnostic', async () => {
   await mount({ ...base, code: 'mount-failed', reason: 'mount failed: spawn typescript-language-server ENOENT', causes: ['Error: spawn ENOENT'] })
   expect(band().textContent).toContain('failureGuideCommandMissing')

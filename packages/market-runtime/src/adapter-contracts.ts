@@ -13,6 +13,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { McpBackend, McpMountDiagnostic } from '../../market-contracts/src/contracts/mcp.js'
 import type { LspMountDiagnostic } from '../../market-contracts/src/contracts/lsp.js'
+import type { LspCallObservation } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { LspMountStatusSource } from '../../market-contracts/src/ports/ports.js'
 import type { LspServerSpec, Suite } from '../../market-contracts/src/model/types.js'
 import type { ExtensionLspProvider, ExtensionMcpTool } from './runtime/host/extension-tool-gates.js'
@@ -64,6 +65,10 @@ export interface LspMountPort extends LspMountStatusSource {
   setDemandedProviderIdsProvider(provider: () => ReadonlySet<string>): void
   /** Current global disabled ids, without merging session demand. */
   globalDisabledProviderIds(): Promise<ReadonlySet<string>>
+  /** Record what the last `lsp` call routed to one provider did. */
+  observe(filePath: string, outcome: { ok: boolean; error?: string }): void
+  /** The latest call observation per provider id, for the status rows. */
+  observationSnapshot(): ReadonlyMap<string, LspCallObservation>
   /** Flag one live provider mount for an explicit rebuild on the next reconcile. */
   forceRemount(id: string): void
   /** Flag every live provider mount for an explicit rebuild on the next reconcile. */

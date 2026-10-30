@@ -39,6 +39,7 @@ import { resolveDeclaredCommand } from '../../../../market-runtime/src/index.js'
 import type { Suite } from '../../../../market-contracts/src/model/types.js'
 
 import type { LspMountDiagnostic } from '../../../../market-contracts/src/contracts/lsp.js'
+import type { LspCallObservation } from '../../../../market-contracts/src/contracts/lsp-status.js'
 
 export type { LspMountDiagnostic }
 
@@ -46,6 +47,17 @@ interface WantedMount {
   config: Record<string, LspStdioServerConfig>
   facts: string[]
   pathExtensions: string[]
+}
+
+/**
+ * The leading-dot lowercase extension a path ends with, or '' when it has none.
+ * @param filePath - the file the `lsp` call named.
+ * @returns the extension `.ts`, or '' for a path without one.
+ */
+function extensionOf(filePath: string): string {
+  const base = filePath.slice(filePath.lastIndexOf('/') + 1)
+  const dot = base.lastIndexOf('.')
+  return dot <= 0 ? '' : base.slice(dot).toLowerCase()
 }
 
 interface LiveMount {
@@ -141,6 +153,15 @@ export class LspMountRegistry {
    * only way a live mount is ever re-verified.
    */
   private readonly forcedRemounts = new Set<string>()
+  /**
+   * What the last `lsp` call routed to each provider did, keyed by provider id.
+   *
+   * The seam publishes no process death, so a mounted provider that died keeps
+   * matching its own config and reads as mounted until someone queries it. This
+   * record is the only evidence of that state: the composition root reports the
+   * outcome of every `lsp` call here, and the status row carries the latest one.
+   */
+  private readonly observations = new Map<string, LspCallObservation>()
   /** Snapshot of the last reconciled suite set, replayed by retry passes. */
   private lastEnabled: Suite[] = []
   /** Host module loader; overridable for tests. */
@@ -501,6 +522,35 @@ export class LspMountRegistry {
     return this.live.size > 0
   }
 
+  /**
+   * Record what the last `lsp` call routed to one provider did.
+   *
+   * Attribution is by file extension: the seam routes a request to the one
+   * provider claiming that extension, and rejects a duplicate claim at mount
+   * time, so a path names at most one live provider. A path no live provider
+   * claims belongs to the host's own seams or to nothing, and records nothing.
+   * @param filePath - the file the `lsp` call named.
+   * @param outcome - whether the call returned an error, and its message.
+   */
+  observe(filePath: string, outcome: { ok: boolean; error?: string }): void {
+    const extension = extensionOf(filePath)
+    if (extension === '') return
+    const at = Date.now()
+    for (const mount of this.live.values()) {
+      for (const provider of mount.providers) {
+        if (!provider.extensions.includes(extension)) continue
+        // The row id is the mount key: provider ids are the row ids, and the
+        // resource id is that same string with the `lsp:` scheme in front.
+        this.observations.set(provider.resourceId.replace(/^lsp:/, ''), { at, ok: outcome.ok, ...(outcome.error === undefined ? {} : { error: outcome.error }) })
+      }
+    }
+  }
+
+  /** The latest call observation per provider id, for the status rows. */
+  observationSnapshot(): ReadonlyMap<string, LspCallObservation> {
+    return new Map(this.observations)
+  }
+
   /** Mount one provider as an independently disposable `dsh-lsp-stdio` instance. */
   private async mountWith(
     key: string,
@@ -559,6 +609,7 @@ export class LspMountRegistry {
     try {
       await live.disposer()
       this.live.delete(key)
+      for (const provider of live.providers) this.observations.delete(provider.resourceId.replace(/^lsp:/, ''))
       return undefined
     } catch (error) {
       const reason = `unmount failed: ${error instanceof Error ? error.message : String(error)}`

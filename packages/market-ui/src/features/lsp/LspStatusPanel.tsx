@@ -174,6 +174,9 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'),
         description: entry.command,
         meta: entry.suiteName === undefined ? String(Object.keys(entry.extensions).length) : entry.suiteName,
+        // A mounted row whose last call failed is the one thing this panel can
+        // say about a server that stopped answering: the seam has no death signal.
+        ...(entry.observation === undefined || entry.observation.ok ? {} : { warning: t('lspLastCallShort') }),
         state: lspCardState(entry.state)
       })),
       capabilities: { toggle: true },
@@ -391,6 +394,16 @@ export function LspDetailModal({
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
         mono: [entry.command, ...entry.args].join(' ')
       }),
+      // The last call the host routed to this provider: the only evidence that
+      // a mounted server is not answering.
+      entry.observation === undefined
+        ? null
+        : h(
+            'div',
+            { className: panelCss.block },
+            h('h4', { className: panelCss.blockHead }, t('lspLastCall')),
+            h('p', { className: panelCss.detailProse }, entry.observation.ok ? t('lspLastCallOk') : t('lspLastCallFailed', { error: entry.observation.error ?? '' }))
+          ),
       h(
         'div',
         { className: panelCss.block },

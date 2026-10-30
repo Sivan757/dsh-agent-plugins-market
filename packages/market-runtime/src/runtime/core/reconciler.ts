@@ -11,6 +11,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { McpBackend, McpMountDiagnostic } from '../../../../market-contracts/src/contracts/mcp.js'
 import type { LspMountDiagnostic } from '../../../../market-contracts/src/contracts/lsp.js'
 import type { Suite } from '../../../../market-contracts/src/model/types.js'
+import { lspCallOutcome } from './lsp-call-observation.js'
 import { CommandMountRegistry, type CommandMountDiagnostic } from '../surfaces/commands-mounts.js'
 import type { MenuRowRegistration } from '../host/menu-row-identities.js'
 import { HooksMountRegistry, type HooksMountDiagnostic } from '../surfaces/hooks-mounts.js'
@@ -82,6 +83,8 @@ export class RuntimeReconciler {
   private overridesProvider: () => Promise<Map<string, McpOverridesPort>> = async () => new Map()
   private disposal?: Promise<void>
   private readonly warn: (message: string) => void
+  /** Disposer for the lsp-tool observer, so disposal leaves no listener behind. */
+  private lspObserver: (() => void) | undefined
 
   /**
    * @param ctx - the context every mount registers through.
@@ -107,6 +110,21 @@ export class RuntimeReconciler {
       }
       return overrides
     })
+    // The lsp tool is the only evidence of a provider that stopped answering:
+    // the seam reports no process death, so a mounted server reads as healthy
+    // until someone asks it for something. Record every outcome against the
+    // provider that owns the file's extension and pass the result through
+    // untouched — an observer that edited results would be a different plugin.
+    // A structural context (an embedding, a test double) may carry no event
+    // bus; the observation is an enhancement, so its absence must not fail the
+    // coordinator that owns mounting.
+    if (typeof ctx.on === 'function') {
+      this.lspObserver = ctx.on('tools/post-execute', (exec, result, next) => {
+        const outcome = lspCallOutcome(exec, result)
+        if (outcome !== undefined) this.lspRegistry.observe(outcome.filePath, outcome.ok ? { ok: true } : { ok: false, error: outcome.error ?? '' })
+        return next()
+      })
+    }
   }
 
   /** Transfer commands and hooks to per-agent registries; call before the first reconcile. */
@@ -526,6 +544,8 @@ export class RuntimeReconciler {
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal
     this.disposed = true
+    this.lspObserver?.()
+    this.lspObserver = undefined
     for (const token of this.staged.values()) token.active = false
     this.staged.clear()
     this.committed.clear()

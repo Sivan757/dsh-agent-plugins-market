@@ -12,7 +12,7 @@
  * Direct user-configured rows follow the same model under the sentinel suite
  * id `direct` (mirroring mcp-status's `plugin`/`direct` split).
  */
-import type { LspStatusCode, LspStatusEntry, LspStatusPayload, LspStatusState } from '../../../../market-contracts/src/contracts/lsp-status.js'
+import type { LspCallObservation, LspStatusCode, LspStatusEntry, LspStatusPayload, LspStatusState } from '../../../../market-contracts/src/contracts/lsp-status.js'
 import type { LspMountDiagnostic } from '../../../../market-contracts/src/contracts/lsp.js'
 import { qualifiedSuiteId } from '../../../../market-catalog/src/index.js'
 import type { Localization } from '../../../../market-contracts/src/ports/ports.js'
@@ -21,12 +21,13 @@ import type { LspServerSpec, Suite } from '../../../../market-contracts/src/mode
 /** Sentinel suite id for user-configured (non-suite) LSP servers. */
 export const DIRECT_LSP_SUITE_ID = 'direct'
 
-/** The subset of LspMountRegistry the aggregator consumes (structural, for tests). */
-export interface LspMountStatusSource {
-  diagnosticsSnapshot(): Map<string, LspMountDiagnostic>
-  hasLiveMounts(): boolean
-  disabledServers?(): Set<string>
-}
+/**
+ * The subset of LspMountRegistry the aggregator consumes (structural, for
+ * tests). It is the shared port: the registry publishes call observations
+ * through the same surface the status rows read, so the two cannot drift.
+ */
+export type { LspMountStatusSource } from '../../../../market-contracts/src/ports/ports.js'
+import type { LspMountStatusSource } from '../../../../market-contracts/src/ports/ports.js'
 
 /** The direct servers table the aggregator merges in (structural, for tests). */
 export interface LspDirectServersSource {
@@ -95,6 +96,10 @@ export function buildLspStatus(
   const diagnostics = registry.diagnosticsSnapshot()
   const anyLive = registry.hasLiveMounts()
   const disabledServers = registry.disabledServers?.() ?? new Set<string>()
+  // The last call routed to a provider, when the composition root observes the
+  // lsp tool. A mounted row whose last call failed is the state the seam cannot
+  // report by itself; the row carries the evidence instead of inventing a state.
+  const observations = registry.observationSnapshot?.() ?? new Map<string, LspCallObservation>()
   const entries: LspStatusEntry[] = []
   const mountedSuiteIds = new Set<number | string>()
   for (const suite of suites) {
@@ -108,6 +113,7 @@ export function buildLspStatus(
     const { state, reason, code, causes, retryable } = deriveState(disabled, diagnostic, anyLive)
     if (state === 'mounted') mountedSuiteIds.add(suiteKey)
     for (const spec of Object.values(suite.lsp.servers)) {
+      const observation = observations.get(`${suiteKey}/${spec.key}`)
       entries.push({
         id: `${suiteKey}/${spec.key}`,
         serverKey: spec.key,
@@ -123,7 +129,8 @@ export function buildLspStatus(
         ...(reason === undefined ? {} : { reason }),
         ...(code === undefined ? {} : { code }),
         ...(causes === undefined ? {} : { causes }),
-        ...(retryable === undefined ? {} : { retryable })
+        ...(retryable === undefined ? {} : { retryable }),
+        ...(observation === undefined ? {} : { observation })
       })
     }
   }
@@ -133,6 +140,7 @@ export function buildLspStatus(
   const { state: directState, reason: directReason, code: directCode, causes: directCauses, retryable: directRetryable } = deriveState(false, directDiagnostic, anyLive)
   if (directState === 'mounted') mountedSuiteIds.add(DIRECT_LSP_SUITE_ID)
   for (const spec of Object.values(direct.servers)) {
+    const observation = observations.get(`${DIRECT_LSP_SUITE_ID}/${spec.key}`)
     entries.push({
       id: `${DIRECT_LSP_SUITE_ID}/${spec.key}`,
       serverKey: spec.key,
@@ -148,7 +156,8 @@ export function buildLspStatus(
       ...(directReason === undefined ? {} : { reason: directReason }),
       ...(directCode === undefined ? {} : { code: directCode }),
       ...(directCauses === undefined ? {} : { causes: directCauses }),
-      ...(directRetryable === undefined ? {} : { retryable: directRetryable })
+      ...(directRetryable === undefined ? {} : { retryable: directRetryable }),
+      ...(observation === undefined ? {} : { observation })
     })
   }
   const mounted = entries.filter(entry => entry.state === 'mounted').length

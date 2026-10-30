@@ -273,6 +273,23 @@ describe('LspMountRegistry', () => {
     await registry.disposeAll()
   })
 
+  it('records a call outcome against the provider that owns the extension, and forgets it on unmount', async () => {
+    const mounted: MountedConfig[] = []
+    const { build } = mountCtx('ok', true)
+    const registry = build(hostLoader('ok', mounted))
+    const suite = lspSuite('ts')
+    await registry.reconcile([suite])
+    registry.observe('/work/app.ts', { ok: false, error: 'language server exited with code 1' })
+    expect(registry.observationSnapshot().get('src/ts/typescript')).toMatchObject({ ok: false, error: 'language server exited with code 1' })
+    // A path no live provider claims is not attributed to anyone.
+    registry.observe('/work/app.py', { ok: false, error: 'unrelated' })
+    expect(registry.observationSnapshot().size).toBe(1)
+    // The mount going away takes its evidence with it: a restarted provider
+    // must not inherit the previous process's failure.
+    await registry.disposeAll()
+    expect(registry.observationSnapshot().size).toBe(0)
+  })
+
   it('queues a restart issued during a pass instead of overlapping it', async () => {
     const { ctx, providerMounts, release } = gatedMountCtx()
     const registry = new LspMountRegistry(ctx as never, hostLoader('ok') as never, capabilityLoader(), capabilityLoader(), noProfiles)
