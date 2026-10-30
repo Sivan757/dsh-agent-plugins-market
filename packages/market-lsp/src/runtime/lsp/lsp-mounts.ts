@@ -262,6 +262,8 @@ export class LspMountRegistry {
     for (const [key, { suiteId, entry }] of wantedProviders) {
       if (this.live.has(key)) {
         this.lastDiagnostics.delete(key)
+        // Already live: any budget left from an earlier failure is history.
+        this.retries.settle(key)
         continue
       }
       const causes = [...(capabilityFailure?.causes ?? []), ...entry.facts]
@@ -281,6 +283,8 @@ export class LspMountRegistry {
         this.retries.schedule({ key, label: failure.suiteId, ...(failure.code === 'host-missing' ? {} : { reason: failure.reason }) })
       } else {
         this.lastDiagnostics.delete(key)
+        // Live again: a later failure starts from the first retry delay.
+        this.retries.settle(key)
       }
     }
     for (const key of this.lastDiagnostics.keys()) {

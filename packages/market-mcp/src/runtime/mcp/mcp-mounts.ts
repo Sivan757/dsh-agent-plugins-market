@@ -208,7 +208,11 @@ export class McpMountRegistry {
       // purpose: dropping a grant does not change the resolved config, so
       // only the explicit instruction tears the live bridge down and lets
       // the server's 401 restart the browser authorization.
-      if (live !== undefined && !this.forcedRemounts.has(key) && live.configFingerprint === fingerprintOf(entry.request)) continue
+      if (live !== undefined && !this.forcedRemounts.has(key) && live.configFingerprint === fingerprintOf(entry.request)) {
+        // Already live: any budget left from an earlier failure is history.
+        this.retries.settle(key)
+        continue
+      }
       this.forcedRemounts.delete(key)
       const serverName = entry.request.config.serverName
       const owner = this.serverOwner(serverName)
@@ -272,7 +276,11 @@ export class McpMountRegistry {
     // A retry attempt runs the same mount path; only the last failure is
     // reported so a transient error does not shadow the final state.
     const failure = await this.mountWith(entry.request)
-    if (failure === undefined) return undefined
+    if (failure === undefined) {
+      // The mount is live, so its next failure is a new outage.
+      this.retries.settle(key)
+      return undefined
+    }
     // Foreign and duplicate skips are deterministic, not transient:
     // retrying them just burns the attempt budget and log lines. The
     // next full reconcile re-checks them anyway, so the self-heal path
