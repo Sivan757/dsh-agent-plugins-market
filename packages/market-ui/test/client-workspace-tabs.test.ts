@@ -55,7 +55,10 @@ describe('PluginWorkspace tab row', () => {
     await mount()
     const tablist = host!.querySelector('[role="tablist"]')
     expect(tablist).not.toBeNull()
-    expect(tablist!.getAttribute('aria-label')).toBe('workspaceTabMarket')
+    // The rail is this settings page's section list, so it names the page. Naming
+    // it after one tab meant it announced "市场" from every other tab, and its
+    // step buttons read "市场 · 向后一个" wherever the reader was.
+    expect(tablist!.getAttribute('aria-label')).toBe('nav')
     // Six of the nine surfaces are visible; the default stow list holds the other
     // three, which stay reachable from the row's own entry.
     expect(host!.querySelectorAll('[role="tab"]').length).toBe(9)

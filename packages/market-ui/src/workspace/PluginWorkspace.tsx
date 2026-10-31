@@ -205,7 +205,11 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
       'div',
       { ref: rowRef, className: css.rowKeys },
       h(TabRail<WorkspaceTab>, {
-        label: labelKeys.market,
+        // The rail is the section list of this settings page, so it names the
+        // page: it used to borrow the market tab's own label, which meant the
+        // tablist announced "市场" while the reader was on 连接器 and its step
+        // buttons read "市场 · 向后一个".
+        label: t('nav'),
         // The step buttons name their direction in the reader's language: the
         // rail carries no translator of its own.
         stepPreviousLabel: t('tabStepPrevious'),
