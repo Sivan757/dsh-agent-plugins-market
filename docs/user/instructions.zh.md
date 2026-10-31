@@ -1,14 +1,14 @@
-# 工作区指令
+# 规则
 
 [English](instructions.md) | 简体中文 | [README](../../README.zh.md)
 
-**Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [服务](services.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md) · [指令](instructions.zh.md)
+**Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [服务](services.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md) · [规则](instructions.zh.md)
 
 ## 页面显示什么
 
-**指令**页签显示宿主注入当前会话的 `AGENTS.md` 链条。发现、加载顺序、去重与字节预算全部来自宿主包 `@deepseek-ai/dsh-agent-instructions`，因此页面与提示词不会互相矛盾：每一行的状态都来自模型实际收到的文本。
+**规则**页签列出宿主会注入的 `AGENTS.md` 文件，一个存在的文件一张卡片，点开即可编辑它。发现、加载顺序、去重与字节预算全部来自宿主包 `@deepseek-ai/dsh-agent-instructions`，因此页面与提示词不会互相矛盾：每一行的状态都来自模型实际收到的文本。
 
-页面按会话的工作目录读取链条。没有指定会话时读取宿主进程的工作目录，页面会在路径下方说明这一点。
+页面按会话的工作目录读取链条。设置页本身不在任何会话里，所以那里读的是宿主进程的工作目录，并在页头下方用一行说明。页面不渲染注入后的文本：文件清单与状态标签才是它能与提示词保持一致的部分。
 
 ## 加载顺序
 

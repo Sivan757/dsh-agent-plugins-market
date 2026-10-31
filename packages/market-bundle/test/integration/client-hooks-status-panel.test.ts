@@ -326,10 +326,10 @@ it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail'
     en.workspaceTabPersonas,
     en.workspaceTabCommands,
     en.workspaceTabMcp,
+    en.workspaceTabLsp,
     en.workspaceTabInstructions,
     en.workspaceTabOutputStyles,
-    en.workspaceTabHooks,
-    en.workspaceTabLsp
+    en.workspaceTabHooks
   ])
   // The row is one scrollable rail rather than an equal-column grid, so a ninth
   // tab is reached by sliding instead of being cut off at the frame edge.

@@ -85,13 +85,13 @@ The workspace has nine tabs:
 | Tab             | Use it to                                                                           |
 | --------------- | ----------------------------------------------------------------------------------- |
 | Market          | Add sources, preview suites, install or remove them, and switch them on or off.     |
-| Rules           | See the AGENTS.md chain a session injects, and create, edit or delete those files.  |
-| Output styles   | Choose the instruction block that shapes how the model answers, and preview it.     |
 | Skills          | Browse skills and create or edit your own reusable instructions.                    |
-| Shortcuts       | Manage prompt templates invoked as `/name`.                                         |
 | Experts         | Save role instructions and model settings, then delegate to them.                   |
+| Shortcuts       | Manage prompt templates invoked as `/name`.                                         |
 | Connectors      | Add a service or configure an installed one, its credentials and its authorization. |
 | Language Engine | Add and configure language servers, and read their runtime status.                  |
+| Rules           | See the AGENTS.md files that are injected, and create, edit or delete them.         |
+| Output styles   | Choose the instruction block that shapes how the model answers.                     |
 | Hooks           | Read each configured hook with its event, matcher and timeout.                      |
 
 A **source** is where content comes from. A **suite** is an installable unit discovered there. Adding a source discovers its suites. Enabling a suite turns its runtime capabilities on.

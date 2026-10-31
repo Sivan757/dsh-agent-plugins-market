@@ -317,7 +317,7 @@ it('uses the same source, count and name classes as current settings cards', asy
     settingsEn.workspaceTabPersonas,
     settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
-    en.epHooksTab
+    settingsEn.workspaceTabLsp
   ])
   expect(card.querySelector('[role="switch"]')).not.toBeNull()
   expect(document.querySelector('[role="group"] .' + source.default.srcTabMain)).not.toBeNull()
@@ -363,8 +363,8 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
     settingsEn.workspaceTabPersonas,
     settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
-    en.epHooksTab,
-    settingsEn.workspaceTabLsp
+    settingsEn.workspaceTabLsp,
+    en.epHooksTab
   ]
   const faceTabLabels = () =>
     [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!.querySelectorAll('[role="tab"]')
@@ -469,8 +469,8 @@ describe('user hooks configuration row', () => {
       tZh('workspaceTabPersonas'),
       tZh('workspaceTabCommands'),
       tZh('workspaceTabMcp'),
-      tZh('epHooksTab'),
-      tZh('workspaceTabLsp')
+      tZh('workspaceTabLsp'),
+      tZh('epHooksTab')
     ]
     const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
     expect([...faceTablist.querySelectorAll('[role="tab"]')].map(node => node.textContent)).toEqual(tabs)
@@ -603,8 +603,8 @@ describe('hooks tab', () => {
       settingsEn.workspaceTabPersonas,
       settingsEn.workspaceTabCommands,
       settingsEn.workspaceTabMcp,
-      en.epHooksTab,
-      settingsEn.workspaceTabLsp
+      settingsEn.workspaceTabLsp,
+      en.epHooksTab
     ])
     await click(en.epHooksTab)
     // No secondary event row remains: every declaration lists at once, and each

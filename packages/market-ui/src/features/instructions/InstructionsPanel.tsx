@@ -146,6 +146,11 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
         busy: loading
       })
     }),
+    // The settings page renders outside any session, so this read is the chain
+    // under the host process directory. Saying so is the difference between a
+    // reader trusting the two paths and wondering why their project's files are
+    // missing.
+    sessionId === undefined ? h('p', { className: css.sessionHint, 'data-instructions-session-hint': true }, t('instructionsSessionHint')) : null,
     error === undefined ? null : h('div', { className: css.error, role: 'alert' }, error),
     payload.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),

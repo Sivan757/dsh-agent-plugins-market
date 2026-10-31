@@ -126,12 +126,12 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function mount(payload: InstructionsPayload = PAYLOAD): Promise<void> {
+async function mount(payload: InstructionsPayload = PAYLOAD, sessionId?: string): Promise<void> {
   api.fetchInstructions.mockResolvedValue(payload)
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  await act(async () => root!.render(h(InstructionsPanel, { t })))
+  await act(async () => root!.render(h(InstructionsPanel, { t, sessionId })))
   // The read settles after the first paint.
   await act(async () => {})
 }
@@ -148,7 +148,14 @@ describe('instructions panel', () => {
     expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md'])
     expect(statuses()).toEqual(['active', 'active'])
     expect(host!.textContent).not.toContain('instructionsGroupProject')
-    expect(host!.textContent).not.toContain('instructionsSessionHint')
+    // No session is named, so the page says which directory it read. Without the
+    // line a reader whose project files are missing has no way to tell why.
+    expect(host!.querySelector('[data-instructions-session-hint]')?.textContent).toBe('instructionsSessionHint')
+  })
+
+  it('drops the scope line when a session names the directory', async () => {
+    await mount(PAYLOAD, 'session-1')
+    expect(host!.querySelector('[data-instructions-session-hint]')).toBeNull()
   })
 
   it('leaves the file rows out when the file does not exist', async () => {

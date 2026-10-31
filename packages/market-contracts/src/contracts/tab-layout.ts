@@ -9,7 +9,7 @@
  * when a tab is added to one and not the other, which is the moment to extend
  * this list.
  */
-export const WORKSPACE_TAB_KEYS = ['market', 'skills', 'personas', 'commands', 'mcp', 'instructions', 'outputStyles', 'hooks', 'lsp'] as const
+export const WORKSPACE_TAB_KEYS = ['market', 'skills', 'personas', 'commands', 'mcp', 'lsp', 'instructions', 'outputStyles', 'hooks'] as const
 
 /** One workspace tab. */
 export type WorkspaceTabKey = (typeof WORKSPACE_TAB_KEYS)[number]
@@ -31,16 +31,25 @@ export const PINNED_TAB_KEY: WorkspaceTabKey = 'market'
  * stow list and read their order from the display order, which is what a reader of
  * that file would have seen anyway.
  */
-export const TAB_LAYOUT_VERSION = 2
+export const TAB_LAYOUT_VERSION = 3
+
+/** The display order version 1 shipped with. */
+export const LEGACY_DISPLAY_ORDER = ['market', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks'] as const
 
 /**
- * The display order version 1 shipped with.
+ * Display orders earlier versions shipped with.
  *
- * A stored order that still equals this sequence is the default nobody edited, so it
- * migrates to the new display order. A stored order that differs is someone's own
+ * A stored order that still equals one of these sequences is a default nobody edited, so
+ * it migrates to the current display order. An order that differs is someone's own
  * arrangement and survives the migration untouched.
+ *
+ * Version 2 moved the authoring tabs up; version 3 put the two service surfaces next to
+ * each other, because both answer "what is mounted and why did it fail".
  */
-export const LEGACY_DISPLAY_ORDER = ['market', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks'] as const
+export const LEGACY_DISPLAY_ORDERS: readonly (readonly WorkspaceTabKey[])[] = [
+  LEGACY_DISPLAY_ORDER,
+  ['market', 'skills', 'personas', 'commands', 'mcp', 'instructions', 'outputStyles', 'hooks', 'lsp']
+]
 
 /** One workspace's tab row, as the host and the client exchange them. */
 export interface TabLayoutWire {

@@ -8,6 +8,14 @@
   overflow-wrap: anywhere;
 }
 
+/* The scope line sits under the header and above the list: quieter than the
+   rows it explains. */
+.sessionHint {
+  margin: 0 0 8px;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  font-size: 11px;
+}
+
 .notice {
   margin: 8px 0;
   padding: 8px 10px;

@@ -18,7 +18,7 @@ import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
 import {
   defaultTabLayout,
-  LEGACY_DISPLAY_ORDER,
+  LEGACY_DISPLAY_ORDERS,
   resolveHiddenTabs,
   resolveTabOrder,
   TAB_LAYOUT_VERSION,
@@ -84,8 +84,8 @@ export async function loadTabLayout(dataRoot: string, workspace: string): Promis
   // Version 2 changed the display order itself. A stored order that still equals the
   // sequence version 1 shipped with is the default nobody edited, so it moves to the new
   // one; an order someone arranged by hand is theirs and survives the migration.
-  if (typeof version === 'number' && version < TAB_LAYOUT_VERSION && stored.join() === LEGACY_DISPLAY_ORDER.join())
-    return { hidden: resolveHiddenTabs(hidden), order: resolveTabOrder(undefined) }
+  const untouched = LEGACY_DISPLAY_ORDERS.some(legacy => stored.join() === legacy.join())
+  if (typeof version === 'number' && version < TAB_LAYOUT_VERSION && untouched) return { hidden: resolveHiddenTabs(hidden), order: resolveTabOrder(undefined) }
   // A document written before ordering carries no `order`; it renders in display
   // order, which is exactly what that document meant when it was written.
   return { hidden: resolveHiddenTabs(hidden), order: stored }

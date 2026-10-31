@@ -1,14 +1,14 @@
-# Workspace instructions
+# Rules
 
 English | [简体中文](instructions.zh.md) | [README](../../README.md)
 
-**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Instructions](instructions.md)
+**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Rules](instructions.md)
 
 ## What the page shows
 
-The **Instructions** tab shows the `AGENTS.md` chain the host injects into the current session. Discovery, load order, deduplication and the byte budget all come from the harness package `@deepseek-ai/dsh-agent-instructions`, so the page and the prompt cannot disagree: a row status is read from the text the model receives.
+The **Rules** tab lists the `AGENTS.md` files the host would inject, one card per file that exists, and each card opens that file. Discovery, load order, deduplication and the byte budget all come from the harness package `@deepseek-ai/dsh-agent-instructions`, so the page and the prompt cannot disagree: a row's status comes from the text the model receives.
 
-The page reads the chain for the session's working directory. When no session is named it reads the host process working directory, and the page says so under the directory path.
+The page reads the chain for the session's working directory. The settings page renders outside any session, so there it reads the host process working directory and says so in one line under the header. The page does not render the injected text: the file list and the status tags are what it can keep true to the prompt.
 
 ## Load order
 
