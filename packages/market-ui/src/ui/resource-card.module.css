@@ -170,14 +170,17 @@
   }
 
   .collection[data-resource-view='list'] > .card[data-resource-state] {
-    /* Stacked narrow row: identity, then source, then the description. */
+    /* Two lines, not three: the name and its source share the first line and the
+       description takes the second, with the switch spanning both. Stacking the
+       source on a line of its own made every row ~100px tall — taller than a grid
+       card, so the "list" view was the least dense way to read the list. */
     height: auto;
-    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto;
     grid-template-areas:
-      'id act'
-      'foot act'
-      'body act';
-    padding-block: 10px;
+      'id foot act'
+      'body body act';
+    padding-block: 8px;
   }
 }
 
