@@ -22,7 +22,10 @@ describe('Agent Plugins Market client compatibility', () => {
       expect(labels.mcpStatusTitle).toBe(labels.workspaceTabMcp)
       expect(labels.lspStatusTitle).toBe(labels.workspaceTabLsp)
       expect(labels.mcpStatusSubtitle).toContain('MCP')
-      expect(labels.lspStatusSubtitle).toContain('LSP')
+      // The LSP subtitle keeps to the 20-character header budget, so the acronym
+      // rides the action that creates a server instead of the one-line intro.
+      expect(labels.lspAddTitle).toContain('LSP')
+      expect(labels.lspStatusSubtitle.toLowerCase()).toMatch(/language server|语言服务器/)
     }
     expect(zh.detailCommand).toBe('命令')
     expect(en.detailCommand).toBe('Command')

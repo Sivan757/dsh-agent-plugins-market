@@ -373,7 +373,15 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
         toListLabel: t('switchToList'),
         toGridLabel: t('switchToGrid'),
-        emptyText: loading ? t('loading') : t('empty'),
+        // A first run has one registered source and nothing cloned yet, so the
+        // list is empty for the one reader who has no idea what to do next: name
+        // the control that fills it instead of reporting a search that found
+        // nothing. A filtered or searched miss keeps the matching wording.
+        // A first run has one registered source and nothing cloned yet, so the
+        // list is empty for the one reader who has no idea what to do next: name
+        // the control that fills it instead of reporting a search that found
+        // nothing. A filtered or searched miss keeps the matching wording.
+        emptyText: loading ? t('loading') : overview.totals.all === 0 ? t('emptyNoSources') : t('empty'),
         onOpen: id => {
           const suite = suiteById.get(id)
           if (suite !== undefined) setDetail(suite)
