@@ -200,9 +200,14 @@ describe('tab rail reordering', () => {
     expect(element.style.maskImage).toBe('')
     Object.defineProperty(element, 'scrollWidth', { configurable: true, value: 900 })
     Object.defineProperty(element, 'clientWidth', { configurable: true, value: 300 })
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 40))
-    })
+    // The re-measure runs after a frame and after the fonts settle, so a fixed
+    // sleep loses the race on a loaded machine. Wait for the effect itself.
+    const deadline = Date.now() + 1000
+    while (!element.style.maskImage.includes('linear-gradient') && Date.now() < deadline) {
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10))
+      })
+    }
     expect(element.style.maskImage).toContain('linear-gradient')
     expect(document.querySelector('[aria-label="row · 向后一个"]')).not.toBeNull()
   })
