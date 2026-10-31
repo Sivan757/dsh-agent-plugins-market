@@ -302,10 +302,3 @@
     transition: none;
   }
 }
-
-@media (max-width: 720px) {
-  /* Narrow panels fit fewer columns; keep pills equal width, never scroll. */
-  .sourceTabsRow {
-    grid-template-columns: repeat(auto-fill, minmax(102px, 1fr));
-  }
-}

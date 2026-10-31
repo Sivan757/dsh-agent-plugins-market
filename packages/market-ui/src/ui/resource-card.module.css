@@ -346,7 +346,8 @@
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 11px;
+  /* One size for a monospace value line: the same path in a detail is 11.5px. */
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

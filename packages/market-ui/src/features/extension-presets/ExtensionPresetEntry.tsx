@@ -325,7 +325,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           }
         >
           <div
-            className={css.managerBody + ' ' + panelCss.shell}
+            className={`${css.managerBody} ${panelCss.shell}`}
             tabIndex={0}
             onKeyDown={event => {
               if (!(event.ctrlKey || event.metaKey) || event.altKey || editableClipboard(event.target) || window.getSelection()?.toString()) return
@@ -353,7 +353,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
             }}
           >
             <div className={css.planBar}>
-              <div className={css.planStrip + ' ' + sourceCss.sourceTabsBoxLine} role="group" aria-label={t('epTitle')}>
+              <div className={`${css.planStrip} ${sourceCss.sourceTabsBoxLine}`} role="group" aria-label={t('epTitle')}>
                 <div className={sourceCss.sourceTabsRow}>
                   <div className={!editing && !libraryDraft ? sourceCss.srcTabOn : sourceCss.srcTab}>
                     <button
@@ -433,7 +433,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
               />
             </div>
             {savedDirty && writes === 0 && (
-              <div className={css.inlineStatus + ' ' + panelCss.subtitle} role="alert">
+              <div className={`${css.inlineStatus} ${panelCss.subtitle}`} role="alert">
                 <span>{feedback}</span>
                 {savedDirty && writes === 0 && (
                   <>

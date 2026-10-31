@@ -62,18 +62,6 @@
   align-items: center;
 }
 
-/* The scroll region: every panel scrolls inside its own body, never the
-   full settings column, so switching tabs cannot shift the layout. */
-.body {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-
 /* ---- BusyIndicator ---------------------------------------------------- */
 
 .busyLine {
@@ -171,21 +159,6 @@
   text-align: center;
 }
 
-@container (max-width: 540px) {
-  .entryGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .entryRow {
-    flex-wrap: wrap;
-  }
-  .entryActions {
-    margin-left: auto;
-  }
-  .entryMain {
-    flex-basis: 100%;
-  }
-}
-
 /* ---- shared detail-dialog content ------------------------------------- */
 
 /* The one-line status band a detail dialog opens with. */
@@ -217,7 +190,7 @@
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-secondary);
   font:
-    12px/18px ui-monospace,
+    11.5px/18px ui-monospace,
     Menlo,
     Consolas,
     monospace;

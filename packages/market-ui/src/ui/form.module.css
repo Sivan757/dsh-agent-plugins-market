@@ -295,13 +295,6 @@
   flex: 0 0 26%;
 }
 
-.rowActions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-}
-
 /* Flat 24px icon action, the same geometry the cards use. */
 .iconBtn {
   display: inline-flex;
@@ -362,14 +355,6 @@
    heavier mark than the one the panel header uses. */
 .addIcon svg {
   display: block;
-}
-
-.inlineCheck {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--dsw-alias-label-primary);
-  font-size: 12px;
 }
 
 /* A group of related fields (a role's runtime configuration, an OAuth block). */

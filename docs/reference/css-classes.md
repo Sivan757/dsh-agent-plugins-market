@@ -20,14 +20,4 @@ Only while a removal waits on a visual pass. A row here is a promise to look aga
 ## Ledger
 
 | class | reason |
-| --- | --- |
-| `packages/market-ui/src/features/mcp/mcp-status.module.css defines .grid, which no importer references` | Unreferenced by code, but the name also occurs as an ordinary string elsewhere, so removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/features/mcp/mcp-status.module.css defines .detailEmpty, which no importer references` | Unreferenced and appears nowhere else in the repository; removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/features/mcp/mcp-status.module.css defines .modalFooterHint, which no importer references` | Unreferenced and appears nowhere else in the repository; removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/features/mcp/mcp-status.module.css defines .modalFooterGrow, which no importer references` | Unreferenced and appears nowhere else in the repository; removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/features/mcp/mcp-status.module.css defines .detail, which no importer references` | Unreferenced by code, but the name also occurs as an ordinary string elsewhere, so removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/features/mcp/mcp-status.module.css defines .list, which no importer references` | Unreferenced by code, but the name also occurs as an ordinary string elsewhere, so removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/ui/detail.module.css defines .pair, which no importer references` | Unreferenced and appears nowhere else in the repository; removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/ui/detail.module.css defines .row, which no importer references` | Unreferenced by code, but the name also occurs as an ordinary string elsewhere, so removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/ui/form.module.css defines .rowActions, which no importer references` | Unreferenced by code, but the name also occurs as an ordinary string elsewhere, so removal waits on a visual pass. (found ?) |
-| `packages/market-ui/src/ui/form.module.css defines .inlineCheck, which no importer references` | Unreferenced and appears nowhere else in the repository; removal waits on a visual pass. (found ?) |
+| ----- | ------ |

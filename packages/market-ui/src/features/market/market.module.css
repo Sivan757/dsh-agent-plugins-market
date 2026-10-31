@@ -48,9 +48,7 @@
   display: none !important;
 }
 
-.pageEntry:focus-visible,
-.detailItemRow:focus-visible,
-.detailItemOpen:focus-visible {
+.pageEntry:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
   outline-offset: 2px;
 }
@@ -114,58 +112,9 @@
   opacity: 0.5;
 }
 
-/* --- card grid ----------------------------------------------------------------- */
-
-/* Both host surfaces scroll inside the market's own list region: page mode is
-   a fixed shell and settings mode stretches the workspace to the section, so
-   the host `.options` container no longer scrolls the market. In-panel
-   scrolling with a stable gutter also removes the layout jitter when a tab
-   switch changes the scrollbar's visibility. */
-.grid {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  min-width: 0;
-  align-content: start;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  padding-right: 4px;
-}
-
-.list {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  padding-right: 4px;
-}
-
-.list .card {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-}
-
-.list .cardTop {
-  flex: 0 0 auto;
-}
-
-.list .cardActions {
-  flex: 0 0 auto;
-}
-
-.list .meta,
-.list .tagRow {
-  flex-basis: 100%;
-}
-
+/* The card grid and the list that used to live here belong to the shared list
+   (ui/ResourceSurface.tsx): this surface maps suites to entries and renders no
+   collection of its own, so the rules could never match. */
 .empty {
   color: var(--dsw-alias-label-tertiary, #8b93a1);
   padding: 48px 0;
@@ -314,22 +263,10 @@
   .pageView {
     padding: 14px;
   }
-
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .list .cardTop,
-  .list .cardActions {
-    max-width: 100%;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .progressSpin,
-  .switchOn,
-  .switchOff,
-  .switchThumb {
+  .progressSpin {
     animation: none;
     transition: none;
   }
@@ -338,52 +275,6 @@
 /* The 插件配置 card mirrors the host PluginCard chrome (border-l2 tokens,
    14/16 header padding, disclosure body at 0 16px) so it sits visually
    identical beside the native cards. */
-
-.pluginCard {
-  container: market-config / inline-size;
-  list-style: none;
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-radius: 12px;
-  background: var(--dsw-alias-bg-layer-3, #fff);
-  transition:
-    border-color 0.16s,
-    background 0.16s;
-}
-
-.pluginCard:hover {
-  border-color: var(--dsw-alias-label-dimmed, #c8ccd4);
-}
-
-.pluginCardOpen {
-  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
-  border-color: var(--dsw-alias-label-dimmed, #c8ccd4);
-}
-
-.pluginCard[data-busy='true'] {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.pluginCardHeader {
-  width: 100%;
-  appearance: none;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 12px;
-}
-
-.pluginCardHeader:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
-  outline-offset: -2px;
-}
 
 .pluginCardBody {
   display: flex;
@@ -407,13 +298,6 @@
   flex: 1;
 }
 
-.pluginCardTitle {
-  color: var(--dsw-alias-label-primary, #1f2328);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
 .pluginCardDesc {
   color: var(--dsw-alias-label-tertiary, #8b93a1);
   font-size: 13px;
@@ -424,18 +308,6 @@
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
-}
-
-@container market-config (max-width: 320px) {
-  .pluginCardRow {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .pluginCardText {
-    width: 100%;
-    overflow-wrap: anywhere;
-  }
 }
 
 /* The market card's switches use the platform Switch primitive; only the
@@ -478,24 +350,6 @@
 .pluginFieldReset:disabled {
   cursor: default;
   opacity: 0.5;
-}
-
-.pluginCardReadonly {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-}
-
-.pluginChevron {
-  flex: none;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  transition: transform 0.16s;
-  display: inline-flex;
-}
-
-.pluginChevronOpen {
-  transform: rotate(180deg);
 }
 
 /* A disclosure row's one-line summary: a long frontmatter description wraps the
