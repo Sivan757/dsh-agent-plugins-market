@@ -76,8 +76,11 @@ function labelsOf(list: Element | undefined): string[] {
 }
 /** The workspace row: the only list whose active tab is the market one. */
 const workspaceList = (): Element | undefined => [...document.querySelectorAll('[role="tablist"]')].find(list => (list.textContent ?? '').includes('workspaceTabMarket'))
-/** The preset manager row: the only one that renders its own hooks tab label. */
-const presetList = (): Element | undefined => [...document.querySelectorAll('[role="tablist"]')].find(list => (list.textContent ?? '').includes('epHooksTab'))
+/** The preset manager row: a preset switches what a suite installs, never the prompt layer. */
+const presetList = (): Element | undefined =>
+  [...document.querySelectorAll('[role="tablist"]')].find(
+    list => (list.textContent ?? '').includes('workspaceTabMarket') && !(list.textContent ?? '').includes('workspaceTabInstructions')
+  )
 const visibleRow = (): string[] => labelsOf(workspaceList())
 const presetVisible = (): string[] => labelsOf(presetList())
 
@@ -118,6 +121,6 @@ describe('shared tab layout', () => {
       await applyTabMove('hooks', 'skills', () => 'write failed')
     })
     expect(visibleRow().indexOf('workspaceTabHooks')).toBeLessThan(visibleRow().indexOf('workspaceTabSkills'))
-    expect(presetVisible().indexOf('epHooksTab')).toBeGreaterThan(-1)
+    expect(presetVisible()).toContain('workspaceTabHooks')
   })
 })

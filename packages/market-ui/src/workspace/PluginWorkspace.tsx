@@ -13,6 +13,7 @@ import { SettingsSizedDetails } from '../ui/DetailModal.js'
 import { TabRail } from '../ui/TabRail.js'
 import { useTabLayout, type TabLayoutMessages } from './tab-layout-store.js'
 import { WORKSPACE_TAB_KEYS, visibleTabs, type TabLayoutWire, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
+import { WORKSPACE_TAB_META } from './tab-meta.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -105,17 +106,9 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     return () => window.removeEventListener('hashchange', applyHash)
   }, [])
 
-  const labelKeys: Record<WorkspaceTab, string> = {
-    market: t('workspaceTabMarket'),
-    outputStyles: t('workspaceTabOutputStyles'),
-    instructions: t('workspaceTabInstructions'),
-    skills: t('workspaceTabSkills'),
-    commands: t('workspaceTabCommands'),
-    personas: t('workspaceTabPersonas'),
-    mcp: t('workspaceTabMcp'),
-    lsp: t('workspaceTabLsp'),
-    hooks: t('workspaceTabHooks')
-  }
+  // One metadata table names every tab, shared with the preset manager and the
+  // install confirmation, so a tab never gets renamed in one place and not another.
+  const labelKeys: Record<WorkspaceTab, string> = Object.fromEntries(WORKSPACE_TAB_KEYS.map(key => [key, t(WORKSPACE_TAB_META[key].label)])) as Record<WorkspaceTab, string>
 
   // The layout is shared with the preset manager, which opens inside this screen,
   // so both rows render from one store: a reorder or a stow in either is visible

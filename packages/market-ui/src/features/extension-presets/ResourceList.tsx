@@ -12,33 +12,18 @@ import panel from '../../ui/panel.module.css'
 import workspace from '../../workspace/workspace.module.css'
 import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout-store.js'
 import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
-const faces = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'hooks'] as const
-const labels = {
-  market: 'workspaceTabMarket',
-  skills: 'workspaceTabSkills',
-  commands: 'workspaceTabCommands',
-  agents: 'workspaceTabPersonas',
-  mcp: 'workspaceTabMcp',
-  lsp: 'workspaceTabLsp',
-  hooks: 'epHooksTab'
-} as const
-const countLabels = { skills: 'surfaceSkills', commands: 'surfaceCommands', agents: 'surfaceAgents', mcp: 'surfaceMcp', lsp: 'surfaceLsp', hooks: 'surfaceHooks' } as const
-/**
- * Each face's workspace tab key.
- *
- * The two lists name one collection differently: this surface's `agents` face is
- * the workspace's `personas` tab. The layout is shared, so the mapping has to be
- * stated once here rather than assumed.
- */
-const TAB_KEY: Record<(typeof faces)[number], WorkspaceTabKey> = {
-  market: 'market',
-  skills: 'skills',
-  commands: 'commands',
-  agents: 'personas',
-  mcp: 'mcp',
-  lsp: 'lsp',
-  hooks: 'hooks'
-} as const
+import { PRESET_FACES, WORKSPACE_TAB_META, workspaceKeyOfFace } from '../../workspace/tab-meta.js'
+import type { LocaleKey } from '../../locales.js'
+// The faces, their labels and the noun each collection is counted in all come from
+// the workspace's own metadata: this surface names one collection differently
+// (`agents` here, `personas` in the workspace) and that difference lives in one
+// field there rather than in four maps here.
+const faces = PRESET_FACES
+/** Each face's workspace tab key, resolved once from the shared metadata. */
+const TAB_KEY = Object.fromEntries(faces.map(face => [face, workspaceKeyOfFace(face)!])) as Record<(typeof faces)[number], WorkspaceTabKey>
+/** The face's tab label, or the noun one collection of it is counted in. */
+const labelOf = (face: (typeof faces)[number]): LocaleKey => WORKSPACE_TAB_META[TAB_KEY[face]].label
+const countOf = (face: (typeof faces)[number]): LocaleKey | undefined => WORKSPACE_TAB_META[TAB_KEY[face]].surface
 /**
  * One tab key back to this surface's face, when the surface has that tab.
  *
@@ -151,8 +136,12 @@ export function ResourceList({
     counts:
       row.face === 'market'
         ? faces
-            .filter(value => value !== 'market')
-            .map(value => ({ label: t(countLabels[value]), count: resources.filter(child => child.suiteResourceId === row.id && child.face === value).length }))
+            // A face without a count noun is the market itself: the row is the market,
+            // so it does not count itself.
+            .flatMap(value => {
+              const label = countOf(value)
+              return label === undefined ? [] : [{ label: t(label), count: resources.filter(child => child.suiteResourceId === row.id && child.face === value).length }]
+            })
             .filter(item => item.count > 0)
         : undefined,
     warning: !row.available || row.control === 'global-only' ? hints(row) : undefined,
@@ -174,7 +163,7 @@ export function ResourceList({
         stepPreviousLabel={t('tabStepPrevious')}
         stepNextLabel={t('tabStepNext')}
         onReorder={moveFace}
-        items={orderedFaces.map(value => ({ value, text: t(labels[value]), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
+        items={orderedFaces.map(value => ({ value, text: t(labelOf(value)), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
       />
       <div className={panel.shell} role="tabpanel" id={id + '-' + face + '-panel'} aria-labelledby={id + '-' + face}>
         <ResourceSurface

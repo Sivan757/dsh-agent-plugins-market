@@ -2,7 +2,10 @@
 import { createElement as h, type ReactNode } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SuiteCardData } from '../../api.js'
+import type { SuiteSurfaceCounts } from '../../../../market-contracts/src/contracts/market.js'
 import type { Translate } from '../../i18n.js'
+import type { LocaleKey } from '../../locales.js'
+import { PRESET_FACES, WORKSPACE_TAB_META, workspaceKeyOfFace } from '../../workspace/tab-meta.js'
 import css from './market.module.css'
 
 export interface InstallConfirmState {
@@ -21,18 +24,19 @@ export interface InstallConfirmModalProps {
   onConfirm: () => Promise<boolean>
 }
 
-/** Surface count tags shown on the card; keys mirror SuiteCard's tag list. */
-const SURFACE_TAGS: Array<{
-  key: 'skills' | 'mcp' | 'hooks' | 'commands' | 'agents' | 'lsp'
-  labelKey: 'surfaceSkills' | 'surfaceMcp' | 'surfaceHooks' | 'surfaceCommands' | 'surfaceAgents' | 'surfaceLsp'
-}> = [
-  { key: 'skills', labelKey: 'surfaceSkills' },
-  { key: 'mcp', labelKey: 'surfaceMcp' },
-  { key: 'hooks', labelKey: 'surfaceHooks' },
-  { key: 'commands', labelKey: 'surfaceCommands' },
-  { key: 'agents', labelKey: 'surfaceAgents' },
-  { key: 'lsp', labelKey: 'surfaceLsp' }
-]
+/**
+ * Surface count tags shown on the card.
+ *
+ * The key is the suite's own surface name and the label is the noun the workspace
+ * counts that collection in; both come from the shared tab metadata, so a renamed
+ * noun reaches this dialog too. The market has no count noun of its own, so it is
+ * the one face left out.
+ */
+const SURFACE_TAGS: Array<{ key: keyof SuiteSurfaceCounts; labelKey: LocaleKey }> = PRESET_FACES.flatMap(face => {
+  const key = workspaceKeyOfFace(face)
+  const label = key === undefined ? undefined : WORKSPACE_TAB_META[key].surface
+  return label === undefined ? [] : [{ key: face as keyof SuiteSurfaceCounts, labelKey: label }]
+})
 
 export function InstallConfirmModal(props: InstallConfirmModalProps): ReactNode {
   const { t, state, busy } = props

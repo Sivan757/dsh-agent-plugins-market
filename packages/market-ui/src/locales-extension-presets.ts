@@ -1,7 +1,6 @@
 export const extensionPresetsEn = {
   epTitle: 'Extension presets',
   epUserHooks: 'User hooks',
-  epHooksTab: 'Hooks',
   epHookFollowsSuite: 'Follows the suite',
   epHookEventPartial: 'Partially supported by the host; only permission and idle notifications can run.',
   epHookEventUnsupported: 'Host does not run this event yet; registered only.',
@@ -93,7 +92,6 @@ export type ExtensionPresetLocaleKey = keyof typeof extensionPresetsEn
 export const extensionPresetsZh: Record<ExtensionPresetLocaleKey, string> = {
   epTitle: '扩展预设',
   epUserHooks: '用户 Hooks',
-  epHooksTab: '钩子',
   epHookFollowsSuite: '跟随套件',
   epHookEventPartial: '宿主部分支持此事件，仅权限与空闲通知可运行。',
   epHookEventUnsupported: '宿主暂不执行此事件，仅登记。',

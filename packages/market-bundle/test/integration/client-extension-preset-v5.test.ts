@@ -364,7 +364,7 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
     settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
     settingsEn.workspaceTabLsp,
-    en.epHooksTab
+    settingsEn.workspaceTabHooks
   ]
   const faceTabLabels = () =>
     [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!.querySelectorAll('[role="tab"]')
@@ -470,7 +470,7 @@ describe('user hooks configuration row', () => {
       tZh('workspaceTabCommands'),
       tZh('workspaceTabMcp'),
       tZh('workspaceTabLsp'),
-      tZh('epHooksTab')
+      tZh('workspaceTabHooks')
     ]
     const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
     expect([...faceTablist.querySelectorAll('[role="tab"]')].map(node => node.textContent)).toEqual(tabs)
@@ -604,9 +604,9 @@ describe('hooks tab', () => {
       settingsEn.workspaceTabCommands,
       settingsEn.workspaceTabMcp,
       settingsEn.workspaceTabLsp,
-      en.epHooksTab
+      settingsEn.workspaceTabHooks
     ])
-    await click(en.epHooksTab)
+    await click(settingsEn.workspaceTabHooks)
     // No secondary event row remains: every declaration lists at once, and each
     // card names its own stage.
     expect([...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelector('[aria-controls$="-PreToolUse-panel"]'))).toHaveLength(0)
@@ -662,7 +662,7 @@ describe('hooks tab', () => {
         })
       )
     )
-    await click(en.epHooksTab)
+    await click(settingsEn.workspaceTabHooks)
     const cardOf = (id: string) => document.querySelector<HTMLElement>('article[data-resource-id="' + id + '"]')!
     // A supported event keeps its own switch; the selection is the only difference.
     expect(cardOf('hooks:@user-hooks/user-hooks/PreToolUse/0').querySelector('[role="switch"]')).not.toBeNull()
@@ -720,7 +720,7 @@ describe('hooks tab', () => {
         })
       )
     )
-    await click(tZh('epHooksTab'))
+    await click(tZh('workspaceTabHooks'))
     // Both read-only rows list at once, each with its own reason tag.
     expect(document.querySelectorAll('article')).toHaveLength(2)
     const cardOf = (id: string) => document.querySelector<HTMLElement>('article[data-resource-id="' + id + '"]')!
@@ -753,7 +753,7 @@ describe('hooks tab', () => {
     // Seven primary faces on one rail. The secondary event row is gone.
     const faceLists = () => [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 7)
     expect(faceLists()).toHaveLength(1)
-    await click(en.epHooksTab)
+    await click(settingsEn.workspaceTabHooks)
     expect(faceLists()).toHaveLength(1)
     // One line each, and the rail scrolls rather than shrinking a label: a face
     // keeps its width, which is what makes every entry readable at any frame width.
