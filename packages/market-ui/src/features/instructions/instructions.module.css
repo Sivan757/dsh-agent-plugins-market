@@ -17,15 +17,6 @@
   font-size: 11px;
 }
 
-.notice {
-  margin: 8px 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
 .unavailable {
   margin: 8px 0;
   padding: 12px 14px;

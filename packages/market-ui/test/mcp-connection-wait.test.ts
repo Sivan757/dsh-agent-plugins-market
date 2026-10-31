@@ -45,6 +45,14 @@ describe('the wait a reconnecting row announces', () => {
     expect(note).not.toContain('秒后重试')
   })
 
+  it('says how long the row has been down, in seconds and then in minutes', () => {
+    // The attempt count answers "how often", the countdown answers "how soon", and this
+    // answers "how long already" — the half of "why is this taking so long" nobody could
+    // see before.
+    expect(mcpConnectionNote(t, row({ phase: 'reconnecting', attempt: 2, maxAttempts: 5, since: 1_000 }), 47_000)).toContain('已断开 46 秒')
+    expect(mcpConnectionNote(t, row({ phase: 'reconnecting', attempt: 9, maxAttempts: 10, since: 0 }), 180_000)).toContain('已断开 3 分钟')
+  })
+
   it('keeps the error and the stop verdict in the same sentence', () => {
     const stopped = mcpConnectionNote(t, row({ phase: 'failed', attempt: 5, maxAttempts: 5, error: 'spawn ENOENT' }), 0)
     expect(stopped).toContain('重连已停止')

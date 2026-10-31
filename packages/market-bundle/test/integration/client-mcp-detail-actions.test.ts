@@ -49,10 +49,10 @@ describe('the connection sentence', () => {
   })
   it('reports a stopped supervisor, and stays quiet when the connection is fine', () => {
     expect(
-      mcpConnectionNote(t, { ...entry, state: 'failed', connection: { serverName: 'server', phase: 'failed', since: 1, attempt: 11, maxAttempts: 10, reason: 'gave-up' } })
+      mcpConnectionNote(t, { ...entry, state: 'failed', connection: { serverName: 'server', phase: 'failed', since: 1, attempt: 11, maxAttempts: 10, reason: 'gave-up' } }, 1)
     ).toBe('mcpReconnectStopped')
     for (const phase of ['connected'] as const) {
-      expect(mcpConnectionNote(t, { ...entry, connection: { serverName: 'server', phase, since: 1, attempt: 0, maxAttempts: 10 } })).toBeUndefined()
+      expect(mcpConnectionNote(t, { ...entry, connection: { serverName: 'server', phase, since: 1, attempt: 0, maxAttempts: 10 } }, 1)).toBeUndefined()
     }
     expect(mcpConnectionNote(t, entry)).toBeUndefined()
   })

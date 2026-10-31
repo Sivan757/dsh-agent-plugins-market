@@ -23,6 +23,7 @@ import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
+import panelCss from '../../ui/panel.module.css'
 
 /** The one drafting session the editor holds. */
 interface EditorState {
@@ -143,7 +144,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     }),
     error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     payload?.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
-    notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
+    notice === undefined ? null : h('div', { className: panelCss.notice, role: 'status' }, notice),
     // Only files that exist: a list of things that are not there cannot be seen, found, or used.
     h(ResourceSurface, {
       t,

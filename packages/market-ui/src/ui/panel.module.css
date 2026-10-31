@@ -153,6 +153,16 @@
   text-align: center;
 }
 
+/* One quiet status line for every panel: what the last action did. */
+.notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 /* One failure line for every panel: the message, then the retry beside it. */
 .readFailed {
   display: flex;

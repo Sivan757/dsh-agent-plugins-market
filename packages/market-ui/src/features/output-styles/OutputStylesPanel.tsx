@@ -141,7 +141,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
       })
     }),
     error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
-    notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
+    notice === undefined ? null : h('div', { className: panelCss.notice, role: 'status' }, notice),
     // One card per style, the same grid the catalogue panels draw: the list is for
     // scanning and the card opens everything a person can do with that style.
     h(ResourceSurface, {
