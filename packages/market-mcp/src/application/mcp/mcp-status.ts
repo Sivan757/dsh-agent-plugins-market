@@ -24,6 +24,8 @@ export interface McpDiagnostic {
   reason: string
   code?: McpStatusCode
   causes?: string[]
+  /** How long the mount attempt took, in milliseconds, when the registry timed it. */
+  mountMs?: number
   credentialRefs?: string[]
 }
 
@@ -203,6 +205,7 @@ export function buildMcpStatus(
         ...(override?.disabledTools === undefined ? {} : { userDisabledTools: override.disabledTools }),
         ...(code === undefined ? {} : { code }),
         ...(reason === undefined ? {} : { reason }),
+        ...(diagnostic?.mountMs === undefined ? {} : { mountMs: diagnostic.mountMs }),
         ...(diagnostic?.causes === undefined ? {} : { causes: diagnostic.causes }),
         ...(credentialRefs.length === 0 ? {} : { credentialRefs })
       })

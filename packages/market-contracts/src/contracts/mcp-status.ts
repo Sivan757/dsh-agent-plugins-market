@@ -108,6 +108,8 @@ export interface McpStatusEntry {
   tools: McpStatusTool[]
   /** The one-line diagnostic this row reports, in the words of the layer that failed. */
   reason?: string
+  /** How long the last mount attempt took, in milliseconds, when one was recorded. */
+  mountMs?: number
   /** Why this row carries a reason; also the key the panel localizes it by. */
   code?: McpStatusCode
   /**

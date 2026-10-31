@@ -116,7 +116,8 @@ export function McpDetailModal({
       { label: 'transport', value: entry.transport },
       { label: 'tools', value: String(entry.tools.length) },
       { label: 'reason', value: entry.reason ?? '' },
-      { label: 'advice', value: guidanceSentence }
+      { label: 'advice', value: guidanceSentence },
+      { label: 'mountMs', value: entry.mountMs === undefined ? '' : String(entry.mountMs) }
     ],
     causes: entry.causes === undefined ? [] : [...entry.causes]
   })
@@ -268,6 +269,9 @@ export function McpDetailModal({
           kvCell(t('sourceLabel'), entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'), true),
           kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser')),
           kvCell(t('detailTransport'), entry.transport, true),
+          // How long the last attempt took: the one number that separates a slow
+          // handshake from a configuration error when the reason alone is ambiguous.
+          entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true),
           // The mount identity the runtime registers, which is not always the
           // name the declaration uses. A user's own declaration mounts under
           // its key and then there is nothing extra to name.

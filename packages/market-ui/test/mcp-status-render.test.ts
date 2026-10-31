@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createElement as h } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import type { McpStatusPayload } from '../../../packages/market-contracts/src/contracts/mcp-status.js'
 
 const statusPayload = vi.hoisted(() => ({
   entries: [
@@ -179,6 +180,60 @@ async function mountPanel(credentials?: CredentialApi): Promise<HTMLDivElement> 
   })
   return host
 }
+
+/** The duration a slow failure reports, so the number is not only in a log. */
+describe('MCP mount duration', () => {
+  it('names how long the last attempt took, in the detail and in the copied block', async () => {
+    const written: string[] = []
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          written.push(text)
+          return Promise.resolve()
+        }
+      },
+      configurable: true
+    })
+    const api = await import('../../../packages/market-ui/src/api.js')
+    // One row, written literally: the hoisted fixture is untyped, and a spread of it
+    // widens every field to optional.
+    const slowPayload: McpStatusPayload = {
+      entries: [
+        {
+          id: 'plugin:demo/service',
+          name: 'demo__service',
+          kind: 'plugin',
+          state: 'failed',
+          code: 'mount-failed',
+          source: 'Demo Suite',
+          suiteId: 'demo',
+          serverKey: 'service',
+          transport: 'stdio',
+          endpoint: 'node server.js',
+          reason: 'connection refused',
+          tools: [],
+          mountMs: 12_600
+        }
+      ],
+      observedAt: '',
+      totals: { all: 1, connected: 0, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
+      directObservationOnly: true
+    }
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(slowPayload)
+    const el = await mountPanel()
+    await act(async () => {
+      el.querySelector('[data-resource-surface="mcp"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).toContain('mcpMountDurationLabel')
+    const button = [...document.querySelectorAll('button')].find(node => node.textContent === 'copyDiagnostics')!
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(written[0]).toContain('mountMs: 12600')
+  })
+})
 
 /** The copyable block a reader hands to someone who can look at the service. */
 describe('MCP diagnostics copy', () => {

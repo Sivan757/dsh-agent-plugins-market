@@ -275,7 +275,12 @@ export class McpMountRegistry {
     }
     // A retry attempt runs the same mount path; only the last failure is
     // reported so a transient error does not shadow the final state.
+    // The attempt is timed here because this is the only place that knows when
+    // one began: a row that took ten seconds to fail asks a different question
+    // than one that failed in forty milliseconds.
+    const startedAt = Date.now()
     const failure = await this.mountWith(entry.request)
+    const mountMs = Date.now() - startedAt
     if (failure === undefined) {
       // The mount is live, so its next failure is a new outage.
       this.retries.settle(key)
@@ -292,6 +297,7 @@ export class McpMountRegistry {
       serverKey: entry.serverKey,
       reason: failure.reason,
       code: failure.code,
+      mountMs,
       ...(failure.causes === undefined || failure.causes.length === 0 ? {} : { causes: failure.causes })
     }
   }

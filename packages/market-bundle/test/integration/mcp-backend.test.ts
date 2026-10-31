@@ -132,7 +132,8 @@ describe('MCP backend dispatch at mount time', () => {
       suiteId: 'demo/alpha',
       serverKey: 'db',
       code: 'mount-failed',
-      reason
+      reason,
+      mountMs: expect.any(Number) as number
     })
     vi.doUnmock('@deepseek-ai/dsh-mcp-client')
     vi.resetModules()
@@ -151,7 +152,8 @@ describe('MCP backend dispatch at mount time', () => {
       suiteId: 'demo/alpha',
       serverKey: 'web',
       code: 'mount-failed',
-      reason
+      reason,
+      mountMs: expect.any(Number) as number
     })
   })
 })

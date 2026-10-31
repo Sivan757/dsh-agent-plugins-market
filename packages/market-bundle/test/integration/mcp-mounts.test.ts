@@ -195,7 +195,9 @@ describe('McpMountRegistry', () => {
       suiteId: 'demo/broken',
       serverKey: 'service',
       code: 'mount-failed',
-      reason: 'mount failed: connection refused'
+      reason: 'mount failed: connection refused',
+      // The attempt is timed, so a slow failure can say how slow.
+      mountMs: expect.any(Number) as number
     })
     // The half-mounted handle is disposed so no child process survives.
     expect(disposed).toEqual(['disposed'])
@@ -223,6 +225,7 @@ describe('McpMountRegistry', () => {
       serverKey: 'service',
       code: 'mount-failed',
       reason: 'mount failed: mcp-client(broken__service): initial connection or tool synchronization failed',
+      mountMs: expect.any(Number) as number,
       causes: ['spawn npx ENOENT']
     })
     await registry.disposeAll()

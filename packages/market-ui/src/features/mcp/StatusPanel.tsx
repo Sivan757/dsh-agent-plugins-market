@@ -231,7 +231,12 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       // why it failed: the advice after the colon stays in the detail.
       ...(() => {
         const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
-        return guidance === undefined ? {} : { warning: failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) }
+        if (guidance === undefined) return {}
+        // A failure that took ten seconds and one that took forty milliseconds read
+        // the same in a one-line cause; the row that needed ten seconds says so, so a
+        // slow row is distinguishable before anything is opened.
+        const seconds = entry.mountMs === undefined || entry.mountMs < 1000 ? undefined : (entry.mountMs / 1000).toFixed(1) + 's'
+        return { warning: seconds === undefined ? failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) : failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) + ' · ' + seconds }
       })(),
       canEdit: switchable,
       toggleLabel: disabled ? t('enable') : t('disable')

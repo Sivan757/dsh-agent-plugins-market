@@ -95,10 +95,12 @@ describe('MCP status aggregation', () => {
     expect(failed.code).toBe('reconnect-stopped')
     expect(failed.reason).toBe('spawn ENOENT')
 
-    // A row that never mounted keeps the mount diagnostic's own words.
+    // A row that never mounted keeps the mount diagnostic's own words, and the time
+    // the attempt took: ten seconds and forty milliseconds fail the same way but ask
+    // different questions.
     const diagnosed = buildMcpStatus(
       [suite()],
-      [{ suiteId: 'codex-plugin/codex', serverKey: 'app', reason: 'connection refused', code: 'mount-failed' }],
+      [{ suiteId: 'codex-plugin/codex', serverKey: 'app', reason: 'connection refused', code: 'mount-failed', mountMs: 10_040 }],
       [],
       new Map(),
       undefined,
@@ -108,6 +110,7 @@ describe('MCP status aggregation', () => {
     const refused = diagnosed.entries.find(entry => entry.serverKey === 'app')!
     expect(refused.code).toBe('mount-failed')
     expect(refused.reason).toBe('connection refused')
+    expect(refused.mountMs).toBe(10_040)
     expect(refused.connection).toBeUndefined()
   })
 
