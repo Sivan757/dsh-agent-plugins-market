@@ -231,6 +231,20 @@ describe('MCP status actions', () => {
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 
+  it('says on the card why a connector failed, keeping the advice in the detail', async () => {
+    // The list is scanned to find the row that needs attention, so the cause is
+    // on the card; 「确认服务可达…」 and the retry stay one click away.
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    const card = el.querySelector('[data-resource-state="error"]')!
+    // The refusal shape ('connection refused') is what the row states, in the
+    // warning tag the shared card draws; the advice after the colon is not here.
+    const warning = card.querySelector('[class*="warnWrap"]')
+    expect(warning?.textContent).toBe('failureGuideRefused')
+    expect(card.textContent).not.toContain('failureGuideTimeout')
+  })
+
   it('offers retry in the status band and echoes the outcome in place', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)

@@ -29,7 +29,7 @@ import {
 } from '../../api.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
-import { failureGuidanceKey } from '../../ui/failure-guidance.js'
+import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import { type ResourceState } from '../../ui/ResourceCard.js'
 import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
 import css from '../mcp/mcp-status.module.css'
@@ -165,9 +165,18 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'),
         description: entry.command,
         meta: entry.suiteName === undefined ? String(Object.keys(entry.extensions).length) : entry.suiteName,
-        // A mounted row whose last call failed is the one thing this panel can
-        // say about a server that stopped answering: the seam has no death signal.
-        ...(entry.observation === undefined || entry.observation.ok ? {} : { warning: t('lspLastCallShort') }),
+        // A row that did not mount says why on the card, cause first: the advice
+        // after the colon stays in the detail. A mounted row whose last call
+        // failed is the other thing this panel can say, because the seam has no
+        // death signal.
+        ...(() => {
+          if (entry.state === 'mounted' || entry.state === 'disabled') {
+            return entry.observation === undefined || entry.observation.ok ? {} : { warning: t('lspLastCallShort') }
+          }
+          const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
+          const sentence = guidance === undefined ? entry.reason : t(FAILURE_GUIDANCE_LABEL[guidance])
+          return sentence === undefined || sentence === '' ? {} : { warning: failureCause(sentence) }
+        })(),
         state: lspCardState(entry.state),
         // The rail is colour only; this is what a screen reader hears.
         stateLabel: stateLabel(t, entry.state)

@@ -11,6 +11,7 @@ import { matchesMcpFilter, MCP_FILTERS, nextConnectionRead, type McpStatusFilter
 import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpStateLabel } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
+import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { useTranslationRefresh } from '../../ui/translation-enabled.js'
 import { McpDetailModal } from './McpDetailModal.js'
@@ -227,6 +228,12 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       keywords: [entry.name, entry.endpoint ?? '', entry.transport, entry.reason ?? '', ...(entry.credentialRefs ?? [])].join(' '),
       state: mcpCardState(entry.state),
       stateLabel: mcpStateLabel(t, entry.state),
+      // The list is scanned to find the row that needs attention, so the row says
+      // why it failed: the advice after the colon stays in the detail.
+      ...(() => {
+        const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
+        return guidance === undefined ? {} : { warning: failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) }
+      })(),
       canEdit: switchable,
       toggleLabel: disabled ? t('enable') : t('disable')
     }
