@@ -13,6 +13,7 @@ The owner pointed at three inconsistencies in a row. Two of them are one defect 
 ## Decision
 
 - **One band component.** `ReadFailed` (in `ui/panel.tsx`) renders `role="alert"`, the localized cause, and the retry beside it; `panel.module.css` owns the one rule. Every panel that reads something uses it: connectors, language engine, instructions, output styles, hooks, skills/commands/experts, and the market, whose toast became a persistent line with a retry.
+- **Every route fails through one typed error.** Four routes bypassed `getJson` and threw `new Error('output styles failed: 502')`, so those panels showed an English label and a bare code while their neighbours showed a sentence. `statusError` builds a `RequestFailedError`, which now carries the host's own reason when the host gave one; the panel renders that reason verbatim, and the localized sentence with the status otherwise.
 - **One placeholder rule.** A read that failed has no rows because nothing was read, so the list says `statusUnreadable` instead of its "nothing here" copy. Panels that never got a payload draw the same band and the same placeholder instead of a shape of their own.
 - **The retry label is shared.** `mcpRetry` became `readRetry`, because every panel uses that word now.
 - **The preset manager gets the panel header.** It carries the subtitle line every settings page opens with (「每个预设保存一组启停选择，选中的那个用于本会话。」) and draws the shared band when its read fails, instead of hiding the failure in a menu.

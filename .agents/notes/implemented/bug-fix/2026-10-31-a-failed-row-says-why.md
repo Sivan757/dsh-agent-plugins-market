@@ -20,6 +20,10 @@ The same held for the language-engine rows: a server that never mounted carried 
 - **Add a separate short key per failure shape.** Rejected: 23 more keys in two languages duplicating the first clause of sentences that already exist, and two places to update when a sentence changes.
 - **Rely on the tag alone and leave the reason to the tooltip.** Rejected: a tooltip is not visible while scanning, and the objective of this row is exactly to be scannable.
 
+## The advice names the case that produces it
+
+A real profile failed three connectors while its network was fine: every one of them resolved to a LAN address, and the machine's HTTPS traffic went through a local proxy whose tunnel could never reach the LAN, so the requests died in the handshake. The two sentences those failures land on now name that case — 连接超时 / TLS 握手失败 both say an intranet host usually means the proxy is not letting it through, and name the fix (route the domain directly, or add it to `NO_PROXY`). Verified with `curl`: the same three hosts answer `401` in under 150ms with `--noproxy '*'` and time out through `127.0.0.1:7890`.
+
 ## Consequences
 
 - Three failing connectors read as three different problems at a glance.

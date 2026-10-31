@@ -130,6 +130,17 @@ async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): 
  * `label` names the resource in the thrown message, so a failed load reads the
  * same in every panel that shares this helper.
  */
+/**
+ * The error a non-2xx answer becomes.
+ *
+ * A host that explained itself keeps its sentence; one that did not gets the
+ * typed status error, so the panel renders the same localized line every other
+ * panel renders instead of an English route label.
+ */
+function statusError(hostReason: string | undefined, label: string, status: number): RequestFailedError {
+  return hostReason === undefined || hostReason === '' ? new RequestFailedError(label, status) : new RequestFailedError(label, status, hostReason)
+}
+
 async function getJson<T>(url: string, label: string, init?: RequestInit): Promise<T> {
   return boundedRequest(url, { credentials: 'same-origin', ...init }, READ_TIMEOUT_MS, async response => {
     if (!response.ok) throw new RequestFailedError(label, response.status)
@@ -164,7 +175,7 @@ export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promis
       const url = `${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`
       const response = await boundedFetch(url, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
       const body = (await response.json()) as ServerConfigPayload & { error?: string }
-      if (!response.ok) throw new Error(body.error ?? `Server configuration failed: ${response.status}`)
+      if (!response.ok) throw statusError(body.error, 'server configuration', response.status)
       return body
     },
     { blocking: false }
@@ -542,7 +553,7 @@ export async function createUserPanelEntry(kind: UserPanelKind, name: string, te
       MUTATION_TIMEOUT_MS
     )
     const payload = (await response.json()) as { ok?: boolean; error?: string; entry?: UserPanelEntry }
-    if (!response.ok || payload.ok !== true || payload.entry === undefined) throw new Error(payload.error ?? `create failed: ${response.status}`)
+    if (!response.ok || payload.ok !== true || payload.entry === undefined) throw statusError(payload.error, 'create', response.status)
     return payload.entry
   })
 }
@@ -616,7 +627,7 @@ export async function fetchInstructions(sessionId?: string): Promise<Instruction
     async () => {
       const response = await boundedFetch(sessionRoute(INSTRUCTION_ROUTES.read, sessionId), { credentials: 'same-origin' }, READ_TIMEOUT_MS)
       const payload = (await response.json()) as InstructionsPayload & { error?: string }
-      if (!response.ok) throw new Error(payload.error ?? `instructions failed: ${response.status}`)
+      if (!response.ok) throw statusError(payload.error, 'instructions', response.status)
       return payload
     },
     { blocking: false }
@@ -665,7 +676,7 @@ export async function fetchOutputStyles(sessionId?: string): Promise<OutputStyle
     async () => {
       const response = await boundedFetch(sessionRoute(OUTPUT_STYLE_ROUTES.read, sessionId), { credentials: 'same-origin' }, READ_TIMEOUT_MS)
       const payload = (await response.json()) as OutputStylesPayload & { error?: string }
-      if (!response.ok) throw new Error(payload.error ?? `output styles failed: ${response.status}`)
+      if (!response.ok) throw statusError(payload.error, 'output styles', response.status)
       return payload
     },
     { blocking: false }

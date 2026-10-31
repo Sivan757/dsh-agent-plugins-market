@@ -33,7 +33,11 @@ export function clientErrorMessage(t: ErrorTranslate, error: unknown): string {
   if (error instanceof RequestTimeoutError) return t('requestTimeout')
   // The host's status code is the one fact in a failed read a reader can relay;
   // the rest of the sentence says what happened in their language.
-  if (error instanceof RequestFailedError) return t('requestFailed', { status: String(error.status) })
+  if (error instanceof RequestFailedError) {
+    // A host that named the reason is the only one who knows it; the panel's
+    // sentence is what stands in when nothing was explained.
+    return error.hostReason === undefined ? t('requestFailed', { status: String(error.status) }) : error.hostReason
+  }
   // The host's own reason wins when it has one; only our fallback sentence is
   // something a reader should see in their language.
   if (error instanceof CredentialError && CREDENTIAL_FALLBACK.has(error.message)) return t(CREDENTIAL_MESSAGE[error.code])
