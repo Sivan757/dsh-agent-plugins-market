@@ -117,7 +117,8 @@ export function McpDetailModal({
       { label: 'tools', value: String(entry.tools.length) },
       { label: 'reason', value: entry.reason ?? '' },
       { label: 'advice', value: guidanceSentence },
-      { label: 'mountMs', value: entry.mountMs === undefined ? '' : String(entry.mountMs) }
+      { label: 'mountMs', value: entry.mountMs === undefined ? '' : String(entry.mountMs) },
+      { label: 'proxy', value: entry.proxyMismatch === undefined ? '' : entry.proxyMismatch.proxy + ' (host not in NO_PROXY: ' + entry.proxyMismatch.host + ')' }
     ],
     causes: entry.causes === undefined ? [] : [...entry.causes]
   })
@@ -278,6 +279,12 @@ export function McpDetailModal({
           entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
         )
       ),
+      // A failure this machine's proxy explains says so here, next to the advice:
+      // the service owner cannot answer it, and the reader would otherwise spend the
+      // next hour on the remote side.
+      entry.proxyMismatch === undefined
+        ? null
+        : h('p', { className: panelCss.detailProse, 'data-proxy-mismatch': '' }, t('mcpProxyMismatch', { proxy: entry.proxyMismatch.proxy, host: entry.proxyMismatch.host })),
       entry.kind === 'direct' && !entry.managed ? h('p', { className: panelCss.detailProse }, t('mcpDirectBoundary')) : null,
       h(
         'div',

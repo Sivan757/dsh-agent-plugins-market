@@ -257,6 +257,7 @@ export const zh = {
   mcpReconnecting: '连接断开，正在重连（第 {attempt}/{max} 次）',
   mcpReconnectStopped: '连接断开，重连已停止',
   mcpLastError: '最近错误：{error}',
+  mcpProxyMismatch: '本机经代理 {proxy} 访问网络，而 NO_PROXY 未包含 {host}：内网服务通常需要直连，或把该域加入 NO_PROXY。',
   mcpDownSeconds: '已断开 {seconds} 秒',
   mcpDownMinutes: '已断开 {minutes} 分钟',
   mcpRetryIn: '{seconds} 秒后重试',
@@ -817,6 +818,8 @@ export const en: Record<LocaleKey, string> = {
   mcpReconnecting: 'Connection lost; reconnecting (attempt {attempt}/{max})',
   mcpReconnectStopped: 'Connection lost; reconnecting stopped',
   mcpLastError: 'Last error: {error}',
+  mcpProxyMismatch:
+    'This machine reaches the network through {proxy}, and NO_PROXY does not list {host}: an intranet service usually needs a direct connection, or that domain in NO_PROXY.',
   mcpDownSeconds: 'Down {seconds}s',
   mcpDownMinutes: 'Down {minutes}m',
   mcpRetryIn: 'Retrying in {seconds}s',

@@ -14,6 +14,7 @@ import type { ServerConfigPayload, ServerPolicyPayload } from '../../../market-c
 import type { DiscoveredSuite, Suite } from '../../../market-contracts/src/model/types.js'
 import type { McpBackend } from '../../../market-contracts/src/contracts/mcp.js'
 import { probeHostMcpClient } from './mcp/mcp-backend.js'
+import { proxyMismatchFor } from './mcp/proxy-hint.js'
 import { declaredMcpPolicy, deriveServerName, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp/mcp-config.js'
 import { prepareUserMcpServer, prepareUserMcpServerRemoval, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from './mcp/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../../../market-contracts/src/contracts/mcp.js'
@@ -108,6 +109,10 @@ export class McpService {
         auth?.enabled !== false &&
         !declaresAuthHeader(entry.config) &&
         !['disabled', 'foreign', 'orphaned'].includes(entry.state)
+      // A failure this machine's own proxy configuration explains is worth naming:
+      // the reader otherwise spends the next hour on the service side.
+      const mismatch = proxyMismatchFor(entry.endpoint, { code: entry.code, reason: entry.reason, causes: entry.causes }, process.env)
+      if (mismatch !== undefined) entry.proxyMismatch = mismatch
     }
     return payload
   }

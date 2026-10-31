@@ -110,6 +110,15 @@ export interface McpStatusEntry {
   reason?: string
   /** How long the last mount attempt took, in milliseconds, when one was recorded. */
   mountMs?: number
+  /**
+   * The proxy this process would have to go through, and the host it could not
+   * reach, when that configuration explains the failure.
+   *
+   * Set only for a connection-shaped failure (timeout, TLS, DNS, refused) whose host
+   * is not in NO_PROXY: a public host behind a proxy is normal, an intranet host
+   * behind one usually is not.
+   */
+  proxyMismatch?: { proxy: string; host: string }
   /** Why this row carries a reason; also the key the panel localizes it by. */
   code?: McpStatusCode
   /**
