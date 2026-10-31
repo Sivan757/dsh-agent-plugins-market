@@ -138,6 +138,11 @@ export interface ResourceSurfaceProps {
    * status tabs and described the wrong control.
    */
   filterLabel?: string
+  /**
+   * A line about the whole list, drawn inside its box under the toolbar rather
+   * than above it, so the toolbar keeps the same row across surfaces.
+   */
+  notice?: ReactNode
   /** Trailing control before the view switch, such as the text toggle. */
   beforeView?: ReactNode
   /** Accessible names of the view switch, each saying where a click leads. */
@@ -171,6 +176,7 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
     searchPlaceholder,
     filters = [],
     filterLabel,
+    notice,
     beforeView,
     toListLabel,
     toGridLabel,
@@ -282,6 +288,11 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
       // in the "show more" button, but a reader who cannot see the list shrink
       // needs to be told it happened.
       h('p', { className: surface.srOnly, role: 'status', 'aria-live': 'polite', 'data-resource-status': '' }, statusText),
+      // A note about the whole list (which directory it was read from, what a
+      // filter hides) belongs inside the list box, under the toolbar: rendered
+      // above the toolbar it would push the toolbar down and make this one tab's
+      // controls sit lower than every other tab's.
+      notice,
       shown.length === 0
         ? h('p', { className: surface.empty }, emptyText)
         : h(

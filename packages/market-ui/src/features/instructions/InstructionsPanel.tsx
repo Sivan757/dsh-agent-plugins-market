@@ -23,7 +23,6 @@ import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
-import panelCss from '../../ui/panel.module.css'
 
 /** The one drafting session the editor holds. */
 interface EditorState {
@@ -105,19 +104,12 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     })
   }
 
-  // A first read that never landed: the same band and the same placeholder every
-  // other panel draws, not a line of its own.
-  if (payload === undefined) {
-    return h(
-      'div',
-      { className: css.surface },
-      h(PanelHeader, { subtitle: t('instructionsSubtitle') }),
-      error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
-      h('div', { className: panelCss.empty }, loading ? t('loading') : t('statusUnreadable'))
-    )
-  }
-
-  if (!payload.available) {
+  // One tree for every state. The toolbar and the list box exist from the first
+  // paint, so a tab switch never moves the panel's content: the earlier version
+  // returned a header-only skeleton while loading, and the toolbar and list then
+  // appeared under it, shifting everything down.
+  const rows = payload === undefined ? [] : payload.rows
+  if (payload !== undefined && !payload.available) {
     return h(
       'div',
       { className: css.surface },
@@ -141,7 +133,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
         // one: the first candidate the host reports as missing.
         addLabel: t('instructionsCreate'),
         onAdd: () => {
-          const missing = payload.rows.find(row => row.scope !== 'project' && !row.exists)
+          const missing = rows.find(row => row.scope !== 'project' && !row.exists)
           if (missing !== undefined) openEditor(missing)
         },
         refreshLabel: t('refresh'),
@@ -149,13 +141,8 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
         busy: loading
       })
     }),
-    // The settings page renders outside any session, so this read is the chain
-    // under the host process directory. Saying so is the difference between a
-    // reader trusting the two paths and wondering why their project's files are
-    // missing.
-    sessionId === undefined ? h('p', { className: css.sessionHint, 'data-instructions-session-hint': true }, t('instructionsSessionHint')) : null,
     error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
-    payload.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
+    payload?.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
     // Only files that exist: a list of things that are not there cannot be seen, found, or used.
     h(ResourceSurface, {
@@ -166,7 +153,12 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       // and a "loaded" tab would hide exactly the truncated rows someone opens the
       // page to find.
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
-      entries: payload.rows
+      // The settings page renders outside any session, so this read is the chain
+      // under the host process directory. Saying so is the difference between a
+      // reader trusting the two paths and wondering why their project's files are
+      // missing. It rides the list box so the toolbar keeps its row.
+      ...(sessionId === undefined ? { notice: h('p', { className: css.sessionHint, 'data-instructions-session-hint': true }, t('instructionsSessionHint')) } : {}),
+      entries: rows
         .filter(row => row.scope !== 'project' && row.exists)
         .map(row => ({
           id: `${row.scope}:${row.directory}:${row.candidate}`,
@@ -175,13 +167,14 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
           tagId: row.status,
           meta: row.size === undefined ? '' : t('instructionsRowSize', { bytes: row.size })
         })),
-      emptyText: error === undefined && payload.error === undefined ? t('instructionsPreviewEmpty') : t('statusUnreadable'),
+      emptyText: error !== undefined || payload?.error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('instructionsPreviewEmpty'),
       onOpen: id => {
-        const row = payload.rows.find(entry => `${entry.scope}:${entry.directory}:${entry.candidate}` === id)
+        const row = rows.find(entry => `${entry.scope}:${entry.directory}:${entry.candidate}` === id)
         if (row !== undefined) openEditor(row)
       }
     }),
-    editor === undefined
+    // The editor only opens from a row, and a row only exists once a read landed.
+    editor === undefined || payload === undefined
       ? null
       : h(InstructionEditor, {
           t,

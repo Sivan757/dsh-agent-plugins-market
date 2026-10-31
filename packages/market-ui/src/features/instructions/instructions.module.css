@@ -11,6 +11,7 @@
 /* The scope line sits under the header and above the list: quieter than the
    rows it explains. */
 .sessionHint {
+  flex: none;
   margin: 0 0 8px;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
   font-size: 11px;

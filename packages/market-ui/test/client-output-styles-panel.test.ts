@@ -94,6 +94,16 @@ const button = (label: string, scope: HTMLElement | null = document.body): HTMLB
   [...(scope?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(node => node.textContent === label) ?? null
 
 describe('output styles panel', () => {
+  it('draws its toolbar and list box before the first read lands', async () => {
+    // A tab that renders a header-only skeleton while loading grows when the data
+    // arrives, and the whole content area jumps. The controls live from frame one.
+    api.fetchOutputStyles.mockReturnValueOnce(new Promise(() => {}))
+    await mount()
+    expect(host!.querySelector('[data-panel-toolbar]')).not.toBeNull()
+    expect(host!.querySelector('[class*="results"]')).not.toBeNull()
+    expect(host!.textContent).toContain('loading')
+  })
+
   it('draws the shared read-failure band and says the state is unknown, not empty', async () => {
     // Every panel presents a failed read the same way: one alert line with the
     // cause, the retry beside it, and a list that does not claim "nothing here".

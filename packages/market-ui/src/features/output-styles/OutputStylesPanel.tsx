@@ -122,18 +122,11 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
     })
   }
 
-  // A first read that never landed: the same band and the same placeholder every
-  // other panel draws, not a line of its own.
-  if (payload === undefined) {
-    return h(
-      'div',
-      { className: css.surface },
-      h(PanelHeader, { subtitle: t('outputStylesSubtitle') }),
-      error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
-      h('div', { className: panelCss.empty }, loading ? t('loading') : t('statusUnreadable'))
-    )
-  }
-
+  // One tree for every state. The toolbar and the list box exist from the first
+  // paint, so a tab switch never moves the panel's content: the earlier version
+  // returned a header-only skeleton while loading, and the header, toolbar and
+  // list then appeared under it, shifting everything down by 50px.
+  const styles = payload === undefined ? [] : payload.styles
   return h(
     'div',
     { className: css.surface },
@@ -161,7 +154,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         { id: 'suite', label: t('outputStylesGroupSuite'), match: item => item.tagId === 'suite' }
       ],
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
-      entries: payload.styles.map(row => ({
+      entries: styles.map(row => ({
         id: row.id,
         name: row.label,
         tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
@@ -170,16 +163,16 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
         disabled: !isSelectable(row)
       })),
-      emptyText: error === undefined ? t('outputStylesEmpty') : t('statusUnreadable'),
-      onOpen: id => setDetail(payload.styles.find(row => row.id === id))
+      emptyText: error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('outputStylesEmpty'),
+      onOpen: id => setDetail(styles.find(row => row.id === id))
     }),
     detail === undefined
       ? null
       : h(StyleDetail, {
           t,
           row: detail,
-          selected: detail.id === payload.selected,
-          injected: payload.injected,
+          selected: detail.id === payload?.selected,
+          injected: payload?.injected ?? '',
           busy: busyStyle === detail.id,
           onSelect: () => {
             select(detail)

@@ -141,6 +141,16 @@ const paths = (): string[] => cards().map(card => card.querySelector('span')?.te
 const statuses = (): string[] => cards().map(card => card.getAttribute('data-resource-state') ?? '')
 
 describe('instructions panel', () => {
+  it('draws its toolbar and list box before the first read lands', async () => {
+    // Same reason as every other panel: the skeleton cannot be shorter than the
+    // settled surface, or switching to this tab moves everything below the header.
+    api.fetchInstructions.mockReturnValueOnce(new Promise(() => {}))
+    await mount()
+    expect(host!.querySelector('[data-panel-toolbar]')).not.toBeNull()
+    expect(host!.querySelector('[class*="results"]')).not.toBeNull()
+    expect(host!.textContent).toContain('loading')
+  })
+
   it('lists the user-level files as clickable cards, in load order', async () => {
     await mount()
     // The project candidates and the session directory are not listed: the row answers which
