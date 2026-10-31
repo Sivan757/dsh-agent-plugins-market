@@ -7,6 +7,10 @@
  */
 .toolbar {
   display: flex;
+  /* The host filter control is 36px tall and the search field is 33px, so a bar
+     with filters was 3px taller than one without them and the list jumped when
+     the reader changed tabs. The row keeps the taller of its children. */
+  min-height: 36px;
   align-items: center;
   gap: 8px;
   min-width: 0;
