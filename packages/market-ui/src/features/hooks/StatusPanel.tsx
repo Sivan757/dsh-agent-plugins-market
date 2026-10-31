@@ -8,7 +8,7 @@ import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import type { ExtensionTranslate } from '../../i18n.js'
 import { fetchHooksOverview } from '../../api.js'
 import type { ExtensionDetail, ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
-import { PanelHeader, PanelActions } from '../../ui/panel.js'
+import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { HookDetailModal } from '../../ui/HookDetailModal.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
@@ -51,7 +51,7 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
       subtitle: t('hooksPanelSubtitle'),
       actions: h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
     }),
-    error === undefined ? null : h('div', { className: css.error, role: 'status' }, error),
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     // The shared renderer draws the list; this panel only supplies entries and the detail.
     h(ResourceSurface, {
       t,
@@ -75,7 +75,7 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
       searchPlaceholder: t('hooksPanelSearch'),
       // No tabs: "supported" equals "all" whenever nothing is limited, and the
       // card's own warning already says why a row is limited.
-      emptyText: loading && rows.length === 0 ? t('loading') : t('hooksPanelEmpty'),
+      emptyText: error !== undefined && rows.length === 0 ? t('statusUnreadable') : loading && rows.length === 0 ? t('loading') : t('hooksPanelEmpty'),
       onOpen: rowId => {
         const row = rows.find(item => item.id === rowId)
         if (row !== undefined) openDetail(row)

@@ -30,6 +30,7 @@ import css from './presets.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
 import sourceCss from '../../ui/source-strip.module.css'
 import panelCss from '../../ui/panel.module.css'
+import { ReadFailed } from '../../ui/panel.js'
 import rc from '../../ui/resource-card.module.css'
 
 /** Re-exported from the leaf so an existing import from this module keeps working. */
@@ -352,6 +353,10 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
               transition(() => importText(text))
             }}
           >
+            {/* The same two lines every settings page opens with: what this is, and
+                what went wrong when it could not be read. */}
+            <p className={panelCss.subtitle}>{t('epManageSubtitle')}</p>
+            {error === undefined || error === '' ? null : h(ReadFailed, { message: t('epLoadFailed') + ' ' + error, retryLabel: t('readRetry'), onRetry: retry })}
             <div className={css.planBar}>
               <div className={`${css.planStrip} ${sourceCss.sourceTabsBoxLine}`} role="group" aria-label={t('epTitle')}>
                 <div className={sourceCss.sourceTabsRow}>

@@ -15,7 +15,7 @@ import { displayText } from './translated-text.js'
 import { BilingualToggle } from './BilingualToggle.js'
 import { useTranslationEnabled, useTranslationRefresh } from './translation-enabled.js'
 import { pollUntilTranslated } from './translation-settle.js'
-import { PanelActions, PanelHeader, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
+import { PanelActions, PanelHeader, ReadFailed, BusyIndicator, ConfirmModal, EntryEditorModal, type PanelConfirmState, type PanelEditorState } from './panel.js'
 import css from './panel.module.css'
 import formCss from './form.module.css'
 import { RoleMetadataFields } from './RoleMetadataFields.js'
@@ -294,7 +294,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
         busy
       })
     }),
-    error === undefined ? null : h('div', { className: css.editorError }, error),
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: () => void refresh(true) }),
     busy ? h(BusyIndicator, { overlay: true, label: t('panelWorking') }) : null,
     h(ResourceSurface, {
       t,
@@ -310,7 +310,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
-      emptyText: loading && entries.length === 0 ? t('loading') : t('panelEmpty'),
+      emptyText: error !== undefined && entries.length === 0 ? t('statusUnreadable') : loading && entries.length === 0 ? t('loading') : t('panelEmpty'),
       onOpen: id => {
         const row = byId.get(id)
         if (row !== undefined) openDetail(row)

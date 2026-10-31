@@ -20,7 +20,7 @@ import { CodeEditor } from '../../ui/CodeEditor.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { DetailModal } from '../../ui/DetailModal.js'
-import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
+import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
 import panelCss from '../../ui/panel.module.css'
@@ -105,12 +105,15 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     })
   }
 
+  // A first read that never landed: the same band and the same placeholder every
+  // other panel draws, not a line of its own.
   if (payload === undefined) {
     return h(
       'div',
       { className: css.surface },
       h(PanelHeader, { subtitle: t('instructionsSubtitle') }),
-      h('div', { className: panelCss.empty }, loading ? t('loading') : t('instructionsErrorTitle'))
+      error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
+      h('div', { className: panelCss.empty }, loading ? t('loading') : t('statusUnreadable'))
     )
   }
 
@@ -151,7 +154,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     // reader trusting the two paths and wondering why their project's files are
     // missing.
     sessionId === undefined ? h('p', { className: css.sessionHint, 'data-instructions-session-hint': true }, t('instructionsSessionHint')) : null,
-    error === undefined ? null : h('div', { className: css.error, role: 'alert' }, error),
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     payload.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
     // Only files that exist: a list of things that are not there cannot be seen, found, or used.
@@ -172,7 +175,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
           tagId: row.status,
           meta: row.size === undefined ? '' : t('instructionsRowSize', { bytes: row.size })
         })),
-      emptyText: t('instructionsPreviewEmpty'),
+      emptyText: error === undefined && payload.error === undefined ? t('instructionsPreviewEmpty') : t('statusUnreadable'),
       onOpen: id => {
         const row = payload.rows.find(entry => `${entry.scope}:${entry.directory}:${entry.candidate}` === id)
         if (row !== undefined) openEditor(row)

@@ -1,6 +1,6 @@
 # Agent Note：一个对象一个名字，页签说自己装了什么
 
-Status: implemented
+Status: implemented部分被[系统提示词笔记](../bug-fix/2026-10-31-the-tab-is-the-system-prompt.zh.md)取代：页签叫「系统提示词」而不是「规则」。本笔记其余部分（套件作为单元、服务页一个名词、创作页副标题）仍然有效。
 
 ## Problem
 

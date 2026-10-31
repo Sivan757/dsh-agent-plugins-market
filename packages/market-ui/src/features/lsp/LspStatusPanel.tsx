@@ -14,7 +14,7 @@ import { createElement as h } from 'react'
 import { Button, IconRefreshOutlineMedium, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigModal } from '../../ui/ServerConfigModal.js'
-import { PanelHeader, PanelActions } from '../../ui/panel.js'
+import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
 import type { Translate } from '../../i18n.js'
 import {
   fetchLspStatus,
@@ -154,7 +154,7 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
             refresh()
           }
         }),
-    error !== undefined ? h('div', { className: css.error }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry'))) : null,
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     // The shared renderer draws the list; the panel supplies entries, the detail and the editor.
     h(ResourceSurface, {
       t,

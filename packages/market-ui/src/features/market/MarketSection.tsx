@@ -22,7 +22,7 @@ import { useTranslationEnabled, useTranslationRefresh } from '../../ui/translati
 import { BusyIndicator } from '../../ui/panel.js'
 import css from './market.module.css'
 import panelCss from '../../ui/panel.module.css'
-import { PanelHeader, PanelActions } from '../../ui/panel.js'
+import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
 import { displayText } from '../../ui/translated-text.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 
@@ -66,6 +66,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const [overview, setOverview] = useState<OverviewData>(() => peekOverview().initial)
   const [loading, setLoading] = useState(() => !peekOverview().cached)
   const [category, setCategory] = useState<Category>('all')
+  // A failed read is a state, not a notification: the market keeps saying it until
+  // the next read works, the same way every other panel does.
+  const [readError, setReadError] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState<string | undefined>(undefined)
   const [toast, setToast] = useState<ToastState | undefined>(undefined)
   const [confirm, setConfirm] = useState<ConfirmState | undefined>(undefined)
@@ -109,8 +112,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         if (refreshSequence.current !== sequence || languageRef.current !== requestedLanguage) return
         setOverview(data)
         setOverviewLanguage(requestedLanguage)
-      } catch {
-        if (refreshSequence.current === sequence) setToast({ key: Date.now(), message: t('loadFail') })
+        setReadError(undefined)
+      } catch (error) {
+        if (refreshSequence.current === sequence) setReadError(clientErrorMessage(t, error))
       } finally {
         if (refreshSequence.current === sequence) setLoading(false)
       }
@@ -315,6 +319,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             busy: busy !== undefined
           })
         }),
+        readError === undefined ? null : h(ReadFailed, { message: readError, retryLabel: t('readRetry'), onRetry: () => void refresh(true) }),
         h(
           'div',
           { className: css.marketControls },
@@ -381,7 +386,8 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         // list is empty for the one reader who has no idea what to do next: name
         // the control that fills it instead of reporting a search that found
         // nothing. A filtered or searched miss keeps the matching wording.
-        emptyText: loading ? t('loading') : overview.totals.all === 0 ? t('emptyNoSources') : t('empty'),
+        emptyText:
+          readError !== undefined && overview.totals.all === 0 ? t('statusUnreadable') : loading ? t('loading') : overview.totals.all === 0 ? t('emptyNoSources') : t('empty'),
         onOpen: id => {
           const suite = suiteById.get(id)
           if (suite !== undefined) setDetail(suite)

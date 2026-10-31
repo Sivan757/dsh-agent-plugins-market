@@ -1,6 +1,6 @@
 # Agent Note: one noun per object, and tabs that say what they hold
 
-Status: implemented
+Status: implemented Superseded in part by [the system-prompt note](../bug-fix/2026-10-31-the-tab-is-the-system-prompt.md): the tab is 系统提示词, not 规则. The rest of this note (套件 as the unit, one noun per service, the authoring subtitles) stands.
 
 ## Problem
 

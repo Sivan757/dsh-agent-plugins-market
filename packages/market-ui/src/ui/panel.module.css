@@ -137,12 +137,6 @@
   justify-content: flex-end;
 }
 
-.editorError {
-  margin-right: auto;
-  color: var(--dsw-alias-state-error-primary, rgb(200, 30, 30));
-  font-size: 12px;
-}
-
 .confirmCheck {
   display: flex;
   flex-direction: row;
@@ -157,6 +151,39 @@
   color: var(--dsw-alias-label-tertiary, #6b7280);
   font-size: 12px;
   text-align: center;
+}
+
+/* One failure line for every panel: the message, then the retry beside it. */
+.readFailed {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.readFailedText {
+  min-width: 0;
+}
+
+.readFailedRetry {
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-brand-primary, #4f6ef7);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.readFailedRetry:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
+  outline-offset: 2px;
 }
 
 /* ---- shared detail-dialog content ------------------------------------- */

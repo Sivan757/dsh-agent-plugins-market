@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
-import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
+import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
@@ -250,7 +249,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     }),
     // The last read's failure stays visible above the list: a stale row is
     // still worth seeing, and the retry sits where the failure is.
-    error === undefined ? null : h('div', { className: css.error, role: 'alert' }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry'))),
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     h(ResourceSurface, {
       t,
       entries,

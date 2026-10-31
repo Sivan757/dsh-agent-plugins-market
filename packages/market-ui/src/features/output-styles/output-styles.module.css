@@ -10,12 +10,6 @@
   overflow-y: auto;
 }
 
-.error {
-  margin: 8px 0;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
 .notice {
   margin: 8px 0;
   padding: 8px 10px;

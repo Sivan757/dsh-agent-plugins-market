@@ -22,7 +22,7 @@ import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { DetailModal } from '../../ui/DetailModal.js'
-import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
+import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { captureAction, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
@@ -122,12 +122,15 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
     })
   }
 
+  // A first read that never landed: the same band and the same placeholder every
+  // other panel draws, not a line of its own.
   if (payload === undefined) {
     return h(
       'div',
       { className: css.surface },
       h(PanelHeader, { subtitle: t('outputStylesSubtitle') }),
-      h('div', { className: panelCss.empty }, loading ? t('loading') : t('outputStylesErrorTitle'))
+      error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
+      h('div', { className: panelCss.empty }, loading ? t('loading') : t('statusUnreadable'))
     )
   }
 
@@ -144,7 +147,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         busy: loading
       })
     }),
-    error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('outputStylesErrorTitle'), ' ', error),
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     notice === undefined ? null : h('div', { className: css.notice, role: 'status' }, notice),
     // One card per style, the same grid the catalogue panels draw: the list is for
     // scanning and the card opens everything a person can do with that style.
@@ -167,7 +170,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
         disabled: !isSelectable(row)
       })),
-      emptyText: t('outputStylesEmpty'),
+      emptyText: error === undefined ? t('outputStylesEmpty') : t('statusUnreadable'),
       onOpen: id => setDetail(payload.styles.find(row => row.id === id))
     }),
     detail === undefined

@@ -90,7 +90,7 @@ The workspace has nine tabs:
 | Shortcuts       | Manage prompt templates invoked as `/name`.                                         |
 | Connectors      | Add a service or configure an installed one, its credentials and its authorization. |
 | Language Engine | Add and configure language servers, and read their runtime status.                  |
-| Rules           | See the AGENTS.md files that are injected, and create, edit or delete them.         |
+| System prompt   | See the AGENTS.md files injected into it, and create, edit or delete them.          |
 | Output styles   | Choose the instruction block that shapes how the model answers.                     |
 | Hooks           | Read each configured hook with its event, matcher and timeout.                      |
 

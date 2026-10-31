@@ -94,6 +94,19 @@ const button = (label: string, scope: HTMLElement | null = document.body): HTMLB
   [...(scope?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(node => node.textContent === label) ?? null
 
 describe('output styles panel', () => {
+  it('draws the shared read-failure band and says the state is unknown, not empty', async () => {
+    // Every panel presents a failed read the same way: one alert line with the
+    // cause, the retry beside it, and a list that does not claim "nothing here".
+    api.fetchOutputStyles.mockRejectedValueOnce(new Error('host down'))
+    await mount()
+    const band = host!.querySelector('[data-read-failed]')!
+    expect(band.getAttribute('role')).toBe('alert')
+    expect(band.textContent).toContain('host down')
+    expect([...band.querySelectorAll('button')].map(button => button.textContent)).toEqual(['readRetry'])
+    expect(host!.textContent).toContain('statusUnreadable')
+    expect(host!.textContent).not.toContain('outputStylesEmpty')
+  })
+
   it('lists every style as a card, tagged by its source', async () => {
     await mount()
     expect(cards()).toHaveLength(2)

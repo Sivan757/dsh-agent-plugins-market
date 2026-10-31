@@ -69,6 +69,23 @@ export function PanelHeader(props: { title?: string; subtitle?: string; actions?
 }
 
 /**
+ * One sentence for a panel that could not read its data, with the retry beside it.
+ *
+ * Every panel that reads something can fail to read it, and before this each one
+ * drew its own line: some as `role="alert"`, one as `role="status"`, some with a
+ * title and the raw error after it, some with a retry and some without. The words
+ * differ per panel because the cause does; everything around them does not.
+ */
+export function ReadFailed(props: { message: string; retryLabel: string; onRetry: () => void }): ReactNode {
+  return h(
+    'div',
+    { className: css.readFailed, role: 'alert', 'data-read-failed': '' },
+    h('span', { className: css.readFailedText }, props.message),
+    h('button', { type: 'button', className: css.readFailedRetry, onClick: props.onRetry }, props.retryLabel)
+  )
+}
+
+/**
  * Inline loading feedback, or a lease on the client's shared blocking overlay.
  * Overlay leases render no layout element and can span request + refresh work.
  */

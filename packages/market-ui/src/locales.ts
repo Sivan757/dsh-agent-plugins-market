@@ -329,7 +329,7 @@ export const zh = {
   mcpAddTitle: '新建连接器 (MCP)',
   mcpEditTitle: '编辑连接器 (MCP)',
   mcpServerName: '服务名称',
-  mcpRetry: '重试',
+  readRetry: '重试',
   mcpAdvanced: '高级设置',
   mcpAdvancedSummary: '连接选项与超时',
   mcpToolCallTimeout: '工具调用超时',
@@ -492,11 +492,12 @@ export const zh = {
   // The long-hover bubble above one tab.
   tabLayoutLoadFailed: '无法读取页签布局，已显示全部页签：{error}',
   tabLayoutWriteFailed: '页签布局没有保存，已恢复原来的布局：{error}',
-  /* ---- Workspace instructions tab (AGENTS.md chain) ---- */
-  // "规则" rather than "指令": the commands tab reads 快捷指令, and two tabs whose
-  // Chinese labels share 指令 cannot be told apart at a glance in a narrow row.
-  workspaceTabInstructions: '规则',
-  instructionsSubtitle: '注入的 AGENTS.md 文件链。',
+  /* ---- System prompt tab (AGENTS.md chain) ---- */
+  // Not "规则": these files are injected into the system prompt, which is what the
+  // tab names. The persona editor's body field reads 角色指令, so the two do not
+  // compete for the same word any more.
+  workspaceTabInstructions: '系统提示词',
+  instructionsSubtitle: 'AGENTS.md 注入系统提示词。',
   instructionsGroupGlobal: '用户级',
   instructionsGroupProject: '项目',
   instructionsCwdLabel: '会话目录',
@@ -515,9 +516,9 @@ export const zh = {
   instructionsOverLimit: '已超过单文件上限 {limit} 字节，保存会被拒绝：这样的文件永远不会被加载。',
   instructionsCreate: '新建',
   instructionsPreviewEmpty: '当前没有任何内容注入。',
-  instructionsUnavailableTitle: '规则页面不可用',
+  instructionsUnavailableTitle: '系统提示词页面不可用',
   instructionsUnavailableBody: '当前 profile 未提供 {package} 包，因此读不到 AGENTS.md 链条。',
-  instructionsErrorTitle: '读取规则链失败',
+  instructionsErrorTitle: '读取提示词链失败',
   instructionsDeleteTitle: '删除 {path}',
   instructionsDeleteDesc: '删除这个文件，操作无法撤销。',
   instructionsDeleteAliases: '以下路径指向同一个文件，删除后会一起失效：{paths}',
@@ -882,7 +883,7 @@ export const en: Record<LocaleKey, string> = {
   mcpAddTitle: 'New connector (MCP)',
   mcpEditTitle: 'Edit connector (MCP)',
   mcpServerName: 'Server name',
-  mcpRetry: 'Retry',
+  readRetry: 'Retry',
   mcpAdvanced: 'Advanced settings',
   mcpAdvancedSummary: 'Connection options and timeouts',
   mcpToolCallTimeout: 'Tool call timeout',
@@ -1047,8 +1048,8 @@ export const en: Record<LocaleKey, string> = {
   /* ---- Workspace instructions tab (AGENTS.md chain) ---- */
   // "Rules" rather than "Instructions": the row is narrow and the label has to
   // read as its own thing beside Shortcuts, not as a longer Shortcuts.
-  workspaceTabInstructions: 'Rules',
-  instructionsSubtitle: 'The AGENTS.md files that are injected.',
+  workspaceTabInstructions: 'System prompt',
+  instructionsSubtitle: 'AGENTS.md files injected into the system prompt.',
   instructionsGroupGlobal: 'User-global',
   instructionsGroupProject: 'Project',
   instructionsCwdLabel: 'Session directory',
@@ -1067,9 +1068,9 @@ export const en: Record<LocaleKey, string> = {
   instructionsOverLimit: 'Over the per-file limit of {limit} bytes. Saving is refused because such a file would never load.',
   instructionsCreate: 'Create',
   instructionsPreviewEmpty: 'Nothing is injected right now.',
-  instructionsUnavailableTitle: 'Rules are unavailable',
+  instructionsUnavailableTitle: 'The system prompt page is unavailable',
   instructionsUnavailableBody: 'This profile does not provide the {package} package, so the AGENTS.md chain cannot be read.',
-  instructionsErrorTitle: 'Reading the rules failed',
+  instructionsErrorTitle: 'Reading the prompt chain failed',
   instructionsDeleteTitle: 'Delete {path}',
   instructionsDeleteDesc: 'Deletes this file. This cannot be undone.',
   instructionsDeleteAliases: 'These paths resolve to the same file and stop working too: {paths}',
