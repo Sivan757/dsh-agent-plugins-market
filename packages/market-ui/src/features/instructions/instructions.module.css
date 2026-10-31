@@ -1,14 +1,6 @@
-/* The loading line, the read failure and the unavailable card had no rules at
-   all: they rendered with browser defaults (an `h3` carrying its own margins)
-   inside a panel that insets everything else. These mirror the output-styles
-   panel, so the two list panels of the same shape read the same. */
-.empty {
-  padding: 24px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 12px;
-  text-align: center;
-}
-
+/* The loading line and the read failure had no rules at all: they rendered with
+   browser defaults (an `h3` carrying its own margins) inside a panel that insets
+   everything else. The empty placeholder now comes from the shared panel box. */
 .error {
   margin: 8px 0;
   color: var(--dsw-alias-state-error-primary, #dc2626);

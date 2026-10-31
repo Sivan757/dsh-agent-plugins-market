@@ -23,6 +23,7 @@ import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
 import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
+import panelCss from '../../ui/panel.module.css'
 
 /** The one drafting session the editor holds. */
 interface EditorState {
@@ -109,7 +110,7 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       'div',
       { className: css.surface },
       h(PanelHeader, { subtitle: t('instructionsSubtitle') }),
-      h('div', { className: css.empty }, loading ? t('loading') : t('instructionsErrorTitle'))
+      h('div', { className: panelCss.empty }, loading ? t('loading') : t('instructionsErrorTitle'))
     )
   }
 

@@ -21,6 +21,7 @@ import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { useTranslationEnabled, useTranslationRefresh } from '../../ui/translation-enabled.js'
 import { BusyIndicator } from '../../ui/panel.js'
 import css from './market.module.css'
+import panelCss from '../../ui/panel.module.css'
 import { PanelHeader, PanelActions } from '../../ui/panel.js'
 import { displayText } from '../../ui/translated-text.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
@@ -293,7 +294,7 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   })
 
   return h(ErrorBoundary, {
-    fallback: error => h('div', { className: css.empty }, `${t('actionFail')}: ${error.message}`),
+    fallback: error => h('div', { className: panelCss.empty }, `${t('actionFail')}: ${error.message}`),
     children: h(
       'div',
       { className: mode === 'page' ? `${css.market} ${css.pageMode}` : css.market },

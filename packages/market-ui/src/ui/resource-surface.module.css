@@ -40,11 +40,15 @@
   border: 0;
 }
 
+/* The same placeholder the panels use for a surface with nothing to show:
+   24px of air, centred, 12px. The list used to sit at 16px against the left
+   edge, so an empty tab and an empty list looked like two different products. */
 .empty {
   margin: 0;
-  padding: 16px 2px;
+  padding: 24px 12px;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
+  text-align: center;
 }
 
 /* The "more" row closes the collection: it spans the grid so it never lands in a

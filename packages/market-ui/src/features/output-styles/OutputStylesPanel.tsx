@@ -27,6 +27,7 @@ import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { captureAction, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
 import css from './output-styles.module.css'
+import panelCss from '../../ui/panel.module.css'
 
 interface OutputStylesPanelProps {
   t: Translate
@@ -126,7 +127,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
       'div',
       { className: css.surface },
       h(PanelHeader, { subtitle: t('outputStylesSubtitle') }),
-      h('div', { className: css.empty }, loading ? t('loading') : t('outputStylesErrorTitle'))
+      h('div', { className: panelCss.empty }, loading ? t('loading') : t('outputStylesErrorTitle'))
     )
   }
 
@@ -324,8 +325,10 @@ function StyleDetail(props: {
       h('p', { className: css.rowDescription }, row.description),
       row.capture === 'missing' ? h('p', { className: css.rowWarn }, t('outputStylesCaptureMissing')) : null,
       row.capture === 'stale' ? h('p', { className: css.rowWarn }, t('outputStylesCaptureStale')) : null,
-      h('h4', { className: css.groupTitle }, t('outputStylesPreviewTitle')),
-      shown === '' ? h('p', { className: css.empty }, t('outputStylesPreviewEmpty')) : h('pre', { className: css.previewText, 'data-output-style-preview': true }, shown)
+      // The block head every detail section uses: 11px, uppercase, its own bottom
+      // margin. This one was 12px sentence case with the margin on the other side.
+      h('h4', { className: panelCss.blockHead }, t('outputStylesPreviewTitle')),
+      shown === '' ? h('p', { className: panelCss.empty }, t('outputStylesPreviewEmpty')) : h('pre', { className: css.previewText, 'data-output-style-preview': true }, shown)
     )
   )
 }

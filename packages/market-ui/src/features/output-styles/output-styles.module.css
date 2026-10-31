@@ -10,12 +10,6 @@
   overflow-y: auto;
 }
 
-.empty {
-  padding: 24px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 12px;
-  text-align: center;
-}
 .error {
   margin: 8px 0;
   color: var(--dsw-alias-state-error-primary, #dc2626);
@@ -29,13 +23,6 @@
   background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
   font-size: 12px;
   overflow-wrap: anywhere;
-}
-
-.groupTitle {
-  margin: 8px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-secondary, #57606a);
 }
 
 .rowDescription {

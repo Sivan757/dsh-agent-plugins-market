@@ -15,9 +15,11 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 18px;
-  border-radius: 12px;
+  gap: 6px;
+  /* The leading summary box the market and connector details draw: this one had
+     grown a 14/18 box with a 12px radius of its own. */
+  padding: 12px 14px;
+  border-radius: 10px;
   background: var(--dsw-alias-bg-layer-2);
 }
 
@@ -25,7 +27,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .cardName {

@@ -190,7 +190,7 @@ export function SuiteDetailModal({
         error !== undefined
           ? h('div', { className: css.warnLine }, error)
           : detail === undefined
-            ? h('div', { className: css.empty }, t('loading'))
+            ? h('div', { className: panelCss.empty }, t('loading'))
             : h(
                 'div',
                 null,

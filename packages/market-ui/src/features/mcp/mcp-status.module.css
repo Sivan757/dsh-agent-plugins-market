@@ -149,14 +149,14 @@
   color: var(--dsw-alias-label-tertiary, #8b93a1);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 11px;
 }
 .toolNote {
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 11px;
 }
 /* A tool name that opens its parameter list reads as a control, not a label. */
 .toolNameButton {
@@ -201,19 +201,19 @@
 }
 .toolParamRequired {
   color: var(--dsw-alias-state-warn-primary, #b45309);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 16px;
 }
 .toolParamDesc {
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 16px;
 }
 .toolParamsEmpty {
   margin: 0;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 16px;
 }
 /* The row that expands the list; a text button in the flow, not a boxed CTA. */

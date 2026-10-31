@@ -92,7 +92,8 @@
 .collection[data-resource-view='list'] {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  /* One rhythm: the narrow grid sets 4px, so the list does too. */
+  gap: 4px;
   padding-right: 4px;
 }
 .collection[data-resource-view='list'] > .card {
