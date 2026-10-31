@@ -23,6 +23,8 @@ The reason was a data model, not a preference: `enabledIds` accepted only `marke
 
 ## Follow-up
 
+A session that _starts_ on the workspace default preset now gets that preset's style as well: the initial-selection path captured the id and returned without turning it into a chosen style, so the common case — a new session opening on the default — was the one case the style did not apply. Both paths call one `applyStyleOf` helper, so a style that cannot be selected is swallowed identically in each and the preset still applies.
+
 The user pages said "click a resource card or its switch to enable or disable it", which stopped being true for two faces: a card opens the resource now, and an instruction file has no switch. `docs/user/settings.md` and its Chinese pair state the current interaction and the boundary, and keep equal line counts (23 each).
 
 ## Consequences
