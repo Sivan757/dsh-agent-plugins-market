@@ -30,6 +30,8 @@ Hooks run on the published hook protocol, on ten events: `SessionStart`, `UserPr
 
 LSP supports enabled suite declarations and directly configured servers through the same mount lifecycle. The plugin carries its own LSP packages, so the only thing a user supplies is the language-server executable; a missing executable, an invalid declaration, or an installation whose LSP packages fail to load each appear as a diagnostic. Previewing a declaration alone does not prove the server is running, and a language server that exits is reported by the host only on the next request, so a row can still read mounted after its process died while the detail dialog's **Restart server** action rebuilds the mount so the next request starts a fresh process. The detail also reports what the last LSP request did, so a mounted server that stopped answering says why.
 
+A failed service or language server opens a detail dialog with **Copy diagnostics**: one block naming the state, the endpoint or command, the transport, the reason and the classified cause, ready to paste into a bug report. The block is plain text so it reads the same in a chat message as in a log.
+
 ## Validation and execution
 
 Source acquisition and manifest scanning do not establish that third-party code is trustworthy. Installing an enabled suite can start services or register executable hooks; review its contents first.

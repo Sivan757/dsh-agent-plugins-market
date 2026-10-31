@@ -3,7 +3,7 @@ import { createElement as h } from 'react'
 import { Button, IconRefreshOutlineMedium, IconSearchOutlineMedium, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
-import { failureGuidanceKey } from '../../ui/failure-guidance.js'
+import { FAILURE_GUIDANCE_LABEL, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import type { Translate } from '../../i18n.js'
 import type { McpStatusEntry } from '../../api.js'
 import { mcpDetailActions } from './detail-actions.js'
@@ -15,6 +15,7 @@ import { useTranslationEnabled } from '../../ui/translation-enabled.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
+import { copyText, diagnosticsText } from '../../ui/diagnostics.js'
 import { setMcpServerTool } from '../../api.js'
 import css from './mcp-status.module.css'
 import panelCss from '../../ui/panel.module.css'
@@ -66,6 +67,7 @@ export function McpDetailModal({
   const view = { original: !translationEnabled || showOriginal === true }
   const actions = mcpDetailActions(entry)
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
+  const guidanceSentence = guidance === undefined ? '' : t(FAILURE_GUIDANCE_LABEL[guidance])
   const tools = mcpToolRows(entry)
   const needle = toolSearch.trim().toLowerCase()
   const matchingTools = needle === '' ? tools : tools.filter(tool => tool.name.toLowerCase().includes(needle))
@@ -104,7 +106,35 @@ export function McpDetailModal({
       setPending(false)
     }
   }
-  const recovery: ReactNode[] = []
+  // The block a reader pastes when they ask someone else why a service failed.
+  const diagnostics = diagnosticsText({
+    surface: t('mcpSection'),
+    name: mcpDisplayName(entry),
+    state: mcpStateLabel(t, entry.state),
+    facts: [
+      { label: 'endpoint', value: entry.endpoint ?? '' },
+      { label: 'transport', value: entry.transport },
+      { label: 'tools', value: String(entry.tools.length) },
+      { label: 'reason', value: entry.reason ?? '' },
+      { label: 'advice', value: guidanceSentence }
+    ],
+    causes: entry.causes === undefined ? [] : [...entry.causes]
+  })
+  const recovery: ReactNode[] = [
+    h(
+      Button,
+      {
+        key: 'diagnostics',
+        variant: 'ghost',
+        size: 'sm',
+        title: t('copyDiagnosticsExplain'),
+        onClick: () => {
+          void copyText(diagnostics).then(copied => setFeedback({ error: !copied, text: t(copied ? 'diagnosticsCopied' : 'diagnosticsCopyFailed') }))
+        }
+      },
+      t('copyDiagnostics')
+    )
+  ]
   if (!readOnly && actions.retry) {
     recovery.push(
       h(

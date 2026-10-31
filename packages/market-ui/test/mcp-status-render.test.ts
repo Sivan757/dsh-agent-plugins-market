@@ -180,6 +180,43 @@ async function mountPanel(credentials?: CredentialApi): Promise<HTMLDivElement> 
   return host
 }
 
+/** The copyable block a reader hands to someone who can look at the service. */
+describe('MCP diagnostics copy', () => {
+  it('copies the state, the endpoint, the transport and the reason as one block', async () => {
+    const written: string[] = []
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          written.push(text)
+          return Promise.resolve()
+        }
+      },
+      configurable: true
+    })
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    await act(async () => {
+      el.querySelector('[data-resource-surface="mcp"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    const button = [...document.querySelectorAll('button')].find(node => node.textContent === 'copyDiagnostics')
+    expect(button).toBeDefined()
+    await act(async () => {
+      button!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(written).toHaveLength(1)
+    const lines = (written[0] ?? '').split('\n')
+    expect(lines[0]).toContain('mcpSection')
+    expect(lines).toContain('state: mcpFailed')
+    expect(lines).toContain('endpoint: node server.js')
+    expect(lines).toContain('transport: stdio')
+    expect(lines).toContain('reason: connection refused')
+    expect(document.body.textContent).toContain('diagnosticsCopied')
+  })
+})
+
 describe('MCP status actions', () => {
   it('keeps credentials out of the report and reads them for the editor', async () => {
     const describeCredentials = vi.fn().mockResolvedValue({ result: { ok: true, value: { credentials: { API_TOKEN: { configured: false, writable: true } } } } })

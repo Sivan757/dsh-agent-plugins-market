@@ -15,6 +15,7 @@ import { Button, IconRefreshOutlineMedium, Tag } from '@deepseek-ai/dsh-client-u
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigModal } from '../../ui/ServerConfigModal.js'
 import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
+import { copyText, diagnosticsText } from '../../ui/diagnostics.js'
 import type { Translate } from '../../i18n.js'
 import {
   fetchLspStatus,
@@ -368,7 +369,37 @@ export function LspDetailModal({
     title: entry.serverKey,
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,
-    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))),
+    footer: h(
+      'div',
+      { className: css.modalFooter },
+      h(
+        Button,
+        {
+          variant: 'ghost',
+          size: 'sm',
+          title: t('copyDiagnosticsExplain'),
+          onClick: () => {
+            // The same block the connector dialog copies: whoever reads it should
+            // not have to care which of the two surfaces failed.
+            const text = diagnosticsText({
+              surface: t('workspaceTabLsp'),
+              name: entry.serverKey,
+              state: stateLabel(t, entry.state),
+              facts: [
+                { label: 'command', value: [entry.command, ...entry.args].join(' ') },
+                { label: 'kind', value: entry.kind },
+                { label: 'reason', value: entry.reason ?? '' },
+                { label: 'advice', value: guidance === undefined ? '' : t(FAILURE_GUIDANCE_LABEL[guidance]) }
+              ],
+              causes: entry.causes === undefined ? [] : [...entry.causes]
+            })
+            void copyText(text).then(copied => setFeedback({ error: !copied, text: t(copied ? 'diagnosticsCopied' : 'diagnosticsCopyFailed') }))
+          }
+        },
+        t('copyDiagnostics')
+      ),
+      h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))
+    ),
     children: h(
       'div',
       null,
