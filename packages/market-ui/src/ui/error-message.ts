@@ -7,11 +7,14 @@
  *
  * @module client/ui/error-message
  */
-import { RequestTimeoutError } from '../request-error.js'
+import { RequestFailedError, RequestTimeoutError } from '../request-error.js'
 import { CredentialError } from '../credentials.js'
 
 /** The labels this helper renders, so every panel's translator fits. */
-export type ErrorTranslate = (key: 'requestTimeout' | 'credentialLookupFailed' | 'credentialSaveFailed' | 'credentialRemovalFailed') => string
+export type ErrorTranslate = (
+  key: 'requestTimeout' | 'credentialLookupFailed' | 'credentialSaveFailed' | 'credentialRemovalFailed' | 'requestFailed',
+  params?: { status: string }
+) => string
 
 /**
  * The three sentences {@link CredentialError} carries when the host explained
@@ -28,6 +31,9 @@ const CREDENTIAL_MESSAGE = {
 
 export function clientErrorMessage(t: ErrorTranslate, error: unknown): string {
   if (error instanceof RequestTimeoutError) return t('requestTimeout')
+  // The host's status code is the one fact in a failed read a reader can relay;
+  // the rest of the sentence says what happened in their language.
+  if (error instanceof RequestFailedError) return t('requestFailed', { status: String(error.status) })
   // The host's own reason wins when it has one; only our fallback sentence is
   // something a reader should see in their language.
   if (error instanceof CredentialError && CREDENTIAL_FALLBACK.has(error.message)) return t(CREDENTIAL_MESSAGE[error.code])

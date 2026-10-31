@@ -257,7 +257,9 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       capabilities: { toggle: true, counts: true },
       searchLabel: t('mcpSearch'),
       searchPlaceholder: t('mcpSearch'),
-      filters: MCP_FILTERS.map(kind => ({
+      // A failed read has no counts to offer: three tabs reading 0 would state
+      // the same false fact the empty text did.
+      filters: (payload.entries.length === 0 && error !== undefined ? [] : MCP_FILTERS).map(kind => ({
         id: kind,
         label: filterLabel(t, kind),
         hint: mcpFilterHint(t, kind),
@@ -269,7 +271,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: flipOriginal }),
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
-      emptyText: loading && payload.entries.length === 0 ? t('loading') : t('mcpEmpty'),
+      // A read that failed has no rows because nothing was read, not because the
+      // connectors are gone: saying 没有匹配的连接器 would answer a question the
+      // reader never asked and hide the failure the alert above already reports.
+      emptyText: payload.entries.length === 0 && error !== undefined ? t('statusUnreadable') : loading && payload.entries.length === 0 ? t('loading') : t('mcpEmpty'),
       onOpen: id => {
         const row = byId.get(id)
         if (row !== undefined) setSelected(row)

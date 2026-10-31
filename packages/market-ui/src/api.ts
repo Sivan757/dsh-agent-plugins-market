@@ -1,6 +1,6 @@
 /** Typed fetch helpers over the host's `/api/agent-plugins/*` routes. */
 import { withBusyOperation } from './ui/busy-operation.js'
-import { RequestTimeoutError } from './request-error.js'
+import { RequestFailedError, RequestTimeoutError } from './request-error.js'
 import {
   MARKET_ROUTES,
   userPanelMutationRoute,
@@ -132,7 +132,7 @@ async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): 
  */
 async function getJson<T>(url: string, label: string, init?: RequestInit): Promise<T> {
   return boundedRequest(url, { credentials: 'same-origin', ...init }, READ_TIMEOUT_MS, async response => {
-    if (!response.ok) throw new Error(`${label}: ${response.status}`)
+    if (!response.ok) throw new RequestFailedError(label, response.status)
     return response.json() as Promise<T>
   })
 }

@@ -231,6 +231,18 @@ describe('MCP status actions', () => {
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 
+  it('does not claim there are no connectors when the read itself failed', async () => {
+    // A failed read has no rows because nothing was read. "没有匹配的连接器"
+    // answers a question the reader never asked and buries the alert above it.
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockRejectedValueOnce(new Error('host down'))
+    const el = await mountPanel()
+    expect(el.textContent).toContain('statusUnreadable')
+    expect(el.textContent).not.toContain('mcpEmpty')
+    // Three tabs reading 0 would restate the same false fact.
+    expect(el.querySelectorAll('[data-panel-toolbar] [role="tab"]')).toHaveLength(0)
+  })
+
   it('says on the card why a connector failed, keeping the advice in the detail', async () => {
     // The list is scanned to find the row that needs attention, so the cause is
     // on the card; 「确认服务可达…」 and the retry stay one click away.

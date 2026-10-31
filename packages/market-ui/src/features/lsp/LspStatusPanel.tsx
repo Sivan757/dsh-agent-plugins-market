@@ -184,19 +184,24 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       capabilities: { toggle: true },
       searchLabel: t('lspSearch'),
       searchPlaceholder: t('lspSearch'),
-      filters: [
-        // A status surface earns its tabs from states, not from who declared the
-        // row: the declaring suite is a chip the row already prints. Matching the
-        // card's own state also drops the old comparison against translated copy.
-        {
-          id: 'attention',
-          label: t('lspFilterAttention'),
-          hint: t('lspFilterAttentionHint'),
-          match: entry => entry.state === 'warning' || entry.state === 'error'
-        },
-        { id: 'disabled', label: t('panelFilterDisabled'), hint: t('lspFilterDisabledHint'), match: entry => entry.state === 'disabled' }
-      ],
-      emptyText: loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),
+      // A status surface earns its tabs from states, not from who declared the
+      // row: the declaring suite is a chip the row already prints. Matching the
+      // card's own state also drops the old comparison against translated copy.
+      // A failed read has no counts to offer, so it has no tabs either.
+      filters:
+        payload.entries.length === 0 && error !== undefined
+          ? []
+          : [
+              {
+                id: 'attention',
+                label: t('lspFilterAttention'),
+                hint: t('lspFilterAttentionHint'),
+                match: entry => entry.state === 'warning' || entry.state === 'error'
+              },
+              { id: 'disabled', label: t('panelFilterDisabled'), hint: t('lspFilterDisabledHint'), match: entry => entry.state === 'disabled' }
+            ],
+      // Nothing read is not nothing mounted: the alert says the read failed.
+      emptyText: payload.entries.length === 0 && error !== undefined ? t('statusUnreadable') : loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),
       onOpen: entryId => {
         const entry = payload.entries.find(item => item.id === entryId)
         if (entry !== undefined) setSelected(entry)

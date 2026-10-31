@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchDocumentTranslation, fetchSuiteDocumentTranslation, fetchModelCatalog, fetchOverview, READ_TIMEOUT_MS } from '../../../packages/market-ui/src/api.js'
-import { RequestTimeoutError } from '../../../packages/market-ui/src/request-error.js'
+import { RequestFailedError, RequestTimeoutError } from '../../../packages/market-ui/src/request-error.js'
 import { clientErrorMessage } from '../../../packages/market-ui/src/ui/error-message.js'
 
 afterEach(() => {
@@ -102,8 +102,11 @@ describe('client request bounds', () => {
   })
 
   it('reads a timeout as the shared label and keeps every other message', () => {
-    const t = (key: string): string => `label:${key}`
+    const t = (key: string, params?: { status?: string }): string => (params?.status === undefined ? `label:${key}` : `label:${key}:${params.status}`)
     expect(clientErrorMessage(t, new RequestTimeoutError(1_000))).toBe('label:requestTimeout')
+    // A host that answered with a failure status is not a timeout and not a raw
+    // English string: the panel says what happened and keeps the code.
+    expect(clientErrorMessage(t, new RequestFailedError('MCP status failed', 502))).toBe('label:requestFailed:502')
     expect(clientErrorMessage(t, new Error('mount failed'))).toBe('mount failed')
     expect(clientErrorMessage(t, 'plain text')).toBe('plain text')
   })
