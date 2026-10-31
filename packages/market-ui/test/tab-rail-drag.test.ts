@@ -157,6 +157,36 @@ describe('tab rail reordering', () => {
     expect(reduced).toMatch(/transition: none/)
   })
 
+  it('brings the selected tab into view when the selection changes without focus', async () => {
+    // A click or an arrow key moves focus, and the browser scrolls the row by
+    // itself. A restored selection does not, so the active section's chip stayed
+    // clipped behind the fade while the row sat at its start.
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(h(TabRail<string>, { value: 'tab-6', onChange: () => {}, label: 'row', stepPreviousLabel: '向前一个', stepNextLabel: '向后一个', items }))
+    })
+    const rail = document.querySelector<HTMLElement>('[role="tablist"]')!
+    const scrolled: Array<{ left: number }> = []
+    Object.defineProperty(rail, 'clientWidth', { configurable: true, value: 300 })
+    rail.scrollTo = ((options: ScrollToOptions) => scrolled.push({ left: options.left ?? 0 })) as typeof rail.scrollTo
+    const last = (value: string): ReturnType<typeof h> =>
+      h(TabRail<string>, { value, onChange: () => {}, label: 'row', stepPreviousLabel: '向前一个', stepNextLabel: '向后一个', items })
+    // jsdom lays nothing out, so the geometry the effect reads is what the test sets.
+    const tabOf = (index: number): HTMLElement => [...rail.querySelectorAll<HTMLElement>('[role="tab"]')][index]!
+    await act(async () => {
+      root!.render(last('tab-1'))
+    })
+    Object.defineProperty(tabOf(2), 'offsetLeft', { configurable: true, value: 420 })
+    Object.defineProperty(tabOf(2), 'offsetWidth', { configurable: true, value: 60 })
+    await act(async () => {
+      root!.render(last('tab-2'))
+    })
+    // 420 + 60 sits past the 300px window, so the row scrolls it 8px inside the edge.
+    expect(scrolled.at(-1)?.left).toBe(188)
+  })
+
   it('reorders from the keyboard with Alt and an arrow, the way the workspace row does', async () => {
     // Reordering was pointer-only: down, hold, move. The workspace row beside it
     // already had Alt+arrow, and both render this component.

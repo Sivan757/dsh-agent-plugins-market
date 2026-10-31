@@ -88,6 +88,30 @@ export function TabRail<T extends string>({ value, onChange, label, stepPrevious
     if (index >= 0) setFocused(index)
   }, [value, layoutKey])
 
+  /**
+   * Bring the selected tab into the row's own view.
+   *
+   * A click or an arrow key moves focus, and the browser scrolls the row by
+   * itself, so this only matters when the selection changes without focus: the
+   * panel reopening on the tab it closed with, a restored workspace, an Alt+arrow
+   * move. Without it the active section's label stayed clipped behind the fade
+   * while the row sat at its start.
+   */
+  useEffect(() => {
+    const rail = railRef.current
+    if (rail === null) return
+    const index = items.findIndex(item => item.value === value)
+    const tab = rail.querySelectorAll<HTMLElement>('[role="tab"]')[index]
+    if (tab === undefined) return
+    const left = tab.offsetLeft
+    const right = left + tab.offsetWidth
+    const visibleLeft = rail.scrollLeft
+    const visibleRight = visibleLeft + rail.clientWidth
+    // 8px of air so the chip's rounded frame is not flush against the fade.
+    if (left < visibleLeft) rail.scrollTo({ left: Math.max(0, left - 8), behavior: 'smooth' })
+    else if (right > visibleRight) rail.scrollTo({ left: right - rail.clientWidth + 8, behavior: 'smooth' })
+  }, [value, layoutKey, items])
+
   /** Which sides still hide content, and so which buttons and fades apply. */
   const measureEdges = useCallback(() => {
     const rail = railRef.current
