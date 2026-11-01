@@ -56,6 +56,8 @@ export interface LspStatusEntry {
   state: LspStatusState
   /** Latest diagnostic reason, when the state is not `mounted`/`disabled`. */
   reason?: string
+  /** How long the last start attempt took, in milliseconds, when one was recorded. */
+  mountMs?: number
   /** Why this row carries a reason; also the key the panel localizes it by. */
   code?: LspStatusCode
   /** The messages under the failure's `cause` chain, outermost first. */

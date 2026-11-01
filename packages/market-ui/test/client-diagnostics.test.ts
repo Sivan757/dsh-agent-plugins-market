@@ -51,6 +51,17 @@ describe('diagnostics block', () => {
     expect(text).toBe(['dsh-agent-plugins-market · Language Engine · tsserver', 'state: mounted', 'command: typescript-language-server --stdio'].join('\n'))
   })
 
+  it('clips a cause the panel can show but a message cannot carry', () => {
+    // A resolution failure appends the whole searched PATH; the copy keeps the head so
+    // the sentence that matters is not buried.
+    const long = 'probe-missing: could not resolve "bin" (searched: ' + '/usr/bin:'.repeat(200) + ')'
+    const text = diagnosticsText({ surface: '语言引擎', name: 'probe-missing', state: '失败', facts: [], causes: [long] })
+    const line = text.split('\n').find(entry => entry.startsWith('  - '))!
+    // Four characters of indent, 300 of cause, one ellipsis.
+    expect(line.length).toBeLessThanOrEqual(305)
+    expect(line.endsWith('…')).toBe(true)
+  })
+
   it('reports a clipboard the browser refused', async () => {
     Object.defineProperty(globalThis.navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('NotAllowedError')) }, configurable: true })
     expect(await copyText('x')).toBe(false)

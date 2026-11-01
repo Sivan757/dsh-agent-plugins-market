@@ -90,6 +90,7 @@ describe('buildLspStatus', () => {
           serverKey: 'ts/typescript',
           reason: 'mount failed: initialize failed',
           code: 'mount-failed',
+          mountMs: 20_500,
           causes: ['Error: spawn typescript-language-server ENOENT']
         }
       ])
@@ -98,6 +99,9 @@ describe('buildLspStatus', () => {
     if (entry === undefined) throw new Error('expected the stored diagnostic to produce one status row')
     expect(entry.reason).toBe('mount failed: initialize failed')
     expect(entry.causes).toEqual(['Error: spawn typescript-language-server ENOENT'])
+    // A start that took twenty seconds says so: "it never comes up" and "it fails at
+    // once" are different problems.
+    expect(entry.mountMs).toBe(20_500)
   })
 
   it('falls back to starting when no mounts and no diagnostics exist (mount pass in flight)', () => {

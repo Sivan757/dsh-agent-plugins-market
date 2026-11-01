@@ -176,7 +176,11 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
           }
           const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
           const sentence = guidance === undefined ? entry.reason : t(FAILURE_GUIDANCE_LABEL[guidance])
-          return sentence === undefined || sentence === '' ? {} : { warning: failureCause(sentence) }
+          if (sentence === undefined || sentence === '') return {}
+          // A start that took twenty seconds and one that failed in forty milliseconds
+          // read the same in a one-line cause; the slow row says so on the card.
+          const seconds = entry.mountMs === undefined || entry.mountMs < 1000 ? undefined : (entry.mountMs / 1000).toFixed(1) + 's'
+          return { warning: seconds === undefined ? failureCause(sentence) : failureCause(sentence) + ' · ' + seconds }
         })(),
         state: lspCardState(entry.state),
         // The rail is colour only; this is what a screen reader hears.
@@ -389,7 +393,8 @@ export function LspDetailModal({
                 { label: 'command', value: [entry.command, ...entry.args].join(' ') },
                 { label: 'kind', value: entry.kind },
                 { label: 'reason', value: entry.reason ?? '' },
-                { label: 'advice', value: guidance === undefined ? '' : t(FAILURE_GUIDANCE_LABEL[guidance]) }
+                { label: 'advice', value: guidance === undefined ? '' : t(FAILURE_GUIDANCE_LABEL[guidance]) },
+                { label: 'mountMs', value: entry.mountMs === undefined ? '' : String(entry.mountMs) }
               ],
               causes: entry.causes === undefined ? [] : [...entry.causes]
             })
@@ -458,7 +463,10 @@ export function LspDetailModal({
           { className: panelCss.kvGrid },
           kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
           kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
-          kvCell(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true)
+          kvCell(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true),
+          // How long the last start took: a language server that never comes up is the
+          // other half of "it says starting forever".
+          entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true)
         )
       ),
       h(

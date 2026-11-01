@@ -575,6 +575,9 @@ export class LspMountRegistry {
       return { suiteId, serverKey: hostKeys, reason: 'the host context does not support dynamic plugin mounting', code: 'host-missing' }
     }
     let handle: MountPluginHandle | undefined
+    // Timed here because this is where a start is waited for: a language server that
+    // takes thirty seconds to come up and one that fails at once read the same without it.
+    const startedAt = Date.now()
     try {
       handle = mountCtx.plugin(plugin, { servers })
       await handle.await()
@@ -595,6 +598,7 @@ export class LspMountRegistry {
         serverKey: hostKeys,
         reason: `mount failed: ${message}`,
         code: conflict ? 'seam-conflict' : 'mount-failed',
+        mountMs: Date.now() - startedAt,
         causes: [...causeMessages(error), ...facts]
       }
     }

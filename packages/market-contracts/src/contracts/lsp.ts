@@ -14,4 +14,6 @@ export interface LspMountDiagnostic {
   code?: LspStatusCode
   /** The messages under the failure's `cause` chain, outermost first. */
   causes?: string[]
+  /** How long the mount attempt took, in milliseconds, when the registry timed it. */
+  mountMs?: number
 }

@@ -31,6 +31,25 @@ export interface DiagnosticsInput {
 }
 
 /**
+ * The longest a copied cause line may be.
+ *
+ * A resolution failure appends the whole searched PATH (a couple of thousand
+ * characters), which buries the sentence that matters in a chat message. The panel
+ * still shows the full cause; the copy keeps what a reader can use.
+ */
+const CAUSE_LIMIT = 300
+
+/**
+ * One cause, cut to a length a message can carry.
+ *
+ * @param cause - the layer's own words.
+ * @returns the cause, or its head and an ellipsis.
+ */
+function clipped(cause: string): string {
+  return cause.length <= CAUSE_LIMIT ? cause : cause.slice(0, CAUSE_LIMIT) + '…'
+}
+
+/**
  * Render the block.
  *
  * Keys are plain text rather than a locale table: the labels name the host's data
@@ -48,7 +67,7 @@ export function diagnosticsText(input: DiagnosticsInput): string {
   }
   if (input.causes !== undefined && input.causes.length > 0) {
     lines.push('causes:')
-    for (const cause of input.causes) lines.push('  - ' + cause)
+    for (const cause of input.causes) lines.push('  - ' + clipped(cause))
   }
   if (input.observedAt !== undefined) lines.push('observed: ' + input.observedAt)
   return lines.join('\n')

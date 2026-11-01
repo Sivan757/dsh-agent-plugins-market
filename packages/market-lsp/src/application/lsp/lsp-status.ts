@@ -36,12 +36,13 @@ export interface LspDirectServersSource {
 }
 
 /** The fields one diagnostic contributes to its status row. */
-function diagnosticReport(diagnostic: LspMountDiagnostic | undefined): { reason?: string; code?: LspStatusCode; causes?: string[] } {
+function diagnosticReport(diagnostic: LspMountDiagnostic | undefined): { reason?: string; code?: LspStatusCode; causes?: string[]; mountMs?: number } {
   if (diagnostic === undefined) return {}
   return {
     reason: diagnostic.reason,
     ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
-    ...(diagnostic.causes === undefined ? {} : { causes: diagnostic.causes })
+    ...(diagnostic.causes === undefined ? {} : { causes: diagnostic.causes }),
+    ...(diagnostic.mountMs === undefined ? {} : { mountMs: diagnostic.mountMs })
   }
 }
 
@@ -53,7 +54,7 @@ function deriveState(
   disabled: boolean,
   diagnostic: LspMountDiagnostic | undefined,
   anyLive: boolean
-): { state: LspStatusState; reason?: string; code?: LspStatusCode; causes?: string[]; retryable?: boolean } {
+): { state: LspStatusState; reason?: string; code?: LspStatusCode; causes?: string[]; mountMs?: number; retryable?: boolean } {
   if (disabled) return { state: 'disabled' }
   const reported = diagnosticReport(diagnostic)
   if (diagnostic?.code === 'host-missing') return { state: 'host-missing', ...reported }
@@ -118,7 +119,7 @@ export function buildLspStatus(
       // suite's second server can fail while the first is answering. The row id
       // is the mount key, and it is what the registry reports.
       const rowId = `${suiteKey}/${spec.key}`
-      const { state, reason, code, causes, retryable } = deriveState(disabled, diagnostic, liveKeys === undefined ? anyLive : liveKeys.has(rowId))
+      const { state, reason, code, causes, mountMs, retryable } = deriveState(disabled, diagnostic, liveKeys === undefined ? anyLive : liveKeys.has(rowId))
       if (state === 'mounted') mountedSuiteIds.add(suiteKey)
       const observation = observations.get(rowId)
       entries.push({
@@ -136,6 +137,7 @@ export function buildLspStatus(
         ...(reason === undefined ? {} : { reason }),
         ...(code === undefined ? {} : { code }),
         ...(causes === undefined ? {} : { causes }),
+        ...(mountMs === undefined ? {} : { mountMs }),
         ...(retryable === undefined ? {} : { retryable }),
         ...(observation === undefined ? {} : { observation })
       })
@@ -151,6 +153,7 @@ export function buildLspStatus(
       reason: directReason,
       code: directCode,
       causes: directCauses,
+      mountMs: directMountMs,
       retryable: directRetryable
     } = deriveState(false, directDiagnostic, liveKeys === undefined ? anyLive : liveKeys.has(rowId))
     if (directState === 'mounted') mountedSuiteIds.add(DIRECT_LSP_SUITE_ID)
@@ -170,6 +173,7 @@ export function buildLspStatus(
       ...(directReason === undefined ? {} : { reason: directReason }),
       ...(directCode === undefined ? {} : { code: directCode }),
       ...(directCauses === undefined ? {} : { causes: directCauses }),
+      ...(directMountMs === undefined ? {} : { mountMs: directMountMs }),
       ...(directRetryable === undefined ? {} : { retryable: directRetryable }),
       ...(observation === undefined ? {} : { observation })
     })
