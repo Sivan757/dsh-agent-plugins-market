@@ -165,6 +165,12 @@ export function ResourceList({
         onReorder={moveFace}
         items={orderedFaces.map(value => ({ value, text: t(labelOf(value)), id: id + '-' + value, panelId: id + '-' + value + '-panel' }))}
       />
+      {/* A preset holds switches for what a suite installs. The prompt layer has no switch
+          to hold — an AGENTS.md file is injected because it exists — so this row is two tabs
+          shorter than the workspace's by design, and says which two. */}
+      <p className={panel.subtitle} data-preset-faces-note>
+        {t('epFacesNote')}
+      </p>
       <div className={panel.shell} role="tabpanel" id={id + '-' + face + '-panel'} aria-labelledby={id + '-' + face}>
         <ResourceSurface
           t={t}

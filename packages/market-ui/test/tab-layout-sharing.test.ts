@@ -105,6 +105,18 @@ async function mountBoth(): Promise<void> {
 }
 
 describe('shared tab layout', () => {
+  it('says why the preset row is shorter than the workspace row', async () => {
+    // The two rows deliberately differ: a preset holds switches, and the prompt layer has
+    // none. The row says which two, so the difference reads as a decision rather than a bug.
+    stubServer([], ['market', 'skills', 'instructions', 'outputStyles', 'commands', 'personas', 'mcp', 'lsp', 'hooks'])
+    await mountBoth()
+    const note = document.querySelector('[data-preset-faces-note]')
+    expect(note).not.toBeNull()
+    expect(note?.textContent).toContain('epFacesNote')
+    expect(presetVisible()).not.toContain('workspaceTabInstructions')
+    expect(visibleRow()).toContain('workspaceTabInstructions')
+  })
+
   it('renders both rows from one layout order', async () => {
     // An authored order with skills second: both surfaces read the same document, so the
     // face they share has to sit in the same place on each.

@@ -9,6 +9,8 @@ export const extensionPresetsEn = {
   epGlobal: 'Default',
   epManageTitle: 'Manage extension presets',
   epManageSubtitle: 'A preset saves one set of switches; the selected one applies to this session.',
+  epFacesNote:
+    'A preset saves the switches for what is installed and which parts are on. The system prompt has no such switch (a file is injected because it exists), and an output style is a single choice rather than a set of switches, so the workspace owns both.',
   epDraft: 'Unnamed preset',
   epSave: 'Save preset',
   epSaveAs: 'Save as a new preset',
@@ -100,6 +102,7 @@ export const extensionPresetsZh: Record<ExtensionPresetLocaleKey, string> = {
   epGlobal: '默认',
   epManageTitle: '管理扩展预设',
   epManageSubtitle: '每个预设保存一组启停选择，选中的那个用于本会话。',
+  epFacesNote: '预设保存的是「装了什么、哪部分开着」这类开关。系统提示词没有这种开关（文件存在就会被注入），输出风格是单选而不是一组开关，所以这两项由 workspace 管理。',
   epDraft: '未命名预设',
   epSave: '保存预设',
   epSaveAs: '另存为新预设',
