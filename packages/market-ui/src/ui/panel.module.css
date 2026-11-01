@@ -29,8 +29,12 @@
 
 /* A description-only header holds one 20px line; the 46px floor above is sized
    for a title plus its description and would leave a band of dead space. */
+/* A description-only header holds one 20px line, so the 46px floor a title needs is
+   dropped — but not the button row's own height: a panel whose header carries a text
+   button grew 4px taller than one with icon buttons, and its toolbar sat 4px lower than
+   every other tab's. The floor here is the tallest action, so all compact headers match. */
 .headerCompact {
-  min-height: 0;
+  min-height: 28px;
 }
 
 .headerText {
