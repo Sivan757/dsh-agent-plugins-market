@@ -10,6 +10,37 @@
 
 /* The scope line sits under the header and above the list: quieter than the
    rows it explains. */
+/* The header holds one button and the panel actions; they sit on one line, right-aligned. */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The read-only preview: the file as it is on disk, in the editor's own skin. */
+.preview {
+  max-height: 320px;
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 19px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.detailFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
 .sessionHint {
   flex: none;
   margin: 0 0 8px;

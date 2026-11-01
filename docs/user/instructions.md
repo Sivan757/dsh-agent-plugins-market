@@ -6,7 +6,9 @@ English | [简体中文](instructions.zh.md) | [README](../../README.md)
 
 ## What the page shows
 
-The **System prompt** tab lists the `AGENTS.md` files the host injects into the session's system prompt, one card per file that exists, and each card opens that file. Discovery, load order, deduplication and the byte budget all come from the harness package `@deepseek-ai/dsh-agent-instructions`, so the page and the prompt cannot disagree: a row's status comes from the text the model receives.
+The **System prompt** tab lists the `AGENTS.md` files the host injects into the session's system prompt: one card per file that exists, in the order the host loads them, and the project files sit in the same list as your global ones. Discovery, load order, deduplication and the byte budget all come from the harness package `@deepseek-ai/dsh-agent-instructions`, so the page and the prompt cannot disagree: a row's status comes from the text the model receives.
+
+A card opens the file for reading: its absolute path, the scope it belongs to, what it contributes to the prompt, its size and its share of the budget, then the file's text. **Edit** and **Delete** live in that dialog, so browsing the chain never puts you in an editor by accident. **Create** asks which candidate to create, because the chain has one candidate per root and the project's are the ones that go into your repository.
 
 The page reads the chain for the session's working directory. The settings page renders outside any session, so there it reads the host process working directory and says so in one line under the header. The page does not render the injected text: the file list and the status tags are what it can keep true to the prompt.
 
@@ -23,7 +25,7 @@ Two user-global roots come first, then every directory from the project root dow
 
 Only `AGENTS.md` loads in the two user-global roots. Neither `CLAUDE.md` nor a local overlay is a candidate there, so the page never offers to create one.
 
-All four names load inside a project directory. A row the page adds for a directory with no instruction file is marked as not created, and creating it is the action that row offers.
+All four names load inside a project directory. A file that does not exist is not listed, and **Create** offers it by path, with the scope it would belong to.
 
 ## Repeated content
 

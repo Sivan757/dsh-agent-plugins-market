@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Updated in part by [the reading-first note](../feature/2026-11-01-the-system-prompt-page-reads-first.md): the page still renders no injected text in its list, but a card now opens a read-only dialog instead of the editor, and the project half of the chain is listed. The reorder and scope-line decisions stand.
+
 ## Problem
 
 Two findings from the information-architecture review needed more than a rename.

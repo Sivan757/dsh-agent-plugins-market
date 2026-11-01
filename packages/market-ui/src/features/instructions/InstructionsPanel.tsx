@@ -11,16 +11,16 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InstructionDeleteResult, InstructionRow, InstructionsPayload, InstructionScope } from '../../api.js'
 import { deleteInstructionFile, fetchInstructions, saveInstructionFile } from '../../api.js'
 import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
-import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
+import { InstructionDetail } from './InstructionDetail.js'
 import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
 import panelCss from '../../ui/panel.module.css'
@@ -41,6 +41,18 @@ interface InstructionsPanelProps {
   sessionId?: string
 }
 
+/**
+ * The scope as a reader names it.
+ *
+ * @param t - the dictionary.
+ * @param row - the chain entry.
+ * @returns the scope label, naming the root when the row is user-global.
+ */
+function scopeName(t: Translate, row: InstructionRow): string {
+  if (row.scope === 'project') return t('instructionsGroupProject')
+  return row.scope === 'agents-global' ? t('instructionsScopeAgentsGlobal') : t('instructionsScopeUserGlobal')
+}
+
 /** UTF-8 byte length, the unit the per-file source cap counts in. */
 function byteLength(text: string): number {
   return new TextEncoder().encode(text).length
@@ -53,7 +65,9 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
   const [error, setError] = useState<string | undefined>(undefined)
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [editor, setEditor] = useState<EditorState | undefined>(undefined)
-  const [showOriginal, setShowOriginal] = useState(false)
+  /** The chain entry the reader opened: reading first, editing on request. */
+  const [detail, setDetail] = useState<InstructionRow | undefined>(undefined)
+  const [createOpen, setCreateOpen] = useState(false)
   const [confirm, setConfirm] = useState<PanelConfirmState | undefined>(undefined)
 
   const refresh = (): void => {
@@ -110,6 +124,8 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
   // returned a header-only skeleton while loading, and the toolbar and list then
   // appeared under it, shifting everything down.
   const rows = payload === undefined ? [] : payload.rows
+  /** Candidates the host would load but that do not exist yet: what 新建 can create. */
+  const missingRows = rows.filter(row => !row.exists)
   if (payload !== undefined && !payload.available) {
     return h(
       'div',
@@ -129,18 +145,39 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
     { className: css.surface },
     h(PanelHeader, {
       subtitle: t('instructionsSubtitle'),
-      actions: h(PanelActions, {
-        // A file that does not exist is not listed, so the header carries the way to create
-        // one: the first candidate the host reports as missing.
-        addLabel: t('instructionsCreate'),
-        onAdd: () => {
-          const missing = rows.find(row => row.scope !== 'project' && !row.exists)
-          if (missing !== undefined) openEditor(missing)
-        },
-        refreshLabel: t('refresh'),
-        onRefresh: refresh,
-        busy: loading
-      })
+      actions: h(
+        'div',
+        { className: css.headerActions },
+        // Which file to create is the reader's question, not a default: the chain has one
+        // candidate per root and the project's are the ones that go into the repository.
+        h(Menu, {
+          open: createOpen,
+          onClose: () => setCreateOpen(false),
+          portal: true,
+          compact: true,
+          align: 'end',
+          anchor: h(
+            Button,
+            {
+              size: 'sm',
+              variant: 'ghost',
+              'aria-label': t('instructionsCreate'),
+              'aria-haspopup': 'menu',
+              'aria-expanded': createOpen,
+              disabled: missingRows.length === 0,
+              onClick: () => setCreateOpen(value => !value)
+            },
+            t('instructionsCreate')
+          ),
+          items: missingRows.map(row => ({ id: `${row.scope}:${row.directory}:${row.candidate}`, label: row.displayPath + ' · ' + scopeName(t, row) })),
+          onSelect: (id: string) => {
+            setCreateOpen(false)
+            const row = missingRows.find(entry => `${entry.scope}:${entry.directory}:${entry.candidate}` === id)
+            if (row !== undefined) openEditor(row)
+          }
+        }),
+        h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
+      )
     }),
     error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     payload?.error === undefined ? null : h('div', { className: css.error, role: 'alert' }, t('instructionsErrorTitle'), ' ', payload.error),
@@ -150,30 +187,54 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       t,
       searchLabel: t('cardSearch'),
       searchPlaceholder: t('instructionsSearchPh'),
-      // No tabs: this list is at most two rows, the tag already names each status,
-      // and a "loaded" tab would hide exactly the truncated rows someone opens the
-      // page to find.
-      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
+      // No tabs: the chain is a handful of rows, the tag already names each status, and a
+      // "loaded" tab would hide exactly the truncated row someone opens the page to find.
+      // No text toggle either: this surface shows paths, sizes and status words, and all
+      // three are already in the reader's language — a switch between original and
+      // translation had nothing to switch.
       // The settings page renders outside any session, so this read is the chain
       // under the host process directory. Saying so is the difference between a
       // reader trusting the two paths and wondering why their project's files are
       // missing. It rides the list box so the toolbar keeps its row.
       ...(sessionId === undefined ? { notice: h('p', { className: css.sessionHint, 'data-instructions-session-hint': true }, t('instructionsSessionHint')) } : {}),
+      // Every existing candidate, in the host's own load order: the project half of the
+      // chain used to be filtered out here, so a reader could not see — or create — the
+      // files that actually live in their repository.
       entries: rows
-        .filter(row => row.scope !== 'project' && row.exists)
+        .filter(row => row.exists)
         .map(row => ({
           id: `${row.scope}:${row.directory}:${row.candidate}`,
           name: row.displayPath,
           tag: t(statusLocaleKey(row.status)),
           tagId: row.status,
-          meta: row.size === undefined ? '' : t('instructionsRowSize', { bytes: row.size })
+          meta: row.size === undefined ? scopeName(t, row) : t('instructionsRowMeta', { scope: scopeName(t, row), bytes: String(row.size) })
         })),
       emptyText: error !== undefined || payload?.error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('instructionsPreviewEmpty'),
       onOpen: id => {
         const row = rows.find(entry => `${entry.scope}:${entry.directory}:${entry.candidate}` === id)
-        if (row !== undefined) openEditor(row)
+        if (row !== undefined) setDetail(row)
       }
     }),
+    // Reading is its own step: a card opens the file, and the buttons inside it start
+    // editing or deleting. Clicking a row used to drop the reader straight into an editor.
+    detail === undefined || payload === undefined
+      ? null
+      : h(InstructionDetail, {
+          t,
+          row: detail,
+          budget: payload.budget,
+          onClose: () => setDetail(undefined),
+          onEdit: () => {
+            const row = detail
+            setDetail(undefined)
+            openEditor(row)
+          },
+          onDelete: () => {
+            const row = detail
+            setDetail(undefined)
+            askDelete(row)
+          }
+        }),
     // The editor only opens from a row, and a row only exists once a read landed.
     editor === undefined || payload === undefined
       ? null

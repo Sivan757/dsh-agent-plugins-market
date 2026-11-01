@@ -151,13 +151,13 @@ describe('instructions panel', () => {
     expect(host!.textContent).toContain('loading')
   })
 
-  it('lists the user-level files as clickable cards, in load order', async () => {
+  it('lists every existing file in the chain, project half included, in load order', async () => {
     await mount()
-    // The project candidates and the session directory are not listed: the row answers which
-    // files this session loads, and the cards open them the way every other panel does.
-    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md'])
-    expect(statuses()).toEqual(['active', 'active'])
-    expect(host!.textContent).not.toContain('instructionsGroupProject')
+    // The project rows used to be filtered out, which hid the files that actually live in a
+    // repository — and made 新建 unable to create one.
+    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md', 'AGENTS.md', 'apps/site/AGENTS.md'])
+    expect(statuses()).toEqual(['active', 'active', 'active', 'active'])
+    expect(host!.textContent).toContain('instructionsGroupProject')
     // No session is named, so the page says which directory it read. Without the
     // line a reader whose project files are missing has no way to tell why.
     expect(host!.querySelector('[data-instructions-session-hint]')?.textContent).toBe('instructionsSessionHint')
@@ -174,7 +174,7 @@ describe('instructions panel', () => {
       rows: PAYLOAD.rows.map(row => (row.scope === 'agents-global' ? { ...row, exists: false, status: 'missing' as const, size: undefined, content: undefined } : row))
     })
     // A list of things that are not there cannot be seen, found, or used.
-    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md'])
+    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', 'AGENTS.md', 'apps/site/AGENTS.md'])
   })
 
   it('shows neither a budget bar nor the injected text', async () => {
@@ -191,9 +191,15 @@ describe('instructions panel', () => {
     expect(cards()).toEqual([])
   })
 
-  it('opens a card for editing and saves the draft', async () => {
+  it('opens a card for reading, and edits only when asked', async () => {
     await mount()
     await act(async () => cards()[0]!.click())
+    // Reading first: the dialog shows the file, the path and the preview, and no editor.
+    expect(document.querySelector('[data-code-editor]')).toBeNull()
+    expect(document.querySelector('[data-instruction-preview]')?.textContent).toBe('# Global\n')
+    expect(document.body.textContent).toContain('instructionsDetailPath')
+    const edit = [...document.querySelectorAll('button')].find(button => button.textContent === 'instructionsEdit')
+    await act(async () => edit!.click())
 
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
     expect(editor).not.toBeNull()
@@ -216,14 +222,18 @@ describe('instructions panel', () => {
     expect(api.fetchInstructions).toHaveBeenCalledTimes(2)
   })
 
-  it('offers creation on a global file that does not exist yet', async () => {
+  it('asks which candidate to create instead of picking one', async () => {
     await mount({
       ...PAYLOAD,
       rows: PAYLOAD.rows.map(row => (row.scope === 'user-global' ? { ...row, exists: false, status: 'missing' as const, size: undefined, content: undefined } : row))
     })
-    // The file is not listed, so creation starts from the header action.
+    // The missing file is not listed, so creation starts from the header action — and the
+    // action lists every candidate the host would load, one menu item per file.
     const add = [...host!.querySelectorAll('button')].find(button => button.getAttribute('aria-label') === 'instructionsCreate')
     await act(async () => add!.click())
+    const item = [...document.querySelectorAll('[role="menuitem"], [role="menuitembutton"]')].find(node => (node.textContent ?? '').includes('$DSH_HOME/AGENTS.md'))
+    expect(item, 'the menu names the file to create').toBeDefined()
+    await act(async () => (item as HTMLElement).click())
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
     expect(editor?.value).toBe('')
     const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')

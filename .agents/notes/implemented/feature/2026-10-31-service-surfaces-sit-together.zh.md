@@ -2,6 +2,8 @@
 
 Status: implemented
 
+部分被[「先读后改」笔记](../feature/2026-11-01-the-system-prompt-page-reads-first.zh.md)更新：列表仍然不渲染注入文本，但卡片现在打开的是只读详情而不是编辑器，并且项目那一半链条会被列出。重排与作用域说明的决定仍然有效。
+
 ## Problem
 
 信息架构复盘里有两条问题，不只是改名能解决的。
