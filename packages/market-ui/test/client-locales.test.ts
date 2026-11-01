@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { en, zh } from '../../../packages/market-ui/src/locales.js'
+import { extensionPresetsEn } from '../../../packages/market-ui/src/locales-extension-presets.js'
 import { shouldUseLegacyPageMode } from '../../../packages/market-ui/src/workspace/page-mode-selection.js'
 
 describe('Agent Plugins Market client compatibility', () => {
@@ -9,6 +10,20 @@ describe('Agent Plugins Market client compatibility', () => {
     for (const key of Object.keys(zh)) {
       expect(en[key as keyof typeof en]).not.toBe('')
       expect(zh[key as keyof typeof zh]).not.toBe('')
+    }
+  })
+
+  it('keeps Chinese out of both English dictionaries', () => {
+    // A missing translation falls back to the Chinese source, and the fallback is easy to
+    // miss in a Chinese reading session. A manual English pass over all nine tabs found no
+    // leftovers, so this pins the state instead of trusting the next one.
+    for (const [name, table] of [
+      ['locales', en],
+      ['presets', extensionPresetsEn]
+    ] as Array<[string, Record<string, string>]>) {
+      for (const [key, value] of Object.entries(table)) {
+        expect(/[\u4e00-\u9fff]/.test(value), name + '.' + key + ': ' + value).toBe(false)
+      }
     }
   })
 
