@@ -90,6 +90,50 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     setLocal({ name: preset?.name ?? '', enabledIds: preset ? [...preset.enabledIds] : globalIds() })
     setFeedback('')
   }
+  /**
+   * Choose a preset, and say what it changed besides the switches.
+   *
+   * A preset can carry an output style now, so selecting one may change how the session
+   * answers as well as what is installed. A silent change to the reader's style is the
+   * kind of surprise this surface is supposed to remove, so the toast names it.
+   */
+  const selectPreset = (presetId: string | null): void => {
+    const styleRow = presetId === null ? undefined : styleOfPreset(presetId)
+    // The menu keeps closing itself, and a modified selection still asks before replacing;
+    // only the confirmation sentence is this function's business.
+    setMenu(false)
+    if (selected?.modified) {
+      setReplacement({ presetId })
+      return
+    }
+    void report(() => mutate('select', { presetId }), styleRow === undefined ? t('epSelected') : t('epSelectedWithStyle', { style: styleRow }))
+  }
+  /**
+   * One line saying what a set of ids covers.
+   *
+   * The counts are the manager's own rows, so the sentence cannot disagree with the tabs
+   * below it: capabilities switched on, the single style when one is chosen, and the
+   * instruction files, which have no switch and are listed regardless.
+   */
+  const summaryOf = (ids: readonly string[]): string => {
+    const rows = data?.resources ?? []
+    const on = rows.filter(row => row.face !== 'instructions' && row.face !== 'outputStyles' && ids.includes(row.id)).length
+    const styleId = ids.find(id => id.startsWith('outputStyles:'))
+    const style = styleId === undefined ? undefined : rows.find(row => row.id === styleId)?.name
+    const files = rows.filter(row => row.face === 'instructions').length
+    return [
+      t('epSummaryCapabilities', { count: String(on) }),
+      style === undefined ? t('epSummaryNoStyle') : t('epSummaryStyle', { style }),
+      t('epSummaryFiles', { count: String(files) })
+    ].join(' · ')
+  }
+  /** The style name a preset carries, when the inventory knows it. */
+  const styleOfPreset = (presetId: string): string | undefined => {
+    const preset = data?.library.presets.find(row => row.id === presetId)
+    const styleId = preset?.enabledIds.find(id => id.startsWith('outputStyles:'))
+    if (styleId === undefined) return undefined
+    return data?.resources.find(row => row.id === styleId)?.name
+  }
   const report = async (operation: () => Promise<unknown>, success = t('epSaved')) => {
     const token = ++sequence.current
     setWrites(value => value + 1)
@@ -151,14 +195,6 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     setMenu(false)
     loadEditor(data.library, selected?.presetId ?? null)
     setManager(true)
-  }
-  const select = (presetId: string | null) => {
-    setMenu(false)
-    if (selected?.modified) {
-      setReplacement({ presetId })
-      return
-    }
-    void report(() => mutate('select', { presetId }))
   }
   const beginName = (mode: 'save' | 'default' | 'rename') => {
     setActionsOpen(false)
@@ -306,7 +342,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
             : [])
         ]}
         onSelect={id =>
-          id === 'manage' ? openManager() : id === 'retry' ? retry() : id === 'recover' ? void report(() => mutate('recover', {})) : select(id === 'global' ? null : id)
+          id === 'manage' ? openManager() : id === 'retry' ? retry() : id === 'recover' ? void report(() => mutate('recover', {})) : selectPreset(id === 'global' ? null : id)
         }
       />
       {toast && <Toast key={toast.id} text={toast.text} tone={toast.success ? 'success' : undefined} holdMs={toast.success ? 3000 : 10000} onDone={() => setToast(undefined)} />}
@@ -361,6 +397,11 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                 what went wrong when it could not be read. */}
             <p className={panelCss.subtitle}>{t('epManageSubtitle')}</p>
             {error === undefined || error === '' ? null : h(ReadFailed, { message: t('epLoadFailed') + ' ' + error, retryLabel: t('readRetry'), onRetry: retry })}
+            {/* What this preset covers, in the reader's own units: capabilities that are
+                on, the style it carries, and the prompt files it lists. */}
+            <p className={panelCss.subtitle} data-preset-summary>
+              {summaryOf(draft.enabledIds)}
+            </p>
             <div className={css.planBar}>
               <div className={`${css.planStrip} ${sourceCss.sourceTabsBoxLine}`} role="group" aria-label={t('epTitle')}>
                 <div className={sourceCss.sourceTabsRow}>
