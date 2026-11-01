@@ -21,7 +21,7 @@ import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { Button, JsonTree, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { DocumentTranslationView } from '../../ui/DocumentTranslation.js'
-import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
+import { DetailRow, DetailRows, KvGrid, kvCell } from '../../ui/DetailRows.js'
 import { lastChangeLabel } from '../../ui/last-change.js'
 import { jsonTreeLabels } from '../../ui/json-tree-labels.js'
 import { fetchSuiteDetail, fetchSuiteDocument, fetchSuiteDocumentTranslation, type McpServerDetail, type SuiteDetail, type UserPanelKind } from '../../api.js'
@@ -215,14 +215,14 @@ export function SuiteDetailModal({
                   'div',
                   { className: panelCss.block },
                   h('h4', { className: panelCss.blockHead }, t('overviewSection')),
-                  h(
-                    'dl',
-                    { className: panelCss.kvGrid },
-                    kvCell(t('sourceLabel'), detail.sourceId, true),
-                    kvCell(t('layoutLabel'), layoutLabel),
-                    detail.author === null ? null : kvCell(t('authorLabel'), detail.author),
-                    updated === null ? null : kvCell(t('updatedLabel'), updated)
-                  )
+                  h(KvGrid, {
+                    cells: [
+                      kvCell(t('sourceLabel'), detail.sourceId, true),
+                      kvCell(t('layoutLabel'), layoutLabel),
+                      detail.author === null ? null : kvCell(t('authorLabel'), detail.author),
+                      updated === null ? null : kvCell(t('updatedLabel'), updated)
+                    ]
+                  })
                 ),
                 (displayDescription ?? (detail.description === null ? undefined : description)) === undefined
                   ? null

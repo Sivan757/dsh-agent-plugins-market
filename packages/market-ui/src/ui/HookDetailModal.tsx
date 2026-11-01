@@ -4,7 +4,7 @@ import type { ExtensionDetail, ExtensionHookRunResult } from '../../../market-co
 import type { Translate } from '../i18n.js'
 import { runExtensionHook } from '../api.js'
 import { DetailModal } from './DetailModal.js'
-import { DetailRow, DetailRows } from './DetailRows.js'
+import { DetailRow, DetailRows, KvGrid } from './DetailRows.js'
 import { jsonTreeLabels } from './json-tree-labels.js'
 import { clientErrorMessage } from './error-message.js'
 import css from './hook-detail.module.css'
@@ -70,18 +70,18 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
         'section',
         { className: panel.block },
         h('h3', { className: panel.blockHead }, t('hookDetailOverview')),
-        h(
-          'dl',
-          { className: panel.kvGrid },
-          cell(t('hookDetailSource'), detail.provenance),
-          cell(t('hookDetailEvent'), detail.event),
-          cell(t('hookDetailMatcher'), detail.matcher ?? '*'),
-          cell(t('hookDetailTimeout'), detail.timeoutSec === undefined ? t('hookRunTimeoutInherited') : t('hookDetailSeconds', { count: detail.timeoutSec })),
-          cell(t('hookDetailPosition'), detail.hookIndex === undefined ? '—' : t('hookDetailPositionValue', { index: detail.hookIndex + 1 })),
-          cell(t('hookDetailKind'), t('hookDetailKindCommand')),
-          cell(t('hookDetailSuite'), detail.sourceId),
-          cell(t('hookDetailRunDir'), t('hookDetailRunDirHome'))
-        )
+        h(KvGrid, {
+          cells: [
+            cell(t('hookDetailSource'), detail.provenance),
+            cell(t('hookDetailEvent'), detail.event),
+            cell(t('hookDetailMatcher'), detail.matcher ?? '*'),
+            cell(t('hookDetailTimeout'), detail.timeoutSec === undefined ? t('hookRunTimeoutInherited') : t('hookDetailSeconds', { count: detail.timeoutSec })),
+            cell(t('hookDetailPosition'), detail.hookIndex === undefined ? '—' : t('hookDetailPositionValue', { index: detail.hookIndex + 1 })),
+            cell(t('hookDetailKind'), t('hookDetailKindCommand')),
+            cell(t('hookDetailSuite'), detail.sourceId),
+            cell(t('hookDetailRunDir'), t('hookDetailRunDirHome'))
+          ]
+        })
       ),
       h(
         'section',

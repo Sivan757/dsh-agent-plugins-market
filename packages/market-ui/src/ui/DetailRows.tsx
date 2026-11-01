@@ -141,6 +141,23 @@ export function DetailRow(props: {
   )
 }
 
+/**
+ * The overview grid: label/value cells, in balanced columns.
+ *
+ * `auto-fit` decides columns from the panel's width, which leaves a five-cell dialog
+ * with four cells on one row and a lonely cell under the first column. This picks the
+ * column count from the cell count instead — 3+2 for five, 3+3 for six, 4+3 for seven —
+ * and keeps the same responsive floor through inline sizing.
+ *
+ * @param props.cells - the cells, in reading order.
+ * @returns the grid.
+ */
+export function KvGrid({ cells }: { cells: Array<ReactNode | null | undefined> }): ReactNode {
+  const shown = cells.filter((cell): cell is ReactNode => cell !== null && cell !== undefined)
+  const columns = shown.length <= 4 ? Math.max(1, shown.length) : Math.ceil(shown.length / Math.ceil(shown.length / 4))
+  return h('dl', { className: panelCss.kvGrid, style: { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } }, shown)
+}
+
 /** One label/value pair in a detail dialog's overview grid; `key` props a row built in a loop. */
 export function kvCell(label: string, value: string, mono = false, key?: string): ReactNode {
   const cell = h('dd', hintProps({ className: mono ? `${panelCss.kvValue} ${panelCss.kvValueMono}` : panelCss.kvValue }), value)

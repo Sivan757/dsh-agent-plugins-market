@@ -13,7 +13,7 @@ import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InstructionRow } from '../../api.js'
 import type { Translate } from '../../i18n.js'
 import { DetailModal } from '../../ui/DetailModal.js'
-import { kvCell } from '../../ui/DetailRows.js'
+import { KvGrid, kvCell } from '../../ui/DetailRows.js'
 import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
 import panelCss from '../../ui/panel.module.css'
@@ -61,16 +61,16 @@ export function InstructionDetail({ t, row, budget, onClose, onEdit, onDelete }:
       'div',
       null,
       h('h3', { className: panelCss.blockTitle }, t('instructionsDetailChain')),
-      h(
-        'dl',
-        { className: panelCss.kvGrid },
-        kvCell(t('sourceLabel'), scopeLabel(t, row)),
-        kvCell(t('instructionsDetailPath'), row.path, true),
-        kvCell(t('instructionsDetailStatus'), t(statusLocaleKey(row.status))),
-        row.size === undefined ? null : kvCell(t('instructionsDetailSize'), t('instructionsRowSize', { bytes: row.size })),
-        kvCell(t('instructionsDetailShare'), t('instructionsDetailShareValue', { used: String(row.size ?? 0), budget: String(budget) })),
-        row.duplicateOf === undefined ? null : kvCell(t('instructionsDetailDuplicateOf'), row.duplicateOf, true)
-      ),
+      h(KvGrid, {
+        cells: [
+          kvCell(t('sourceLabel'), scopeLabel(t, row)),
+          kvCell(t('instructionsDetailPath'), row.path, true),
+          kvCell(t('instructionsDetailStatus'), t(statusLocaleKey(row.status))),
+          row.size === undefined ? null : kvCell(t('instructionsDetailSize'), t('instructionsRowSize', { bytes: row.size })),
+          kvCell(t('instructionsDetailShare'), t('instructionsDetailShareValue', { used: String(row.size ?? 0), budget: String(budget) })),
+          row.duplicateOf === undefined ? null : kvCell(t('instructionsDetailDuplicateOf'), row.duplicateOf, true)
+        ]
+      }),
       h('h3', { className: panelCss.blockTitle }, t('instructionsPreviewLabel')),
       preview === undefined
         ? h('p', { className: panelCss.detailProse }, t('instructionsDetailNoPreview'))

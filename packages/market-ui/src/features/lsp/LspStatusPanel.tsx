@@ -32,7 +32,7 @@ import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import { type ResourceState } from '../../ui/ResourceCard.js'
-import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
+import { DetailRow, DetailRows, KvGrid, kvCell } from '../../ui/DetailRows.js'
 import css from '../mcp/mcp-status.module.css'
 import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
@@ -458,16 +458,16 @@ export function LspDetailModal({
         'div',
         { className: panelCss.block },
         h('h4', { className: panelCss.blockHead }, t('overviewSection')),
-        h(
-          'dl',
-          { className: panelCss.kvGrid },
-          kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
-          kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
-          kvCell(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true),
-          // How long the last start took: a language server that never comes up is the
-          // other half of "it says starting forever".
-          entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true)
-        )
+        h(KvGrid, {
+          cells: [
+            kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
+            kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
+            kvCell(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true),
+            // How long the last start took: a language server that never comes up is the
+            // other half of "it says starting forever".
+            entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true)
+          ]
+        })
       ),
       h(
         'div',

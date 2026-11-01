@@ -9,7 +9,7 @@ import type { McpStatusEntry } from '../../api.js'
 import { mcpDetailActions } from './detail-actions.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
-import { kvCell } from '../../ui/DetailRows.js'
+import { KvGrid, kvCell } from '../../ui/DetailRows.js'
 import { displayText } from '../../ui/translated-text.js'
 import { useTranslationEnabled } from '../../ui/translation-enabled.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
@@ -264,20 +264,20 @@ export function McpDetailModal({
         'div',
         { className: panelCss.block },
         h('h4', { className: panelCss.blockHead }, t('overviewSection')),
-        h(
-          'dl',
-          { className: panelCss.kvGrid },
-          kvCell(t('sourceLabel'), entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'), true),
-          kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser')),
-          kvCell(t('detailTransport'), entry.transport, true),
-          // How long the last attempt took: the one number that separates a slow
-          // handshake from a configuration error when the reason alone is ambiguous.
-          entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true),
-          // The mount identity the runtime registers, which is not always the
-          // name the declaration uses. A user's own declaration mounts under
-          // its key and then there is nothing extra to name.
-          entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
-        )
+        h(KvGrid, {
+          cells: [
+            kvCell(t('sourceLabel'), entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'), true),
+            kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser')),
+            kvCell(t('detailTransport'), entry.transport, true),
+            // How long the last attempt took: the one number that separates a slow
+            // handshake from a configuration error when the reason alone is ambiguous.
+            entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true),
+            // The mount identity the runtime registers, which is not always the name the
+            // declaration uses. A user's own declaration mounts under its key and then
+            // there is nothing extra to name.
+            entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
+          ]
+        })
       ),
       // A failure this machine's proxy explains says so here, next to the advice:
       // the service owner cannot answer it, and the reader would otherwise spend the
