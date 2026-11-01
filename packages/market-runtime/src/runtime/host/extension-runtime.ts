@@ -40,6 +40,14 @@ export interface ExtensionRuntimePorts {
   hooksOverview?(): Promise<ExtensionHooksOverview>
   /** Run one declared command hook as a dry run; the composition resolves the declaration and owns the shell. */
   hookRun?(input: ExtensionHookRunInput): Promise<ExtensionHookRunResult>
+  /**
+   * Select one output style for the session's workspace.
+   *
+   * An output style is a single choice rather than a set of switches, so it cannot ride
+   * the surface selection the way a capability does: a preset that names one needs this
+   * call to take effect. Absent leaves the style where it is.
+   */
+  applyOutputStyle?(agent: Agent, styleId: string): Promise<void>
 }
 function failure(code: string): Error {
   return Object.assign(new Error(code), { code })
@@ -397,7 +405,11 @@ export class ExtensionRuntime implements ExtensionRouteService {
         row.globalEnabled !== false &&
         // The legacy resource filter predates the hooks face, so it carries no
         // evidence for it; those rows select like any other when no filter ran.
-        (legacy === undefined || row.face === 'hooks' || (legacy.toggles[row.face] && !legacy.offEntries[row.face]?.includes(row.id)))
+        (legacy === undefined ||
+          row.face === 'hooks' ||
+          row.face === 'instructions' ||
+          row.face === 'outputStyles' ||
+          (legacy.toggles[row.face] && !legacy.offEntries[row.face]?.includes(row.id)))
     )
     // The guard set keeps every available id, the configuration parents
     // included: the child-keeps-parent check below must still see them. Only
@@ -552,7 +564,20 @@ export class ExtensionRuntime implements ExtensionRouteService {
         resources.filter(row => row.control !== 'global-only' && row.available && row.globalEnabled !== false).map(row => row.id)
       )
     )
-    if (outcome.applied) await this.ports.ready?.(agent)
+    if (outcome.applied) {
+      // The style rides the preset as an id, like a capability; the surface selection
+      // ignores it, so the call below is what makes it real.
+      const styleId = preset?.enabledIds.find(row => row.startsWith('outputStyles:'))?.slice('outputStyles:'.length)
+      if (styleId !== undefined && this.ports.applyOutputStyle !== undefined) {
+        try {
+          await this.ports.applyOutputStyle(agent, styleId)
+        } catch {
+          // A style that cannot be selected must not fail the preset: every capability in
+          // it already applies, and the panel reports the style's own state.
+        }
+      }
+      await this.ports.ready?.(agent)
+    }
   }
   async dispose(): Promise<void> {
     this.disposed = true

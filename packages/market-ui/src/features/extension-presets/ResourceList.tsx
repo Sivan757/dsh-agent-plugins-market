@@ -105,6 +105,10 @@ export function ResourceList({
   // no owning suite is the user's own file, and an MCP or LSP row with no owning
   // suite is a directly declared service. Hook rows keep their own card.
   const ownerLabel = (row: ExtensionResource): string => {
+    // An instruction file names its root in the id, so the tag says which half of the
+    // chain it belongs to instead of borrowing a suite's vocabulary.
+    if (row.face === 'instructions')
+      return row.id.startsWith('instructions:project/') ? t(labelOf('instructions')) + ' · ' + t('epScopeProject') : t(labelOf('instructions')) + ' · ' + t('epScopeGlobal')
     if (row.face === 'market') return t('panelSourceUser')
     if (row.face === 'mcp') return row.suiteResourceId === undefined ? t('mcpDirect') : t('mcpPlugin')
     if (row.face === 'lsp') return row.suiteResourceId === undefined ? t('lspDirect') : t('lspPlugin')
@@ -117,7 +121,9 @@ export function ResourceList({
         : row.unavailableReason === 'hook-event-unsupported'
           ? t('epHookEventUnsupported')
           : t('epGlobalManaged')
-      : (row.unavailableReason ?? t(row.configuration ? 'epConfigurationUnavailable' : 'epUnavailable'))
+      : row.unavailableReason === 'instructions-no-switch'
+        ? t('epInstructionsNoSwitch')
+        : (row.unavailableReason ?? t(row.configuration ? 'epConfigurationUnavailable' : 'epUnavailable'))
   // One entry per row; the renderer owns the toolbar, the collection and the card.
   const rowById = new Map(rows.map(row => [row.id, row]))
   const selectedById = (rowId: string): boolean => {
@@ -145,12 +151,22 @@ export function ResourceList({
             .filter(item => item.count > 0)
         : undefined,
     warning: !row.available || row.control === 'global-only' ? hints(row) : undefined,
-    // A row the host manages globally has no switch of its own: the card says why instead.
-    hideToggle: row.control === 'global-only',
+    // A row the host manages globally has no switch of its own, and an instruction file
+    // has none at all: the card says why instead.
+    hideToggle: row.control === 'global-only' || row.unavailableReason === 'instructions-no-switch',
     // Off rows wear the quiet chrome; unavailable ones wear the warning chrome.
     state: !row.available ? (row.control === 'global-only' ? ('disabled' as const) : ('warning' as const)) : selected(row) ? ('active' as const) : ('disabled' as const),
-    // The rail is colour only; this is what a screen reader hears.
-    stateLabel: !row.available ? t('stateUnavailable') : selected(row) ? t('enabledLabel') : t('disabledLabel')
+    // The rail is colour only; this is what a screen reader hears. An instruction file
+    // has no on/off switch, so it says whether the host injects it rather than borrowing
+    // the vocabulary of the switches beside it.
+    stateLabel:
+      row.face === 'instructions'
+        ? t(row.available ? 'epInstructionInjected' : 'epInstructionNotInjected')
+        : !row.available
+          ? t('stateUnavailable')
+          : selected(row)
+            ? t('enabledLabel')
+            : t('disabledLabel')
   }))
   return (
     <div className={workspace.workspace}>

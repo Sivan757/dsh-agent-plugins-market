@@ -5,6 +5,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ExtensionHookRunInput, ExtensionHooksOverview, ExtensionResource, ExtensionSelection } from '../../market-contracts/src/contracts/extension-presets.js'
+import type { OutputStylesPayload } from '../../market-contracts/src/contracts/output-styles.js'
+import type { InstructionsPayload } from '../../market-contracts/src/contracts/instructions.js'
 import type { Suite } from '../../market-contracts/src/model/types.js'
 import { pluginPathEnvironment, pluginRootOf, suiteDataDir } from '../../market-catalog/src/index.js'
 import { loadDisabledLspServers } from '../../market-lsp/src/index.js'
@@ -56,11 +58,28 @@ interface SessionExtensionOptions {
   inventoryRetry?: InventoryRetryPolicy
 }
 
+/**
+ * The prompt layer the preset manager lists.
+ *
+ * A preset can carry an output style and can only read the instruction chain, so the
+ * inventory needs both reads. They arrive through a getter because the composition root
+ * builds these services after this module: nothing calls it before a session asks.
+ */
+export interface PromptLayerPorts {
+  /** The styles one workspace can choose from, and which one is chosen. */
+  outputStyles(workspace: string): Promise<OutputStylesPayload>
+  /** Make one style the workspace's choice. */
+  selectStyle(workspace: string, styleId: string): Promise<unknown>
+  /** The instruction chain the host would inject for one workspace. */
+  instructions(workspace: string): Promise<InstructionsPayload>
+}
+
 interface SessionExtensionSources {
   catalog: Catalog
   panels: ReturnType<typeof createUserPanelStores>
   resources: ReturnType<typeof createPanelResources>
   readUserDeclarations: () => Promise<ExtensionSuiteCandidate[]>
+  promptLayer?: () => PromptLayerPorts | undefined
 }
 
 interface SessionExtensions {
@@ -139,7 +158,7 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, in
     complete: false
   })
 
-  const mount = ({ catalog, panels, resources, readUserDeclarations }: SessionExtensionSources): void => {
+  const mount = ({ catalog, panels, resources, readUserDeclarations, promptLayer }: SessionExtensionSources): void => {
     ctx.inject(['agents', 'sessions', 'sessionQuery', 'tools'], hostCtx => {
       const eligible = (agent: Agent): boolean => {
         const cwd = agent.session.header.cwd
@@ -190,6 +209,18 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, in
       }
       const extensionRuntime = new ExtensionRuntime(hostCtx, {
         dataRoot,
+        // A preset that carries an output style applies it here: the surface selection
+        // cannot, because a style is one choice rather than an on/off row.
+        ...(promptLayer === undefined
+          ? {}
+          : {
+              applyOutputStyle: async (agent: Agent, styleId: string) => {
+                const layer = promptLayer()
+                const workspace = agent.session.header.cwd
+                if (layer === undefined || typeof workspace !== 'string' || !isAbsolute(workspace)) return
+                await layer.selectStyle(workspace, styleId)
+              }
+            }),
         ...(inventoryRetry === undefined ? {} : { inventoryRetry }),
         // Only an agent with a real absolute workspace is governed. Every other
         // agent keeps the host's own lifecycle: no selection, no gate, no delay.
@@ -230,7 +261,16 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, in
                   kind,
                   { list: async () => [...(await resources[kind].list(true)), ...(await project.panels[kind].list(true))] }
                 ])
-              ) as Parameters<typeof readExtensionInventory>[0]['panels']
+              ) as Parameters<typeof readExtensionInventory>[0]['panels'],
+              ...(() => {
+                const layer = promptLayer?.()
+                const workspace = agent.session.header.cwd
+                if (layer === undefined || typeof workspace !== 'string' || !isAbsolute(workspace)) return {}
+                return {
+                  outputStyles: () => layer.outputStyles(workspace),
+                  instructions: () => layer.instructions(workspace)
+                }
+              })()
             },
             { projectSuites: listedSuites, hookSuites, candidates, mcpOverrides, lspDisabledIds, sessionId: agent.id, mcpSessionControl: backend === 'builtin' }
           )

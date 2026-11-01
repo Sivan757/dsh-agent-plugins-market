@@ -1,0 +1,34 @@
+# Agent Note：预设行也覆盖提示词层
+
+Status: implemented
+
+## Problem
+
+负责人说得很直接：预设管理的页签少了，而我说的「一致」只是组件一致，不是页签集合一致。一个预设能点名七种能力，却点不到提示词层——决定模型被告知什么的那些文件，以及决定它怎么回答的那个风格，在「描述一套工作方式」的界面里根本够不到。
+
+原因是数据模型，不是偏好：`enabledIds` 只接受 `market|skills|commands|agents|mcp|lsp|hooks`，两个提示词面都在它之外。
+
+## Decision
+
+- **两个面都加上。** `ExtensionPresetFace` 增加 `instructions` 与 `outputStyles`，id 语法接受这两个前缀，`PRESET_FACES` 按工作区自己的顺序列出九个。两行与其它行完全同构：同一条轨道、同一张清单、同一种卡片。
+- **风格是真实的选择。** 清单把每种风格列成一行，`globalEnabled` 表示「当前选中的是它」；管理器的开关会先去掉其它 `outputStyles:` id 再加这一个；选中预设时调用新增的 `applyOutputStyle` 端口，于是风格**真的被选中**，而不只是被记录。
+- **提示词文件只列，不给开关。** 宿主注入每个存在的文件，没有按文件的开关，所以这一行带 `unavailableReason: 'instructions-no-switch'`：卡片隐藏开关、状态写「会注入 / 不注入」而不是「已启用 / 已停用」、标注作用域（`系统提示词 · 用户级` 或 `· 项目`），详情解释原因。两个用户级根目录与每个项目目录都出现，因为链条里有。
+- **边界说明重写**：现在两个面都在行里了，它说的是一句话——风格是单选、提示词文件没有开关——而不是「提示词层由 workspace 管理」。
+
+## Alternatives considered
+
+- **给提示词文件造一个假开关**，写一份宿主会忽略的禁用清单。否决：那是会说谎的控件，正是负责人反复抓到的那类东西。
+- **保持七行，只把差异解释清楚。** 否决：解释已经在了，但不满足需求；要的是页签本身。
+- **把选中的风格放进 `ExtensionSelection` 的独立字段。** 暂时否决：`enabledIds` 已经贯穿预设选择经过的每一层，用一个 id 前缀就能端到端携带，无需迁移；将来若选择需要区分「记录」与「已应用」，再加字段。
+
+## Consequences
+
+- 预设管理器与设置页显示同样九个页签。
+- 切到携带风格的预设会改变工作区的风格；该步骤失败会被捕获，已应用的能力不受影响。
+- 提示词行诚实地表明自己只读，并说明属于链条的哪一半。
+
+## Verification
+
+- 在 `market-dev` 实测：管理器的轨道读作 市场 技能 专家 快捷指令 连接器 语言引擎 系统提示词 输出风格 钩子；系统提示词面列出三行——`~/.dsh/AGENTS.md`（系统提示词 · 用户级、会注入、6880 bytes）以及项目的 `AGENTS.md`（11092 bytes）与 `AGENTS.local.md`（7352 bytes）——都没有开关。输出风格面在这里是空的，因为这个工作区还没有任何风格，设置页的输出风格页签也这么说。
+- `packages/market-ui/test/workspace-tab-meta.test.ts` 钉住两个提示词键都有面；`tab-layout-sharing.test.ts` 钉住两行都携带它们；`packages/market-bundle/test/integration/client-extension-preset-v5.test.ts` 钉住本地化构建下九个标签的顺序。
+- 四个类型检查、`check:refactor` 与全量测试通过。

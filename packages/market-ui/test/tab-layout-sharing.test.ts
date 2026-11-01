@@ -76,11 +76,12 @@ function labelsOf(list: Element | undefined): string[] {
 }
 /** The workspace row: the only list whose active tab is the market one. */
 const workspaceList = (): Element | undefined => [...document.querySelectorAll('[role="tablist"]')].find(list => (list.textContent ?? '').includes('workspaceTabMarket'))
-/** The preset manager row: a preset switches what a suite installs, never the prompt layer. */
+/** The preset manager row: its tabs carry React's own ids, while the workspace prefixes its own. */
 const presetList = (): Element | undefined =>
-  [...document.querySelectorAll('[role="tablist"]')].find(
-    list => (list.textContent ?? '').includes('workspaceTabMarket') && !(list.textContent ?? '').includes('workspaceTabInstructions')
-  )
+  [...document.querySelectorAll('[role="tablist"]')].find(list => {
+    const first = list.querySelector<HTMLElement>('[role="tab"]')
+    return first !== null && !(first.id ?? '').startsWith('agent-plugins-tab')
+  })
 const visibleRow = (): string[] => labelsOf(workspaceList())
 const presetVisible = (): string[] => labelsOf(presetList())
 
@@ -105,16 +106,14 @@ async function mountBoth(): Promise<void> {
 }
 
 describe('shared tab layout', () => {
-  it('says why the preset row is shorter than the workspace row', async () => {
-    // The two rows deliberately differ: a preset holds switches, and the prompt layer has
-    // none. The row says which two, so the difference reads as a decision rather than a bug.
+  it('shows the same faces as the workspace, prompt layer included', async () => {
+    // An output style is one choice a preset can carry, and an instruction file is
+    // listed without a switch; both belong in this row rather than a keyboard-short row.
     stubServer([], ['market', 'skills', 'instructions', 'outputStyles', 'commands', 'personas', 'mcp', 'lsp', 'hooks'])
     await mountBoth()
-    const note = document.querySelector('[data-preset-faces-note]')
-    expect(note).not.toBeNull()
-    expect(note?.textContent).toContain('epFacesNote')
-    expect(presetVisible()).not.toContain('workspaceTabInstructions')
-    expect(visibleRow()).toContain('workspaceTabInstructions')
+    expect(document.querySelector('[data-preset-faces-note]')).not.toBeNull()
+    expect(presetVisible()).toContain('workspaceTabInstructions')
+    expect(presetVisible()).toContain('workspaceTabOutputStyles')
   })
 
   it('renders both rows from one layout order', async () => {

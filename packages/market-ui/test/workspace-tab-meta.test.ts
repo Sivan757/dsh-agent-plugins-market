@@ -38,12 +38,12 @@ describe('workspace tab metadata', () => {
     expect(seen.size).toBe(PRESET_FACES.length)
   })
 
-  it('leaves the prompt layer out of the preset row', () => {
-    // A preset switches what a suite installs; the prompt layer is authored in the
-    // workspace and cannot be installed, so it has no face and no preset face.
+  it('gives the prompt layer a face too', () => {
+    // A preset carries an output style (one choice) and lists instruction files (no
+    // switch), so both faces exist; the resource itself says what it cannot do.
     for (const key of ['instructions', 'outputStyles'] as const) {
-      expect(WORKSPACE_TAB_META[key].presetFace).toBeUndefined()
-      expect(PRESET_FACES).not.toContain(key as never)
+      expect(WORKSPACE_TAB_META[key].presetFace).toBeDefined()
+      expect(PRESET_FACES).toContain(key as never)
     }
   })
 })

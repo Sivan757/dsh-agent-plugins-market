@@ -129,7 +129,11 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
   }
   const patch = (row: ExtensionResource, enabled: boolean) => {
     if (!row.available || row.control === 'global-only') return
-    let ids = toggleResource(row, draftRef.current.enabledIds, enabled)
+    // An output style is a single choice: turning one on turns the others off, the way
+    // the styles panel itself selects exactly one.
+    let base = draftRef.current.enabledIds
+    if (row.face === 'outputStyles' && enabled) base = base.filter(id => !id.startsWith('outputStyles:'))
+    let ids = toggleResource(row, base, enabled)
     if (row.face === 'market')
       for (const child of data?.resources ?? []) {
         if (child.suiteResourceId === row.id && child.available && child.control !== 'global-only') ids = toggleResource(child, ids, enabled)
@@ -608,7 +612,8 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
             onClose: () => setDetail(undefined),
             checked: detail.available && resourceSelected(detail, draft.enabledIds),
             disabled: !detail.available || detail.control === 'global-only',
-            onToggle: enabled => patch(detail, enabled)
+            // A row the list draws without a switch must not grow one inside the dialog.
+            ...(detail.available && detail.control !== 'global-only' && detail.unavailableReason === undefined ? { onToggle: (enabled: boolean) => patch(detail, enabled) } : {})
           })
         : null}
     </span>

@@ -32,7 +32,7 @@ export interface ExtensionPresetInput {
 export const EXTENSION_TRANSFER_FORMAT = 'dsh-agent-extension-preset'
 export const EXTENSION_TRANSFER_MAX_BYTES = 64 * 1024
 const MAX_ENTRIES = 4096
-const ENTRY_ID = /^(market|skills|commands|agents|mcp|lsp|hooks):.{1,1023}$/u
+const ENTRY_ID = /^(market|skills|commands|agents|mcp|lsp|hooks|instructions|outputStyles):.{1,1023}$/u
 
 /**
  * Which hook events the market runtime runs, per
@@ -178,6 +178,10 @@ export type ExtensionDetail = (
   | { kind: 'panel'; panel: 'skills' | 'commands' | 'agents'; entryId: string }
   | { kind: 'mcp'; entryId: string }
   | { kind: 'lsp'; entryId: string }
+  /** One output style: a preset's single choice, opened by the style's own id. */
+  | { kind: 'outputStyle'; entryId: string }
+  /** One instruction file: listed so the record shows what it covers, not toggled. */
+  | { kind: 'instructions'; entryId: string }
   | {
       kind: 'hook'
       /** The suite whose declaration carries the hook. */
@@ -202,9 +206,22 @@ export type ExtensionDetail = (
     }
 ) & { sessionId?: string }
 
+/**
+ * The surfaces a preset can name.
+ *
+ * The first seven are installable capabilities with an on/off switch. The last two are
+ * the prompt layer: an output style is a single choice, so a preset can carry it, and an
+ * instruction file has no switch at all — a preset lists it so the reader can see what
+ * the record covers, and the resource says why it cannot be toggled.
+ */
+export type ExtensionPresetFace = 'market' | 'skills' | 'commands' | 'agents' | 'mcp' | 'lsp' | 'hooks' | 'instructions' | 'outputStyles'
+
+/** Whether a face is one a preset can switch on and off. */
+export const TOGGLEABLE_FACES: readonly ExtensionPresetFace[] = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'hooks', 'outputStyles']
+
 export interface ExtensionResource {
   id: string
-  face: 'market' | 'skills' | 'commands' | 'agents' | 'mcp' | 'lsp' | 'hooks'
+  face: ExtensionPresetFace
   /** Local configuration is not a market offering. Resource ids and parent gates remain stable. */
   configuration?: 'project' | 'user-hooks'
   name: string

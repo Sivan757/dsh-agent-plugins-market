@@ -13,7 +13,8 @@
  * self-contained: suites' MCP servers mount through the market's own bridge
  * plugin on the host `tools` registry.
  */
-import { createSessionExtensions } from './session-extension.js'
+import { createSessionExtensions, type PromptLayerPorts } from './session-extension.js'
+import { readInstructions } from './application/instructions.js'
 import { type Context, type Volatile } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cosmokit'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
@@ -408,6 +409,13 @@ export async function apply(
     const [installed, direct] = await Promise.all([catalog.installedSuiteDeclarations(), Promise.all([loadUserMcpSuite(agentsRoot), loadUserHooksSuite(agentsRoot)])])
     return [...installed, ...(await readExtensionSuiteDeclarations(direct))]
   }
+  // The prompt layer the preset manager lists: an output style is a choice a preset can
+  // carry, and the instruction chain is what it can only read.
+  const promptLayer: PromptLayerPorts = {
+    outputStyles: workspace => outputStyles.payload(workspace),
+    selectStyle: (workspace, styleId) => outputStyles.select(workspace, styleId),
+    instructions: workspace => readInstructions(workspace, instructionLimits)
+  }
   // Translation is lazy by design: nothing is translated until a panel read
   // asks for it, so a deployment that never opens the market pays nothing. The
   // model-backed provider needs the host model services, and those provision
@@ -429,7 +437,15 @@ export async function apply(
   // that has it: a profile without the service never loads presets at all,
   // rather than half-loading and failing every session. The routes mount from a
   // scope nested in that one, so the service exists before the first request.
-  sessionExtensions.mount({ catalog, panels, resources, readUserDeclarations })
+  sessionExtensions.mount({
+    catalog,
+    panels,
+    resources,
+    readUserDeclarations,
+    // Built below this call, so the getter is what lets the inventory read them at
+    // session time rather than at construction time.
+    promptLayer: () => promptLayer
+  })
   runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides((await readUserDeclarations()).map(candidate => candidate.suite)))
   runtime.lsp.setDirectProvider(async () => {
     // An empty table is the lsp-off state: the seam stays mounted (the plugin

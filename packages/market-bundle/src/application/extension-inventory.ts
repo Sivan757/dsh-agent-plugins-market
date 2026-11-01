@@ -4,6 +4,8 @@ import type { CatalogPort as Catalog } from '../../../market-runtime/src/index.j
 import type { PanelResourceStore } from '../../../market-runtime/src/index.js'
 import { HOOK_EVENT_HOST_SUPPORT, hookResourceId, type ExtensionResource } from '../../../market-contracts/src/contracts/extension-presets.js'
 import type { UserPanelEntryWire, UserPanelKind } from '../../../market-contracts/src/contracts/market.js'
+import type { OutputStylesPayload } from '../../../market-contracts/src/contracts/output-styles.js'
+import type { InstructionsPayload } from '../../../market-contracts/src/contracts/instructions.js'
 import { SUITE_SURFACE_KEYS, type Suite, type SuiteSurfaceKey } from '../../../market-contracts/src/model/types.js'
 import { USER_MCP_SOURCE, USER_MCP_SUITE } from '../../../market-mcp/src/index.js'
 import type { McpSuiteOverrides } from '../../../market-mcp/src/index.js'
@@ -27,6 +29,10 @@ function localConfiguration(suite: Suite): Pick<ExtensionResource, 'configuratio
 export interface ExtensionInventoryPorts {
   catalog: Pick<Catalog, 'overview' | 'mcpStatus' | 'lspStatus'>
   panels: Record<UserPanelKind, Pick<PanelResourceStore, 'list'>>
+  /** The output styles the preset can carry as one choice. */
+  outputStyles?: () => Promise<OutputStylesPayload>
+  /** The instruction chain, so a preset can list the prompt files it covers. */
+  instructions?: () => Promise<InstructionsPayload>
 }
 
 /** Shared options every mode honours. */
@@ -442,6 +448,40 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
       }
       rows.push(row)
       rowById.set(row.id, row)
+    }
+  }
+  // The prompt layer: the two surfaces a preset could not reach before. An output style
+  // is one choice, so its rows switch like a radio group; an instruction file has no
+  // switch at all and says why, so the preset lists it without pretending to toggle it.
+  const [styles, chain] = await Promise.all([ports.outputStyles?.(), ports.instructions?.()])
+  if (styles !== undefined) {
+    for (const style of styles.styles) {
+      rows.push({
+        id: 'outputStyles:' + style.id,
+        face: 'outputStyles',
+        name: style.label,
+        source: style.source === 'user' ? 'user' : ((style.suiteKey ?? '').split('/')[0] ?? ''),
+        ...(style.description === undefined ? {} : { description: style.description }),
+        available: style.source === 'user' || style.capture !== 'missing',
+        globalEnabled: styles.selected === style.id,
+        detail: { kind: 'outputStyle', entryId: style.id }
+      })
+    }
+  }
+  if (chain !== undefined && chain.available) {
+    for (const row of chain.rows) {
+      if (!row.exists) continue
+      rows.push({
+        id: 'instructions:' + [row.scope, row.directory, row.candidate].join('/'),
+        face: 'instructions',
+        name: row.displayPath,
+        source: row.scope === 'project' ? chain.projectRoot : chain.cwd,
+        ...(row.size === undefined ? {} : { description: row.size + ' bytes' }),
+        available: row.status === 'loaded' || row.status === 'truncated',
+        globalEnabled: true,
+        unavailableReason: 'instructions-no-switch',
+        detail: { kind: 'instructions', entryId: [row.scope, row.directory, row.candidate].join('/') }
+      })
     }
   }
   return rows

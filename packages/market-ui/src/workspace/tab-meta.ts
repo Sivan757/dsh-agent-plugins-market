@@ -37,8 +37,10 @@ export const WORKSPACE_TAB_META: Record<WorkspaceTabKey, WorkspaceTabMeta> = {
   commands: { label: 'workspaceTabCommands', surface: 'surfaceCommands', presetFace: 'commands' },
   mcp: { label: 'workspaceTabMcp', surface: 'surfaceMcp', presetFace: 'mcp' },
   lsp: { label: 'workspaceTabLsp', surface: 'surfaceLsp', presetFace: 'lsp' },
-  instructions: { label: 'workspaceTabInstructions' },
-  outputStyles: { label: 'workspaceTabOutputStyles' },
+  // The prompt layer: a preset can carry the style (one choice) and can only list an
+  // instruction file (it has no switch), but both belong in the same row.
+  instructions: { label: 'workspaceTabInstructions', presetFace: 'instructions' },
+  outputStyles: { label: 'workspaceTabOutputStyles', presetFace: 'outputStyles' },
   hooks: { label: 'workspaceTabHooks', surface: 'surfaceHooks', presetFace: 'hooks' }
 }
 
@@ -49,7 +51,7 @@ export const WORKSPACE_TAB_META: Record<WorkspaceTabKey, WorkspaceTabMeta> = {
  * compile-time literal at every call site. The names are the preset manager's own;
  * `workspaceKeyOfFace` is what turns one into a workspace tab key.
  */
-export const PRESET_FACES = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'hooks'] as const
+export const PRESET_FACES = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'instructions', 'outputStyles', 'hooks'] as const
 
 /**
  * The workspace tab key a preset face names.

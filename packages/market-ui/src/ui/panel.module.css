@@ -259,13 +259,14 @@
   line-height: 16px;
 }
 
+/* A detail grid holds values a reader came to read: a path, a command, a byte count.
+   Truncating a path turns the field into a puzzle, and the dialog has the room — so
+   these wrap instead of ending in an ellipsis. */
 .kvValue {
   margin: 3px 0 0;
-  overflow: hidden;
   font-size: 12.5px;
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .monoBlock {

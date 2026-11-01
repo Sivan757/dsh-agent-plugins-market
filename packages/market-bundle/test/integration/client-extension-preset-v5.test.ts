@@ -364,6 +364,8 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
     settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
     settingsEn.workspaceTabLsp,
+    settingsEn.workspaceTabInstructions,
+    settingsEn.workspaceTabOutputStyles,
     settingsEn.workspaceTabHooks
   ]
   const faceTabLabels = () =>
@@ -438,9 +440,9 @@ describe('user hooks configuration row', () => {
     const tabRule = /\.tab\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
     expect(tabRule).toMatch(/flex:\s*none/)
     expect(tabRule).toMatch(/white-space:\s*nowrap/)
-    // The face row is one tablist holding the seven faces directly, and it is not
-    // the host's equal-column grid: no inline grid template is set on it.
-    const faceLists = [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 7)
+    // The face row is one tablist holding every face directly, and it is not the host's
+    // equal-column grid: no inline grid template is set on it.
+    const faceLists = [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 9)
     expect(faceLists).toHaveLength(1)
     expect(faceLists[0]!.getAttribute('style') ?? '').not.toContain('minmax(0, 1fr)')
     // The row carries the face tabs directly, so the tab list is the rail itself rather
@@ -450,7 +452,7 @@ describe('user hooks configuration row', () => {
     // One child is not a tab: the moving selection pill, drawn behind the labels. The row
     // carries no group wrapper and no divider.
     expect(children.every(child => child.getAttribute('role') === 'tab')).toBe(true)
-    expect(children.filter(child => child.getAttribute('role') === 'tab')).toHaveLength(7)
+    expect(children.filter(child => child.getAttribute('role') === 'tab')).toHaveLength(9)
   })
 
   it('keeps the user-hooks configuration row out of every face tab in a localized build', async () => {
@@ -470,6 +472,8 @@ describe('user hooks configuration row', () => {
       tZh('workspaceTabCommands'),
       tZh('workspaceTabMcp'),
       tZh('workspaceTabLsp'),
+      tZh('workspaceTabInstructions'),
+      tZh('workspaceTabOutputStyles'),
       tZh('workspaceTabHooks')
     ]
     const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
@@ -604,6 +608,8 @@ describe('hooks tab', () => {
       settingsEn.workspaceTabCommands,
       settingsEn.workspaceTabMcp,
       settingsEn.workspaceTabLsp,
+      settingsEn.workspaceTabInstructions,
+      settingsEn.workspaceTabOutputStyles,
       settingsEn.workspaceTabHooks
     ])
     await click(settingsEn.workspaceTabHooks)
@@ -732,7 +738,7 @@ describe('hooks tab', () => {
     expect(registered.textContent).toContain(tZh('epHookEventUnsupported'))
   })
 
-  it('keeps the seven one-line face tabs on the shared scrolling rail', async () => {
+  it('keeps every one-line face tab on the shared scrolling rail', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -751,7 +757,7 @@ describe('hooks tab', () => {
       )
     )
     // Seven primary faces on one rail. The secondary event row is gone.
-    const faceLists = () => [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 7)
+    const faceLists = () => [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 9)
     expect(faceLists()).toHaveLength(1)
     await click(settingsEn.workspaceTabHooks)
     expect(faceLists()).toHaveLength(1)

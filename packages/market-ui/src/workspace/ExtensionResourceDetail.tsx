@@ -9,6 +9,7 @@ import { fetchLspStatus, fetchMcpStatus, fetchUserPanelEntry, type LspStatusEntr
 import type { Translate } from '../i18n.js'
 import { HookDetailModal } from '../ui/HookDetailModal.js'
 import type { ExtensionDetailProps } from '../features/extension-presets/details.js'
+import panelCss from '../ui/panel.module.css'
 
 export function ExtensionDetailView(props: ExtensionDetailProps): ReactNode {
   // A configuration row's identity is a wire id; every spoken name takes the
@@ -93,6 +94,17 @@ function ResourceDetail({ resource, t, showOriginal, onClose }: ExtensionDetailP
       onRetry: async () => mcp,
       onReauthorize: async () => mcp
     })
+  // The prompt layer: a style is one choice the footer's switch selects, and an
+  // instruction file has no switch at all, so the dialog explains instead.
+  if (address.kind === 'outputStyle' || address.kind === 'instructions') {
+    const note = address.kind === 'outputStyle' ? t('epStyleChoiceNote') : t('epInstructionsNoSwitch')
+    return h(
+      DetailModal,
+      { open: true, title: resource.name, closeLabel: t('epClose'), onClose },
+      resource.description === undefined ? null : h('p', { className: panelCss.detailProse }, resource.description),
+      h('p', { className: panelCss.detailProse }, note)
+    )
+  }
   // The fallback keeps the localized display name the list row and the loaded
   // detail both show, instead of the raw wire id a configuration row carries.
   const shownName = resource.configuration === 'user-hooks' ? t('epUserHooks') : resource.name
