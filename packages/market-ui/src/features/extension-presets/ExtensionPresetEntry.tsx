@@ -117,7 +117,11 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
    */
   const summaryOf = (ids: readonly string[]): string => {
     const rows = data?.resources ?? []
-    const on = rows.filter(row => row.face !== 'instructions' && row.face !== 'outputStyles' && ids.includes(row.id)).length
+    // Count in the unit the reader thinks in, and in the unit the tabs count: installed
+    // suites, which is what the market face's own filter tabs total. Counting every row
+    // produced "132" and counting every self-standing row produced "22"; the tab says 18,
+    // and a summary that cannot be reconciled with the row below it is worse than none.
+    const on = rows.filter(row => row.face === 'market' && ids.includes(row.id)).length
     const styleId = ids.find(id => id.startsWith('outputStyles:'))
     const style = styleId === undefined ? undefined : rows.find(row => row.id === styleId)?.name
     const files = rows.filter(row => row.face === 'instructions').length
