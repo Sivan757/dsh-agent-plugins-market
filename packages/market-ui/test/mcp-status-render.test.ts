@@ -383,7 +383,10 @@ describe('MCP status actions', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
 
-    const retry = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpRetryConnection'))
+    // The card carries the same action now, so the band's button is the one inside the
+    // dialog this click opened.
+    const dialog = document.querySelector('[role="dialog"]')!
+    const retry = [...dialog.querySelectorAll('button')].find(button => button.textContent?.includes('mcpRetryConnection'))
     expect(retry).toBeDefined()
 
     // A failed retry echoes the action failure in place, and the button stays

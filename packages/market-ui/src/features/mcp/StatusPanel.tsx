@@ -239,6 +239,12 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
         const seconds = entry.mountMs === undefined || entry.mountMs < 1000 ? undefined : (entry.mountMs / 1000).toFixed(1) + 's'
         return { warning: seconds === undefined ? failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) : failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) + ' · ' + seconds }
       })(),
+      // The row that failed carries the action that fixes it: the state word names the
+      // problem, and the retry used to live only in the row's dialog. The retry checks
+      // every managed service (its own hint says so), which is what the detail offers too.
+      ...(entry.state === 'failed' || entry.state === 'degraded'
+        ? { primary: { label: t('mcpRetryConnection'), title: t('mcpRetryPreservesCredentials'), onSelect: () => void retry(entry.id) } }
+        : {}),
       canEdit: switchable,
       toggleLabel: disabled ? t('enable') : t('disable')
     }
