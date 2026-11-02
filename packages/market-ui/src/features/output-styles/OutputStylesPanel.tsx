@@ -159,10 +159,10 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         name: row.label,
         tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
         tagId: row.source,
-        // A suite style's description arrives as a code: the copy lives in the client's
-        // dictionaries, because the server that produced the row cannot know the reader's
+        // A suite row carries a typed hint, not a sentence: the words live in the client's
+        // dictionaries because the server that built the row cannot know the reader's
         // language.
-        description: row.description === 'suiteSessionStartCapture' ? t('outputStylesSuiteCaptureHint') : row.description,
+        description: row.hint === undefined ? row.description : t('outputStylesSuiteCaptureHint'),
         meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
         disabled: !isSelectable(row)
       })),

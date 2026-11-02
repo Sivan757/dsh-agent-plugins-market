@@ -89,10 +89,10 @@ export function createOutputStyleSuitePort(wiring: OutputStyleSuiteWiring): Outp
       rows.push({
         suiteKey,
         label: suite.manifest.name,
-        // A code, not a sentence: this module runs on the server, and user-visible copy
-        // belongs in the client's bilingual dictionaries. The panel renders the key this
-        // code maps to.
-        description: 'suiteSessionStartCapture',
+        // The typed hint, never a sentence: this module runs on the server and cannot know
+        // the reader's language. A suite style is captured from its hook, so the note says
+        // that; the client owns the words.
+        hint: 'suiteSessionStartCapture',
         fingerprint: suiteStyleFingerprint({
           suiteKey,
           ...(suite.manifest.version === undefined ? {} : { version: suite.manifest.version }),

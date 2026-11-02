@@ -80,18 +80,29 @@ export interface OutputStyleRow {
   id: string
   /** The name the page shows and the heading carries. */
   label: string
-  /** One line saying what the style changes. */
+  /** One line saying what the style changes, in the language the author wrote it in. */
   description: string
   /** The authored text; for a suite style, the captured text. */
   body: string
   source: OutputStyleSource
   /** Suite rows: the suite's source-qualified id. */
   suiteKey?: string
+  /** Suite rows: the note to show instead of a description, translated by the client. */
+  hint?: OutputStyleHintCode
   /** Suite rows: the fingerprint the current declaration produces. */
   fingerprint?: string
   /** Suite rows: whether a capture exists, and whether it still matches the suite. */
   capture?: OutputStyleCaptureState
 }
+
+/**
+ * A note the client translates, instead of copy the server writes.
+ *
+ * A suite row cannot carry a sentence: the server that builds it does not know the
+ * reader's language. A `hint` code is a typed union, so a hardcoded English sentence
+ * cannot compile as one, and the panel maps it to a bilingual dictionary entry.
+ */
+export type OutputStyleHintCode = 'suiteSessionStartCapture'
 
 /** One captured suite text, bound to the suite state it was captured from. */
 export interface OutputStyleCaptured {

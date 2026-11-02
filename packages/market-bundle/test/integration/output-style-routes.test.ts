@@ -34,7 +34,7 @@ async function service(port?: OutputStyleSuitePort): Promise<OutputStyleService>
 /** A suite whose SessionStart hook the test controls. */
 function port(text = 'Teach as you go.'): OutputStyleSuitePort {
   return {
-    candidates: async () => [{ suiteKey: 'src/teaching', label: 'teaching-style', description: 'A suite style', fingerprint: 'fp-1' }],
+    candidates: async () => [{ suiteKey: 'src/teaching', label: 'teaching-style', hint: 'suiteSessionStartCapture', fingerprint: 'fp-1' }],
     capture: async (_suiteKey, fingerprint) => {
       if (fingerprint !== 'fp-1') throw new Error('suite changed')
       return JSON.stringify({ hookSpecificOutput: { additionalEvent: 'SessionStart', additionalContext: text } })

@@ -18,6 +18,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { stripFrontmatter } from '../../../market-catalog/src/index.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
+import type { OutputStyleHintCode } from '../../../market-contracts/src/contracts/output-styles.js'
 import type { OutputStyleRow } from '../../../market-contracts/src/contracts/output-styles.js'
 
 /** The directory inside the Agent layout root that holds user-authored styles. */
@@ -156,7 +157,8 @@ export interface SuiteStyleCandidate {
   /** `sourceId/suiteId`. */
   suiteKey: string
   label: string
-  description: string
+  /** A note the client translates; the server never writes reader-facing copy. */
+  hint: OutputStyleHintCode
   /** Hash of the declaration the captured text was produced from. */
   fingerprint: string
 }

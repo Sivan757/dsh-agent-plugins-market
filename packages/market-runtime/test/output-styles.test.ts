@@ -35,7 +35,7 @@ function suitePort(overrides: { fingerprint?: string; text?: string; captured?: 
   const state = { fingerprint: overrides.fingerprint ?? 'fp-1', text: overrides.text ?? 'Teach as you go.' }
   return {
     captured,
-    candidates: async () => [{ suiteKey: 'src/teaching', label: 'teaching-style', description: 'A suite style', fingerprint: state.fingerprint }],
+    candidates: async () => [{ suiteKey: 'src/teaching', label: 'teaching-style', hint: 'suiteSessionStartCapture', fingerprint: state.fingerprint }],
     capture: async (_suiteKey, fingerprint) => {
       captured.push(fingerprint)
       if (fingerprint !== state.fingerprint) throw new Error('suite changed since the page read it')

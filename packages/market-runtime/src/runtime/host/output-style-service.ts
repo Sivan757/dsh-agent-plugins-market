@@ -193,7 +193,10 @@ export class OutputStyleService {
     return candidates.map(candidate => ({
       id: `suite:${candidate.suiteKey}`,
       label: candidate.label,
-      description: candidate.description,
+      // A suite row has no authored description: its note is the typed hint the client
+      // translates, because this server cannot know the reader's language.
+      description: '',
+      hint: candidate.hint,
       // The body of a suite style is its captured text; a row without a current
       // capture renders empty and offers the capture action.
       body: captured?.suiteKey === candidate.suiteKey && captured.fingerprint === candidate.fingerprint ? captured.text : '',
