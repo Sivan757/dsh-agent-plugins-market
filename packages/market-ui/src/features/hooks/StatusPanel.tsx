@@ -17,6 +17,23 @@ import css from '../mcp/mcp-status.module.css'
 /** One hook's detail address, as the shared card opens it. */
 type HookDetail = Extract<ExtensionDetail, { kind: 'hook' }>
 
+/**
+ * A hook command as a card shows it.
+ *
+ * The command is the row's identity, but an absolute interpreter path eats the line: the
+ * one long value says where the script happens to live rather than what runs. This keeps
+ * the leading words and shortens every absolute path to its last two segments.
+ *
+ * @param command - the authored command line.
+ * @returns the same command with long paths abbreviated.
+ */
+function commandForCard(command: string): string {
+  return command.replace(/((?:\/[^\s"']+){2,})/gu, path => {
+    const segments = path.split('/').filter(Boolean)
+    return segments.length <= 2 ? path : '…/' + segments.slice(-2).join('/')
+  })
+}
+
 /** The configured command hooks of both sources, grouped by event, read-only. */
 export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   const [rows, setRows] = useState<ExtensionResource[]>([])
@@ -60,8 +77,11 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
         name: row.name,
         // The tag names the stage; the support verdict is the warning below it.
         tag: row.description,
-        // The authored command is what this row is; the stage is the tag.
-        description: row.detail.kind === 'hook' ? row.detail.command : row.description,
+        // The authored command is what this row is; the stage is the tag. A hook command
+        // that points at a script is mostly an absolute path, so the card shows only the
+        // command and the file it runs: the whole line lives in the detail's declaration row,
+        // and a card body is one line to scan, not a mount point to read.
+        description: row.detail.kind === 'hook' && row.detail.command !== undefined ? commandForCard(row.detail.command) : row.description,
         warning: limited(row) ? t(row.unavailableReason === 'hook-event-partial' ? 'hooksEventPartial' : 'hooksEventUnsupported') : undefined,
         meta: row.source,
         state: limited(row) ? ('warning' as const) : ('active' as const),
