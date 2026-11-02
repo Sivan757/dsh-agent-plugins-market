@@ -173,6 +173,10 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         // already is. A row without a current capture cannot be selected, so its state
         // names the step that is missing instead.
         stateLabel: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured'),
+        // The step the state word names, offered where the word is: a row that cannot be
+        // selected because its text was never captured says so and gives the action that
+        // fixes it, instead of sending the reader into the dialog to find out.
+        ...(row.hint === undefined || isSelectable(row) ? {} : { primary: { label: t('outputStylesCapture'), onSelect: () => capture(row) } }),
         onToggle: () => select(row),
         disabled: !isSelectable(row)
       })),
