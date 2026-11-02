@@ -396,7 +396,12 @@ export class ExtensionRuntime implements ExtensionRouteService {
     const resources = await this.refreshInventory(agent)
     const library = await this.store.read(workspace)
     const preset = source === 'legacy' ? undefined : library.presets.find(row => row.id === library.defaultPresetId)
-    if (preset) return captureExtensionSelection(preset, [])
+    if (preset) {
+      // A session that starts on the workspace default gets that preset's style too: the
+      // selection carries the id, but nothing else would turn it into a chosen style.
+      await this.applyStyleOf(agent, preset.enabledIds)
+      return captureExtensionSelection(preset, [])
+    }
     const legacy = source === 'legacy' ? await loadResourceFilters(this.ports.dataRoot, workspace) : undefined
     const available = resources.filter(
       row =>
@@ -565,18 +570,28 @@ export class ExtensionRuntime implements ExtensionRouteService {
       )
     )
     if (outcome.applied) {
-      // The style rides the preset as an id, like a capability; the surface selection
-      // ignores it, so the call below is what makes it real.
-      const styleId = preset?.enabledIds.find(row => row.startsWith('outputStyles:'))?.slice('outputStyles:'.length)
-      if (styleId !== undefined && this.ports.applyOutputStyle !== undefined) {
-        try {
-          await this.ports.applyOutputStyle(agent, styleId)
-        } catch {
-          // A style that cannot be selected must not fail the preset: every capability in
-          // it already applies, and the panel reports the style's own state.
-        }
-      }
+      if (preset !== undefined) await this.applyStyleOf(agent, preset.enabledIds)
       await this.ports.ready?.(agent)
+    }
+  }
+
+  /**
+   * Select the output style a set of preset ids carries, when one does.
+   *
+   * The style rides the preset as an id, like a capability; the surface selection ignores
+   * it, so this call is what makes it real. A failure here must not fail the preset: every
+   * capability in it already applies, and the panel reports the style's own state.
+   *
+   * @param agent - the session whose workspace chooses the style.
+   * @param ids - the preset's selection.
+   */
+  private async applyStyleOf(agent: Agent, ids: readonly string[]): Promise<void> {
+    const styleId = ids.find(row => row.startsWith('outputStyles:'))?.slice('outputStyles:'.length)
+    if (styleId === undefined || this.ports.applyOutputStyle === undefined) return
+    try {
+      await this.ports.applyOutputStyle(agent, styleId)
+    } catch {
+      // Reported by the style surface itself; the preset still applies.
     }
   }
   async dispose(): Promise<void> {
