@@ -187,8 +187,15 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       t,
       searchLabel: t('cardSearch'),
       searchPlaceholder: t('instructionsSearchPh'),
-      // No tabs: the chain is a handful of rows, the tag already names each status, and a
-      // "loaded" tab would hide exactly the truncated row someone opens the page to find.
+      // Two scopes, not a state cut: the chain is a handful of rows, the tag already names
+      // each status, and a "loaded" tab would hide exactly the truncated row someone opens
+      // the page to find. Which half a file belongs to is the question this page answers
+      // second-most often ("where do I change this?"), and it used to be readable only off
+      // each card's meta line.
+      filters: [
+        { id: 'user', label: t('instructionsGroupGlobal'), match: item => item.keywords === 'user' },
+        { id: 'project', label: t('instructionsGroupProject'), match: item => item.keywords === 'project' }
+      ],
       // No text toggle either: this surface shows paths, sizes and status words, and all
       // three are already in the reader's language — a switch between original and
       // translation had nothing to switch.
@@ -207,7 +214,10 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
           name: row.displayPath,
           tag: t(statusLocaleKey(row.status)),
           tagId: row.status,
-          meta: row.size === undefined ? scopeName(t, row) : t('instructionsRowMeta', { scope: scopeName(t, row), bytes: String(row.size) })
+          meta: row.size === undefined ? scopeName(t, row) : t('instructionsRowMeta', { scope: scopeName(t, row), bytes: String(row.size) }),
+          // The filter reads the scope without showing it twice: keywords is search text the
+          // card does not render.
+          keywords: row.scope === 'project' ? 'project' : 'user'
         })),
       emptyText: error !== undefined || payload?.error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('instructionsPreviewEmpty'),
       onOpen: id => {

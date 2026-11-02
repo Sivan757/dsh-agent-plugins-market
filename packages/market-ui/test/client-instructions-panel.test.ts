@@ -287,9 +287,11 @@ describe('instructions panel', () => {
       setter?.call(field, '')
       field.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    // No status tabs: the list is at most two rows, so the card's own tag is what
-    // names the state, and every row stays reachable while browsing.
-    expect(host!.querySelectorAll('[data-panel-toolbar] [role="tab"]')).toHaveLength(0)
+    // Two scope cuts, and no state cut: the card's own tag names each status, so every row
+    // stays reachable while browsing. The cuts answer "which half is this file in", not
+    // "which files loaded".
+    const cuts = [...host!.querySelectorAll('[data-panel-toolbar] [role="tab"]')].map(node => (node.textContent ?? '').trim())
+    expect(cuts).toEqual(['filterAll 4', 'instructionsGroupGlobal 2', 'instructionsGroupProject 2'])
 
     // The view switch re-lays the same collection out as a list.
     const toList = host!.querySelector<HTMLButtonElement>('[data-panel-toolbar] button[aria-label="list"]')!
