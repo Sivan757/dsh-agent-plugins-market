@@ -182,6 +182,10 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
           const seconds = entry.mountMs === undefined || entry.mountMs < 1000 ? undefined : (entry.mountMs / 1000).toFixed(1) + 's'
           return { warning: seconds === undefined ? failureCause(sentence) : failureCause(sentence) + ' · ' + seconds }
         })(),
+        // The row that did not mount carries the action that fixes it: the same principle
+        // the connectors list follows, and the restart used to live only in the row's
+        // dialog. A restart names this row's mount, so it cannot touch a sibling.
+        ...(entry.state === 'failed' ? { primary: { label: t('lspRestart'), title: t('lspRestartHint'), onSelect: () => void restart(entry) } } : {}),
         state: lspCardState(entry.state),
         // The rail is colour only; this is what a screen reader hears.
         stateLabel: stateLabel(t, entry.state)
