@@ -98,6 +98,42 @@ export function toggleResource(resource: ExtensionResource, ids: readonly string
   } else next.delete(resource.id)
   return [...next]
 }
+/** What one preset's selection covers, in the units the manager's faces count. */
+export interface PresetCoverage {
+  /** Installed suites switched on. */
+  suites: number
+  /** The output style the preset carries, when one is selected and known. */
+  style: string | undefined
+  /** Instruction files the chain lists, and how many of them the host does not inject. */
+  files: number
+  missingFiles: number
+}
+
+/**
+ * Summarize a selection the way the faces count it.
+ *
+ * A suite carries its children with it, so counting every enabled id produced a number
+ * (132) beside a face whose filter tabs read 18; the count here is the unit the market
+ * face totals. Instruction files have no switch, so they are counted from the rows and
+ * reported separately when some are not injected: a preset that lists a file the host
+ * skips is a difference a reader should see, not a number that hides it.
+ *
+ * @param rows - the inventory the manager renders.
+ * @param ids - the preset's selection.
+ * @returns the coverage the summary line states.
+ */
+export function presetCoverage(rows: readonly ExtensionResource[], ids: readonly string[]): PresetCoverage {
+  const selected = new Set(ids)
+  const styleId = ids.find(id => id.startsWith('outputStyles:'))
+  const files = rows.filter(row => row.face === 'instructions')
+  return {
+    suites: rows.filter(row => row.face === 'market' && selected.has(row.id)).length,
+    style: styleId === undefined ? undefined : rows.find(row => row.id === styleId)?.name,
+    files: files.length,
+    missingFiles: files.filter(row => !row.available).length
+  }
+}
+
 export function uniquePresetName(name: string, names: readonly string[]): string {
   let result = name
   for (let suffix = 2; names.includes(result); suffix++) result = name.slice(0, 70) + ' (' + suffix + ')'

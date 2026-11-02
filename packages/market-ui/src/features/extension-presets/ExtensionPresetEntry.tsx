@@ -25,7 +25,7 @@ import type { ExtensionTranslate } from './types.js'
 import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
-import { resourceSelected, toggleResource, uniquePresetName } from './resource.js'
+import { presetCoverage, resourceSelected, toggleResource, uniquePresetName } from './resource.js'
 import css from './presets.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
 import sourceCss from '../../ui/source-strip.module.css'
@@ -116,19 +116,18 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
    * instruction files, which have no switch and are listed regardless.
    */
   const summaryOf = (ids: readonly string[]): string => {
-    const rows = data?.resources ?? []
-    // Count in the unit the reader thinks in, and in the unit the tabs count: installed
-    // suites, which is what the market face's own filter tabs total. Counting every row
-    // produced "132" and counting every self-standing row produced "22"; the tab says 18,
-    // and a summary that cannot be reconciled with the row below it is worse than none.
-    const on = rows.filter(row => row.face === 'market' && ids.includes(row.id)).length
-    const styleId = ids.find(id => id.startsWith('outputStyles:'))
-    const style = styleId === undefined ? undefined : rows.find(row => row.id === styleId)?.name
-    const files = rows.filter(row => row.face === 'instructions').length
+    // The counts come from one helper so the sentence cannot drift from the faces: suites
+    // in the unit the market face totals, the single style when chosen, and the instruction
+    // files — with the ones the host does not inject named, not smoothed over.
+    const coverage = presetCoverage(data?.resources ?? [], ids)
+    const files =
+      coverage.missingFiles === 0
+        ? t('epSummaryFiles', { count: String(coverage.files) })
+        : t('epSummaryFilesPartial', { count: String(coverage.files), missing: String(coverage.missingFiles) })
     return [
-      t('epSummaryCapabilities', { count: String(on) }),
-      style === undefined ? t('epSummaryNoStyle') : t('epSummaryStyle', { style }),
-      t('epSummaryFiles', { count: String(files) })
+      t('epSummaryCapabilities', { count: String(coverage.suites) }),
+      coverage.style === undefined ? t('epSummaryNoStyle') : t('epSummaryStyle', { style: coverage.style }),
+      files
     ].join(' · ')
   }
   /** The style name a preset carries, when the inventory knows it. */
