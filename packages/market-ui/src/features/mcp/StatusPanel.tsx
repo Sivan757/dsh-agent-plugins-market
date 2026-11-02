@@ -5,6 +5,7 @@ import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import panelCss from '../../ui/panel.module.css'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { matchesMcpFilter, MCP_FILTERS, nextConnectionRead, type McpStatusFilter } from './mcp-status-view-model.js'
 import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpStateLabel } from './state-helpers.js'
@@ -252,6 +253,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       subtitle: t('mcpStatusSubtitle'),
       actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setAdding(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
     }),
+    // Which backend mounts these servers is a setting this page cannot change, but it
+    // decides whether a startup timeout or a tool filter is enforced at all. Saying it
+    // here keeps a reader from configuring a policy the backend silently ignores.
+    payload.backend === 'host' ? h('p', { className: panelCss.subtitle, 'data-mcp-backend': 'host' }, t('mcpHostToolsUnsupported')) : null,
     // The last read's failure stays visible above the list: a stale row is
     // still worth seeing, and the retry sits where the failure is.
     error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
