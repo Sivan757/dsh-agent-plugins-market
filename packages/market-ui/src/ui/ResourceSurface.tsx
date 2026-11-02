@@ -308,7 +308,14 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
       // controls sit lower than every other tab's.
       notice,
       shown.length === 0
-        ? h('p', { className: surface.empty }, emptyText)
+        ? // The panel's empty sentence answers "there is nothing here". A search that matched
+          // nothing is a different fact about a list that does have rows, so it says that
+          // instead of claiming the collection is empty.
+          h(
+            'p',
+            { className: surface.empty, ...(entries.length > 0 ? { 'data-empty-match': '' } : {}) },
+            entries.length > 0 ? t('resultsNoMatch', { total: String(entries.length) }) : emptyText
+          )
         : h(
             ResourceCollection,
             { view },
