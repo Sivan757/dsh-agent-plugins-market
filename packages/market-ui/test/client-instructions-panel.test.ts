@@ -191,6 +191,21 @@ describe('instructions panel', () => {
     expect(cards()).toEqual([])
   })
 
+  it('takes focus into its dialog and gives it back to the card on Escape', async () => {
+    // The connector panel pins this for the dialogs the host draws; this one is ours, and a
+    // reading-first page is exactly where a misplaced focus would be invisible.
+    await mount()
+    const card = cards()[0]!.querySelector<HTMLElement>('[data-card-open]')!
+    card.focus()
+    await act(async () => card.click())
+    expect(document.querySelector('[role="dialog"]')!.contains(document.activeElement)).toBe(true)
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(card)
+  })
+
   it('opens a card for reading, and edits only when asked', async () => {
     await mount()
     await act(async () => cards()[0]!.click())
