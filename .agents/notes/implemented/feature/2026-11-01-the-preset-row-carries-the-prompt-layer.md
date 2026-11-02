@@ -21,6 +21,10 @@ The reason was a data model, not a preference: `enabledIds` accepted only `marke
 - **Keep the row at seven and explain the gap.** Rejected: the explanation was already there and did not satisfy the requirement; the faces are what was asked for.
 - **Carry the selected style in `ExtensionSelection` as its own field.** Rejected for now: `enabledIds` already travels through every layer the preset selection touches, so one id prefix carries it end to end with no schema migration; a dedicated field can come later if the selection ever needs to distinguish "recorded" from "applied".
 
+## Follow-up
+
+The user pages said "click a resource card or its switch to enable or disable it", which stopped being true for two faces: a card opens the resource now, and an instruction file has no switch. `docs/user/settings.md` and its Chinese pair state the current interaction and the boundary, and keep equal line counts (23 each).
+
 ## Consequences
 
 - The preset manager and the settings page show the same nine faces.
