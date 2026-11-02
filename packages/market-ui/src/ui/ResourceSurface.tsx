@@ -218,9 +218,15 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
   // status line says what the list now holds, after the change has landed.
   const [statusText, setStatusText] = useState('')
   useEffect(() => {
-    // The total is the matched set, not the whole inventory: after a search the
-    // reader is told what the search found, and paging reads "120 of 971".
-    setStatusText(t('resultsStatus', { shown: String(visible.length), total: String(shown.length) }))
+    // The total is the matched set, not the whole inventory: after a search the reader is
+    // told what the search found, and paging reads "120 of 971". With nothing matched that
+    // sentence becomes "0 of 0", which says the collection is empty when the search simply
+    // found nothing, so that case says what happened instead.
+    setStatusText(
+      shown.length === 0 && entries.length > 0
+        ? t('resultsNone', { total: String(entries.length) })
+        : t('resultsStatus', { shown: String(visible.length), total: String(shown.length) })
+    )
   }, [visible.length, shown.length, entries.length, search, filter, t])
   const moreRef = useRef<HTMLDivElement | null>(null)
   // The sentinel grows the page as it comes into view; the button beside it is
