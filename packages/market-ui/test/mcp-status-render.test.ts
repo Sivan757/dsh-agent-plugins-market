@@ -181,6 +181,29 @@ async function mountPanel(credentials?: CredentialApi): Promise<HTMLDivElement> 
   return host
 }
 
+/** Keyboard reach: a detail dialog takes focus, and Escape gives it back to the card. */
+describe('detail dialog focus', () => {
+  it('moves focus into the dialog and returns it to the opening card on Escape', async () => {
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    const card = el.querySelector<HTMLElement>('[data-card-open]')!
+    card.focus()
+    await act(async () => {
+      card.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(card)
+  })
+})
+
 /** The duration a slow failure reports, so the number is not only in a log. */
 describe('MCP mount duration', () => {
   it('names how long the last attempt took, in the detail and in the copied block', async () => {
