@@ -34,6 +34,23 @@ function commandForCard(command: string): string {
   })
 }
 
+/**
+ * The name a hook card leads with.
+ *
+ * A hook's identity for a reader is the script it runs, not the interpreter line that
+ * invokes it: the command is an absolute path and it was the card's title, so every row led
+ * with a mount point. This takes the last segment of the path the command runs, and falls
+ * back to the command's first word when it runs no file.
+ *
+ * @param command - the authored command line.
+ * @returns the script's file name, or the command's leading word.
+ */
+function scriptNameOf(command: string): string {
+  const path = /(?:\/[^\s"']+)+/u.exec(command)?.[0]
+  if (path !== undefined) return path.split('/').filter(Boolean).pop() ?? path
+  return command.trim().split(/\s+/u)[0] ?? command
+}
+
 /** The configured command hooks of both sources, grouped by event, read-only. */
 export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   const [rows, setRows] = useState<ExtensionResource[]>([])
@@ -74,7 +91,10 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
       t,
       entries: rows.map(row => ({
         id: row.id,
-        name: row.name,
+        // The script the row runs is what a reader recognizes; the command that invokes it
+        // is the body. `name` on the payload is the command, so the title is derived here.
+        name: row.detail.kind === 'hook' && row.detail.command !== undefined ? scriptNameOf(row.detail.command) : row.name,
+        hint: row.detail.kind === 'hook' && row.detail.command !== undefined ? row.name : undefined,
         // The tag names the stage; the support verdict is the warning below it.
         tag: row.description,
         // The authored command is what this row is; the stage is the tag. A hook command
