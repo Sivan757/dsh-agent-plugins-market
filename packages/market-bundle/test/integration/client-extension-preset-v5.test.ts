@@ -196,14 +196,14 @@ it('coalesces same-id project cards and toggles the unnamed draft', async () => 
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
   expect(posts).toHaveLength(0)
-  await click('Enabled 0')
-  expect(cards()).toHaveLength(0)
+  // Nothing is enabled, so the Enabled cut is not drawn at all: a chip that can only
+  // land on an empty list is chrome, not a query.
+  expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').trim() === 'Enabled 0')).toBe(false)
   await click('All 1')
   expect(cards()).toHaveLength(1)
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['active'])
-  await click('Disabled 0')
-  expect(cards()).toHaveLength(0)
+  expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').trim() === 'Disabled 0')).toBe(false)
   await click('All 1')
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])

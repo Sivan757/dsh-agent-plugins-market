@@ -533,7 +533,11 @@ describe('extension preset rendering', () => {
     const filterTab = document.getElementById(inner.getAttribute('aria-labelledby')!)!
     expect(filterTab.textContent).toContain('All')
     expect(filterTab.getAttribute('aria-controls')).toBe(inner.id)
-    await act(async () => [...panel.querySelectorAll<HTMLElement>('[role="tab"]')].find(node => node.textContent?.startsWith('Disabled'))!.click())
+    // Any cut the fixture actually fills: a cut nothing falls into is no longer drawn, and
+    // this test is about the ARIA wiring, not about which cut exists.
+    const filterTabs = [...panel.querySelectorAll<HTMLElement>('[role="tab"]')].filter(node => (node.getAttribute('aria-controls') ?? '').includes('-panel'))
+    const target = filterTabs.find(node => !(node.textContent ?? '').startsWith('All')) ?? filterTabs[0]!
+    await act(async () => target.click())
     const filteredPanel = panel.querySelector<HTMLElement>('[role="tabpanel"]')!
     expect(document.getElementById(filteredPanel.getAttribute('aria-labelledby')!)!.getAttribute('aria-controls')).toBe(filteredPanel.id)
     await click('Shortcuts')
