@@ -11,7 +11,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Menu, IconPlusOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InstructionDeleteResult, InstructionRow, InstructionsPayload, InstructionScope } from '../../api.js'
 import { deleteInstructionFile, fetchInstructions, saveInstructionFile } from '../../api.js'
 import type { Translate } from '../../i18n.js'
@@ -24,6 +24,7 @@ import { InstructionDetail } from './InstructionDetail.js'
 import { statusLocaleKey } from './instructions-view-model.js'
 import css from './instructions.module.css'
 import panelCss from '../../ui/panel.module.css'
+import cardCss from '../../ui/resource-card.module.css'
 
 /** The one drafting session the editor holds. */
 interface EditorState {
@@ -156,18 +157,23 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
           portal: true,
           compact: true,
           align: 'end',
+          // The same 24px icon button every other panel puts in this corner: the header
+          // holds icons, and a text button here made this the one face whose add control
+          // changed the header's width. The label moves to the title and the accessible
+          // name, and the menu still asks which file to create.
           anchor: h(
-            Button,
+            'button',
             {
-              size: 'sm',
-              variant: 'ghost',
+              type: 'button',
+              className: cardCss.iconBtn,
+              title: t('instructionsCreate'),
               'aria-label': t('instructionsCreate'),
               'aria-haspopup': 'menu',
               'aria-expanded': createOpen,
               disabled: missingRows.length === 0,
               onClick: () => setCreateOpen(value => !value)
             },
-            t('instructionsCreate')
+            h(IconPlusOutlineMedium)
           ),
           items: missingRows.map(row => ({ id: `${row.scope}:${row.directory}:${row.candidate}`, label: row.displayPath + ' · ' + scopeName(t, row) })),
           onSelect: (id: string) => {
