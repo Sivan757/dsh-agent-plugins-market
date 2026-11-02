@@ -89,7 +89,10 @@ export function createOutputStyleSuitePort(wiring: OutputStyleSuiteWiring): Outp
       rows.push({
         suiteKey,
         label: suite.manifest.name,
-        description: "Captured from this suite's SessionStart hook. Capture it again after the suite changes, or the prompt keeps the text you approved.",
+        // A code, not a sentence: this module runs on the server, and user-visible copy
+        // belongs in the client's bilingual dictionaries. The panel renders the key this
+        // code maps to.
+        description: 'suiteSessionStartCapture',
         fingerprint: suiteStyleFingerprint({
           suiteKey,
           ...(suite.manifest.version === undefined ? {} : { version: suite.manifest.version }),
