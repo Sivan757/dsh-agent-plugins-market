@@ -572,7 +572,10 @@ export const zh = {
   outputStylesDeleteDesc: '删除这个自建风格的文件，操作无法撤销。',
   outputStylesErrorTitle: '读取输出风格失败',
   outputStylesEmpty: '还没有任何风格。插件可以提供，你也可以新建一个。',
-  outputStylesSuiteCaptureHint: '这段文本由该套件的 SessionStart 钩子产出。套件更新后请重新捕获，否则提示词会继续使用你上次确认的文本。'
+  outputStylesSuiteCaptureHint: '这段文本由该套件的 SessionStart 钩子产出。套件更新后请重新捕获，否则提示词会继续使用你上次确认的文本。',
+  outputStylesStateSelected: '使用中',
+  outputStylesStateNotSelected: '未选用',
+  outputStylesStateUncaptured: '未捕获'
 }
 
 export type LocaleKey = keyof typeof zh
@@ -1151,5 +1154,8 @@ export const en: Record<LocaleKey, string> = {
   outputStylesDeleteDesc: 'Deletes this style file. This cannot be undone.',
   outputStylesErrorTitle: 'Reading output styles failed',
   outputStylesEmpty: 'No styles yet. A plugin can provide one, and you can create one.',
-  outputStylesSuiteCaptureHint: "This text comes from the suite's SessionStart hook. Capture it again after the suite changes, or the prompt keeps the text you last approved."
+  outputStylesSuiteCaptureHint: "This text comes from the suite's SessionStart hook. Capture it again after the suite changes, or the prompt keeps the text you last approved.",
+  outputStylesStateSelected: 'In use',
+  outputStylesStateNotSelected: 'Not selected',
+  outputStylesStateUncaptured: 'Not captured'
 }

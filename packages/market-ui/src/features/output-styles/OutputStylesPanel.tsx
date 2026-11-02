@@ -154,6 +154,9 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         { id: 'suite', label: t('outputStylesGroupSuite'), match: item => item.tagId === 'suite' }
       ],
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
+      // One selection, chosen from the list: the switch is the choice, not an on/off
+      // switch that can be turned off — picking another style is how you change it.
+      capabilities: { toggle: true },
       entries: styles.map(row => ({
         id: row.id,
         name: row.label,
@@ -164,6 +167,13 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         // language.
         description: row.hint === undefined ? row.description : t('outputStylesSuiteCaptureHint'),
         meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
+        // Choosing a style is the one thing this face is for, and it used to live only
+        // inside the row's dialog: the card said 套件 and nothing else, so an installed
+        // style looked inert. The switch selects it, and the state word says whether it
+        // already is. A row without a current capture cannot be selected, so its state
+        // names the step that is missing instead.
+        stateLabel: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured'),
+        onToggle: () => select(row),
         disabled: !isSelectable(row)
       })),
       emptyText: error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('outputStylesEmpty'),
