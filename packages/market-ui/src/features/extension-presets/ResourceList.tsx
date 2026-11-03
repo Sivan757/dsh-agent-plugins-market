@@ -166,7 +166,10 @@ export function ResourceList({
           ? t('stateUnavailable')
           : selected(row)
             ? t('enabledLabel')
-            : t('disabledLabel')
+            : t('disabledLabel'),
+    // The switch's verb, so the control is not announced as the resource's name a second
+    // time. Hidden rows have no switch to label.
+    ...(row.control === 'global-only' || row.unavailableReason === 'instructions-no-switch' ? {} : { toggleLabel: selected(row) ? t('disable') : t('enable') })
   }))
   return (
     <div className={workspace.workspace}>

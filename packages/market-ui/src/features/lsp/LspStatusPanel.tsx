@@ -188,7 +188,10 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         ...(entry.state === 'failed' ? { primary: { label: t('lspRestart'), title: t('lspRestartHint'), onSelect: () => void restart(entry) } } : {}),
         state: lspCardState(entry.state),
         // The rail is colour only; this is what a screen reader hears.
-        stateLabel: stateLabel(t, entry.state)
+        stateLabel: stateLabel(t, entry.state),
+        // The switch's verb, so the control is not announced as the server's name a second
+        // time: 启用/禁用 plus the row says which row and what it does.
+        toggleLabel: entry.state === 'disabled' ? t('enable') : t('disable')
       })),
       capabilities: { toggle: true },
       searchLabel: t('lspSearch'),
